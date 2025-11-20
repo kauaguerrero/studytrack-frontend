@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { Logo } from "@/components/Logo";
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -14,20 +15,15 @@ export default function LoginPage() {
     try {
       setIsLoading(true);
       
-      // Chama o Supabase para iniciar o fluxo OAuth com Google
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          // Onde o usuário vai cair depois de logar no Google
           redirectTo: `${location.origin}/auth/callback`,
         },
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       
-      // Se der certo, o Supabase redireciona o usuário para o Google automaticamente.
     } catch (error) {
       console.error("Erro ao logar:", error);
       alert("Erro ao conectar com o Google. Tente novamente.");
@@ -38,11 +34,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 space-y-6 border border-slate-100">
-        
+        <div className="flex justify-center mb-6">
+          <Logo /> 
+        </div>
+
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-blue-600 tracking-tight">
-            StudyTrack
-          </h1>
           <p className="text-slate-500">
             Seu mentor de inteligência artificial para estudos.
           </p>
@@ -57,6 +53,7 @@ export default function LoginPage() {
             {isLoading ? (
               <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
             ) : (
+
               <img 
                 src="https://www.svgrepo.com/show/475656/google-color.svg" 
                 alt="Google" 
