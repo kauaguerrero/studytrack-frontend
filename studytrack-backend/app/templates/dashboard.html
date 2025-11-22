@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - StudyTrack</title>
+    <!-- TODO: Carregar Tailwind CSS -->
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        h1 { color: #333; }
+        ul { list-style-type: none; padding-left: 0; }
+        li { margin-bottom: 10px; }
+        .task-done { text-decoration: line-through; color: #888; }
+    </style>
+</head>
+<body>
+    
+    <h1>Olá, {{ user.name }}!</h1>
+    <p>Bem-vindo ao seu Dashboard do Mentor AI.</p>
+
+    <h2>Minhas Tarefas</h2>
+    <ul>
+        {% for task in tasks %}
+            <li class="{{ 'task-done' if task.done else 'task-pending' }}">
+                <input type="checkbox" {% if task.done %}checked{% endif %}>
+                {{ task.desc }}
+            </li>
+        {% else %}
+            <li>Nenhuma tarefa encontrada.</li>
+        {% endfor %}
+    </ul>
+
+</body>
+</html>

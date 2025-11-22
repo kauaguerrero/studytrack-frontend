@@ -1,0 +1,29 @@
+services:
+  evolution_api:
+    container_name: evolution_api
+    image: atendai/evolution-api:v1.8.2
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - AUTHENTICATION_API_KEY=${EVOLUTION_API_KEY}
+      - SERVER_URL=http://localhost:8080
+      - CONFIG_SESSION_PHONE_CLIENT=Evolution
+      - CONFIG_SESSION_PHONE_NAME=Chrome
+      - DATABASE_ENABLED=false
+      # Configuração do Redis
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis:6379/0
+      - CACHE_REDIS_PREFIX=evolution
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
+    container_name: evolution_redis
+    command: redis-server --appendonly yes
+    volumes:
+      - evolution_store:/data
+
+volumes:
+  evolution_store:
