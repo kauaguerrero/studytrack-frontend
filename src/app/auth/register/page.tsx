@@ -78,7 +78,6 @@ function RegisterForm() {
 
       // 2. Sucesso -> Redireciona
       if (data.session) {
-          // CORREÇÃO CRÍTICA: Atualiza o localStorage para garantir que a próxima página leia o plano correto
           localStorage.setItem('onboarding_plan', selectedPlan);
           
           router.push('/onboarding/objetivo');
