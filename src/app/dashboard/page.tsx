@@ -1,26 +1,31 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { LogOut, CheckCircle2, Circle, Calendar, Trophy, BarChart3, XCircle } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { TaskCard } from "./task-card";
 
 function formatDate(dateStr: string) {
-  const date = new Date(dateStr);
+  if (!dateStr) return "";
+
+  const [year, month, day] = dateStr.split('-').map(Number);
+  
+  const date = new Date(year, month - 1, day);
+
   const today = new Date();
+  today.setHours(0,0,0,0);
+  
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  date.setHours(0,0,0,0);
-  today.setHours(0,0,0,0);
-  tomorrow.setHours(0,0,0,0);
-
   if (date.getTime() === today.getTime()) return "Hoje";
   if (date.getTime() === tomorrow.getTime()) return "Amanhã";
+  
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
 export default async function Dashboard() {
   const supabase = await createClient();
 
-  // 1. Verificação de Auth
+  // 1. Verificação de Auth e Onboarding
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) redirect('/auth/login');
 
@@ -32,6 +37,7 @@ export default async function Dashboard() {
 
   if (!profile?.whatsapp_phone) redirect('/onboarding/telefone');
 
+  // 2. Buscar Tarefas
   const { data: tasks } = await supabase
     .from('plan_tasks')
     .select(`
