@@ -14,40 +14,37 @@ export default function OnboardingTelefone() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error || !session) {
-        throw new Error("Sessão expirada. Faça login novamente.");
-      }
+      // 1. Pegar o usuário atual para garantir
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não logado");
 
+      // 2. Limpar o telefone (deixar apenas números)
       const cleanPhone = phone.replace(/\D/g, "");
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
 
-      const response = await fetch(`${apiUrl}/api/auth/onboarding/complete`, {
+      // 3. Chamar nosso Backend Flask
+      // NOTA: Se der erro de CORS, precisaremos configurar o Flask depois.
+      const response = await fetch('http://127.0.0.1:5000/api/auth/onboarding/complete', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Enviamos o token real aqui
-          'Authorization': `Bearer ${session.access_token}`
+          // Em produção, passaríamos o token JWT aqui
         },
         body: JSON.stringify({
           whatsapp_phone: cleanPhone
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Falha ao salvar no backend");
-      }
+      if (!response.ok) throw new Error("Falha ao salvar no backend");
 
+      // 4. Sucesso! Atualiza a página para o Dashboard detectar a mudança
       router.refresh();
       router.push('/dashboard');
 
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
-      alert(error.message || "Erro desconhecido ao salvar.");
+      alert("Erro ao salvar telefone. Verifique se o Backend Flask está rodando!");
     } finally {
       setLoading(false);
     }
