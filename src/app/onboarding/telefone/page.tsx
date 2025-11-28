@@ -1,11 +1,10 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Phone, ArrowRight, Loader2, Brain, CheckCircle2, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-// --- Estilos para animações personalizadas ---
 const loadingStyles = `
   @keyframes pulse-ring {
     0% { transform: scale(0.8); opacity: 0.5; }
@@ -25,7 +24,6 @@ export default function OnboardingTelefone() {
   const router = useRouter();
   const supabase = createClient();
 
-  // Ciclo de mensagens para entreter o usuário durante o loading
   useEffect(() => {
     if (step === 'processing') {
       const messages = [
@@ -47,10 +45,9 @@ export default function OnboardingTelefone() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setStep('processing'); // Muda para a tela de loading
+    setStep('processing');
 
     try {
-      // 1. Pegar a SESSÃO atual
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError || !session) {
@@ -60,7 +57,27 @@ export default function OnboardingTelefone() {
       const token = session.access_token;
       const cleanPhone = phone.replace(/\D/g, "");
 
-      // 3. Chamar Backend Flask
+      // --- RECUPERA DADOS DO LOCALSTORAGE ---
+      const planTier = localStorage.getItem('onboarding_plan') || 'free';
+      
+      // Lógica de Foco (Free = Força Geral)
+      let focusArea = 'geral';
+      if (planTier !== 'free') {
+          focusArea = localStorage.getItem('onboarding_goal') || 'geral';
+      }
+
+      // Lógica PRO (Se não for PRO, usa defaults)
+      let studyPace = 'moderate';
+      let daysPerWeek = 5;
+      let hoursPerDay = 2;
+
+      if (planTier === 'pro') {
+          studyPace = localStorage.getItem('onboarding_pace') || 'moderate';
+          daysPerWeek = parseInt(localStorage.getItem('onboarding_days') || '5');
+          hoursPerDay = parseInt(localStorage.getItem('onboarding_hours') || '2');
+      }
+
+      // --- ENVIO PARA O BACKEND ---
       const response = await fetch('http://127.0.0.1:5000/api/auth/onboarding/complete', {
         method: 'POST',
         headers: {
@@ -68,7 +85,13 @@ export default function OnboardingTelefone() {
           'Authorization': `Bearer ${token}` 
         },
         body: JSON.stringify({
-          whatsapp_phone: cleanPhone
+          whatsapp_phone: cleanPhone,
+          plan_tier: planTier,
+          focus_area: focusArea,
+          // Campos Pro (Só fazem diferença se plan_tier for 'pro' no backend)
+          study_pace: studyPace,
+          days_per_week: daysPerWeek,
+          hours_per_day: hoursPerDay
         })
       });
 
@@ -77,7 +100,14 @@ export default function OnboardingTelefone() {
         throw new Error(errorData.error || "Falha ao salvar no backend");
       }
 
-      // 4. Sucesso! Mostra tela de conclusão rápida antes de redirecionar
+      // Limpeza Total
+      localStorage.removeItem('onboarding_plan');
+      localStorage.removeItem('onboarding_goal');
+      localStorage.removeItem('onboarding_focus'); // Legado
+      localStorage.removeItem('onboarding_pace');
+      localStorage.removeItem('onboarding_days');
+      localStorage.removeItem('onboarding_hours');
+
       setStep('success');
       setTimeout(() => {
         router.refresh();
@@ -87,41 +117,33 @@ export default function OnboardingTelefone() {
     } catch (error: any) {
       console.error("Erro:", error);
       alert(`Erro: ${error.message}`);
-      setStep('input'); // Volta para o input em caso de erro
+      setStep('input');
     } finally {
       setLoading(false);
     }
   };
 
-  // --- TELA DE PROCESSAMENTO (CÉREBRO PENSANDO) ---
+  // ... (UI de renderização - Mantida igual) ...
   if (step === 'processing') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4 relative overflow-hidden">
         <style>{loadingStyles}</style>
-        
-        {/* Background decorativo */}
         <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
         </div>
-
         <div className="relative z-10 flex flex-col items-center text-center max-w-md w-full">
-          {/* Animação Central */}
           <div className="relative w-32 h-32 mb-8 flex items-center justify-center">
             <div className="absolute inset-0 bg-blue-500 rounded-full opacity-20 animate-pulse-ring"></div>
             <div className="absolute inset-2 bg-blue-500 rounded-full opacity-20 animate-pulse-ring" style={{ animationDelay: '0.5s' }}></div>
             <div className="relative bg-white p-6 rounded-full shadow-xl shadow-blue-500/20 z-10">
                <Brain className="w-12 h-12 text-blue-600 animate-pulse" />
             </div>
-            {/* Ícones flutuantes orbitando (opcional/simples) */}
             <div className="absolute -top-4 right-0 animate-bounce" style={{ animationDuration: '3s' }}><Sparkles className="w-6 h-6 text-yellow-400" /></div>
           </div>
-
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Criando seu Plano</h2>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Gerando seu Plano {localStorage.getItem('onboarding_plan') === 'pro' ? 'Pro' : ''}</h2>
           <p className="text-slate-500 text-lg min-h-[30px] transition-all duration-500 ease-in-out">
             {loadingMessage}
           </p>
-
-          {/* Barra de Progresso Infinita */}
           <div className="w-64 h-2 bg-slate-200 rounded-full mt-8 overflow-hidden">
             <div className="h-full bg-gradient-to-r from-blue-500 to-violet-600 w-1/2 animate-[shimmer_1.5s_infinite_linear]" style={{
                 backgroundImage: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)',
@@ -134,7 +156,6 @@ export default function OnboardingTelefone() {
     );
   }
 
-  // --- TELA DE SUCESSO ---
   if (step === 'success') {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
@@ -149,7 +170,6 @@ export default function OnboardingTelefone() {
     );
   }
 
-  // --- TELA DE INPUT (PADRÃO) ---
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 space-y-6">

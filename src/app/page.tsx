@@ -351,11 +351,23 @@ export default function Home() {
                 </div>
                 <p className="text-sm text-blue-100 mb-8 opacity-90">A máquina completa de estudos. Sem limites.</p>
                 <a href="/auth/register?plan=pro" className="block w-full py-4 rounded-xl bg-white text-blue-700 text-center font-bold hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">Quero Ser Aprovado</a>
+                
+                {/* CORREÇÃO DO ERRO DE HIDRATAÇÃO AQUI: Trocado <p> por <div> */}
                 <div className="mt-8 space-y-4 text-sm text-white font-medium">
-                  <p className="flex gap-3 items-center"><div className="p-1 bg-blue-500 rounded-full shrink-0"><CheckCircle className="w-3 h-3"/></div> Curadoria IA Avançada</p>
-                  <p className="flex gap-3 items-center"><div className="p-1 bg-blue-500 rounded-full shrink-0"><CheckCircle className="w-3 h-3"/></div> Cronograma Adaptativo IA</p>
-                  <p className="flex gap-3 items-center"><div className="p-1 bg-blue-500 rounded-full shrink-0"><Brain className="w-3 h-3"/></div> Tutor Exatas Passo-a-Passo</p>
+                  <div className="flex gap-3 items-center">
+                    <div className="p-1 bg-blue-500 rounded-full shrink-0"><CheckCircle className="w-3 h-3"/></div> 
+                    Curadoria IA Avançada
+                  </div>
+                  <div className="flex gap-3 items-center">
+                    <div className="p-1 bg-blue-500 rounded-full shrink-0"><CheckCircle className="w-3 h-3"/></div> 
+                    Cronograma Adaptativo IA
+                  </div>
+                  <div className="flex gap-3 items-center">
+                    <div className="p-1 bg-blue-500 rounded-full shrink-0"><Brain className="w-3 h-3"/></div> 
+                    Tutor Exatas Passo-a-Passo
+                  </div>
                 </div>
+
               </div>
             </div>
           </div>
@@ -399,7 +411,7 @@ export default function Home() {
               <BookOpen className="w-6 h-6 text-blue-600" />
               <span>StudyTrack</span>
             </div>
-            <p className="text-slate-400 text-sm">© 2024 StudyTrack Education.</p>
+            <p className="text-slate-400 text-sm">© 2025 StudyTrack.</p>
           </div>
         </footer>
       </main>
