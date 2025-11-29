@@ -1,14 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { LogOut, Calendar, Trophy, BarChart3, CheckCircle2, XCircle, Circle } from "lucide-react";
-import { TaskCard } from "./task-card";
-import Link from "next/link"; // Importante para navegação rápida
+import { LogOut, Calendar, CheckCircle2, Circle, Trophy, BarChart3, XCircle } from "lucide-react";
+// 2. OBS: O TaskCard estava importado mas não usado. Comentei para evitar erro de lint, 
+// TODO: substituir o HTML dentro do map por <TaskCard />.
+// import { TaskCard } from "./task-card"; 
 
 function formatDate(dateStr: string) {
   if (!dateStr) return "";
 
   const [year, month, day] = dateStr.split('-').map(Number);
-  // Cria a data considerando o mês (0-indexado em JS)
+  
+  // Ajuste do mês (0-indexed no JS)
   const date = new Date(year, month - 1, day);
 
   const today = new Date();
