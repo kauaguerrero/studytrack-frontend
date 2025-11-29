@@ -1,16 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { LogOut, Calendar, CheckCircle2, Circle, Trophy, BarChart3, XCircle } from "lucide-react";
-// 2. OBS: O TaskCard estava importado mas não usado. Comentei para evitar erro de lint, 
-// TODO: substituir o HTML dentro do map por <TaskCard />.
-// import { TaskCard } from "./task-card"; 
+import { LogOut, Calendar, Trophy, BarChart3, XCircle, CheckCircle2 } from "lucide-react";
+import { TaskCard } from "./task-card"; // <--- IMPORTAÇÃO DESCOMENTADA E CORRIGIDA
+import Link from "next/link"; // Adicionado para o botão de acesso ao banco
 
 function formatDate(dateStr: string) {
   if (!dateStr) return "";
 
   const [year, month, day] = dateStr.split('-').map(Number);
-  
-  // Ajuste do mês (0-indexed no JS)
   const date = new Date(year, month - 1, day);
 
   const today = new Date();
@@ -28,7 +25,6 @@ function formatDate(dateStr: string) {
 export default async function Dashboard() {
   const supabase = await createClient();
 
-  // 1. Verificação de Auth e Onboarding
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) redirect('/auth/login');
 
@@ -40,7 +36,6 @@ export default async function Dashboard() {
 
   if (!profile?.whatsapp_phone) redirect('/onboarding/telefone');
 
-  // 2. Buscar Tarefas
   const { data: tasks } = await supabase
     .from('plan_tasks')
     .select(`
@@ -54,7 +49,6 @@ export default async function Dashboard() {
     .order('scheduled_date', { ascending: true })
     .limit(5);
 
-  // 3. Buscar Histórico de Questões (O "Banco" do usuário)
   const { data: history } = await supabase
     .from('user_question_history')
     .select(`
@@ -70,9 +64,8 @@ export default async function Dashboard() {
     `)
     .eq('user_id', user.id)
     .order('answered_at', { ascending: false })
-    .limit(10); // Últimas 10 respostas
+    .limit(10);
 
-  // 4. Calcular Estatísticas Rápidas
   const { count: totalAnswered } = await supabase
     .from('user_question_history')
     .select('*', { count: 'exact', head: true })
@@ -88,7 +81,6 @@ export default async function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-10">
-      {/* Navbar */}
       <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-20">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">ST</div>
@@ -108,7 +100,6 @@ export default async function Dashboard() {
 
       <main className="max-w-5xl mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-8 mt-6">
         
-        {/* COLUNA ESQUERDA: Tarefas (Main Focus) */}
         <div className="lg:col-span-2 space-y-6">
           <header>
             <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -140,10 +131,8 @@ export default async function Dashboard() {
           </div>
         </div>
 
-        {/* COLUNA DIREITA: Desempenho e Banco de Questões */}
         <div className="space-y-6">
           
-          {/* Card de Stats */}
           <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500 rounded-full blur-[60px] opacity-20"></div>
             <div className="relative z-10">
@@ -161,7 +150,6 @@ export default async function Dashboard() {
             </div>
           </div>
 
-          {/* Lista Recente de Questões (O "Banco") */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
             <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-4">
               <BarChart3 className="w-5 h-5 text-slate-500" />
