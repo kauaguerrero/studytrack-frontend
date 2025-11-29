@@ -1,13 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Calendar, Trophy, BarChart3, CheckCircle2, XCircle, Circle } from "lucide-react";
 import { TaskCard } from "./task-card";
+import Link from "next/link"; // Importante para navegação rápida
 
 function formatDate(dateStr: string) {
   if (!dateStr) return "";
 
   const [year, month, day] = dateStr.split('-').map(Number);
-  
+  // Cria a data considerando o mês (0-indexado em JS)
   const date = new Date(year, month - 1, day);
 
   const today = new Date();
@@ -51,7 +52,7 @@ export default async function Dashboard() {
     .order('scheduled_date', { ascending: true })
     .limit(5);
 
-  // 3. NOVO: Buscar Histórico de Questões (O "Banco" do usuário)
+  // 3. Buscar Histórico de Questões (O "Banco" do usuário)
   const { data: history } = await supabase
     .from('user_question_history')
     .select(`
@@ -70,7 +71,6 @@ export default async function Dashboard() {
     .limit(10); // Últimas 10 respostas
 
   // 4. Calcular Estatísticas Rápidas
-  // Nota: Em produção, isso deveria ser uma query count() no banco para não puxar tudo
   const { count: totalAnswered } = await supabase
     .from('user_question_history')
     .select('*', { count: 'exact', head: true })
@@ -119,31 +119,15 @@ export default async function Dashboard() {
           <div className="space-y-3">
             {tasks && tasks.length > 0 ? (
               tasks.map((task: any) => {
-                const isDone = task.status === 'completed';
                 const isToday = formatDate(task.scheduled_date) === "Hoje";
-                const content = Array.isArray(task.content_repository) ? task.content_repository[0] : task.content_repository;
-
+                
                 return (
-                  <div key={task.id} className={`group bg-white p-5 rounded-xl border transition-all duration-200 flex items-start gap-4 ${isDone ? 'opacity-75 border-slate-100' : 'border-slate-200 shadow-sm hover:shadow-md'}`}>
-                    <div className={`mt-1 ${isDone ? 'text-green-500' : 'text-slate-300'}`}>
-                      {isDone ? <CheckCircle2 size={24} /> : <Circle size={24} />}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-xs font-bold uppercase tracking-wide ${isToday ? 'text-blue-600' : 'text-slate-400'}`}>
-                          {formatDate(task.scheduled_date)}
-                        </span>
-                      </div>
-                      <h3 className={`font-medium text-lg ${isDone ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                        {task.task_description}
-                      </h3>
-                      {content && (
-                        <a href={content.url} target="_blank" className="text-sm text-blue-600 hover:underline mt-1 block">
-                          👉 {content.title}
-                        </a>
-                      )}
-                    </div>
-                  </div>
+                  <TaskCard 
+                    key={task.id} 
+                    task={task} 
+                    isToday={isToday} 
+                    displayDate={formatDate(task.scheduled_date)} 
+                  />
                 );
               })
             ) : (
@@ -206,11 +190,12 @@ export default async function Dashboard() {
               )}
             </div>
             
-            {history && history.length > 0 && (
-              <button className="w-full mt-4 py-2 text-sm text-blue-600 font-bold bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-                Ver Banco Completo
-              </button>
-            )}
+            <div className="mt-6 pt-4 border-t border-slate-100">
+                <Link href="/banco-de-questoes" className="flex items-center justify-center w-full py-3 text-sm text-white font-bold bg-blue-600 rounded-xl hover:bg-blue-700 transition-all shadow-sm hover:shadow-md">
+                  Acessar Banco Completo
+                </Link>
+            </div>
+
           </div>
 
         </div>
