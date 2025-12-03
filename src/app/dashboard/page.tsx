@@ -33,8 +33,7 @@ export default async function Dashboard() {
     .eq('id', user.id)
     .single();
 
-  // Se não tiver telefone, redireciona para completar o cadastro
-  if (!profile?.whatsapp_phone) redirect('/onboarding/telefone');
+  if (!profile?.whatsapp_phone) redirect('/onboarding/objetivo');
 
   // 2. Tarefas da Semana
   const { data: tasks } = await supabase
