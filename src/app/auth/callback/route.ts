@@ -5,7 +5,10 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/onboarding/objetivo'
+  
+  // MUDANÇA CRÍTICA: Padrão agora é /dashboard. 
+  // O Dashboard que decide se joga pro onboarding se faltar dados.
+  const next = searchParams.get('next') ?? '/dashboard'
 
   if (code) {
     const cookieStore = await cookies()

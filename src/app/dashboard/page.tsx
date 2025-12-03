@@ -22,25 +22,20 @@ function formatDate(dateStr: string) {
 
 export default async function Dashboard() {
   const supabase = await createClient();
-  /*
-    // 1. Autenticação e Perfil
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error || !user) redirect('/auth/login');
   
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('whatsapp_phone, full_name')
-      .eq('id', user.id)
-      .single();
-  
-    if (!profile?.whatsapp_phone) redirect('/onboarding/telefone');
-  */
-  const user = { id: "123e4567-e89b-12d3-a456-426614174000" };
+  // 1. Autenticação e Perfil
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) redirect('/auth/login');
 
-  const profile = {
-    full_name: "Igor (Modo Teste)",
-    whatsapp_phone: "5516996973320"
-  };
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('whatsapp_phone, full_name')
+    .eq('id', user.id)
+    .single();
+
+  // Se não tiver telefone, redireciona para completar o cadastro
+  if (!profile?.whatsapp_phone) redirect('/onboarding/telefone');
+
   // 2. Tarefas da Semana
   const { data: tasks } = await supabase
     .from('plan_tasks')

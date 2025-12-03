@@ -7,7 +7,7 @@ import {
   BookOpen, Mail, Lock, Eye, EyeOff, Loader2, User, CheckCircle
 } from 'lucide-react';
 
-// Ícone Google Otimizado (Mesmo do Login)
+// Ícone Google Otimizado
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24">
     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -17,7 +17,6 @@ const GoogleIcon = () => (
   </svg>
 );
 
-// Componente interno para suspender o uso de useSearchParams
 function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -29,17 +28,36 @@ function RegisterForm() {
   
   // Estado do formulário
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
-  // Estado do Plano (inicia com o da URL ou 'free', mas permite troca)
+  // Estado do Plano
   const [selectedPlan, setSelectedPlan] = useState(urlPlan || 'free');
 
   const supabase = createClient();
 
+  // Limpa o storage ao carregar para evitar sujeira de testes anteriores
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+        // Se houver um plano na URL, usa ele. Senão, limpa para garantir estado limpo.
+        if (urlPlan) {
+            setSelectedPlan(urlPlan);
+            localStorage.setItem('onboarding_plan', urlPlan);
+        } else {
+             // Opcional: limpar se quiser forçar escolha, mas manter o padrão 'free' é seguro
+             localStorage.setItem('onboarding_plan', 'free');
+        }
+    }
+  }, [urlPlan]);
+
+  // Atualiza o localStorage sempre que o plano mudar
+  useEffect(() => {
+      if (typeof window !== 'undefined') {
+          localStorage.setItem('onboarding_plan', selectedPlan);
+      }
+  }, [selectedPlan]);
+
   const handleSocialLogin = async (provider: 'google') => {
     try {
-        // Salva o plano no localStorage antes de ir pro Google também
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('onboarding_plan', selectedPlan);
-        }
+        // Salva explicitamente antes de redirecionar
+        localStorage.setItem('onboarding_plan', selectedPlan);
 
         await supabase.auth.signInWithOAuth({
             provider,
@@ -62,24 +80,23 @@ function RegisterForm() {
     setError(null);
 
     try {
-      // 1. Cria o usuário no Auth do Supabase salvando o plano escolhido
+      // Salva explicitamente
+      localStorage.setItem('onboarding_plan', selectedPlan);
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
             data: {
                 full_name: formData.name,
-                plan_tier: selectedPlan, // Usa o plano do estado, não apenas da URL
+                plan_tier: selectedPlan,
             }
         }
       });
 
       if (signUpError) throw signUpError;
 
-      // 2. Sucesso -> Redireciona
       if (data.session) {
-          localStorage.setItem('onboarding_plan', selectedPlan);
-          
           router.push('/onboarding/objetivo');
       } else {
           alert("Conta criada! Verifique seu e-mail para confirmar.");
@@ -87,7 +104,6 @@ function RegisterForm() {
       }
 
     } catch (err: any) {
-      // Tradução amigável do erro comum de usuário existente
       if (err.message?.includes("already registered") || err.message?.includes("already exists")) {
         setError("Este e-mail já está cadastrado. Tente fazer login.");
       } else {
@@ -109,7 +125,6 @@ function RegisterForm() {
         </p>
       </div>
 
-      {/* SOCIAL LOGIN */}
       <div className="grid grid-cols-1 gap-4 mb-6">
         <button onClick={() => handleSocialLogin('google')} type="button" className="flex items-center justify-center gap-3 h-12 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-200 hover:shadow-md transition-all duration-300 group">
           <div className="group-hover:scale-110 transition-transform"><GoogleIcon /></div>
@@ -132,7 +147,7 @@ function RegisterForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         
-        {/* Seleção de Plano (Novo) */}
+        {/* Seleção de Plano */}
         <div className="p-1 bg-slate-100 rounded-xl flex gap-1 mb-4">
             {['free', 'basic', 'pro'].map((tier) => (
                 <button
@@ -141,8 +156,8 @@ function RegisterForm() {
                     onClick={() => setSelectedPlan(tier)}
                     className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all capitalize ${
                         selectedPlan === tier 
-                        ? 'bg-white text-blue-600 shadow-sm' 
-                        : 'text-slate-500 hover:text-slate-700'
+                        ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5' 
+                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
                     }`}
                 >
                     {tier}

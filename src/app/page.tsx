@@ -5,12 +5,16 @@ import {
   BookOpen, 
   CheckCircle, 
   ArrowRight, 
+  PenTool, 
   Brain, 
+  MessageCircle, 
   Send,
   Zap,
   Star,
+  ShieldCheck,
   TrendingUp,
   Clock,
+  Users,
   ChevronDown,
   Menu,
   X
@@ -214,6 +218,8 @@ export default function Home() {
                           </div>
                         </div>
                       )}
+
+                      {/* Step 3: AI Response */}
                       <div className={`transition-all duration-500 transform ${chatStep >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                          <div className="bg-white p-3 rounded-lg rounded-tl-none shadow-sm max-w-[90%] mr-auto text-slate-800 text-sm relative group cursor-pointer hover:scale-[1.02] transition-transform">
                           <div className="absolute -left-2 top-0 w-2 h-2 bg-white transform skew-x-[20deg]"></div>
@@ -223,6 +229,8 @@ export default function Home() {
                           <span className="absolute bottom-1 right-2 text-[10px] text-slate-400">10:42</span>
                         </div>
                       </div>
+
+                      {/* Step 4: Material Card */}
                       <div className={`transition-all duration-500 delay-100 transform ${chatStep >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                         <div className="bg-white p-2 rounded-lg rounded-tl-none shadow-sm max-w-[85%] mr-auto">
                           <div className="bg-slate-50 border border-slate-100 rounded p-2 flex gap-3 items-center">
@@ -300,6 +308,7 @@ export default function Home() {
 
         {/* --- PRICING --- */}
         <section id="planos" className="py-24 bg-slate-900 text-white relative overflow-hidden">
+           {/* Background details */}
            <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 opacity-30">
              <div className="absolute top-[20%] right-[10%] w-96 h-96 bg-blue-600 rounded-full blur-[100px]"></div>
              <div className="absolute bottom-[10%] left-[10%] w-96 h-96 bg-violet-600 rounded-full blur-[100px]"></div>
