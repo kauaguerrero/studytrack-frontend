@@ -171,13 +171,10 @@ export default function BancoDeQuestoes() {
   // 1. Pegar User ID ao montar (SUBSTITUA ESSE USEEFFECT)
   useEffect(() => {
     const getUser = async () => {
-      // MODO REAL (Comentado)
-      // const supabase = createClient()
-      // const { data: { user } } = await supabase.auth.getUser()
-      // if (user) setUserId(user.id)
-
-      // MODO BYPASS (Ativo)
-      setUserId("123e4567-e89b-12d3-a456-426614174000"); // Mesmo ID fake do dashboard
+      // MODO REAL (Ativado)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) setUserId(user.id)
     }
     getUser()
   }, [])
