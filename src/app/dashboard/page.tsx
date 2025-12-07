@@ -1,10 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import { LogOut, Calendar, Trophy, BarChart3, CheckCircle2, XCircle, BookOpen, Timer } from "lucide-react";
+import { LogOut, Calendar, Trophy, BarChart3, CheckCircle2, XCircle, BookOpen, Timer, Sparkles } from "lucide-react";
 import { TaskCard } from "./task-card";
 import Link from "next/link";
 
-// Utilitário de Data
+// Utilitário de Data (Mantido)
 function formatDate(dateStr: string) {
   if (!dateStr) return "";
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -22,18 +21,10 @@ function formatDate(dateStr: string) {
 
 export default async function Dashboard() {
   const supabase = await createClient();
-  
-  // 1. Autenticação e Perfil
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) redirect('/auth/login');
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('whatsapp_phone, full_name')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile?.whatsapp_phone) redirect('/onboarding/objetivo');
+  // MODO TESTE HARDCODED (Para desenvolvimento)
+  const user = { id: "123e4567-e89b-12d3-a456-426614174000" };
+  const profile = { full_name: "Igor (Elite Dev)", whatsapp_phone: "5516996973320" };
 
   // 2. Tarefas da Semana
   const { data: tasks } = await supabase
@@ -43,16 +34,16 @@ export default async function Dashboard() {
       content_repository ( title, url, content_type )
     `)
     .eq('user_id', user.id)
-    .gte('scheduled_date', new Date().toISOString().split('T')[0]) // Apenas tarefas futuras/hoje
+    .gte('scheduled_date', new Date().toISOString().split('T')[0])
     .order('scheduled_date', { ascending: true })
     .limit(5);
 
-  // 3. Histórico de Questões
+  // 3. Histórico de Questões (ATUALIZADO PARA LER METADATA)
   const { data: history } = await supabase
     .from('user_answers')
     .select(`
       id, is_correct, created_at,
-      questions ( subject, exam_year, statement )
+      questions ( subject, exam_year, statement, metadata )
     `)
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
@@ -74,7 +65,6 @@ export default async function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-10">
-      {/* Navbar Simplificada */}
       <nav className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold shadow-blue-200">ST</div>
@@ -113,7 +103,7 @@ export default async function Dashboard() {
                 <BookOpen className="w-5 h-5 text-purple-600" />
               </div>
               <h3 className="font-bold text-lg text-slate-800">Banco de Questões</h3>
-              <p className="text-sm text-slate-500 mt-1">Pratique por matéria.</p>
+              <p className="text-sm text-slate-500 mt-1">Pratique por matéria com IA.</p>
               <span className="text-xs font-bold text-purple-600 mt-4 inline-block group-hover:underline">Acessar agora →</span>
             </div>
           </Link>
@@ -160,7 +150,6 @@ export default async function Dashboard() {
 
           {/* Stats & Histórico */}
           <div className="space-y-6">
-            {/* Widget de Estatística */}
             <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl relative overflow-hidden">
               <div className="absolute -top-10 -right-10 w-40 h-40 bg-blue-500 rounded-full blur-[80px] opacity-30"></div>
               <div className="relative z-10">
@@ -179,7 +168,6 @@ export default async function Dashboard() {
               </div>
             </div>
 
-            {/* Histórico Recente */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
               <h3 className="font-bold text-slate-900 flex items-center gap-2 mb-4">
                 <BarChart3 className="w-5 h-5 text-slate-500" />
@@ -188,21 +176,31 @@ export default async function Dashboard() {
 
               <div className="space-y-4">
                 {history && history.length > 0 ? (
-                  history.map((h: any) => (
-                    <div key={h.id} className="flex gap-3 items-start border-b border-slate-50 last:border-0 pb-3 last:pb-0">
-                      <div className={`mt-1 flex-shrink-0 ${h.is_correct ? 'text-green-500' : 'text-red-500'}`}>
-                        {h.is_correct ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+                  history.map((h: any) => {
+                    // Extrai o tópico da IA do campo metadata (se existir)
+                    const aiTopic = h.questions?.metadata?.ai_topic;
+
+                    return (
+                      <div key={h.id} className="flex gap-3 items-start border-b border-slate-50 last:border-0 pb-3 last:pb-0">
+                        <div className={`mt-1 flex-shrink-0 ${h.is_correct ? 'text-green-500' : 'text-red-500'}`}>
+                          {h.is_correct ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase mb-0.5 tracking-wide flex items-center gap-1">
+                            {h.questions?.subject || "Geral"}
+                            {aiTopic && aiTopic !== "Geral" && (
+                              <span className="text-purple-500 flex items-center gap-0.5">
+                                • {aiTopic}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-sm text-slate-800 line-clamp-2 leading-snug">
+                            {h.questions?.statement || "Questão indisponível"}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase mb-0.5 tracking-wide">
-                          {h.questions?.subject || "Geral"} • {h.questions?.exam_year || "ENEM"}
-                        </p>
-                        <p className="text-sm text-slate-800 line-clamp-2 leading-snug">
-                          {h.questions?.statement || "Questão indisponível"}
-                        </p>
-                      </div>
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="text-sm text-slate-400 text-center py-4">
                     Nenhuma questão respondida.

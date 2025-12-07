@@ -1,216 +1,386 @@
-"use client";
+'use client'
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Timer, CheckCircle2, AlertCircle, ArrowRight, X } from "lucide-react";
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation' // Adicionado do Kauã para navegação melhor
+import { Timer, ArrowRight, ArrowLeft, CheckCircle2, XCircle, Play, RotateCcw, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
 
-// Interface ajustada para options ser flexível
+// --- Tipos (Baseado no seu, mas com additions do Kauã) ---
 interface Question {
-  id: string;
-  subject: string;
-  topic: string;
-  question_text: string;
-  options: any;
-  correct_option: string;
-  explanation?: string;
+    id: string;
+    external_id: string;
+    statement: string; // Kauã chamou de question_text, mas seu backend manda statement/question_text. Vamos garantir mapeamento.
+    subject: string;
+    images: string[];
+    options: { [key: string]: string };
+    correct_option: string;
+    topic?: string;
+    explanation?: string; // Ouro do Kauã: Feedback da IA
 }
 
+// --- Componente Principal ---
 export default function SimuladoPage() {
-  const [step, setStep] = useState<'config' | 'exam' | 'result'>('config');
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [answers, setAnswers] = useState<{[key: string]: string}>({});
-  const [loading, setLoading] = useState(false);
-  
-  const [config, setConfig] = useState({ qty: 10, subject: 'Todas' });
-  const [timeLeft, setTimeLeft] = useState(0); 
+    const router = useRouter();
+    const [step, setStep] = useState<'setup' | 'quiz' | 'result'>('setup');
 
-  const router = useRouter();
+    // Config
+    const [subject, setSubject] = useState('Todas');
+    const [qty, setQty] = useState(10);
 
-  useEffect(() => {
-    if (step === 'exam' && timeLeft > 0) {
-      const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
-      return () => clearInterval(timer);
-    }
-  }, [step, timeLeft]);
+    // Quiz State
+    const [questions, setQuestions] = useState<Question[]>([]);
+    const [currentIdx, setCurrentIdx] = useState(0);
+    const [userAnswers, setUserAnswers] = useState<{ [key: string]: string }>({});
+    const [timeLeft, setTimeLeft] = useState(0);
+    const [loading, setLoading] = useState(false);
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
+    // Timer
+    useEffect(() => {
+        if (step === 'quiz' && timeLeft > 0) {
+            const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+            return () => clearInterval(timer);
+        }
+    }, [step, timeLeft]);
 
-  const startSimulado = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`http://127.0.0.1:5000/api/questions/simulado?qty=${config.qty}&subject=${config.subject}`);
-      const data = await res.json();
-      
-      if (!Array.isArray(data) || data.length === 0) {
-        alert("Não há questões suficientes no banco para este filtro.");
-        setLoading(false);
-        return;
-      }
+    // Format Timer
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    };
 
-      setQuestions(data);
-      setTimeLeft(data.length * 3 * 60); 
-      setStep('exam');
-    } catch (e) {
-      console.error(e);
-      alert("Erro ao iniciar simulado. Backend está rodando?");
-    } finally {
-      setLoading(false);
-    }
-  };
+    // --- Ações ---
 
-  const finishSimulado = () => {
-    if (confirm("Tem certeza que deseja finalizar o simulado?")) {
-      setStep('result');
-    }
-  };
+    const startSimulado = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(`http://127.0.0.1:5000/api/questions/simulado?qty=${qty}&subject=${encodeURIComponent(subject)}`);
+            const data = await res.json();
 
-  // Helper para renderizar opções (se for array ou objeto)
-  const getOptions = (q: Question) => {
-    if (Array.isArray(q.options)) {
-       return q.options.map((text, i) => [String.fromCharCode(97 + i), text]);
-    }
-    return Object.entries(q.options);
-  };
+            if (data.error) throw new Error(data.error);
 
-  if (step === 'config') {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg border border-slate-200">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-slate-900">Novo Simulado</h1>
-            <button onClick={() => router.push('/dashboard')} className="text-slate-400 hover:text-slate-600" aria-label="Fechar"><X /></button>
-          </div>
+            if (!Array.isArray(data) || data.length === 0) {
+                alert("Não encontramos questões suficientes para essa matéria neste momento.");
+                setLoading(false);
+                return;
+            }
 
-          <div className="space-y-6">
-            <div>
-              <label htmlFor="materia-select" className="block text-sm font-bold text-slate-700 mb-2">Matéria</label>
-              <select 
-                id="materia-select"
-                aria-label="Selecione a matéria"
-                className="w-full p-3 border rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500"
-                value={config.subject}
-                onChange={(e) => setConfig({...config, subject: e.target.value})}
-              >
-                <option value="Todas">Mix Geral (Estilo 1º Dia)</option>
-                <option value="Matemática">Matemática</option>
-                <option value="Português">Linguagens</option>
-                <option value="Natureza">Natureza</option>
-                <option value="História">História</option>
-                <option value="Geografia">Geografia</option>
-              </select>
-            </div>
+            // Normalização de dados (Garante que funcione mesmo se o backend variar nomes)
+            const formattedQuestions: Question[] = data.map((q: any) => ({
+                ...q,
+                statement: q.question_text || q.statement, // Fallback de segurança
+                explanation: q.explanation // Garante que a explicação venha
+            }));
 
-            <div>
-              <span className="block text-sm font-bold text-slate-700 mb-2">Quantidade de Questões</span>
-              <div className="grid grid-cols-3 gap-2">
-                {[10, 30, 45, 90].map(q => (
-                  <button 
-                    key={q}
-                    onClick={() => setConfig({...config, qty: q})}
-                    className={`py-2 rounded-lg border font-medium transition-colors ${config.qty === q ? 'bg-blue-600 text-white border-blue-600' : 'text-slate-600 hover:bg-slate-50'}`}
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </div>
+            setQuestions(formattedQuestions);
+            setTimeLeft(qty * 3 * 60); // 3 min/questão
+            setUserAnswers({});
+            setCurrentIdx(0);
+            setStep('quiz');
+        } catch (e) {
+            alert("Erro ao conectar com o servidor. Verifique se o Backend está rodando.");
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-            <button onClick={startSimulado} disabled={loading} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70">
-              {loading ? "Gerando Prova..." : "Começar Agora"} <ArrowRight size={20} />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+    const handleSelectOption = (option: string) => {
+        const q = questions[currentIdx];
+        setUserAnswers(prev => ({ ...prev, [q.id]: option }));
+    };
 
-  if (step === 'exam') {
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="fixed top-0 left-0 w-full bg-slate-900 text-white p-4 z-50 shadow-md">
-          <div className="max-w-5xl mx-auto flex justify-between items-center">
-            <div className="font-mono text-xl font-bold flex items-center gap-2">
-              <Timer className={timeLeft < 300 ? "text-red-500 animate-pulse" : "text-blue-400"} />
-              {formatTime(timeLeft)}
-            </div>
-            <div className="text-sm text-slate-400 hidden sm:block">
-              Questão {Object.keys(answers).length} de {questions.length} respondidas
-            </div>
-            <button onClick={finishSimulado} className="bg-white text-slate-900 px-4 py-2 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors">
-              Entregar Prova
-            </button>
-          </div>
-        </div>
+    const finishSimulado = () => {
+        if (!confirm("Tem certeza que deseja finalizar?")) return;
+        setStep('result');
+    };
 
-        <div className="max-w-4xl mx-auto pt-24 pb-20 px-6 space-y-12">
-          {questions.map((q, index) => (
-            <div key={q.id} className="border-b border-slate-100 pb-10 last:border-0">
-              <div className="flex gap-3 mb-4">
-                <span className="bg-slate-100 text-slate-600 font-bold px-3 py-1 rounded text-sm">{index + 1}</span>
-                <span className="text-sm font-bold text-blue-600 uppercase tracking-wide mt-1">{q.subject}</span>
-              </div>
-              <p className="text-lg text-slate-900 leading-relaxed mb-6 whitespace-pre-wrap">{q.question_text}</p>
-              <div className="space-y-3 pl-4 border-l-2 border-slate-100">
-                {getOptions(q).map(([key, text]: any) => (
-                  <label key={key} className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all border ${answers[q.id] === key ? 'bg-blue-50 border-blue-200 ring-1 ring-blue-200' : 'bg-white border-transparent hover:bg-slate-50'}`}>
-                    <input type="radio" name={q.id} value={key} onChange={() => setAnswers({...answers, [q.id]: key})} className="mt-1"/>
-                    <span className="text-slate-700"><strong className="uppercase mr-2 text-slate-400">{key})</strong> {text}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+    const calculateScore = () => {
+        let correct = 0;
+        questions.forEach(q => {
+            if (userAnswers[q.id]?.toLowerCase() === q.correct_option.toLowerCase()) {
+                correct++;
+            }
+        });
+        return correct;
+    };
 
-  if (step === 'result') {
-    const correctCount = questions.filter(q => answers[q.id]?.toLowerCase() === q.correct_option?.toLowerCase()).length;
-    const score = Math.round((correctCount / questions.length) * 100);
+    // --- Renderização ---
 
-    return (
-      <div className="min-h-screen bg-slate-50 py-10 px-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="bg-white rounded-3xl shadow-xl p-8 mb-8 text-center border border-slate-200">
-            <h2 className="text-3xl font-bold text-slate-900 mb-2">Resultado do Simulado</h2>
-            <div className="text-6xl font-extrabold text-blue-600 my-6">{score}%</div>
-            <p className="text-slate-500">Você acertou <strong>{correctCount}</strong> de <strong>{questions.length}</strong> questões.</p>
-            <div className="flex justify-center gap-4 mt-8">
-                <button onClick={() => router.push('/dashboard')} className="px-6 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors">Voltar ao Início</button>
-                <button onClick={() => { setAnswers({}); setStep('config'); }} className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors">Novo Simulado</button>
-            </div>
-          </div>
+    if (step === 'setup') {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans text-slate-900">
+                <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md w-full border border-slate-200">
+                    <div className="flex justify-center mb-6">
+                        <div className="bg-green-100 p-4 rounded-full">
+                            <Timer className="text-green-600 w-8 h-8" />
+                        </div>
+                    </div>
+                    <h1 className="text-2xl font-bold text-center text-slate-800 mb-2">Novo Simulado</h1>
+                    <p className="text-center text-slate-500 mb-8">Configure sua prova e teste seus conhecimentos.</p>
 
-          <div className="space-y-4">
-            <h3 className="text-xl font-bold text-slate-900 ml-2">Correção Detalhada</h3>
-            {questions.map((q, i) => {
-              const userAnswer = answers[q.id]?.toLowerCase();
-              const correct = q.correct_option?.toLowerCase();
-              const isCorrect = userAnswer === correct;
-              return (
-                <div key={q.id} className={`bg-white p-6 rounded-xl border-l-4 ${isCorrect ? 'border-green-500' : 'border-red-500'} shadow-sm`}>
-                  <div className="flex justify-between mb-2">
-                    <span className="font-bold text-slate-400">Questão {i+1}</span>
-                    {isCorrect ? <span className="text-green-600 font-bold flex items-center gap-1"><CheckCircle2 size={16}/> Acertou</span> : <span className="text-red-600 font-bold flex items-center gap-1"><AlertCircle size={16}/> Errou</span>}
-                  </div>
-                  <p className="text-slate-800 mb-4 line-clamp-2">{q.question_text}</p>
-                  <div className="text-sm bg-slate-50 p-3 rounded-lg">
-                    <p className="mb-1"><span className="font-bold">Sua resposta:</span> <span className="uppercase">{userAnswer || "Em branco"}</span></p>
-                    <p className="text-blue-700"><span className="font-bold">Gabarito:</span> <span className="uppercase">{correct}</span></p>
-                    {q.explanation && <p className="mt-2 pt-2 border-t border-slate-200 text-slate-600">💡 {q.explanation}</p>}
-                  </div>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-1">Matéria</label>
+                            <select
+                                className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 focus:ring-green-500 focus:outline-none font-medium"
+                                value={subject}
+                                onChange={(e) => setSubject(e.target.value)}
+                            >
+                                <option value="Todas">Todas as Matérias</option>
+                                <optgroup label="Ciências da Natureza">
+                                    <option value="Biologia">Biologia</option>
+                                    <option value="Física">Física</option>
+                                    <option value="Química">Química</option>
+                                </optgroup>
+                                <optgroup label="Ciências Humanas">
+                                    <option value="História">História</option>
+                                    <option value="Geografia">Geografia</option>
+                                    <option value="Filosofia">Filosofia</option>
+                                    <option value="Sociologia">Sociologia</option>
+                                </optgroup>
+                                <optgroup label="Linguagens">
+                                    <option value="Língua Portuguesa">Português</option>
+                                    <option value="Literatura">Literatura</option>
+                                    <option value="Inglês">Inglês</option>
+                                    <option value="Espanhol">Espanhol</option>
+                                </optgroup>
+                                <optgroup label="Matemática">
+                                    <option value="Matemática">Matemática</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-1">Quantidade de Questões</label>
+                            <select
+                                className="w-full p-3 border border-slate-300 rounded-lg bg-slate-50 focus:ring-2 focus:ring-green-500 focus:outline-none font-medium"
+                                value={qty}
+                                onChange={(e) => setQty(Number(e.target.value))}
+                            >
+                                <option value={5}>5 Questões (Rápido)</option>
+                                <option value={10}>10 Questões</option>
+                                <option value={30}>30 Questões (Intenso)</option>
+                                <option value={45}>45 Questões (Simulado Área)</option>
+                                <option value={90}>90 Questões (Modo ENEM)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={startSimulado}
+                        disabled={loading}
+                        className="w-full mt-8 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-200 disabled:opacity-70"
+                    >
+                        {loading ? 'Gerando...' : (
+                            <>
+                                <Play size={20} fill="currentColor" />
+                                Começar Simulado
+                            </>
+                        )}
+                    </button>
+
+                    <button
+                        onClick={() => router.push('/dashboard')}
+                        className="w-full block text-center mt-4 text-slate-400 text-sm hover:text-slate-600 font-medium"
+                    >
+                        Voltar ao Dashboard
+                    </button>
                 </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  }
-  return null;
+            </div>
+        );
+    }
+
+    if (step === 'quiz') {
+        const q = questions[currentIdx];
+
+        return (
+            <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
+                {/* Topbar */}
+                <div className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-10 flex justify-between items-center shadow-sm">
+                    <div className="text-sm font-bold text-slate-500">
+                        Questão {currentIdx + 1} de {questions.length}
+                    </div>
+                    <div className={`font-mono text-xl font-bold px-3 py-1 rounded-md ${timeLeft < 300 ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-800'}`}>
+                        {formatTime(timeLeft)}
+                    </div>
+                    <button
+                        onClick={finishSimulado}
+                        className="text-red-600 text-sm font-bold hover:bg-red-50 px-3 py-1 rounded-md transition-colors"
+                    >
+                        Finalizar
+                    </button>
+                </div>
+
+                {/* Content */}
+                <main className="flex-1 max-w-3xl mx-auto w-full p-4 md:p-8">
+                    <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 min-h-[50vh]">
+                        <div className="flex flex-wrap gap-2 mb-6">
+                            <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded border border-blue-200">{q.subject}</span>
+                            {q.topic && q.topic !== "Geral" && (
+                                <span className="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-1 rounded border border-purple-200">{q.topic}</span>
+                            )}
+                        </div>
+
+                        <p className="text-lg text-slate-900 leading-relaxed mb-8 whitespace-pre-line font-medium">
+                            {q.statement}
+                        </p>
+
+                        {q.images && q.images.length > 0 && (
+                            <div className="mb-8 flex justify-center">
+                                <img src={q.images[0]} className="max-w-full rounded-lg border border-slate-200 shadow-sm" alt="Material de apoio" />
+                            </div>
+                        )}
+
+                        <div className="space-y-3">
+                            {['a', 'b', 'c', 'd', 'e'].map((letter) => {
+                                const text = q.options[letter];
+                                if (!text) return null;
+                                const isSelected = userAnswers[q.id] === letter;
+
+                                return (
+                                    <button
+                                        key={letter}
+                                        onClick={() => handleSelectOption(letter)}
+                                        className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start ${isSelected
+                                            ? 'bg-blue-50 border-blue-500 shadow-sm'
+                                            : 'hover:bg-slate-50 border-slate-100'
+                                            }`}
+                                    >
+                                        <span className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-bold uppercase shrink-0 transition-colors ${isSelected ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-400 border-slate-300'
+                                            }`}>
+                                            {letter}
+                                        </span>
+                                        <span className="text-slate-700 mt-1 leading-snug" dangerouslySetInnerHTML={{ __html: text }}></span>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                </main>
+
+                {/* Footer Navigation */}
+                <div className="bg-white border-t border-slate-200 p-4 sticky bottom-0">
+                    <div className="max-w-3xl mx-auto flex justify-between">
+                        <button
+                            onClick={() => setCurrentIdx(prev => Math.max(0, prev - 1))}
+                            disabled={currentIdx === 0}
+                            className="px-4 py-2 text-slate-600 disabled:opacity-30 font-bold flex items-center gap-2 hover:bg-slate-50 rounded-lg transition-colors"
+                        >
+                            <ArrowLeft size={18} /> Anterior
+                        </button>
+
+                        {currentIdx < questions.length - 1 ? (
+                            <button
+                                onClick={() => setCurrentIdx(prev => prev + 1)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-md shadow-blue-200"
+                            >
+                                Próxima <ArrowRight size={18} />
+                            </button>
+                        ) : (
+                            <button
+                                onClick={finishSimulado}
+                                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-md shadow-green-200"
+                            >
+                                Entregar Prova <CheckCircle2 size={18} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (step === 'result') {
+        const score = calculateScore();
+        const percentage = Math.round((score / questions.length) * 100);
+
+        return (
+            <div className="min-h-screen bg-slate-50 p-8 font-sans text-slate-900">
+                <div className="max-w-3xl mx-auto space-y-8">
+                    <div className="bg-white p-10 rounded-3xl shadow-xl border border-slate-200 text-center">
+                        <h2 className="text-3xl font-extrabold text-slate-800 mb-2">Resultado Final</h2>
+                        <p className="text-slate-500 mb-6">Confira seu desempenho neste simulado.</p>
+
+                        <div className="relative inline-block mb-6">
+                            <div className="text-8xl font-black text-blue-600 tracking-tighter">{score}</div>
+                            <div className="absolute -bottom-4 left-0 right-0 text-sm font-bold text-slate-400 uppercase tracking-widest">de {questions.length}</div>
+                        </div>
+
+                        <div className={`text-lg font-bold px-4 py-2 rounded-full inline-block mb-8 ${percentage >= 70 ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                            Aproveitamento: {percentage}%
+                        </div>
+
+                        <div className="flex justify-center gap-4">
+                            <button
+                                onClick={() => window.location.reload()}
+                                className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all"
+                            >
+                                <RotateCcw size={18} /> Novo Simulado
+                            </button>
+                            <button
+                                onClick={() => router.push('/dashboard')}
+                                className="px-6 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-xl border border-transparent hover:border-slate-200 transition-all"
+                            >
+                                Voltar ao Dashboard
+                            </button>
+                        </div>
+                    </div>
+
+                    <h3 className="text-xl font-bold text-slate-800 pl-2 border-l-4 border-blue-600">Gabarito Detalhado</h3>
+                    <div className="space-y-4">
+                        {questions.map((q, idx) => {
+                            const userAnswer = userAnswers[q.id];
+                            const isCorrect = userAnswer?.toLowerCase() === q.correct_option.toLowerCase();
+
+                            return (
+                                <div key={q.id} className={`bg-white p-6 rounded-2xl border-2 transition-all ${isCorrect ? 'border-green-100' : 'border-red-100'}`}>
+                                    <div className="flex items-start gap-4">
+                                        <div className={`mt-1 p-2 rounded-full ${isCorrect ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                            {isCorrect ? <CheckCircle2 size={24} /> : <XCircle size={24} />}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">Questão {idx + 1} • {q.subject}</div>
+                                                <div className="text-xs font-bold text-slate-300">#{q.external_id}</div>
+                                            </div>
+
+                                            <p className="text-slate-800 font-medium mb-4">{q.statement}</p>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm mb-4">
+                                                <div className={`p-3 rounded-lg border ${isCorrect ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                                                    <span className="font-bold block text-xs opacity-70 mb-1">SUA RESPOSTA</span>
+                                                    Letra {userAnswer?.toUpperCase() || '-'}
+                                                </div>
+
+                                                {!isCorrect && (
+                                                    <div className="p-3 rounded-lg border bg-slate-50 border-slate-200 text-slate-800">
+                                                        <span className="font-bold block text-xs opacity-70 mb-1">GABARITO OFICIAL</span>
+                                                        Letra {q.correct_option.toUpperCase()}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* AQUI ESTÁ A INOVAÇÃO: Feedback da IA se disponível */}
+                                            {q.explanation && !isCorrect && (
+                                                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl flex gap-3 text-sm text-yellow-800">
+                                                    <AlertCircle className="shrink-0 w-5 h-5" />
+                                                    <div>
+                                                        <strong className="block mb-1 font-bold">Dica do Tutor IA:</strong>
+                                                        {q.explanation}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    return null;
 }

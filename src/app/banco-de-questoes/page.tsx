@@ -1,24 +1,28 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { CheckCircle2, XCircle, BrainCircuit, AlertCircle } from 'lucide-react'
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { CheckCircle2, XCircle, BrainCircuit, AlertCircle, Sparkles } from 'lucide-react';
 
 // --- Interfaces ---
 interface Alternative {
   label: string;
   text: string;
-  isCorrect?: boolean; // Usado internamente ou para debug
+  isCorrect?: boolean;
 }
 
 interface Question {
-  id: string;
+  id: string; // UUID
   exam_year: number;
   subject: string;
   statement: string;
   context_text?: string;
   images: string[];
   alternatives: Alternative[];
+  metadata?: {
+    ai_topic?: string;
+    ai_processed?: boolean;
+  };
 }
 
 // --- Componente de Cartão de Questão Individual ---
@@ -32,13 +36,12 @@ function QuestionItem({ question, userId }: { question: Question, userId: string
   } | null>(null);
 
   const handleAnswer = async (optionLabel: string) => {
-    if (isSubmitting || result) return; // Bloqueia se já respondeu
+    if (isSubmitting || result) return;
 
     setSelectedOption(optionLabel);
     setIsSubmitting(true);
 
     try {
-      // Chama a API Python
       const response = await fetch('http://127.0.0.1:5000/api/questions/answer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -54,7 +57,7 @@ function QuestionItem({ question, userId }: { question: Question, userId: string
       setResult({
         correct: data.is_correct,
         correctOption: data.correct_option,
-        explanation: data.explanation // Aqui vem a explicação da IA
+        explanation: data.explanation
       });
 
     } catch (error) {
@@ -65,36 +68,61 @@ function QuestionItem({ question, userId }: { question: Question, userId: string
     }
   };
 
+  // Lógica de limpeza de texto (para evitar duplicidade)
+  let displayStatement = question.statement;
+  if (question.context_text) {
+    const normalize = (str: string) => str.replace(/\s+/g, ' ').trim();
+    const cleanContext = normalize(question.context_text);
+    const cleanStatement = normalize(question.statement);
+
+    if (cleanStatement.startsWith(cleanContext)) {
+      displayStatement = question.statement.substring(question.context_text.length).trim();
+      displayStatement = displayStatement.replace(/^[\.\-\s]+/, '');
+    } else if (question.statement.includes(question.context_text)) {
+      displayStatement = question.statement.replace(question.context_text, '').trim();
+    }
+  }
+
+  const aiTopic = question.metadata?.ai_topic || "";
+
   return (
-    <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-200">
-      {/* Header da Questão */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">
+    <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 group">
+
+      {/* Header */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full border border-slate-200">
           {question.exam_year}
         </span>
-        <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">
+        <span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full border border-blue-100">
           {question.subject || 'Geral'}
         </span>
+        {aiTopic && aiTopic !== "Geral" && (
+          <span className="bg-purple-50 text-purple-700 text-xs font-bold px-3 py-1 rounded-full border border-purple-100 flex items-center gap-1">
+            <Sparkles size={10} />
+            {aiTopic}
+          </span>
+        )}
       </div>
 
-      {/* Contexto e Enunciado */}
+      {/* Contexto */}
       {question.context_text && (
-        <div className="mb-4 p-4 bg-gray-50 text-sm text-gray-700 italic border-l-4 border-blue-400 rounded-r-lg">
+        <div className="mb-4 p-4 bg-slate-50 text-sm text-slate-700 italic border-l-4 border-slate-300 rounded-r-lg font-serif leading-relaxed">
           {question.context_text}
         </div>
       )}
 
-      <div className="mb-6 text-gray-900 font-medium leading-relaxed whitespace-pre-line">
-        {question.statement}
+      {/* Enunciado Limpo */}
+      <div className="mb-6 text-gray-900 font-medium leading-relaxed whitespace-pre-line text-lg">
+        {displayStatement}
       </div>
 
       {/* Imagens */}
       {question.images && question.images.length > 0 && (
-        <div className="mb-6">
+        <div className="mb-6 flex justify-center">
           <img
             src={question.images[0]}
             alt="Material de apoio"
-            className="max-w-full md:max-w-lg rounded-lg border border-gray-200 mx-auto"
+            className="max-w-full md:max-w-lg rounded-lg border border-gray-200 shadow-sm"
             loading="lazy"
           />
         </div>
@@ -103,23 +131,24 @@ function QuestionItem({ question, userId }: { question: Question, userId: string
       {/* Alternativas */}
       <div className="space-y-3">
         {question.alternatives?.map((alt, idx) => {
-          // Lógica de Cores para Feedback
-          let btnClass = "border-gray-200 hover:bg-blue-50 hover:border-blue-300";
+          let btnClass = "border-gray-200 hover:bg-slate-50 hover:border-blue-300";
           let icon = null;
 
           if (result) {
-            // Se já respondeu
-            if (alt.label === result.correctOption) {
-              btnClass = "bg-green-50 border-green-500 text-green-800"; // Correta
+            const isThisCorrect = alt.label.toUpperCase() === result.correctOption.toUpperCase();
+            const isThisSelected = alt.label.toUpperCase() === selectedOption?.toUpperCase();
+
+            if (isThisCorrect) {
+              btnClass = "bg-green-50 border-green-500 text-green-800 ring-1 ring-green-500";
               icon = <CheckCircle2 size={20} className="text-green-600" />;
-            } else if (alt.label === selectedOption && !result.correct) {
-              btnClass = "bg-red-50 border-red-500 text-red-800"; // Errada selecionada
+            } else if (isThisSelected && !result.correct) {
+              btnClass = "bg-red-50 border-red-500 text-red-800";
               icon = <XCircle size={20} className="text-red-600" />;
             } else {
-              btnClass = "opacity-50 border-gray-100"; // As outras
+              btnClass = "opacity-50 border-gray-100 grayscale";
             }
           } else if (selectedOption === alt.label) {
-            btnClass = "bg-blue-50 border-blue-500"; // Selecionada (aguardando API)
+            btnClass = "bg-blue-50 border-blue-500 ring-1 ring-blue-500";
           }
 
           return (
@@ -127,30 +156,32 @@ function QuestionItem({ question, userId }: { question: Question, userId: string
               key={idx}
               disabled={!!result || isSubmitting}
               onClick={() => handleAnswer(alt.label)}
-              className={`w-full text-left p-3 border rounded-lg transition-all group flex gap-4 items-start ${btnClass}`}
+              className={`w-full text-left p-4 border rounded-xl transition-all flex gap-4 items-start relative ${btnClass}`}
             >
-              <span className={`flex-shrink-0 font-bold w-8 h-8 flex items-center justify-center rounded-full border ${result && alt.label === result.correctOption ? 'bg-green-200 text-green-800 border-green-300' : 'bg-white text-gray-500 border-gray-200'
+              <span className={`flex-shrink-0 font-bold w-8 h-8 flex items-center justify-center rounded-full border ${result && alt.label.toUpperCase() === result.correctOption.toUpperCase()
+                ? 'bg-green-500 text-white border-green-600'
+                : 'bg-white text-gray-500 border-gray-200'
                 }`}>
                 {alt.label}
               </span>
-              <div className="flex-1 pt-1" dangerouslySetInnerHTML={{ __html: alt.text }} />
-              {icon}
+              <div className="flex-1 pt-0.5" dangerouslySetInnerHTML={{ __html: alt.text }} />
+              {icon && <div className="absolute right-4 top-4">{icon}</div>}
             </button>
           );
         })}
       </div>
 
-      {/* Explicação da IA (Só aparece se tiver resultado e explicação) */}
+      {/* Explicação da IA */}
       {result && result.explanation && (
         <div className="mt-6 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className={`p-4 rounded-xl border ${result.correct ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+          <div className={`p-5 rounded-xl border-l-4 shadow-sm ${result.correct ? 'bg-green-50 border-green-500 border-t border-r border-b border-green-100' : 'bg-amber-50 border-amber-500 border-t border-r border-b border-amber-100'}`}>
             <div className="flex items-center gap-2 mb-2 font-bold">
               <BrainCircuit className={result.correct ? 'text-green-600' : 'text-amber-600'} size={20} />
               <span className={result.correct ? 'text-green-800' : 'text-amber-800'}>
-                {result.correct ? "Feedback da IA" : "Entenda o Erro"}
+                {result.correct ? "Feedback Inteligente" : "Análise do Tutor IA"}
               </span>
             </div>
-            <p className="text-sm text-gray-800 leading-relaxed">
+            <p className="text-sm text-gray-800 leading-relaxed font-medium">
               {result.explanation}
             </p>
           </div>
@@ -160,15 +191,16 @@ function QuestionItem({ question, userId }: { question: Question, userId: string
   );
 }
 
-
 // --- Página Principal ---
 export default function BancoDeQuestoes() {
   const [questions, setQuestions] = useState<Question[]>([])
   const [filterSubject, setFilterSubject] = useState('')
+  const [filterTopic, setFilterTopic] = useState('')
+  const [availableTopics, setAvailableTopics] = useState<string[]>([])
+  const [loadingTopics, setLoadingTopics] = useState(false)
   const [loading, setLoading] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
 
-  // 1. Pegar User ID ao montar (SUBSTITUA ESSE USEEFFECT)
   useEffect(() => {
     const getUser = async () => {
       // MODO REAL (Ativado)
@@ -179,7 +211,31 @@ export default function BancoDeQuestoes() {
     getUser()
   }, [])
 
-  // 2. Buscar Questões
+  // 1. Carrega Tópicos ao mudar a Matéria
+  useEffect(() => {
+    async function loadTopics() {
+      if (!filterSubject || filterSubject === 'Todas') {
+        setAvailableTopics([]);
+        setFilterTopic('');
+        return;
+      }
+
+      setLoadingTopics(true);
+      try {
+        const res = await fetch(`http://127.0.0.1:5000/api/questions/topics?subject=${encodeURIComponent(filterSubject)}`);
+        const data = await res.json();
+        setAvailableTopics(data);
+        setFilterTopic('');
+      } catch (err) {
+        console.error("Erro ao carregar tópicos", err);
+      } finally {
+        setLoadingTopics(false);
+      }
+    }
+    loadTopics();
+  }, [filterSubject]);
+
+  // 2. Busca Questões
   const fetchQuestions = async () => {
     setLoading(true)
     try {
@@ -191,7 +247,15 @@ export default function BancoDeQuestoes() {
         .order('exam_year', { ascending: false })
 
       if (filterSubject && filterSubject !== 'Todas') {
-        query = query.ilike('subject', `%${filterSubject}%`)
+        if (filterSubject === 'Física') {
+          query = query.ilike('subject', '%Física%').neq('subject', 'Educação Física')
+        } else {
+          query = query.eq('subject', filterSubject)
+        }
+      }
+
+      if (filterTopic && filterTopic !== 'Todos') {
+        query = query.eq('metadata->>ai_topic', filterTopic)
       }
 
       const { data, error } = await query
@@ -207,49 +271,78 @@ export default function BancoDeQuestoes() {
 
   useEffect(() => {
     fetchQuestions()
-  }, [filterSubject])
+  }, [filterSubject, filterTopic])
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
       <div className="max-w-4xl mx-auto space-y-6">
 
-        {/* Filtros */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200 sticky top-4 z-20">
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            📚 Banco de Questões
-          </h1>
-          <select
-            className="border p-2 rounded-md bg-gray-50 min-w-[200px] focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            onChange={(e) => setFilterSubject(e.target.value)}
-            value={filterSubject}
-          >
-            <option value="">Todas as Matérias</option>
-            <optgroup label="Ciências da Natureza">
-              <option value="Biologia">Biologia</option>
-              <option value="Física">Física</option>
-              <option value="Química">Química</option>
-            </optgroup>
-            <optgroup label="Ciências Humanas">
-              <option value="História">História</option>
-              <option value="Geografia">Geografia</option>
-              <option value="Filosofia">Filosofia</option>
-              <option value="Sociologia">Sociologia</option>
-            </optgroup>
-            <optgroup label="Linguagens">
-              <option value="Língua Portuguesa">Português</option>
-              <option value="Literatura">Literatura</option>
-              <option value="Inglês">Inglês</option>
-              <option value="Espanhol">Espanhol</option>
-            </optgroup>
-            <option value="Matemática">Matemática</option>
-          </select>
+        {/* Header e Filtros */}
+        <div className="flex flex-col md:flex-row justify-between items-end gap-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 sticky top-4 z-20">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              📚 Banco de Questões
+            </h1>
+            <p className="text-slate-500 text-sm">Filtros Inteligentes com IA</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+
+            {/* SELECT 1: MATÉRIA */}
+            <select
+              className="w-full sm:w-auto border border-slate-300 p-2.5 rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-medium"
+              onChange={(e) => setFilterSubject(e.target.value)}
+              value={filterSubject}
+            >
+              <option value="">Todas as Matérias</option>
+              <optgroup label="Ciências da Natureza">
+                <option value="Biologia">Biologia</option>
+                <option value="Física">Física</option>
+                <option value="Química">Química</option>
+              </optgroup>
+              <optgroup label="Ciências Humanas">
+                <option value="História">História</option>
+                <option value="Geografia">Geografia</option>
+                <option value="Filosofia">Filosofia</option>
+                <option value="Sociologia">Sociologia</option>
+              </optgroup>
+              <optgroup label="Linguagens">
+                <option value="Língua Portuguesa">Português</option>
+                <option value="Literatura">Literatura</option>
+                <option value="Inglês">Inglês</option>
+                <option value="Espanhol">Espanhol</option>
+              </optgroup>
+              <option value="Matemática">Matemática</option>
+            </select>
+
+            {/* SELECT 2: TÓPICO (Dinâmico) */}
+            {filterSubject && availableTopics.length > 0 && (
+              <div className="relative w-full sm:w-auto">
+                <select
+                  className="w-full sm:w-64 border border-purple-300 p-2.5 rounded-lg bg-purple-50 text-purple-900 focus:ring-2 focus:ring-purple-500 focus:outline-none text-sm font-bold appearance-none"
+                  onChange={(e) => setFilterTopic(e.target.value)}
+                  value={filterTopic}
+                  disabled={loadingTopics}
+                >
+                  <option value="">Todos os Tópicos</option>
+                  {availableTopics.map((topic, idx) => (
+                    <option key={idx} value={topic}>{topic}</option>
+                  ))}
+                </select>
+                {loadingTopics && (
+                  <div className="absolute right-3 top-3 animate-spin w-4 h-4 border-2 border-purple-600 rounded-full border-t-transparent"></div>
+                )}
+              </div>
+            )}
+
+          </div>
         </div>
 
         {/* Lista de Questões */}
         {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-gray-500">Carregando...</p>
+          <div className="text-center py-20">
+            <div className="inline-block w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-slate-500 font-medium">Carregando inteligência...</p>
           </div>
         ) : (
           <div className="space-y-8">
@@ -258,9 +351,12 @@ export default function BancoDeQuestoes() {
             ))}
 
             {questions.length === 0 && (
-              <div className="text-center py-12 bg-white rounded-lg border border-dashed border-gray-300">
-                <AlertCircle className="mx-auto text-gray-400 mb-2" size={32} />
-                <p className="text-gray-500">Nenhuma questão encontrada.</p>
+              <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-300">
+                <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertCircle className="text-slate-400" size={32} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-700">Nada encontrado</h3>
+                <p className="text-slate-500">Tente mudar o filtro.</p>
               </div>
             )}
           </div>

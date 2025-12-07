@@ -21,7 +21,6 @@ export function TaskCard({ task, isToday, displayDate }: TaskProps) {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  // Tratamento robusto para content_repository (pode vir array ou objeto único)
   const content = Array.isArray(task.content_repository)
     ? task.content_repository[0]
     : task.content_repository;
@@ -29,13 +28,12 @@ export function TaskCard({ task, isToday, displayDate }: TaskProps) {
   const handleToggle = async () => {
     if (!isToday || isLoading) return;
 
-    // 1. Atualização Otimista
     const previousStatus = isCompleted;
     setIsCompleted(!previousStatus);
     setIsLoading(true);
 
     try {
-      // 2. Chama o Backend Python
+      // Ajuste para apontar para o endpoint correto se existir
       const response = await fetch('http://127.0.0.1:5000/api/tasks/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -43,18 +41,16 @@ export function TaskCard({ task, isToday, displayDate }: TaskProps) {
       });
 
       if (!response.ok) throw new Error("Erro na API");
-
-      router.refresh(); // Sincroniza dados do servidor
+      router.refresh();
     } catch (error) {
       console.error("Erro ao sincronizar:", error);
-      setIsCompleted(previousStatus); // Reverte visualmente
-      // Opcional: Adicionar um toast de erro aqui
+      setIsCompleted(previousStatus);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Classes Dinâmicas
+  // Estilos
   const containerClasses = isToday
     ? "bg-white border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md cursor-pointer"
     : "bg-slate-50 border-slate-100 opacity-60 grayscale-[0.5] cursor-not-allowed";
