@@ -326,7 +326,7 @@ export default function Home() {
                 <h3 className="text-lg font-medium text-slate-400">Trial 72h</h3>
                 <div className="my-4"><span className="text-4xl font-bold text-white">Grátis</span></div>
                 <p className="text-sm text-slate-400 mb-6">Acesso total por 3 dias para viciar na metodologia.</p>
-                <a href="/auth/register?plan=trial" className="block w-full py-3 rounded-xl border border-slate-600 hover:bg-slate-700 text-center font-semibold transition-all">Testar Agora</a>
+                <a href="/auth/register?plan=free" className="block w-full py-3 rounded-xl border border-slate-600 hover:bg-slate-700 text-center font-semibold transition-all">Testar Agora</a>
                 <div className="mt-8 space-y-3 text-sm text-slate-300">
                   <p className="flex gap-2 text-slate-400"><CheckCircle className="w-4 h-4"/> Acesso ao Chat IA</p>
                   <p className="flex gap-2 text-slate-400"><CheckCircle className="w-4 h-4"/> Curadoria de Conteúdo</p>

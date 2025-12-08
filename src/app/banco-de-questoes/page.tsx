@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { CheckCircle2, XCircle, BrainCircuit, AlertCircle, Sparkles } from 'lucide-react';
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { CheckCircle2, XCircle, BrainCircuit, AlertCircle, Filter, BookOpen, ChevronDown, Layers } from 'lucide-react'
 
 // --- Interfaces ---
 interface Alternative {
@@ -23,6 +23,17 @@ interface Question {
     ai_topic?: string;
     ai_processed?: boolean;
   };
+}
+
+// Utilitário para cores das matérias
+const getSubjectColor = (subject: string) => {
+  if (!subject) return 'bg-gray-100 text-gray-700 border-gray-200';
+  const s = subject.toLowerCase();
+  if (s.includes('matemática')) return 'bg-blue-50 text-blue-700 border-blue-200';
+  if (s.includes('física') || s.includes('química') || s.includes('biologia')) return 'bg-green-50 text-green-700 border-green-200';
+  if (s.includes('história') || s.includes('geografia') || s.includes('filosofia')) return 'bg-amber-50 text-amber-700 border-amber-200';
+  if (s.includes('português') || s.includes('literatura') || s.includes('inglês')) return 'bg-pink-50 text-pink-700 border-pink-200';
+  return 'bg-slate-100 text-slate-700 border-slate-200';
 }
 
 // --- Componente de Cartão de Questão Individual ---
@@ -86,107 +97,115 @@ function QuestionItem({ question, userId }: { question: Question, userId: string
   const aiTopic = question.metadata?.ai_topic || "";
 
   return (
-    <div className="bg-white border border-gray-200 p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 group">
-
-      {/* Header */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full border border-slate-200">
-          {question.exam_year}
-        </span>
-        <span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full border border-blue-100">
-          {question.subject || 'Geral'}
-        </span>
-        {aiTopic && aiTopic !== "Geral" && (
-          <span className="bg-purple-50 text-purple-700 text-xs font-bold px-3 py-1 rounded-full border border-purple-100 flex items-center gap-1">
-            <Sparkles size={10} />
-            {aiTopic}
+    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group">
+      
+      {/* Cabeçalho do Card */}
+      <div className="bg-slate-50/50 border-b border-slate-100 p-4 flex items-center justify-between">
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="bg-white border border-slate-200 text-slate-600 text-xs font-bold px-3 py-1 rounded-full shadow-sm flex items-center gap-1">
+            <BookOpen size={12} className="text-slate-400"/>
+            {question.exam_year}
           </span>
+          <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${getSubjectColor(question.subject)}`}>
+            {question.subject || 'Geral'}
+          </span>
+        </div>
+        <div className="text-xs text-slate-400 font-medium hidden sm:block">
+          ID: {question.id.slice(0, 8)}
+        </div>
+      </div>
+
+      <div className="p-6">
+        {/* Contexto (Texto de Apoio) */}
+        {question.context_text && (
+          <div className="mb-6 p-5 bg-blue-50/50 text-slate-700 text-sm italic border-l-4 border-blue-400 rounded-r-xl leading-relaxed">
+            {question.context_text}
+          </div>
+        )}
+
+        {/* Enunciado */}
+        <div className="mb-8 text-slate-900 font-medium text-lg leading-relaxed whitespace-pre-line">
+          {question.statement}
+        </div>
+
+        {/* Imagens */}
+        {question.images && question.images.length > 0 && (
+          <div className="mb-8 p-2 bg-slate-50 rounded-xl border border-slate-100 flex justify-center">
+            <img
+              src={question.images[0]}
+              alt="Material de apoio"
+              className="max-h-[400px] rounded-lg shadow-sm"
+              loading="lazy"
+            />
+          </div>
+        )}
+
+        {/* Alternativas */}
+        <div className="space-y-3">
+          {question.alternatives?.map((alt, idx) => {
+            let containerClass = "border-slate-200 hover:border-blue-300 hover:bg-blue-50/30 cursor-pointer";
+            let circleClass = "bg-slate-100 text-slate-500 border-slate-300 group-hover:border-blue-400 group-hover:text-blue-600";
+            let textClass = "text-slate-700";
+            let icon = null;
+
+            // Estados Pós-Resposta
+            if (result) {
+              if (alt.label === result.correctOption) {
+                containerClass = "bg-green-50 border-green-500 ring-1 ring-green-500 cursor-default";
+                circleClass = "bg-green-100 text-green-700 border-green-500 font-bold";
+                textClass = "text-green-900 font-medium";
+                icon = <CheckCircle2 size={20} className="text-green-600 shrink-0 animate-in zoom-in" />;
+              } else if (alt.label === selectedOption && !result.correct) {
+                containerClass = "bg-red-50 border-red-400 ring-1 ring-red-400 cursor-default";
+                circleClass = "bg-red-100 text-red-700 border-red-400 font-bold";
+                textClass = "text-red-900 font-medium";
+                icon = <XCircle size={20} className="text-red-600 shrink-0 animate-in zoom-in" />;
+              } else {
+                containerClass = "opacity-50 grayscale border-slate-100 cursor-default";
+              }
+            } 
+            // Estado Selecionado (antes da resposta chegar)
+            else if (selectedOption === alt.label) {
+              containerClass = "bg-blue-50 border-blue-500 ring-1 ring-blue-500 cursor-wait";
+              circleClass = "bg-blue-100 text-blue-700 border-blue-500 font-bold";
+            }
+
+            return (
+              <button
+                key={idx}
+                disabled={!!result || isSubmitting}
+                onClick={() => handleAnswer(alt.label)}
+                className={`w-full text-left p-4 border rounded-xl transition-all duration-200 flex gap-4 items-center group relative overflow-hidden ${containerClass}`}
+              >
+                <span className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full border text-sm transition-colors ${circleClass}`}>
+                  {alt.label}
+                </span>
+                <div className={`flex-1 text-base leading-snug ${textClass}`} dangerouslySetInnerHTML={{ __html: alt.text }} />
+                {icon}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Explicação da IA */}
+        {result && result.explanation && (
+          <div className="mt-8 pt-6 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-500">
+            <div className={`p-5 rounded-2xl border flex gap-4 items-start shadow-sm ${result.correct ? 'bg-green-50/50 border-green-100' : 'bg-amber-50/50 border-amber-100'}`}>
+              <div className={`p-2 rounded-lg shrink-0 ${result.correct ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                <BrainCircuit size={24} />
+              </div>
+              <div>
+                <h4 className={`font-bold mb-1 ${result.correct ? 'text-green-800' : 'text-amber-800'}`}>
+                  {result.correct ? "Análise do Tutor IA" : "Entenda o conceito"}
+                </h4>
+                <p className="text-slate-700 text-sm leading-relaxed">
+                  {result.explanation}
+                </p>
+              </div>
+            </div>
+          </div>
         )}
       </div>
-
-      {/* Contexto */}
-      {question.context_text && (
-        <div className="mb-4 p-4 bg-slate-50 text-sm text-slate-700 italic border-l-4 border-slate-300 rounded-r-lg font-serif leading-relaxed">
-          {question.context_text}
-        </div>
-      )}
-
-      {/* Enunciado Limpo */}
-      <div className="mb-6 text-gray-900 font-medium leading-relaxed whitespace-pre-line text-lg">
-        {displayStatement}
-      </div>
-
-      {/* Imagens */}
-      {question.images && question.images.length > 0 && (
-        <div className="mb-6 flex justify-center">
-          <img
-            src={question.images[0]}
-            alt="Material de apoio"
-            className="max-w-full md:max-w-lg rounded-lg border border-gray-200 shadow-sm"
-            loading="lazy"
-          />
-        </div>
-      )}
-
-      {/* Alternativas */}
-      <div className="space-y-3">
-        {question.alternatives?.map((alt, idx) => {
-          let btnClass = "border-gray-200 hover:bg-slate-50 hover:border-blue-300";
-          let icon = null;
-
-          if (result) {
-            const isThisCorrect = alt.label.toUpperCase() === result.correctOption.toUpperCase();
-            const isThisSelected = alt.label.toUpperCase() === selectedOption?.toUpperCase();
-
-            if (isThisCorrect) {
-              btnClass = "bg-green-50 border-green-500 text-green-800 ring-1 ring-green-500";
-              icon = <CheckCircle2 size={20} className="text-green-600" />;
-            } else if (isThisSelected && !result.correct) {
-              btnClass = "bg-red-50 border-red-500 text-red-800";
-              icon = <XCircle size={20} className="text-red-600" />;
-            } else {
-              btnClass = "opacity-50 border-gray-100 grayscale";
-            }
-          } else if (selectedOption === alt.label) {
-            btnClass = "bg-blue-50 border-blue-500 ring-1 ring-blue-500";
-          }
-
-          return (
-            <button
-              key={idx}
-              disabled={!!result || isSubmitting}
-              onClick={() => handleAnswer(alt.label)}
-              className={`w-full text-left p-4 border rounded-xl transition-all flex gap-4 items-start relative ${btnClass}`}
-            >
-              <span className={`flex-shrink-0 font-bold w-8 h-8 flex items-center justify-center rounded-full border ${result && alt.label.toUpperCase() === result.correctOption.toUpperCase()
-                ? 'bg-green-500 text-white border-green-600'
-                : 'bg-white text-gray-500 border-gray-200'
-                }`}>
-                {alt.label}
-              </span>
-              <div className="flex-1 pt-0.5" dangerouslySetInnerHTML={{ __html: alt.text }} />
-              {icon && <div className="absolute right-4 top-4">{icon}</div>}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Explicação da IA */}
-      {result && result.explanation && (
-        <div className="mt-6 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className={`p-5 rounded-xl border-l-4 shadow-sm ${result.correct ? 'bg-green-50 border-green-500 border-t border-r border-b border-green-100' : 'bg-amber-50 border-amber-500 border-t border-r border-b border-amber-100'}`}>
-            <div className="flex items-center gap-2 mb-2 font-bold">
-              <BrainCircuit className={result.correct ? 'text-green-600' : 'text-amber-600'} size={20} />
-              <span className={result.correct ? 'text-green-800' : 'text-amber-800'}>
-                {result.correct ? "Feedback Inteligente" : "Análise do Tutor IA"}
-              </span>
-            </div>
-            <p className="text-sm text-gray-800 leading-relaxed font-medium">
-              {result.explanation}
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -203,7 +222,6 @@ export default function BancoDeQuestoes() {
 
   useEffect(() => {
     const getUser = async () => {
-      // MODO REAL (Ativado)
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) setUserId(user.id)
@@ -274,89 +292,79 @@ export default function BancoDeQuestoes() {
   }, [filterSubject, filterTopic])
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
-      <div className="max-w-4xl mx-auto space-y-6">
-
-        {/* Header e Filtros */}
-        <div className="flex flex-col md:flex-row justify-between items-end gap-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 sticky top-4 z-20">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              📚 Banco de Questões
-            </h1>
-            <p className="text-slate-500 text-sm">Filtros Inteligentes com IA</p>
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
+      
+      {/* Header com Gradiente */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-600/20">
+              <Layers size={20} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Banco de Questões</h1>
+              <p className="text-xs text-slate-500 font-medium">Treine com foco no ENEM</p>
+            </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-
-            {/* SELECT 1: MATÉRIA */}
+          {/* Filtro Estilizado */}
+          <div className="relative w-full sm:w-auto min-w-[240px]">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+              <Filter size={16} />
+            </div>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+              <ChevronDown size={16} />
+            </div>
             <select
-              className="w-full sm:w-auto border border-slate-300 p-2.5 rounded-lg bg-slate-50 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-medium"
+              className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none appearance-none cursor-pointer transition-all hover:bg-white hover:border-slate-300 shadow-sm"
               onChange={(e) => setFilterSubject(e.target.value)}
               value={filterSubject}
             >
-              <option value="">Todas as Matérias</option>
+              <option value="">📚 Todas as Matérias</option>
               <optgroup label="Ciências da Natureza">
-                <option value="Biologia">Biologia</option>
-                <option value="Física">Física</option>
-                <option value="Química">Química</option>
+                <option value="Biologia">🧬 Biologia</option>
+                <option value="Física">⚡ Física</option>
+                <option value="Química">🧪 Química</option>
               </optgroup>
               <optgroup label="Ciências Humanas">
-                <option value="História">História</option>
-                <option value="Geografia">Geografia</option>
-                <option value="Filosofia">Filosofia</option>
-                <option value="Sociologia">Sociologia</option>
+                <option value="História">🏛️ História</option>
+                <option value="Geografia">🌍 Geografia</option>
+                <option value="Filosofia">🤔 Filosofia</option>
+                <option value="Sociologia">👥 Sociologia</option>
               </optgroup>
               <optgroup label="Linguagens">
-                <option value="Língua Portuguesa">Português</option>
-                <option value="Literatura">Literatura</option>
-                <option value="Inglês">Inglês</option>
-                <option value="Espanhol">Espanhol</option>
+                <option value="Língua Portuguesa">📖 Português</option>
+                <option value="Literatura">🎭 Literatura</option>
+                <option value="Inglês">🇺🇸 Inglês</option>
+                <option value="Espanhol">🇪🇸 Espanhol</option>
               </optgroup>
-              <option value="Matemática">Matemática</option>
+              <option value="Matemática">📐 Matemática</option>
             </select>
-
-            {/* SELECT 2: TÓPICO (Dinâmico) */}
-            {filterSubject && availableTopics.length > 0 && (
-              <div className="relative w-full sm:w-auto">
-                <select
-                  className="w-full sm:w-64 border border-purple-300 p-2.5 rounded-lg bg-purple-50 text-purple-900 focus:ring-2 focus:ring-purple-500 focus:outline-none text-sm font-bold appearance-none"
-                  onChange={(e) => setFilterTopic(e.target.value)}
-                  value={filterTopic}
-                  disabled={loadingTopics}
-                >
-                  <option value="">Todos os Tópicos</option>
-                  {availableTopics.map((topic, idx) => (
-                    <option key={idx} value={topic}>{topic}</option>
-                  ))}
-                </select>
-                {loadingTopics && (
-                  <div className="absolute right-3 top-3 animate-spin w-4 h-4 border-2 border-purple-600 rounded-full border-t-transparent"></div>
-                )}
-              </div>
-            )}
-
           </div>
         </div>
+      </div>
 
-        {/* Lista de Questões */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         {loading ? (
-          <div className="text-center py-20">
-            <div className="inline-block w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-slate-500 font-medium">Carregando inteligência...</p>
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="w-10 h-10 border-4 border-blue-600/30 border-t-blue-600 rounded-full animate-spin"></div>
+            <p className="text-slate-500 font-medium animate-pulse">Carregando questões...</p>
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {userId && questions.map((q) => (
               <QuestionItem key={q.id} question={q} userId={userId} />
             ))}
 
             {questions.length === 0 && (
-              <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-300">
-                <div className="bg-slate-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle className="text-slate-400" size={32} />
+              <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300 mx-auto max-w-lg">
+                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
+                  <AlertCircle size={32} />
                 </div>
-                <h3 className="text-lg font-bold text-slate-700">Nada encontrado</h3>
-                <p className="text-slate-500">Tente mudar o filtro.</p>
+                <h3 className="text-lg font-bold text-slate-800 mb-2">Nenhuma questão encontrada</h3>
+                <p className="text-slate-500 text-sm max-w-xs mx-auto">
+                  Tente mudar o filtro ou volte mais tarde para novos conteúdos.
+                </p>
               </div>
             )}
           </div>
