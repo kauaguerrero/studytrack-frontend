@@ -2,7 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { CheckCircle2, XCircle, BrainCircuit, AlertCircle, Filter, BookOpen, ChevronDown, Layers } from 'lucide-react'
+import Link from 'next/link' // Adicionado import do Link
+import { 
+  CheckCircle2, 
+  XCircle, 
+  BrainCircuit, 
+  AlertCircle, 
+  Filter, 
+  BookOpen, 
+  ChevronDown, 
+  Layers,
+  ArrowLeft // Adicionado import do ícone ArrowLeft
+} from 'lucide-react'
 
 // --- Interfaces ---
 interface Alternative {
@@ -345,6 +356,18 @@ export default function BancoDeQuestoes() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+        
+        {/* Botão de Voltar - Inserido Aqui */}
+        <div className="mb-6">
+          <Link 
+            href="/dashboard" 
+            className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors group"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+            Voltar para o Dashboard
+          </Link>
+        </div>
+
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <div className="w-10 h-10 border-4 border-blue-600/30 border-t-blue-600 rounded-full animate-spin"></div>
