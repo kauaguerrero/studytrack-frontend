@@ -3,14 +3,14 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link' // Adicionado import do Link
-import { 
-  CheckCircle2, 
-  XCircle, 
-  BrainCircuit, 
-  AlertCircle, 
-  Filter, 
-  BookOpen, 
-  ChevronDown, 
+import {
+  CheckCircle2,
+  XCircle,
+  BrainCircuit,
+  AlertCircle,
+  Filter,
+  BookOpen,
+  ChevronDown,
   Layers,
   ArrowLeft // Adicionado import do ícone ArrowLeft
 } from 'lucide-react'
@@ -109,21 +109,31 @@ function QuestionItem({ question, userId }: { question: Question, userId: string
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group">
-      
+
       {/* Cabeçalho do Card */}
       <div className="bg-slate-50/50 border-b border-slate-100 p-4 flex items-center justify-between">
         <div className="flex flex-wrap gap-2 items-center">
           <span className="bg-white border border-slate-200 text-slate-600 text-xs font-bold px-3 py-1 rounded-full shadow-sm flex items-center gap-1">
-            <BookOpen size={12} className="text-slate-400"/>
+            <BookOpen size={12} className="text-slate-400" />
             {question.exam_year}
           </span>
           <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${getSubjectColor(question.subject)}`}>
             {question.subject || 'Geral'}
           </span>
         </div>
+
+        {aiTopic && (
+          <span className="bg-purple-50 border border-purple-200 text-purple-700 text-xs font-bold px-3 py-1 rounded-full shadow-sm flex items-center gap-1 animate-in fade-in">
+            <BrainCircuit size={12} />
+            {aiTopic}
+          </span>
+        )}
+        {/* ------------------------------- */}
+
         <div className="text-xs text-slate-400 font-medium hidden sm:block">
           ID: {question.id.slice(0, 8)}
         </div>
+
       </div>
 
       <div className="p-6">
@@ -174,7 +184,7 @@ function QuestionItem({ question, userId }: { question: Question, userId: string
               } else {
                 containerClass = "opacity-50 grayscale border-slate-100 cursor-default";
               }
-            } 
+            }
             // Estado Selecionado (antes da resposta chegar)
             else if (selectedOption === alt.label) {
               containerClass = "bg-blue-50 border-blue-500 ring-1 ring-blue-500 cursor-wait";
@@ -304,7 +314,7 @@ export default function BancoDeQuestoes() {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
-      
+
       {/* Header com Gradiente */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -352,15 +362,42 @@ export default function BancoDeQuestoes() {
               <option value="Matemática">📐 Matemática</option>
             </select>
           </div>
+          <div className="relative w-full sm:w-auto min-w-[240px]">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+              <Filter size={16} />
+            </div>
+            <select
+              className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
+              onChange={(e) => setFilterTopic(e.target.value)}
+              value={filterTopic}
+              disabled={!filterSubject || availableTopics.length === 0}
+            >
+              <option value="">
+                {loadingTopics ? "Carregando tópicos..." : "🎯 Filtrar por Assunto"}
+              </option>
+              <option value="Todos">Todos os Assuntos</option>
+
+              {availableTopics.map((topic) => (
+                <option key={topic} value={topic}>
+                  {topic}
+                </option>
+              ))}
+            </select>
+
+            {/* Seta do Dropdown */}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+              <ChevronDown size={16} />
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-        
+
         {/* Botão de Voltar - Inserido Aqui */}
         <div className="mb-6">
-          <Link 
-            href="/dashboard" 
+          <Link
+            href="/dashboard"
             className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors group"
           >
             <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
