@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   DollarSign, Users, Brain, Activity, Lock, AlertTriangle, ArrowLeft,
   CheckCircle2, XCircle, Edit3, Save, Trash2, LayoutDashboard, ListChecks,
-  Database, Server, HardDrive, RefreshCw
+  Database, Server, HardDrive, RefreshCw, ShieldCheck
 } from 'lucide-react';
 
 // --- Interfaces ---
@@ -20,7 +20,15 @@ interface Question {
 
 interface StatsData {
   users: { total: number; breakdown: { free: number; trial: number; basic: number; pro: number } };
-  financial: { gross_revenue_brl: number; ai_cost_usd: number; ai_cost_brl: number; net_profit_brl: number };
+  financial: { 
+    gross_revenue_brl: number; 
+    ai_cost_usd: number; 
+    ai_cost_brl: number; 
+    theoretical_cost_usd?: number; // Custo Teórico (sem isenção)
+    theoretical_cost_brl?: number;
+    net_profit_brl: number;
+    is_free_tier?: boolean; 
+  };
   ai_usage: { total_requests: number; total_tokens: number };
   infrastructure: {
     db_size_bytes: number;
@@ -29,7 +37,6 @@ interface StatsData {
     rows_tasks: number;
   };
 }
-
 // --- Componentes Auxiliares ---
 
 const LoadingOverlay = () => (
@@ -243,13 +250,30 @@ const DashboardStats = ({ stats, loading }: { stats: StatsData, loading: boolean
   const formatBRL = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   const formatUSD = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
 
-  const StatCard = ({ icon: Icon, label, value, subtext, colorClass = "text-slate-900", bgClass = "bg-white" }: any) => (
-    <div className={`${bgClass} p-6 rounded-2xl shadow-sm border border-slate-200 transition-all hover:shadow-md`}>
-      <div className="flex items-center gap-3 mb-3 text-slate-500 text-xs font-bold uppercase tracking-wider">
+  const StatCard = ({ icon: Icon, label, value, subtext, colorClass = "text-slate-900", bgClass = "bg-white", isFreeTier = false, theoreticalCost }: any) => (
+    <div className={`${bgClass} p-6 rounded-2xl shadow-sm border border-slate-200 transition-all hover:shadow-md relative overflow-hidden`}>
+      <div className="flex items-center gap-3 mb-3 text-slate-500 text-xs font-bold uppercase tracking-wider relative z-10">
         <Icon size={16} /> {label}
       </div>
-      <div className={`text-4xl font-extrabold ${colorClass} tracking-tight`}>{value}</div>
-      <p className="text-xs text-slate-400 mt-2 font-medium">{subtext}</p>
+      <div className={`text-3xl lg:text-4xl font-extrabold ${isFreeTier ? 'text-emerald-600' : colorClass} tracking-tight relative z-10`}>
+        {value}
+      </div>
+      
+      {isFreeTier ? (
+        <div className="mt-3 flex flex-col gap-1.5 relative z-10">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md w-fit">
+              <ShieldCheck size={12} />
+              Dentro do limite free
+          </div>
+          {theoreticalCost && (
+            <div className="text-[10px] text-slate-400 font-medium ml-1">
+              Economia: <span className="line-through decoration-red-400">{theoreticalCost}</span> (Teórico)
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400 mt-2 font-medium relative z-10">{subtext}</p>
+      )}
     </div>
   );
 
@@ -258,34 +282,51 @@ const DashboardStats = ({ stats, loading }: { stats: StatsData, loading: boolean
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard icon={Users} label="Base de Usuários" value={stats.users.total} subtext={`Free: ${stats.users.breakdown.free} | Pro: ${stats.users.breakdown.pro}`} />
+        
         <StatCard icon={DollarSign} label="Receita Bruta (MRR)" value={formatBRL(stats.financial.gross_revenue_brl)} subtext="Faturamento Mensal" colorClass="text-green-600" />
-        <StatCard icon={Brain} label="Custo IA" value={formatBRL(stats.financial.ai_cost_brl)} subtext={`${formatUSD(stats.financial.ai_cost_usd)} USD`} colorClass="text-red-500" />
+        
+        <StatCard 
+            icon={Brain} 
+            label="Custo IA" 
+            value={formatBRL(stats.financial.ai_cost_brl)} 
+            subtext={`${formatUSD(stats.financial.ai_cost_usd)} USD`} 
+            colorClass="text-red-500" 
+            isFreeTier={stats.financial.is_free_tier}
+            theoreticalCost={stats.financial.is_free_tier ? formatBRL(stats.financial.theoretical_cost_brl || 0) : undefined}
+        />
+        
         <StatCard icon={Activity} label="Lucro Líquido" value={formatBRL(stats.financial.net_profit_brl)} subtext="Margem Real" colorClass="text-blue-700" bgClass="bg-gradient-to-br from-blue-50 to-white border-blue-200" />
       </div>
+
       <div>
         <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4 pt-4"><Server size={20} className="text-violet-600"/> Infraestrutura</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex items-center gap-2 mb-4 text-slate-500 text-xs font-bold uppercase tracking-wider"><Database size={16} /> Armazenamento</div>
-            {/* Se db_size_bytes for 0, mostra uma mensagem amigável */}
             <UsageBar label="Tamanho do Banco" current={bytesToMB(stats.infrastructure.db_size_bytes)} max={bytesToMB(stats.infrastructure.db_limit_bytes)} unit=" MB" />
             {stats.infrastructure.db_size_bytes === 0 && (
                 <p className="text-[10px] text-slate-400 mt-2 text-center bg-slate-50 p-2 rounded">
-                    ⚠️ Dados de tamanho indisponíveis. Verifique se a função <code>get_db_size</code> foi criada no SQL Editor do Supabase.
+                    ⚠️ RPC <code>get_db_size</code> indisponível.
                 </p>
             )}
           </div>
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <div className="flex items-center gap-2 mb-4 text-slate-500 text-xs font-bold uppercase tracking-wider"><HardDrive size={16} /> Volume de Dados</div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm"><span className="text-slate-600">Questões:</span> <span className="font-bold">{stats.infrastructure.rows_history.toLocaleString()}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-slate-600">Tarefas:</span> <span className="font-bold">{stats.infrastructure.rows_tasks.toLocaleString()}</span></div>
+            <div className="space-y-4 pt-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-600 font-medium">Questões Geradas</span> 
+                <span className="font-bold text-lg bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">{stats.infrastructure.rows_history.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-600 font-medium">Tarefas Criadas</span> 
+                <span className="font-bold text-lg bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">{stats.infrastructure.rows_tasks.toLocaleString()}</span>
+              </div>
             </div>
           </div>
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
              <div className="flex items-center gap-2 mb-4 text-slate-500 text-xs font-bold uppercase tracking-wider"><Brain size={16} /> Tokens AI</div>
              <div className="text-3xl font-mono font-bold text-slate-900">{stats.ai_usage.total_tokens.toLocaleString()}</div>
-             <p className="text-xs text-slate-400 mt-1">{stats.ai_usage.total_requests} requisições no total.</p>
+             <p className="text-xs text-slate-400 mt-1">{stats.ai_usage.total_requests} requisições totais.</p>
           </div>
         </div>
       </div>
