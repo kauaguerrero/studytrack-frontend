@@ -32,7 +32,7 @@ export default async function Dashboard() {
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('whatsapp_phone, full_name')
+      .select('whatsapp_phone, full_name, handshake_completed')
       .eq('id', user.id)
       .single();
 
@@ -41,6 +41,11 @@ export default async function Dashboard() {
 
     // Redirecionamento de Onboarding
     if (!profile?.whatsapp_phone) redirect('/onboarding/objetivo');
+
+    // Se tiver telefone mas não confirmou o handshake, manda pra sala de espera
+    if (!profile?.handshake_completed) {
+      redirect('/onboarding/handshake');
+    }
 
     // 2. Buscas em Paralelo (Performance: roda tudo ao mesmo tempo)
     const todayStr = new Date().toISOString().split('T')[0];

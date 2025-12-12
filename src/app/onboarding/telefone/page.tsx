@@ -36,7 +36,11 @@ export default function OnboardingTelefone() {
     if (step === 'processing') {
       const messages = [
         "Conectando com a IA...", 
-        "Analisando seu perfil...", 
+        "Analisando seu perfil...",
+        "Gerando plano de estudos...",
+        "Buscando melhores recursos...", 
+        "Montando cronograma personalizado...",
+        "Organizando materiais...",
         "Curando conteúdo...", 
         "Finalizando..."
       ];
@@ -44,7 +48,7 @@ export default function OnboardingTelefone() {
       const interval = setInterval(() => {
         i = (i + 1) % messages.length;
         setLoadingMessage(messages[i]);
-      }, 2500);
+      }, 1000);
       return () => clearInterval(interval);
     }
   }, [step]);
@@ -70,11 +74,20 @@ export default function OnboardingTelefone() {
     setStep('processing');
 
     try {
+      // 1. Obter a sessão e o usuário ATUALIZADOS
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) throw new Error("Sessão expirada.");
+      
+      if (sessionError || !session || !session.user) {
+        throw new Error("Sessão expirada. Por favor, faça login novamente.");
+      }
 
+      // Variáveis corrigidas e definidas no escopo correto
+      const user = session.user;
       const token = session.access_token;
-      const cleanPhone = phone.replace(/\D/g, "");
+      const cleanPhone = phone.replace(/\D/g, ""); // Remove formatação para enviar apenas números
+
+      // Lógica para obter o nome do usuário (Metadata ou Fallback)
+      const nomeUsuario = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || "Estudante";
 
       // Recupera dados do LocalStorage
       const planTier = localStorage.getItem('onboarding_plan') || 'free';
@@ -85,7 +98,11 @@ export default function OnboardingTelefone() {
       const daysPerWeek = parseInt(localStorage.getItem('onboarding_days') || '5');
       const hoursPerDay = parseInt(localStorage.getItem('onboarding_hours') || '2');
 
-      const response = await fetch('http://127.0.0.1:5000/api/auth/onboarding/complete', {
+      // Define a URL da API (Usa variável de ambiente ou localhost como fallback)
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+
+      // 2. Primeira chamada: Completar Onboarding (Salvar dados no Backend)
+      const responseOnboarding = await fetch(`${apiUrl}/api/auth/onboarding/complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -101,11 +118,23 @@ export default function OnboardingTelefone() {
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Falha no backend");
+      if (!responseOnboarding.ok) {
+        const errorData = await responseOnboarding.json();
+        throw new Error(errorData.error || "Falha ao salvar dados de onboarding");
       }
 
+      // 3. Segunda chamada: Handshake do WhatsApp (Enviar mensagem de boas-vindas)
+      await fetch(`${apiUrl}/api/auth/handshake`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: cleanPhone, 
+          name: nomeUsuario,
+          userId: user.id
+        })
+      });
+
+      // Limpeza do LocalStorage após sucesso
       localStorage.removeItem('onboarding_plan');
       localStorage.removeItem('onboarding_goal');
       localStorage.removeItem('onboarding_pace');
@@ -113,15 +142,17 @@ export default function OnboardingTelefone() {
       localStorage.removeItem('onboarding_hours');
 
       setStep('success');
+      
       setTimeout(() => {
         router.refresh();
         router.push('/dashboard');
       }, 2000);
 
     } catch (error: any) {
-      console.error("Erro:", error);
-      alert(`Erro: ${error.message}`);
+      console.error("Erro no processo de onboarding:", error);
+      // Volta para o input em caso de erro para permitir tentar novamente
       setStep('input');
+      alert(`Ocorreu um erro: ${error.message}`);
     } finally {
       setLoading(false);
     }
