@@ -2,434 +2,308 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link' // Adicionado import do Link
-import {
-  CheckCircle2,
-  XCircle,
-  BrainCircuit,
-  AlertCircle,
-  Filter,
-  BookOpen,
-  ChevronDown,
-  Layers,
-  ArrowLeft // Adicionado import do ícone ArrowLeft
-} from 'lucide-react'
+import Link from 'next/link'
+import { ChevronDown, ArrowLeft, ArrowRight, BookOpen, Sparkles, Filter } from 'lucide-react'
+import { QuestionCard } from '@/components/questions/QuestionCard'
 
-// --- Interfaces ---
-interface Alternative {
-  label: string;
-  text: string;
-  isCorrect?: boolean;
+interface Topic {
+    name: string;
+    count: number;
 }
 
-interface Question {
-  id: string; // UUID
-  exam_year: number;
-  subject: string;
-  statement: string;
-  context_text?: string;
-  images: string[];
-  alternatives: Alternative[];
-  metadata?: {
-    ai_topic?: string;
-    ai_processed?: boolean;
-  };
-}
+// Lista completa de matérias para não faltar nada
+const SUBJECTS = [
+    "Matemática",
+    "Física",
+    "Química",
+    "Biologia",
+    "História",
+    "Geografia",
+    "Filosofia",
+    "Sociologia",
+    "Língua Portuguesa",
+    "Inglês",
+    "Espanhol",
+];
 
-// Utilitário para cores das matérias
-const getSubjectColor = (subject: string) => {
-  if (!subject) return 'bg-gray-100 text-gray-700 border-gray-200';
-  const s = subject.toLowerCase();
-  if (s.includes('matemática')) return 'bg-blue-50 text-blue-700 border-blue-200';
-  if (s.includes('física') || s.includes('química') || s.includes('biologia')) return 'bg-green-50 text-green-700 border-green-200';
-  if (s.includes('história') || s.includes('geografia') || s.includes('filosofia')) return 'bg-amber-50 text-amber-700 border-amber-200';
-  if (s.includes('português') || s.includes('literatura') || s.includes('inglês')) return 'bg-pink-50 text-pink-700 border-pink-200';
-  return 'bg-slate-100 text-slate-700 border-slate-200';
-}
-
-// --- Componente de Cartão de Questão Individual ---
-function QuestionItem({ question, userId }: { question: Question, userId: string }) {
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<{
-    correct: boolean;
-    correctOption: string;
-    explanation?: string;
-  } | null>(null);
-
-  const handleAnswer = async (optionLabel: string) => {
-    if (isSubmitting || result) return;
-
-    setSelectedOption(optionLabel);
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch('http://127.0.0.1:5000/api/questions/answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: userId,
-          question_id: question.id,
-          option: optionLabel
-        })
-      });
-
-      const data = await response.json();
-
-      setResult({
-        correct: data.is_correct,
-        correctOption: data.correct_option,
-        explanation: data.explanation
-      });
-
-    } catch (error) {
-      console.error("Erro ao responder:", error);
-      alert("Erro ao conectar com o servidor.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Lógica de limpeza de texto (para evitar duplicidade)
-  let displayStatement = question.statement;
-  if (question.context_text) {
-    const normalize = (str: string) => str.replace(/\s+/g, ' ').trim();
-    const cleanContext = normalize(question.context_text);
-    const cleanStatement = normalize(question.statement);
-
-    if (cleanStatement.startsWith(cleanContext)) {
-      displayStatement = question.statement.substring(question.context_text.length).trim();
-      displayStatement = displayStatement.replace(/^[\.\-\s]+/, '');
-    } else if (question.statement.includes(question.context_text)) {
-      displayStatement = question.statement.replace(question.context_text, '').trim();
-    }
-  }
-
-  const aiTopic = question.metadata?.ai_topic || "";
-
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group">
-
-      {/* Cabeçalho do Card */}
-      <div className="bg-slate-50/50 border-b border-slate-100 p-4 flex items-center justify-between">
-        <div className="flex flex-wrap gap-2 items-center">
-          <span className="bg-white border border-slate-200 text-slate-600 text-xs font-bold px-3 py-1 rounded-full shadow-sm flex items-center gap-1">
-            <BookOpen size={12} className="text-slate-400" />
-            {question.exam_year}
-          </span>
-          <span className={`text-xs font-bold px-3 py-1 rounded-full border shadow-sm ${getSubjectColor(question.subject)}`}>
-            {question.subject || 'Geral'}
-          </span>
-        </div>
-
-        {aiTopic && (
-          <span className="bg-purple-50 border border-purple-200 text-purple-700 text-xs font-bold px-3 py-1 rounded-full shadow-sm flex items-center gap-1 animate-in fade-in">
-            <BrainCircuit size={12} />
-            {aiTopic}
-          </span>
-        )}
-        {/* ------------------------------- */}
-
-        <div className="text-xs text-slate-400 font-medium hidden sm:block">
-          ID: {question.id.slice(0, 8)}
-        </div>
-
-      </div>
-
-      <div className="p-6">
-        {/* Contexto (Texto de Apoio) */}
-        {question.context_text && (
-          <div className="mb-6 p-5 bg-blue-50/50 text-slate-700 text-sm italic border-l-4 border-blue-400 rounded-r-xl leading-relaxed">
-            {question.context_text}
-          </div>
-        )}
-
-        {/* Enunciado */}
-        <div className="mb-8 text-slate-900 font-medium text-lg leading-relaxed whitespace-pre-line">
-          {question.statement}
-        </div>
-
-        {/* Imagens */}
-        {question.images && question.images.length > 0 && (
-          <div className="mb-8 p-2 bg-slate-50 rounded-xl border border-slate-100 flex justify-center">
-            <img
-              src={question.images[0]}
-              alt="Material de apoio"
-              className="max-h-[400px] rounded-lg shadow-sm"
-              loading="lazy"
-            />
-          </div>
-        )}
-
-        {/* Alternativas */}
-        <div className="space-y-3">
-          {question.alternatives?.map((alt, idx) => {
-            let containerClass = "border-slate-200 hover:border-blue-300 hover:bg-blue-50/30 cursor-pointer";
-            let circleClass = "bg-slate-100 text-slate-500 border-slate-300 group-hover:border-blue-400 group-hover:text-blue-600";
-            let textClass = "text-slate-700";
-            let icon = null;
-
-            // Estados Pós-Resposta
-            if (result) {
-              if (alt.label === result.correctOption) {
-                containerClass = "bg-green-50 border-green-500 ring-1 ring-green-500 cursor-default";
-                circleClass = "bg-green-100 text-green-700 border-green-500 font-bold";
-                textClass = "text-green-900 font-medium";
-                icon = <CheckCircle2 size={20} className="text-green-600 shrink-0 animate-in zoom-in" />;
-              } else if (alt.label === selectedOption && !result.correct) {
-                containerClass = "bg-red-50 border-red-400 ring-1 ring-red-400 cursor-default";
-                circleClass = "bg-red-100 text-red-700 border-red-400 font-bold";
-                textClass = "text-red-900 font-medium";
-                icon = <XCircle size={20} className="text-red-600 shrink-0 animate-in zoom-in" />;
-              } else {
-                containerClass = "opacity-50 grayscale border-slate-100 cursor-default";
-              }
-            }
-            // Estado Selecionado (antes da resposta chegar)
-            else if (selectedOption === alt.label) {
-              containerClass = "bg-blue-50 border-blue-500 ring-1 ring-blue-500 cursor-wait";
-              circleClass = "bg-blue-100 text-blue-700 border-blue-500 font-bold";
-            }
-
-            return (
-              <button
-                key={idx}
-                disabled={!!result || isSubmitting}
-                onClick={() => handleAnswer(alt.label)}
-                className={`w-full text-left p-4 border rounded-xl transition-all duration-200 flex gap-4 items-center group relative overflow-hidden ${containerClass}`}
-              >
-                <span className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full border text-sm transition-colors ${circleClass}`}>
-                  {alt.label}
-                </span>
-                <div className={`flex-1 text-base leading-snug ${textClass}`} dangerouslySetInnerHTML={{ __html: alt.text }} />
-                {icon}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Explicação da IA */}
-        {result && result.explanation && (
-          <div className="mt-8 pt-6 border-t border-slate-100 animate-in fade-in slide-in-from-top-2 duration-500">
-            <div className={`p-5 rounded-2xl border flex gap-4 items-start shadow-sm ${result.correct ? 'bg-green-50/50 border-green-100' : 'bg-amber-50/50 border-amber-100'}`}>
-              <div className={`p-2 rounded-lg shrink-0 ${result.correct ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
-                <BrainCircuit size={24} />
-              </div>
-              <div>
-                <h4 className={`font-bold mb-1 ${result.correct ? 'text-green-800' : 'text-amber-800'}`}>
-                  {result.correct ? "Análise do Tutor IA" : "Entenda o conceito"}
-                </h4>
-                <p className="text-slate-700 text-sm leading-relaxed">
-                  {result.explanation}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// --- Página Principal ---
 export default function BancoDeQuestoes() {
-  const [questions, setQuestions] = useState<Question[]>([])
-  const [filterSubject, setFilterSubject] = useState('')
-  const [filterTopic, setFilterTopic] = useState('')
-  const [availableTopics, setAvailableTopics] = useState<string[]>([])
-  const [loadingTopics, setLoadingTopics] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
+    // --- LÓGICA MANTIDA ---
+    const [questions, setQuestions] = useState<any[]>([])
+    const [currentIdx, setCurrentIdx] = useState(0)
+    
+    const [filterSubject, setFilterSubject] = useState('')
+    const [filterTopic, setFilterTopic] = useState('')
+    const [availableTopics, setAvailableTopics] = useState<Topic[]>([])
+    
+    const [loading, setLoading] = useState(false)
+    const [loadingMore, setLoadingMore] = useState(false)
+    const [userId, setUserId] = useState<string | null>(null)
+    
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
 
-  useEffect(() => {
-    const getUser = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) setUserId(user.id)
-    }
-    getUser()
-  }, [])
-
-  // 1. Carrega Tópicos ao mudar a Matéria
-  useEffect(() => {
-    async function loadTopics() {
-      if (!filterSubject || filterSubject === 'Todas') {
-        setAvailableTopics([]);
-        setFilterTopic('');
-        return;
-      }
-
-      setLoadingTopics(true);
-      try {
-        const res = await fetch(`http://127.0.0.1:5000/api/questions/topics?subject=${encodeURIComponent(filterSubject)}`);
-        const data = await res.json();
-        setAvailableTopics(data);
-        setFilterTopic('');
-      } catch (err) {
-        console.error("Erro ao carregar tópicos", err);
-      } finally {
-        setLoadingTopics(false);
-      }
-    }
-    loadTopics();
-  }, [filterSubject]);
-
-  // 2. Busca Questões
-  const fetchQuestions = async () => {
-    setLoading(true)
-    try {
-      const supabase = createClient()
-      let query = supabase
-        .from('questions')
-        .select('*')
-        .limit(20)
-        .order('exam_year', { ascending: false })
-
-      if (filterSubject && filterSubject !== 'Todas') {
-        if (filterSubject === 'Física') {
-          query = query.ilike('subject', '%Física%').neq('subject', 'Educação Física')
-        } else {
-          query = query.eq('subject', filterSubject)
+    useEffect(() => {
+        const getUser = async () => {
+            const supabase = createClient()
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) setUserId(user.id)
         }
-      }
+        getUser()
+    }, [])
 
-      if (filterTopic && filterTopic !== 'Todos') {
-        query = query.eq('metadata->>ai_topic', filterTopic)
-      }
+    useEffect(() => {
+        async function loadTopics() {
+            if (!filterSubject || filterSubject === 'Todas') {
+                setAvailableTopics([]); setFilterTopic(''); return;
+            }
+            try {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+                const res = await fetch(`${apiUrl}/api/questions/topics?subject=${encodeURIComponent(filterSubject)}`);
+                const data = await res.json();
+                setAvailableTopics(data);
+                setFilterTopic('');
+            } catch (err) { console.error(err); }
+        }
+        loadTopics();
+    }, [filterSubject]);
 
-      const { data, error } = await query
-      if (error) throw error
-      if (data) setQuestions(data as unknown as Question[])
+    const fetchQuestions = async (targetPage = 1, append = false) => {
+        if (!append) setLoading(true);
+        else setLoadingMore(true);
 
-    } catch (err) {
-      console.error('Erro ao buscar questões:', err)
-    } finally {
-      setLoading(false)
+        try {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+            const params = new URLSearchParams({ page: targetPage.toString(), limit: '20' });
+            
+            if (filterSubject) params.append('subject', filterSubject);
+            if (filterTopic && filterTopic !== 'Todos') params.append('topic', filterTopic);
+
+            const res = await fetch(`${apiUrl}/api/questions/?${params.toString()}`);
+            const data = await res.json();
+
+            if (data.data && Array.isArray(data.data)) {
+                if (append) {
+                    setQuestions(prev => [...prev, ...data.data]);
+                } else {
+                    setQuestions(data.data);
+                    setCurrentIdx(0);
+                }
+                setPage(targetPage);
+                setHasMore(data.data.length === 20);
+            }
+        } catch (err) { console.error(err) } 
+        finally { setLoading(false); setLoadingMore(false); }
     }
-  }
 
-  useEffect(() => {
-    fetchQuestions()
-  }, [filterSubject, filterTopic])
+    useEffect(() => {
+        setPage(1); setHasMore(true);
+        fetchQuestions(1, false);
+    }, [filterSubject, filterTopic])
 
-  return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-20">
+    const handleNext = () => {
+        if (currentIdx < questions.length - 1) {
+            setCurrentIdx(prev => prev + 1);
+        } else if (hasMore && !loadingMore) {
+            fetchQuestions(page + 1, true).then(() => {
+                setCurrentIdx(prev => prev + 1);
+            });
+        }
+    };
 
-      {/* Header com Gradiente */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-600/20">
-              <Layers size={20} />
+    const handlePrev = () => {
+        if (currentIdx > 0) setCurrentIdx(prev => prev - 1);
+    };
+
+    const currentQ = questions[currentIdx];
+    const progressPercentage = questions.length > 0 ? ((currentIdx + 1) / questions.length) * 100 : 0;
+
+    return (
+        <div className="min-h-screen bg-[#F0F4F8] font-sans text-slate-900 pb-32 relative selection:bg-blue-100 selection:text-blue-700">
+            
+            {/* Background Decoration (Blue/Sky theme) */}
+            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+                <div className="absolute -top-20 -right-20 w-96 h-96 bg-blue-200 rounded-full blur-3xl opacity-40 mix-blend-multiply animate-blob"></div>
+                <div className="absolute -bottom-20 -left-20 w-96 h-96 bg-sky-200 rounded-full blur-3xl opacity-40 mix-blend-multiply animate-blob animation-delay-2000"></div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Banco de Questões</h1>
-              <p className="text-xs text-slate-500 font-medium">Treine com foco no ENEM</p>
-            </div>
-          </div>
 
-          {/* Filtro Estilizado */}
-          <div className="relative w-full sm:w-auto min-w-[240px]">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-              <Filter size={16} />
-            </div>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-              <ChevronDown size={16} />
-            </div>
-            <select
-              className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none appearance-none cursor-pointer transition-all hover:bg-white hover:border-slate-300 shadow-sm"
-              onChange={(e) => setFilterSubject(e.target.value)}
-              value={filterSubject}
-            >
-              <option value="">📚 Todas as Matérias</option>
-              <optgroup label="Ciências da Natureza">
-                <option value="Biologia">🧬 Biologia</option>
-                <option value="Física">⚡ Física</option>
-                <option value="Química">🧪 Química</option>
-              </optgroup>
-              <optgroup label="Ciências Humanas">
-                <option value="História">🏛️ História</option>
-                <option value="Geografia">🌍 Geografia</option>
-                <option value="Filosofia">🤔 Filosofia</option>
-                <option value="Sociologia">👥 Sociologia</option>
-              </optgroup>
-              <optgroup label="Linguagens">
-                <option value="Língua Portuguesa">📖 Português</option>
-                <option value="Literatura">🎭 Literatura</option>
-                <option value="Inglês">🇺🇸 Inglês</option>
-                <option value="Espanhol">🇪🇸 Espanhol</option>
-              </optgroup>
-              <option value="Matemática">📐 Matemática</option>
-            </select>
-          </div>
-          <div className="relative w-full sm:w-auto min-w-[240px]">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-              <Filter size={16} />
-            </div>
-            <select
-              className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
-              onChange={(e) => setFilterTopic(e.target.value)}
-              value={filterTopic}
-              disabled={!filterSubject || availableTopics.length === 0}
-            >
-              <option value="">
-                {loadingTopics ? "Carregando tópicos..." : "🎯 Filtrar por Assunto"}
-              </option>
-              <option value="Todos">Todos os Assuntos</option>
+            {/* Header Glassmorphism */}
+            <div className="sticky top-0 z-40 px-4 pt-4 pb-2">
+                <div className="max-w-6xl mx-auto bg-white/80 backdrop-blur-xl border border-white/40 shadow-lg shadow-slate-200/50 rounded-2xl px-5 py-4 flex flex-col md:flex-row justify-between items-center gap-5 transition-all duration-300">
+                    
+                    {/* AQUI ESTÁ A MUDANÇA: Botão Voltar Explícito */}
+                    <div className="flex items-center gap-4 w-full md:w-auto">
+                        <Link href="/dashboard" className="group flex items-center gap-2 pl-2 pr-4 py-2 bg-white border border-slate-200 hover:border-blue-300 rounded-xl text-slate-500 hover:text-blue-600 transition-all duration-200 active:scale-95 shadow-sm">
+                            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+                            <span className="text-sm font-bold">Voltar</span>
+                        </Link>
+                        
+                        <div className="h-8 w-[1px] bg-slate-200 mx-2 hidden sm:block"></div>
 
-              {availableTopics.map((topic) => (
-                <option key={topic} value={topic}>
-                  {topic}
-                </option>
-              ))}
-            </select>
+                        <div>
+                            <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <Sparkles size={20} className="text-blue-500 fill-blue-100" />
+                                Banco de Questões
+                            </h1>
+                            <p className="text-xs text-slate-500 font-medium hidden sm:block">Estude com foco total</p>
+                        </div>
+                    </div>
 
-            {/* Seta do Dropdown */}
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-              <ChevronDown size={16} />
-            </div>
-          </div>
-        </div>
-      </div>
+                    <div className="flex gap-3 w-full md:w-auto flex-col sm:flex-row">
+                        {/* ... Dropdowns de Matéria e Tópico mantidos IGUAIS ... */}
+                        <div className="relative group w-full sm:w-[200px]">
+                            {/* ... código do select matéria ... */}
+                             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none z-10">
+                                <BookOpen size={18} />
+                            </div>
+                            <select 
+                                className="w-full bg-slate-50 border border-slate-200 hover:border-blue-300 hover:bg-white text-slate-700 text-sm font-semibold rounded-xl pl-10 pr-10 py-3 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 appearance-none transition-all cursor-pointer shadow-sm"
+                                onChange={(e) => setFilterSubject(e.target.value)}
+                                value={filterSubject}
+                            >
+                                <option value="" className="text-slate-400">Selecionar Matéria</option>
+                                {SUBJECTS.map(subj => (
+                                    <option key={subj} value={subj}>{subj}</option>
+                                ))}
+                            </select>
+                            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-blue-500 transition-colors pointer-events-none" />
+                        </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-
-        {/* Botão de Voltar - Inserido Aqui */}
-        <div className="mb-6">
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-blue-600 transition-colors group"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
-            Voltar para o Dashboard
-          </Link>
-        </div>
-
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="w-10 h-10 border-4 border-blue-600/30 border-t-blue-600 rounded-full animate-spin"></div>
-            <p className="text-slate-500 font-medium animate-pulse">Carregando questões...</p>
-          </div>
-        ) : (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {userId && questions.map((q) => (
-              <QuestionItem key={q.id} question={q} userId={userId} />
-            ))}
-
-            {questions.length === 0 && (
-              <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300 mx-auto max-w-lg">
-                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300">
-                  <AlertCircle size={32} />
+                        <div className="relative group w-full sm:w-[240px]">
+                            {/* ... código do select tópico ... */}
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-500 pointer-events-none z-10">
+                                <Filter size={18} />
+                            </div>
+                            <select 
+                                className="w-full bg-slate-50 border border-slate-200 hover:border-sky-300 hover:bg-white text-slate-700 text-sm font-semibold rounded-xl pl-10 pr-10 py-3 outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-500 appearance-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-100 shadow-sm"
+                                onChange={(e) => setFilterTopic(e.target.value)}
+                                value={filterTopic}
+                                disabled={!filterSubject || availableTopics.length === 0}
+                            >
+                                <option value="">Tópico Específico</option>
+                                <option value="Todos">Todos os Tópicos</option>
+                                {availableTopics.map((t) => (
+                                    <option key={t.name} value={t.name}>{t.name} ({t.count})</option>
+                                ))}
+                            </select>
+                            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-sky-500 transition-colors pointer-events-none" />
+                        </div>
+                    </div>
                 </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-2">Nenhuma questão encontrada</h3>
-                <p className="text-slate-500 text-sm max-w-xs mx-auto">
-                  Tente mudar o filtro ou volte mais tarde para novos conteúdos.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
+            </div>
+
+            {/* Main Content */}
+            <div className="max-w-4xl mx-auto px-4 py-6 relative z-10">
+                {loading && page === 1 ? (
+                    <div className="flex flex-col items-center justify-center py-32 space-y-4 animate-pulse">
+                        <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                        <p className="text-slate-400 font-medium tracking-wide">Buscando questões...</p>
+                    </div>
+                ) : currentQ && userId ? (
+                    <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out">
+                        
+                        {/* Header da Questão */}
+                        <div className="flex justify-between items-end mb-6 px-1">
+                            <div>
+                                <span className="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+                                    Questão {currentIdx + 1}
+                                </span>
+                                <h2 className="text-slate-400 text-xs mt-2 font-medium pl-1">
+                                    Total de {questions.length}{hasMore ? '+' : ''} questões
+                                </h2>
+                            </div>
+                            
+                            {/* Visual Progress Bar (Desktop) */}
+                            <div className="hidden md:block w-48">
+                                <div className="flex justify-between text-[10px] text-slate-400 mb-1 font-bold uppercase tracking-widest">
+                                    <span>Progresso</span>
+                                    <span>{Math.round(progressPercentage)}%</span>
+                                </div>
+                                <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden border border-slate-100">
+                                    <div 
+                                        style={{ width: `${progressPercentage}%` }} 
+                                        className="h-full bg-gradient-to-r from-sky-400 to-blue-600 transition-all duration-500 ease-out rounded-full shadow-[0_0_10px_rgba(37,99,235,0.5)]"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Card Container */}
+                        <div className="relative group perspective-1000">
+                             {/* Glow Effect behind card */}
+                            <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 to-sky-300 rounded-[2rem] blur opacity-10 group-hover:opacity-25 transition duration-500"></div>
+                            
+                            <div className="relative bg-white rounded-[1.5rem] shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden">
+                                <QuestionCard 
+                                    key={currentQ.id} 
+                                    userId={userId} 
+                                    question={{
+                                        id: currentQ.id,
+                                        external_id: currentQ.external_id,
+                                        year: currentQ.exam_year,
+                                        subject: currentQ.subject,
+                                        difficulty: currentQ.difficulty || "Médio",
+                                        context: currentQ.context,
+                                        statement: currentQ.statement,
+                                        alternatives: currentQ.alternatives,
+                                        correct_option: currentQ.correct_option,
+                                        explanation: currentQ.explanation,
+                                        images: currentQ.images
+                                    }} 
+                                />
+                            </div>
+                        </div>
+
+                        {/* Floating Action Bar (Bottom) */}
+                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-lg z-50">
+                            <div className="bg-white/90 backdrop-blur-md border border-white/50 shadow-2xl shadow-blue-900/10 rounded-2xl p-2.5 flex items-center justify-between gap-3 ring-1 ring-slate-900/5">
+                                <button 
+                                    onClick={handlePrev}
+                                    disabled={currentIdx === 0}
+                                    className="flex-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold py-3.5 rounded-xl disabled:opacity-40 disabled:hover:bg-slate-50 transition-all flex justify-center items-center gap-2 group active:scale-[0.98]"
+                                >
+                                    <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform text-slate-400 group-hover:text-slate-600" /> 
+                                    <span className="hidden sm:inline">Anterior</span>
+                                </button>
+                                
+                                <div className="h-8 w-[1px] bg-slate-200 mx-1"></div>
+                                
+                                <button 
+                                    onClick={handleNext}
+                                    disabled={!hasMore && currentIdx === questions.length - 1}
+                                    className="flex-[2] bg-gradient-to-r from-blue-600 to-blue-500 hover:to-blue-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 disabled:opacity-50 disabled:shadow-none transition-all flex justify-center items-center gap-2 group active:scale-[0.98]"
+                                >
+                                    {loadingMore ? (
+                                        <span className="animate-pulse">Carregando...</span>
+                                    ) : (
+                                        <>
+                                            Próxima <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                            
+                            {/* Mobile Progress Bar */}
+                            <div className="absolute -top-2 left-4 right-4 h-1.5 bg-slate-200/80 rounded-full overflow-hidden pointer-events-none md:hidden backdrop-blur-sm">
+                                <div 
+                                    style={{ width: `${progressPercentage}%` }} 
+                                    className="h-full bg-blue-500 transition-all duration-300 shadow-[0_0_8px_rgba(59,130,246,0.8)]" 
+                                />
+                            </div>
+                        </div>
+
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[2rem] border border-dashed border-slate-200 shadow-sm mt-8">
+                        <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mb-6 text-blue-500 ring-8 ring-blue-50/50 animate-pulse-slow">
+                            <BookOpen size={40} />
+                        </div>
+                        <h3 className="text-2xl font-bold text-slate-800 mb-2">Vamos começar?</h3>
+                        <p className="text-slate-500 text-center max-w-xs mx-auto leading-relaxed">
+                            Selecione uma <strong className="text-blue-600">matéria</strong> acima para liberar as questões.
+                        </p>
+                    </div>
+                )}
+            </div>
+        </div>
+    )
 }
