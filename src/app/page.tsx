@@ -38,7 +38,7 @@ const customStyles = `
   .animate-float { animation: float 6s ease-in-out infinite; }
   .animate-pulse-glow { animation: pulse-glow 3s infinite; }
   .animate-fade-in-up { animation: fade-in-up 0.8s ease-out forwards; }
-  
+   
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 `;
@@ -47,7 +47,7 @@ export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [chatStep, setChatStep] = useState(0);
-  
+   
   // Estado para controlar qual FAQ está aberto (null = nenhum)
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
@@ -127,7 +127,7 @@ export default function Home() {
             <a href="/auth/login" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
               Entrar
             </a>
-            <a href="/auth/register" className="px-5 py-2.5 rounded-full bg-slate-900 text-white text-sm font-bold hover:bg-blue-600 hover:scale-105 transition-all shadow-lg shadow-blue-900/20 flex items-center gap-2">
+            <a href="#planos" className="px-5 py-2.5 rounded-full bg-slate-900 text-white text-sm font-bold hover:bg-blue-600 hover:scale-105 transition-all shadow-lg shadow-blue-900/20 flex items-center gap-2">
               Começar Agora <ArrowRight className="w-4 h-4" />
             </a>
           </div>
@@ -143,7 +143,7 @@ export default function Home() {
           <div className="md:hidden absolute top-full left-0 w-full bg-white border-t border-slate-100 shadow-xl flex flex-col p-4 gap-4 animate-fade-in-up">
             <a href="#planos" onClick={() => setMobileMenuOpen(false)} className="text-slate-700 font-medium p-2">Planos</a>
             <a href="/auth/login" className="text-slate-700 font-medium p-2">Entrar</a>
-            <a href="/auth/register" className="bg-blue-600 text-white text-center p-3 rounded-lg font-bold">Começar Agora</a>
+            <a href="#planos" className="bg-blue-600 text-white text-center p-3 rounded-lg font-bold">Começar Agora</a>
           </div>
         )}
       </header>
@@ -173,7 +173,7 @@ export default function Home() {
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                  <a href="/auth/register" className="px-8 py-4 rounded-2xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 transform hover:-translate-y-1 hover:shadow-2xl ring-4 ring-blue-600/10">
+                  <a href="/auth/register?plan=free" className="px-8 py-4 rounded-2xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 transform hover:-translate-y-1 hover:shadow-2xl ring-4 ring-blue-600/10">
                     Criar Conta Grátis
                     <Zap className="w-5 h-5 fill-current" />
                   </a>
@@ -221,7 +221,7 @@ export default function Home() {
 
                       {/* Step 3: AI Response */}
                       <div className={`transition-all duration-500 transform ${chatStep >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-                         <div className="bg-white p-3 rounded-lg rounded-tl-none shadow-sm max-w-[90%] mr-auto text-slate-800 text-sm relative group cursor-pointer hover:scale-[1.02] transition-transform">
+                          <div className="bg-white p-3 rounded-lg rounded-tl-none shadow-sm max-w-[90%] mr-auto text-slate-800 text-sm relative group cursor-pointer hover:scale-[1.02] transition-transform">
                           <div className="absolute -left-2 top-0 w-2 h-2 bg-white transform skew-x-[20deg]"></div>
                           <p className="font-bold text-xs text-orange-600 mb-1">Análise de Desempenho</p>
                           <p>Não desanime! 📊 Identifiquei que 70% dos seus erros foram em <strong>Geometria Analítica</strong>.</p>
@@ -314,42 +314,49 @@ export default function Home() {
              <div className="absolute bottom-[10%] left-[10%] w-96 h-96 bg-violet-600 rounded-full blur-[100px]"></div>
            </div>
 
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-5xl font-bold mb-6">Sua aprovação custa menos<br/>que um lanche.</h2>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-end">
+            {/* REMOVIDO 'items-end' para que fiquem com a mesma altura (stretch é padrão) */}
+            <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
               {/* TRIAL */}
-              <div className="bg-slate-800/40 backdrop-blur-md border border-slate-700 p-8 rounded-3xl relative group hover:border-slate-500 transition-all">
+              <div className="flex flex-col h-full bg-slate-800/40 backdrop-blur-md border border-slate-700 p-8 rounded-3xl relative group hover:border-slate-500 transition-all">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide">Degustação</div>
                 <h3 className="text-lg font-medium text-slate-400">Trial 72h</h3>
                 <div className="my-4"><span className="text-4xl font-bold text-white">Grátis</span></div>
-                <p className="text-sm text-slate-400 mb-6">Acesso total por 3 dias para viciar na metodologia.</p>
-                <a href="/auth/register?plan=free" className="block w-full py-3 rounded-xl border border-slate-600 hover:bg-slate-700 text-center font-semibold transition-all">Testar Agora</a>
-                <div className="mt-8 space-y-3 text-sm text-slate-300">
-                  <p className="flex gap-2 text-slate-400"><CheckCircle className="w-4 h-4"/> Acesso ao Chat IA</p>
-                  <p className="flex gap-2 text-slate-400"><CheckCircle className="w-4 h-4"/> Curadoria de Conteúdo</p>
+                <p className="text-sm text-slate-400 mb-6 flex-1">Acesso total por 3 dias para viciar na metodologia.</p>
+                
+                <div className="mt-auto">
+                    <a href="/auth/register?plan=free" className="block w-full py-3 rounded-xl border border-slate-600 hover:bg-slate-700 text-center font-semibold transition-all">Testar Agora</a>
+                    <div className="mt-8 space-y-3 text-sm text-slate-300">
+                    <p className="flex gap-2 text-slate-400"><CheckCircle className="w-4 h-4"/> Acesso ao Chat IA</p>
+                    <p className="flex gap-2 text-slate-400"><CheckCircle className="w-4 h-4"/> Curadoria de Conteúdo</p>
+                    </div>
                 </div>
               </div>
 
               {/* BÁSICO */}
-              <div className="bg-slate-800/60 backdrop-blur-md border border-slate-600 p-8 rounded-3xl relative hover:bg-slate-800 transition-all">
+              <div className="flex flex-col h-full bg-slate-800/60 backdrop-blur-md border border-slate-600 p-8 rounded-3xl relative hover:bg-slate-800 transition-all">
                 <h3 className="text-lg font-medium text-blue-200">Básico</h3>
                 <div className="my-4 flex items-end gap-1">
                     <span className="text-4xl font-bold text-white">R$ 14,90</span>
                     <span className="text-xs text-slate-400 mb-1">/mês</span>
                 </div>
-                <p className="text-sm text-slate-400 mb-6">Para quem estuda em ritmo leve.</p>
-                <a href="/auth/register?plan=basic" className="block w-full py-3 rounded-xl bg-slate-700 text-white hover:bg-slate-600 text-center font-semibold transition-all border border-slate-600">Assinar Básico</a>
-                <div className="mt-8 space-y-3 text-sm text-slate-300">
-                  <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-blue-400"/> Cronograma Standard</p>
-                  <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-blue-400"/> Curadoria Básica</p>
+                <p className="text-sm text-slate-400 mb-6 flex-1">Para quem estuda em ritmo leve.</p>
+                
+                <div className="mt-auto">
+                    <a href="/auth/register?plan=basic" className="block w-full py-3 rounded-xl bg-slate-700 text-white hover:bg-slate-600 text-center font-semibold transition-all border border-slate-600">Assinar Básico</a>
+                    <div className="mt-8 space-y-3 text-sm text-slate-300">
+                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-blue-400"/> Cronograma Standard</p>
+                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-blue-400"/> Curadoria Básica</p>
+                    </div>
                 </div>
               </div>
 
               {/* PRO */}
-              <div className="bg-gradient-to-b from-blue-600 to-blue-900 p-8 rounded-3xl shadow-2xl shadow-blue-900/50 transform md:scale-110 border border-blue-400 relative animate-pulse-glow z-10">
+              <div className="flex flex-col h-full bg-gradient-to-b from-blue-600 to-blue-900 p-8 rounded-3xl shadow-2xl shadow-blue-900/50 border border-blue-400 relative animate-pulse-glow z-10 order-first xl:order-none md:col-span-2 xl:col-span-1">
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-orange-500 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-lg flex gap-1 items-center whitespace-nowrap">
                   <Star className="w-3 h-3 fill-white" /> Mais Escolhido
                 </div>
@@ -358,26 +365,48 @@ export default function Home() {
                     <span className="text-5xl font-bold text-white">R$ 29,90</span>
                     <span className="text-sm text-blue-200 mb-2">/mês</span>
                 </div>
-                <p className="text-sm text-blue-100 mb-8 opacity-90">A máquina completa de estudos. Sem limites.</p>
-                <a href="/auth/register?plan=pro" className="block w-full py-4 rounded-xl bg-white text-blue-700 text-center font-bold hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">Quero Ser Aprovado</a>
+                <p className="text-sm text-blue-100 mb-8 opacity-90 flex-1">A máquina completa de estudos. Sem limites.</p>
                 
-                {/* CORREÇÃO DO ERRO DE HIDRATAÇÃO AQUI: Trocado <p> por <div> */}
-                <div className="mt-8 space-y-4 text-sm text-white font-medium">
-                  <div className="flex gap-3 items-center">
-                    <div className="p-1 bg-blue-500 rounded-full shrink-0"><CheckCircle className="w-3 h-3"/></div> 
-                    Curadoria IA Avançada
-                  </div>
-                  <div className="flex gap-3 items-center">
-                    <div className="p-1 bg-blue-500 rounded-full shrink-0"><CheckCircle className="w-3 h-3"/></div> 
-                    Cronograma Adaptativo IA
-                  </div>
-                  <div className="flex gap-3 items-center">
-                    <div className="p-1 bg-blue-500 rounded-full shrink-0"><Brain className="w-3 h-3"/></div> 
-                    Tutor Exatas Passo-a-Passo
-                  </div>
+                <div className="mt-auto">
+                    <a href="/auth/register?plan=pro" className="block w-full py-4 rounded-xl bg-white text-blue-700 text-center font-bold hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">Quero Ser Aprovado</a>
+                    
+                    <div className="mt-8 space-y-4 text-sm text-white font-medium">
+                    <div className="flex gap-3 items-center">
+                        <div className="p-1 bg-blue-500 rounded-full shrink-0"><CheckCircle className="w-3 h-3"/></div> 
+                        Curadoria IA Avançada
+                    </div>
+                    <div className="flex gap-3 items-center">
+                        <div className="p-1 bg-blue-500 rounded-full shrink-0"><CheckCircle className="w-3 h-3"/></div> 
+                        Cronograma Adaptativo IA
+                    </div>
+                    <div className="flex gap-3 items-center">
+                        <div className="p-1 bg-blue-500 rounded-full shrink-0"><Brain className="w-3 h-3"/></div> 
+                        Tutor Exatas Passo-a-Passo
+                    </div>
+                    </div>
                 </div>
-
               </div>
+
+              {/* ELITE / REDAÇÃO */}
+              <div className="flex flex-col h-full bg-slate-900 border border-violet-500/50 p-8 rounded-3xl relative hover:border-violet-400 transition-all shadow-lg shadow-violet-900/20">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-violet-600 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide">Elite</div>
+                <h3 className="text-lg font-medium text-violet-200">Redação Master</h3>
+                <div className="my-4 flex items-end gap-1">
+                    <span className="text-4xl font-bold text-white">R$ 49,90</span>
+                    <span className="text-xs text-slate-400 mb-1">/mês</span>
+                </div>
+                <p className="text-sm text-slate-400 mb-6 flex-1">O plano definitivo para garantir nota 1000.</p>
+                
+                <div className="mt-auto">
+                    <a href="/auth/register?plan=elite" className="block w-full py-3 rounded-xl border border-violet-500 text-violet-300 hover:bg-violet-600 hover:text-white text-center font-semibold transition-all">Assinar Elite</a>
+                    <div className="mt-8 space-y-3 text-sm text-slate-300">
+                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-violet-400"/> Tudo do Plano Pro</p>
+                    <p className="flex gap-2 font-bold text-white"><PenTool className="w-4 h-4 text-violet-400"/> Correção Ilimitada</p>
+                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-violet-400"/> Feedback Detalhado</p>
+                    </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </section>
@@ -401,7 +430,7 @@ export default function Home() {
                     </h3>
                     <ChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-transform duration-300 ${openFaq === i ? 'rotate-180 text-blue-600' : ''}`} />
                   </div>
-                  
+                   
                   <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === i ? 'max-h-40 opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
                     <p className="text-slate-600 leading-relaxed">
                       {item.answer}

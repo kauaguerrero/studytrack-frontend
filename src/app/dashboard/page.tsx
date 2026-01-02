@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { LogOut, Calendar, Trophy, BarChart3, CheckCircle2, XCircle, BookOpen, Timer, WifiOff, Sparkles, Zap, ArrowRight } from "lucide-react";
+import { LogOut, Calendar, Trophy, BarChart3, CheckCircle2, XCircle, BookOpen, Timer, Sparkles, Zap, ArrowRight } from "lucide-react";
 import { TaskCard } from "./task-card";
 import Link from "next/link";
+import { SubscriptionLock } from "@/components/dashboard/SubscriptionLock"; // Importando o novo componente
 
 // Utilitário de Data (Mantido)
 function formatDate(dateStr: string) {
@@ -31,7 +32,7 @@ export default async function Dashboard() {
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('whatsapp_phone, full_name, handshake_completed')
+      .select('whatsapp_phone, full_name, handshake_completed, plan_tier, subscription_status')
       .eq('id', user.id)
       .single();
 
@@ -42,6 +43,22 @@ export default async function Dashboard() {
     if (!profile?.handshake_completed) {
       redirect('/onboarding/handshake');
     }
+
+    const firstName = profile.full_name?.split(' ')[0] || "Estudante";
+    
+    // =========================================================================
+    // LÓGICA LOCK-WALL (BLOQUEIO DE PAGAMENTO)
+    // =========================================================================
+    const plan = profile.plan_tier || 'free';
+    const status = profile.subscription_status || 'inactive';
+    
+    // Se não for Free e não estiver Ativo, exibe o Lock e para renderização do conteúdo
+    if (plan !== 'free' && status !== 'active') {
+        return (
+            <SubscriptionLock planTier={plan} userName={firstName} />
+        );
+    }
+    // =========================================================================
 
     // 2. Buscas em Paralelo (Performance: roda tudo ao mesmo tempo)
     const todayStr = new Date().toISOString().split('T')[0];
@@ -62,8 +79,7 @@ export default async function Dashboard() {
     const totalAnswered = totalAnsweredRes.count || 0;
     const totalCorrect = totalCorrectRes.count || 0;
     const accuracy = totalAnswered ? Math.round((totalCorrect / totalAnswered) * 100) : 0;
-    const firstName = profile.full_name?.split(' ')[0] || "Estudante";
-
+    
     return (
       <div className="min-h-screen bg-[#F0F4F8] font-sans text-slate-900 pb-20 relative selection:bg-blue-100 selection:text-blue-700">
         
