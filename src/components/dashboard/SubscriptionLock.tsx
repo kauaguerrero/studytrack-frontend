@@ -36,9 +36,10 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
     addressNumber: ''
   });
 
-  // Cores dinâmicas por plano
+  // Cores dinâmicas por plano - AGORA COM BASIC
   const getGradient = () => {
     switch(planTier) {
+        case 'basic': return 'from-emerald-600 to-teal-600'; // Cor do Basic
         case 'pro': return 'from-blue-600 to-indigo-600';
         case 'elite': return 'from-violet-600 to-fuchsia-700';
         default: return 'from-slate-700 to-slate-900';
@@ -51,7 +52,7 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
     };
   }, []);
 
-  // Máscaras de Input (Melhoradas para UX mobile)
+  // Máscaras de Input
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     let v = value;
@@ -96,11 +97,13 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
 
       const [expMonth, expYear] = formData.expiry.split('/');
       
+      // Envia o planTier correto (basic/pro/elite)
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/auth/subscribe-cc`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
             cpf: formData.cpf,
+            plan: planTier, // ENVIA O PLANO
             creditCard: {
                 holderName: formData.holderName,
                 number: formData.cardNumber.replace(/\s/g, ''),
@@ -144,7 +147,10 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/auth/subscribe-pix`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cpf: formData.cpf })
+            body: JSON.stringify({ 
+                cpf: formData.cpf,
+                plan: planTier // ENVIA O PLANO
+            })
         });
 
         const data = await res.json();
@@ -180,11 +186,9 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
   const copyPix = () => {
       if (pixData?.payload) {
           navigator.clipboard.writeText(pixData.payload);
-          // Feedback visual rápido poderia ser adicionado aqui
       }
   };
 
-  // --- COMPONENTE DE SUCESSO ---
   if (success) {
       return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-xl p-4">
@@ -213,10 +217,8 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
       );
   }
 
-  // --- RENDER PRINCIPAL ---
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-lg p-4 overflow-y-auto">
-      
       <motion.div 
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -224,10 +226,7 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
         transition={{ duration: 0.3 }}
         className="bg-white w-full max-w-[480px] rounded-[2rem] shadow-2xl shadow-black/20 relative my-auto border border-white/20 flex flex-col overflow-hidden"
       >
-        
-        {/* HEADER DINÂMICO */}
         <div className={`bg-gradient-to-br ${getGradient()} p-8 pt-10 text-white relative overflow-hidden`}>
-            {/* Background Effects */}
             <motion.div animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute top-0 left-0 w-full h-full bg-noise opacity-10 pointer-events-none"></div>
 
@@ -246,10 +245,7 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
             </div>
         </div>
 
-        {/* CORPO DO MODAL */}
         <div className="p-6 sm:p-8 bg-white relative z-20 flex-1">
-            
-            {/* TABS COM FRAMER MOTION (Sliding Pill) */}
             <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8 relative">
                 {['PIX', 'CREDIT_CARD'].map((tab) => (
                     <button
@@ -283,7 +279,6 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
                     </motion.div>
                 )}
 
-                {/* CONTEÚDO PIX */}
                 {activeTab === 'PIX' ? (
                     <motion.div 
                         key="pix"
@@ -335,7 +330,6 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
                         )}
                     </motion.div>
                 ) : (
-                    /* CONTEÚDO CARTÃO */
                     <motion.div 
                         key="card"
                         initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
