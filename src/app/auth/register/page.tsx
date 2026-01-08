@@ -4,8 +4,17 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { 
-  BookOpen, Mail, Lock, Eye, EyeOff, Loader2, User, CheckCircle
+  BookOpen, Mail, Lock, Eye, EyeOff, Loader2, User
 } from 'lucide-react';
+
+// --- CONSTANTES DOS PLANOS (Simplificadas para Tabs) ---
+// A cor aqui será aplicada ao TEXTO quando ativo, para diferenciar visualmente
+const PLANS = [
+  { id: 'free', name: 'Trial 72h', activeColor: 'text-slate-600' },
+  { id: 'basic', name: 'Básico', activeColor: 'text-blue-600' },
+  { id: 'pro', name: 'Pro', activeColor: 'text-indigo-600' },
+  { id: 'elite', name: 'Elite', activeColor: 'text-violet-600' }
+];
 
 // Ícone Google Otimizado
 const GoogleIcon = () => (
@@ -24,39 +33,28 @@ function RegisterForm() {
   
   const router = useRouter();
   const searchParams = useSearchParams();
-  const urlPlan = searchParams.get('plan');
   
-  // Estado do formulário
+  // Lógica de Plano
+  const urlPlan = searchParams.get('plan');
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
-  // Estado do Plano
   const [selectedPlan, setSelectedPlan] = useState(urlPlan || 'free');
+  
+  // Trava se veio da URL
+  const isPlanLocked = !!urlPlan;
 
   const supabase = createClient();
 
-  // Limpa o storage ao carregar para evitar sujeira de testes anteriores
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-        // Se houver um plano na URL, usa ele. Senão, limpa para garantir estado limpo.
-        if (urlPlan) {
-            setSelectedPlan(urlPlan);
-            localStorage.setItem('onboarding_plan', urlPlan);
-        } else {
-             // Opcional: limpar se quiser forçar escolha, mas manter o padrão 'free' é seguro
-             localStorage.setItem('onboarding_plan', 'free');
-        }
+    if (urlPlan) {
+        setSelectedPlan(urlPlan);
+        localStorage.setItem('onboarding_plan', urlPlan);
+    } else {
+        localStorage.setItem('onboarding_plan', selectedPlan);
     }
-  }, [urlPlan]);
-
-  // Atualiza o localStorage sempre que o plano mudar
-  useEffect(() => {
-      if (typeof window !== 'undefined') {
-          localStorage.setItem('onboarding_plan', selectedPlan);
-      }
-  }, [selectedPlan]);
+  }, [urlPlan, selectedPlan]);
 
   const handleSocialLogin = async (provider: 'google') => {
     try {
-        // Salva explicitamente antes de redirecionar
         localStorage.setItem('onboarding_plan', selectedPlan);
 
         await supabase.auth.signInWithOAuth({
@@ -80,7 +78,6 @@ function RegisterForm() {
     setError(null);
 
     try {
-      // Salva explicitamente
       localStorage.setItem('onboarding_plan', selectedPlan);
 
       const { data, error: signUpError } = await supabase.auth.signUp({
@@ -147,22 +144,35 @@ function RegisterForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         
-        {/* Seleção de Plano */}
-        <div className="p-1 bg-slate-100 rounded-xl flex gap-1 mb-4">
-            {['free', 'basic', 'pro'].map((tier) => (
-                <button
-                    key={tier}
-                    type="button"
-                    onClick={() => setSelectedPlan(tier)}
-                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all capitalize ${
-                        selectedPlan === tier 
-                        ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5' 
-                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
-                    }`}
-                >
-                    {tier}
-                </button>
-            ))}
+        {/* Seleção de Plano Compacta (Tabs) */}
+        <div className="mb-4">
+             <div className="p-1 bg-slate-100 rounded-xl flex gap-1">
+                {PLANS.map((plan) => {
+                    const isSelected = selectedPlan === plan.id;
+                    const isDimmed = isPlanLocked && !isSelected;
+
+                    return (
+                        <button
+                            key={plan.id}
+                            type="button"
+                            onClick={() => !isPlanLocked && setSelectedPlan(plan.id)}
+                            disabled={isPlanLocked}
+                            className={`
+                                flex-1 py-2 text-xs font-bold rounded-lg transition-all capitalize
+                                ${isSelected ? `bg-white shadow-sm ring-1 ring-black/5 ${plan.activeColor}` : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50'}
+                                ${isDimmed ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}
+                            `}
+                        >
+                            {plan.name}
+                        </button>
+                    );
+                })}
+            </div>
+            {isPlanLocked && (
+                <p className="text-center text-[10px] text-slate-400 mt-2">
+                    Plano selecionado na oferta. <a href="/#planos" className="underline hover:text-blue-600 font-medium">Trocar</a>
+                </p>
+            )}
         </div>
 
         <div className="space-y-1.5">

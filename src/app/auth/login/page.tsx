@@ -171,7 +171,7 @@ export default function LoginPage() {
 
             <p className="mt-5 text-center text-sm text-slate-500">
               Não tem conta?{' '}
-              <a href="/auth/register" className="font-bold text-blue-600 hover:text-blue-800">
+              <a href="/auth/register?plan=free" className="font-bold text-blue-600 hover:text-blue-800">
                 Cadastre-se gratuitamente
               </a>
             </p>

@@ -5,7 +5,7 @@ import { CheckCircle2, XCircle, BrainCircuit, ImageIcon } from 'lucide-react';
 interface Alternative {
   letter: string;
   text: string;
-  image?: string; // URL da imagem, se houver
+  image?: string; 
 }
 
 interface Question {
@@ -25,9 +25,10 @@ interface Question {
 interface QuestionCardProps {
   question: Question;
   userId: string;
+  onQuotaReached?: (reason: string) => void; // NOVO PROP
 }
 
-export function QuestionCard({ question, userId }: QuestionCardProps) {
+export function QuestionCard({ question, userId, onQuotaReached }: QuestionCardProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,11 +43,26 @@ export function QuestionCard({ question, userId }: QuestionCardProps) {
     
     try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-        await fetch(`${apiUrl}/api/questions/answer`, {
+        const res = await fetch(`${apiUrl}/api/questions/answer`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: userId, question_id: question.id, option: selected })
         });
+        
+        const data = await res.json();
+
+        // --- TRATAMENTO DE ERRO DE COTA ---
+        if (res.status === 403) {
+            if (onQuotaReached) onQuotaReached(data.code);
+            setIsSubmitting(false); // Libera para tentar de novo se comprar
+            return;
+        }
+        
+        // Verifica Trigger de Sucesso (Ex: respondeu 15ª questão)
+        if (data.quota_status === "limit_reached" && onQuotaReached) {
+            onQuotaReached("DAILY_QUOTA_REACHED");
+        }
+
     } catch(e) { console.error(e) }
 
     setShowAnswer(true);
@@ -55,7 +71,6 @@ export function QuestionCard({ question, userId }: QuestionCardProps) {
 
   return (
     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200 transition-all">
-      {/* Cabeçalho */}
       <div className="flex justify-between items-center mb-6">
         <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
             {question.subject}
@@ -65,30 +80,25 @@ export function QuestionCard({ question, userId }: QuestionCardProps) {
         </span>
       </div>
 
-      {/* Imagens do Enunciado */}
       {question.images?.map((img, i) => (
           <div key={i} className="mb-6 flex justify-center bg-slate-50 p-4 rounded-xl border border-slate-100">
               <img src={img} alt="Material de apoio" className="max-h-80 object-contain rounded-lg" />
           </div>
       ))}
 
-      {/* Contexto (Texto Base) */}
       {question.context && (
         <div className="prose prose-slate prose-sm max-w-none mb-6 text-slate-600 border-l-4 border-blue-200 pl-4 py-1 leading-relaxed">
           <ReactMarkdown>{question.context}</ReactMarkdown>
         </div>
       )}
 
-      {/* Comando (Pergunta) */}
       <div className="font-medium text-slate-900 text-lg mb-8 leading-relaxed">
         <ReactMarkdown>{question.statement}</ReactMarkdown>
       </div>
 
-      {/* Alternativas */}
       <div className="space-y-3">
         {question.alternatives.map((alt) => {
           const isSelected = selected === alt.letter;
-          // Compara sem case sensitive e garante string
           const isCorrect = String(alt.letter).toUpperCase() === String(question.correct_option).toUpperCase();
           
           let style = "border-slate-200 hover:bg-slate-50 hover:border-blue-200 cursor-pointer";
@@ -142,7 +152,6 @@ export function QuestionCard({ question, userId }: QuestionCardProps) {
         })}
       </div>
 
-      {/* Botão de Confirmação */}
       <div className="mt-8 pt-6 border-t border-slate-100">
         {!showAnswer ? (
             <button
