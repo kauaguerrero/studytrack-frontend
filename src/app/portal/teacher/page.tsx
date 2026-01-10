@@ -1,0 +1,1 @@
+export default function TeacherPage() { return <div className="p-4"><h1>Área do Professor</h1><p>Em construção...</p></div>; }
