@@ -58,7 +58,7 @@ export default function OnboardingObjetivo() {
         localStorage.removeItem('onboarding_hours');
     }
 
-    router.push('/onboarding/telefone');
+    router.push('/portal/onboarding/telefone');
   };
 
   const goals = [

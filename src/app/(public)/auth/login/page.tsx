@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { 
-  BookOpen, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, Github
+  BookOpen, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertTriangle
 } from 'lucide-react';
 
-// Ícone Google Otimizado
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24">
     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -17,14 +16,28 @@ const GoogleIcon = () => (
   </svg>
 );
 
-export default function LoginPage() {
+function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({ email: '', password: '' });
   
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
+
+  // Verifica se há erros na URL (vindo do callback ou middleware)
+  useEffect(() => {
+    const errorMsg = searchParams.get('error');
+    if (errorMsg) {
+      // Traduz erros comuns de inglês para português amigável
+      if (errorMsg.includes('Flow state not found')) {
+        setError("A conexão expirou. Por favor, tente fazer login novamente.");
+      } else {
+        setError(decodeURIComponent(errorMsg));
+      }
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,8 +52,7 @@ export default function LoginPage() {
 
       if (error) throw error;
 
-      // Sucesso: Redireciona para o Dashboard
-      router.push('/dashboard');
+      router.push('/portal');
       router.refresh();
     } catch (err: any) {
       setError(err.message || "Falha ao entrar. Verifique suas credenciais.");
@@ -63,6 +75,111 @@ export default function LoginPage() {
   };
 
   return (
+    <div className="w-full max-w-[440px] mx-auto pb-4">
+            
+      <div className="mb-6"> 
+        <h1 className="text-4xl font-extrabold text-slate-900 mb-2 tracking-tight">
+          Bem-vindo de volta! <span className="inline-block hover:animate-pulse cursor-default">👋</span>
+        </h1>
+        <p className="text-slate-500 text-lg leading-relaxed">
+          Sua meta de hoje está te esperando.
+        </p>
+      </div>
+
+      {/* SOCIAL LOGIN */}
+      <div className="grid grid-cols-1 gap-4 mb-6">
+        <button onClick={() => handleSocialLogin('google')} type="button" className="flex items-center justify-center gap-3 h-12 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-200 hover:shadow-md transition-all duration-300 group">
+          <div className="group-hover:scale-110 transition-transform"><GoogleIcon /></div>
+          <span className="font-semibold text-sm text-slate-700">Google</span>
+        </button>
+      </div>
+
+      <div className="relative mb-6">
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
+        <div className="relative flex justify-center text-xs uppercase font-bold tracking-widest">
+          <span className="px-4 bg-white text-slate-400">ou via e-mail</span>
+        </div>
+      </div>
+
+      {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-medium flex items-start gap-2 animate-pulse">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <span>{error}</span>
+          </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-1.5">
+          <label className="text-sm font-bold text-slate-700 block" htmlFor="email">E-mail</label>
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+              <Mail className="w-5 h-5" />
+            </div>
+            <input 
+              id="email" type="email" placeholder="aluno@studytrack.com" required
+              className="w-full pl-12 pr-4 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+              value={formData.email}
+              onChange={(e) => setFormData({...formData, email: e.target.value})}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex justify-between items-center">
+            <label className="text-sm font-bold text-slate-700" htmlFor="password">Senha</label>
+            <a href="#" className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline">Esqueceu?</a>
+          </div>
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+              <Lock className="w-5 h-5" />
+            </div>
+            <input 
+              id="password" type={showPassword ? "text" : "password"} placeholder="••••••••" required
+              className="w-full pl-12 pr-14 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+              value={formData.password}
+              onChange={(e) => setFormData({...formData, password: e.target.value})}
+            />
+            <button 
+              type="button" onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all"
+            >
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
+        </div>
+
+        <button 
+          type="submit" disabled={isLoading}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 rounded-2xl shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-70 transition-all mt-4"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Entrando...</span>
+            </>
+          ) : (
+            <>
+              <span>Entrar na Plataforma</span>
+              <ArrowRight className="w-5 h-5" />
+            </>
+          )}
+        </button>
+      </form>
+
+      <p className="mt-5 text-center text-sm text-slate-500">
+        Não tem conta?{' '}
+        <a href="/auth/register?plan=free" className="font-bold text-blue-600 hover:text-blue-800">
+          Cadastre-se gratuitamente
+        </a>
+      </p>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  const router = useRouter();
+
+  return (
     <div className="min-h-screen w-full flex bg-white font-sans text-slate-900 overflow-hidden">
       {/* --- LADO ESQUERDO: INTERATIVO --- */}
       <div className="w-full lg:w-1/2 flex flex-col h-screen relative z-20 bg-white">
@@ -79,111 +196,17 @@ export default function LoginPage() {
         </div>
 
         <div className="flex-1 flex flex-col justify-center px-8 sm:px-12 lg:px-24 overflow-y-auto custom-scrollbar">
-          <div className="w-full max-w-[440px] mx-auto pb-4">
-            
-            <div className="mb-6"> 
-              <h1 className="text-4xl font-extrabold text-slate-900 mb-2 tracking-tight">
-                Bem-vindo de volta! <span className="inline-block hover:animate-pulse cursor-default">👋</span>
-              </h1>
-              <p className="text-slate-500 text-lg leading-relaxed">
-                Sua meta de hoje está te esperando.
-              </p>
-            </div>
-
-            {/* SOCIAL LOGIN */}
-            <div className="grid grid-cols-1 gap-4 mb-6">
-              <button onClick={() => handleSocialLogin('google')} type="button" className="flex items-center justify-center gap-3 h-12 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-200 hover:shadow-md transition-all duration-300 group">
-                <div className="group-hover:scale-110 transition-transform"><GoogleIcon /></div>
-                <span className="font-semibold text-sm text-slate-700">Google</span>
-              </button>
-            </div>
-
-            <div className="relative mb-6">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
-              <div className="relative flex justify-center text-xs uppercase font-bold tracking-widest">
-                <span className="px-4 bg-white text-slate-400">ou via e-mail</span>
-              </div>
-            </div>
-
-            {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-medium">
-                    {error}
-                </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-bold text-slate-700 block" htmlFor="email">E-mail</label>
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                    <Mail className="w-5 h-5" />
-                  </div>
-                  <input 
-                    id="email" type="email" placeholder="aluno@studytrack.com" required
-                    className="w-full pl-12 pr-4 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <label className="text-sm font-bold text-slate-700" htmlFor="password">Senha</label>
-                  <a href="#" className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline">Esqueceu?</a>
-                </div>
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                    <Lock className="w-5 h-5" />
-                  </div>
-                  <input 
-                    id="password" type={showPassword ? "text" : "password"} placeholder="••••••••" required
-                    className="w-full pl-12 pr-14 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-                    value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  />
-                  <button 
-                    type="button" onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              <button 
-                type="submit" disabled={isLoading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 rounded-2xl shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-70 transition-all mt-4"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Entrando...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Entrar na Plataforma</span>
-                    <ArrowRight className="w-5 h-5" />
-                  </>
-                )}
-              </button>
-            </form>
-
-            <p className="mt-5 text-center text-sm text-slate-500">
-              Não tem conta?{' '}
-              <a href="/auth/register?plan=free" className="font-bold text-blue-600 hover:text-blue-800">
-                Cadastre-se gratuitamente
-              </a>
-            </p>
-          </div>
+          <Suspense fallback={<div>Carregando...</div>}>
+            <LoginForm />
+          </Suspense>
         </div>
       </div>
 
       {/* --- LADO DIREITO (VISUAL) --- */}
       <div className="hidden lg:flex w-1/2 bg-[#0F172A] relative items-center justify-center overflow-hidden">
         <div className="absolute inset-0">
-           <div className="absolute top-[-20%] right-[-20%] w-[800px] h-[800px] bg-blue-600/30 rounded-full blur-[120px] animate-pulse"></div>
-           <div className="absolute bottom-[-20%] left-[-20%] w-[800px] h-[800px] bg-violet-600/20 rounded-full blur-[120px] animate-pulse delay-1000"></div>
+            <div className="absolute top-[-20%] right-[-20%] w-[800px] h-[800px] bg-blue-600/30 rounded-full blur-[120px] animate-pulse"></div>
+            <div className="absolute bottom-[-20%] left-[-20%] w-[800px] h-[800px] bg-violet-600/20 rounded-full blur-[120px] animate-pulse delay-1000"></div>
         </div>
         <div className="relative z-10 max-w-md w-full p-8">
             <h2 className="text-4xl font-bold text-white mb-4">Foco total.</h2>

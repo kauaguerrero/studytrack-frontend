@@ -45,7 +45,7 @@ export default function OnboardingHandshake() {
           if (data.verified) {
             setVerified(true);
             clearInterval(intervalId);
-            setTimeout(() => router.push("/dashboard"), 2000);
+            setTimeout(() => router.push("/portal/student/dashboard"), 2000);
           }
         }
       } catch (error) {

@@ -5,7 +5,10 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  let next = searchParams.get('next') ?? '/dashboard'
+  const error_description = searchParams.get('error_description')
+  
+  // Default para '/portal' (o Hub)
+  let next = searchParams.get('next') ?? '/portal'
 
   if (code) {
     const cookieStore = await cookies()
@@ -31,7 +34,7 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      // Antes de redirecionar, verificamos se o usuário tem telefone.
+      // Verificação de Onboarding
       const { data: { user } } = await supabase.auth.getUser()
       
       if (user) {
@@ -51,6 +54,8 @@ export async function GET(request: Request) {
     }
   }
 
-  // Se houver erro na troca do código, redireciona para uma página de erro
-  return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+  // Se houver erro, redireciona para o login com mensagem amigável
+  // Decodifica o erro do provedor ou usa um genérico
+  const message = error_description || "Sessão expirada ou inválida. Tente entrar novamente.";
+  return NextResponse.redirect(`${origin}/auth/login?error=${encodeURIComponent(message)}`)
 }

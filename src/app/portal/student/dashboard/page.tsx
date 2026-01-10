@@ -41,7 +41,7 @@ export default async function Dashboard() {
 
     // Se tiver telefone mas não confirmou o handshake, manda pra sala de espera
     if (!profile?.handshake_completed) {
-      redirect('/onboarding/handshake');
+      redirect('/portal/onboarding/handshake');
     }
 
     const firstName = profile.full_name?.split(' ')[0] || "Estudante";

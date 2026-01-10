@@ -145,7 +145,7 @@ export default function OnboardingTelefone() {
       
       setTimeout(() => {
         router.refresh();
-        router.push('/dashboard');
+        router.push('portal/student/dashboard');
       }, 2000);
 
     } catch (error: any) {
