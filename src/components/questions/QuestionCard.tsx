@@ -25,7 +25,8 @@ interface Question {
 interface QuestionCardProps {
   question: Question;
   userId: string;
-  onQuotaReached?: (reason: string) => void; // NOVO PROP
+  onQuotaReached?: (reason: string) => void;
+  onAnswer?: () => void;
 }
 
 export function QuestionCard({ question, userId, onQuotaReached }: QuestionCardProps) {

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Phone, ArrowRight, Loader2, Brain, CheckCircle2, Sparkles } from "lucide-react";
+import { Phone, ArrowRight, Loader2, Brain, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const loadingStyles = `
@@ -26,7 +26,8 @@ const loadingStyles = `
 export default function OnboardingTelefone() {
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'input' | 'processing' | 'success'>('input');
+  // Removido o 'success' para evitar tela intermediária
+  const [step, setStep] = useState<'input' | 'processing'>('input');
   const [loadingMessage, setLoadingMessage] = useState("Conectando com a IA...");
   
   const router = useRouter();
@@ -123,16 +124,22 @@ export default function OnboardingTelefone() {
         throw new Error(errorData.error || "Falha ao salvar dados de onboarding");
       }
 
-      // 3. Segunda chamada: Handshake do WhatsApp (Enviar mensagem de boas-vindas)
-      await fetch(`${apiUrl}/api/auth/handshake`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: cleanPhone, 
-          name: nomeUsuario,
-          userId: user.id
-        })
-      });
+      // 3. Segunda chamada: Handshake do WhatsApp
+      // Nota: Se a API retornar 405 ou erro aqui, seguimos mesmo assim para a página de handshake
+      // pois o usuário pode validar manualmente lá.
+      try {
+        await fetch(`${apiUrl}/api/auth/handshake`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: cleanPhone, 
+            name: nomeUsuario,
+            userId: user.id
+          })
+        });
+      } catch (handshakeError) {
+        console.warn("Erro no disparo do handshake (não bloqueante):", handshakeError);
+      }
 
       // Limpeza do LocalStorage após sucesso
       localStorage.removeItem('onboarding_plan');
@@ -141,20 +148,16 @@ export default function OnboardingTelefone() {
       localStorage.removeItem('onboarding_days');
       localStorage.removeItem('onboarding_hours');
 
-      setStep('success');
-      
-      setTimeout(() => {
-        router.refresh();
-        router.push('portal/student/dashboard');
-      }, 2000);
+      // 4. Redirecionamento IMEDIATO para o Check-Handshake
+      // Refresh garante que o middleware pegue o novo status do usuário
+      router.refresh();
+      router.push('/portal/onboarding/handshake');
 
     } catch (error: any) {
       console.error("Erro no processo de onboarding:", error);
-      // Volta para o input em caso de erro para permitir tentar novamente
-      setStep('input');
-      alert(`Ocorreu um erro: ${error.message}`);
-    } finally {
+      setStep('input'); // Volta para input apenas se der erro fatal no passo 2
       setLoading(false);
+      alert(`Ocorreu um erro: ${error.message}`);
     }
   };
 
@@ -197,22 +200,6 @@ export default function OnboardingTelefone() {
           </div>
         </div>
       </div>
-    );
-  }
-
-  // --- TELA DE SUCESSO ---
-  if (step === 'success') {
-    return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4 font-sans">
-            <div className="bg-white p-10 rounded-[2rem] shadow-xl shadow-slate-200/60 text-center animate-fade-in-up max-w-sm w-full border border-slate-100">
-                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-[bounce_0.5s_ease-out]">
-                    <CheckCircle2 className="w-10 h-10 text-green-600" />
-                </div>
-                <h2 className="text-3xl font-extrabold text-slate-900 mb-2 tracking-tight">Tudo Pronto!</h2>
-                <p className="text-slate-500 font-medium">Seu plano foi gerado com sucesso.</p>
-                <p className="text-sm text-slate-400 mt-4">Redirecionando...</p>
-            </div>
-        </div>
     );
   }
 

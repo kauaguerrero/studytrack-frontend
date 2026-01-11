@@ -132,7 +132,7 @@ export default function SimuladoPage() {
                 <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans text-slate-900">
                     <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full border border-slate-100 relative">
                         <div className="absolute top-6 left-6">
-                            <Link href="/dashboard" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                            <Link href="dashboard" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
                                 <ArrowLeft className="w-5 h-5" />
                             </Link>
                         </div>
@@ -237,7 +237,7 @@ export default function SimuladoPage() {
                              <div className="text-8xl font-black my-8">{calculateScore()} <span className="text-xl text-slate-400 font-bold">/ {questions.length}</span></div>
                              <div className="flex justify-center gap-4">
                                 <button onClick={() => window.location.reload()} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold flex gap-2 items-center hover:bg-slate-800"><RotateCcw size={18}/> Novo Simulado</button>
-                                <button onClick={() => router.push('/dashboard')} className="border border-slate-200 px-6 py-3 rounded-xl font-bold hover:bg-slate-50">Dashboard</button>
+                                <button onClick={() => router.push('dashboard')} className="border border-slate-200 px-6 py-3 rounded-xl font-bold hover:bg-slate-50">Dashboard</button>
                              </div>
                         </div>
                     </div>

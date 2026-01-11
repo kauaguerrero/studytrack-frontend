@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { LogOut, Calendar, Trophy, BarChart3, CheckCircle2, XCircle, BookOpen, Timer, Sparkles, Zap, ArrowRight } from "lucide-react";
 import { TaskCard } from "./task-card";
 import Link from "next/link";
-import { SubscriptionLock } from "@/components/dashboard/SubscriptionLock"; // Importando o novo componente
+import { SubscriptionLock } from "@/components/dashboard/SubscriptionLock"; 
 
 // Utilitário de Data (Mantido)
 function formatDate(dateStr: string) {
@@ -52,7 +52,6 @@ export default async function Dashboard() {
     const plan = profile.plan_tier || 'free';
     const status = profile.subscription_status || 'inactive';
     
-    // Se não for Free e não estiver Ativo, exibe o Lock e para renderização do conteúdo
     if (plan !== 'free' && status !== 'active') {
         return (
             <SubscriptionLock planTier={plan} userName={firstName} />
@@ -60,16 +59,19 @@ export default async function Dashboard() {
     }
     // =========================================================================
 
-    // 2. Buscas em Paralelo (Performance: roda tudo ao mesmo tempo)
+    // 2. Buscas em Paralelo
     const todayStr = new Date().toISOString().split('T')[0];
 
     const [tasksRes, historyRes, totalAnsweredRes, totalCorrectRes] = await Promise.all([
       supabase.from('plan_tasks')
         .select(`id, task_description, scheduled_date, status, content_repository ( title, url, content_type )`)
         .eq('user_id', user.id).gte('scheduled_date', todayStr).order('scheduled_date', { ascending: true }).limit(5),
+      
+      // CORREÇÃO AQUI: Trocado 'statement' por 'title' para bater com o banco
       supabase.from('user_answers')
-        .select(`id, is_correct, created_at, questions ( subject, exam_year, statement )`)
+        .select(`id, is_correct, created_at, questions ( subject, exam_year, title )`)
         .eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
+        
       supabase.from('user_answers').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
       supabase.from('user_answers').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_correct', true)
     ]);
@@ -132,7 +134,7 @@ export default async function Dashboard() {
             </div>
 
             {/* Card 2: Banco (Agora nivelado, mas com identidade Azul Forte) */}
-            <Link href="/banco-de-questoes" className="group col-span-1 md:col-span-1">
+            <Link href="/portal/student/banco-de-questoes" className="group col-span-1 md:col-span-1">
               <div className="bg-white p-6 rounded-[1.5rem] border border-white/60 shadow-sm relative overflow-hidden h-full group hover:border-blue-200 hover:shadow-blue-100/50 hover:shadow-lg transition-all duration-300">
                 <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity transform group-hover:scale-110 duration-500">
                   <BookOpen size={100} className="text-blue-600" />
@@ -152,7 +154,7 @@ export default async function Dashboard() {
             </Link>
 
             {/* Card 3: Simulado */}
-            <Link href="/simulado" className="group">
+            <Link href="simulado" className="group">
               <div className="bg-white p-6 rounded-[1.5rem] border border-white/60 shadow-sm relative overflow-hidden h-full group hover:border-emerald-200 hover:shadow-emerald-100/50 hover:shadow-lg transition-all duration-300">
                 <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity transform group-hover:scale-110 duration-500">
                   <Timer size={100} className="text-emerald-600" />
@@ -244,7 +246,9 @@ export default async function Dashboard() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5 tracking-wide">{h.questions?.subject || "Geral"}</p>
-                          <p className="text-xs font-medium text-slate-700 truncate group-hover:text-blue-600 transition-colors">{h.questions?.statement || "Questão indisponível"}</p>
+                          <p className="text-xs font-medium text-slate-700 truncate group-hover:text-blue-600 transition-colors">
+                              {h.questions?.title || "Questão indisponível"}
+                          </p>
                         </div>
                       </div>
                     ))

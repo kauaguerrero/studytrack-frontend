@@ -63,9 +63,9 @@ export default function OnboardingObjetivo() {
 
   const goals = [
     { id: "enem_geral", label: "ENEM Geral", desc: "Todas as áreas (Padrão)", icon: "📚", freeAllowed: true },
-    { id: "enem_exatas", label: "Foco Exatas", desc: "Engenharia/TI", icon: "📐", freeAllowed: false },
-    { id: "enem_humanas", label: "Foco Humanas", desc: "Direito/História", icon: "⚖️", freeAllowed: false },
-    { id: "enem_saude", label: "Foco Saúde", desc: "Biologia/Química", icon: "🧬", freeAllowed: false },
+    { id: "enem_exatas", label: "Matemática e suas Tecnologias", desc: "Ex: Engenharia/TI", icon: "📐", freeAllowed: false },
+    { id: "enem_humanas", label: "Linguagens, Códigos e suas Tecnologias", desc: "Ex: Direito/História", icon: "⚖️", freeAllowed: false },
+    { id: "enem_saude", label: "Ciências da Natureza e suas Tecnologias", desc: "Ex:Biologia/Química", icon: "🧬", freeAllowed: false },
   ];
 
   if (!isLoaded) return null; // Ou um spinner de loading
@@ -129,7 +129,7 @@ export default function OnboardingObjetivo() {
                 
                 <h3 className="text-lg font-bold flex items-center gap-2 mb-6">
                     <Crown size={20} className="text-yellow-400" /> 
-                    Ajuste Fino (Pro)
+                    Ajuste de Intensidade (Pro)
                 </h3>
 
                 <div className="space-y-6 relative z-10">
