@@ -3,11 +3,10 @@ import Link from "next/link";
 import { BookOpen, Calendar, GraduationCap, School, Users, ArrowRight, AlertCircle } from "lucide-react";
 
 export default async function TeacherDashboard() {
-  // Busca os dados no servidor
+  // Busca os dados no servidor (Server Action -> Backend Flask/Supabase)
   const classes = await getTeacherClasses();
   
   // Verifica se NÃO tem dados (Early Return)
-  // Isso elimina a complexidade do ternário e resolve o erro de sintaxe visual
   const hasClasses = classes && classes.length > 0;
 
   if (!hasClasses) {
@@ -26,12 +25,12 @@ export default async function TeacherDashboard() {
                 <AlertCircle size={16} />
                 <span>Dica: Verifique a tabela <code>teacher_classrooms</code> no banco.</span>
             </div>
-          </div>
+         </div>
       </div>
     );
   }
 
-  // Se chegou aqui, é porque TEM turmas. Renderiza a lista limpa.
+  // Se chegou aqui, é porque TEM turmas. Renderiza a lista.
   return (
     <div className="space-y-8">
       <HeaderSection />
@@ -51,7 +50,7 @@ export default async function TeacherDashboard() {
                       {item.subject}
                     </div>
                     <span className="text-slate-400 text-xs font-medium bg-slate-50 px-2 py-1 rounded border border-slate-100">
-                      {item.classroom.year}
+                      {item.classroom.year || "S/ Ano"}
                     </span>
                 </div>
                 
@@ -66,15 +65,14 @@ export default async function TeacherDashboard() {
                 <div className="flex items-center gap-4 text-sm text-slate-600 border-t border-slate-100 pt-4">
                   <div className="flex items-center gap-1.5" title="Alunos Matriculados">
                       <Users size={16} className="text-slate-400" />
-                      <span className="font-semibold">--</span>
-                  </div>
-                  <div className="flex items-center gap-1.5" title="Tarefas Pendentes">
-                      <BookOpen size={16} className="text-slate-400" />
-                      <span className="font-semibold">--</span>
+                      <span className="font-semibold">
+                        {item.classroom.total_students} {item.classroom.total_students === 1 ? 'Aluno' : 'Alunos'}
+                      </span>
                   </div>
                 </div>
               </div>
 
+              {/* Link que leva para o "QG da Turma" */}
               <Link 
                 href={`/portal/teacher/classes/${item.classroom.id}`}
                 className="bg-slate-50 border-t border-slate-100 p-3 text-center text-sm font-medium text-slate-600 hover:bg-blue-50 hover:text-blue-700 transition-colors flex items-center justify-center gap-2"
