@@ -8,6 +8,7 @@ import {
   GraduationCap, School
 } from 'lucide-react';
 
+// ... (Ícones e constantes mantidos iguais) ...
 const PLANS = [
   { id: 'free', name: 'Trial 72h', activeColor: 'text-slate-600' },
   { id: 'basic', name: 'Básico', activeColor: 'text-blue-600' },
@@ -49,20 +50,28 @@ function RegisterForm() {
     }
   }, [urlPlan, selectedPlan]);
 
-  // --- CORREÇÃO: Passar metadados no Social Login ---
+  // --- CORREÇÃO: Setar Cookie + Metadata ---
   const handleSocialLogin = async (provider: 'google') => {
     try {
-        // Salva preferência localmente caso o metadata falhe no callback
-        localStorage.setItem('register_role_preference', userType);
-        
+        // 1. Grava Cookie de Preferência (Dura 5 min)
+        // Isso garante que o server saiba a intenção mesmo se a URL for limpa
+        document.cookie = `onboarding_role=${userType}; path=/; max-age=300`;
+
+        const nextPath = userType === 'teacher' 
+            ? '/portal/onboarding/teacher/school' 
+            : '/portal/onboarding/objetivo';
+
         await supabase.auth.signInWithOAuth({
             provider,
             options: {
-                redirectTo: `${location.origin}/auth/callback`,
-                queryParams: { access_type: 'offline', prompt: 'consent' },
-                // Aqui garantimos que o Google respeite a escolha da UI
+                redirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+                queryParams: { 
+                    access_type: 'offline', 
+                    prompt: 'consent' 
+                },
                 data: {
                     role: userType, 
+                    full_name: userType === 'teacher' ? 'Professor(a)' : undefined,
                     plan_tier: userType === 'teacher' ? 'teacher_free' : selectedPlan,
                 }
             },
@@ -87,7 +96,7 @@ function RegisterForm() {
             data: {
                 full_name: formData.name,
                 plan_tier: userType === 'teacher' ? 'teacher_free' : selectedPlan,
-                role: userType // Metadado importante para triggers
+                role: userType
             }
         }
       });
@@ -96,43 +105,24 @@ function RegisterForm() {
 
       if (data.session) {
           const userId = data.session.user.id;
-          
-          // Força refresh do router Next.js para garantir que middlewares peguem o token novo
           router.refresh();
 
-          // --- LÓGICA BLINDADA DE REDIRECIONAMENTO E ROLE ---
+          // Mantendo a lógica de Email/Senha que já funciona
           if (userType === 'teacher') {
-             // 1. Usamos UPSERT para garantir que o role seja gravado, 
-             // mesmo que o trigger de criação de profile ainda não tenha rodado.
-             const { error: upsertError } = await supabase
-               .from('profiles')
-               .upsert({ 
+             await supabase.from('profiles').upsert({ 
                  id: userId,
                  role: 'teacher',
-                 email: formData.email, // Garante dados mínimos caso esteja criando agora
+                 email: formData.email,
                  full_name: formData.name
-               }, { onConflict: 'id' }); // Se já existe, atualiza. Se não, cria.
-
-             if (upsertError) {
-                console.error("Erro ao definir professor:", upsertError);
-                // Fallback para update simples se upsert falhar por constraints
-                await supabase.from('profiles').update({ role: 'teacher' }).eq('id', userId);
-             }
-               
-             // 2. Redireciona explicitamente para validação de escola
+               }, { onConflict: 'id' });
              router.push('/portal/onboarding/teacher/school');
           } else {
-             // 1. Garante que é student
-             await supabase
-               .from('profiles')
-               .upsert({ 
+             await supabase.from('profiles').upsert({ 
                  id: userId,
                  role: 'student',
                  email: formData.email,
                  full_name: formData.name
                }, { onConflict: 'id' });
-
-             // 2. Redireciona para objetivo de estudos
              router.push('/portal/onboarding/objetivo');
           }
       } else {
