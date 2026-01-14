@@ -3,8 +3,9 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import Image from 'next/image'; 
 import { 
-  BookOpen, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertTriangle
+  Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertTriangle
 } from 'lucide-react';
 
 const GoogleIcon = () => (
@@ -26,11 +27,9 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const supabase = createClient();
 
-  // Verifica se há erros na URL (vindo do callback ou middleware)
   useEffect(() => {
     const errorMsg = searchParams.get('error');
     if (errorMsg) {
-      // Traduz erros comuns de inglês para português amigável
       if (errorMsg.includes('Flow state not found')) {
         setError("A conexão expirou. Por favor, tente fazer login novamente.");
       } else {
@@ -61,7 +60,7 @@ function LoginForm() {
     }
   };
 
-  const handleSocialLogin = async (provider: 'google' | 'github') => {
+  const handleSocialLogin = async (provider: 'google') => {
     try {
         await supabase.auth.signInWithOAuth({
             provider,
@@ -86,7 +85,6 @@ function LoginForm() {
         </p>
       </div>
 
-      {/* SOCIAL LOGIN */}
       <div className="grid grid-cols-1 gap-4 mb-6">
         <button onClick={() => handleSocialLogin('google')} type="button" className="flex items-center justify-center gap-3 h-12 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-200 hover:shadow-md transition-all duration-300 group">
           <div className="group-hover:scale-110 transition-transform"><GoogleIcon /></div>
@@ -185,9 +183,17 @@ export default function LoginPage() {
       <div className="w-full lg:w-1/2 flex flex-col h-screen relative z-20 bg-white">
         
         <div className="flex-none p-6 lg:p-8">
-          <div className="flex items-center gap-2 group cursor-pointer w-fit" onClick={() => router.push('/')}>
-             <div className="bg-blue-600 text-white p-2 rounded-xl shadow-lg shadow-blue-600/20 group-hover:scale-110 transition-transform duration-300">
-               <BookOpen className="w-5 h-5" />
+          <div className="flex items-center gap-0 group cursor-pointer w-fit" onClick={() => router.push('/')}>
+             <div className="group-hover:scale-110 transition-transform duration-300 flex items-center justify-center -mr-3">
+               <Image 
+                 src="/logost-transparente-sombra.png" 
+                 alt="Logo StudyTrack" 
+                 width={80} 
+                 height={80} 
+                 className="w-20 h-20 object-contain"
+                 priority
+                 unoptimized
+               />
              </div>
              <span className="font-extrabold text-xl tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
                Study<span className="text-blue-600 group-hover:text-slate-900 transition-colors">Track</span>

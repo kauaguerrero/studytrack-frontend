@@ -3,12 +3,12 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import Image from 'next/image';
 import { 
-  BookOpen, Mail, Lock, Eye, EyeOff, Loader2, User, 
+  Mail, Lock, Eye, EyeOff, Loader2, User, 
   GraduationCap, School
 } from 'lucide-react';
 
-// ... (Ícones e constantes mantidos iguais) ...
 const PLANS = [
   { id: 'free', name: 'Trial 72h', activeColor: 'text-slate-600' },
   { id: 'basic', name: 'Básico', activeColor: 'text-blue-600' },
@@ -50,11 +50,8 @@ function RegisterForm() {
     }
   }, [urlPlan, selectedPlan]);
 
-  // --- CORREÇÃO: Setar Cookie + Metadata ---
   const handleSocialLogin = async (provider: 'google') => {
     try {
-        // 1. Grava Cookie de Preferência (Dura 5 min)
-        // Isso garante que o server saiba a intenção mesmo se a URL for limpa
         document.cookie = `onboarding_role=${userType}; path=/; max-age=300`;
 
         const nextPath = userType === 'teacher' 
@@ -107,7 +104,6 @@ function RegisterForm() {
           const userId = data.session.user.id;
           router.refresh();
 
-          // Mantendo a lógica de Email/Senha que já funciona
           if (userType === 'teacher') {
              await supabase.from('profiles').upsert({ 
                  id: userId,
@@ -244,11 +240,25 @@ export default function RegisterPage() {
   const router = useRouter();
   return (
     <div className="min-h-screen w-full flex bg-white font-sans text-slate-900 overflow-hidden">
+      {/* --- LADO ESQUERDO: INTERATIVO --- */}
       <div className="w-full lg:w-1/2 flex flex-col h-screen relative z-20 bg-white">
+        
         <div className="flex-none p-6 lg:p-8">
-          <div className="flex items-center gap-2 cursor-pointer w-fit" onClick={() => router.push('/')}>
-             <div className="bg-blue-600 text-white p-2 rounded-xl"><BookOpen className="w-5 h-5" /></div>
-             <span className="font-extrabold text-xl tracking-tight text-slate-900">Study<span className="text-blue-600">Track</span></span>
+          <div className="flex items-center gap-0 group cursor-pointer w-fit" onClick={() => router.push('/')}>
+             <div className="group-hover:scale-110 transition-transform duration-300 flex items-center justify-center -mr-3">
+               <Image 
+                 src="/logost-transparente-sombra.png" 
+                 alt="Logo StudyTrack" 
+                 width={80} 
+                 height={80} 
+                 className="w-20 h-20 object-contain"
+                 priority
+                 unoptimized
+               />
+             </div>
+             <span className="font-extrabold text-xl tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
+               Study<span className="text-blue-600 group-hover:text-slate-900 transition-colors">Track</span>
+             </span>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar px-8 sm:px-12 lg:px-24">

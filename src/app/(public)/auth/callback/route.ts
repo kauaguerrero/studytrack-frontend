@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   if (code) {
     const cookieStore = await cookies()
 
-    // 2. Tenta capturar a preferência via Cookie (Fallback robusto)
+    // 2. Tenta capturar a preferência via Cookie
     const roleCookie = cookieStore.get('onboarding_role')?.value;
 
     const supabase = createServerClient(
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (user) {
-        // A. Se existe um destino forçado na URL, respeite-o.
+        // A. Se existe um destino forçado na URL, respeite-o (Geralmente fluxo de cadastro)
         if (requestedNext) {
             const metaRole = user.user_metadata?.role;
             if (metaRole) {
@@ -49,29 +49,36 @@ export async function GET(request: Request) {
                     role: metaRole,
                     email: user.email,
                     full_name: user.user_metadata.full_name,
+                    last_active_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 }, { onConflict: 'id' });
             }
             return NextResponse.redirect(`${origin}${requestedNext}`)
         }
 
-        // B. Lógica de Onboarding (Sem next forçado na URL)
+        // B. Lógica de Roteamento Inteligente (Login recorrente)
         const { data: profile } = await supabase
           .from('profiles')
-          .select('whatsapp_phone, role')
+          .select('whatsapp_phone, role, school_id') // <--- IMPORTANTE: Buscar school_id
           .eq('id', user.id)
           .single()
 
-        // Se não tem telefone, é onboarding.
-        if (!profile || !profile.whatsapp_phone) {
-            const cookieRole = roleCookie;
-            const metaRole = user.user_metadata?.role;
-            const dbRole = profile?.role;
+        // Determina o papel do usuário (Prioridade: Cookie > Metadata > Banco)
+        const cookieRole = roleCookie;
+        const metaRole = user.user_metadata?.role;
+        const dbRole = profile?.role;
+        const isTeacher = cookieRole === 'teacher' || metaRole === 'teacher' || dbRole === 'teacher';
 
-            const isTeacher = cookieRole === 'teacher' || metaRole === 'teacher' || dbRole === 'teacher';
+        // Se for professor E JÁ TIVER ESCOLA vinculada, manda para o painel direto.
+        if (isTeacher && profile?.school_id) {
+             return NextResponse.redirect(`${origin}/portal/teacher`)
+        }
+
+        // Se não tem perfil, telefone ou escola (no caso de professor), é onboarding.
+        if (!profile || !profile.whatsapp_phone) {
             
             if (isTeacher) {
-                // Força a correção no banco se estiver errado
+                // Se o banco diz 'student' mas é teacher (via cookie/meta), corrige
                 if (dbRole !== 'teacher') {
                     await supabase.from('profiles').upsert({ 
                         id: user.id, 
@@ -81,7 +88,6 @@ export async function GET(request: Request) {
                     }, { onConflict: 'id' });
                 }
                 
-                // Limpa o cookie de preferência
                 const response = NextResponse.redirect(`${origin}/portal/onboarding/teacher/school`)
                 response.cookies.delete('onboarding_role')
                 return response
@@ -92,7 +98,7 @@ export async function GET(request: Request) {
         }
       }
       
-      // C. Usuário já completo -> Portal
+      // C. Usuário já completo -> Portal (Hub decide para onde vai)
       const defaultNext = searchParams.get('next') ?? '/portal';
       return NextResponse.redirect(`${origin}${defaultNext === requestedNext ? '/portal' : defaultNext}`)
     }

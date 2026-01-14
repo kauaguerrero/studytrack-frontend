@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link';
+import Image from 'next/image'; // Importação do Image
 import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, 
@@ -32,7 +33,7 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
   }
 
   const isActive = (path: string) => {
-     return pathname === path || pathname.startsWith(`${path}/`);
+      return pathname === path || pathname.startsWith(`${path}/`);
   };
 
   const NavItem = ({ href, icon: Icon, label }: { href: string; icon: any; label: string }) => {
@@ -69,13 +70,22 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
       
       {/* --- HEADER --- */}
       <div className="p-5 pb-2">
-        <Link href="/" className="group flex items-center gap-2.5 mb-6 w-fit transition-opacity hover:opacity-80">
-          <div className="bg-blue-600 text-white p-2 rounded-xl shadow-lg shadow-blue-600/20">
-            <BookOpen size={20} strokeWidth={2.5} />
+        <Link href="/" className="group flex items-center gap-1 mb-6 w-fit transition-opacity hover:opacity-80">
+          {/* LOGO PERSONALIZADA (Sem quadrado azul) */}
+          <div className="flex items-center justify-center -mr-1 group-hover:scale-110 transition-transform duration-300">
+             <Image 
+               src="/logost-transparente-sombra.png" 
+               alt="Logo StudyTrack" 
+               width={40} 
+               height={40} 
+               className="w-10 h-10 object-contain"
+               priority
+               unoptimized
+             />
           </div>
           <div>
             <h1 className="font-bold text-lg text-slate-900 tracking-tight leading-none">
-              StudyTrack
+              Study<span className="text-blue-600">Track</span>
             </h1>
             <div className="flex items-center gap-1.5 mt-1">
                <span className={`inline-block w-2 h-2 rounded-full ${role === 'student' ? 'bg-green-500' : 'bg-blue-500'}`}></span>

@@ -1,20 +1,17 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image'; // Importação do Image
 import { 
-  BookOpen, 
   CheckCircle, 
   ArrowRight, 
   PenTool, 
   Brain, 
-  MessageCircle, 
   Send,
   Zap,
   Star,
-  ShieldCheck,
   TrendingUp,
   Clock,
-  Users,
   ChevronDown,
   Menu,
   X
@@ -101,13 +98,23 @@ export default function Home() {
       {/* --- NAVBAR --- */}
       <header 
         className={`fixed top-0 w-full z-50 transition-all duration-300 ${
-          isScrolled ? 'bg-white/90 backdrop-blur-lg shadow-sm py-3' : 'bg-transparent py-5'
+          isScrolled ? 'bg-white/90 backdrop-blur-lg shadow-sm py-2' : 'bg-transparent py-4'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <div className="flex items-center gap-2 font-extrabold text-2xl tracking-tight text-slate-900 cursor-pointer" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
-            <div className="bg-blue-600 text-white p-1.5 rounded-lg">
-              <BookOpen className="w-5 h-5" />
+          
+          {/* LOGO NO HEADER */}
+          <div className="flex items-center gap-0 font-extrabold text-2xl tracking-tight text-slate-900 cursor-pointer group" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
+            <div className="flex items-center justify-center -mr3 group-hover:scale-105 transition-transform duration-300">
+              <Image 
+                 src="/logost-transparente-sombra.png" 
+                 alt="Logo StudyTrack" 
+                 width={50} 
+                 height={50} 
+                 className="w-12 h-12 object-contain"
+                 priority
+                 unoptimized
+               />
             </div>
             <span>Study<span className="text-blue-600">Track</span></span>
           </div>
@@ -191,7 +198,8 @@ export default function Home() {
                   <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[24px] w-[100px] bg-black rounded-b-2xl z-20"></div>
                   <div className="w-full h-full bg-[#E4E2DC] relative flex flex-col font-sans">
                     <div className="bg-[#075E54] pt-8 pb-3 px-4 flex items-center gap-3 text-white shadow-md z-10">
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[#075E54]">
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[#075E54] overflow-hidden">
+                        {/* Ícone menor no chat do celular - aqui pode manter o Brain ou por a logo bem pequena */}
                         <Brain className="w-5 h-5" />
                       </div>
                       <div className="flex-1 leading-tight">
@@ -261,7 +269,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* --- FEATURES --- */}
+        {/* --- RECURSOS (MANTIDO) --- */}
         <section id="recursos" className="py-24 bg-slate-50 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16 max-w-3xl mx-auto">
@@ -308,7 +316,6 @@ export default function Home() {
 
         {/* --- PRICING --- */}
         <section id="planos" className="py-24 bg-slate-900 text-white relative overflow-hidden">
-           {/* Background details */}
            <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 opacity-30">
              <div className="absolute top-[20%] right-[10%] w-96 h-96 bg-blue-600 rounded-full blur-[100px]"></div>
              <div className="absolute bottom-[10%] left-[10%] w-96 h-96 bg-violet-600 rounded-full blur-[100px]"></div>
@@ -319,7 +326,6 @@ export default function Home() {
               <h2 className="text-3xl md:text-5xl font-bold mb-6">Sua aprovação custa menos<br/>que um lanche.</h2>
             </div>
 
-            {/* REMOVIDO 'items-end' para que fiquem com a mesma altura (stretch é padrão) */}
             <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
               {/* TRIAL */}
               <div className="flex flex-col h-full bg-slate-800/40 backdrop-blur-md border border-slate-700 p-8 rounded-3xl relative group hover:border-slate-500 transition-all">
@@ -430,7 +436,7 @@ export default function Home() {
                     </h3>
                     <ChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-transform duration-300 ${openFaq === i ? 'rotate-180 text-blue-600' : ''}`} />
                   </div>
-                   
+                    
                   <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === i ? 'max-h-40 opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
                     <p className="text-slate-600 leading-relaxed">
                       {item.answer}
@@ -445,8 +451,19 @@ export default function Home() {
         {/* --- FOOTER --- */}
         <footer className="bg-slate-50 pt-20 pb-10 border-t border-slate-200">
           <div className="max-w-7xl mx-auto px-4 text-center">
-            <div className="flex items-center justify-center gap-2 font-bold text-2xl text-slate-900 mb-6">
-              <BookOpen className="w-6 h-6 text-blue-600" />
+            {/* LOGO NO FOOTER */}
+            <div className="flex items-center justify-center gap-0 font-bold text-2xl text-slate-900 mb-6">
+              <div className="flex items-center justify-center -mr-2">
+                <Image 
+                   src="/logost-transparente-sombra.png" 
+                   alt="Logo StudyTrack" 
+                   width={60} 
+                   height={60} 
+                   className="w-16 h-16 object-contain"
+                   priority
+                   unoptimized
+                 />
+              </div>
               <span>StudyTrack</span>
             </div>
             <p className="text-slate-400 text-sm">© 2025 StudyTrack.</p>
