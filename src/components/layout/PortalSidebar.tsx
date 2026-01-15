@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link';
-import Image from 'next/image'; // Importação do Image
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, 
@@ -10,11 +10,12 @@ import {
   Users, 
   School, 
   BarChart, 
-  LogOut,
   Settings,
   GraduationCap,
   ChevronRight,
-  LifeBuoy
+  LifeBuoy,
+  Target, // <--- Usado para Professor e agora Aluno
+  Trophy // <--- Novo ícone para gamificação do aluno
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 
@@ -27,7 +28,6 @@ interface PortalSidebarProps {
 export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps) {
   const pathname = usePathname();
 
-  // UX: Esconde a sidebar durante o onboarding para foco total
   if (pathname.includes('/onboarding')) {
     return null;
   }
@@ -71,7 +71,6 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
       {/* --- HEADER --- */}
       <div className="p-5 pb-2">
         <Link href="/" className="group flex items-center gap-1 mb-6 w-fit transition-opacity hover:opacity-80">
-          {/* LOGO PERSONALIZADA (Sem quadrado azul) */}
           <div className="flex items-center justify-center -mr-1 group-hover:scale-110 transition-transform duration-300">
              <Image 
                src="/logost-transparente-sombra.png" 
@@ -107,6 +106,7 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
             <NavItem href="/portal/student/dashboard" icon={LayoutDashboard} label="Dashboard" />
             <NavItem href="/portal/student/simulado" icon={FileText} label="Simulados" />
             <NavItem href="/portal/student/banco-de-questoes" icon={BookOpen} label="Banco de Questões" />
+            <NavItem href="/portal/student/goals" icon={Trophy} label="Minhas Metas" /> {/* NOVO LINK */}
             
             <SectionTitle>Performance</SectionTitle>
             <NavItem href="/portal/student/analytics" icon={BarChart} label="Meu Desempenho" />
@@ -122,6 +122,7 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
             
             <SectionTitle>Conteúdo</SectionTitle>
             <NavItem href="/portal/teacher/assignments" icon={FileText} label="Tarefas e Listas" />
+            <NavItem href="/portal/teacher/goals" icon={Target} label="Metas Criadas" />
           </div>
         )}
 
