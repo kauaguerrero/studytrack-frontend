@@ -11,7 +11,7 @@ import {
     Flame, 
     Target, 
     Brain,
-    Crown // <--- Importei
+    Crown
 } from "lucide-react";
 import { Student } from "../../actions"; 
 
