@@ -14,8 +14,9 @@ import {
   GraduationCap,
   ChevronRight,
   LifeBuoy,
-  Target, // <--- Usado para Professor e agora Aluno
-  Trophy // <--- Novo ícone para gamificação do aluno
+  Target,
+  Trophy,
+  Gamepad2
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 
@@ -36,6 +37,7 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
       return pathname === path || pathname.startsWith(`${path}/`);
   };
 
+  // Componente de Item de Navegação Padrão
   const NavItem = ({ href, icon: Icon, label }: { href: string; icon: any; label: string }) => {
     const active = isActive(href);
     return (
@@ -104,9 +106,13 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
           <div className="space-y-0.5">
             <SectionTitle>Estudos</SectionTitle>
             <NavItem href="/portal/student/dashboard" icon={LayoutDashboard} label="Dashboard" />
+            
+            {/* LINK PARA A SALA DE JOGOS */}
+            <NavItem href="/jogos" icon={Gamepad2} label="Sala de Jogos" />
+            
             <NavItem href="/portal/student/simulado" icon={FileText} label="Simulados" />
             <NavItem href="/portal/student/banco-de-questoes" icon={BookOpen} label="Banco de Questões" />
-            <NavItem href="/portal/student/goals" icon={Trophy} label="Minhas Metas" /> {/* NOVO LINK */}
+            <NavItem href="/portal/student/goals" icon={Trophy} label="Minhas Metas" />
             
             <SectionTitle>Performance</SectionTitle>
             <NavItem href="/portal/student/analytics" icon={BarChart} label="Meu Desempenho" />
