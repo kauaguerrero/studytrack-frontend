@@ -1,4 +1,4 @@
-export type GoalSource = 'teacher' | 'ai';
+export type GoalSource = 'teacher' | 'ai' | 'personal';
 // Adicionei 'active' para compatibilidade com o banco, embora o visual use 'pending'
 export type GoalStatus = 'pending' | 'in_progress' | 'completed' | 'expired' | 'active';
 
