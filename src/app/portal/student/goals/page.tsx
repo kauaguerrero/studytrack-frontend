@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Trophy, Clock, Target, AlertCircle, CheckCircle, Zap, TrendingUp, Calendar, Plus, User, BookOpen, Minus, Sparkles, X, Trash2, Edit2, Save } from 'lucide-react';
+import { Trophy, Clock, Target, AlertCircle, CheckCircle, Zap, TrendingUp, Calendar, Plus, User, BookOpen, Minus, Sparkles, X, Trash2, Edit2, Save, Users, School, Medal } from 'lucide-react';
 import { SubmitProofModal } from '@/components/modals/SubmitProofModal';
 import { GoalRanking } from '@/components/widgets/GoalRanking';
 import LeaderboardWidget from '@/components/goals/LeaderboardWidget';
@@ -362,38 +362,136 @@ function InteractiveProgressWidget({ goal, userId, onUpdate }: { goal: UnifiedGo
     );
 }
 
+// --- COMPONENT 4: VIEW DO LEADERBOARD (NOVO) ---
+
+function LeaderboardView({ userId }: { userId: string }) {
+    const [scope, setScope] = useState<'classroom' | 'school'>('classroom');
+    const [category, setCategory] = useState<'general' | 'teacher' | 'personal' | 'ai'>('general');
+    const [ranking, setRanking] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchRanking = async () => {
+            setLoading(true);
+            try {
+                const query = new URLSearchParams({ user_id: userId, scope, category });
+                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/student/goals/leaderboard?${query}`);
+                if (res.ok) setRanking(await res.json());
+            } catch (e) { console.error(e); }
+            setLoading(false);
+        };
+        fetchRanking();
+    }, [userId, scope, category]);
+
+    const getMedalColor = (index: number) => {
+        switch(index) {
+            case 0: return "text-yellow-500 bg-yellow-100 border-yellow-200";
+            case 1: return "text-slate-400 bg-slate-100 border-slate-200";
+            case 2: return "text-amber-700 bg-amber-100 border-amber-200";
+            default: return "text-slate-600 bg-white border-slate-100";
+        }
+    };
+
+    return (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex flex-col md:flex-row justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
+                    <button onClick={() => setScope('classroom')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${scope === 'classroom' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <Users size={14} /> Minha Turma
+                    </button>
+                    <button onClick={() => setScope('school')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${scope === 'school' ? 'bg-white text-purple-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <School size={14} /> Toda Escola
+                    </button>
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
+                    {[{ id: 'general', label: 'Geral', icon: <Trophy size={12}/> }, { id: 'teacher', label: 'Professor (+3)', icon: <BookOpen size={12}/> }, { id: 'ai', label: 'IA (+2)', icon: <Sparkles size={12}/> }, { id: 'personal', label: 'Pessoal (+1)', icon: <User size={12}/> }].map(cat => (
+                        <button key={cat.id} onClick={() => setCategory(cat.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide border whitespace-nowrap transition-all ${category === cat.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                            {cat.icon} {cat.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden min-h-[300px]">
+                <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-700 flex items-center gap-2"><Trophy className="text-yellow-500" size={18} /> Top 5 Goalers</h3>
+                    <span className="text-xs text-slate-400 font-medium">Atualizado em tempo real</span>
+                </div>
+
+                {loading ? (
+                    <div className="p-10 flex flex-col items-center justify-center text-slate-400 gap-3">
+                         <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                         <p className="text-sm">Calculando pontuações...</p>
+                    </div>
+                ) : ranking.length === 0 ? (
+                    <div className="p-10 text-center text-slate-400">
+                        <Medal size={40} className="mx-auto mb-3 opacity-20" />
+                        <p>Ninguém pontuou nesta categoria ainda.</p>
+                        <p className="text-xs mt-1">Seja o primeiro!</p>
+                    </div>
+                ) : (
+                    <div className="divide-y divide-slate-100">
+                        {ranking.map((user, index) => {
+                            const isMe = user.id === userId;
+                            return (
+                                <div key={user.id} className={`flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors ${isMe ? 'bg-blue-50/50' : ''}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-black text-lg shadow-sm ${getMedalColor(index)}`}>{index + 1}</div>
+                                    <div className="flex-1">
+                                        <div className="font-bold text-slate-800 flex items-center gap-2">{user.full_name} {isMe && <span className="bg-blue-100 text-blue-700 text-[9px] px-1.5 py-0.5 rounded uppercase">Você</span>}</div>
+                                        <div className="text-xs text-slate-500">{index === 0 ? "👑 O Rei das Metas" : "Goal Master"}</div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-2xl font-black text-slate-900 leading-none">{user.score}</div>
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase">Pontos</div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
+            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 flex gap-3 text-sm text-blue-800">
+                <AlertCircle className="shrink-0 mt-0.5" size={16} />
+                <div>
+                    <strong className="block mb-1">Como funciona a pontuação?</strong>
+                    <ul className="list-disc pl-4 space-y-0.5 text-xs opacity-80">
+                        <li>Metas da Turma valem <strong>3 pontos</strong>.</li>
+                        <li>Metas sugeridas pela IA valem <strong>2 pontos</strong> (Max 2/dia).</li>
+                        <li>Metas Pessoais valem <strong>1 ponto</strong> (Max 3/dia).</li>
+                        <li>Metas feitas em menos de 5 min não contam.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // --- MAIN PAGE COMPONENT ---
 
 export default function StudentGoalsPage() {
+  const [viewMode, setViewMode] = useState<'list' | 'ranking'>('list');
   const [activeTab, setActiveTab] = useState<'pending' | 'completed' | 'ranking'>('pending');
   const [feed, setFeed] = useState<UnifiedGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  const [totalPoints, setTotalPoints] = useState(0); // [NOVO] Estado para pontos reais
+  const [totalPoints, setTotalPoints] = useState(0); 
   
-  // Modal States
-  const [selectedGoal, setSelectedGoal] = useState<UnifiedGoal | null>(null); // For Proof Modal (Legacy)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [selectedGoalDetails, setSelectedGoalDetails] = useState<UnifiedGoal | null>(null); // For Details Modal
+  const [selectedGoalDetails, setSelectedGoalDetails] = useState<UnifiedGoal | null>(null);
+  const [selectedGoal, setSelectedGoal] = useState<UnifiedGoal | null>(null);
   const [aiSuggestion, setAiSuggestion] = useState<any>(null);
   const [loadingAi, setLoadingAi] = useState(false);
 
   const fetchFeed = async () => {
         if (!userId) return;
         try {
-            // 1. Fetch Feed
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/student/goals/feed/${userId}`, { cache: 'no-store' });
             if (res.ok) setFeed(await res.json());
 
-            // 2. Fetch Points (Real-time update)
             const supabase = createClient();
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('total_points')
-                .eq('id', userId)
-                .single();
-            
-            if (profile) setTotalPoints(profile.total_points || 0);
+            const { data: profile } = await supabase.from('profiles').select('total_points').eq('id', userId).single();
+            if(profile) setTotalPoints(profile.total_points || 0);
 
         } catch (error) { console.error("❌ Erro de conexão:", error); }
         setLoading(false);
@@ -405,7 +503,6 @@ export default function StudentGoalsPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
             setUserId(user.id);
-            // Fetch inicial dos pontos para evitar delay visual
             const { data: profile } = await supabase.from('profiles').select('total_points').eq('id', user.id).single();
             if(profile) setTotalPoints(profile.total_points || 0);
         } else {
@@ -417,29 +514,17 @@ export default function StudentGoalsPage() {
 
   useEffect(() => { if (userId) fetchFeed(); }, [userId]);
 
-  // AI Handler
   const handleAiSuggestion = async () => {
       if (!userId) return;
       setLoadingAi(true);
       try {
           const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/student/goals/suggest-ai`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ user_id: userId })
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId })
           });
           const data = await res.json();
-          if (data.success) {
-              setAiSuggestion(data.suggestion);
-              setIsCreateModalOpen(true);
-          } else {
-              alert("Não foi possível gerar sugestão agora.");
-          }
-      } catch (e) {
-          console.error(e);
-          alert("Erro de conexão com a IA.");
-      } finally {
-          setLoadingAi(false);
-      }
+          if (data.success) { setAiSuggestion(data.suggestion); setIsCreateModalOpen(true); } 
+          else { alert("Indisponível."); }
+      } catch (e) { alert("Erro IA."); } finally { setLoadingAi(false); }
   };
 
   const handleOpenManualCreate = () => {
@@ -466,16 +551,7 @@ export default function StudentGoalsPage() {
     }
   };
 
-  if (loading) {
-    return (
-        <div className="flex flex-col items-center justify-center min-h-[500px] text-slate-400 gap-3 animate-pulse">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
-                <Trophy size={32} className="opacity-30" />
-            </div>
-            <p className="text-sm font-medium">Carregando seu plano de conquistas...</p>
-        </div>
-    );
-  }
+  if (loading) return <div className="text-center p-10 text-slate-400">Carregando...</div>;
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8 space-y-8">
@@ -556,7 +632,6 @@ export default function StudentGoalsPage() {
                             </div>
                             <div className="bg-white/10 p-4 rounded-xl backdrop-blur-sm border border-white/20 hidden md:block">
                                 <span className="block text-xs font-bold uppercase tracking-wider text-indigo-200 mb-1">Seus Pontos</span>
-                                {/* CORREÇÃO AQUI: Uso do valor real */}
                                 <span className="text-3xl font-black">
                                     {totalPoints}
                                 </span>
@@ -597,48 +672,45 @@ export default function StudentGoalsPage() {
             <>
                 {/* HERO SECTION (Urgent Goal) */}
                 {activeTab === 'pending' && urgentGoal && (
-                    <div className={`relative overflow-hidden rounded-2xl text-white shadow-xl transition-all hover:shadow-2xl hover:scale-[1.01] duration-300 group cursor-default ${
-                        urgentGoal.source === 'personal' || urgentGoal.source === 'ai'
-                        ? 'bg-gradient-to-r from-emerald-600 to-teal-700 shadow-emerald-200/50'
-                        : 'bg-gradient-to-r from-blue-600 to-indigo-700 shadow-blue-200/50'
-                    }`}>
+                    <div 
+                        onClick={() => setSelectedGoalDetails(urgentGoal)} 
+                        className={`relative overflow-hidden rounded-2xl text-white shadow-xl mb-8 p-8 flex flex-col md:flex-row justify-between items-center bg-gradient-to-r ${
+                            urgentGoal.source === 'personal' || urgentGoal.source === 'ai'
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-700 shadow-emerald-200/50'
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-700 shadow-blue-200/50'
+                        } cursor-pointer group`}
+                    >
                         <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-all"></div>
                         
-                        <div className="relative z-10 p-8 flex flex-col md:flex-row items-center justify-between gap-6">
-                            <div className="space-y-4 max-w-2xl">
-                                <div className="inline-flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-md border border-white/10">
-                                    <Zap size={14} className="text-yellow-300" /> Foco Principal
-                                </div>
-                                <h2 className="text-3xl font-bold leading-tight">{urgentGoal.title}</h2>
-                                <p className="text-blue-100 text-lg leading-relaxed">{urgentGoal.description || "Mantenha o foco e complete sua meta!"}</p>
-                                
-                                <div className="flex items-center gap-6 pt-2">
-                                    <div className="flex items-center gap-2 text-sm font-medium bg-black/20 px-4 py-2 rounded-lg backdrop-blur-sm">
-                                        <Clock size={16} className="text-blue-200" />
-                                        Prazo: {new Date(urgentGoal.date).toLocaleDateString('pt-BR')}
-                                    </div>
+                        <div className="relative z-10 mb-6 md:mb-0 space-y-4 max-w-2xl">
+                             <div className="inline-flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-md border border-white/10 mb-2">
+                                <Zap size={14} className="text-yellow-300" /> Foco Principal
+                             </div>
+                             <h2 className="text-3xl font-bold leading-tight">{urgentGoal.title}</h2>
+                             <p className="text-blue-100 text-lg leading-relaxed opacity-90">{urgentGoal.description || "Mantenha o foco e complete sua meta!"}</p>
+                             
+                             <div className="flex items-center gap-6 pt-2">
+                                <div className="flex items-center gap-2 text-sm font-medium bg-black/20 px-4 py-2 rounded-lg backdrop-blur-sm">
+                                    <Clock size={16} className="text-blue-200" />
+                                    Prazo: {new Date(urgentGoal.date).toLocaleDateString('pt-BR')}
                                 </div>
                             </div>
-
-                            <div className="flex flex-col items-center gap-3 shrink-0">
-                                <div className="relative w-24 h-24 flex items-center justify-center">
-                                    <svg className="w-full h-full transform -rotate-90">
-                                        <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-white/20" />
-                                        <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-yellow-400" 
-                                            strokeDasharray={251.2} 
-                                            strokeDashoffset={251.2 - (251.2 * calculateProgress(urgentGoal.current, urgentGoal.target)) / 100} 
-                                        />
-                                    </svg>
-                                    <span className="absolute text-xl font-bold">{calculateProgress(urgentGoal.current, urgentGoal.target)}%</span>
-                                </div>
-                                
-                                <button 
-                                    onClick={() => setSelectedGoalDetails(urgentGoal)}
-                                    className="bg-white text-blue-700 font-bold px-6 py-2.5 rounded-xl shadow-lg hover:bg-blue-50 active:scale-95 transition-all flex items-center gap-2 text-sm"
-                                >
-                                    <CheckCircle size={18} /> Detalhes
-                                </button>
-                            </div>
+                        </div>
+                        
+                        <div className="relative z-10 flex flex-col items-center gap-4 shrink-0 w-full md:w-auto">
+                             <div className="relative w-24 h-24 flex items-center justify-center">
+                                 <svg className="w-full h-full transform -rotate-90">
+                                    <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-white/20"/>
+                                    <circle cx="48" cy="48" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-yellow-400" strokeDasharray={251} strokeDashoffset={251 - (251 * calculateProgress(urgentGoal.current, urgentGoal.target))/100} />
+                                 </svg>
+                                 <span className="absolute font-bold text-xl">{calculateProgress(urgentGoal.current, urgentGoal.target)}%</span>
+                             </div>
+                             
+                             {userId && (
+                                 <div className="w-full max-w-[180px] text-slate-800" onClick={e => e.stopPropagation()}>
+                                    <InteractiveProgressWidget goal={urgentGoal} userId={userId} onUpdate={fetchFeed} />
+                                 </div>
+                             )}
                         </div>
                     </div>
                 )}
