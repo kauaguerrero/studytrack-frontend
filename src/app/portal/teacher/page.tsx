@@ -33,8 +33,9 @@ export default async function TeacherDashboard() {
     );
   }
 
-  // --- LÓGICA DO TOP 1 ---
-  let bestClassId = null;
+  // --- LÓGICA DO TOP 1 (CORRIGIDA) ---
+  // Adicionada a tipagem explícita : string | null
+  let bestClassId: string | null = null;
   let highestScore = -1;
 
   classes.forEach(c => {
@@ -59,7 +60,7 @@ export default async function TeacherDashboard() {
           {classes.map((item) => {
             const isTop1 = item.id === bestClassId; 
 
-            // --- LÓGICA DE SITUAÇÃO CORRIGIDA ---
+            // --- LÓGICA DE SITUAÇÃO ---
             const { avg_quality, avg_adherence } = item.metrics;
             let statusColor = "bg-slate-100 text-slate-600 border-slate-200";
             let statusDot = "bg-slate-400";
@@ -72,14 +73,13 @@ export default async function TeacherDashboard() {
                     statusDot = "bg-emerald-500";
                     statusText = "Excelente";
                 
-                // 2. CRÍTICO: Ambos ruins (CORREÇÃO: alterado de || para &&)
-                // Antes bastava um ser ruim para ficar vermelho. Agora precisa ser ruim nos dois.
+                // 2. CRÍTICO: Ambos ruins
                 } else if (avg_quality < 50 && avg_adherence < 50) {
                     statusColor = "bg-red-50 text-red-700 border-red-200";
                     statusDot = "bg-red-500";
                     statusText = "Crítico";
                 
-                // 3. ATENÇÃO: Todo o resto (Casos mistos, ex: Nota Alta + Aderência Baixa)
+                // 3. ATENÇÃO: Todo o resto
                 } else {
                     statusColor = "bg-amber-50 text-amber-700 border-amber-200";
                     statusDot = "bg-amber-500";
