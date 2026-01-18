@@ -137,12 +137,17 @@ export async function getClassroomDetails(classroomId: string): Promise<Classroo
 
   if (error || !data) return null;
 
+  // --- CORREÇÃO AQUI ---
+  // O TypeScript reclama que 'school' é um array, então forçamos a verificação
+  const schoolData = data.school as any;
+  const school = Array.isArray(schoolData) ? schoolData[0] : schoolData;
+
   return {
     id: data.id,
     name: data.name,
     year: data.year,
     invite_code: data.invite_code,
-    school: data.school
+    school: school || null
   };
 }
 

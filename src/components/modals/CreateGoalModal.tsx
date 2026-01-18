@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { X, Calendar, Target, Type, Users, Check, AlertCircle } from 'lucide-react';
+import { X, Calendar, Target, Type, Users, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 interface CreateGoalModalProps {
     isOpen: boolean;
     onClose: () => void;
-    teacherId: string;
-    onSuccess: () => void;
-    initialData?: any; // Para suporte futuro a "Reutilizar Meta" ou IA
+    teacherId?: string;       // Agora Opcional
+    onSuccess?: () => void;   // Agora Opcional
+    initialData?: any;
+    classroomId?: string;     // Novo: Para modo turma única
+    classroomName?: string;   // Novo: Para exibir nome no modo turma única
 }
 
 interface ClassroomOption {
@@ -20,7 +22,18 @@ interface ClassroomOption {
     students_count?: number;
 }
 
-export function CreateGoalModal({ isOpen, onClose, teacherId, onSuccess, initialData }: CreateGoalModalProps) {
+export function CreateGoalModal({ 
+    isOpen, 
+    onClose, 
+    teacherId, 
+    onSuccess, 
+    classroomId, 
+    classroomName 
+}: CreateGoalModalProps) {
+    
+    // Auth State
+    const [currentTeacherId, setCurrentTeacherId] = useState<string | null>(teacherId || null);
+
     // Form States
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -37,64 +50,83 @@ export function CreateGoalModal({ isOpen, onClose, teacherId, onSuccess, initial
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // 1. Fetch Classrooms on Mount
+    const isSingleClassMode = !!classroomId;
+
+    // 1. Inicialização: Busca usuário se necessário e configura turmas
     useEffect(() => {
-        if (isOpen && teacherId) {
-            fetchTeacherClasses();
+        if (isOpen) {
             // Reset form
             setTitle('');
             setDescription('');
             setTargetValue(1);
             setDeadline('');
-            setSelectedClassIds([]);
             setError(null);
-        }
-    }, [isOpen, teacherId]);
 
-    const fetchTeacherClasses = async () => {
+            const initialize = async () => {
+                let id = teacherId;
+                
+                // Se não veio teacherId via props, busca do Supabase
+                if (!id) {
+                    const supabase = createClient();
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (user) {
+                        id = user.id;
+                        setCurrentTeacherId(user.id);
+                    }
+                }
+
+                // Configura turmas
+                if (classroomId && classroomName) {
+                    // Modo Turma Única (vindo do ClassroomActions)
+                    setClassrooms([{ id: classroomId, name: classroomName }]);
+                    setSelectedClassIds([classroomId]);
+                } else if (id) {
+                    // Modo Multi-turma (vindo do Dashboard)
+                    fetchTeacherClasses(id);
+                }
+            };
+
+            initialize();
+        }
+    }, [isOpen, teacherId, classroomId, classroomName]);
+
+    const fetchTeacherClasses = async (id: string) => {
         setIsLoadingClasses(true);
         const supabase = createClient();
         
         try {
-            // Estratégia Híbrida: Busca tanto da tabela pivot quanto da tabela direta
             // 1. Busca N:N (teacher_classrooms)
             const { data: pivotData } = await supabase
                 .from('teacher_classrooms')
                 .select('classroom_id, classrooms(id, name)')
-                .eq('teacher_id', teacherId);
+                .eq('teacher_id', id);
 
             // 2. Busca 1:N (classrooms com teacher_id direto)
             const { data: directData } = await supabase
                 .from('classrooms')
                 .select('id, name')
-                .eq('teacher_id', teacherId);
+                .eq('teacher_id', id);
 
             const options: ClassroomOption[] = [];
             const seenIds = new Set();
 
-            // Helper para adicionar únicas
-            const addOption = (id: string, name: string) => {
-                if (!seenIds.has(id)) {
-                    seenIds.add(id);
-                    options.push({ id, name });
+            const addOption = (cid: string, cname: string) => {
+                if (!seenIds.has(cid)) {
+                    seenIds.add(cid);
+                    options.push({ id: cid, name: cname });
                 }
             };
 
-            // Processar Pivot
             pivotData?.forEach((item: any) => {
-                if (item.classrooms) {
-                    addOption(item.classrooms.id, item.classrooms.name);
-                }
+                if (item.classrooms) addOption(item.classrooms.id, item.classrooms.name);
             });
 
-            // Processar Direct
             directData?.forEach((item: any) => {
                 addOption(item.id, item.name);
             });
 
             setClassrooms(options);
             
-            // Auto-selecionar se tiver apenas 1 turma para facilitar
             if (options.length === 1) {
                 setSelectedClassIds([options[0].id]);
             }
@@ -108,14 +140,14 @@ export function CreateGoalModal({ isOpen, onClose, teacherId, onSuccess, initial
     };
 
     const toggleClass = (id: string) => {
+        if (isSingleClassMode) return; // Trava seleção no modo único
         setSelectedClassIds(prev => 
-            prev.includes(id) 
-                ? prev.filter(c => c !== id) 
-                : [...prev, id]
+            prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
         );
     };
 
     const toggleAllClasses = () => {
+        if (isSingleClassMode) return;
         if (selectedClassIds.length === classrooms.length) {
             setSelectedClassIds([]);
         } else {
@@ -125,6 +157,11 @@ export function CreateGoalModal({ isOpen, onClose, teacherId, onSuccess, initial
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        if (!currentTeacherId) {
+            setError("Erro de autenticação. Recarregue a página.");
+            return;
+        }
         if (selectedClassIds.length === 0) {
             setError("Selecione pelo menos uma turma.");
             return;
@@ -138,13 +175,12 @@ export function CreateGoalModal({ isOpen, onClose, teacherId, onSuccess, initial
         setError(null);
 
         try {
-            // Dispara criação em paralelo para todas as turmas selecionadas
             const promises = selectedClassIds.map(classId => 
                 fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/enterprise/goals/create-batch`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        teacher_id: teacherId,
+                        teacher_id: currentTeacherId,
                         classroom_id: classId,
                         title,
                         description,
@@ -156,15 +192,15 @@ export function CreateGoalModal({ isOpen, onClose, teacherId, onSuccess, initial
             );
 
             const results = await Promise.all(promises);
-            
-            // Verifica se alguma falhou
             const errors = results.filter(r => !r.ok);
+            
             if (errors.length > 0) {
                 throw new Error(`Falha ao criar meta em ${errors.length} turma(s).`);
             }
 
-            onSuccess();
+            if (onSuccess) onSuccess();
             onClose();
+            alert("Meta criada com sucesso!");
         } catch (err: any) {
             console.error(err);
             setError(err.message || "Erro ao criar metas.");
@@ -184,7 +220,7 @@ export function CreateGoalModal({ isOpen, onClose, teacherId, onSuccess, initial
                     <div>
                         <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                             <Target className="text-blue-600" size={20} />
-                            Nova Meta da Turma
+                            Nova Meta {isSingleClassMode && <span className="text-slate-400 font-normal text-base">| {classroomName}</span>}
                         </h2>
                         <p className="text-sm text-slate-500 mt-1">Defina objetivos para engajar seus alunos.</p>
                     </div>
@@ -195,57 +231,58 @@ export function CreateGoalModal({ isOpen, onClose, teacherId, onSuccess, initial
 
                 <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
                     
-                    {/* SELEÇÃO DE TURMAS */}
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2">
-                                <Users size={14} /> Destinatários
-                            </label>
-                            <button 
-                                type="button" 
-                                onClick={toggleAllClasses}
-                                className="text-xs font-bold text-blue-600 hover:underline"
-                            >
-                                {selectedClassIds.length === classrooms.length ? 'Desmarcar Todas' : 'Selecionar Todas'}
-                            </button>
+                    {/* SELEÇÃO DE TURMAS (Escondida ou Simplificada no Modo Single) */}
+                    {!isSingleClassMode && (
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2">
+                                    <Users size={14} /> Destinatários
+                                </label>
+                                <button 
+                                    type="button" 
+                                    onClick={toggleAllClasses}
+                                    className="text-xs font-bold text-blue-600 hover:underline"
+                                >
+                                    {selectedClassIds.length === classrooms.length ? 'Desmarcar Todas' : 'Selecionar Todas'}
+                                </button>
+                            </div>
+
+                            {isLoadingClasses ? (
+                                <div className="flex gap-2 animate-pulse">
+                                    <div className="h-8 w-24 bg-slate-100 rounded-lg"></div>
+                                    <div className="h-8 w-24 bg-slate-100 rounded-lg"></div>
+                                </div>
+                            ) : classrooms.length === 0 ? (
+                                <div className="p-3 bg-amber-50 border border-amber-100 text-amber-700 text-sm rounded-lg flex items-center gap-2">
+                                    <AlertCircle size={16} /> Você não possui turmas vinculadas.
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {classrooms.map(cls => {
+                                        const isSelected = selectedClassIds.includes(cls.id);
+                                        return (
+                                            <div 
+                                                key={cls.id}
+                                                onClick={() => toggleClass(cls.id)}
+                                                className={`cursor-pointer text-sm font-medium px-3 py-2 rounded-lg border transition-all flex items-center justify-between group ${
+                                                    isSelected 
+                                                    ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm' 
+                                                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <span className="truncate">{cls.name}</span>
+                                                {isSelected && <Check size={14} className="text-blue-600 shrink-0" />}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            <p className="text-[10px] text-slate-400 text-right">
+                                {selectedClassIds.length} turma(s) selecionada(s)
+                            </p>
+                            <div className="h-px bg-slate-100 my-2"></div>
                         </div>
-
-                        {isLoadingClasses ? (
-                            <div className="flex gap-2 animate-pulse">
-                                <div className="h-8 w-24 bg-slate-100 rounded-lg"></div>
-                                <div className="h-8 w-24 bg-slate-100 rounded-lg"></div>
-                            </div>
-                        ) : classrooms.length === 0 ? (
-                            <div className="p-3 bg-amber-50 border border-amber-100 text-amber-700 text-sm rounded-lg flex items-center gap-2">
-                                <AlertCircle size={16} /> Você não possui turmas vinculadas.
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                {classrooms.map(cls => {
-                                    const isSelected = selectedClassIds.includes(cls.id);
-                                    return (
-                                        <div 
-                                            key={cls.id}
-                                            onClick={() => toggleClass(cls.id)}
-                                            className={`cursor-pointer text-sm font-medium px-3 py-2 rounded-lg border transition-all flex items-center justify-between group ${
-                                                isSelected 
-                                                ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm' 
-                                                : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                                            }`}
-                                        >
-                                            <span className="truncate">{cls.name}</span>
-                                            {isSelected && <Check size={14} className="text-blue-600 shrink-0" />}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                        <p className="text-[10px] text-slate-400 text-right">
-                            {selectedClassIds.length} turma(s) selecionada(s)
-                        </p>
-                    </div>
-
-                    <div className="h-px bg-slate-100 my-2"></div>
+                    )}
 
                     {/* DADOS DA META */}
                     <div className="space-y-4">
@@ -258,7 +295,7 @@ export function CreateGoalModal({ isOpen, onClose, teacherId, onSuccess, initial
                                 placeholder="Ex: Resolver lista de Logaritmos"
                                 value={title}
                                 onChange={e => setTitle(e.target.value)}
-                                className="font-medium bg-white text-slate-900 border-slate-200" // CORRIGIDO: Forçando bg-white
+                                className="font-medium bg-white text-slate-900 border-slate-200"
                             />
                         </div>
 
@@ -286,7 +323,7 @@ export function CreateGoalModal({ isOpen, onClose, teacherId, onSuccess, initial
                                         required
                                         value={targetValue}
                                         onChange={e => setTargetValue(Number(e.target.value))}
-                                        className="bg-white text-slate-900 border-slate-200" // CORRIGIDO
+                                        className="bg-white text-slate-900 border-slate-200"
                                     />
                                     <select 
                                         className="text-sm bg-white border border-slate-200 rounded-md px-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-ring"
@@ -309,7 +346,7 @@ export function CreateGoalModal({ isOpen, onClose, teacherId, onSuccess, initial
                                     required
                                     value={deadline}
                                     onChange={e => setDeadline(e.target.value)}
-                                    className="bg-white text-slate-900 border-slate-200" // CORRIGIDO
+                                    className="bg-white text-slate-900 border-slate-200"
                                 />
                             </div>
                         </div>
@@ -335,11 +372,11 @@ export function CreateGoalModal({ isOpen, onClose, teacherId, onSuccess, initial
                     >
                         {isSubmitting ? (
                             <span className="flex items-center gap-2">
-                                <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
+                                <Loader2 size={16} className="animate-spin" />
                                 Enviando...
                             </span>
                         ) : (
-                            `Criar para ${selectedClassIds.length > 0 ? selectedClassIds.length + ' Turmas' : 'Turma'}`
+                            `Criar Meta`
                         )}
                     </Button>
                 </div>
