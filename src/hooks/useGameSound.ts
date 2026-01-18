@@ -67,5 +67,12 @@ export function useGameSound() {
     })
   }
 
-  return { playHit, playMiss, toggleBGM, toggleMute, isMuted }
+
+  const testSound = () => {
+    if (!correctSfx.current) return
+    correctSfx.current.currentTime = 0
+    correctSfx.current.play().catch(() => {})
+  }
+
+  return { playHit, playMiss, toggleBGM, toggleMute, isMuted, testSound }
 }
