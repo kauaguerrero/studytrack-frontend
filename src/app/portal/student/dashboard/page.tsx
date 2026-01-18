@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { LogOut, Calendar, Trophy, BarChart3, CheckCircle2, XCircle, BookOpen, Timer, Sparkles, Zap, ArrowRight } from "lucide-react";
+import { Calendar, Trophy, BarChart3, CheckCircle2, XCircle, BookOpen, Timer, Sparkles, ArrowRight } from "lucide-react";
 import { TaskCard } from "./task-card";
 import Link from "next/link";
-import { SubscriptionLock } from "@/components/dashboard/SubscriptionLock"; 
+import { SubscriptionLock } from "@/components/dashboard/SubscriptionLock";
+import { DashboardNavbar } from "@/components/layout/navbar"; // CORREÇÃO: Uso de alias @ para import mais limpo
 
 // Utilitário de Data (Mantido)
 function formatDate(dateStr: string) {
@@ -23,7 +24,7 @@ function formatDate(dateStr: string) {
 
 export default async function Dashboard() {
   const supabase = await createClient();
-  
+   
   try {
     // 1. Autenticação e Perfil
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -45,6 +46,7 @@ export default async function Dashboard() {
     }
 
     const firstName = profile.full_name?.split(' ')[0] || "Estudante";
+    const fullName = profile.full_name || "Estudante";
     
     // =========================================================================
     // LÓGICA LOCK-WALL (BLOQUEIO DE PAGAMENTO)
@@ -67,7 +69,6 @@ export default async function Dashboard() {
         .select(`id, task_description, scheduled_date, status, content_repository ( title, url, content_type )`)
         .eq('user_id', user.id).gte('scheduled_date', todayStr).order('scheduled_date', { ascending: true }).limit(5),
       
-      // CORREÇÃO AQUI: Trocado 'statement' por 'title' para bater com o banco
       supabase.from('user_answers')
         .select(`id, is_correct, created_at, questions ( subject, exam_year, title )`)
         .eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
@@ -91,30 +92,14 @@ export default async function Dashboard() {
             <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-sky-200/40 rounded-full blur-3xl opacity-50 mix-blend-multiply animate-blob animation-delay-2000"></div>
         </div>
 
-        {/* Navbar */}
-        <nav className="sticky top-0 z-40 px-4 pt-4 pb-2">
-            <div className="max-w-6xl mx-auto bg-white/80 backdrop-blur-xl border border-white/50 shadow-sm rounded-2xl px-5 py-3 flex justify-between items-center transition-all">
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/20">
-                        <Zap size={18} className="fill-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-lg font-bold text-slate-800 tracking-tight leading-tight">StudyTrack</h1>
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Dashboard</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-4">
-                    <span className="text-sm font-semibold text-slate-600 hidden sm:block bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-                        Olá, {firstName} 👋
-                    </span>
-                    <form action="/auth/signout" method="post">
-                        <button className="p-2.5 hover:bg-red-50 hover:text-red-500 rounded-xl text-slate-400 transition-all active:scale-95">
-                            <LogOut size={18} />
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </nav>
+        {/* CRÍTICO: Adicionada a prop 'userRole="student"'.
+            Isso garante que o menu renderize as opções corretas para o aluno.
+        */}
+        <DashboardNavbar 
+            firstName={firstName} 
+            fullName={fullName} 
+            userRole="student" 
+        />
 
         <main className="max-w-6xl mx-auto p-4 sm:p-6 space-y-8 mt-2 relative z-10">
 

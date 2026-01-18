@@ -16,7 +16,8 @@ import {
   LifeBuoy,
   Target,
   Trophy,
-  Gamepad2
+  Gamepad2,
+  LogOut
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 
@@ -24,9 +25,11 @@ interface PortalSidebarProps {
   role: UserRole;
   fullName: string;
   avatarUrl?: string;
+  onCloseMobile?: () => void; // Callback opcional para fechar o menu mobile ao clicar
 }
 
-export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps) {
+// 1. Componente de Conteúdo (Reutilizável Desktop & Mobile)
+export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: PortalSidebarProps) {
   const pathname = usePathname();
 
   if (pathname.includes('/onboarding')) {
@@ -37,12 +40,13 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
       return pathname === path || pathname.startsWith(`${path}/`);
   };
 
-  // Componente de Item de Navegação Padrão
+  // Item de Navegação Interno
   const NavItem = ({ href, icon: Icon, label }: { href: string; icon: any; label: string }) => {
     const active = isActive(href);
     return (
       <Link 
         href={href} 
+        onClick={onCloseMobile} // Fecha o menu se estiver no mobile
         className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
           active 
             ? 'bg-blue-50/80 text-blue-700 shadow-sm' 
@@ -68,11 +72,10 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
   );
 
   return (
-    <aside className="w-72 bg-white border-r border-slate-200 hidden md:flex flex-col h-full z-20">
-      
+    <div className="flex flex-col h-full bg-white text-slate-900">
       {/* --- HEADER --- */}
       <div className="p-5 pb-2">
-        <Link href="/" className="group flex items-center gap-1 mb-6 w-fit transition-opacity hover:opacity-80">
+        <Link href="/" onClick={onCloseMobile} className="group flex items-center gap-1 mb-6 w-fit transition-opacity hover:opacity-80">
           <div className="flex items-center justify-center -mr-1 group-hover:scale-110 transition-transform duration-300">
              <Image 
                src="/logost-transparente-sombra.png" 
@@ -106,10 +109,7 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
           <div className="space-y-0.5">
             <SectionTitle>Estudos</SectionTitle>
             <NavItem href="/portal/student/dashboard" icon={LayoutDashboard} label="Dashboard" />
-            
-            {/* LINK PARA A SALA DE JOGOS */}
             <NavItem href="/jogos" icon={Gamepad2} label="Sala de Jogos" />
-            
             <NavItem href="/portal/student/simulado" icon={FileText} label="Simulados" />
             <NavItem href="/portal/student/banco-de-questoes" icon={BookOpen} label="Banco de Questões" />
             <NavItem href="/portal/student/goals" icon={Trophy} label="Minhas Metas" />
@@ -125,7 +125,6 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
             <SectionTitle>Sala de Aula</SectionTitle>
             <NavItem href="/portal/teacher" icon={School} label="Minhas Turmas" />
             <NavItem href="/portal/teacher/students" icon={Users} label="Alunos e Notas" />
-            
             <SectionTitle>Conteúdo</SectionTitle>
             <NavItem href="/portal/teacher/assignments" icon={FileText} label="Tarefas e Listas" />
             <NavItem href="/portal/teacher/goals" icon={Target} label="Metas Criadas" />
@@ -139,7 +138,6 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
             <NavItem href="/portal/manager" icon={BarChart} label="Visão Geral" />
             <NavItem href="/portal/manager/students" icon={GraduationCap} label="Gestão de Alunos" />
             <NavItem href="/portal/manager/curriculum" icon={BookOpen} label="Grade Curricular" />
-            
             <SectionTitle>Sistema</SectionTitle>
             <NavItem href="/portal/manager/settings" icon={Settings} label="Configurações da Escola" />
           </div>
@@ -165,12 +163,21 @@ export function PortalSidebar({ role, fullName, avatarUrl }: PortalSidebarProps)
             <p className="text-sm font-semibold text-slate-900 truncate">{fullName}</p>
             <form action="/auth/signout" method="post">
                 <button className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-600 font-medium transition-colors mt-0.5 w-full text-left">
-                    Sair da conta
+                    <LogOut size={12} /> Sair da conta
                 </button>
             </form>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// 2. Componente Principal (Wrapper Desktop)
+export function PortalSidebar(props: PortalSidebarProps) {
+  return (
+    <aside className="w-72 border-r border-slate-200 hidden md:flex flex-col h-full z-20 sticky top-0">
+      <SidebarContent {...props} />
     </aside>
   );
 }
