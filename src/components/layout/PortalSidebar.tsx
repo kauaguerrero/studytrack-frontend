@@ -17,7 +17,8 @@ import {
   Target,
   Trophy,
   Gamepad2,
-  LogOut
+  LogOut,
+  Library // NOVO IMPORT
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 
@@ -109,10 +110,11 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
           <div className="space-y-0.5">
             <SectionTitle>Estudos</SectionTitle>
             <NavItem href="/portal/student/dashboard" icon={LayoutDashboard} label="Dashboard" />
-            <NavItem href="/jogos" icon={Gamepad2} label="Sala de Jogos" />
+            <NavItem href="/portal/student/library" icon={Library} label="Biblioteca Digital" /> 
             <NavItem href="/portal/student/simulado" icon={FileText} label="Simulados" />
             <NavItem href="/portal/student/banco-de-questoes" icon={BookOpen} label="Banco de Questões" />
             <NavItem href="/portal/student/goals" icon={Trophy} label="Minhas Metas" />
+            <NavItem href="/jogos" icon={Gamepad2} label="Sala de Jogos" />
             
             <SectionTitle>Performance</SectionTitle>
             <NavItem href="/portal/student/analytics" icon={BarChart} label="Meu Desempenho" />
