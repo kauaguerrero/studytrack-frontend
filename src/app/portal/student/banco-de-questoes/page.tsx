@@ -511,7 +511,7 @@ export default function BancoDeQuestoes() {
                             <div className={`relative bg-white rounded-[1.5rem] shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden ${isLockedByQuota ? 'blur-[2px] pointer-events-none select-none grayscale-[0.5]' : ''}`}>
                                 <QuestionCard 
                                     key={currentQ.id} 
-                                    userId={userId} 
+                                    userId={userId || ""}
                                     question={{
                                         id: currentQ.id,
                                         external_id: currentQ.external_id,
