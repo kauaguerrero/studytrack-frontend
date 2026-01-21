@@ -29,6 +29,28 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
 
+  // ================================================================
+  // DATA INTEGRITY FIX: HEARTBEAT DE ATIVIDADE (DAU/MAU)
+  // ================================================================
+  // Atualiza o 'last_active_at' apenas se o usuário estiver logado
+  // e se não tivermos atualizado na última hora (Throttle).
+  if (user) {
+    const activityCookie = request.cookies.get('st_activity_heartbeat');
+    
+    // Se o cookie não existe, atualizamos o DB e criamos o cookie
+    if (!activityCookie) {
+      // Executa o update de forma assíncrona (não bloqueante para o UX, mas await aqui garante execução no Edge)
+      await supabase
+        .from('profiles')
+        .update({ last_active_at: new Date().toISOString() })
+        .eq('id', user.id);
+
+      // Define cookie para expirar em 1 hora (3600s)
+      // Isso impede que cada clique do usuário gere uma escrita no banco
+      response.cookies.set('st_activity_heartbeat', 'true', { maxAge: 3600 });
+    }
+  }
+
   // ----------------------------------------------------------------
   // ROTAS PÚBLICAS (Ignora tudo e deixa passar)
   // ----------------------------------------------------------------
@@ -51,7 +73,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    // --- AQUI ESTÁ A CORREÇÃO CRÍTICA ---
+    // Validação de Role Robusta
     // Não confie apenas no metadata do user. Busque o role real no DB.
     // Fazemos isso apenas em rotas sensíveis para não pesar o banco.
     let currentRole: UserRole = 'student';
@@ -93,7 +115,7 @@ export async function updateSession(request: NextRequest) {
     }
 
     // CASO 3: Professor/Gestor tentando acessar área de ALUNO
-    // (Opcional: você pode querer permitir, mas geralmente confunde a UX)
+    // (Opcional: Redirecionar para manter UX limpa)
     if (path.startsWith('/portal/student')) {
        if (currentRole === 'teacher') return NextResponse.redirect(new URL('/portal/teacher', request.url));
        if (currentRole === 'manager') return NextResponse.redirect(new URL('/portal/manager', request.url));
