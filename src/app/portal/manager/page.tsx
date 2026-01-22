@@ -2,374 +2,438 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
-import {
-  DollarSign, Users, Brain, Activity, Lock, AlertTriangle, ArrowLeft,
-  LayoutDashboard, Database, Server, HardDrive, RefreshCw, ShieldCheck, BarChart3,
-  Layers
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
+  PieChart, Pie, Cell, ScatterChart, Scatter, ReferenceLine, Label, LabelList
+} from 'recharts';
+import { 
+  Users, BookOpen, Target, Trophy, TrendingUp, Search, 
+  MousePointerClick, Building2, Brain, FileText, Loader2
 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { toast } from 'sonner';
 
-// --- Interfaces ---
-interface DistributionItem {
-  name: string;
-  count: number;
-}
-
-interface DistributionData {
-  total: number; // Novo campo
-  by_subject: DistributionItem[];
-  by_topic: DistributionItem[];
-  by_difficulty: DistributionItem[];
-  by_year: DistributionItem[];
-}
-
-interface StatsData {
-  users: { total: number; breakdown: { free: number; trial: number; basic: number; pro: number } };
-  financial: { 
-    gross_revenue_brl: number; 
-    ai_cost_usd: number; 
-    ai_cost_brl: number; 
-    theoretical_cost_usd?: number;
-    theoretical_cost_brl?: number;
-    net_profit_brl: number;
-    is_free_tier?: boolean; 
-  };
-  ai_usage: { total_requests: number; total_tokens: number };
-  infrastructure: {
-    db_size_bytes: number;
-    db_limit_bytes: number;
-    rows_history: number;
-    rows_tasks: number;
-  };
-}
-// --- Componentes Auxiliares ---
-
-const ErrorScreen = ({ message, onBack }: { message: string, onBack: () => void }) => (
-  <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-slate-50 p-4">
-    <div className="p-6 bg-red-50 text-red-600 rounded-full shadow-sm border border-red-100">
-      <Lock size={48} strokeWidth={1.5} />
-    </div>
-    <div className="text-center space-y-2 max-w-md">
-      <h1 className="text-2xl font-bold text-slate-900">Acesso Restrito</h1>
-      <p className="text-slate-600 font-medium">{message}</p>
-      {message.includes("conexão") && (
-        <p className="text-xs text-slate-400">Verifique se o backend Python está rodando na porta 5000.</p>
-      )}
-    </div>
-    <button 
-      onClick={onBack} 
-      className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-100 hover:border-slate-300 transition-all shadow-sm"
-    >
-      <ArrowLeft size={18} /> Voltar ao Dashboard
-    </button>
-  </div>
-);
-
-const UsageBar = ({ label, current, max, unit = "" }: { label: string, current: number, max: number, unit?: string }) => {
-  const percentage = Math.min(100, (current / max) * 100);
-  let color = "bg-blue-600";
-  if (percentage > 70) color = "bg-yellow-500";
-  if (percentage > 90) color = "bg-red-600";
-
-  return (
-    <div className="mb-4">
-      <div className="flex justify-between text-sm mb-1">
-        <span className="font-medium text-slate-700">{label}</span>
-        <span className="text-slate-500 font-mono text-xs">
-            {current === 0 ? "Calculando..." : `${current.toLocaleString()}${unit} / ${max.toLocaleString()}${unit}`}
-        </span>
-      </div>
-      <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-        <div 
-          className={`h-2.5 rounded-full transition-all duration-1000 ${color}`} 
-          style={{ width: `${percentage}%` }}
-        ></div>
-      </div>
-      {percentage > 90 && (
-        <p className="text-[10px] text-red-600 mt-1 font-bold flex items-center gap-1">
-          <AlertTriangle size={10} /> CRÍTICO
-        </p>
-      )}
-    </div>
-  );
+// --- Cores e Constantes ---
+const QUADRANT_COLORS = {
+  highErrHighVol: "#ef4444", // Vermelho (Esforço Crítico)
+  highErrLowVol: "#f59e0b",  // Amarelo (Evitação)
+  lowErrHighVol: "#10b981",  // Verde (Domínio)
+  lowErrLowVol: "#3b82f6"    // Azul (Conforto)
 };
 
-const bytesToMB = (bytes: number) => Math.round(bytes / (1024 * 1024));
+// --- Interfaces ---
+interface School {
+  id: string;
+  name: string;
+}
 
-// --- Componente: ANALYTICS / DISTRIBUIÇÃO ---
-const AnalyticsPanel = ({ sessionToken }: { sessionToken: string }) => {
-  const [data, setData] = useState<DistributionData | null>(null);
+interface DashboardData {
+  kpis: {
+    active_students_wau: number;
+    total_activities_completed: number;
+    total_goals_completed: number;
+    books_read_count: number;
+  };
+  charts: {
+    subject_difficulty: Array<{
+      subject_name: string;
+      error_rate: number;      // Y: Ruim (100) -> Bom (0)
+      receptivity_index: number; // X: Baixo (0) -> Alto (100)
+    }>;
+    class_ranking: Array<{
+      name: string;
+      engagement_score: number;
+    }>;
+  };
+  behavior: {
+    reading_vs_gaming: Array<{ name: string; value: number; fill: string }>;
+    top_students: Array<{ full_name: string; total_points: number }>;
+    // Novos campos para os rankings
+    top_question_solvers: Array<{ full_name: string; total_questions: number }>;
+    top_simulation_doers: Array<{ full_name: string; total_simulations: number }>;
+  };
+}
+
+export default function PedagogicalDashboard() {
+  const [schools, setSchools] = useState<School[]>([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>('');
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [graphLoading, setGraphLoading] = useState(false);
+  const [error, setError] = useState('');
 
+  const supabase = createClient();
+
+  // 1. Fetch Lista de Escolas
   useEffect(() => {
-    async function fetchDist() {
+    async function fetchSchoolsList() {
       try {
-        const res = await fetch('http://127.0.0.1:5000/api/admin/stats/distribution', {
-          headers: { 'Authorization': `Bearer ${sessionToken}` }
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const res = await fetch('http://localhost:5000/api/enterprise/manager/schools', {
+          headers: { 
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
         });
-        if (res.ok) setData(await res.json());
+
+        if (!res.ok) throw new Error("Falha ao listar escolas.");
+
+        const jsonData = await res.json();
+        
+        if (jsonData.schools && jsonData.schools.length > 0) {
+          setSchools(jsonData.schools);
+          setSelectedSchoolId(jsonData.schools[0].id);
+        } else {
+          setError("Nenhuma escola vinculada.");
+        }
       } catch (err) {
         console.error(err);
+        setError("Erro de conexão com o servidor.");
       } finally {
         setLoading(false);
       }
     }
-    fetchDist();
-  }, [sessionToken]);
+    fetchSchoolsList();
+  }, []);
 
-  const DistributionCard = ({ title, items, color = "bg-blue-600" }: { title: string, items: DistributionItem[], color?: string }) => {
-    if (!items || items.length === 0) return null;
-    const maxVal = Math.max(...items.map(i => i.count));
-
-    return (
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <BarChart3 size={16} /> {title}
-        </h3>
-        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-          {items.map((item, idx) => (
-            <div key={idx}>
-              <div className="flex justify-between text-xs font-semibold text-slate-700 mb-1">
-                <span>{item.name}</span>
-                <span>{item.count}</span>
-              </div>
-              <div className="w-full bg-slate-50 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full ${color}`} 
-                  style={{ width: `${(item.count / maxVal) * 100}%` }}
-                ></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  if (loading) return <div className="h-64 flex items-center justify-center"><div className="animate-spin w-8 h-8 border-4 border-blue-600 rounded-full border-t-transparent"></div></div>;
-  if (!data) return <div className="p-8 text-center text-slate-400">Falha ao carregar dados.</div>;
-
-  return (
-    <div className="animate-fade-in-up space-y-6">
-      {/* KPI Total */}
-      <div className="flex items-center gap-4">
-        <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-md flex-1 md:flex-none md:w-64 border border-slate-800 relative overflow-hidden group">
-            <div className="absolute right-0 top-0 opacity-10 transform translate-x-4 -translate-y-4">
-                 <Layers size={100} />
-            </div>
-           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-2 relative z-10">
-                <Database size={14} className="text-indigo-400" /> Total no Banco
-           </h3>
-           <div className="text-4xl font-extrabold relative z-10">
-              {/* CORREÇÃO AQUI: Fallback para 0 se undefined */}
-              {(data.total || 0).toLocaleString()}
-           </div>
-           <p className="text-[10px] text-slate-500 font-medium mt-1 relative z-10">Questões processadas e ativas</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-        <DistributionCard title="Por Matéria (Subject)" items={data.by_subject} color="bg-indigo-600" />
-        <DistributionCard title="Por Dificuldade" items={data.by_difficulty} color="bg-emerald-500" />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-            <DistributionCard title="Top Tópicos (Discipline)" items={data.by_topic} color="bg-violet-600" />
-        </div>
-        <div>
-            <DistributionCard title="Por Ano" items={data.by_year} color="bg-amber-500" />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- Componente: DASHBOARD (Stats) ---
-const DashboardStats = ({ stats, loading }: { stats: StatsData, loading: boolean }) => {
-  const formatBRL = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-  const formatUSD = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
-
-  const StatCard = ({ icon: Icon, label, value, subtext, colorClass = "text-slate-900", bgClass = "bg-white", isFreeTier = false, theoreticalCost }: any) => (
-    <div className={`${bgClass} p-6 rounded-2xl shadow-sm border border-slate-200 transition-all hover:shadow-md relative overflow-hidden`}>
-      <div className="flex items-center gap-3 mb-3 text-slate-500 text-xs font-bold uppercase tracking-wider relative z-10">
-        <Icon size={16} /> {label}
-      </div>
-      <div className={`text-3xl lg:text-4xl font-extrabold ${isFreeTier ? 'text-emerald-600' : colorClass} tracking-tight relative z-10`}>
-        {value}
-      </div>
-      
-      {isFreeTier ? (
-        <div className="mt-3 flex flex-col gap-1.5 relative z-10">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md w-fit">
-              <ShieldCheck size={12} />
-              Dentro do limite free
-          </div>
-          {theoreticalCost && (
-            <div className="text-[10px] text-slate-400 font-medium ml-1">
-              Economia: <span className="line-through decoration-red-400">{theoreticalCost}</span> (Teórico)
-            </div>
-          )}
-        </div>
-      ) : (
-        <p className="text-xs text-slate-400 mt-2 font-medium relative z-10">{subtext}</p>
-      )}
-    </div>
-  );
-
-  return (
-    <div className={`space-y-6 transition-opacity duration-300 ${loading ? 'opacity-60 pointer-events-none' : 'opacity-100'}`}>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={Users} label="Base de Usuários" value={stats.users.total} subtext={`Free: ${stats.users.breakdown.free} | Pro: ${stats.users.breakdown.pro}`} />
-        
-        <StatCard icon={DollarSign} label="Receita Bruta (MRR)" value={formatBRL(stats.financial.gross_revenue_brl)} subtext="Faturamento Mensal" colorClass="text-green-600" />
-        
-        <StatCard 
-            icon={Brain} 
-            label="Custo IA" 
-            value={formatBRL(stats.financial.ai_cost_brl)} 
-            subtext={`${formatUSD(stats.financial.ai_cost_usd)} USD`} 
-            colorClass="text-red-500" 
-            isFreeTier={stats.financial.is_free_tier}
-            theoreticalCost={stats.financial.is_free_tier ? formatBRL(stats.financial.theoretical_cost_brl || 0) : undefined}
-        />
-        
-        <StatCard icon={Activity} label="Lucro Líquido" value={formatBRL(stats.financial.net_profit_brl)} subtext="Margem Real" colorClass="text-blue-700" bgClass="bg-gradient-to-br from-blue-50 to-white border-blue-200" />
-      </div>
-
-      <div>
-        <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4 pt-4"><Server size={20} className="text-violet-600"/> Infraestrutura</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <div className="flex items-center gap-2 mb-4 text-slate-500 text-xs font-bold uppercase tracking-wider"><Database size={16} /> Armazenamento</div>
-            <UsageBar label="Tamanho do Banco" current={bytesToMB(stats.infrastructure.db_size_bytes)} max={bytesToMB(stats.infrastructure.db_limit_bytes)} unit=" MB" />
-            {stats.infrastructure.db_size_bytes === 0 && (
-                <p className="text-[10px] text-slate-400 mt-2 text-center bg-slate-50 p-2 rounded">
-                    ⚠️ RPC <code>get_db_size</code> indisponível.
-                </p>
-            )}
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <div className="flex items-center gap-2 mb-4 text-slate-500 text-xs font-bold uppercase tracking-wider"><HardDrive size={16} /> Volume de Dados</div>
-            <div className="space-y-4 pt-2">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-600 font-medium">Questões Geradas</span> 
-                <span className="font-bold text-lg bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">{stats.infrastructure.rows_history.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-600 font-medium">Tarefas Criadas</span> 
-                <span className="font-bold text-lg bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">{stats.infrastructure.rows_tasks.toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-             <div className="flex items-center gap-2 mb-4 text-slate-500 text-xs font-bold uppercase tracking-wider"><Brain size={16} /> Tokens AI</div>
-             <div className="text-3xl font-mono font-bold text-slate-900">{stats.ai_usage.total_tokens.toLocaleString()}</div>
-             <p className="text-xs text-slate-400 mt-1">{stats.ai_usage.total_requests} requisições totais.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// --- PÁGINA PRINCIPAL (ADMIN) ---
-export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'stats' | 'distribution'>('stats');
-  const [stats, setStats] = useState<StatsData | null>(null);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false); // Estado para o loading de filtro
-  const [error, setError] = useState('');
-  const [period, setPeriod] = useState('30d');
-
-  const supabase = createClient();
-  const router = useRouter();
-
-  // Inicialização (Login e Primeira Carga)
+  // 2. Fetch Dados do Dashboard
   useEffect(() => {
-    async function init() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { router.push('/auth/login'); return; }
-      
-      setSessionToken(session.access_token);
+    if (!selectedSchoolId) return;
 
-      if (activeTab === 'stats') {
-        try {
-          const res = await fetch(`http://127.0.0.1:5000/api/admin/stats?period=${period}`, {
-            headers: { 'Authorization': `Bearer ${session.access_token}` }
-          });
-          
-          if (res.status === 403) { setError("Permissão negada."); setLoading(false); return; }
-          if (!res.ok) throw new Error("Erro de conexão");
-          
-          setStats(await res.json());
-        } catch (err) {
-          setError("Erro de conexão com o backend.");
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
+    async function fetchDashboardData() {
+      setGraphLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const res = await fetch(`http://localhost:5000/api/enterprise/manager/dashboard/${selectedSchoolId}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+
+        if (!res.ok) throw new Error("Erro ao carregar dados.");
+        
+        const jsonData = await res.json();
+        setData(jsonData);
+      } catch (err) {
+        toast.error("Erro ao atualizar dados.");
+      } finally {
+        setGraphLoading(false);
       }
     }
-    init();
-  }, [router, supabase, activeTab]); 
 
-  // Atualização de Filtro (Sem tela preta)
-  useEffect(() => {
-    if (!sessionToken || activeTab !== 'stats') return;
+    fetchDashboardData();
+  }, [selectedSchoolId]);
 
-    async function updateStats() {
-        setUpdating(true); // Ativa loading sutil
-        try {
-            const res = await fetch(`http://127.0.0.1:5000/api/admin/stats?period=${period}`, {
-                headers: { 'Authorization': `Bearer ${sessionToken}` }
-            });
-            if (res.ok) {
-                setStats(await res.json());
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setUpdating(false);
-        }
-    }
-    updateStats();
-  }, [period, sessionToken, activeTab]); 
+  // Handler de cores dos quadrantes
+  const getPointColor = (errorRate: number, receptivity: number) => {
+    if (errorRate > 50 && receptivity > 50) return QUADRANT_COLORS.highErrHighVol; // Crítico
+    if (errorRate > 50 && receptivity <= 50) return QUADRANT_COLORS.highErrLowVol; // Perigo
+    if (errorRate <= 50 && receptivity > 50) return QUADRANT_COLORS.lowErrHighVol; // Sucesso
+    return QUADRANT_COLORS.lowErrLowVol; // Conforto
+  };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin w-10 h-10 border-4 border-blue-600 rounded-full border-t-transparent"></div></div>;
-  if (error) return <ErrorScreen message={error} onBack={() => router.push('/dashboard')} />;
+  const scatterData = data?.charts.subject_difficulty.map(item => ({
+    ...item,
+    fill: getPointColor(item.error_rate, item.receptivity_index)
+  }));
+
+  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-indigo-600"/></div>;
+  if (error) return <div className="h-screen flex items-center justify-center text-red-600 font-medium">{error}</div>;
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 md:p-8 font-sans text-slate-900">
-      <div className="max-w-7xl mx-auto space-y-8">
-        
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200/60 sticky top-0 bg-slate-100 z-20 pt-4">
-          <div className="flex items-center gap-6">
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3"><Lock className="text-slate-400 w-8 h-8" /> Painel Admin</h1>
-            <div className="bg-white p-1 rounded-xl border border-slate-200 flex gap-1 shadow-sm">
-              <button onClick={() => setActiveTab('stats')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'stats' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><LayoutDashboard size={16} /> Visão Geral</button>
-              <button onClick={() => setActiveTab('distribution')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${activeTab === 'distribution' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}><BarChart3 size={16} /> Distribuição</button>
+    <div className="min-h-screen bg-slate-50/50 p-6 md:p-8 space-y-8 animate-in fade-in duration-500">
+      
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200 pb-6">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+             <TrendingUp className="text-indigo-600" /> Cockpit Pedagógico
+          </h1>
+          <p className="text-slate-500 text-sm mt-1">Visão estratégica de engajamento e performance.</p>
+        </div>
+
+        <div className="flex items-center gap-3 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+            <Select value={selectedSchoolId} onValueChange={setSelectedSchoolId}>
+                <SelectTrigger className="w-[260px] border-0 focus:ring-0 text-base font-semibold text-indigo-900 bg-transparent shadow-none">
+                    <SelectValue placeholder="Selecione a unidade" />
+                </SelectTrigger>
+                <SelectContent>
+                    {schools.map((school) => (
+                        <SelectItem key={school.id} value={school.id} className="cursor-pointer">
+                            <div className="flex items-center gap-2">
+                                <Building2 size={16} className="text-slate-400"/>
+                                <span>{school.name}</span>
+                            </div>
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+      </div>
+
+      <div className={`transition-all duration-500 ${graphLoading ? 'opacity-50 blur-sm pointer-events-none' : 'opacity-100'}`}>
+          
+          {/* KPI CARDS */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <MetricCard 
+                label="Alunos Ativos (7d)" 
+                value={data?.kpis.active_students_wau} 
+                icon={Users} 
+                trend="+12% vs semana anterior"
+                trendColor="text-emerald-600"
+            />
+             <MetricCard 
+                label="Entregas Realizadas" 
+                value={data?.kpis.total_activities_completed} 
+                icon={Target} 
+            />
+             <MetricCard 
+                label="Metas Concluídas" 
+                value={data?.kpis.total_goals_completed} 
+                icon={Trophy} 
+            />
+             <MetricCard 
+                label="Livros Lidos" 
+                value={data?.kpis.books_read_count} 
+                icon={BookOpen} 
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+            
+            {/* QUADRANT CHART */}
+            <Card className="lg:col-span-2 shadow-sm border-slate-200 relative overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                    <Search size={18} className="text-slate-400"/> 
+                    Matriz de Diagnóstico de Matérias
+                </CardTitle>
+                <CardDescription>
+                  Identifique matérias críticas cruzando <b>Receptividade</b> vs <b>Dificuldade</b>.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="h-[420px] pt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <XAxis 
+                        type="number" dataKey="receptivity_index" name="Receptividade" unit="%" domain={[0, 100]} 
+                        label={{ value: 'Engajamento / Receptividade →', position: 'bottom', offset: 0, fontSize: 12, fill: '#64748b' }}
+                        tick={{ fontSize: 11 }}
+                    />
+                    <YAxis 
+                        type="number" dataKey="error_rate" name="Taxa de Erro" unit="%" domain={[0, 100]} 
+                        label={{ value: 'Dificuldade / Taxa de Erro →', angle: -90, position: 'insideLeft', offset: 10, fontSize: 12, fill: '#64748b' }}
+                        tick={{ fontSize: 11 }}
+                    />
+                    <ReferenceLine x={50} stroke="#94a3b8" strokeDasharray="5 5" />
+                    <ReferenceLine y={50} stroke="#94a3b8" strokeDasharray="5 5" />
+
+                    <Label value="PERIGO" position="insideTopLeft" offset={20} fill={QUADRANT_COLORS.highErrLowVol} fontSize={10} fontWeight="bold" />
+                    <Label value="CRÍTICO" position="insideTopRight" offset={20} fill={QUADRANT_COLORS.highErrHighVol} fontSize={10} fontWeight="bold" />
+                    <Label value="CONFORTO" position="insideBottomLeft" offset={20} fill={QUADRANT_COLORS.lowErrLowVol} fontSize={10} fontWeight="bold" />
+                    <Label value="DOMÍNIO" position="insideBottomRight" offset={20} fill={QUADRANT_COLORS.lowErrHighVol} fontSize={10} fontWeight="bold" />
+
+                    <Tooltip cursor={{ strokeDasharray: '3 3' }} content={CustomScatterTooltip} />
+                    
+                    <Scatter name="Disciplinas" data={scatterData} shape="circle">
+                        {scatterData?.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} strokeWidth={1} stroke="#fff"/>
+                        ))}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* RIGHT COLUMN */}
+            <div className="space-y-6">
+                
+                {/* DONUT CHART */}
+                <Card className="shadow-sm border-slate-200">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-base font-bold flex items-center gap-2">
+                            <MousePointerClick size={16} className="text-indigo-500"/> Preferência de Estudo
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="h-[220px] relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={data?.behavior.reading_vs_gaming}
+                                    cx="50%" cy="50%"
+                                    innerRadius={60} outerRadius={80}
+                                    paddingAngle={5} dataKey="value" stroke="none"
+                                >
+                                    {data?.behavior.reading_vs_gaming?.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.name === 'Leitores' ? '#3b82f6' : '#a855f7'} />
+                                    ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                                <Legend verticalAlign="bottom" height={36} iconType="circle"/>
+                            </PieChart>
+                        </ResponsiveContainer>
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-8">
+                            <span className="text-xs font-bold text-slate-400">ATIVIDADE</span>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* LEADERBOARD XP */}
+                <Card className="shadow-sm border-slate-200 flex-1">
+                    <CardHeader className="pb-4">
+                        <CardTitle className="text-base font-bold flex items-center gap-2">
+                            <Trophy size={16} className="text-amber-500"/> Top Performers (XP)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <ul className="space-y-3">
+                            {data?.behavior.top_students?.map((student, idx) => (
+                                <li key={idx} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition-colors cursor-default">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${idx === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                                            {idx + 1}
+                                        </div>
+                                        <span className="font-medium text-sm text-slate-700">{student.full_name?.split(' ')[0] || "Aluno"}</span>
+                                    </div>
+                                    <Badge variant="secondary" className="font-mono text-xs">{student.total_points} XP</Badge>
+                                </li>
+                            ))}
+                            {(!data?.behavior.top_students?.length) && <div className="text-center py-4 text-xs text-slate-400">Sem dados.</div>}
+                        </ul>
+                    </CardContent>
+                </Card>
             </div>
           </div>
-          {activeTab === 'stats' && (
-            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200 relative">
-                {updating && (
-                    <div className="absolute -top-8 right-0 text-xs font-bold text-blue-600 animate-pulse flex items-center gap-1">
-                        <RefreshCw size={12} className="animate-spin"/> Atualizando...
-                    </div>
-                )}
-                {[{ label: '24h', value: '24h' }, { label: '7 Dias', value: '7d' }, { label: '30 Dias', value: '30d' }, { label: 'Tudo', value: 'all' }].map((opt) => (
-                    <button key={opt.value} onClick={() => setPeriod(opt.value)} className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${period === opt.value ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>{opt.label}</button>
-                ))}
-            </div>
-          )}
-        </header>
 
-        {activeTab === 'stats' && stats && <DashboardStats stats={stats} loading={updating} />}
-        {activeTab === 'distribution' && sessionToken && <AnalyticsPanel sessionToken={sessionToken} />}
+          {/* --- NOVO: HALL DA FAMA (RANKINGS) --- */}
+          <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <Trophy className="text-amber-500" /> Hall da Fama
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            
+            {/* Top Questões */}
+            <Card className="shadow-sm border-slate-200">
+                <CardHeader className="pb-2 border-b border-slate-50">
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <Brain size={18} className="text-indigo-600"/> Top Resolutores de Questões
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4 h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart layout="vertical" data={data?.behavior.top_question_solvers} margin={{ left: 0, right: 30 }}>
+                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                            <XAxis type="number" hide />
+                            <YAxis type="category" dataKey="full_name" width={100} tick={{fontSize: 12}} tickFormatter={(val) => val ? val.split(' ')[0] : ''} />
+                            <Tooltip cursor={{fill: '#f1f5f9'}} />
+                            <Bar dataKey="total_questions" fill="#4f46e5" radius={[0, 4, 4, 0]} barSize={20} name="Questões">
+                                <LabelList dataKey="total_questions" position="right" fontSize={12} fontWeight="bold" fill="#4f46e5"/>
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </CardContent>
+            </Card>
+
+            {/* Top Simulados */}
+            <Card className="shadow-sm border-slate-200">
+                <CardHeader className="pb-2 border-b border-slate-50">
+                    <CardTitle className="text-base flex items-center gap-2">
+                        <FileText size={18} className="text-emerald-600"/> Top Simulados Concluídos
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4 h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart layout="vertical" data={data?.behavior.top_simulation_doers} margin={{ left: 0, right: 30 }}>
+                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                            <XAxis type="number" hide />
+                            <YAxis type="category" dataKey="full_name" width={100} tick={{fontSize: 12}} tickFormatter={(val) => val ? val.split(' ')[0] : ''} />
+                            <Tooltip cursor={{fill: '#f1f5f9'}} />
+                            <Bar dataKey="total_simulations" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20} name="Simulados">
+                                <LabelList dataKey="total_simulations" position="right" fontSize={12} fontWeight="bold" fill="#10b981"/>
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </CardContent>
+            </Card>
+          </div>
+
+          {/* RANKING DE TURMAS */}
+          <Card className="shadow-sm border-slate-200">
+            <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                    <Building2 size={18} className="text-slate-400"/> Engajamento Geral por Turma
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data?.charts.class_ranking} barSize={50}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0"/>
+                        <XAxis dataKey="name" tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} dy={10}/>
+                        <YAxis hide/>
+                        <Tooltip cursor={{fill: '#f8fafc'}} />
+                        <Bar dataKey="engagement_score" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                </ResponsiveContainer>
+            </CardContent>
+          </Card>
       </div>
     </div>
   );
+}
+
+// --- Componentes Auxiliares (Definições) ---
+
+function MetricCard({ label, value, icon: Icon, trend, trendColor = "text-emerald-600" }: any) {
+    return (
+        <Card className="border-slate-200 shadow-sm hover:shadow-md transition-all duration-300">
+            <CardContent className="p-5">
+                <div className="flex justify-between items-start mb-2">
+                    <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                        <Icon size={20} />
+                    </div>
+                    {trend && (
+                        <span className={`text-[10px] font-bold ${trendColor} bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1`}>
+                            <TrendingUp size={10} /> {trend}
+                        </span>
+                    )}
+                </div>
+                <div>
+                    <span className="text-2xl font-extrabold text-slate-900 tracking-tight">
+                        {value !== undefined ? value.toLocaleString() : "-"}
+                    </span>
+                    <p className="text-xs font-medium text-slate-500 mt-1 uppercase tracking-wide">
+                        {label}
+                    </p>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
+
+function CustomScatterTooltip({ active, payload }: any) {
+    if (active && payload && payload.length) {
+        const d = payload[0].payload;
+        return (
+            <div className="bg-white p-3 border border-slate-200 shadow-xl rounded-lg text-xs z-50 min-w-[180px]">
+                <p className="font-bold text-sm mb-2 text-slate-800 border-b pb-1">{d.subject_name}</p>
+                <div className="space-y-1">
+                    <div className="flex justify-between">
+                        <span className="text-slate-500">Erro:</span>
+                        <span className={`font-mono font-bold ${d.error_rate > 50 ? 'text-red-600' : 'text-emerald-600'}`}>{d.error_rate}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span className="text-slate-500">Engajamento:</span>
+                        <span className="font-mono font-bold text-blue-600">{d.receptivity_index}%</span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    return null;
 }
