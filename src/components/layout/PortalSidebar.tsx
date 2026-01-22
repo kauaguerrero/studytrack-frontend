@@ -18,7 +18,8 @@ import {
   Trophy,
   Gamepad2,
   LogOut,
-  Library // NOVO IMPORT
+  Library,
+  ClipboardList // <--- NOVO ÍCONE
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 
@@ -26,10 +27,9 @@ interface PortalSidebarProps {
   role: UserRole;
   fullName: string;
   avatarUrl?: string;
-  onCloseMobile?: () => void; // Callback opcional para fechar o menu mobile ao clicar
+  onCloseMobile?: () => void;
 }
 
-// 1. Componente de Conteúdo (Reutilizável Desktop & Mobile)
 export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: PortalSidebarProps) {
   const pathname = usePathname();
 
@@ -41,13 +41,12 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
       return pathname === path || pathname.startsWith(`${path}/`);
   };
 
-  // Item de Navegação Interno
   const NavItem = ({ href, icon: Icon, label }: { href: string; icon: any; label: string }) => {
     const active = isActive(href);
     return (
       <Link 
         href={href} 
-        onClick={onCloseMobile} // Fecha o menu se estiver no mobile
+        onClick={onCloseMobile}
         className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
           active 
             ? 'bg-blue-50/80 text-blue-700 shadow-sm' 
@@ -127,6 +126,9 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
             <SectionTitle>Sala de Aula</SectionTitle>
             <NavItem href="/portal/teacher" icon={School} label="Minhas Turmas" />
             <NavItem href="/portal/teacher/students" icon={Users} label="Alunos e Notas" />
+            <SectionTitle>Avaliações</SectionTitle>
+            {/* LINK NOVO AQUI: */}
+            <NavItem href="/portal/teacher/assessments" icon={ClipboardList} label="Provas e Simulados" />
             <SectionTitle>Conteúdo</SectionTitle>
             <NavItem href="/portal/teacher/assignments" icon={FileText} label="Tarefas e Listas" />
             <NavItem href="/portal/teacher/goals" icon={Target} label="Metas Criadas" />
@@ -175,7 +177,6 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
   );
 }
 
-// 2. Componente Principal (Wrapper Desktop)
 export function PortalSidebar(props: PortalSidebarProps) {
   return (
     <aside className="w-72 border-r border-slate-200 hidden md:flex flex-col h-full z-20 sticky top-0">
