@@ -10,6 +10,8 @@ export async function GET(request: Request) {
   // 1. Tenta capturar o destino via URL
   const requestedNext = searchParams.get('next')
 
+  console.log("🛬 Callback Atingido! Code:", code ? "Sim" : "Não", "Next:", requestedNext);
+
   if (code) {
     const cookieStore = await cookies()
 
@@ -40,6 +42,8 @@ export async function GET(request: Request) {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (user) {
+        console.log("✅ Usuário autenticado:", user.email);
+
         // A. Se existe um destino forçado na URL, respeite-o (Geralmente fluxo de cadastro)
         if (requestedNext) {
             const metaRole = user.user_metadata?.role;
@@ -71,11 +75,13 @@ export async function GET(request: Request) {
 
         // Se for professor E JÁ TIVER ESCOLA vinculada, manda para o painel direto.
         if (isTeacher && profile?.school_id) {
+             console.log("👨‍🏫 Professor detectado, indo para painel");
              return NextResponse.redirect(`${origin}/portal/teacher`)
         }
 
         // Se não tem perfil, telefone ou escola (no caso de professor), é onboarding.
         if (!profile || !profile.whatsapp_phone) {
+            console.log("🆕 Onboarding necessário. Role:", isTeacher ? "Teacher" : "Student");
             
             if (isTeacher) {
                 // Se o banco diz 'student' mas é teacher (via cookie/meta), corrige
@@ -100,11 +106,15 @@ export async function GET(request: Request) {
       
       // C. Usuário já completo -> Portal (Hub decide para onde vai)
       const defaultNext = searchParams.get('next') ?? '/portal';
+      console.log("🚀 Redirecionando para:", defaultNext);
       return NextResponse.redirect(`${origin}${defaultNext === requestedNext ? '/portal' : defaultNext}`)
+    } else {
+        console.error("❌ Erro no exchange:", error);
     }
   }
 
   // Tratamento de erro
   const message = error_description || "Sessão expirada ou inválida. Tente entrar novamente.";
+  console.log("⚠️ Redirecionando para login com erro:", message);
   return NextResponse.redirect(`${origin}/auth/login?error=${encodeURIComponent(message)}`)
 }
