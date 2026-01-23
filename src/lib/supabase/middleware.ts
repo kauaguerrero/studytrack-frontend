@@ -25,9 +25,19 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // 1. Verifica autenticação básica
-  const { data: { user } } = await supabase.auth.getUser();
   const path = request.nextUrl.pathname;
+
+  // ================================================================
+  // 0. REGRA DE OURO DO OAUTH: NÃO TOQUE NO CALLBACK
+  // ================================================================
+  // O middleware NUNCA deve tentar redirecionar a rota de callback,
+  // pois é nesse momento que a sessão está sendo criada.
+  if (path.startsWith('/auth/callback')) {
+    return response;
+  }
+
+  // 1. Verifica autenticação
+  const { data: { user } } = await supabase.auth.getUser();
 
   // ================================================================
   // DATA INTEGRITY FIX: HEARTBEAT DE ATIVIDADE (DAU/MAU)
@@ -39,14 +49,13 @@ export async function updateSession(request: NextRequest) {
     
     // Se o cookie não existe, atualizamos o DB e criamos o cookie
     if (!activityCookie) {
-      // Executa o update de forma assíncrona (não bloqueante para o UX, mas await aqui garante execução no Edge)
+      // Executa o update de forma assíncrona
       await supabase
         .from('profiles')
         .update({ last_active_at: new Date().toISOString() })
         .eq('id', user.id);
 
       // Define cookie para expirar em 1 hora (3600s)
-      // Isso impede que cada clique do usuário gere uma escrita no banco
       response.cookies.set('st_activity_heartbeat', 'true', { maxAge: 3600 });
     }
   }

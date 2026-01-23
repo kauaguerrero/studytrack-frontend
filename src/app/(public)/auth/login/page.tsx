@@ -62,14 +62,21 @@ function LoginForm() {
 
   const handleSocialLogin = async (provider: 'google') => {
     try {
+        setIsLoading(true); // Feedback visual imediato
         await supabase.auth.signInWithOAuth({
             provider,
             options: {
-                redirectTo: `${location.origin}/auth/callback`,
+                // CORREÇÃO CRÍTICA: Aponta explicitamente para /auth/callback
+                redirectTo: `${window.location.origin}/auth/callback`,
+                queryParams: {
+                    access_type: 'offline',
+                    prompt: 'consent', // Força a tela de consentimento para evitar loops de cache
+                },
             },
         });
     } catch (error) {
         console.error("Erro social auth:", error);
+        setIsLoading(false);
     }
   };
 
