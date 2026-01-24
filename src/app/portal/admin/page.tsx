@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link"; // Adicionado para navegação
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,7 @@ import {
   Activity, Users, DollarSign, Brain, Target, 
   Database, ArrowUpRight, Zap, GraduationCap, 
   School, AlertOctagon, TrendingUp, BarChart3, PieChart,
-  Calculator
+  Calculator, ListChecks // Adicionado ícone ListChecks
 } from "lucide-react";
 
 export default function SuperAdminDashboard() {
@@ -333,9 +334,19 @@ export default function SuperAdminDashboard() {
       {/* ================================================================================== */}
       {dist && (
         <div className="pt-6 border-t border-slate-200">
-             <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                <BarChart3 className="w-6 h-6 text-slate-600" /> Raio-X do Conteúdo ({dist.total} questões)
-             </h2>
+             {/* HEADER ATUALIZADO COM O BOTÃO DE AÇÃO */}
+             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                 <h2 className="text-2xl font-bold flex items-center gap-2">
+                    <BarChart3 className="w-6 h-6 text-slate-600" /> Raio-X do Conteúdo ({dist.total} questões)
+                 </h2>
+                 
+                 <Link href="/portal/admin/questions" prefetch={false}>
+                    <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition-all shadow-sm hover:shadow-md active:scale-95">
+                        <ListChecks className="w-4 h-4" />
+                        Abrir Mesa de Curadoria
+                    </button>
+                 </Link>
+             </div>
              
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  {/* Por Matéria */}

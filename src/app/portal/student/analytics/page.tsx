@@ -1,0 +1,475 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { 
+  Target, Trophy, Brain, TrendingUp, 
+  Gamepad2, CalendarDays, CheckCircle2, AlertCircle,
+  BarChart3, Activity, Clock, Flame, ArrowUpRight
+} from "lucide-react";
+import { 
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid
+} from "recharts";
+
+// Interfaces de Tipagem
+interface AnalyticsData {
+  overview: {
+    total_questions: number;
+    accuracy_percentage: number;
+    current_streak: number;
+    total_xp: number;
+  };
+  performance_by_subject: Array<{
+    subject: string;
+    total: number;
+    correct: number;
+    accuracy: number;
+  }>;
+  activity_history: Array<{
+    usage_date: string;
+    questions_count: number;
+  }>;
+  gaming_stats: {
+    total_games: number;
+    high_score: number;
+    total_playtime_minutes: number;
+  };
+  goals_summary: {
+    total_active: number;
+    total_completed: number;
+  };
+}
+
+export default function StudentAnalyticsPage() {
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false); // Fix para Recharts Hydration
+  const supabase = createClient();
+
+  useEffect(() => {
+    setIsMounted(true); // Confirma que estamos no cliente
+    async function fetchAnalytics() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      const headers = { Authorization: `Bearer ${session.access_token}` };
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || ''; 
+
+      try {
+        const res = await fetch(`${apiUrl}/api/student/analytics/dashboard`, { headers });
+        if (res.ok) {
+          const jsonData = await res.json();
+          setData(jsonData);
+        } else {
+          console.error("Erro na API Analytics");
+        }
+      } catch (error) {
+        console.error("Erro ao buscar dados:", error);
+      }
+      setLoading(false);
+    }
+    fetchAnalytics();
+  }, []);
+
+  // --- LOADING STATE (SKELETON UI) ---
+  if (loading) return (
+    <div className="p-6 md:p-8 space-y-8 bg-slate-50 min-h-screen animate-pulse">
+        <div className="flex justify-between items-center pb-6 border-b border-slate-200">
+            <div className="h-8 w-48 bg-slate-200 rounded"></div>
+            <div className="h-8 w-32 bg-slate-200 rounded-full"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (<div key={i} className="h-32 bg-slate-200 rounded-xl"></div>))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-64">
+            <div className="lg:col-span-2 bg-slate-200 rounded-xl"></div>
+            <div className="bg-slate-200 rounded-xl"></div>
+        </div>
+    </div>
+  );
+
+  // --- ERROR STATE ---
+  if (!data) return (
+    <div className="flex flex-col items-center justify-center h-[80vh] text-center p-6">
+        <div className="bg-red-50 p-4 rounded-full mb-4">
+            <AlertCircle className="w-10 h-10 text-red-500" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-800">Ops! Algo deu errado.</h2>
+        <p className="text-slate-500 mt-2 max-w-md">Não conseguimos carregar seus dados de performance. Tente recarregar a página ou volte mais tarde.</p>
+    </div>
+  );
+
+  const { overview, performance_by_subject, activity_history, gaming_stats, goals_summary } = data;
+
+  // Lógica de Negócio para KPIs
+  const bestSubject = performance_by_subject.length > 0 
+    ? performance_by_subject.reduce((prev, current) => (prev.accuracy > current.accuracy) ? prev : current) 
+    : null;
+    
+  const worstSubject = performance_by_subject.length > 0 
+    ? performance_by_subject.reduce((prev, current) => (prev.accuracy < current.accuracy) ? prev : current) 
+    : null;
+
+  // Formatação Robusta de Data (Evita Timezone offset do JS)
+  const chartData = activity_history.map(item => {
+    // "2025-01-24" -> [2025, 01, 24]
+    const parts = item.usage_date.split('-'); 
+    const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    
+    return {
+        date: dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        questions: item.questions_count,
+        fullDate: dateObj.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+    };
+  });
+
+  // Helper para cores de precisão
+  const getAccuracyColor = (val: number) => {
+    if (val >= 80) return "text-emerald-600 bg-emerald-50 border-emerald-100";
+    if (val >= 60) return "text-blue-600 bg-blue-50 border-blue-100";
+    if (val >= 40) return "text-amber-600 bg-amber-50 border-amber-100";
+    return "text-red-600 bg-red-50 border-red-100";
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans text-slate-900">
+      <div className="max-w-7xl mx-auto space-y-8">
+      
+      {/* --- HEADER --- */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+        <div>
+            <div className="flex items-center gap-2 mb-1">
+                <Badge variant="outline" className="bg-white text-slate-500 border-slate-200 px-3 py-1 text-xs uppercase tracking-wider font-semibold shadow-sm">
+                    Dashboard do Aluno
+                </Badge>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900">
+                Performance Global
+            </h1>
+            <p className="text-slate-500 mt-2 text-lg">
+                Seus dados transformados em estratégia de aprovação.
+            </p>
+        </div>
+
+        {/* Streak Badge - Gamification Trigger */}
+        <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 p-[1px] shadow-lg shadow-orange-200">
+            <div className="relative flex items-center gap-3 bg-white px-5 py-3 rounded-[15px]">
+                <div className="p-2 bg-orange-50 rounded-lg group-hover:scale-110 transition-transform duration-300">
+                    <Flame className="w-6 h-6 text-orange-500 fill-orange-500" />
+                </div>
+                <div>
+                    <p className="text-xs font-bold text-orange-400 uppercase tracking-wide">Ofensiva Atual</p>
+                    <p className="text-xl font-black text-slate-800 leading-none">{overview.current_streak} Dias</p>
+                </div>
+            </div>
+        </div>
+      </div>
+
+      {/* --- MAIN KPIS (Bento Grid Style) --- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        {/* KPI: Questões */}
+        <Card className="border-0 shadow-sm ring-1 ring-slate-200 bg-white hover:ring-indigo-200 hover:shadow-md transition-all duration-300 group">
+            <CardContent className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                        <Target className="w-6 h-6" />
+                    </div>
+                    <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-mono">Total</Badge>
+                </div>
+                <div className="space-y-1">
+                    <h3 className="text-3xl font-bold text-slate-900">{overview.total_questions.toLocaleString()}</h3>
+                    <p className="text-sm font-medium text-slate-500">Questões Resolvidas</p>
+                </div>
+            </CardContent>
+        </Card>
+
+        {/* KPI: Precisão */}
+        <Card className="border-0 shadow-sm ring-1 ring-slate-200 bg-white hover:ring-emerald-200 hover:shadow-md transition-all duration-300 group">
+            <CardContent className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                    <div className={`p-3 rounded-xl transition-colors ${overview.accuracy_percentage >= 70 ? 'bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white' : 'bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white'}`}>
+                        <Activity className="w-6 h-6" />
+                    </div>
+                    {overview.accuracy_percentage > 70 && (
+                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-0">Excelente</Badge>
+                    )}
+                </div>
+                <div className="space-y-1">
+                    <h3 className="text-3xl font-bold text-slate-900">{overview.accuracy_percentage}%</h3>
+                    <p className="text-sm font-medium text-slate-500">Precisão Média</p>
+                </div>
+            </CardContent>
+        </Card>
+
+        {/* KPI: XP (Gamification Core) */}
+        <Card className="border-0 shadow-sm ring-1 ring-slate-200 bg-gradient-to-br from-slate-900 to-slate-800 text-white hover:shadow-xl hover:shadow-purple-900/20 transition-all duration-300">
+            <CardContent className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 rounded-xl bg-white/10 text-yellow-400">
+                        <Trophy className="w-6 h-6" />
+                    </div>
+                    <Badge className="bg-yellow-400/20 text-yellow-300 border-0 hover:bg-yellow-400/30">Lvl Pro</Badge>
+                </div>
+                <div className="space-y-1">
+                    <h3 className="text-3xl font-bold text-white tracking-tight">{overview.total_xp.toLocaleString()} <span className="text-lg text-slate-400 font-normal">XP</span></h3>
+                    <p className="text-sm font-medium text-slate-300">Experiência Acumulada</p>
+                </div>
+            </CardContent>
+        </Card>
+
+        {/* KPI: Metas */}
+        <Card className="border-0 shadow-sm ring-1 ring-slate-200 bg-white hover:ring-cyan-200 hover:shadow-md transition-all duration-300 group">
+            <CardContent className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 rounded-xl bg-cyan-50 text-cyan-600 group-hover:bg-cyan-600 group-hover:text-white transition-colors">
+                        <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div className="flex items-center gap-1 text-xs font-bold text-cyan-700 bg-cyan-50 px-2 py-1 rounded-md">
+                        {goals_summary.total_completed} Concluídas
+                    </div>
+                </div>
+                <div className="space-y-1">
+                    <h3 className="text-3xl font-bold text-slate-900">{goals_summary.total_active}</h3>
+                    <p className="text-sm font-medium text-slate-500">Metas em Andamento</p>
+                </div>
+            </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* --- MAIN CHART SECTION --- */}
+        <div className="lg:col-span-2 space-y-6">
+            <Card className="border-0 shadow-sm ring-1 ring-slate-200">
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="text-lg font-bold flex items-center gap-2">
+                                <BarChart3 className="w-5 h-5 text-indigo-600" /> Ritmo de Estudos
+                            </CardTitle>
+                            <CardDescription>Volume de questões nos últimos 30 dias</CardDescription>
+                        </div>
+                        <div className="hidden sm:flex items-center gap-4 text-xs text-slate-500">
+                            <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-indigo-500"></div>Alto Foco</div>
+                            <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-sm bg-indigo-200"></div>Normal</div>
+                        </div>
+                    </div>
+                </CardHeader>
+                
+                <CardContent className="pl-0">
+                    <div className="h-[350px] w-full pr-4"> 
+                        {isMounted && chartData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                    <XAxis 
+                                        dataKey="date" 
+                                        stroke="#64748b" 
+                                        fontSize={11} 
+                                        tickLine={false} 
+                                        axisLine={false}
+                                        tickMargin={10}
+                                        minTickGap={30} 
+                                    />
+                                    <YAxis 
+                                        stroke="#64748b" 
+                                        fontSize={11} 
+                                        tickLine={false} 
+                                        axisLine={false} 
+                                        tickFormatter={(value) => `${value}`} 
+                                    />
+                                    <Tooltip 
+                                        cursor={{fill: '#f1f5f9', radius: 4}}
+                                        content={({ active, payload }) => {
+                                            if (active && payload && payload.length) {
+                                            const data = payload[0].payload;
+                                            return (
+                                                <div className="bg-slate-900 text-white text-xs rounded-lg py-2 px-3 shadow-xl border border-slate-700 z-50">
+                                                    <p className="font-bold mb-1">{data.fullDate}</p>
+                                                    <div className="flex justify-between gap-4">
+                                                        <span className="text-slate-400">Questões:</span>
+                                                        <span className="font-mono text-indigo-300 font-bold">{data.questions}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                            }
+                                            return null;
+                                        }}
+                                    />
+                                    <Bar dataKey="questions" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                                        {chartData.map((entry, index) => (
+                                            <Cell 
+                                                key={`cell-${index}`} 
+                                                fill={entry.questions >= 20 ? '#6366f1' : '#c7d2fe'}
+                                                className="transition-all duration-300 hover:opacity-80"
+                                            />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2">
+                                <CalendarDays className="w-10 h-10 text-slate-300" />
+                                <p>{isMounted ? "Sem dados de atividade no período." : "Carregando gráfico..."}</p>
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+            
+            {/* --- GAMIFICATION / SPEEDRUN --- */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <Card className="bg-violet-600 text-white border-0 shadow-lg shadow-violet-200 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+                    <CardHeader className="pb-2 relative z-10">
+                        <CardTitle className="flex items-center gap-2 text-base font-medium text-violet-100">
+                            <Gamepad2 className="w-5 h-5" /> Modo SpeedRun
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="relative z-10">
+                        <div className="flex items-baseline gap-1">
+                            <span className="text-4xl font-extrabold">{gaming_stats.high_score}</span>
+                            <span className="text-sm font-medium text-violet-200">pts (Recorde)</span>
+                        </div>
+                        <div className="mt-4 flex items-center gap-2 text-xs font-medium text-violet-200 bg-white/10 w-fit px-3 py-1.5 rounded-full">
+                            <Clock className="w-3 h-3" />
+                            {gaming_stats.total_playtime_minutes} min jogados total
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-white border-0 shadow-sm ring-1 ring-slate-200">
+                     <CardHeader className="pb-2">
+                        <CardTitle className="flex items-center gap-2 text-base font-bold text-slate-800">
+                           <Target className="w-5 h-5 text-indigo-500" /> Foco Atual
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {goals_summary.total_active > 0 ? (
+                            <div className="space-y-3">
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-slate-600">Meta Semanal</span>
+                                    <span className="font-bold text-indigo-600">Em andamento</span>
+                                </div>
+                                <Progress value={65} className="h-2 bg-slate-100" /> 
+                                <p className="text-xs text-slate-400 mt-2">Mantenha o ritmo para alcançar seu objetivo.</p>
+                            </div>
+                        ) : (
+                            <div className="text-sm text-slate-500 py-2">
+                                Nenhuma meta ativa. Que tal definir uma hoje?
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+
+        {/* --- SIDEBAR: ANALYSIS & SUBJECTS --- */}
+        <div className="space-y-6">
+            
+            {/* Quick Analysis Cards */}
+            <div className="grid grid-cols-1 gap-4">
+                {/* Strength */}
+                <Card className="bg-gradient-to-br from-emerald-50 to-white border border-emerald-100 shadow-sm">
+                    <CardContent className="p-5">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-emerald-100 rounded-lg">
+                                <TrendingUp className="w-5 h-5 text-emerald-600" />
+                            </div>
+                            <span className="text-sm font-bold text-emerald-800 uppercase tracking-wide">Ponto Forte</span>
+                        </div>
+                        {bestSubject ? (
+                            <div>
+                                <h4 className="font-bold text-slate-800 text-lg truncate" title={bestSubject.subject}>{bestSubject.subject}</h4>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-2xl font-black text-emerald-600">{bestSubject.accuracy}%</span>
+                                    <span className="text-xs text-emerald-700 font-medium bg-emerald-100 px-2 py-0.5 rounded">de precisão</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-slate-500">Dados insuficientes.</p>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Weakness */}
+                <Card className="bg-gradient-to-br from-red-50 to-white border border-red-100 shadow-sm">
+                    <CardContent className="p-5">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-red-100 rounded-lg">
+                                <AlertCircle className="w-5 h-5 text-red-600" />
+                            </div>
+                            <span className="text-sm font-bold text-red-800 uppercase tracking-wide">Atenção</span>
+                        </div>
+                        {worstSubject ? (
+                            <div>
+                                <h4 className="font-bold text-slate-800 text-lg truncate" title={worstSubject.subject}>{worstSubject.subject}</h4>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-2xl font-black text-red-600">{worstSubject.accuracy}%</span>
+                                    <span className="text-xs text-red-700 font-medium bg-red-100 px-2 py-0.5 rounded">de precisão</span>
+                                </div>
+                                <div className="mt-3 text-xs flex items-center gap-1 text-red-600 font-medium cursor-pointer hover:underline">
+                                    <ArrowUpRight className="w-3 h-3" /> Revisar erros
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-slate-500">Dados insuficientes.</p>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Subject List */}
+            <Card className="border-0 shadow-sm ring-1 ring-slate-200">
+                <CardHeader className="pb-4 border-b border-slate-100">
+                    <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-800">
+                        <Brain className="w-5 h-5 text-indigo-500" /> Detalhamento por Matéria
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-6">
+                    <div className="space-y-5">
+                        {performance_by_subject.length > 0 ? performance_by_subject.slice(0, 5).map((subj, idx) => {
+                             const style = getAccuracyColor(subj.accuracy);
+                             return (
+                                <div key={idx} className="group">
+                                    <div className="flex justify-between items-center text-sm mb-2">
+                                        <span className="font-semibold text-slate-700 group-hover:text-indigo-600 transition-colors cursor-default">
+                                            {subj.subject}
+                                        </span>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded border ${style}`}>
+                                            {subj.accuracy}%
+                                        </span>
+                                    </div>
+                                    <div className="relative h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                        <div 
+                                            className={`absolute top-0 left-0 h-full rounded-full transition-all duration-500 ${subj.accuracy >= 70 ? 'bg-indigo-500' : 'bg-slate-400'}`} 
+                                            style={{ width: `${subj.accuracy}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 text-right mt-1">
+                                        {subj.correct} acertos em {subj.total}
+                                    </p>
+                                </div>
+                             )
+                        }) : (
+                            <div className="text-center py-8">
+                                <div className="bg-slate-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <Brain className="w-6 h-6 text-slate-300" />
+                                </div>
+                                <p className="text-sm text-slate-500">Nenhuma matéria estudada.</p>
+                                <button className="mt-2 text-xs font-bold text-indigo-600 hover:underline">Começar Simulado</button>
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
+        </div>
+      </div>
+      </div>
+    </div>
+  );
+}
