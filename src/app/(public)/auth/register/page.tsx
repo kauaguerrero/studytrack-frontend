@@ -68,7 +68,6 @@ function RegisterForm() {
                     access_type: 'offline', 
                     prompt: 'consent' 
                 }
-                // REMOVIDO: bloco 'data' que causava erro de tipo
             },
         });
     } catch (error) {

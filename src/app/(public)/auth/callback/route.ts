@@ -10,8 +10,6 @@ export async function GET(request: Request) {
   // 1. Tenta capturar o destino via URL
   const requestedNext = searchParams.get('next')
 
-  console.log("🛬 Callback Atingido! Code:", code ? "Sim" : "Não", "Next:", requestedNext);
-
   if (code) {
     const cookieStore = await cookies()
 
@@ -42,20 +40,19 @@ export async function GET(request: Request) {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (user) {
-        console.log("✅ Usuário autenticado:", user.email);
-
-        // A. Se existe um destino forçado na URL, respeite-o (Geralmente fluxo de cadastro)
+        // A. Se existe um destino forçado na URL (Fluxo de Cadastro)
         if (requestedNext) {
             const metaRole = user.user_metadata?.role;
             if (metaRole) {
-                await supabase.from('profiles').upsert({ 
-                    id: user.id, 
+                // CORREÇÃO: Usamos update() em vez de upsert().
+                // O perfil já foi criado pelo Trigger do banco. Aqui só garantimos que
+                // os dados do metadata (como role e nome) sejam aplicados ao perfil.
+                await supabase.from('profiles').update({ 
                     role: metaRole,
-                    email: user.email,
                     full_name: user.user_metadata.full_name,
                     last_active_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
-                }, { onConflict: 'id' });
+                }).eq('id', user.id); // Importante: Update precisa do WHERE (eq)
             }
             return NextResponse.redirect(`${origin}${requestedNext}`)
         }
@@ -63,7 +60,7 @@ export async function GET(request: Request) {
         // B. Lógica de Roteamento Inteligente (Login recorrente)
         const { data: profile } = await supabase
           .from('profiles')
-          .select('whatsapp_phone, role, school_id') // <--- IMPORTANTE: Buscar school_id
+          .select('whatsapp_phone, role, school_id')
           .eq('id', user.id)
           .single()
 
@@ -75,30 +72,27 @@ export async function GET(request: Request) {
 
         // Se for professor E JÁ TIVER ESCOLA vinculada, manda para o painel direto.
         if (isTeacher && profile?.school_id) {
-             console.log("👨‍🏫 Professor detectado, indo para painel");
              return NextResponse.redirect(`${origin}/portal/teacher`)
         }
 
-        // Se não tem perfil, telefone ou escola (no caso de professor), é onboarding.
+        // Se não tem perfil completo (telefone) ou escola (se for prof), vai pro Onboarding
         if (!profile || !profile.whatsapp_phone) {
-            console.log("🆕 Onboarding necessário. Role:", isTeacher ? "Teacher" : "Student");
             
             if (isTeacher) {
-                // Se o banco diz 'student' mas é teacher (via cookie/meta), corrige
+                // Se o banco diz 'student' (padrão do trigger) mas é teacher (via cookie/meta), corrige.
                 if (dbRole !== 'teacher') {
-                    await supabase.from('profiles').upsert({ 
-                        id: user.id, 
+                    // CORREÇÃO: Update seguro para corrigir a role sem violar RLS de insert
+                    await supabase.from('profiles').update({ 
                         role: 'teacher',
-                        email: user.email,
                         full_name: user.user_metadata?.full_name
-                    }, { onConflict: 'id' });
+                    }).eq('id', user.id);
                 }
                 
                 const response = NextResponse.redirect(`${origin}/portal/onboarding/teacher/school`)
                 response.cookies.delete('onboarding_role')
                 return response
             } else {
-                // Aluno
+                // Aluno vai para o objetivo
                 return NextResponse.redirect(`${origin}/portal/onboarding/objetivo`)
             }
         }
@@ -106,15 +100,11 @@ export async function GET(request: Request) {
       
       // C. Usuário já completo -> Portal (Hub decide para onde vai)
       const defaultNext = searchParams.get('next') ?? '/portal';
-      console.log("🚀 Redirecionando para:", defaultNext);
       return NextResponse.redirect(`${origin}${defaultNext === requestedNext ? '/portal' : defaultNext}`)
-    } else {
-        console.error("❌ Erro no exchange:", error);
     }
   }
 
   // Tratamento de erro
   const message = error_description || "Sessão expirada ou inválida. Tente entrar novamente.";
-  console.log("⚠️ Redirecionando para login com erro:", message);
   return NextResponse.redirect(`${origin}/auth/login?error=${encodeURIComponent(message)}`)
 }
