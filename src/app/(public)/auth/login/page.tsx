@@ -66,11 +66,10 @@ function LoginForm() {
         await supabase.auth.signInWithOAuth({
             provider,
             options: {
-                // CORREÇÃO CRÍTICA: Aponta explicitamente para /auth/callback
-                redirectTo: `${window.location.origin}/auth/callback`,
+                redirectTo: 'https://studytrack-frontend.vercel.app/auth/callback',
                 queryParams: {
                     access_type: 'offline',
-                    prompt: 'consent', // Força a tela de consentimento para evitar loops de cache
+                    prompt: 'consent',
                 },
             },
         });
@@ -164,7 +163,7 @@ function LoginForm() {
             </>
           ) : (
             <>
-              <span>Entrar na Plataforma</span>
+              <span>Entrar Agora</span>
               <ArrowRight className="w-5 h-5" />
             </>
           )}
