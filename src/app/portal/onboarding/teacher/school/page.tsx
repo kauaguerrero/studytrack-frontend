@@ -21,14 +21,24 @@ export default function TeacherSchoolValidation() {
         if (!user) throw new Error("Usuário não logado");
 
         if (mode === 'code') {
+            // .trim() remove espaços antes e depois para evitar erros bobos
+            const codeToSearch = schoolCode.trim().toUpperCase();
+
+            console.log("Buscando código:", codeToSearch); // Debug
+
             const { data: school, error: schoolError } = await supabase
                 .from('schools')
                 .select('id, name')
-                .eq('invite_code', schoolCode)
+                .ilike('invite_code', codeToSearch)
                 .single();
 
+            // Se der erro aqui, olhe o console do navegador (F12)
+            if (schoolError) {
+                console.error("Erro Supabase:", schoolError);
+            }
+
             if (schoolError || !school) {
-                alert("Código de escola inválido ou não encontrado.");
+                alert("Código de escola inválido ou erro de permissão.");
                 setIsLoading(false);
                 return;
             }
@@ -38,7 +48,7 @@ export default function TeacherSchoolValidation() {
                 .from('profiles')
                 .update({ 
                     school_id: school.id,
-                    role: 'teacher' // REFORÇA O ROLE AQUI
+                    role: 'teacher' 
                 })
                 .eq('id', user.id);
 
@@ -46,8 +56,7 @@ export default function TeacherSchoolValidation() {
             
             alert(`Bem-vindo(a) ao ${school.name}!`);
             
-            // --- CORREÇÃO DO CACHE DE LAYOUT ---
-            router.refresh(); // Força o layout a buscar o novo role
+            router.refresh(); 
             router.push('/portal/teacher'); 
             
         } else {
