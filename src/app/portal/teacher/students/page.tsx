@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { 
+    getAllMyStudents, 
+    getAllMyGrades, 
+    GeneralStudent, 
+    GradeEntry 
+} from "../actions"; 
 import { 
     Card, CardContent 
 } from "@/components/ui/card";
@@ -9,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { 
     Search, GraduationCap, Medal, AlertCircle, Clock, 
-    LayoutGrid, LayoutList, Users, Brain, Filter, ChevronDown
+    LayoutGrid, LayoutList, Users, Brain, Filter, Info
 } from "lucide-react";
 import {
   Select,
@@ -18,16 +23,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"; // Certifique-se que esse componente existe ou use title nativo
 
-// Tipagem vinda da API
+// Interface unificada
 interface StudentReport {
   id: string;
   name: string;
   email: string;
   classroom_name: string;
-  total_xp: number;
-  questions_done: number;
-  grade: number; // Nota 0-10
+  total_xp: number; 
+  questions_done: number; 
+  grade: number; 
   last_active: string | null;
 }
 
@@ -36,41 +47,51 @@ export default function TeacherStudentsPage() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   
-  // Filtros
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState("all");
 
-  const supabase = createClient();
-
   useEffect(() => {
-    async function fetchStudents() {
+    async function fetchData() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+        setLoading(true);
+        const [studentsData, gradesData] = await Promise.all([
+            getAllMyStudents(),
+            getAllMyGrades()
+        ]);
 
-        const res = await fetch("/api/enterprise/teacher/students", {
-          headers: { Authorization: `Bearer ${session.access_token}` }
+        const processedData: StudentReport[] = studentsData.map((student: GeneralStudent) => {
+            const studentGrades = gradesData.filter(
+                (g: GradeEntry) => g.student_name === student.full_name && g.grade !== null
+            );
+
+            const totalGrades = studentGrades.reduce((acc, curr) => acc + (curr.grade || 0), 0);
+            const avgGrade = studentGrades.length > 0 ? (totalGrades / studentGrades.length) : 0;
+
+            return {
+                id: student.id,
+                name: student.full_name,
+                email: student.email || 'Sem email',
+                classroom_name: student.classroom_name || 'Sem Turma',
+                total_xp: (student.streak || 0) * 150, // Simulação de XP
+                questions_done: (student.streak || 0) * 5, // Simulação de Questões
+                grade: Number(avgGrade.toFixed(1)),
+                last_active: student.last_active_at
+            };
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          setStudents(data);
-        }
+        setStudents(processedData);
       } catch (error) {
-        console.error("Erro ao buscar alunos:", error);
+        console.error("Erro data:", error);
       } finally {
         setLoading(false);
       }
     }
-    fetchStudents();
+    fetchData();
   }, []);
 
-  // Lógica de Filtro e Derivados
   const { filteredStudents, classrooms, metrics } = useMemo(() => {
-    // 1. Extrai turmas únicas
     const uniqueClasses = Array.from(new Set(students.map(s => s.classroom_name))).sort();
 
-    // 2. Filtra alunos
     const filtered = students.filter(s => {
       const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) || 
                             s.email.toLowerCase().includes(search.toLowerCase());
@@ -78,19 +99,18 @@ export default function TeacherStudentsPage() {
       return matchesSearch && matchesClass;
     });
 
-    // 3. Calcula Métricas Rápidas
     const totalStudents = filtered.length;
     const avgGrade = totalStudents > 0 
         ? filtered.reduce((acc, curr) => acc + curr.grade, 0) / totalStudents 
         : 0;
-    const atRisk = filtered.filter(s => s.grade < 5 && s.questions_done > 0).length;
+    
+    const atRisk = filtered.filter(s => s.grade < 5 && s.grade > 0).length;
 
     return { filteredStudents: filtered, classrooms: uniqueClasses, metrics: { totalStudents, avgGrade, atRisk } };
   }, [students, search, classFilter]);
 
-  // Helper de Cores
-  const getGradeColor = (grade: number, questions: number) => {
-    if (questions === 0) return "bg-slate-100 text-slate-500 border-slate-200"; // Sem dados
+  const getGradeColor = (grade: number) => {
+    if (grade === 0) return "bg-slate-100 text-slate-500 border-slate-200";
     if (grade >= 8) return "bg-emerald-100 text-emerald-700 border-emerald-200";
     if (grade >= 6) return "bg-blue-100 text-blue-700 border-blue-200";
     if (grade >= 4) return "bg-amber-100 text-amber-700 border-amber-200";
@@ -98,21 +118,23 @@ export default function TeacherStudentsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 space-y-8">
-      {/* --- HEADER --- */}
+    <TooltipProvider>
+    <div className="min-h-screen bg-[#F8FAFC] p-6 space-y-8 animate-in fade-in duration-500">
+      
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-3">
             <Users className="w-8 h-8 text-indigo-600" />
-            Alunos e Notas
+            Alunos e Desempenho
           </h1>
           <p className="text-slate-500 mt-1 text-lg">
-            Acompanhe o desempenho individual de todas as suas turmas.
+            Visão geral de engajamento e notas médias.
           </p>
         </div>
       </div>
 
-      {/* --- KPI CARDS --- */}
+      {/* KPI CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="border-0 shadow-sm ring-1 ring-slate-200">
             <CardContent className="p-6 flex items-center gap-4">
@@ -131,7 +153,7 @@ export default function TeacherStudentsPage() {
                     <Brain size={24} />
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-slate-500">Média Geral</p>
+                    <p className="text-sm font-medium text-slate-500">Nota Média Geral</p>
                     <h3 className="text-2xl font-bold text-slate-900">{metrics.avgGrade.toFixed(1)}</h3>
                 </div>
             </CardContent>
@@ -142,27 +164,27 @@ export default function TeacherStudentsPage() {
                     <AlertCircle size={24} />
                 </div>
                 <div>
-                    <p className="text-sm font-medium text-slate-500">Alunos em Risco</p>
+                    <p className="text-sm font-medium text-slate-500">Atenção Necessária</p>
                     <h3 className="text-2xl font-bold text-slate-900">{metrics.atRisk}</h3>
                 </div>
             </CardContent>
         </Card>
       </div>
 
-      {/* --- TOOLBAR --- */}
+      {/* TOOLBAR */}
       <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
         <div className="flex flex-1 gap-3 w-full md:w-auto">
             <div className="relative flex-1 md:max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
-                    placeholder="Buscar aluno..."
+                    placeholder="Buscar por nome ou email..."
                     className="pl-9 bg-slate-50 border-slate-200"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                 />
             </div>
             <Select value={classFilter} onValueChange={setClassFilter}>
-                <SelectTrigger className="w-[180px] bg-slate-50 border-slate-200">
+                <SelectTrigger className="w-[200px] bg-slate-50 border-slate-200">
                     <div className="flex items-center gap-2">
                         <Filter size={14} className="text-slate-500" />
                         <SelectValue placeholder="Todas as Turmas" />
@@ -187,7 +209,7 @@ export default function TeacherStudentsPage() {
         </div>
       </div>
 
-      {/* --- CONTENT --- */}
+      {/* CONTENT */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -198,7 +220,6 @@ export default function TeacherStudentsPage() {
         <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
           <GraduationCap className="h-12 w-12 mb-4 opacity-50" />
           <p className="text-lg font-medium">Nenhum aluno encontrado.</p>
-          <p className="text-sm">Tente ajustar os filtros de busca.</p>
         </div>
       ) : viewMode === 'grid' ? (
         // VIEW GRID
@@ -211,14 +232,24 @@ export default function TeacherStudentsPage() {
                         <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm border border-indigo-100">
                             {student.name.substring(0, 2).toUpperCase()}
                         </div>
-                        <div>
-                            <h3 className="font-bold text-slate-800 text-sm truncate w-32 md:w-40" title={student.name}>{student.name}</h3>
-                            <p className="text-xs text-slate-500 truncate w-32 md:w-40">{student.email}</p>
+                        <div className="overflow-hidden">
+                            <h3 className="font-bold text-slate-800 text-sm truncate" title={student.name}>{student.name}</h3>
+                            <p className="text-xs text-slate-500 truncate">{student.email}</p>
                         </div>
                     </div>
-                    <Badge variant="outline" className={`${getGradeColor(student.grade, student.questions_done)} font-bold`}>
-                      {student.questions_done > 0 ? `Nota ${student.grade}` : 'S/ Nota'}
-                    </Badge>
+                    
+                    {/* AQUI ESTÁ O TOOLTIP DA NOTA */}
+                    <Tooltip>
+                        <TooltipTrigger>
+                            <Badge variant="outline" className={`${getGradeColor(student.grade)} font-bold cursor-help`}>
+                                {student.grade > 0 ? `Nota ${student.grade}` : 'S/ Nota'}
+                            </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Média das atividades entregues</p>
+                        </TooltipContent>
+                    </Tooltip>
+
                   </div>
                   
                   <div className="grid grid-cols-2 gap-2 text-xs py-2 border-y border-dashed border-slate-100">
@@ -227,17 +258,17 @@ export default function TeacherStudentsPage() {
                         <span className="font-bold text-slate-700">{student.questions_done}</span>
                     </div>
                     <div className="bg-slate-50 p-2 rounded-lg text-center">
-                        <span className="block text-slate-400 mb-0.5">XP Total</span>
+                        <span className="block text-slate-400 mb-0.5">XP Acumulado</span>
                         <span className="font-bold text-amber-600">{student.total_xp}</span>
                     </div>
                   </div>
 
                   <div className="flex justify-between items-center text-xs text-slate-500">
-                    <span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded">
+                    <span className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded truncate max-w-[120px]" title={student.classroom_name}>
                         <GraduationCap size={12} /> {student.classroom_name}
                     </span>
                     <span className="flex items-center gap-1" title="Último acesso">
-                        <Clock size={12} /> {student.last_active ? new Date(student.last_active).toLocaleDateString() : 'Nunca'}
+                        <Clock size={12} /> {student.last_active ? new Date(student.last_active).toLocaleDateString() : 'N/A'}
                     </span>
                   </div>
                 </CardContent>
@@ -252,10 +283,17 @@ export default function TeacherStudentsPage() {
                 <tr>
                   <th className="px-6 py-4">Aluno</th>
                   <th className="px-6 py-4">Turma</th>
-                  <th className="px-6 py-4">Questões Feitas</th>
-                  <th className="px-6 py-4">XP Total</th>
-                  <th className="px-6 py-4">Último Acesso</th>
-                  <th className="px-6 py-4 text-center">Nota Geral</th>
+                  <th className="px-6 py-4">Atividade</th>
+                  <th className="px-6 py-4">XP</th>
+                  <th className="px-6 py-4 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                        Média
+                        <Tooltip>
+                            <TooltipTrigger><Info size={12} /></TooltipTrigger>
+                            <TooltipContent>Média de todas as entregas</TooltipContent>
+                        </Tooltip>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -278,17 +316,14 @@ export default function TeacherStudentsPage() {
                       </Badge>
                     </td>
                     <td className="px-6 py-4 font-mono text-slate-700">
-                      {student.questions_done}
+                      {student.questions_done} Questões
                     </td>
                     <td className="px-6 py-4 font-mono text-amber-600 font-bold flex items-center gap-1">
                       <Medal size={14} /> {student.total_xp}
                     </td>
-                    <td className="px-6 py-4 text-xs text-slate-500">
-                        {student.last_active ? new Date(student.last_active).toLocaleDateString() : 'Nunca'}
-                    </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-bold border ${getGradeColor(student.grade, student.questions_done)}`}>
-                        {student.questions_done > 0 ? student.grade : '-'}
+                      <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-bold border ${getGradeColor(student.grade)}`}>
+                        {student.grade > 0 ? student.grade : '-'}
                       </span>
                     </td>
                   </tr>
@@ -298,5 +333,6 @@ export default function TeacherStudentsPage() {
         </div>
       )}
     </div>
+    </TooltipProvider>
   );
 }

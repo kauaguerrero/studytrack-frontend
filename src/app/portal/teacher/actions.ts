@@ -8,10 +8,10 @@ import { redirect } from 'next/navigation';
 // ==============================================================================
 
 export interface TeacherClassroom {
-  id: string; // ID da relação teacher_classroom
+  id: string; 
   subject: string;
   classroom: {
-    id: string; // ID da classroom real
+    id: string; 
     name: string;
     year: string | number;
     school: {
@@ -44,22 +44,44 @@ export interface Student {
   };
 }
 
+export interface ClassroomDetails {
+  id: string;
+  name: string;
+  year: string | number;
+  invite_code: string;
+  school: { name: string } | null;
+}
+
+// Interfaces para o Dashboard Geral
+export interface GeneralStudent {
+  id: string;
+  full_name: string;
+  email: string | null;
+  whatsapp_phone: string | null;
+  classroom_name: string;
+  last_active_at: string | null;
+  streak: number;
+}
+
+export interface GradeEntry {
+  student_name: string;
+  classroom_name: string;
+  activity_title: string;
+  grade: number | null;
+  status: string;
+  delivered_at: string | null;
+}
+
 // ==============================================================================
-// 2. Funções de Busca (Server Actions)
+// 2. Funções de Busca: TURMAS (Mantém lógica original via View)
 // ==============================================================================
 
 export async function getTeacherClasses(): Promise<TeacherClassroom[]> {
   const supabase = await createClient();
   
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    redirect('/auth/login');
-  }
+  if (!user) redirect('/auth/login');
 
-  // A MÁGICA ACONTECE AQUI:
-  // Em vez de calcular tudo na mão, buscamos os metadados da relação
-  // E fazemos um JOIN com nossa View SQL otimizada (view_classroom_metrics)
-  
   const { data, error } = await supabase
     .from('teacher_classrooms')
     .select(`
@@ -81,17 +103,13 @@ export async function getTeacherClasses(): Promise<TeacherClassroom[]> {
     .eq('teacher_id', user.id);
 
   if (error) {
-    console.error('❌ Erro ao buscar turmas (View):', error.message);
+    console.error('❌ Erro Query Turmas:', error);
     return [];
   }
 
   if (!data) return [];
 
-  // Mapeamento simples (O(n) leve) apenas para ajustar estrutura
-  // O "metrics" vem como array ou objeto dependendo da relação, assumimos objeto único aqui por ser 1:1 na view por ID
   return data.map((item: any) => {
-    // view_classroom_metrics retorna um array ou objeto único. 
-    // Como unimos por ID, deve vir 1 registro ou null.
     const stats = Array.isArray(item.metrics) ? item.metrics[0] : item.metrics;
     
     return {
@@ -116,19 +134,9 @@ export async function getTeacherClasses(): Promise<TeacherClassroom[]> {
   });
 }
 
-// --- MANTIVE AS OUTRAS FUNÇÕES IGUAIS POIS ELAS BUSCAM DETALHES DE 1 TURMA SÓ ---
-// (Não tem problema de performance buscar detalhes de 1 item sob demanda)
-
-export interface ClassroomDetails {
-  id: string;
-  name: string;
-  year: string | number;
-  invite_code: string;
-  school: { name: string } | null;
-}
-
 export async function getClassroomDetails(classroomId: string): Promise<ClassroomDetails | null> {
   const supabase = await createClient();
+  
   const { data, error } = await supabase
     .from('classrooms')
     .select(`id, name, year, invite_code, school:schools ( name )`)
@@ -137,8 +145,6 @@ export async function getClassroomDetails(classroomId: string): Promise<Classroo
 
   if (error || !data) return null;
 
-  // --- CORREÇÃO AQUI ---
-  // O TypeScript reclama que 'school' é um array, então forçamos a verificação
   const schoolData = data.school as any;
   const school = Array.isArray(schoolData) ? schoolData[0] : schoolData;
 
@@ -151,59 +157,95 @@ export async function getClassroomDetails(classroomId: string): Promise<Classroo
   };
 }
 
-// Mantendo a busca de lista de alunos (StudentList) igual, 
-// pois ela já é paginada ou limitada ao contexto de uma única turma.
+// ==============================================================================
+// 3. Funções de Busca: ALUNOS E NOTAS (Via RPC / Funções Seguras)
+// ==============================================================================
+
+// A. Alunos de uma Turma Específica
 export async function getClassroomStudents(classroomId: string): Promise<Student[]> {
   const supabase = await createClient();
-  const todayStr = new Date().toISOString().split('T')[0];
   
-  const { data: profiles, error } = await supabase
-    .from('profiles')
-    .select('id, full_name, whatsapp_phone, last_active_at, current_streak') 
-    .eq('classroom_id', classroomId)
-    .eq('role', 'student') 
-    .order('full_name', { ascending: true });
+  console.log(`🔍 [RPC] Buscando alunos da sala: ${classroomId}`);
 
-  if (error || !profiles) {
+  const { data, error } = await supabase
+    .rpc('get_classroom_students_secure', { 
+        target_classroom_id: classroomId 
+    });
+
+  if (error) {
+    console.error('❌ [RPC] Erro crítico get_classroom_students_secure:', error.message);
     return [];
   }
 
-  if (profiles.length === 0) return [];
+  if (!data || data.length === 0) return [];
 
-  const studentIds = profiles.map(p => p.id);
-
-  const { data: tasks } = await supabase
-    .from('plan_tasks')
-    .select('user_id, status')
-    .in('user_id', studentIds)
-    .eq('scheduled_date', todayStr);
-
-  const { data: answers } = await supabase
-    .from('user_answers')
-    .select('user_id, is_correct')
-    .in('user_id', studentIds);
-
-  return profiles.map(student => {
-    const studentTasks = tasks?.filter(t => t.user_id === student.id) || [];
-    const totalTasks = studentTasks.length;
-    const completedTasks = studentTasks.filter(t => t.status === 'completed').length;
-
-    const studentAnswers = answers?.filter(a => a.user_id === student.id) || [];
-    const totalQuestions = studentAnswers.length;
-    const correctQuestions = studentAnswers.filter(a => a.is_correct).length;
-    
-    const accuracy = totalQuestions > 0 
-        ? Math.round((correctQuestions / totalQuestions) * 100) 
-        : 0;
+  return data.map((row: any) => {
+    const totalQuestions = Number(row.quality_total || 0);
+    const correctQuestions = Number(row.quality_correct || 0);
+    const accuracy = totalQuestions > 0 ? Math.round((correctQuestions / totalQuestions) * 100) : 0;
 
     return {
-        id: student.id,
-        full_name: student.full_name || 'Aluno sem nome',
-        whatsapp_phone: student.whatsapp_phone,
-        last_active_at: student.last_active_at,
-        streak: student.current_streak || 0,
-        adherence: { completed: completedTasks, total: totalTasks },
-        quality: { correct: correctQuestions, total: totalQuestions, percentage: accuracy }
+        id: row.id,
+        full_name: row.full_name || 'Aluno sem nome',
+        whatsapp_phone: row.whatsapp_phone,
+        last_active_at: row.last_active_at,
+        streak: Number(row.streak || 0),
+        adherence: { 
+            completed: Number(row.adherence_completed || 0), 
+            total: Number(row.adherence_total || 0) 
+        },
+        quality: { 
+            correct: correctQuestions, 
+            total: totalQuestions, 
+            percentage: accuracy 
+        }
     };
   });
+}
+
+// B. Todos os Meus Alunos (Painel Geral)
+export async function getAllMyStudents(): Promise<GeneralStudent[]> {
+  const supabase = await createClient();
+  
+  console.log('🔍 [RPC] Buscando TODOS os alunos (Geral)...');
+
+  const { data, error } = await supabase.rpc('get_all_my_students_secure');
+
+  if (error) {
+    console.error('❌ [RPC] Erro get_all_my_students_secure:', error.message);
+    return [];
+  }
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    full_name: row.full_name || 'Aluno Desconhecido',
+    email: row.email,
+    whatsapp_phone: row.whatsapp_phone,
+    classroom_name: row.classroom_name,
+    last_active_at: row.last_active_at,
+    streak: Number(row.streak || 0)
+  }));
+}
+
+// C. Todas as Notas (Painel Geral)
+export async function getAllMyGrades(): Promise<GradeEntry[]> {
+  const supabase = await createClient();
+  
+  console.log('🔍 [RPC] Buscando TODAS as notas (Geral)...');
+
+  const { data, error } = await supabase.rpc('get_all_my_grades_secure');
+
+  if (error) {
+    console.error('❌ [RPC] Erro get_all_my_grades_secure:', error.message);
+    return [];
+  }
+
+  return (data || []).map((row: any) => ({
+    student_name: row.student_name || 'Aluno',
+    classroom_name: row.classroom_name || 'Turma',
+    activity_title: row.activity_title || 'Atividade',
+    grade: row.grade !== null ? Number(row.grade) : null,
+    status: row.status,
+    delivered_at: row.delivered_at
+  }));
 }
