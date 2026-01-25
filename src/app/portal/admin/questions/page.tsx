@@ -1,25 +1,24 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import ReactMarkdown from 'react-markdown';
 import { 
   CheckCircle2, 
-  Trash2, 
+  Trash2, // Ícone de Lixeira
   Inbox, 
-  Filter,
-  Bot,
-  Calendar,
-  BookOpen,
-  ArrowLeft,
-  AlertTriangle,
-  Layers
+  Filter, 
+  Bot, 
+  Calendar, 
+  BookOpen, 
+  AlertCircle,
+  ArrowLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 // UI Components
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -41,10 +40,10 @@ interface Alternative {
 interface AdminQuestion {
   id: string;
   external_id: string;
-  exam_year: number;
+  year: number;
   subject: string;
   difficulty: string;
-  title: string;
+  statement: string;
   context?: string;
   alternatives: Alternative[];
   correct_alternative: string;
@@ -56,16 +55,16 @@ interface AdminQuestion {
 export default function AdminQuestionApproval() {
   const [questions, setQuestions] = useState<AdminQuestion[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
   
-  // Filtros
+  // Filtros Locais
   const [filterSubject, setFilterSubject] = useState<string>('all');
   const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
 
   const supabase = createClient();
 
   // --- DATA FETCHING ---
-  const fetchPending = useCallback(async () => {
+  const fetchPending = async () => {
     setLoading(true);
     
     try {
@@ -73,25 +72,74 @@ export default function AdminQuestionApproval() {
         .from('questions')
         .select('*')
         .eq('is_verified', false)
-        .neq('status', 'archived')
+        .neq('status', 'rejected')
         .order('created_at', { ascending: true })
-        .limit(50); 
+        .limit(100);
 
       if (error) throw error;
       setQuestions(data || []);
     } catch (error) {
       console.error("Erro Supabase:", error);
-      toast.error("Erro ao carregar fila de curadoria.");
+      toast.error("Erro de conexão com o banco de dados.");
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  };
 
   useEffect(() => {
     fetchPending();
-  }, [fetchPending]);
+  }, []);
 
-  // --- LÓGICA DE FILTRAGEM ---
+  // --- ACTIONS ---
+  const handleDecision = async (id: string, decision: 'approve' | 'reject') => {
+    // 1. Optimistic Update
+    const previousQuestions = [...questions];
+    setQuestions(prev => prev.filter(q => q.id !== id));
+    setProcessingId(id);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sessão inválida");
+
+      if (decision === 'reject') {
+        // DELETE REAL
+        const { error } = await supabase
+            .from('questions')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+        toast.success("Questão removida permanentemente.");
+
+      } else {
+        // UPDATE: Aprova
+        const { error } = await supabase
+            .from('questions')
+            .update({ 
+                is_verified: true, 
+                status: 'approved',
+                // verified_by: user.id, // Descomente se tiver a coluna
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id);
+
+        if (error) throw error;
+        toast.success("Questão aprovada e publicada!");
+      }
+
+    } catch (err: any) {
+      // Rollback
+      console.error("ERRO DETALHADO:", JSON.stringify(err, null, 2));
+      const errorMessage = err?.message || "Erro desconhecido";
+      
+      setQuestions(previousQuestions);
+      toast.error(`Falha: ${errorMessage}`);
+    } finally {
+      setProcessingId(null);
+    } 
+  };
+
+  // --- FILTERING LOGIC ---
   const filteredQuestions = useMemo(() => {
     return questions.filter(q => {
       const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
@@ -100,301 +148,257 @@ export default function AdminQuestionApproval() {
     });
   }, [questions, filterSubject, filterDifficulty]);
 
-  const currentQuestion = filteredQuestions[0];
-  const remainingCount = filteredQuestions.length;
+  const subjects = Array.from(new Set(questions.map(q => q.subject))).sort();
 
-  const subjects = useMemo(() => 
-    Array.from(new Set(questions.map(q => q.subject))).sort(), 
-  [questions]);
-
-  // --- ACTIONS ---
-  const handleDecision = async (decision: 'approve' | 'reject') => {
-    if (!currentQuestion) return;
-    
-    const targetId = currentQuestion.id;
-    setProcessing(true);
-
-    const prevQuestions = [...questions];
-    setQuestions(prev => prev.filter(q => q.id !== targetId));
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Sessão inválida");
-
-      if (decision === 'reject') {
-        const { error } = await supabase
-            .from('questions')
-            .delete()
-            .eq('id', targetId);
-
-        if (error) throw error;
-        toast("Questão removida permanentemente.", { icon: <Trash2 className="w-4 h-4 text-red-500"/> });
-
-      } else {
-        const { error } = await supabase
-            .from('questions')
-            .update({ 
-                is_verified: true, 
-                status: 'active',
-                verified_by: user.id,
-            })
-            .eq('id', targetId);
-
-        if (error) throw error;
-        toast.success("Questão validada e ativada!", { duration: 2000 });
-      }
-
-    } catch (err: any) {
-      console.error(err);
-      setQuestions(prevQuestions);
-      toast.error(`Falha: ${err.message || 'Erro desconhecido'}`);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  // --- HELPER DE CORES ---
+  // --- RENDER HELPERS ---
   const getDifficultyColor = (diff: string) => {
-    switch (diff?.toLowerCase()) {
-      case 'fácil': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
-      case 'médio': return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'difícil': return 'bg-rose-100 text-rose-800 border-rose-200';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+    if (!diff) return 'bg-slate-100 text-slate-700';
+    switch (diff.toLowerCase()) {
+      case 'fácil': return 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
+      case 'médio': return 'bg-amber-100 text-amber-700 hover:bg-amber-200';
+      case 'difícil': return 'bg-rose-100 text-rose-700 hover:bg-rose-200';
+      default: return 'bg-slate-100 text-slate-700';
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900 flex flex-col">
-      
-      {/* HEADER FIXO */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 px-4 py-3 md:px-8 md:py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-4">
-          <Link href="/portal/admin">
-              <Button variant="ghost" size="icon" className="hover:bg-slate-100 rounded-full -ml-2">
-                  <ArrowLeft className="w-5 h-5 text-slate-600" />
-              </Button>
-          </Link>
-          <div>
-              <h1 className="text-lg md:text-xl font-bold text-slate-900 leading-tight">Mesa de Curadoria</h1>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <Layers className="w-3 h-3" />
-                <span>{remainingCount} na fila</span>
-              </div>
+    <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 font-sans text-slate-900">
+      <div className="max-w-7xl mx-auto space-y-8">
+        
+        {/* --- HEADER & TOOLBAR --- */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="flex items-start gap-4">
+            <Link href="/portal/admin">
+                <Button variant="outline" size="icon" className="shrink-0 h-10 w-10 rounded-xl border-slate-200 hover:bg-slate-50 hover:text-slate-900">
+                    <ArrowLeft size={20} />
+                </Button>
+            </Link>
+
+            <div>
+                <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+                Curadoria de Conteúdo
+                <Badge variant="secondary" className="text-base px-3 py-1">Admin</Badge>
+                </h1>
+                <p className="text-slate-500 mt-2 text-lg max-w-2xl">
+                Revise, valide e publique questões submetidas pela IA ou equipe pedagógica.
+                </p>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto pl-14 md:pl-0">
+             {/* Stats Pill */}
+             <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-lg border border-slate-200 mr-2">
+                <div className={`w-2 h-2 rounded-full ${questions.length > 0 ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`} />
+                <span className="font-bold text-slate-700 text-sm">
+                  {questions.length} Pendentes
+                </span>
+             </div>
+
+             {/* Filters */}
+             <div className="flex gap-2 w-full md:w-auto">
+               <Select value={filterSubject} onValueChange={setFilterSubject}>
+                 <SelectTrigger className="w-[160px] bg-white">
+                   <Filter className="w-4 h-4 mr-2 text-slate-400" />
+                   <SelectValue placeholder="Matéria" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="all">Todas Matérias</SelectItem>
+                   {subjects.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                 </SelectContent>
+               </Select>
+
+               <Select value={filterDifficulty} onValueChange={setFilterDifficulty}>
+                 <SelectTrigger className="w-[140px] bg-white">
+                   <SelectValue placeholder="Dificuldade" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   <SelectItem value="all">Todas Dific.</SelectItem>
+                   <SelectItem value="Fácil">Fácil</SelectItem>
+                   <SelectItem value="Médio">Médio</SelectItem>
+                   <SelectItem value="Difícil">Difícil</SelectItem>
+                 </SelectContent>
+               </Select>
+             </div>
           </div>
         </div>
-        
-        {/* Filtros Compactos */}
-        <div className="flex gap-2">
-           <Select value={filterSubject} onValueChange={setFilterSubject}>
-             <SelectTrigger className="w-[130px] h-9 text-xs bg-slate-50 border-slate-200">
-               <SelectValue placeholder="Matéria" />
-             </SelectTrigger>
-             <SelectContent>
-               <SelectItem value="all">Todas</SelectItem>
-               {subjects.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-             </SelectContent>
-           </Select>
-           
-           <Select value={filterDifficulty} onValueChange={setFilterDifficulty}>
-             <SelectTrigger className="w-[110px] h-9 text-xs bg-slate-50 border-slate-200 hidden md:flex">
-               <SelectValue placeholder="Nível" />
-             </SelectTrigger>
-             <SelectContent>
-               <SelectItem value="all">Todos</SelectItem>
-               <SelectItem value="Fácil">Fácil</SelectItem>
-               <SelectItem value="Médio">Médio</SelectItem>
-               <SelectItem value="Difícil">Difícil</SelectItem>
-             </SelectContent>
-           </Select>
-        </div>
-      </header>
 
-      {/* ÁREA DE CONTEÚDO */}
-      <main className="flex-1 max-w-3xl w-full mx-auto p-4 md:p-8 flex flex-col">
-        
+        {/* --- CONTENT AREA --- */}
         {loading ? (
-           <div className="space-y-6 animate-pulse">
-             <Skeleton className="h-64 w-full rounded-2xl bg-slate-200" />
-             <div className="space-y-3">
-               <Skeleton className="h-12 w-full rounded-xl bg-slate-200" />
-               <Skeleton className="h-12 w-full rounded-xl bg-slate-200" />
-               <Skeleton className="h-12 w-full rounded-xl bg-slate-200" />
-             </div>
-           </div>
-        ) : !currentQuestion ? (
-          <div className="flex flex-col items-center justify-center flex-1 py-10 text-center animate-in fade-in zoom-in duration-500">
-            <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6 ring-8 ring-emerald-50/50">
-              <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+             {[1,2,3,4].map(i => (
+               <div key={i} className="space-y-4 p-6 bg-white rounded-2xl border border-slate-200">
+                  <div className="flex justify-between">
+                    <Skeleton className="h-6 w-24" />
+                    <Skeleton className="h-6 w-12" />
+                  </div>
+                  <Skeleton className="h-32 w-full" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+               </div>
+             ))}
+          </div>
+        ) : filteredQuestions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-32 bg-white rounded-3xl border border-dashed border-slate-300 shadow-sm animate-in fade-in zoom-in duration-500">
+            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 ring-8 ring-slate-50/50">
+              <Inbox size={48} className="text-slate-300" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900">Você zerou a fila!</h2>
-            <p className="text-slate-500 mt-2 max-w-md">
-              Não há mais questões pendentes com os filtros atuais.
+            <h3 className="text-2xl font-bold text-slate-900">Fila Zerada!</h3>
+            <p className="text-slate-500 mt-2 max-w-md text-center">
+              Nenhuma questão pendente corresponde aos filtros atuais. Ótimo trabalho.
             </p>
             {(filterSubject !== 'all' || filterDifficulty !== 'all') && (
-               <Button variant="link" onClick={() => { setFilterSubject('all'); setFilterDifficulty('all'); }} className="mt-4">
+               <Button variant="link" onClick={() => { setFilterSubject('all'); setFilterDifficulty('all'); }}>
                  Limpar filtros
                </Button>
             )}
-            <Button onClick={fetchPending} variant="outline" className="mt-8 border-slate-300">
-              Verificar novamente
+            <Button onClick={fetchPending} variant="outline" className="mt-8 border-slate-300 text-slate-600">
+              Recarregar Dados
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col gap-6 animate-in slide-in-from-right-4 duration-300 fade-in" key={currentQuestion.id}>
-             
-             {/* Progress Bar */}
-             <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
-                <div 
-                  className="bg-blue-600 h-full transition-all duration-500" 
-                  style={{ width: `${Math.min(((questions.length - remainingCount + 1) / (questions.length + 1)) * 100, 100)}%` }}
-                />
-             </div>
-
-             <Card className="overflow-hidden border-slate-200 shadow-xl shadow-slate-200/50 ring-1 ring-slate-900/5">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {filteredQuestions.map((q) => (
+              <Card key={q.id} className="overflow-hidden border-slate-200 shadow-sm hover:shadow-md transition-all duration-300 group">
                 
-                {/* Metadados */}
-                <div className="bg-slate-50/80 backdrop-blur border-b border-slate-100 px-6 py-3 flex justify-between items-center text-xs">
-                   <div className="flex gap-2 items-center">
-                      <Badge variant="secondary" className="bg-white border-slate-200 text-slate-700 shadow-sm">
-                        {currentQuestion.subject || 'Geral'}
+                {/* --- CARD HEADER --- */}
+                <CardHeader className="bg-slate-50/50 border-b border-slate-100 pb-4">
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none uppercase tracking-wider text-[10px] px-2">
+                        {q.subject}
                       </Badge>
-                      <Badge variant="outline" className={`${getDifficultyColor(currentQuestion.difficulty)} border-transparent shadow-sm`}>
-                        {currentQuestion.difficulty || 'N/A'}
+                      <Badge variant="outline" className={`border-none uppercase tracking-wider text-[10px] px-2 ${getDifficultyColor(q.difficulty)}`}>
+                        {q.difficulty}
                       </Badge>
-                      {currentQuestion.exam_year && (
-                         <span className="flex items-center gap-1 text-slate-500 font-medium bg-white px-2 py-0.5 rounded border border-slate-200">
-                           <Calendar className="w-3 h-3" /> {currentQuestion.exam_year}
-                         </span>
-                      )}
-                      {currentQuestion.is_ai_generated && (
-                        <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-none">
-                           <Bot className="w-3 h-3 mr-1" /> IA
+                      {q.year && (
+                        <Badge variant="outline" className="bg-white text-slate-500 border-slate-200 gap-1">
+                           <Calendar size={10} /> {q.year}
                         </Badge>
                       )}
-                   </div>
-                   <span className="font-mono text-slate-400 opacity-60">ID: {currentQuestion.external_id?.slice(0,6)}</span>
-                </div>
+                      {q.is_ai_generated && (
+                        <Badge className="bg-purple-100 text-purple-700 border-purple-200 gap-1 hover:bg-purple-200">
+                           <Bot size={12} /> IA Generated
+                        </Badge>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400 shrink-0 bg-slate-100 px-1.5 py-0.5 rounded">
+                      ID: {q.external_id?.substring(0,8) || 'N/A'}
+                    </span>
+                  </div>
+                </CardHeader>
 
-                <CardContent className="p-6 md:p-8 space-y-8">
+                {/* --- CARD CONTENT --- */}
+                <CardContent className="p-6 space-y-6">
                   
                   {/* Contexto */}
-                  {currentQuestion.context && (
-                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
-                      <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                         <BookOpen size={12} /> Texto Base
+                  {q.context && (
+                    <div className="relative pl-4 border-l-4 border-slate-200 py-1">
+                      <div className="absolute -left-[27px] -top-1 bg-white text-slate-300 p-1 rounded-full border border-slate-100">
+                         <BookOpen size={14} />
                       </div>
-                      <div className="prose prose-sm max-w-none text-slate-600 italic leading-relaxed">
-                        <ReactMarkdown>{currentQuestion.context}</ReactMarkdown>
+                      <div className="prose prose-sm prose-slate max-w-none text-slate-600 italic leading-relaxed">
+                        <ReactMarkdown>{q.context}</ReactMarkdown>
                       </div>
                     </div>
                   )}
 
                   {/* Enunciado */}
-                  <div>
-                    <div className="prose prose-lg max-w-none text-slate-900 font-medium leading-relaxed">
-                      <ReactMarkdown>{currentQuestion.title || "Sem enunciado..."}</ReactMarkdown>
-                    </div>
-
-                    {/* Imagens */}
-                    {currentQuestion.images && currentQuestion.images.length > 0 && (
-                      <div className="mt-6 flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
-                        {currentQuestion.images.map((img, i) => (
-                          <img 
-                            key={i} 
-                            src={img} 
-                            alt={`Figura ${i+1}`} 
-                            className="h-48 w-auto rounded-lg border border-slate-200 object-contain bg-slate-50" 
-                          />
-                        ))}
-                      </div>
-                    )}
+                  <div className="prose prose-slate max-w-none text-slate-900 font-medium leading-relaxed">
+                    <ReactMarkdown>{q.statement}</ReactMarkdown>
                   </div>
 
-                  {/* Alternativas */}
-                  <div className="space-y-3 pt-2">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Alternativas</p>
-                    <div className="grid gap-3">
-                      {currentQuestion.alternatives?.map((alt) => {
-                        const isCorrect = alt.letter === currentQuestion.correct_alternative;
-                        return (
-                          <div 
-                            key={alt.letter}
-                            className={`
-                              relative flex items-start gap-4 p-4 rounded-xl border transition-all duration-200
-                              ${isCorrect 
-                                 ? 'bg-emerald-50 border-emerald-500/30 ring-1 ring-emerald-500/20 shadow-sm z-10' 
-                                 : 'bg-white border-slate-100 text-slate-500 hover:border-slate-200'
-                               }
-                            `}
-                          >
-                            <div className={`
-                               shrink-0 w-7 h-7 flex items-center justify-center rounded-lg font-bold text-sm border shadow-sm
-                               ${isCorrect 
-                                  ? 'bg-emerald-500 border-emerald-600 text-white' 
-                                  : 'bg-slate-50 border-slate-200 text-slate-400'
-                               }
-                            `}>
-                              {alt.letter}
-                            </div>
-                            
-                            {/* FIX: CSS Class direto na div pai ao invés do ReactMarkdown para evitar erro de TS */}
-                            <div className={`flex-1 text-sm md:text-base leading-relaxed [&_p]:m-0 ${isCorrect ? 'text-emerald-950 font-medium' : ''}`}>
-                               <ReactMarkdown>{alt.text || ''}</ReactMarkdown>
-                               {!alt.text && <span className="italic opacity-50 text-xs">Imagem na alternativa</span>}
-                            </div>
-                            
-                            {isCorrect && (
-                              <CheckCircle2 className="text-emerald-500 shrink-0 mt-1" size={20} />
-                            )}
-                          </div>
-                        )
-                      })}
-                      {(!currentQuestion.alternatives || currentQuestion.alternatives.length === 0) && (
-                         <div className="p-4 bg-amber-50 text-amber-800 rounded-lg flex items-center gap-3 border border-amber-100">
-                            <AlertTriangle className="w-5 h-5" />
-                            <span className="text-sm font-medium">Questão sem alternativas cadastradas. Revisar JSON.</span>
-                         </div>
-                      )}
+                  {/* Imagens */}
+                  {q.images && q.images.length > 0 && (
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                      {q.images.map((img, i) => (
+                        <div key={i} className="relative group/img">
+                           <img 
+                              src={img} 
+                              alt={`Apoio ${i}`} 
+                              className="h-28 w-auto rounded-lg border border-slate-200 object-cover hover:scale-105 transition-transform cursor-zoom-in" 
+                           />
+                        </div>
+                      ))}
                     </div>
+                  )}
+
+                  {/* Alternativas */}
+                  <div className="grid gap-2 pt-2">
+                    {q.alternatives?.map((alt) => {
+                      const isCorrect = alt.letter === q.correct_alternative;
+                      return (
+                        <div 
+                          key={alt.letter}
+                          className={`
+                            relative flex items-start gap-3 p-3 rounded-xl border text-sm transition-all
+                            ${isCorrect 
+                               ? 'bg-emerald-50/70 border-emerald-200 shadow-sm' 
+                               : 'bg-white border-slate-100 text-slate-500 opacity-90'
+                            }
+                          `}
+                        >
+                          <div className={`
+                             shrink-0 w-6 h-6 flex items-center justify-center rounded-md font-bold text-xs border
+                             ${isCorrect 
+                                ? 'bg-emerald-500 border-emerald-500 text-white' 
+                                : 'bg-slate-50 border-slate-200 text-slate-400'
+                             }
+                          `}>
+                            {alt.letter}
+                          </div>
+                          <div className={`flex-1 leading-snug ${isCorrect ? 'text-emerald-900 font-medium' : ''}`}>
+                             {alt.text || <span className="italic opacity-50">Conteúdo de Imagem</span>}
+                          </div>
+                          {isCorrect && <CheckCircle2 size={16} className="text-emerald-600 mt-0.5" />}
+                        </div>
+                      )
+                    })}
+                    {!q.alternatives && (
+                        <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-800 rounded-lg text-sm border border-amber-200">
+                            <AlertCircle size={16} /> 
+                            Questão sem alternativas cadastradas.
+                        </div>
+                    )}
                   </div>
                 </CardContent>
 
-                {/* FOOTER FIXO */}
-                <CardFooter className="p-4 md:p-6 bg-slate-50 border-t border-slate-200 sticky bottom-0 z-10 flex flex-col sm:flex-row gap-3">
+                {/* --- CARD FOOTER --- */}
+                <CardFooter className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
                    <Button 
                       variant="outline" 
-                      className="w-full sm:w-auto h-12 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 font-medium transition-all active:scale-95"
-                      onClick={() => handleDecision('reject')}
-                      disabled={processing}
+                      className="flex-1 border-red-100 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200 h-11"
+                      onClick={() => handleDecision(q.id, 'reject')}
+                      disabled={!!processingId}
                    >
                       <Trash2 className="w-4 h-4 mr-2" />
-                      Rejeitar (Excluir)
+                      Deletar
                    </Button>
                    
-                   <div className="flex-1 hidden sm:block"></div>
-
                    <Button 
-                      className="w-full sm:w-auto h-12 bg-slate-900 hover:bg-slate-800 text-white font-bold px-8 shadow-lg shadow-slate-900/10 transition-all active:scale-95"
-                      onClick={() => handleDecision('approve')}
-                      disabled={processing}
+                      className="flex-[2] bg-slate-900 hover:bg-slate-800 text-white h-11 shadow-lg shadow-slate-200"
+                      onClick={() => handleDecision(q.id, 'approve')}
+                      disabled={!!processingId}
                    >
-                      {processing ? (
+                      {processingId === q.id ? (
                         <div className="flex items-center gap-2">
                            <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                            Processando...
                         </div>
                       ) : (
                         <>
-                           <CheckCircle2 className="w-5 h-5 mr-2" />
+                           <CheckCircle2 className="w-4 h-4 mr-2" />
                            Aprovar Questão
                         </>
                       )}
                    </Button>
                 </CardFooter>
-             </Card>
+              </Card>
+            ))}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }
