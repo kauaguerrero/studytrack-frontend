@@ -167,6 +167,58 @@ const StatusBadge = ({ saving, lastSaved }: { saving: boolean, lastSaved: Date |
     </div>
 );
 
+// --- COMPONENTE DE EDIÇÃO DE TEXTO RICO (Sem mostrar tags HTML) ---
+const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) => {
+    const divRef = useRef<HTMLDivElement>(null);
+    const isFocused = useRef(false);
+
+    // Sincroniza o HTML apenas se não estiver focado
+    useLayoutEffect(() => {
+        if (divRef.current && html !== divRef.current.innerHTML) {
+            if (!isFocused.current) {
+                divRef.current.innerHTML = html;
+            }
+        }
+    }, [html]);
+
+    useEffect(() => {
+        if (autoFocus && divRef.current) {
+            divRef.current.focus();
+            try {
+                const range = document.createRange();
+                range.selectNodeContents(divRef.current);
+                range.collapse(false);
+                const sel = window.getSelection();
+                sel?.removeAllRanges();
+                sel?.addRange(range);
+            } catch (e) { /* Ignore selection errors */ }
+        }
+    }, [autoFocus]);
+
+    const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+        if (onChange) onChange(e.currentTarget.innerHTML);
+    };
+
+    return (
+        <div
+            ref={divRef}
+            className={className}
+            style={{ 
+                ...style, 
+                outline: 'none', 
+                cursor: 'text',
+                whiteSpace: 'pre-wrap', 
+                minHeight: '1.5em'
+            }}
+            contentEditable
+            onInput={handleInput}
+            onFocus={() => isFocused.current = true}
+            onBlur={() => isFocused.current = false}
+            suppressContentEditableWarning
+        />
+    );
+};
+
 const AutoResizingTextarea = ({ value, onChange, style, autoFocus, className }: any) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -263,6 +315,9 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
 
     // --- PROFESSIONAL PRINT ACTION ---
     const handlePrintPDF = async () => {
+        setActiveIdx(null);
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         await saveData();
         showToast("Finalizando diagramação...", 'success');
 
@@ -279,55 +334,32 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
         const priDoc = pri.contentWindow?.document;
         if (!priDoc) return;
 
-        // Capturamos os estilos das questões para garantir que fontes/tamanhos passem para o iframe
-        const questionsStyles = state.data.questions.map(q => `
-        font-family: ${q.css_style?.fontFamily || 'Verdana'};
-        font-size: ${q.css_style?.fontSize || '12pt'};
-        font-weight: ${q.css_style?.fontWeight || 'normal'};
-        line-height: ${q.css_style?.lineHeight || '1.5'};
-        text-align: ${q.css_style?.textAlign || 'left'};
-    `);
-
         priDoc.open();
+        // AQUI: Injeção de CSS otimizado para compactação e layout
+        // Adicionei estilos específicos para remover margens excessivas de P e DIVs
         priDoc.write(`
       <html>
         <head>
-          <title>.</title> <style>
-            /* 1. REMOVE CABEÇALHOS E RODAPÉS DO NAVEGADOR */
-            @page {
-              margin: 0; /* Remove URL, Data e Título das bordas */
-              size: auto;
-            }
-
-            body { 
-              margin: 0; 
-              padding: 0; 
-              background: white;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-
-            /* 2. CONTAINER PRINCIPAL (SIMULA A FOLHA A4) */
-            #print-wrapper {
-              width: 100%;
-              background-color: ${state.paperColor};
-              min-height: 100vh;
-              padding: 20mm; /* Margem interna real do documento */
-              box-sizing: border-box;
-            }
-
-            .question-block {
-              page-break-inside: avoid;
-              break-inside: avoid;
-              margin-bottom: 30px;
-              display: block;
-            }
-
-            /* Estilos de Texto */
-            .whitespace-pre-wrap { white-space: pre-wrap; }
-            h1, p, div { color: #1a1a1a; margin-top: 0; }
+          <title>StudyTrack_Adaptation</title> 
+          <style>
+            @page { margin: 0; size: auto; }
+            body { margin: 0; padding: 0; background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: sans-serif; }
+            #print-wrapper { width: 100%; background-color: ${state.paperColor}; min-height: 100vh; padding: 20mm; box-sizing: border-box; }
             
-            /* Remove elementos de UI que possam ter vazado no innerHTML */
+            /* [AJUSTE DE DISTÂNCIA]: Reduzido margin-bottom de 30px para 15px */
+            .question-block { 
+                page-break-inside: avoid; 
+                break-inside: avoid; 
+                margin-bottom: 15px; 
+                display: block; 
+                position: relative; 
+            }
+            
+            /* Remove margens padrão que causam buracos */
+            h1, p, div { color: #1a1a1a; margin-top: 0; }
+            p { margin-bottom: 0.5em; } 
+
+            .whitespace-pre-wrap { white-space: pre-wrap; }
             .no-print, button, .lucide, svg { display: none !important; }
           </style>
         </head>
@@ -343,10 +375,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
         setTimeout(() => {
             pri.contentWindow?.focus();
             pri.contentWindow?.print();
-
-            setTimeout(() => {
-                document.body.removeChild(pri);
-            }, 1000);
+            setTimeout(() => { document.body.removeChild(pri); }, 1000);
         }, 500);
 
         await supabase.from('adapted_exams').update({ adaptation_status: 'completed' }).eq('id', jobId);
@@ -355,37 +384,13 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
     return (
         <div className={`flex flex-col h-full bg-[#F3F4F6] relative transition-all duration-300 ${state.isZenMode ? 'fixed inset-0 z-50' : ''}`}>
 
-            {/* INJEÇÃO DE CSS DE IMPRESSÃO (BLINDAGEM CONTRA CORTES) */}
             <style jsx global>{`
         @media print {
-          header, aside, .editor-toolbar, button, .no-print {
-            display: none !important;
-          }
-          body {
-            background: white !important;
-            padding: 0 !important;
-            margin: 0 !important;
-          }
-          #print-area {
-            width: 100% !important;
-            transform: none !important;
-            margin: 0 !important;
-            padding: 20mm !important;
-            box-shadow: none !important;
-            border: none !important;
-            height: auto !important;
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-          }
-          .question-block {
-            page-break-inside: avoid;
-            break-inside: avoid;
-            margin-bottom: 25px;
-            padding: 10px 0;
-          }
-          @page {
-            margin: 10mm;
-          }
+          header, aside, .editor-toolbar, button, .no-print { display: none !important; }
+          body { background: white !important; padding: 0 !important; margin: 0 !important; }
+          #print-area { width: 100% !important; transform: none !important; margin: 0 !important; padding: 20mm !important; box-shadow: none !important; border: none !important; height: auto !important; }
+          .question-block { page-break-inside: avoid; break-inside: avoid; margin-bottom: 25px; padding: 10px 0; }
+          @page { margin: 10mm; }
         }
       `}</style>
 
@@ -513,17 +518,23 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
                             }}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            {/* Paper Header */}
-                            <div id="exam-header" className="border-b-4 border-slate-900 pb-4 mb-12 flex justify-between items-end group">
+                            {/* [FIXED HEADER]: Estilos 100% INLINE para garantir a impressão correta (sem depender de Tailwind) */}
+                            <div id="exam-header" style={{ borderBottom: '2px solid #1e293b', paddingBottom: '8px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontFamily: 'sans-serif' }}>
                                 <div>
-                                    <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Avaliação</h1>
-                                    <div className="flex gap-4 mt-2 text-sm text-slate-500 font-medium">
-                                        <span>Aluno: {state.data.metadata.student_name || "_____________________"}</span>
-                                        <span>Data: {new Date().toLocaleDateString()}</span>
+                                    <h1 style={{ fontSize: '30px', fontWeight: '900', textTransform: 'uppercase', color: '#0f172a', margin: 0, lineHeight: 1 }}>Avaliação</h1>
+                                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span>StudyTrack</span>
+                                        <span style={{ height: '12px', width: '1px', backgroundColor: '#cbd5e1', display: 'inline-block' }}></span>
+                                        <span>Grupo Neder Educação</span>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <div className="h-12 w-12 bg-slate-900 text-white flex items-center justify-center font-bold text-xl rounded-lg">A+</div>
+                                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
+                                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '500', marginBottom: '4px' }}>
+                                        <span style={{ fontWeight: '700', color: '#0f172a', textTransform: 'uppercase' }}>Aluno:</span> {state.data.metadata.student_name || "_______________________"}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '500' }}>
+                                        <span style={{ fontWeight: '700', color: '#0f172a', textTransform: 'uppercase' }}>Data:</span> {new Date().toLocaleDateString()}
+                                    </div>
                                 </div>
                             </div>
 
@@ -536,10 +547,32 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
                                     return (
                                         <div
                                             key={idx}
-                                            className={`question-block relative pl-4 -ml-4 rounded-r-lg transition-all duration-150 ${isActive ? 'bg-black/5 border-l-4 border-blue-500' : 'border-l-4 border-transparent hover:border-slate-300'} ${hasWarning ? 'border-l-amber-500 bg-amber-50/10' : ''}`}
+                                            // Estilo inline para garantir que o position: relative passe para o PDF
+                                            className={`question-block transition-all duration-150 ${isActive ? 'bg-black/5 border-l-4 border-blue-500' : 'border-l-4 border-transparent hover:border-slate-300'} ${hasWarning ? 'border-l-amber-500 bg-amber-50/10' : ''}`}
+                                            style={{ 
+                                                position: 'relative', 
+                                                paddingLeft: '1rem', 
+                                                marginLeft: '-1rem',
+                                                borderTopRightRadius: '0.5rem',
+                                                borderBottomRightRadius: '0.5rem'
+                                            }}
                                             onClick={(e) => { e.stopPropagation(); setActiveIdx(idx); }}
                                         >
-                                            <span className={`absolute -left-10 top-2 font-bold text-lg select-none transition-colors ${isActive ? 'text-blue-600' : 'text-slate-400'}`}>{idx + 1}.</span>
+                                            {/* [FIXO]: Estilo INLINE para o NÚMERO DA QUESTÃO (Garante tamanho e posição no PDF) */}
+                                            <span 
+                                                className="select-none transition-colors"
+                                                style={{
+                                                    position: 'absolute',
+                                                    left: '-1.8rem', // Força a posição à esquerda
+                                                    top: '0.5rem',
+                                                    fontSize: '20px', // Tamanho grande fixo
+                                                    fontWeight: '900', // Extra bold
+                                                    color: isActive ? '#0848d1' : '#64748B', // Azul ou Cinza
+                                                    fontFamily: 'sans-serif'
+                                                }}
+                                            >
+                                                {idx + 1}.
+                                            </span>
 
                                             {hasWarning && (
                                                 <div className="absolute -right-6 top-2 text-amber-500 animate-pulse no-print" title="Alerta de Auditoria">
@@ -550,9 +583,9 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
                                             {/* Content Editor */}
                                             <div className="p-2">
                                                 {isActive ? (
-                                                    <AutoResizingTextarea
-                                                        value={q.adapted_content}
-                                                        onChange={(e: any) => dispatch({ type: 'UPDATE_QUESTION', payload: { index: idx, field: 'adapted_content', value: e.target.value } })}
+                                                    <ContentEditable
+                                                        html={q.adapted_content}
+                                                        onChange={(val: string) => dispatch({ type: 'UPDATE_QUESTION', payload: { index: idx, field: 'adapted_content', value: val } })}
                                                         className="w-full bg-transparent resize-none outline-none p-0 m-0 block"
                                                         style={{
                                                             fontFamily: q.css_style?.fontFamily,
@@ -573,9 +606,8 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
                                                             textAlign: q.css_style?.textAlign,
                                                             lineHeight: q.css_style?.lineHeight || '1.5'
                                                         }}
-                                                    >
-                                                        {q.adapted_content}
-                                                    </div>
+                                                        dangerouslySetInnerHTML={{ __html: q.adapted_content }}
+                                                    />
                                                 )}
                                             </div>
 
@@ -607,7 +639,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
 
                             {/* Footer */}
                             <div className="mt-20 pt-8 border-t border-slate-300 flex justify-between items-center text-[10px] text-slate-500 font-mono uppercase">
-                                <span>StudyTrack Certified Adaptation</span>
+                                <span>StudyTrack | Grupo Neder Educação</span>
                                 <span>{filename}</span>
                             </div>
 
