@@ -108,11 +108,20 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
       </div>
 
       <AdaptationEditor 
-        jobId={job.id} 
-        initialData={job.final_json_data} 
-        status={job.adaptation_status}
-        filename={job.original_filename}
-      />
+  jobId={job.id} 
+  initialData={{
+    ...(job.final_json_data as any),
+    
+    metadata: {
+      ...(job.final_json_data as any)?.metadata,
+      
+      // 3. Fallback seguro para versão
+      version: (job.final_json_data as any)?.metadata?.version || '1.0.0'
+    }
+  }}
+  status={job.adaptation_status}
+  filename={job.original_filename}
+/>
     </div>
   );
 }
