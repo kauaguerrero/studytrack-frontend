@@ -94,7 +94,7 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
             <div className="flex items-center gap-1.5 mt-1">
                <span className={`inline-block w-2 h-2 rounded-full ${role === 'student' ? 'bg-green-500' : 'bg-blue-500'}`}></span>
                <span className="text-[11px] font-medium text-slate-500 capitalize leading-none">
-                  {role === 'manager' ? 'Gestão' : role === 'teacher' ? 'Docente' : 'Área do Aluno'}
+                  {role === 'manager' ? 'Gestão' : role === 'teacher' ? 'Docente' : role === 'secretariat' ? 'Secretaria' : 'Área do Aluno'}
                </span>
             </div>
           </div>
@@ -132,6 +132,16 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
             <SectionTitle>Conteúdo</SectionTitle>
             <NavItem href="/portal/teacher/assignments" icon={FileText} label="Tarefas e Listas" />
             <NavItem href="/portal/teacher/goals" icon={Target} label="Metas Criadas" />
+          </div>
+        )}
+
+        {/* MENU SECRETARIA (NOVO) */}
+        {role === 'secretariat' && (
+          <div className="space-y-0.5">
+            <SectionTitle>Inclusão & Adaptação</SectionTitle>
+            <NavItem href="/portal/secretariat" icon={LayoutDashboard} label="Dashboard" />
+            <NavItem href="/portal/secretariat/adaptation/new" icon={FileText} label="Nova Adaptação" />
+            <NavItem href="/portal/secretariat/students" icon={Users} label="Alunos NEE" />
           </div>
         )}
 
