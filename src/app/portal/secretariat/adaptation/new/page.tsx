@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { 
@@ -140,7 +140,7 @@ export default function NewAdaptationWizard() {
     studentName: '',
     grade: '',
     subject: '',
-    tags: [] as string[], // Estrutura de tags robusta
+    tags: [] as string[],
     currentTagInput: ''
   });
   
@@ -178,9 +178,10 @@ export default function NewAdaptationWizard() {
       payload.append('student_name', formData.studentName);
       payload.append('grade', formData.grade);
       payload.append('subject', formData.subject);
-      payload.append('manual_conditions', formData.tags.join(', ')); // Converte array para string
+      payload.append('manual_conditions', formData.tags.join(', '));
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/enterprise/secretariat/adaptation/job`, {
+      // URL ATUALIZADA PARA O NOVO BACKEND UNIFICADO
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/enterprise/inclusion/job`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}` },
         body: payload
