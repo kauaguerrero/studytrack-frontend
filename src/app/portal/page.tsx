@@ -29,6 +29,9 @@ export default async function PortalRedirect() {
     case 'admin':
       redirect('/portal/manager');
       break;
+    case 'secretariat':
+      redirect('/portal/secretariat'); // Vai para a página da secretaria
+      break;
     default:
       redirect('/portal/student/dashboard'); // Vai para a página do aluno
   }
