@@ -3,6 +3,7 @@
 import React, { useReducer, useEffect, useCallback, useRef, useState, useLayoutEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { EditorContentSkeleton } from './SkeletonLoader';
 import {
     CheckCircle2, Image as ImageIcon, RotateCcw, RotateCw,
     AlertCircle, X, Maximize2, Minimize2, Settings2,
@@ -260,6 +261,9 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
     const supabase = createClient();
     const router = useRouter();
 
+    // Track if the adaptation is still processing
+    const isProcessing = !initialData?.questions || initialData.questions.length === 0;
+
     // Determina cor inicial baseada na IA ou Branco Padrão (SAFE CHECK)
     const initialBg = (initialData.questions && initialData.questions.length > 0)
         ? (initialData.questions[0].css_style?.backgroundColor || '#ffffff')
@@ -277,7 +281,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
 
     const [activeIdx, setActiveIdx] = useState<number | null>(null);
     const [zoom, setZoom] = useState(100);
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [toast, setToast] = useState<{ msg: string, type: 'success' | 'error' } | null>(null);
 
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -415,6 +419,13 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
 
     return (
         <div className={`flex flex-col h-full bg-[#F3F4F6] relative transition-all duration-300 ${state.isZenMode ? 'fixed inset-0 z-50' : ''}`}>
+
+            {/* Show skeleton while processing */}
+            {isProcessing && (
+                <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex items-center justify-center">
+                    <EditorContentSkeleton />
+                </div>
+            )}
 
             <style jsx global>{`
         @media print {
@@ -710,7 +721,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
                 {sidebarOpen && (
                     <aside className="w-[340px] bg-white border-l border-slate-200 shadow-xl z-10 flex flex-col animate-in slide-in-from-right duration-300 no-print">
                         <div className="h-12 border-b border-slate-100 flex items-center px-4 bg-slate-50/50 justify-between">
-                            <span className="text-xs font-bold uppercase text-slate-500 tracking-wider">Painel de Controle</span>
+                            <span className="text-xs font-bold uppercase text-slate-500 tracking-wider">Informações da prova</span>
                             <button onClick={() => setSidebarOpen(false)}><X size={16} className="text-slate-400 hover:text-red-500" /></button>
                         </div>
                         <div className="flex-1 overflow-y-auto p-6 space-y-8">
@@ -718,7 +729,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
                                 <div className="space-y-6 animate-in fade-in slide-in-from-right-2">
                                     <div>
                                         <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-3">
-                                            <Sparkles className="text-purple-500" size={14} /> Inteligência Adaptativa
+                                            <Sparkles className="text-purple-500" size={14} /> Por que essa adaptação foi feita
                                         </h3>
                                         <div className="bg-purple-50 rounded-xl p-4 border border-purple-100 shadow-sm relative overflow-hidden">
                                             <p className="text-xs text-slate-700 leading-relaxed relative z-10">{state.data.questions[activeIdx].adaptation_justification}</p>
@@ -726,11 +737,11 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
                                     </div>
                                     <div>
                                         <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 mb-3">
-                                            <History className="text-blue-500" size={14} /> Conteúdo Original
+                                            <History className="text-blue-500" size={14} /> Questão original
                                         </h3>
                                         <div className="bg-slate-50 rounded-lg p-3 border-l-2 border-blue-400 text-xs text-slate-600 italic">"{state.data.questions[activeIdx].original_excerpt}"</div>
                                         <button className="mt-2 text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1 uppercase tracking-wide" onClick={() => dispatch({ type: 'UPDATE_QUESTION', payload: { index: activeIdx, field: 'adapted_content', value: state.data.questions[activeIdx].original_excerpt } })}>
-                                            <RotateCcw size={10} /> Restaurar Original
+                                            <RotateCcw size={10} /> Usar versão original
                                         </button>
                                     </div>
                                 </div>

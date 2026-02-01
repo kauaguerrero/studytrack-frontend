@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { SkeletonLoader } from '@/components/adaptation/SkeletonLoader';
 import { 
   Loader2, UploadCloud, FileText, User, GraduationCap, CheckCircle2, 
   ChevronRight, AlertTriangle, ArrowLeft, X, ShieldAlert, Sparkles, FileType
@@ -11,6 +12,46 @@ import {
 // ============================================================================
 // --- 1. INDUSTRIAL UI COMPONENTS
 // ============================================================================
+
+const GRADE_OPTIONS = [
+  '1º Ano - Ensino Fundamental',
+  '2º Ano - Ensino Fundamental', 
+  '3º Ano - Ensino Fundamental',
+  '4º Ano - Ensino Fundamental',
+  '5º Ano - Ensino Fundamental',
+  '6º Ano - Ensino Fundamental',
+  '7º Ano - Ensino Fundamental',
+  '8º Ano - Ensino Fundamental',
+  '9º Ano - Ensino Fundamental',
+  '1º Ano - Ensino Médio',
+  '2º Ano - Ensino Médio',
+  '3º Ano - Ensino Médio'
+];
+
+const SUBJECT_OPTIONS = [
+  'Português',
+  'Matemática',
+  'Ciências',
+  'História',
+  'Geografia',
+  'Inglês',
+  'Artes',
+  'Educação Física',
+  'Ciências da Natureza',
+  'Ciências Humanas',
+  'Linguagens',
+  'Ensino Religioso'
+];
+
+const DIFFICULTY_OPTIONS = [
+  'Dislexia',
+  'Discalculia', 
+  'TDAH',
+  'Autismo',
+  'Baixa visão',
+  'Dificuldades de leitura',
+  'Outros'
+];
 
 const StepIndicator = ({ step, current, label, icon: Icon }: any) => {
   const status = step === current ? 'active' : step < current ? 'completed' : 'pending';
@@ -61,6 +102,30 @@ const InputField = ({ error, className, ...props }: any) => (
       {...props} 
     />
     {error && <div className="absolute right-3 top-3.5 text-red-500 animate-pulse"><AlertTriangle size={18}/></div>}
+  </div>
+);
+
+const SelectField = ({ options, error, className, ...props }: any) => (
+  <div className="relative group">
+    <select 
+      className={`
+        w-full h-12 px-4 rounded-lg bg-white border text-sm font-medium transition-all duration-200 appearance-none
+        placeholder:text-slate-400 focus:outline-none focus:ring-4 
+        ${error 
+          ? 'border-red-300 focus:border-red-500 focus:ring-red-500/10 text-red-900' 
+          : 'border-slate-200 hover:border-slate-300 focus:border-blue-500 focus:ring-blue-500/10 text-slate-900'}
+        ${className}
+      `} 
+      {...props}
+    >
+      <option value="">Selecione uma opção</option>
+      {options.map((option: string) => (
+        <option key={option} value={option}>{option}</option>
+      ))}
+    </select>
+    <div className="absolute right-3 top-3.5 text-slate-400 pointer-events-none">
+      <ChevronRight size={16} className="rotate-90" />
+    </div>
   </div>
 );
 
@@ -140,6 +205,7 @@ export default function NewAdaptationWizard() {
     studentName: '',
     grade: '',
     subject: '',
+    hasMedicalReport: null as boolean | null,
     tags: [] as string[],
     currentTagInput: ''
   });
@@ -147,7 +213,7 @@ export default function NewAdaptationWizard() {
   const [files, setFiles] = useState<{ profile?: File, exam?: File }>({});
 
   // --- HANDLERS ---
-  const handleNext = () => setStep(s => Math.min(s + 1, 3));
+  const handleNext = () => setStep(s => Math.min(s + 1, 4));
   const handleBack = () => setStep(s => Math.max(s - 1, 1));
 
   const addTag = (e: React.KeyboardEvent) => {
@@ -200,6 +266,17 @@ export default function NewAdaptationWizard() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-12 px-4 font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
+      {/* Show skeleton loader while processing */}
+      {loading && (
+        <SkeletonLoader 
+          stage="uploading" 
+          filename={files.exam?.name || 'prova.pdf'}
+          studentName={formData.studentName || 'Aluno'}
+        />
+      )}
+
+      {/* Show wizard when not loading */}
+      {!loading && (
       <div className="max-w-5xl mx-auto">
         
         {/* HEADER */}
@@ -208,8 +285,8 @@ export default function NewAdaptationWizard() {
                 <button onClick={() => router.back()} className="flex items-center text-slate-400 hover:text-slate-800 transition-colors text-sm font-medium mb-2 group">
                     <ArrowLeft size={16} className="mr-1 group-hover:-translate-x-1 transition-transform"/> Voltar ao Dashboard
                 </button>
-                <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Nova Adaptação</h1>
-                <p className="text-slate-500 font-medium">Configure os parâmetros de engenharia pedagógica.</p>
+                <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Nova Adaptação de Prova</h1>
+                <p className="text-slate-500 font-medium">Vamos preparar uma prova adaptada para o aluno passo a passo.</p>
             </div>
             <div className="hidden md:block">
                 <div className="bg-white border border-slate-200 rounded-lg px-4 py-2 flex items-center gap-3 shadow-sm">
@@ -220,56 +297,57 @@ export default function NewAdaptationWizard() {
         </div>
 
         {/* PROGRESS WIZARD */}
-        <div className="relative mb-12 mx-auto max-w-3xl">
-          <div className="absolute top-6 left-16 right-16 h-0.5 bg-slate-200 -z-0" />
+        <div className="relative mb-12 mx-auto max-w-4xl">
+          <div className="absolute top-6 left-12 right-12 h-0.5 bg-slate-200 -z-0" />
           <div 
-             className="absolute top-6 left-16 h-0.5 bg-blue-600 -z-0 transition-all duration-700 ease-in-out" 
-             style={{ width: step === 1 ? '0%' : step === 2 ? '50%' : '100%' }} 
+             className="absolute top-6 left-12 h-0.5 bg-blue-600 -z-0 transition-all duration-700 ease-in-out" 
+             style={{ width: step === 1 ? '0%' : step === 2 ? '25%' : step === 3 ? '50%' : step === 4 ? '75%' : '100%' }} 
           />
           
           <div className="flex justify-between relative z-10 w-full">
-            <StepIndicator step={1} current={step} label="Dados do Aluno" icon={GraduationCap} />
-            <StepIndicator step={2} current={step} label="Diagnóstico Clínico" icon={ShieldAlert} />
-            <StepIndicator step={3} current={step} label="Upload & Processamento" icon={UploadCloud} />
+            <StepIndicator step={1} current={step} label="Quem é o aluno?" icon={GraduationCap} />
+            <StepIndicator step={2} current={step} label="Necessidades do aluno" icon={ShieldAlert} />
+            <StepIndicator step={3} current={step} label="Upload da prova" icon={UploadCloud} />
+            <StepIndicator step={4} current={step} label="Gerar prova adaptada" icon={Sparkles} />
           </div>
         </div>
 
         {/* MAIN CARD */}
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 md:p-12 min-h-[500px] flex flex-col relative overflow-hidden">
           
-          {/* STEP 1: CONTEXTO */}
+          {/* STEP 1: WHO IS THE STUDENT */}
           {step === 1 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                <div className="flex items-start gap-5 border-b border-slate-100 pb-6">
                  <div className="bg-blue-50 p-3.5 rounded-xl text-blue-600 border border-blue-100 shadow-sm"><User size={32}/></div>
                  <div>
-                    <h2 className="text-xl font-bold text-slate-900">Identificação do Beneficiário</h2>
-                    <p className="text-sm text-slate-500 mt-1 max-w-md leading-relaxed">Informe os dados acadêmicos para personalizar o cabeçalho e o nível de linguagem da adaptação.</p>
+                    <h2 className="text-2xl font-bold text-slate-900">Quem é o aluno?</h2>
+                    <p className="text-base text-slate-600 mt-2 max-w-md leading-relaxed">Preencha as informações básicas do aluno.</p>
                  </div>
                </div>
                
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                 <div className="col-span-2 space-y-1">
-                   <FormLabel required>Nome Completo do Aluno</FormLabel>
+                 <div className="col-span-2 space-y-2">
+                   <FormLabel required>Nome completo</FormLabel>
                    <InputField 
-                     placeholder="Ex: João Victor Silva" 
+                     placeholder="Digite o nome completo do aluno" 
                      value={formData.studentName} 
                      onChange={(e:any) => setFormData({...formData, studentName: e.target.value})} 
                      autoFocus
                    />
                  </div>
-                 <div className="space-y-1">
-                   <FormLabel required>Ano / Série Escolar</FormLabel>
-                   <InputField 
-                      placeholder="Ex: 9º Ano - Ensino Fundamental" 
+                 <div className="space-y-2">
+                   <FormLabel required>Ano/Série</FormLabel>
+                   <SelectField 
+                      options={GRADE_OPTIONS}
                       value={formData.grade} 
                       onChange={(e:any) => setFormData({...formData, grade: e.target.value})} 
                    />
                  </div>
-                 <div className="space-y-1">
-                   <FormLabel required>Componente Curricular</FormLabel>
-                   <InputField 
-                      placeholder="Ex: Ciências da Natureza" 
+                 <div className="space-y-2">
+                   <FormLabel required>Disciplina</FormLabel>
+                   <SelectField 
+                      options={SUBJECT_OPTIONS}
                       value={formData.subject} 
                       onChange={(e:any) => setFormData({...formData, subject: e.target.value})} 
                    />
@@ -280,126 +358,226 @@ export default function NewAdaptationWizard() {
                <div className="flex justify-end pt-4">
                  <button 
                     onClick={handleNext} 
-                    disabled={!formData.studentName || !formData.grade}
-                    className="h-12 px-8 rounded-lg bg-slate-900 text-white font-medium hover:bg-blue-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center shadow-lg shadow-slate-900/10 active:scale-[0.98]"
+                    disabled={!formData.studentName || !formData.grade || !formData.subject}
+                    className="h-14 px-8 rounded-xl bg-blue-600 text-white text-lg font-bold hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center shadow-lg shadow-blue-600/20 active:scale-[0.98]"
                  >
-                    Avançar para Diagnóstico <ChevronRight size={18} className="ml-2"/>
+                    Continuar para necessidades do aluno <ChevronRight size={20} className="ml-2"/>
                  </button>
                </div>
             </div>
           )}
 
-          {/* STEP 2: DIAGNÓSTICO */}
+          {/* STEP 2: STUDENT NEEDS - MEDICAL REPORT */}
           {step === 2 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                <div className="flex items-start gap-5 border-b border-slate-100 pb-6">
                  <div className="bg-purple-50 p-3.5 rounded-xl text-purple-600 border border-purple-100 shadow-sm"><ShieldAlert size={32}/></div>
                  <div>
-                    <h2 className="text-xl font-bold text-slate-900">Perfil de Acessibilidade</h2>
-                    <p className="text-sm text-slate-500 mt-1 max-w-md leading-relaxed">Anexe laudos médicos ou defina manualmente as condições para a IA ajustar o conteúdo.</p>
+                    <h2 className="text-2xl font-bold text-slate-900">O aluno tem laudo médico?</h2>
+                    <p className="text-base text-slate-600 mt-2 max-w-md leading-relaxed">Selecione se você tem um documento médico do aluno.</p>
                  </div>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   {/* File Upload Laudo */}
-                   <div>
-                       <FormLabel>Laudo Médico (PDF/IMG)</FormLabel>
-                       <div className="mt-2 h-full">
-                           <FileDropzone 
-                              file={files.profile} 
-                              setFile={(f: File) => setFiles({...files, profile: f})} 
-                              accept=".pdf,.jpg,.jpeg,.png"
-                              label="Upload do Laudo"
-                              icon={FileText}
-                           />
+               <div className="space-y-6">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <button
+                     onClick={() => {
+                       setFormData({...formData, hasMedicalReport: true});
+                       handleNext();
+                     }}
+                     className="p-6 border-2 border-slate-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all text-left group"
+                   >
+                     <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 group-hover:bg-blue-200 transition-colors">
+                         <CheckCircle2 size={24} />
                        </div>
-                   </div>
-
-                   {/* Tags Input */}
-                   <div className="space-y-4">
                        <div>
-                           <FormLabel>Condições e Necessidades</FormLabel>
-                           <p className="text-[11px] text-slate-500 mb-2">Digite a condição e pressione <kbd className="font-mono bg-slate-100 border border-slate-200 rounded px-1 text-[10px]">ENTER</kbd></p>
-                           <InputField 
-                              placeholder="Ex: TDAH, Discalculia, Baixa Visão..." 
-                              value={formData.currentTagInput}
-                              onChange={(e:any) => setFormData({...formData, currentTagInput: e.target.value})}
-                              onKeyDown={addTag}
-                           />
+                         <h3 className="font-bold text-slate-900">Sim, tenho o documento</h3>
+                         <p className="text-sm text-slate-600 mt-1">Vou fazer upload do laudo médico</p>
                        </div>
-                       
-                       <div className="min-h-[120px] bg-slate-50 rounded-xl border border-slate-200 p-4">
-                           {formData.tags.length === 0 ? (
-                               <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
-                                   <Sparkles size={24} className="mb-2"/>
-                                   <span className="text-xs font-medium">Nenhuma tag adicionada</span>
-                               </div>
-                           ) : (
-                               <div className="flex flex-wrap gap-2">
-                                   {formData.tags.map((tag, idx) => (
-                                       <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white border border-slate-200 text-slate-700 shadow-sm animate-in zoom-in duration-200">
-                                           {tag}
-                                           <button onClick={() => removeTag(tag)} className="ml-2 text-slate-400 hover:text-red-500"><X size={12}/></button>
-                                       </span>
-                                   ))}
-                               </div>
-                           )}
+                     </div>
+                   </button>
+
+                   <button
+                     onClick={() => {
+                       setFormData({...formData, hasMedicalReport: false});
+                       handleNext();
+                     }}
+                     className="p-6 border-2 border-slate-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all text-left group"
+                   >
+                     <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center text-slate-600 group-hover:bg-slate-200 transition-colors">
+                         <User size={24} />
                        </div>
-                   </div>
+                       <div>
+                         <h3 className="font-bold text-slate-900">Não tenho documento</h3>
+                         <p className="text-sm text-slate-600 mt-1">Vou informar as dificuldades manualmente</p>
+                       </div>
+                     </div>
+                   </button>
+                 </div>
                </div>
 
-               <div className="flex justify-between pt-4">
-                 <button onClick={handleBack} className="text-slate-500 font-medium hover:text-slate-900 px-4 py-2">Voltar</button>
-                 <button onClick={handleNext} className="h-12 px-8 rounded-lg bg-slate-900 text-white font-medium hover:bg-blue-600 transition-all flex items-center shadow-lg shadow-slate-900/10 active:scale-[0.98]">
-                    Confirmar e Prosseguir <ChevronRight size={18} className="ml-2"/>
+               <div className="flex justify-start pt-4">
+                 <button onClick={handleBack} className="text-slate-500 font-medium hover:text-slate-900 px-4 py-2 flex items-center">
+                   <ArrowLeft size={16} className="mr-2" /> Voltar
                  </button>
                </div>
             </div>
           )}
 
-          {/* STEP 3: EXAM UPLOAD */}
+          {/* STEP 3: STUDENT NEEDS - DIFFICULTIES */}
           {step === 3 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                <div className="flex items-start gap-5 border-b border-slate-100 pb-6">
-                 <div className="bg-emerald-50 p-3.5 rounded-xl text-emerald-600 border border-emerald-100 shadow-sm"><UploadCloud size={32}/></div>
+                 <div className="bg-purple-50 p-3.5 rounded-xl text-purple-600 border border-purple-100 shadow-sm"><ShieldAlert size={32}/></div>
                  <div>
-                    <h2 className="text-xl font-bold text-slate-900">Conteúdo da Avaliação</h2>
-                    <p className="text-sm text-slate-500 mt-1 max-w-md leading-relaxed">Envie o arquivo original da prova. O sistema manterá o layout original sempre que possível.</p>
+                    <h2 className="text-2xl font-bold text-slate-900">Quais dificuldades o aluno tem?</h2>
+                    <p className="text-base text-slate-600 mt-2 max-w-md leading-relaxed">Selecione as dificuldades que o aluno apresenta.</p>
                  </div>
                </div>
 
-               <div className="bg-amber-50 border border-amber-200/60 rounded-lg p-4 flex gap-4">
-                   <AlertTriangle className="text-amber-600 shrink-0" size={24} />
-                   <div className="text-sm text-amber-900">
-                       <p className="font-bold mb-1">Atenção ao Processamento</p>
-                       <p className="opacity-90">Certifique-se que o arquivo da prova contenha texto selecionável. Imagens digitalizadas podem ter menor precisão na adaptação.</p>
+               {formData.hasMedicalReport && (
+                 <div className="space-y-4">
+                   <FormLabel>Upload do documento médico</FormLabel>
+                   <FileDropzone 
+                      file={files.profile} 
+                      setFile={(f: File) => setFiles({...files, profile: f})} 
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      label="Documento do aluno (PDF ou foto)"
+                      icon={FileText}
+                   />
+                 </div>
+               )}
+
+               {!formData.hasMedicalReport && (
+                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
+                   <ShieldAlert className="text-blue-600 shrink-0 mt-0.5" size={20} />
+                   <div className="text-sm text-blue-900">
+                     <p className="font-medium mb-1">ℹ️ Dica</p>
+                     <p>Se não há laudo médico, selecione as dificuldades que você conhece do aluno.</p>
                    </div>
+                 </div>
+               )}
+
+               <div className="space-y-4">
+                 <FormLabel>Selecione as dificuldades</FormLabel>
+                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                   {DIFFICULTY_OPTIONS.map((difficulty) => (
+                     <button
+                       key={difficulty}
+                       onClick={() => {
+                         if (formData.tags.includes(difficulty)) {
+                           setFormData({...formData, tags: formData.tags.filter(t => t !== difficulty)});
+                         } else {
+                           setFormData({...formData, tags: [...formData.tags, difficulty]});
+                         }
+                       }}
+                       className={`p-4 rounded-lg border-2 text-left transition-all ${
+                         formData.tags.includes(difficulty)
+                           ? 'border-blue-500 bg-blue-50 text-blue-700'
+                           : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
+                       }`}
+                     >
+                       <span className="font-medium">{difficulty}</span>
+                     </button>
+                   ))}
+                 </div>
+
+                 <div className="space-y-2">
+                   <FormLabel>Outros (opcional)</FormLabel>
+                   <InputField 
+                     placeholder="Digite outras dificuldades se necessário" 
+                     value={formData.currentTagInput}
+                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, currentTagInput: e.target.value})}
+                     onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                       if (e.key === 'Enter' && formData.currentTagInput.trim()) {
+                         e.preventDefault();
+                         if(!formData.tags.includes(formData.currentTagInput.trim())) {
+                           setFormData(prev => ({ ...prev, tags: [...prev.tags, prev.currentTagInput.trim()], currentTagInput: '' }));
+                         }
+                       }
+                     }}
+                   />
+                 </div>
+
+                 {formData.tags.length > 0 && (
+                   <div className="bg-slate-50 rounded-lg p-4">
+                     <p className="text-sm font-medium text-slate-700 mb-2">Dificuldades selecionadas:</p>
+                     <div className="flex flex-wrap gap-2">
+                       {formData.tags.map((tag, idx) => (
+                         <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                           {tag}
+                           <button 
+                             onClick={() => removeTag(tag)} 
+                             className="ml-2 text-blue-600 hover:text-blue-800"
+                           >
+                             <X size={14}/>
+                           </button>
+                         </span>
+                       ))}
+                     </div>
+                   </div>
+                 )}
                </div>
 
-               <div className="py-2">
+               <div className="flex justify-between pt-4">
+                 <button onClick={handleBack} className="text-slate-500 font-medium hover:text-slate-900 px-4 py-2 flex items-center">
+                   <ArrowLeft size={16} className="mr-2" /> Voltar
+                 </button>
+                 <button 
+                   onClick={handleNext} 
+                   disabled={formData.tags.length === 0}
+                   className="h-14 px-8 rounded-xl bg-blue-600 text-white text-lg font-bold hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center shadow-lg shadow-blue-600/20 active:scale-[0.98]"
+                 >
+                    Continuar para upload da prova <ChevronRight size={20} className="ml-2"/>
+                 </button>
+               </div>
+            </div>
+          )}
+
+          {/* STEP 4: UPLOAD THE EXAM */}
+          {step === 4 && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+               <div className="flex items-start gap-5 border-b border-slate-100 pb-6">
+                 <div className="bg-purple-50 p-3.5 rounded-xl text-purple-600 border border-purple-100 shadow-sm"><FileText size={32}/></div>
+                 <div>
+                    <h2 className="text-2xl font-bold text-slate-900">Upload da prova</h2>
+                    <p className="text-base text-slate-600 mt-2 max-w-md leading-relaxed">Faça upload da prova original que será adaptada.</p>
+                 </div>
+               </div>
+
+               <div className="space-y-6">
+                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3">
+                   <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
+                   <div className="text-sm text-amber-900">
+                     <p className="font-medium mb-1">⚠️ Importante</p>
+                     <p>A prova deve estar em formato PDF ou imagem. Certifique-se de que o arquivo está legível.</p>
+                   </div>
+                 </div>
+
+                 <div className="space-y-4">
+                   <FormLabel>Arquivo da prova</FormLabel>
                    <FileDropzone 
                       file={files.exam} 
                       setFile={(f: File) => setFiles({...files, exam: f})} 
-                      accept=".pdf,.docx,.doc"
-                      label="Arquivo da Prova Original"
-                      icon={UploadCloud}
-                      required
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      label="Arraste o arquivo da prova aqui ou clique para selecionar"
+                      icon={FileText}
                    />
+                 </div>
                </div>
 
-               <div className="flex justify-between pt-4 border-t border-slate-100 mt-4">
-                 <button onClick={handleBack} className="text-slate-500 font-medium hover:text-slate-900 px-4 py-2" disabled={loading}>Voltar</button>
-                 
+               <div className="flex justify-between pt-4">
+                 <button onClick={handleBack} className="text-slate-500 font-medium hover:text-slate-900 px-4 py-2 flex items-center">
+                   <ArrowLeft size={16} className="mr-2" /> Voltar
+                 </button>
                  <button 
-                    onClick={handleSubmit} 
-                    disabled={loading || !files.exam}
-                    className="h-12 px-8 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center shadow-lg shadow-emerald-600/20 active:scale-[0.98] w-full md:w-auto justify-center"
+                   onClick={handleSubmit} 
+                   disabled={!files.exam}
+                   className="h-14 px-8 rounded-xl bg-blue-600 text-white text-lg font-bold hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center shadow-lg shadow-blue-600/20 active:scale-[0.98]"
                  >
-                    {loading ? (
-                        <> <Loader2 className="animate-spin mr-2" size={20} /> Processando IA Neural... </>
-                    ) : (
-                        <> <Sparkles className="mr-2" size={20} /> Iniciar Engenharia de Adaptação </>
-                    )}
+                    Gerar prova adaptada <ChevronRight size={20} className="ml-2"/>
                  </button>
                </div>
             </div>
@@ -407,6 +585,7 @@ export default function NewAdaptationWizard() {
 
         </div>
       </div>
+      )}
     </div>
   );
 }

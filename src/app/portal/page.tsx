@@ -27,7 +27,7 @@ export default async function PortalRedirect() {
       redirect('/portal/manager'); // Vai para a página do gestor
       break;
     case 'admin':
-      redirect('/portal/manager');
+      redirect('/portal/manager'); // Vai para a página do gestor
       break;
     case 'secretariat':
       redirect('/portal/secretariat'); // Vai para a página da secretaria
