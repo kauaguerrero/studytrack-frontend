@@ -6,6 +6,7 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const error_description = searchParams.get('error_description')
+  const recoveryType = searchParams.get('type') // Detecta se é reset de senha
   
   // 1. Tenta capturar o destino via URL
   const requestedNext = searchParams.get('next')
@@ -40,6 +41,11 @@ export async function GET(request: Request) {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (user) {
+        // A. Se é um reset de senha, redireciona direto para confirmação
+        if (recoveryType === 'recovery') {
+          return NextResponse.redirect(`${origin}/auth/reset/confirm`)
+        }
+
         // A. Se existe um destino forçado na URL (Fluxo de Cadastro)
         if (requestedNext) {
             const metaRole = user.user_metadata?.role;

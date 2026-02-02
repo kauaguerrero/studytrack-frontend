@@ -54,7 +54,12 @@ function LoginForm() {
       router.push('/portal');
       router.refresh();
     } catch (err: any) {
-      setError(err.message || "Falha ao entrar. Verifique suas credenciais.");
+      // Mensagem de erro mais amigável
+      if (err.message?.includes('Invalid login credentials') || err.message?.includes('Email not confirmed')) {
+        setError("E-mail ou senha incorretos. Verifique suas credenciais e tente novamente.");
+      } else {
+        setError("Não foi possível fazer login. Tente novamente em alguns instantes.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -131,7 +136,7 @@ function LoginForm() {
         <div className="space-y-1.5">
           <div className="flex justify-between items-center">
             <label className="text-sm font-bold text-slate-700" htmlFor="password">Senha</label>
-            <a href="#" className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline">Esqueceu?</a>
+            <a href="/auth/reset" className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline">Esqueceu?</a>
           </div>
           <div className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -153,8 +158,8 @@ function LoginForm() {
         </div>
 
         <button 
-          type="submit" disabled={isLoading}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 rounded-2xl shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-70 transition-all mt-4"
+          type="submit" disabled={isLoading || !formData.email || !formData.password}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 rounded-2xl shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-4"
         >
           {isLoading ? (
             <>

@@ -1,16 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
   Loader2, FileText, Plus, AlertCircle, CheckCircle2, 
-  Clock, ArrowUpRight, Search, Filter, LayoutGrid, List
+  Clock, ArrowUpRight, Search, Filter, LayoutGrid, List, ChevronRight, Trash2
 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { motion } from 'framer-motion';
 
 // --- COMPONENTS ---
 
@@ -46,6 +47,7 @@ const DashboardSkeleton = () => (
 export default function SecretariatDashboard() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -53,7 +55,7 @@ export default function SecretariatDashboard() {
         try {
             const { data, error } = await supabase
                 .from('adapted_exams')
-                .select('*, schools(name)') // Join com schools se existir
+                .select('*, schools(name)')
                 .order('created_at', { ascending: false })
                 .limit(20);
 
@@ -68,134 +70,210 @@ export default function SecretariatDashboard() {
     fetchJobs();
   }, []);
 
-  // Métricas
-  const stats = {
-      today: jobs.filter(j => new Date(j.created_at).toDateString() === new Date().toDateString()).length,
-      pending: jobs.filter(j => j.adaptation_status === 'review_required' || j.adaptation_status === 'processing').length,
-      total: jobs.length // Em um app real, isso viria de um count no DB
+  const handleDeleteAll = async () => {
+    try {
+      // Buscar organization_id do usuário logado
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', (await supabase.auth.getUser()).data.user?.id)
+        .single();
+
+      if (!profile?.organization_id) {
+        alert("Não foi possível identificar sua organização. Tente novamente.");
+        return;
+      }
+
+      const { error } = await supabase
+        .from('adapted_exams')
+        .delete()
+        .eq('organization_id', profile.organization_id);
+
+      if (error) throw error;
+
+      // Limpa a lista local
+      setJobs([]);
+      setShowDeleteAllModal(false);
+    } catch (err) {
+      console.error("Failed to delete all exams", err);
+      alert("Erro ao excluir todas as provas. Tente novamente.");
+    }
   };
 
+  const handleDelete = async (jobId: string, filename: string) => {
+    if (!confirm(`Tem certeza que deseja excluir a prova "${filename}"? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('adapted_exams')
+        .delete()
+        .eq('id', jobId);
+
+      if (error) throw error;
+
+      // Remove da lista local
+      setJobs(jobs.filter(job => job.id !== jobId));
+    } catch (err) {
+      console.error("Failed to delete exam", err);
+      alert("Erro ao excluir a prova. Tente novamente.");
+    }
+  };
+
+  const stats = useMemo(() => ({
+    today: jobs.filter(j => new Date(j.created_at).toDateString() === new Date().toDateString()).length,
+    pending: jobs.filter(j => j.adaptation_status === 'review_required' || j.adaptation_status === 'processing').length,
+    total: jobs.length
+  }), [jobs]);
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-10 font-sans">
-      <div className="max-w-7xl mx-auto space-y-10">
+    <div className="min-h-screen bg-white p-6 md:p-8 font-sans">
+      <div className="max-w-6xl mx-auto space-y-8">
         
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Portal da Secretaria</h1>
-            <p className="text-slate-500 mt-1 font-medium">Adapte provas para alunos com necessidades especiais.</p>
+            <h1 className="text-3xl font-semibold text-slate-900">Provas Adaptadas</h1>
+            <p className="text-slate-500 text-base mt-1">Gerencie as adaptações de provas dos seus alunos.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50">
-                <Filter size={16} className="mr-2" /> Filtrar
+          <Link href="/portal/secretariat/adaptation/new">
+            <Button className="bg-slate-900 hover:bg-slate-800 text-white font-semibold h-11 px-6 rounded-lg transition-all shadow-none active:scale-[0.97]">
+              <Plus size={18} className="mr-2" /> Adaptar prova
             </Button>
-            <Link href="/portal/secretariat/adaptation/new">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 transition-all active:scale-95 h-10 px-6">
-                <Plus size={18} className="mr-2" /> Adaptar nova prova
-              </Button>
-            </Link>
-          </div>
+          </Link>
         </div>
 
         {loading ? <DashboardSkeleton /> : (
             <>
                 {/* METRICS GRID */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Card className="border-slate-200 shadow-[0_2px_10px_rgba(0,0,0,0.04)] hover:shadow-md transition-shadow">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-wider">Provas Hoje</CardTitle>
+                    <Card className="border-slate-200 shadow-none hover:shadow-sm transition-shadow">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Hoje</CardTitle>
                             <Clock className="h-4 w-4 text-slate-400" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-black text-slate-900">{stats.today}</div>
-                            <p className="text-xs text-slate-500 mt-1 flex items-center">
-                                <span className="text-emerald-600 font-bold flex items-center mr-1">
-                                    <ArrowUpRight size={12}/> +12%
-                                </span> 
-                                em relação a ontem
-                            </p>
+                            <div className="text-3xl font-semibold text-slate-900">{stats.today}</div>
+                            <p className="text-xs text-slate-500 mt-2">adaptações</p>
                         </CardContent>
                     </Card>
-                    <Card className="border-slate-200 shadow-[0_2px_10px_rgba(0,0,0,0.04)] hover:shadow-md transition-shadow">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-wider">Aguardando Revisão</CardTitle>
+                    <Card className="border-slate-200 shadow-none hover:shadow-sm transition-shadow">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Processando</CardTitle>
                             <AlertCircle className="h-4 w-4 text-amber-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-black text-amber-600">{stats.pending}</div>
-                            <p className="text-xs text-slate-500 mt-1">Precisam de atenção</p>
+                            <div className="text-3xl font-semibold text-amber-600">{stats.pending}</div>
+                            <p className="text-xs text-slate-500 mt-2">aguardando</p>
                         </CardContent>
                     </Card>
-                    <Card className="border-slate-200 shadow-[0_2px_10px_rgba(0,0,0,0.04)] hover:shadow-md transition-shadow">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-wider">Total Adaptadas</CardTitle>
-                            <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                    <Card className="border-slate-200 shadow-none hover:shadow-sm transition-shadow">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Total</CardTitle>
+                            <CheckCircle2 className="h-4 w-4 text-slate-400" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-black text-blue-600">{stats.total}</div>
-                            <p className="text-xs text-slate-500 mt-1">Provas prontas este mês</p>
+                            <div className="text-3xl font-semibold text-slate-900">{stats.total}</div>
+                            <p className="text-xs text-slate-500 mt-2">provas adaptadas</p>
                         </CardContent>
                     </Card>
                 </div>
 
                 {/* RECENT ACTIVITY TABLE/LIST */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                        <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                            <FileText size={18} className="text-slate-400"/> Provas Recentes
+                <div className="bg-white rounded-lg border border-slate-200 shadow-none">
+                    <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                        <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                            <FileText size={18} className="text-slate-500"/> Provas Recentes
                         </h3>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                            <input 
-                                type="text" 
-                                placeholder="Buscar aluno ou prova..." 
-                                className="pl-9 pr-4 py-1.5 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all w-64"
-                            />
+                        <div className="flex items-center gap-3">
+                            <Button
+                                onClick={() => setShowDeleteAllModal(true)}
+                                variant="outline"
+                                size="sm"
+                                className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                            >
+                                <Trash2 size={14} className="mr-2" /> Excluir todas
+                            </Button>
+                            <div className="relative hidden md:block">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Buscar..." 
+                                    className="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all"
+                                />
+                            </div>
                         </div>
                     </div>
 
                     {jobs.length === 0 ? (
-                        <div className="text-center py-20">
-                            <div className="bg-slate-50 h-20 w-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <FileText className="text-slate-300" size={32} />
+                        <div className="text-center py-12">
+                            <div className="bg-slate-100 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <FileText className="text-slate-400" size={28} />
                             </div>
-                            <h4 className="text-slate-900 font-bold">Nenhuma prova encontrada</h4>
-                            <p className="text-slate-500 text-sm mt-1">Comece adaptando uma nova prova para um aluno.</p>
+                            <h4 className="text-slate-900 font-medium">Nenhuma prova ainda</h4>
+                            <p className="text-slate-500 text-sm mt-1">Comece adaptando uma prova para um aluno.</p>
                         </div>
                     ) : (
                         <div className="divide-y divide-slate-100">
-                            {jobs.map((job) => (
-                                <div key={job.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between group">
-                                    <div className="flex items-center gap-4">
-                                        <div className="h-10 w-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center border border-blue-100 shrink-0">
-                                            <FileText size={20} />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-slate-900 text-sm group-hover:text-blue-600 transition-colors">
-                                                {job.original_filename}
-                                            </h4>
-                                            <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
-                                                <span>{format(new Date(job.created_at), "d 'de' MMM, HH:mm", { locale: ptBR })}</span>
-                                                <span className="w-1 h-1 bg-slate-300 rounded-full"/>
-                                                <span>{job.schools?.name || 'Escola não vinculada'}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-6">
-                                        <div className="hidden md:block text-right">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status</p>
-                                            <StatusBadge status={job.adaptation_status} />
-                                        </div>
-                                        
+                            <motion.div
+                                initial="hidden"
+                                animate="visible"
+                                variants={{
+                                    hidden: { opacity: 0 },
+                                    visible: {
+                                        opacity: 1,
+                                        transition: {
+                                            staggerChildren: 0.1
+                                        }
+                                    }
+                                }}
+                            >
+                                {jobs.map((job) => (
+                                    <motion.div
+                                        key={job.id}
+                                        variants={{
+                                            hidden: { opacity: 0, y: 20 },
+                                            visible: { opacity: 1, y: 0 }
+                                        }}
+                                        transition={{ duration: 0.3 }}
+                                    >
                                         <Link href={`/portal/secretariat/adaptation/${job.id}`}>
-                                            <Button variant="ghost" size="sm" className="text-slate-500 hover:text-blue-600 hover:bg-blue-50">
-                                                Ver prova <ArrowUpRight size={14} className="ml-1" />
-                                            </Button>
+                                            <div className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer">
+                                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                    <div className="h-9 w-9 bg-slate-100 text-slate-600 rounded-md flex items-center justify-center border border-slate-200 shrink-0">
+                                                        <FileText size={18} />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <h4 className="font-medium text-slate-900 text-sm group-hover:text-slate-700 transition-colors truncate">
+                                                            {job.original_filename}
+                                                        </h4>
+                                                        <p className="text-xs text-slate-500 mt-0.5">{format(new Date(job.created_at), "d 'de' MMM, HH:mm", { locale: ptBR })}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-4">
+                                                    <div className="hidden md:block text-right">
+                                                        <StatusBadge status={job.adaptation_status} />
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            handleDelete(job.id, job.original_filename);
+                                                        }}
+                                                        className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all duration-200"
+                                                        title="Excluir prova"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                    <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500 transition-colors" />
+                                                </div>
+                                            </div>
                                         </Link>
-                                    </div>
-                                </div>
-                            ))}
+                                    </motion.div>
+                                ))}
+                            </motion.div>
                         </div>
                     )}
                     
@@ -210,6 +288,41 @@ export default function SecretariatDashboard() {
             </>
         )}
       </div>
+
+      {/* DELETE ALL MODAL */}
+      {showDeleteAllModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-8">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Trash2 size={32} className="text-red-600" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 mb-4">Excluir Todas as Provas</h2>
+              <p className="text-slate-600 mb-8 leading-relaxed">
+                <strong className="text-red-600 uppercase font-bold text-lg block mb-2">
+                  TODAS AS PROVAS ADAPTADAS SERÃO EXCLUÍDAS AO CONFIRMAR ESSA AÇÃO
+                </strong>
+                Esta ação não pode ser desfeita. Todas as provas adaptadas serão permanentemente removidas do sistema.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => setShowDeleteAllModal(false)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleDeleteAll}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold"
+                >
+                  CONFIRMAR EXCLUSÃO
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

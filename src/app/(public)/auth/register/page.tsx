@@ -28,18 +28,78 @@ const GoogleIcon = () => (
 function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userType, setUserType] = useState<'student' | 'teacher'>('student');
+  const [userType, setUserType] = useState<'student' | 'school'>('student');
+  const [schoolRole, setSchoolRole] = useState<'teacher' | 'secretary' | null>(null);
 
   const router = useRouter();
   const searchParams = useSearchParams();
   
   const urlPlan = searchParams.get('plan');
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+  const [formData, setFormData] = useState({ 
+    name: '', 
+    email: '', 
+    password: '', 
+    confirmPassword: '' 
+  });
   const [selectedPlan, setSelectedPlan] = useState(urlPlan || 'free');
   
   const isPlanLocked = !!urlPlan;
   const supabase = createClient();
+
+  // --- PASSWORD VALIDATION ---
+  const validatePassword = (password: string) => {
+    return {
+      length: password.length >= 8,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /\d/.test(password),
+      special: /[!@#$%&*]/.test(password)
+    };
+  };
+
+  const passwordValidation = validatePassword(formData.password);
+  const isPasswordValid = Object.values(passwordValidation).every(Boolean);
+  const passwordsMatch = formData.password === formData.confirmPassword && formData.password.length > 0;
+
+  // --- PASSWORD CHECKLIST COMPONENT ---
+  const PasswordChecklist = () => {
+    if (!formData.password) return null;
+
+    const checks = [
+      { key: 'length', label: 'Pelo menos 8 caracteres', valid: passwordValidation.length },
+      { key: 'uppercase', label: 'Uma letra maiúscula', valid: passwordValidation.uppercase },
+      { key: 'lowercase', label: 'Uma letra minúscula', valid: passwordValidation.lowercase },
+      { key: 'number', label: 'Um número', valid: passwordValidation.number },
+      { key: 'special', label: 'Um caractere especial (!@#$%&*)', valid: passwordValidation.special }
+    ];
+
+    return (
+      <div className="mt-3 space-y-1">
+        {checks.map((check) => (
+          <div key={check.key} className="flex items-center gap-2 text-xs">
+            {check.valid ? (
+              <div className="w-4 h-4 rounded-full bg-green-100 flex items-center justify-center">
+                <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            ) : (
+              <div className="w-4 h-4 rounded-full bg-slate-100 flex items-center justify-center">
+                <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+            )}
+            <span className={check.valid ? 'text-green-700' : 'text-slate-500'}>
+              {check.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (urlPlan) {
@@ -53,11 +113,12 @@ function RegisterForm() {
   const handleSocialLogin = async (provider: 'google') => {
     try {
         // Salva role e plano nos cookies para recuperar no callback, já que não podemos passar "data" direto
-        document.cookie = `onboarding_role=${userType}; path=/; max-age=300`;
+        const actualRole = userType === 'school' ? schoolRole : userType;
+        document.cookie = `onboarding_role=${actualRole}; path=/; max-age=300`;
         document.cookie = `onboarding_plan=${selectedPlan}; path=/; max-age=300`;
 
-        const nextPath = userType === 'teacher' 
-            ? '/portal/onboarding/teacher/school' 
+        const nextPath = userType === 'school'
+            ? (schoolRole === 'teacher' ? '/portal/onboarding/teacher/school' : '/portal/onboarding/secretariat/school')
             : '/portal/onboarding/objetivo';
 
         await supabase.auth.signInWithOAuth({
@@ -80,6 +141,25 @@ function RegisterForm() {
     setIsLoading(true);
     setError(null);
 
+    // Validações
+    if (!isPasswordValid) {
+      setError("Por favor, crie uma senha que atenda a todos os requisitos de segurança.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!passwordsMatch) {
+      setError("As senhas não coincidem. Verifique e tente novamente.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (userType === 'school' && !schoolRole) {
+      setError("Selecione seu papel na escola (Professor ou Secretaria).");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       localStorage.setItem('onboarding_plan', selectedPlan);
 
@@ -89,8 +169,8 @@ function RegisterForm() {
         options: {
             data: {
                 full_name: formData.name,
-                plan_tier: userType === 'teacher' ? 'teacher_free' : selectedPlan,
-                role: userType
+                plan_tier: userType === 'school' ? 'school_free' : selectedPlan,
+                role: userType === 'school' ? schoolRole : 'student'
             }
         }
       });
@@ -101,14 +181,24 @@ function RegisterForm() {
           const userId = data.session.user.id;
           router.refresh();
 
-          if (userType === 'teacher') {
-             await supabase.from('profiles').upsert({ 
-                 id: userId,
-                 role: 'teacher',
-                 email: formData.email,
-                 full_name: formData.name
-               }, { onConflict: 'id' });
-             router.push('/portal/onboarding/teacher/school');
+          if (userType === 'school') {
+             if (schoolRole === 'teacher') {
+               await supabase.from('profiles').upsert({ 
+                   id: userId,
+                   role: 'teacher',
+                   email: formData.email,
+                   full_name: formData.name
+                 }, { onConflict: 'id' });
+               router.push('/portal/onboarding/teacher/school');
+             } else if (schoolRole === 'secretary') {
+               await supabase.from('profiles').upsert({ 
+                   id: userId,
+                   role: 'secretariat',
+                   email: formData.email,
+                   full_name: formData.name
+                 }, { onConflict: 'id' });
+               router.push('/portal/onboarding/secretariat/school');
+             }
           } else {
              await supabase.from('profiles').upsert({ 
                  id: userId,
@@ -146,13 +236,43 @@ function RegisterForm() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-6 p-1 bg-slate-100 rounded-xl">
-        <button type="button" onClick={() => setUserType('student')} className={`flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all duration-200 ${userType === 'student' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-          <GraduationCap size={18} /> Sou Aluno
+        <button type="button" onClick={() => { setUserType('student'); setSchoolRole(null); }} className={`flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all duration-200 ${userType === 'student' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+          <GraduationCap size={18} /> Conta de Aluno
         </button>
-        <button type="button" onClick={() => setUserType('teacher')} className={`flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all duration-200 ${userType === 'teacher' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-          <School size={18} /> Sou Professor
+        <button type="button" onClick={() => setUserType('school')} className={`flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all duration-200 ${userType === 'school' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+          <School size={18} /> Vinculado à Escola
         </button>
       </div>
+
+      {userType === 'school' && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
+          <h3 className="text-sm font-bold text-blue-900 mb-3">Qual é o seu papel na escola?</h3>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setSchoolRole('teacher')}
+              className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                schoolRole === 'teacher'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-white text-blue-600 border border-blue-200 hover:bg-blue-50'
+              }`}
+            >
+              <School size={14} /> Professor
+            </button>
+            <button
+              type="button"
+              onClick={() => setSchoolRole('secretary')}
+              className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                schoolRole === 'secretary'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-white text-blue-600 border border-blue-200 hover:bg-blue-50'
+              }`}
+            >
+              <User size={14} /> Secretaria
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 mb-6">
         <button onClick={() => handleSocialLogin('google')} type="button" className="flex items-center justify-center gap-3 h-12 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-200 hover:shadow-md transition-all duration-300 group">
@@ -182,7 +302,7 @@ function RegisterForm() {
           </div>
         )}
 
-        {userType === 'teacher' && (
+        {userType === 'school' && (
            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
               <div className="flex gap-3">
                  <School className="text-amber-600 shrink-0" size={20} />
@@ -206,7 +326,7 @@ function RegisterForm() {
           <label className="text-sm font-bold text-slate-700 block" htmlFor="email">E-mail</label>
           <div className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Mail className="w-5 h-5" /></div>
-            <input id="email" type="email" placeholder={userType === 'teacher' ? "prof.nome@escola.com" : "aluno@studytrack.com"} required className="w-full pl-12 pr-4 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+            <input id="email" type="email" placeholder={userType === 'school' ? "prof.nome@escola.com" : "aluno@studytrack.com"} required className="w-full pl-12 pr-4 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
           </div>
         </div>
 
@@ -214,15 +334,59 @@ function RegisterForm() {
           <label className="text-sm font-bold text-slate-700" htmlFor="password">Senha</label>
           <div className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Lock className="w-5 h-5" /></div>
-            <input id="password" type={showPassword ? "text" : "password"} placeholder="Mínimo 6 caracteres" required minLength={6} className="w-full pl-12 pr-14 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} />
+            <input 
+              id="password" 
+              type={showPassword ? "text" : "password"} 
+              placeholder="Crie uma senha segura" 
+              required 
+              className="w-full pl-12 pr-14 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" 
+              value={formData.password} 
+              onChange={(e) => setFormData({...formData, password: e.target.value})} 
+            />
             <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all">
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
+          <PasswordChecklist />
         </div>
 
-        <button type="submit" disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 rounded-2xl shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-70 transition-all mt-6">
-          {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (userType === 'teacher' ? "Iniciar Validação Docente" : "Criar Conta de Aluno")}
+        <div className="space-y-1.5">
+          <label className="text-sm font-bold text-slate-700" htmlFor="confirmPassword">Confirmar Senha</label>
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Lock className="w-5 h-5" /></div>
+            <input 
+              id="confirmPassword" 
+              type={showConfirmPassword ? "text" : "password"} 
+              placeholder="Digite a senha novamente" 
+              required 
+              className={`w-full pl-12 pr-14 h-14 rounded-2xl border bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all ${
+                formData.confirmPassword && !passwordsMatch 
+                  ? 'border-red-300 focus:border-red-500' 
+                  : 'border-slate-200 focus:border-blue-500'
+              }`} 
+              value={formData.confirmPassword} 
+              onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})} 
+            />
+            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all">
+              {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
+          {formData.confirmPassword && !passwordsMatch && (
+            <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              As senhas não coincidem
+            </p>
+          )}
+        </div>
+
+        <button 
+          type="submit" 
+          disabled={isLoading || !isPasswordValid || !passwordsMatch || !formData.name || !formData.email} 
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 rounded-2xl shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-70 transition-all mt-6"
+        >
+          {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (userType === 'school' ? "Iniciar Validação Escolar" : "Criar Conta de Aluno")}
         </button>
       </form>
 

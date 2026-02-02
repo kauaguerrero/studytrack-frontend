@@ -9,7 +9,7 @@ import {
     AlertCircle, X, Maximize2, Minimize2, Settings2,
     Bold, Italic, AlignLeft, AlignCenter, AlignRight, ZoomIn, ZoomOut,
     ChevronLeft, FileText, Printer, Layout, Sparkles, History,
-    ShieldAlert, Loader2, Palette, ListOrdered, GraduationCap
+    ShieldAlert, Loader2, Palette, ListOrdered, GraduationCap, AlertTriangle, Brain
 } from 'lucide-react';
 
 // ============================================================================
@@ -71,6 +71,7 @@ interface EditorState {
     lastSaved: Date | null;
     isZenMode: boolean;
     paperColor: string;
+    originalAdaptedContents: string[];
 }
 
 // ============================================================================
@@ -86,7 +87,12 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
             const suggestedBg = (action.payload.questions && action.payload.questions.length > 0) 
                 ? action.payload.questions[0].css_style?.backgroundColor 
                 : '#ffffff';
-            return { ...state, data: action.payload, paperColor: suggestedBg || '#ffffff' };
+            return { 
+                ...state, 
+                data: action.payload, 
+                paperColor: suggestedBg || '#ffffff',
+                originalAdaptedContents: action.payload.questions.map(q => q.adapted_content)
+            };
 
         case 'UPDATE_QUESTION': {
             const newQuestions = [...state.data.questions];
@@ -145,7 +151,7 @@ const ToolButton = ({ icon: Icon, label, active = false, onClick, disabled = fal
         disabled={disabled}
         title={shortcut ? `${label} (${shortcut})` : label}
         className={`
-      relative group flex items-center justify-center h-8 w-8 rounded-md transition-all duration-200
+      relative group flex items-center justify-center h-8 w-8 rounded-md transition-all duration-200 active:scale-95
       ${active ? 'bg-blue-100 text-blue-700 shadow-inner' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}
       ${disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}
     `}
@@ -276,7 +282,8 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
         isSaving: false,
         lastSaved: null,
         isZenMode: false,
-        paperColor: initialBg
+        paperColor: initialBg,
+        originalAdaptedContents: initialData.questions.map(q => q.adapted_content)
     });
 
     const [activeIdx, setActiveIdx] = useState<number | null>(null);
@@ -557,8 +564,8 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
                             key={q.id || i}
                             onClick={() => scrollToQuestion(i)}
                             className={`
-                                w-8 h-8 rounded-full text-[10px] font-bold flex items-center justify-center transition-all shrink-0
-                                ${activeIdx === i ? 'bg-blue-600 text-white shadow-md scale-110' : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600'}
+                                w-8 h-8 rounded-full text-[10px] font-bold flex items-center justify-center transition-all shrink-0 active:scale-95
+                                ${activeIdx === i ? 'bg-blue-600 text-white shadow-md scale-110' : 'bg-slate-100 text-slate-400 hover:bg-blue-500 hover:text-white'}
                             `}
                             title={`Ir para questão ${i + 1}`}
                         >
@@ -655,10 +662,18 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
                                                 {idx + 1}.
                                             </span>
 
-                                            {hasWarning && (
-                                                <div className="absolute -right-6 top-2 text-amber-500 animate-pulse no-print" title="Alerta de Auditoria">
-                                                    <ShieldAlert size={16} />
-                                                </div>
+                                            {q.adaptation_justification && q.adaptation_justification.trim() && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActiveIdx(idx);
+                                                        setSidebarOpen(true);
+                                                    }}
+                                                    className="absolute -right-10 top-2 p-2 bg-purple-500 border border-purple-400 rounded-full shadow-sm hover:bg-purple-600 hover:border-purple-500 transition-all duration-200 text-white no-print group"
+                                                    title="Ver explicações da IA sobre esta adaptação"
+                                                >
+                                                    <Brain size={16} className="group-hover:scale-110 transition-transform" />
+                                                </button>
                                             )}
 
                                             {/* Conteúdo Editável */}
@@ -740,9 +755,17 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
                                             <History className="text-blue-500" size={14} /> Questão original
                                         </h3>
                                         <div className="bg-slate-50 rounded-lg p-3 border-l-2 border-blue-400 text-xs text-slate-600 italic">"{state.data.questions[activeIdx].original_excerpt}"</div>
-                                        <button className="mt-2 text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1 uppercase tracking-wide" onClick={() => dispatch({ type: 'UPDATE_QUESTION', payload: { index: activeIdx, field: 'adapted_content', value: state.data.questions[activeIdx].original_excerpt } })}>
-                                            <RotateCcw size={10} /> Usar versão original
-                                        </button>
+                                        <div className="mt-2 flex gap-2">
+                                            {state.data.questions[activeIdx].adapted_content === state.data.questions[activeIdx].original_excerpt ? (
+                                                <button className="text-[10px] font-bold text-green-600 hover:underline flex items-center gap-1 uppercase tracking-wide" onClick={() => dispatch({ type: 'UPDATE_QUESTION', payload: { index: activeIdx, field: 'adapted_content', value: state.originalAdaptedContents[activeIdx] } })}>
+                                                    <RotateCw size={10} /> Voltar à versão adaptada
+                                                </button>
+                                            ) : (
+                                                <button className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1 uppercase tracking-wide" onClick={() => dispatch({ type: 'UPDATE_QUESTION', payload: { index: activeIdx, field: 'adapted_content', value: state.data.questions[activeIdx].original_excerpt } })}>
+                                                    <RotateCcw size={10} /> Usar versão original
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
