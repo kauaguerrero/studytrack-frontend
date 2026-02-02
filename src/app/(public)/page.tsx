@@ -14,7 +14,8 @@ import {
   Clock,
   ChevronDown,
   Menu,
-  X
+  X,
+  School
 } from 'lucide-react';
 
 // --- CSS CUSTOMIZADO ---
@@ -51,20 +52,20 @@ export default function Home() {
   // Conteúdo do FAQ
   const faqItems = [
     {
-      question: "A IA seleciona o conteúdo sozinha?",
-      answer: "Sim! Nossa IA analisa seu cronograma diário e busca automaticamente os melhores vídeos e materiais educacionais na internet (como YouTube) que se encaixam perfeitamente no seu tópico de estudo, economizando horas de pesquisa."
+      question: "Como o StudyTrack trabalha junto com minha escola?",
+      answer: "O StudyTrack é um complemento ao trabalho da sua escola e professores. Organizamos seu estudo pessoal, indicamos conteúdos que reforçam o que você aprende em aula e adaptamos seu ritmo de aprendizado, sempre respeitando o calendário escolar."
     },
     {
       question: "Funciona se eu não tiver computador?",
-      answer: "Com certeza. O StudyTrack foi desenhado para funcionar perfeitamente no seu celular via WhatsApp e navegador mobile. Você recebe suas tarefas e acessa o conteúdo onde estiver."
+      answer: "Com certeza. O StudyTrack foi desenvolvido para funcionar perfeitamente no seu celular via WhatsApp e navegador mobile. Você recebe suas orientações e acessa o conteúdo onde estiver, facilitando seus estudos diários."
     },
     {
-      question: "Posso cancelar se não gostar?",
-      answer: "Sem letras miúdas. Você pode cancelar sua assinatura a qualquer momento diretamente pelo painel do usuário. Se estiver no período de teste de 3 dias, não haverá cobrança alguma."
+      question: "Posso cancelar se não estiver ajudando?",
+      answer: "Claro! Você pode cancelar sua assinatura a qualquer momento diretamente pelo painel do usuário. Se estiver no período de teste de 3 dias, não haverá cobrança alguma. Queremos que você só continue se estiver sendo útil."
     },
     {
-      question: "O cronograma serve para Medicina?",
-      answer: "Sim. Nosso algoritmo adapta a intensidade e os tópicos baseados no seu objetivo. Para cursos de alta concorrência como Medicina, o cronograma foca em consolidar a base e aprofundar em matérias específicas com maior peso."
+      question: "Funciona para diferentes tipos de vestibulares?",
+      answer: "Sim. Nosso sistema adapta a intensidade e os tópicos baseados no seu objetivo. Para cursos concorridos como Medicina, priorizamos a consolidação da base e aprofundamento em matérias específicas, sempre trabalhando em harmonia com seu plano de estudos escolar."
     }
   ];
 
@@ -77,13 +78,23 @@ export default function Home() {
 
   // Simulação do Chat
   useEffect(() => {
-    const timers = [
-      setTimeout(() => setChatStep(1), 1000), // User msg
-      setTimeout(() => setChatStep(2), 2500), // AI Typing
-      setTimeout(() => setChatStep(3), 4000), // AI Response
-      setTimeout(() => setChatStep(4), 5500), // Material Card
-    ];
-    return () => timers.forEach(clearTimeout);
+    let step = 1;
+    const timer1 = setTimeout(() => {
+      setChatStep(1);
+      const timer2 = setTimeout(() => {
+        setChatStep(2);
+        const timer3 = setTimeout(() => {
+          setChatStep(3);
+          const timer4 = setTimeout(() => {
+            setChatStep(4);
+          }, 1500);
+        }, 1500);
+      }, 1500);
+    }, 1000);
+
+    return () => {
+      clearTimeout(timer1);
+    };
   }, []);
 
   return (
@@ -168,25 +179,25 @@ export default function Home() {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                   </span>
-                  Lançamento Exclusivo: Experimente Grátis por 3 Dias!
+                  Seu Companheiro de Estudos – Teste Grátis por 3 Dias!
                 </div>
                 
                 <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight text-slate-900 mb-6 leading-[1.1]">
-                  Seu mentor de estudos <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-violet-600">injustamente</span> inteligente.
+                  Seu guia pessoal para a <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-violet-600">aprovação</span>.
                 </h1>
                 
                 <p className="text-lg md:text-xl text-slate-600 mb-10 leading-relaxed max-w-xl mx-auto lg:mx-0">
-                  O StudyTrack substitui cursinhos caros por uma IA que vive no seu WhatsApp. Cronogramas que se adaptam à sua preguiça e curadoria de conteúdo personalizada.
+                  O StudyTrack caminha ao seu lado na jornada de estudos. Junto com sua escola e professores, organizamos seu aprendizado, adaptamos seu ritmo e te guiamos rumo à aprovação dos seus sonhos.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                   <a href="/auth/register?plan=free" className="px-8 py-4 rounded-2xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 transform hover:-translate-y-1 hover:shadow-2xl ring-4 ring-blue-600/10">
-                    Criar Conta Grátis
+                    Começar Minha Jornada
                     <Zap className="w-5 h-5 fill-current" />
                   </a>
                   <a href="#recursos" className="px-8 py-4 rounded-2xl bg-white border border-slate-200 text-slate-700 font-semibold text-lg hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2">
                     <TrendingUp className="w-5 h-5" />
-                    Ver Resultados
+                    Como Funciona
                   </a>
                 </div>
               </div>
@@ -211,7 +222,7 @@ export default function Home() {
                       {/* Chat Simulation Steps */}
                       <div className={`transition-all duration-500 transform ${chatStep >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                         <div className="bg-[#E7FFDB] p-3 rounded-lg rounded-tr-none shadow-sm max-w-[85%] ml-auto text-slate-800 text-sm">
-                          <p>Terminei o simulado de Matemática. Acertei 25/45 😕 O que eu faço?</p>
+                          <p>Terminei a aula de Matemática. Entendi quase tudo, mas Geometria ainda é desafiadora 😊 O que eu faço?</p>
                           <div className="flex justify-end gap-1 mt-1 text-[10px] text-slate-500">
                             <span>10:42</span> <CheckCircle className="w-3 h-3 text-blue-500" />
                           </div>
@@ -232,8 +243,8 @@ export default function Home() {
                           <div className="bg-white p-3 rounded-lg rounded-tl-none shadow-sm max-w-[90%] mr-auto text-slate-800 text-sm relative group cursor-pointer hover:scale-[1.02] transition-transform">
                           <div className="absolute -left-2 top-0 w-2 h-2 bg-white transform skew-x-[20deg]"></div>
                           <p className="font-bold text-xs text-orange-600 mb-1">Análise de Desempenho</p>
-                          <p>Não desanime! 📊 Identifiquei que 70% dos seus erros foram em <strong>Geometria Analítica</strong>.</p>
-                          <p className="mt-2">Não adianta fazer outro simulado agora. Vamos corrigir a base primeiro.</p>
+                          <p>Que bom que você está acompanhando as aulas! 📚 Vamos reforçar a Geometria juntos.</p>
+                          <p className="mt-2">Identifiquei que você tem facilidade com os conceitos básicos. Vamos focar nos pontos específicos que precisam de atenção.</p>
                           <span className="absolute bottom-1 right-2 text-[10px] text-slate-400">10:42</span>
                         </div>
                       </div>
@@ -269,12 +280,48 @@ export default function Home() {
           </div>
         </section>
 
+        {/* --- SEÇÃO COLABORATIVA --- */}
+        <section className="py-20 bg-white">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6">Estudamos <span className="text-blue-600">juntos</span>, não sozinhos.</h2>
+              <p className="text-lg text-slate-600 max-w-3xl mx-auto">O StudyTrack trabalha em parceria com sua escola, professores e família para criar um ambiente de aprendizado colaborativo e eficaz.</p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-8">
+              <div className="text-center group">
+                <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-blue-200 transition-colors">
+                  <School className="w-8 h-8 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">Com Sua Escola</h3>
+                <p className="text-slate-600">Respeitamos o calendário escolar e complementamos o trabalho dos professores com tecnologia inteligente.</p>
+              </div>
+
+              <div className="text-center group">
+                <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-green-200 transition-colors">
+                  <Brain className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">Com Você</h3>
+                <p className="text-slate-600">Adaptamos seu ritmo de aprendizado, respeitamos sua rotina e celebramos cada progresso conquistado.</p>
+              </div>
+
+              <div className="text-center group">
+                <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-purple-200 transition-colors">
+                  <TrendingUp className="w-8 h-8 text-purple-600" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">Para Seu Futuro</h3>
+                <p className="text-slate-600">Guiamos você rumo à aprovação dos seus sonhos, transformando esforço em conquistas reais.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* --- RECURSOS (MANTIDO) --- */}
         <section id="recursos" className="py-24 bg-slate-50 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16 max-w-3xl mx-auto">
-              <h2 className="text-3xl md:text-5xl font-bold text-slate-900 mb-6">Estudar sozinho é difícil.<br/>Com o StudyTrack, é <span className="text-blue-600">injusto</span>.</h2>
-              <p className="text-lg text-slate-600">O StudyTrack não é apenas um chatbot. É um sistema completo de engenharia pedagógica rodando no seu bolso.</p>
+              <h2 className="text-3xl md:text-5xl font-bold text-slate-900 mb-6">Estudar sozinho é desafiador.<br/>Com o StudyTrack, você tem um <span className="text-blue-600">companheiro</span>.</h2>
+              <p className="text-lg text-slate-600">O StudyTrack trabalha junto com sua escola e professores, potencializando seu aprendizado através de tecnologia inteligente e suporte personalizado.</p>
             </div>
             <div className="grid md:grid-cols-3 gap-8">
               {/* Feature 1 */}
@@ -284,8 +331,8 @@ export default function Home() {
                   <div className="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-600/20">
                     <TrendingUp className="w-7 h-7" />
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Curadoria IA</h3>
-                  <p className="text-slate-600 mb-4">O sistema encontra os melhores vídeos do YouTube para cada tópico do seu dia, poupando horas de busca.</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Curadoria Inteligente</h3>
+                  <p className="text-slate-600 mb-4">Encontramos os melhores conteúdos educacionais para complementar suas aulas, trabalhando em harmonia com o plano de estudos da sua escola.</p>
                 </div>
               </div>
               {/* Feature 2 */}
@@ -295,8 +342,8 @@ export default function Home() {
                   <div className="w-14 h-14 bg-purple-600 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-purple-600/20">
                     <Clock className="w-7 h-7" />
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Cronograma Líquido</h3>
-                  <p className="text-slate-600 mb-4">Ficou doente? Saiu para uma festa? O sistema recalcula automaticamente sua rota de estudos.</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Cronograma Adaptativo</h3>
+                  <p className="text-slate-600 mb-4">Seu plano de estudos se ajusta à sua rotina real, respeitando os prazos da escola e se adaptando aos seus ritmos de aprendizado.</p>
                 </div>
               </div>
               {/* Feature 3 */}
@@ -306,8 +353,8 @@ export default function Home() {
                   <div className="w-14 h-14 bg-orange-500 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-orange-500/20">
                     <Zap className="w-7 h-7" />
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Gamificação Real</h3>
-                  <p className="text-slate-600 mb-4">Mantenha sua sequência (streak) e ganhe benefícios, descontos e aprendizado.</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Suporte Motivacional</h3>
+                  <p className="text-slate-600 mb-4">Acompanhe seu progresso, mantenha sua motivação e celebre cada conquista no caminho para sua aprovação.</p>
                 </div>
               </div>
             </div>
@@ -323,7 +370,7 @@ export default function Home() {
 
           <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-5xl font-bold mb-6">Sua aprovação custa menos<br/>que um lanche.</h2>
+              <h2 className="text-3xl md:text-5xl font-bold mb-6">Invista no seu futuro<br/>com quem caminha ao seu lado.</h2>
             </div>
 
             <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
@@ -332,7 +379,7 @@ export default function Home() {
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide">Degustação</div>
                 <h3 className="text-lg font-medium text-slate-400">Trial 72h</h3>
                 <div className="my-4"><span className="text-4xl font-bold text-white">Grátis</span></div>
-                <p className="text-sm text-slate-400 mb-6 flex-1">Acesso total por 3 dias para viciar na metodologia.</p>
+                <p className="text-sm text-slate-400 mb-6 flex-1">Experimente gratuitamente como podemos te ajudar nos estudos.</p>
                 
                 <div className="mt-auto">
                     <a href="/auth/register?plan=free" className="block w-full py-3 rounded-xl border border-slate-600 hover:bg-slate-700 text-center font-semibold transition-all">Testar Agora</a>
@@ -350,7 +397,7 @@ export default function Home() {
                     <span className="text-4xl font-bold text-white">R$ 14,90</span>
                     <span className="text-xs text-slate-400 mb-1">/mês</span>
                 </div>
-                <p className="text-sm text-slate-400 mb-6 flex-1">Para quem estuda em ritmo leve.</p>
+                <p className="text-sm text-slate-400 mb-6 flex-1">Suporte essencial para acompanhar seus estudos diários.</p>
                 
                 <div className="mt-auto">
                     <a href="/auth/register?plan=basic" className="block w-full py-3 rounded-xl bg-slate-700 text-white hover:bg-slate-600 text-center font-semibold transition-all border border-slate-600">Assinar Básico</a>
@@ -371,10 +418,10 @@ export default function Home() {
                     <span className="text-5xl font-bold text-white">R$ 29,90</span>
                     <span className="text-sm text-blue-200 mb-2">/mês</span>
                 </div>
-                <p className="text-sm text-blue-100 mb-8 opacity-90 flex-1">A máquina completa de estudos. Sem limites.</p>
+                <p className="text-sm text-blue-100 mb-8 opacity-90 flex-1">Acompanhamento completo e personalizado para sua aprovação.</p>
                 
                 <div className="mt-auto">
-                    <a href="/auth/register?plan=pro" className="block w-full py-4 rounded-xl bg-white text-blue-700 text-center font-bold hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">Quero Ser Aprovado</a>
+                    <a href="/auth/register?plan=pro" className="block w-full py-4 rounded-xl bg-white text-blue-700 text-center font-bold hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">Caminhar Junto Comigo</a>
                     
                     <div className="mt-8 space-y-4 text-sm text-white font-medium">
                     <div className="flex gap-3 items-center">
@@ -401,7 +448,7 @@ export default function Home() {
                     <span className="text-4xl font-bold text-white">R$ 49,90</span>
                     <span className="text-xs text-slate-400 mb-1">/mês</span>
                 </div>
-                <p className="text-sm text-slate-400 mb-6 flex-1">O plano definitivo para garantir nota 1000.</p>
+                <p className="text-sm text-slate-400 mb-6 flex-1">Acompanhamento premium com correção especializada de redações.</p>
                 
                 <div className="mt-auto">
                     <a href="/auth/register?plan=elite" className="block w-full py-3 rounded-xl border border-violet-500 text-violet-300 hover:bg-violet-600 hover:text-white text-center font-semibold transition-all">Assinar Elite</a>
