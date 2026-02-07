@@ -25,7 +25,7 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
 
   useEffect(() => {
     let isMounted = true;
-    
+
     async function fetchJob() {
       try {
         const { data, error } = await supabase
@@ -38,7 +38,7 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
 
         if (error) throw error;
         if (!data) throw new Error("Documento não localizado no servidor seguro.");
-        
+
         setJob(data);
       } catch (err: any) {
         console.error("Critical Error Fetching Job:", err);
@@ -47,10 +47,31 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
         if (isMounted) setLoading(false);
       }
     }
-    
+
     if (id) fetchJob();
     return () => { isMounted = false; };
   }, [id]);
+
+  // Polling quando o job está em processamento (fluxo assíncrono)
+  useEffect(() => {
+    if (!id || !job || job.adaptation_status !== 'processing') return;
+
+    const interval = setInterval(async () => {
+      const { data, error } = await supabase
+        .from('adapted_exams')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error || !data) return;
+      setJob(data);
+      if (data.adaptation_status !== 'processing') {
+        clearInterval(interval);
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [id, job?.adaptation_status]);
 
   // --- INDUSTRIAL LOADER STATE ---
   if (loading) {
@@ -72,6 +93,50 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
               <p className="text-xs text-slate-500 font-mono">Sincronizando estado da auditoria...</p>
            </div>
         </div>
+      </div>
+    );
+  }
+
+  // --- PROCESSANDO (job assíncrono) ---
+  if (job.adaptation_status === 'processing') {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] bg-slate-50">
+        <div className="flex flex-col items-center space-y-6 animate-in fade-in duration-500">
+          <div className="h-20 w-20 rounded-2xl bg-white shadow-xl border border-slate-200 flex items-center justify-center">
+            <RefreshCcw className="animate-spin text-blue-600" size={32} />
+          </div>
+          <div className="text-center space-y-1">
+            <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-widest">Processando sua prova</h3>
+            <p className="text-xs text-slate-500">A adaptação está sendo gerada. Esta página atualiza automaticamente.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- JOB FALHOU ---
+  if (job.adaptation_status === 'failed') {
+    const err = (job.final_json_data as any)?.error ?? 'Processamento falhou.';
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] bg-red-50/30 p-6">
+        <div className="bg-white p-8 rounded-2xl shadow-xl border border-red-100 max-w-md text-center">
+          <AlertOctagon className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-lg font-bold text-slate-900 mb-2">Adaptação falhou</h2>
+          <p className="text-sm text-slate-600 mb-6">{err}</p>
+          <button onClick={() => router.back()} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-black">
+            Voltar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- SEM DADOS PARA EDITOR (review_required/completed mas sem final_json_data) ---
+  if (!job.final_json_data?.questions?.length) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] bg-slate-50">
+        <p className="text-sm text-slate-500">Carregando questões...</p>
+        <RefreshCcw className="animate-spin text-slate-400 mt-4" size={24} />
       </div>
     );
   }
@@ -122,6 +187,7 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
       <div className="relative z-10 flex-1 flex flex-col h-full">
           <AdaptationEditor 
             jobId={job.id} 
+            studentId={job.student_id ?? undefined}
             initialData={{
               ...(job.final_json_data as any),
               metadata: {

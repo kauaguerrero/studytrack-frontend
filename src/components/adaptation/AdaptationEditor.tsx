@@ -9,7 +9,7 @@ import {
     AlertCircle, X, Maximize2, Minimize2, Settings2,
     Bold, Italic, AlignLeft, AlignCenter, AlignRight, ZoomIn, ZoomOut,
     ChevronLeft, FileText, Printer, Layout, Sparkles, History,
-    ShieldAlert, Loader2, Palette, ListOrdered, GraduationCap, AlertTriangle, Brain
+    ShieldAlert, Loader2, Palette, ListOrdered, GraduationCap, AlertTriangle, Brain, Star, Send
 } from 'lucide-react';
 
 // ============================================================================
@@ -261,9 +261,10 @@ interface EditorProps {
     initialData: AdaptedExamData;
     status: string;
     filename: string;
+    studentId?: string;
 }
 
-export function AdaptationEditor({ jobId, initialData, status, filename }: EditorProps) {
+export function AdaptationEditor({ jobId, initialData, status, filename, studentId }: EditorProps) {
     const supabase = createClient();
     const router = useRouter();
 
@@ -290,6 +291,10 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
     const [zoom, setZoom] = useState(100);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [toast, setToast] = useState<{ msg: string, type: 'success' | 'error' } | null>(null);
+    const [feedbackRating, setFeedbackRating] = useState<number>(0);
+    const [feedbackNotes, setFeedbackNotes] = useState('');
+    const [feedbackSending, setFeedbackSending] = useState(false);
+    const [feedbackSent, setFeedbackSent] = useState(false);
 
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -343,6 +348,34 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
         setToast({ msg, type });
         setTimeout(() => setToast(null), 3000);
     };
+
+    const submitFeedback = useCallback(async () => {
+        if (!studentId || feedbackRating < 1 || feedbackSending || feedbackSent) return;
+        setFeedbackSending(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) { showToast('Faça login para enviar feedback.', 'error'); setFeedbackSending(false); return; }
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/enterprise/inclusion/feedback`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    success_rating: feedbackRating,
+                    teacher_notes: feedbackNotes.trim() || undefined,
+                    job_id: jobId,
+                    question_index: activeIdx ?? 0,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Erro ao enviar');
+            setFeedbackSent(true);
+            showToast('Feedback enviado com sucesso!', 'success');
+        } catch (e: any) {
+            showToast(e.message || 'Falha ao enviar feedback.', 'error');
+        } finally {
+            setFeedbackSending(false);
+        }
+    }, [studentId, feedbackRating, feedbackNotes, feedbackSending, feedbackSent, jobId, activeIdx, supabase]);
 
     // --- PROFESSIONAL PRINT ENGINE ---
     const handlePrintPDF = async () => {
@@ -789,6 +822,32 @@ export function AdaptationEditor({ jobId, initialData, status, filename }: Edito
                                             {state.data.metadata.applied_conditions?.map((c, i) => <span key={i} className="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full border border-slate-200">{c}</span>)}
                                         </div>
                                     </div>
+
+                                    {studentId && (
+                                        <div className="pt-6 border-t border-slate-200">
+                                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                                                <GraduationCap size={14} /> Feedback sobre esta adaptação
+                                            </h4>
+                                            {feedbackSent ? (
+                                                <p className="text-xs text-emerald-600 font-medium flex items-center gap-2"><CheckCircle2 size={14} /> Enviado.</p>
+                                            ) : (
+                                                <>
+                                                    <div className="flex gap-1 mb-3">
+                                                        {[1, 2, 3, 4, 5].map((n) => (
+                                                            <button key={n} type="button" onClick={() => setFeedbackRating(n)} className="p-1 rounded hover:bg-amber-50" title={`${n} estrela(s)`}>
+                                                                <Star size={20} className={feedbackRating >= n ? 'fill-amber-400 text-amber-400' : 'text-slate-300'} />
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <textarea placeholder="Observações (opcional)" value={feedbackNotes} onChange={(e) => setFeedbackNotes(e.target.value)} className="w-full text-xs border border-slate-200 rounded-lg p-2 resize-none h-16 mb-2" />
+                                                    <button type="button" onClick={submitFeedback} disabled={feedbackRating < 1 || feedbackSending} className="w-full py-2 rounded-lg bg-slate-900 text-white text-xs font-bold flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-black transition-colors">
+                                                        {feedbackSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                                                        {feedbackSending ? 'Enviando...' : 'Enviar feedback'}
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

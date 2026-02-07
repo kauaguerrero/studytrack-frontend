@@ -33,7 +33,7 @@ export interface AdaptationJob {
   id: string;
   original_filename: string;
   student_id?: string;
-  adaptation_status: 'processing' | 'review_required' | 'completed' | 'error';
-  final_json_data: AdaptedExamData;
+  adaptation_status: 'processing' | 'review_required' | 'completed' | 'failed' | 'error';
+  final_json_data?: AdaptedExamData | null;
   created_at: string;
 }

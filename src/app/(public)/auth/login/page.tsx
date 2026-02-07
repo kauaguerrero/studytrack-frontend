@@ -44,14 +44,31 @@ function LoginForm() {
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
       });
 
       if (error) throw error;
 
-      router.push('/portal');
+      // Redirecionar por role para evitar parar em /portal e melhorar UX (ex.: secretariat → /portal/secretariat)
+      const userId = authData?.user?.id;
+      const { data: profile } = userId
+        ? await supabase.from('profiles').select('role').eq('id', userId).single()
+        : { data: null };
+      const role = profile?.role ?? null;
+      const roleToPath: Record<string, string> = {
+        teacher: '/portal/teacher',
+        manager: '/portal/manager',
+        admin: '/portal/manager',
+        secretariat: '/portal/secretariat',
+        student: '/portal/student/dashboard',
+      };
+      const target = role && roleToPath[role] ? roleToPath[role] : '/portal';
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/d98e8a81-19bf-449a-a82a-80e8da19381f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'auth/login/page.tsx:post-login', message: 'Redirect after login', data: { role, target }, timestamp: Date.now(), hypothesisId: 'H1' }) }).catch(() => {});
+      // #endregion
+      router.push(target);
       router.refresh();
     } catch (err: any) {
       // Mensagem de erro mais amigável
