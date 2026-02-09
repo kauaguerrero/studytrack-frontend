@@ -53,9 +53,24 @@ export default function SecretariatDashboard() {
   useEffect(() => {
     async function fetchJobs() {
         try {
+            // Buscar school_id do usuário logado
+            const { data: userProfile } = await supabase
+                .from('profiles')
+                .select('school_id')
+                .eq('id', (await supabase.auth.getUser()).data.user?.id)
+                .single();
+
+            if (!userProfile?.school_id) {
+                console.error('Usuário sem school_id vinculado');
+                setLoading(false);
+                return;
+            }
+
+            // Buscar apenas provas da escola do usuário
             const { data, error } = await supabase
                 .from('adapted_exams')
                 .select('*, schools(name)')
+                .eq('school_id', userProfile.school_id)
                 .order('created_at', { ascending: false })
                 .limit(20);
 

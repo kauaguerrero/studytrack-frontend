@@ -84,20 +84,15 @@ export async function updateSession(request: NextRequest) {
 
     // Role Check
     let currentRole: UserRole = user.user_metadata?.role || 'student';
-    console.log('🛡️ Middleware - Path:', path);
-    console.log('🛡️ Middleware - Initial role (metadata):', currentRole);
 
     if (path.startsWith('/portal/manager') || path.startsWith('/portal/teacher') || path.startsWith('/portal/secretariat')) {
-        // Busca rápida (pode otimizar cacheando isso em cookie futuramente)
-        const { data: profile, error: profileError } = await supabase
+        // Busca rápida (RLS agora funciona sem recursão)
+        const { data: profile } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', user.id)
           .single();
-        console.log('🛡️ Middleware - Profile from DB:', profile);
-        console.log('🛡️ Middleware - Profile error:', profileError);
         if (profile?.role) currentRole = profile.role as UserRole;
-        console.log('🛡️ Middleware - Final role:', currentRole);
     }
 
     // Redirecionamentos de Role
