@@ -26,9 +26,10 @@ export default function SecretariatSchoolValidation() {
 
             console.log("Buscando código:", codeToSearch); // Debug
 
+            // Importante: Também selecionar o organization_id vinculado à escola
             const { data: school, error: schoolError } = await supabase
                 .from('schools')
-                .select('id, name')
+                .select('id, name, organization_id')
                 .ilike('invite_code', codeToSearch)
                 .single();
 
@@ -43,12 +44,15 @@ export default function SecretariatSchoolValidation() {
                 return;
             }
 
-            // Atualiza role e school_id
+            // Agora também atualiza o organization_id no perfil
             const { error: updateError } = await supabase
                 .from('profiles')
                 .update({
                     school_id: school.id,
-                    role: 'secretariat'
+                    role: 'secretariat',
+                    organization_id: school.organization_id,
+                    onboarding_completed: true,
+                    handshake_completed: true,
                 })
                 .eq('id', user.id);
 

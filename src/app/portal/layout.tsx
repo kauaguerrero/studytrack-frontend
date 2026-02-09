@@ -12,15 +12,41 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     redirect('/auth/login');
   }
 
-  // Busca do Banco para saber qual Sidebar mostrar
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, full_name')
-    .eq('id', user.id)
-    .single();
-
-  const role = (profile?.role as UserRole) || (user.user_metadata?.role as UserRole) || 'student';
-  const fullName = profile?.full_name || user.user_metadata?.full_name || 'Usuário';
+  // BYPASS RLS: Usar API backend que tem service role
+  let role: UserRole = 'student';
+  let fullName = 'Usuário';
+  
+  try {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    
+    if (token) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout
+      
+      const res = await fetch(`${apiUrl}/api/auth/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+        cache: 'no-store'
+      }).catch(() => null);
+      
+      clearTimeout(timeoutId);
+      
+      if (res?.ok) {
+        const data = await res.json();
+        role = (data.role as UserRole) || 'student';
+        fullName = data.full_name || 'Usuário';
+      }
+    }
+  } catch (error) {
+    console.error('⚠️ Portal Layout - Erro ao buscar profile:', error);
+  }
+  
+  // Fallback: usar user_metadata
+  if (!fullName || fullName === 'Usuário') {
+    fullName = user.user_metadata?.full_name || 'Usuário';
+  }
+  
   const avatarUrl = user.user_metadata?.avatar_url;
 
   return (

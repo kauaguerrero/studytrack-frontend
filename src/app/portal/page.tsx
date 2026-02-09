@@ -9,30 +9,44 @@ export default async function PortalRedirect() {
     redirect('/auth/login');
   }
 
-  // Consulta o papel real no banco
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  const role = profile?.role || user.user_metadata?.role || 'student';
+  // Usa backend para buscar role (bypassa RLS)
+  let role = 'student';
+  
+  try {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    
+    if (token) {
+      const res = await fetch(`${apiUrl}/api/auth/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store'
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        role = data.role || 'student';
+      }
+    }
+  } catch (error) {
+    console.error('Portal redirect - Erro ao buscar role:', error);
+    role = user.user_metadata?.role || 'student';
+  }
 
   // Redireciona para a página inicial de cada papel
   switch (role) {
     case 'teacher':
-      redirect('/portal/teacher'); // Vai para a página do professor
+      redirect('/portal/teacher');
       break;
     case 'manager':
-      redirect('/portal/manager'); // Vai para a página do gestor
+      redirect('/portal/manager');
       break;
     case 'admin':
-      redirect('/portal/manager'); // Vai para a página do gestor
+      redirect('/portal/admin');
       break;
     case 'secretariat':
-      redirect('/portal/secretariat'); // Vai para a página da secretaria
+      redirect('/portal/secretariat');
       break;
     default:
-      redirect('/portal/student/dashboard'); // Vai para a página do aluno
+      redirect('/portal/student/dashboard');
   }
 }

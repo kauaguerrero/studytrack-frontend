@@ -32,6 +32,12 @@ interface PortalSidebarProps {
 
 export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: PortalSidebarProps) {
   const pathname = usePathname();
+  const resolvedRole: UserRole =
+    pathname.startsWith('/portal/secretariat') ? 'secretariat' :
+    pathname.startsWith('/portal/teacher') ? 'teacher' :
+    pathname.startsWith('/portal/manager') ? 'manager' :
+    pathname.startsWith('/portal/student') ? 'student' :
+    role;
 
   if (pathname.includes('/onboarding')) {
     return null;
@@ -92,9 +98,9 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
               Study<span className="text-blue-600">Track</span>
             </h1>
             <div className="flex items-center gap-1.5 mt-1">
-               <span className={`inline-block w-2 h-2 rounded-full ${role === 'student' ? 'bg-green-500' : 'bg-blue-500'}`}></span>
+               <span className={`inline-block w-2 h-2 rounded-full ${resolvedRole === 'student' ? 'bg-green-500' : 'bg-blue-500'}`}></span>
                <span className="text-[11px] font-medium text-slate-500 capitalize leading-none">
-                  {role === 'manager' ? 'Gestão' : role === 'teacher' ? 'Docente' : role === 'secretariat' ? 'Secretaria' : 'Área do Aluno'}
+                 {resolvedRole === 'manager' ? 'Gestão' : resolvedRole === 'teacher' ? 'Docente' : resolvedRole === 'secretariat' ? 'Secretaria' : 'Área do Aluno'}
                </span>
             </div>
           </div>
@@ -105,7 +111,7 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
       <nav className="flex-1 px-4 pb-4 overflow-y-auto custom-scrollbar">
         
         {/* MENU ALUNO */}
-        {role === 'student' && (
+        {resolvedRole === 'student' && (
           <div className="space-y-0.5">
             <SectionTitle>Estudos</SectionTitle>
             <NavItem href="/portal/student/dashboard" icon={LayoutDashboard} label="Dashboard" />
@@ -121,7 +127,7 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
         )}
 
         {/* MENU PROFESSOR */}
-        {role === 'teacher' && (
+        {resolvedRole === 'teacher' && (
           <div className="space-y-0.5">
             <SectionTitle>Sala de Aula</SectionTitle>
             <NavItem href="/portal/teacher" icon={School} label="Minhas Turmas" />
@@ -136,7 +142,7 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
         )}
 
         {/* MENU SECRETARIA (NOVO) */}
-        {role === 'secretariat' && (
+        {resolvedRole === 'secretariat' && (
           <div className="space-y-0.5">
             <SectionTitle>Inclusão & Adaptação</SectionTitle>
             <NavItem href="/portal/secretariat" icon={LayoutDashboard} label="Dashboard" />
@@ -146,7 +152,7 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
         )}
 
         {/* MENU GESTOR */}
-        {role === 'manager' && (
+        {resolvedRole === 'manager' && (
           <div className="space-y-0.5">
             <SectionTitle>Administração</SectionTitle>
             <NavItem href="/portal/manager" icon={BarChart} label="Visão Geral" />

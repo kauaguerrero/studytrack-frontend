@@ -84,29 +84,47 @@ export async function updateSession(request: NextRequest) {
 
     // Role Check
     let currentRole: UserRole = user.user_metadata?.role || 'student';
+    console.log('🛡️ Middleware - Path:', path);
+    console.log('🛡️ Middleware - Initial role (metadata):', currentRole);
 
-    if (path.startsWith('/portal/manager') || path.startsWith('/portal/teacher')) {
+    if (path.startsWith('/portal/manager') || path.startsWith('/portal/teacher') || path.startsWith('/portal/secretariat')) {
         // Busca rápida (pode otimizar cacheando isso em cookie futuramente)
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', user.id)
           .single();
+        console.log('🛡️ Middleware - Profile from DB:', profile);
+        console.log('🛡️ Middleware - Profile error:', profileError);
         if (profile?.role) currentRole = profile.role as UserRole;
+        console.log('🛡️ Middleware - Final role:', currentRole);
     }
 
     // Redirecionamentos de Role
     if (path.startsWith('/portal/teacher')) {
       if (currentRole !== 'teacher' && currentRole !== 'admin') {
-        const dest = currentRole === 'manager' ? '/portal/manager' : '/portal/student/dashboard';
+        const dest = currentRole === 'manager' ? '/portal/manager' 
+                   : currentRole === 'secretariat' ? '/portal/secretariat'
+                   : '/portal/student/dashboard';
         return redirect(new URL(dest, request.url));
       }
     }
 
     if (path.startsWith('/portal/manager')) {
       if (currentRole !== 'manager' && currentRole !== 'admin') {
-         const dest = currentRole === 'teacher' ? '/portal/teacher' : '/portal/student/dashboard';
+         const dest = currentRole === 'teacher' ? '/portal/teacher' 
+                    : currentRole === 'secretariat' ? '/portal/secretariat'
+                    : '/portal/student/dashboard';
          return redirect(new URL(dest, request.url));
+      }
+    }
+
+    if (path.startsWith('/portal/secretariat')) {
+      if (currentRole !== 'secretariat' && currentRole !== 'admin') {
+        const dest = currentRole === 'manager' ? '/portal/manager'
+                   : currentRole === 'teacher' ? '/portal/teacher'
+                   : '/portal/student/dashboard';
+        return redirect(new URL(dest, request.url));
       }
     }
   }

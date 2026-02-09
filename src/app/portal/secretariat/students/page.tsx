@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 
 // --- COMPONENTS ---
 
@@ -163,63 +164,35 @@ export default function StudentsNEEPage() {
   useEffect(() => {
     async function fetchStudents() {
       try {
-        // Buscar organization_id do usuário
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('organization_id')
-          .eq('id', (await supabase.auth.getUser()).data.user?.id)
-          .single();
-
-        if (!profile?.organization_id) return;
-
-        // Primeiro buscar os IDs dos alunos da organização
-        const { data: studentsInOrg, error: studentsError } = await supabase
-          .from('profiles')
-          .select('id, full_name, email')
-          .eq('organization_id', profile.organization_id);
-
-        if (studentsError) {
-          console.error("Error fetching students in org:", studentsError);
-          throw studentsError;
-        }
-
-        const studentIds = studentsInOrg?.map(s => s.id) || [];
-
-        if (studentIds.length === 0) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        if (!accessToken) {
+          toast.error("Sessão expirada. Faça login novamente.");
           setStudents([]);
-          setExamCounts({});
           return;
         }
 
-        // Agora buscar os diagnósticos desses alunos
-        const { data: diagnostics, error } = await supabase
-          .from('student_diagnostics')
-          .select('*')
-          .in('student_id', studentIds)
-          .order('created_at', { ascending: false });
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+        const res = await fetch(`${apiUrl}/api/enterprise/inclusion/nee/students`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
 
-        if (error) {
-          console.error("Error fetching diagnostics:", error);
-          throw error;
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          console.error("Erro ao buscar alunos NEE:", err);
+          toast.error(err?.error || "Falha ao carregar alunos NEE.");
+          setStudents([]);
+          return;
         }
 
-        // Combinar dados dos alunos com os diagnósticos
-        const studentsWithDiagnosticsData = diagnostics?.map(diagnostic => {
-          const studentProfile = studentsInOrg?.find(student => student.id === diagnostic.student_id);
-          return {
-            ...diagnostic,
-            profiles: studentProfile ? {
-              full_name: studentProfile.full_name,
-              email: studentProfile.email
-            } : null
-          };
-        }) || [];
-
+        const data = await res.json();
+        const studentsWithDiagnosticsData = Array.isArray(data?.students) ? data.students : [];
         setStudents(studentsWithDiagnosticsData);
-        setExamCounts({}); // Por enquanto sem contagem até tabela existir
+        setExamCounts({});
 
       } catch (err) {
         console.error("Failed to fetch students", err);
+        toast.error("Erro ao carregar alunos NEE.");
       } finally {
         setLoading(false);
       }
@@ -255,7 +228,7 @@ export default function StudentsNEEPage() {
 
     } catch (err) {
       console.error("Failed to update student", err);
-      alert("Erro ao salvar alterações.");
+      toast.error("Erro ao salvar alterações.");
     }
   };
 

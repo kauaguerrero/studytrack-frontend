@@ -51,12 +51,31 @@ function LoginForm() {
 
       if (error) throw error;
 
-      // Redirecionar por role para evitar parar em /portal e melhorar UX (ex.: secretariat → /portal/secretariat)
-      const userId = authData?.user?.id;
-      const { data: profile } = userId
-        ? await supabase.from('profiles').select('role').eq('id', userId).single()
-        : { data: null };
-      const role = profile?.role ?? null;
+      // Redirecionar por role usando backend (bypassa RLS)
+      const token = authData?.session?.access_token;
+      console.log('🔐 Login - Has token:', !!token);
+      
+      let role: string | null = null;
+      
+      if (token) {
+        try {
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+          const res = await fetch(`${apiUrl}/api/auth/profile`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          
+          if (res.ok) {
+            const data = await res.json();
+            role = data.role;
+            console.log('🔐 Login - Role from backend:', role);
+          } else {
+            console.error('🔐 Login - Backend error:', await res.text());
+          }
+        } catch (err) {
+          console.error('🔐 Login - Fetch error:', err);
+        }
+      }
+      
       const roleToPath: Record<string, string> = {
         teacher: '/portal/teacher',
         manager: '/portal/manager',
@@ -65,6 +84,8 @@ function LoginForm() {
         student: '/portal/student/dashboard',
       };
       const target = role && roleToPath[role] ? roleToPath[role] : '/portal';
+      console.log('🔐 Login - Target path:', target);
+      
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/d98e8a81-19bf-449a-a82a-80e8da19381f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'auth/login/page.tsx:post-login', message: 'Redirect after login', data: { role, target }, timestamp: Date.now(), hypothesisId: 'H1' }) }).catch(() => {});
       // #endregion
