@@ -97,6 +97,33 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
     );
   }
 
+  // --- ERRO OU JOB NÃO ENCONTRADO (narrowing: abaixo job é non-null) ---
+  if (errorMsg || !job) {
+    return (
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] bg-red-50/30 p-6">
+            <div className="bg-white p-12 rounded-3xl shadow-2xl border border-red-100 max-w-lg w-full text-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 to-red-600" />
+                <div className="bg-red-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 ring-8 ring-red-50/50">
+                    <AlertOctagon className="h-12 w-12 text-red-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">Falha de Integridade</h2>
+                <p className="text-slate-500 text-sm mb-8">Não foi possível recuperar o documento solicitado.</p>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-8 text-left">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Error Trace</span>
+                    <code className="text-xs font-mono text-red-600 break-all">{errorMsg}</code>
+                </div>
+                <button 
+                    onClick={() => router.back()}
+                    className="w-full bg-slate-900 hover:bg-black text-white font-medium py-3.5 rounded-xl transition-all shadow-lg shadow-slate-900/20 active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                    <ShieldCheck size={18}/>
+                    Retornar ao Painel Seguro
+                </button>
+            </div>
+        </div>
+    );
+  }
+
   // --- PROCESSANDO (job assíncrono) ---
   if (job.adaptation_status === 'processing') {
     return (
@@ -138,37 +165,6 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
         <p className="text-sm text-slate-500">Carregando questões...</p>
         <RefreshCcw className="animate-spin text-slate-400 mt-4" size={24} />
       </div>
-    );
-  }
-
-  // --- ROBUST ERROR STATE ---
-  if (errorMsg || !job) {
-    return (
-        <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] bg-red-50/30 p-6">
-            <div className="bg-white p-12 rounded-3xl shadow-2xl border border-red-100 max-w-lg w-full text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 to-red-600" />
-                
-                <div className="bg-red-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 ring-8 ring-red-50/50">
-                    <AlertOctagon className="h-12 w-12 text-red-600" />
-                </div>
-                
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">Falha de Integridade</h2>
-                <p className="text-slate-500 text-sm mb-8">Não foi possível recuperar o documento solicitado.</p>
-                
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-8 text-left">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Error Trace</span>
-                    <code className="text-xs font-mono text-red-600 break-all">{errorMsg}</code>
-                </div>
-                
-                <button 
-                    onClick={() => router.back()}
-                    className="w-full bg-slate-900 hover:bg-black text-white font-medium py-3.5 rounded-xl transition-all shadow-lg shadow-slate-900/20 active:scale-[0.98] flex items-center justify-center gap-2"
-                >
-                    <ShieldCheck size={18}/>
-                    Retornar ao Painel Seguro
-                </button>
-            </div>
-        </div>
     );
   }
 
