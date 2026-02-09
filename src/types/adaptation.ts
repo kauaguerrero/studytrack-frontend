@@ -23,10 +23,12 @@ export interface AdaptedQuestion {
 }
 
 export interface AdaptedExamData {
-  summary: string;
+  summary?: string;
   student_name?: string;
   applied_conditions?: string[];
   version?: string;
+  metadata?: Record<string, unknown>;
+  questions?: AdaptedQuestion[];
 }
 
 export interface AdaptationJob {
