@@ -41,9 +41,34 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
-  // 2. Verifica/Renova Token
-  // IMPORTANTE: Isso dispara o setAll se o token mudou
-  const { data: { user } } = await supabase.auth.getUser();
+  // 2. Verifica/Renova Token (ÚNICO ponto de getUser - evita race condition)
+  let user: { id: string; user_metadata?: { role?: string } } | null = null;
+  try {
+    const res = await supabase.auth.getUser();
+    user = res.data?.user ?? null;
+    if (res.error) {
+      const msg = (res.error?.message ?? '').toLowerCase();
+      if (msg.includes('refresh token') || msg.includes('refresh_token')) {
+        await supabase.auth.signOut();
+        user = null;
+      }
+    }
+  } catch (e: unknown) {
+    const err = e as Error;
+    const msg = (err?.message ?? '').toLowerCase();
+    if (msg.includes('refresh token') || msg.includes('refresh_token')) {
+      try { await supabase.auth.signOut(); } catch { /* ignore */ }
+      user = null;
+    }
+  }
+
+  // Passa user.id via header para o layout (evita 2ª chamada getUser → race condition)
+  const requestHeaders = new Headers(request.headers);
+  if (user) requestHeaders.set('x-user-id', user.id);
+  response = NextResponse.next({ request: { headers: requestHeaders } });
+  request.cookies.getAll().forEach((c) => {
+    response.cookies.set(c.name, c.value, { path: '/' });
+  });
 
   // Função auxiliar para redirecionar SEM perder os cookies renovados acima
   const redirect = (url: URL) => {
