@@ -11,6 +11,8 @@ import {
     ChevronLeft, FileText, Printer, Layout, Sparkles, History,
     ShieldAlert, Loader2, Palette, ListOrdered, GraduationCap, AlertTriangle, Brain, Star, Send
 } from 'lucide-react';
+import renderMathInElement from 'katex/dist/contrib/auto-render';
+import 'katex/dist/katex.min.css';
 
 // ============================================================================
 // --- 1. CORE TYPES & INTERFACES
@@ -75,7 +77,20 @@ interface EditorState {
 }
 
 // ============================================================================
-// --- 2. REDUCER LOGIC
+// --- 2. UTILS & PARSERS (A Mágica WYSIWYG)
+// ============================================================================
+
+// Transforma tags de backend em HTML visualizável no Editor.
+const parseBackendTagsToHTML = (htmlString: string): string => {
+    if (!htmlString) return '';
+    return htmlString.replace(/\[\[IMG_REF:(.*?):(AUTO|[\d.]+)\]\]/g, (match, url, ratio) => {
+        const width = ratio === 'AUTO' ? '100%' : `${parseFloat(ratio) * 100}%`;
+        return `<img src="${url}" alt="Imagem de apoio" class="wysiwyg-exam-img" style="max-width: ${width}; height: auto; display: block; margin: 15px auto; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />`;
+    });
+};
+
+// ============================================================================
+// --- 3. REDUCER LOGIC
 // ============================================================================
 
 const MAX_HISTORY = 50;
@@ -83,15 +98,20 @@ const MAX_HISTORY = 50;
 function editorReducer(state: EditorState, action: EditorAction): EditorState {
     switch (action.type) {
         case 'SET_DATA':
-            // Detecta a cor de fundo sugerida pela IA na primeira questão para aplicar ao papel
             const suggestedBg = (action.payload.questions && action.payload.questions.length > 0) 
                 ? action.payload.questions[0].css_style?.backgroundColor 
                 : '#ffffff';
+                
+            const normalizedQuestions = action.payload.questions.map(q => ({
+                ...q,
+                adapted_content: parseBackendTagsToHTML(q.adapted_content)
+            }));
+
             return { 
                 ...state, 
-                data: action.payload, 
+                data: { ...action.payload, questions: normalizedQuestions }, 
                 paperColor: suggestedBg || '#ffffff',
-                originalAdaptedContents: action.payload.questions.map(q => q.adapted_content)
+                originalAdaptedContents: normalizedQuestions.map(q => q.adapted_content)
             };
 
         case 'UPDATE_QUESTION': {
@@ -142,7 +162,7 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 }
 
 // ============================================================================
-// --- 3. UI COMPONENTS
+// --- 4. UI COMPONENTS
 // ============================================================================
 
 const ToolButton = ({ icon: Icon, label, active = false, onClick, disabled = false, shortcut = "" }: any) => (
@@ -177,6 +197,35 @@ const StatusBadge = ({ saving, lastSaved }: { saving: boolean, lastSaved: Date |
         )}
     </div>
 );
+
+// --- COMPONENTE DE VISUALIZAÇÃO COM RENDERIZAÇÃO MATEMÁTICA ---
+const LaTeXViewer = ({ htmlContent, dynamicStyle, className }: { htmlContent: string, dynamicStyle: any, className?: string }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (containerRef.current) {
+            renderMathInElement(containerRef.current, {
+                delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '$', right: '$', display: false },
+                    { left: '\\(', right: '\\)', display: false },
+                    { left: '\\[', right: '\\]', display: true }
+                ],
+                throwOnError: false,
+                errorColor: '#cc0000'
+            });
+        }
+    }, [htmlContent]);
+
+    return (
+        <div
+            ref={containerRef}
+            className={className}
+            style={dynamicStyle}
+            dangerouslySetInnerHTML={{ __html: htmlContent }}
+        />
+    );
+};
 
 // --- COMPONENTE DE EDIÇÃO DE TEXTO RICO ---
 const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) => {
@@ -253,7 +302,7 @@ const AutoResizingTextarea = ({ value, onChange, style, autoFocus, className }: 
 };
 
 // ============================================================================
-// --- 4. MAIN COMPONENT (Professional Print Engine)
+// --- 5. MAIN COMPONENT (Professional Print Engine)
 // ============================================================================
 
 interface EditorProps {
@@ -268,23 +317,29 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
     const supabase = createClient();
     const router = useRouter();
 
-    // Track if the adaptation is still processing
     const isProcessing = !initialData?.questions || initialData.questions.length === 0;
 
-    // Determina cor inicial baseada na IA ou Branco Padrão (SAFE CHECK)
-    const initialBg = (initialData.questions && initialData.questions.length > 0)
-        ? (initialData.questions[0].css_style?.backgroundColor || '#ffffff')
+    const parsedInitialData = useMemo(() => ({
+        ...initialData,
+        questions: initialData.questions?.map(q => ({
+            ...q,
+            adapted_content: parseBackendTagsToHTML(q.adapted_content)
+        })) || []
+    }), [initialData]);
+
+    const initialBg = (parsedInitialData.questions && parsedInitialData.questions.length > 0)
+        ? (parsedInitialData.questions[0].css_style?.backgroundColor || '#ffffff')
         : '#ffffff';
 
     const [state, dispatch] = useReducer(editorReducer, {
-        data: initialData,
+        data: parsedInitialData,
         history: [],
         future: [],
         isSaving: false,
         lastSaved: null,
         isZenMode: false,
         paperColor: initialBg,
-        originalAdaptedContents: initialData.questions.map(q => q.adapted_content)
+        originalAdaptedContents: parsedInitialData.questions.map(q => q.adapted_content)
     });
 
     const [activeIdx, setActiveIdx] = useState<number | null>(null);
@@ -298,10 +353,8 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
 
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // [PERFORMANCE]: Memoiza a lista para evitar re-render em batch grande
     const questionList = useMemo(() => state.data.questions, [state.data.questions]);
 
-    // [NAVIGATION]: Scroll suave
     const scrollToQuestion = (index: number) => {
         const el = document.getElementById(`q-${index}`);
         if (el) {
@@ -313,7 +366,6 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
     const saveData = useCallback(async (manual = false) => {
         dispatch({ type: 'SET_SAVING', payload: true });
         try {
-            // Garante que a cor do papel seja salva no JSON final para persistência
             const dataToSave = {
                 ...state.data,
                 questions: state.data.questions.map(q => ({
@@ -335,7 +387,6 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
         }
     }, [state.data, state.paperColor, jobId, supabase]);
 
-    // Auto-save debounce
     useEffect(() => {
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
         if (state.history.length > 0 || state.paperColor !== initialBg) {
@@ -377,90 +428,44 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
         }
     }, [studentId, feedbackRating, feedbackNotes, feedbackSending, feedbackSent, jobId, activeIdx, supabase]);
 
-    // --- PROFESSIONAL PRINT ENGINE ---
+    // --- PROFESSIONAL PRINT ENGINE DELEGADO AO BACKEND ---
     const handlePrintPDF = async () => {
-        setActiveIdx(null); // Limpa seleção para impressão limpa
+        setActiveIdx(null);
         await new Promise(resolve => setTimeout(resolve, 100));
 
         await saveData();
-        showToast("Gerando PDF Otimizado...", 'success');
+        showToast("Gerando PDF Otimizado no servidor...", 'success');
 
-        const content = document.getElementById('print-area');
-        if (!content) return;
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error("Usuário não autenticado");
 
-        const pri = document.createElement('iframe');
-        pri.style.position = 'absolute';
-        pri.style.top = '-1000px';
-        pri.style.width = '0';
-        pri.style.height = '0';
-        document.body.appendChild(pri);
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/enterprise/inclusion/download/${jobId}`, {
+                method: 'GET',
+                headers: { 'Authorization': `Bearer ${session.access_token}` }
+            });
 
-        const priDoc = pri.contentWindow?.document;
-        if (!priDoc) return;
+            if (!response.ok) throw new Error("Erro na geração do arquivo PDF no servidor.");
 
-        priDoc.open();
-        // INJECTION: CSS Crítico para Impressão
-        priDoc.write(`
-      <html>
-        <head>
-          <title>StudyTrack_Adaptation_${filename}</title> 
-          <style>
-            @page { margin: 0; size: auto; }
-            body { 
-                margin: 0; 
-                padding: 0; 
-                background: white; 
-                -webkit-print-color-adjust: exact !important; 
-                print-color-adjust: exact !important; 
-                font-family: sans-serif; 
-            }
-            #print-wrapper { 
-                width: 100%; 
-                background-color: ${state.paperColor} !important; 
-                min-height: 100vh; 
-                padding: 20mm; 
-                box-sizing: border-box; 
-            }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `StudyTrack_Adaptada_${filename}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
             
-            /* Layout de Questão */
-            .question-block { 
-                page-break-inside: avoid; 
-                break-inside: avoid; 
-                margin-bottom: 20px; 
-                display: block; 
-                position: relative; 
-            }
-            
-            /* Normalização de Tipografia */
-            h1, p, div { color: inherit; margin-top: 0; }
-            p { margin-bottom: 0.5em; } 
-
-            .whitespace-pre-wrap { white-space: pre-wrap; }
-            .no-print, button, .lucide, svg, .editor-ui { display: none !important; }
-          </style>
-        </head>
-        <body>
-          <div id="print-wrapper">
-            ${content.innerHTML}
-          </div>
-        </body>
-      </html>
-    `);
-        priDoc.close();
-
-        setTimeout(() => {
-            pri.contentWindow?.focus();
-            pri.contentWindow?.print();
-            setTimeout(() => { document.body.removeChild(pri); }, 1000);
-        }, 800);
-
-        await supabase.from('adapted_exams').update({ adaptation_status: 'completed' }).eq('id', jobId);
+            showToast("Download concluído com sucesso!", 'success');
+        } catch (error: any) {
+            showToast(error.message || "Falha ao baixar o PDF gerado.", 'error');
+        }
     };
 
     return (
         <div className={`flex flex-col h-full bg-[#F3F4F6] relative transition-all duration-300 ${state.isZenMode ? 'fixed inset-0 z-50' : ''}`}>
 
-            {/* Show skeleton while processing */}
             {isProcessing && (
                 <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex items-center justify-center">
                     <EditorContentSkeleton />
@@ -589,7 +594,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             {/* 3. MAIN WORKSPACE */}
             <div className="flex-1 overflow-hidden flex relative">
                 
-                {/* [NAVIGATION RAIL]: Navegação Rápida (Essencial para 90 questões) */}
+                {/* [NAVIGATION RAIL] */}
                 <div className="w-14 bg-white border-r border-slate-200 flex flex-col items-center py-4 gap-2 overflow-y-auto no-print z-10 hidden sm:flex shrink-0">
                     <div className="text-[10px] font-bold text-slate-300 uppercase mb-2 text-center">Nav</div>
                     {questionList.map((q, i) => (
@@ -627,7 +632,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                             }}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            {/* [HEADER DA PROVA]: Fixo e Estilizado para Impressão */}
+                            {/* [HEADER DA PROVA] */}
                             <div id="exam-header" style={{ borderBottom: '2px solid #1e293b', paddingBottom: '8px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontFamily: 'sans-serif' }}>
                                 <div>
                                     <h1 style={{ fontSize: '30px', fontWeight: '900', textTransform: 'uppercase', color: '#0f172a', margin: 0, lineHeight: 1 }}>Avaliação</h1>
@@ -653,19 +658,18 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                                     const isActive = activeIdx === idx;
                                     const hasWarning = q.adaptation_justification?.includes("⚠️");
 
-                                    // Renderiza estilos dinâmicos vindos da IA
                                     const dynamicStyle = {
                                         fontFamily: q.css_style?.fontFamily || 'Arial',
                                         fontSize: q.css_style?.fontSize || '16px',
                                         fontWeight: q.css_style?.fontWeight || 'normal',
                                         textAlign: q.css_style?.textAlign || 'left',
                                         lineHeight: q.css_style?.lineHeight || '1.5',
-                                        color: q.css_style?.color || 'inherit' // Suporte a contraste
+                                        color: q.css_style?.color || 'inherit'
                                     };
 
                                     return (
                                         <div
-                                            key={q.id || idx} // ID do backend é preferível
+                                            key={q.id || idx}
                                             id={`q-${idx}`}
                                             className={`question-block transition-all duration-150 ${isActive ? 'bg-black/5 border-l-4 border-blue-500' : 'border-l-4 border-transparent hover:border-slate-300'} ${hasWarning ? 'border-l-amber-500 bg-amber-50/10' : ''}`}
                                             style={{ 
@@ -677,7 +681,6 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                                             }}
                                             onClick={(e) => { e.stopPropagation(); setActiveIdx(idx); }}
                                         >
-                                            {/* Número da Questão */}
                                             <span 
                                                 className="select-none transition-colors"
                                                 style={{
@@ -709,7 +712,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                                                 </button>
                                             )}
 
-                                            {/* Conteúdo Editável */}
+                                            {/* Conteúdo Editável / Visualização com KaTeX */}
                                             <div className="p-2">
                                                 {isActive ? (
                                                     <ContentEditable
@@ -720,15 +723,15 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                                                         autoFocus
                                                     />
                                                 ) : (
-                                                    <div
+                                                    <LaTeXViewer 
+                                                        htmlContent={q.adapted_content} 
+                                                        dynamicStyle={dynamicStyle} 
                                                         className="whitespace-pre-wrap"
-                                                        style={dynamicStyle}
-                                                        dangerouslySetInnerHTML={{ __html: q.adapted_content }}
                                                     />
                                                 )}
                                             </div>
 
-                                            {/* Suporte Visual (Só renderiza se existir) */}
+                                            {/* Suporte Visual */}
                                             {q.visual_cues && (
                                                 <div className={`mt-4 flex gap-4 p-4 rounded-lg border border-dashed transition-all ${isActive ? 'border-blue-300 bg-blue-50/50' : 'border-slate-300 bg-black/5'}`}>
                                                     <div className="flex-shrink-0 h-16 w-16 bg-slate-200 rounded flex items-center justify-center text-slate-400 no-print">

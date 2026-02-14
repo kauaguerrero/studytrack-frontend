@@ -24,6 +24,7 @@
     "framer-motion": "^12.23.26",
     "html-to-image": "^1.11.13",
     "jspdf": "^4.0.0",
+    "katex": "^0.16.28",
     "lucide-react": "^0.554.0",
     "manual": "^1.0.2",
     "next": "^16.1.2",
@@ -42,6 +43,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/katex": "^0.16.8",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
