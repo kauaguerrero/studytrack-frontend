@@ -108,7 +108,7 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Role Check
-    let currentRole: UserRole = user.user_metadata?.role || 'student';
+    let currentRole: UserRole = (user.user_metadata?.role || 'student') as UserRole;
 
     if (path.startsWith('/portal/manager') || path.startsWith('/portal/teacher') || path.startsWith('/portal/secretariat')) {
         // Busca rápida (RLS agora funciona sem recursão)
