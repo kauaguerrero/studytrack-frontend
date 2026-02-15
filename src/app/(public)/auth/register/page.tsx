@@ -225,9 +225,9 @@ function RegisterForm() {
   };
 
   return (
-    <div className="w-full max-w-[440px] mx-auto pb-4">
-      <div className="mb-6"> 
-        <h1 className="text-4xl font-extrabold text-slate-900 mb-2 tracking-tight">Crie sua conta 🚀</h1>
+    <div className="w-full max-w-[440px] mx-auto pb-4 min-w-0">
+      <div className="mb-6 min-w-0"> 
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 mb-2 tracking-tight break-words">Crie sua conta 🚀</h1>
         <p className="text-slate-500 text-lg">
           {userType === 'student' 
             ? 'Comece a estudar de forma inteligente.' 
@@ -400,11 +400,11 @@ function RegisterForm() {
 export default function RegisterPage() {
   const router = useRouter();
   return (
-    <div className="min-h-screen w-full flex bg-white font-sans text-slate-900 overflow-hidden">
+    <div className="min-h-screen w-full flex bg-white font-sans text-slate-900 overflow-x-hidden">
       {/* --- LADO ESQUERDO: INTERATIVO --- */}
-      <div className="w-full lg:w-1/2 flex flex-col h-screen relative z-20 bg-white">
+      <div className="w-full lg:w-1/2 flex flex-col h-screen min-h-0 relative z-20 bg-white">
         
-        <div className="flex-none p-6 lg:p-8">
+        <div className="flex-none shrink-0 p-6 lg:p-8">
           <div className="flex items-center gap-0 group cursor-pointer w-fit" onClick={() => router.push('/')}>
              <div className="group-hover:scale-110 transition-transform duration-300 flex items-center justify-center -mr-3">
                <Image 
@@ -422,8 +422,8 @@ export default function RegisterPage() {
              </span>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-8 sm:px-12 lg:px-24">
-          <div className="min-h-full flex flex-col justify-center py-10">
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-8 sm:px-12 lg:px-24">
+          <div className="min-h-full flex flex-col justify-center py-10 min-w-0">
             <Suspense fallback={<div>Carregando...</div>}><RegisterForm /></Suspense>
           </div>
         </div>

@@ -11,7 +11,7 @@ import {
     ChevronLeft, FileText, Printer, Layout, Sparkles, History,
     ShieldAlert, Loader2, Palette, ListOrdered, GraduationCap, AlertTriangle, Brain, Star, Send
 } from 'lucide-react';
-import renderMathInElement from 'katex/dist/contrib/auto-render';
+import renderMathInElement from 'katex/dist/contrib/auto-render.mjs';
 import 'katex/dist/katex.min.css';
 
 // ============================================================================

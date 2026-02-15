@@ -38,7 +38,7 @@ export default async function Dashboard() {
       .single();
 
     if (profileError && profileError.code !== 'PGRST116') throw profileError;
-    if (!profile?.whatsapp_phone) redirect('/onboarding/objetivo');
+    if (!profile?.whatsapp_phone) redirect('/portal/onboarding/objetivo');
 
     // Se tiver telefone mas não confirmou o handshake, manda pra sala de espera
     if (!profile?.handshake_completed) {

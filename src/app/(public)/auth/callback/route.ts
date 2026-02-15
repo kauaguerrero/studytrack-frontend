@@ -32,6 +32,7 @@ function resolveRole(cookieRole: string | undefined, metaRole: string | undefine
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
+  const oauthError = searchParams.get('error')
   const error_description = searchParams.get('error_description')
   const recoveryType = searchParams.get('type') // Detecta se é reset de senha
   
@@ -147,6 +148,6 @@ export async function GET(request: Request) {
     }
   }
 
-  const message = error_description || "Sessão expirada ou inválida. Tente entrar novamente."
+  const message = error_description || oauthError || "Sessão expirada ou inválida. Tente entrar novamente."
   return NextResponse.redirect(`${origin}/auth/login?error=${encodeURIComponent(message)}`)
 }
