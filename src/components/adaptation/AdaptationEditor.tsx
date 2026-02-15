@@ -473,6 +473,11 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             )}
 
             <style jsx global>{`
+        #print-area .whitespace-pre-wrap {
+          white-space: pre-wrap;
+          word-break: break-all;
+          overflow-wrap: break-word;
+        }
         @media print {
           header, aside, .editor-toolbar, button, .no-print { display: none !important; }
           body { background: white !important; padding: 0 !important; margin: 0 !important; }
