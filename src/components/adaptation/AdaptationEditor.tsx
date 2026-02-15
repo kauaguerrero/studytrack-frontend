@@ -11,8 +11,98 @@ import {
     ChevronLeft, FileText, Printer, Layout, Sparkles, History,
     ShieldAlert, Loader2, Palette, ListOrdered, GraduationCap, AlertTriangle, Brain, Star, Send
 } from 'lucide-react';
-import renderMathInElement from 'katex/dist/contrib/auto-render.mjs';
-import 'katex/dist/katex.min.css';
+// Tipo do KaTeX carregado via CDN (evita dependência no build)
+type KatexLib = { render: (expr: string, options?: { displayMode?: boolean; throwOnError?: boolean; errorColor?: string }) => string };
+
+// Auto-render LaTeX no elemento (usa lib passada; KaTeX é carregado via CDN)
+function renderMathInElement(elem: HTMLElement, options: {
+    delimiters?: { left: string; right: string; display: boolean }[];
+    throwOnError?: boolean;
+    errorColor?: string;
+} | undefined, katexLib: KatexLib) {
+    const defaultDelimiters = [
+        { left: '$$', right: '$$', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false },
+        { left: '\\[', right: '\\]', display: true }
+    ];
+    const delimiters = options?.delimiters ?? defaultDelimiters;
+    const throwOnError = options?.throwOnError ?? false;
+    const errorColor = options?.errorColor ?? '#cc0000';
+
+    const ignoredTags = ['script', 'style', 'pre', 'code', 'textarea', 'option'];
+    function walkTextNodes(node: Node, fn: (n: Text) => void) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            fn(node as Text);
+            return;
+        }
+        if (node.nodeType === Node.ELEMENT_NODE) {
+            const tag = (node as Element).tagName.toLowerCase();
+            if (ignoredTags.includes(tag)) return;
+        }
+        const childNodes = Array.from(node.childNodes);
+        childNodes.forEach((c) => walkTextNodes(c, fn));
+    }
+
+    type Segment = { type: 'text'; content: string } | { type: 'math'; content: string; display: boolean };
+    function findSegments(text: string): Segment[] {
+        const segments: Segment[] = [];
+        let remaining = text;
+        while (remaining.length > 0) {
+            let best: { index: number; left: string; right: string; display: boolean; match: string; len: number } | null = null;
+            for (const d of delimiters) {
+                const idx = remaining.indexOf(d.left);
+                if (idx === -1) continue;
+                const afterLeft = remaining.slice(idx + d.left.length);
+                const rightIdx = afterLeft.indexOf(d.right);
+                if (rightIdx === -1) continue;
+                const match = afterLeft.slice(0, rightIdx);
+                const totalLen = d.left.length + match.length + d.right.length;
+                if (best === null || idx < best.index || (idx === best.index && totalLen < best.len)) {
+                    best = { index: idx, left: d.left, right: d.right, display: d.display, match, len: totalLen };
+                }
+            }
+            if (best === null) {
+                segments.push({ type: 'text', content: remaining });
+                break;
+            }
+            if (best.index > 0) segments.push({ type: 'text', content: remaining.slice(0, best.index) });
+            segments.push({ type: 'math', content: best.match, display: best.display });
+            remaining = remaining.slice(best.index + best.len);
+        }
+        return segments;
+    }
+
+    const textNodes: Text[] = [];
+    walkTextNodes(elem, (n) => textNodes.push(n));
+
+    textNodes.forEach((textNode) => {
+        const segments = findSegments(textNode.textContent || '');
+        const hasMath = segments.some((s) => s.type === 'math');
+        if (!hasMath) return;
+
+        const frag = document.createDocumentFragment();
+        for (const seg of segments) {
+            if (seg.type === 'text') {
+                frag.appendChild(document.createTextNode(seg.content));
+            } else {
+                const span = document.createElement('span');
+                try {
+                    span.innerHTML = katexLib.render(seg.content, {
+                        displayMode: seg.display,
+                        throwOnError,
+                        errorColor
+                    });
+                } catch {
+                    span.textContent = seg.content;
+                    span.style.color = errorColor;
+                }
+                frag.appendChild(span);
+            }
+        }
+        textNode.parentNode?.replaceChild(frag, textNode);
+    });
+}
 
 // ============================================================================
 // --- 1. CORE TYPES & INTERFACES
@@ -198,12 +288,48 @@ const StatusBadge = ({ saving, lastSaved }: { saving: boolean, lastSaved: Date |
     </div>
 );
 
+const KATEX_CDN = 'https://cdn.jsdelivr.net/npm/katex@0.16.28/dist';
+
+// Carrega KaTeX via CDN (CSS + script) para não depender do pacote no build
+function useKaTeX(): KatexLib | null {
+    const [katexLib, setKatexLib] = useState<KatexLib | null>(() => (typeof window !== 'undefined' ? (window as unknown as { katex?: KatexLib }).katex ?? null : null));
+
+    useEffect(() => {
+        const win = window as unknown as { katex?: KatexLib };
+        if (win.katex) {
+            setKatexLib(win.katex);
+            return;
+        }
+        if (document.getElementById('katex-styles') == null) {
+            const link = document.createElement('link');
+            link.id = 'katex-styles';
+            link.rel = 'stylesheet';
+            link.href = `${KATEX_CDN}/katex.min.css`;
+            document.head.appendChild(link);
+        }
+        const scriptId = 'katex-script';
+        if (document.getElementById(scriptId)) {
+            if (win.katex) setKatexLib(win.katex);
+            return;
+        }
+        const script = document.createElement('script');
+        script.id = scriptId;
+        script.src = `${KATEX_CDN}/katex.min.js`;
+        script.async = true;
+        script.onload = () => setKatexLib((window as unknown as { katex: KatexLib }).katex);
+        document.head.appendChild(script);
+    }, []);
+
+    return katexLib;
+}
+
 // --- COMPONENTE DE VISUALIZAÇÃO COM RENDERIZAÇÃO MATEMÁTICA ---
 const LaTeXViewer = ({ htmlContent, dynamicStyle, className }: { htmlContent: string, dynamicStyle: any, className?: string }) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const katexLib = useKaTeX();
 
     useEffect(() => {
-        if (containerRef.current) {
+        if (containerRef.current && katexLib) {
             renderMathInElement(containerRef.current, {
                 delimiters: [
                     { left: '$$', right: '$$', display: true },
@@ -213,9 +339,9 @@ const LaTeXViewer = ({ htmlContent, dynamicStyle, className }: { htmlContent: st
                 ],
                 throwOnError: false,
                 errorColor: '#cc0000'
-            });
+            }, katexLib);
         }
-    }, [htmlContent]);
+    }, [htmlContent, katexLib]);
 
     return (
         <div
