@@ -23,12 +23,14 @@ type LibraryBook = {
 export default async function LibraryPage({
   searchParams,
 }: {
-  searchParams: { q?: string; category?: string };
+  searchParams: Promise<{ q?: string; category?: string }>;
 }) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/login");
+
+  const resolved = await searchParams;
 
   // 1. Fetch Profile para o Menu Mobile e Leaderboard
   const { data: profile } = await supabase
@@ -43,13 +45,13 @@ export default async function LibraryPage({
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (searchParams.category && searchParams.category !== 'todos') {
-    query = query.eq("category", searchParams.category);
+  if (resolved.category && resolved.category !== 'todos') {
+    query = query.eq("category", resolved.category);
   }
-  
-  if (searchParams.q) {
+
+  if (resolved.q) {
     // CORREÇÃO DO BUG: Busca no título OU no autor
-    query = query.or(`title.ilike.%${searchParams.q}%,author.ilike.%${searchParams.q}%`);
+    query = query.or(`title.ilike.%${resolved.q}%,author.ilike.%${resolved.q}%`);
   }
 
   const { data: books } = await query;
