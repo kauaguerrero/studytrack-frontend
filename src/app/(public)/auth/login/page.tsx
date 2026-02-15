@@ -67,10 +67,6 @@ function LoginForm() {
         student: '/portal/student/dashboard',
       };
       const target = role && roleToPath[role] ? roleToPath[role] : '/portal';
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/d98e8a81-19bf-449a-a82a-80e8da19381f', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'auth/login/page.tsx:post-login', message: 'Redirect after login', data: { role, target }, timestamp: Date.now(), hypothesisId: 'H1' }) }).catch(() => {});
-      // #endregion
       router.push(target);
       router.refresh();
     } catch (err: any) {
@@ -87,11 +83,12 @@ function LoginForm() {
 
   const handleSocialLogin = async (provider: 'google') => {
     try {
-        setIsLoading(true); // Feedback visual imediato
+        setIsLoading(true);
+        const nextPath = searchParams.get('next') ?? '/portal';
         await supabase.auth.signInWithOAuth({
             provider,
             options: {
-                redirectTo: 'https://studytrack-frontend.vercel.app/auth/callback',
+                redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
                 queryParams: {
                     access_type: 'offline',
                     prompt: 'consent',
