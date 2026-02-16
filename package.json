@@ -23,6 +23,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.26",
     "html-to-image": "^1.11.13",
+    "isomorphic-dompurify": "^3.0.0-rc.2",
     "jspdf": "^4.0.0",
     "katex": "^0.16.28",
     "lucide-react": "^0.554.0",

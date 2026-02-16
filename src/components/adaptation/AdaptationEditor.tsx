@@ -4,6 +4,7 @@ import React, { useReducer, useEffect, useCallback, useRef, useState, useLayoutE
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { EditorContentSkeleton } from './SkeletonLoader';
+import DOMPurify from 'isomorphic-dompurify';  // 🔐 SECURITY: XSS protection
 import {
     CheckCircle2, Image as ImageIcon, RotateCcw, RotateCw,
     AlertCircle, X, Maximize2, Minimize2, Settings2,
@@ -343,12 +344,22 @@ const LaTeXViewer = ({ htmlContent, dynamicStyle, className }: { htmlContent: st
         }
     }, [htmlContent, katexLib]);
 
+    // 🔐 SECURITY: Sanitiza HTML antes de renderizar para prevenir XSS
+    const sanitizedHTML = useMemo(() => {
+        return DOMPurify.sanitize(htmlContent, {
+            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li'],
+            ALLOWED_ATTR: ['class', 'style', 'src', 'alt', 'width', 'height'],
+            FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
+            FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover']
+        });
+    }, [htmlContent]);
+
     return (
         <div
             ref={containerRef}
             className={className}
             style={dynamicStyle}
-            dangerouslySetInnerHTML={{ __html: htmlContent }}
+            dangerouslySetInnerHTML={{ __html: sanitizedHTML }}
         />
     );
 };
@@ -359,9 +370,17 @@ const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) =
     const isFocused = useRef(false);
 
     useLayoutEffect(() => {
-        if (divRef.current && html !== divRef.current.innerHTML) {
+        // 🔐 SECURITY: Sanitiza HTML antes de injetar
+        const sanitized = DOMPurify.sanitize(html, {
+            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div'],
+            ALLOWED_ATTR: ['class', 'style'],
+            FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],
+            FORBID_ATTR: ['onerror', 'onload', 'onclick']
+        });
+        
+        if (divRef.current && sanitized !== divRef.current.innerHTML) {
             if (!isFocused.current) {
-                divRef.current.innerHTML = html;
+                divRef.current.innerHTML = sanitized;
             }
         }
     }, [html]);
