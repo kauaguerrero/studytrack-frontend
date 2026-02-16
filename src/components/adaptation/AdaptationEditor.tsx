@@ -189,18 +189,18 @@ const MAX_HISTORY = 50;
 function editorReducer(state: EditorState, action: EditorAction): EditorState {
     switch (action.type) {
         case 'SET_DATA':
-            const suggestedBg = (action.payload.questions && action.payload.questions.length > 0) 
-                ? action.payload.questions[0].css_style?.backgroundColor 
+            const suggestedBg = (action.payload.questions && action.payload.questions.length > 0)
+                ? action.payload.questions[0].css_style?.backgroundColor
                 : '#ffffff';
-                
+
             const normalizedQuestions = action.payload.questions.map(q => ({
                 ...q,
                 adapted_content: parseBackendTagsToHTML(q.adapted_content)
             }));
 
-            return { 
-                ...state, 
-                data: { ...action.payload, questions: normalizedQuestions }, 
+            return {
+                ...state,
+                data: { ...action.payload, questions: normalizedQuestions },
                 paperColor: suggestedBg || '#ffffff',
                 originalAdaptedContents: normalizedQuestions.map(q => q.adapted_content)
             };
@@ -407,11 +407,11 @@ const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) =
         <div
             ref={divRef}
             className={className}
-            style={{ 
-                ...style, 
-                outline: 'none', 
+            style={{
+                ...style,
+                outline: 'none',
                 cursor: 'text',
-                whiteSpace: 'pre-wrap', 
+                whiteSpace: 'pre-wrap',
                 minHeight: '1.5em'
             }}
             contentEditable
@@ -573,38 +573,47 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
         }
     }, [studentId, feedbackRating, feedbackNotes, feedbackSending, feedbackSent, jobId, activeIdx, supabase]);
 
-    // --- PROFESSIONAL PRINT ENGINE DELEGADO AO BACKEND ---
+    // --- Geração de PDF client-side nativa (impressão do DOM com @media print) ---
     const handlePrintPDF = async () => {
         setActiveIdx(null);
-        await new Promise(resolve => setTimeout(resolve, 100));
+        showToast("Preparando documento, aguarde as imagens carregarem...", 'success');
 
+        // 1. Salva progresso no banco
         await saveData();
-        showToast("Gerando PDF Otimizado no servidor...", 'success');
 
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) throw new Error("Usuário não autenticado");
+        // 2. Prepara variáveis CSS para a impressão do fundo 
+        const root = document.documentElement;
+        const prevBg = root.style.getPropertyValue('--print-bg-color');
+        root.style.setProperty('--print-bg-color', state.paperColor || '#ffffff');
 
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/enterprise/inclusion/download/${jobId}`, {
-                method: 'GET',
-                headers: { 'Authorization': `Bearer ${session.access_token}` }
+        // 3. Estratégia de Carregamento Resiliente de Imagens (Anti-SPOF)
+        const printArea = document.getElementById('print-area');
+        if (printArea) {
+            const images = Array.from(printArea.getElementsByTagName('img'));
+            const imagePromises = images.map(img => {
+                if (img.complete) return Promise.resolve();
+                return new Promise(resolve => {
+                    img.onload = resolve; // Carregou com sucesso
+                    img.onerror = resolve; // Falhou, mas resolve para não travar a thread
+                });
             });
 
-            if (!response.ok) throw new Error("Erro na geração do arquivo PDF no servidor.");
+            // Timeout de segurança: Tenta esperar as imagens por no máximo 3 segundos.
+            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 3000));
+            await Promise.race([Promise.all(imagePromises), timeoutPromise]);
+        }
 
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `StudyTrack_Adaptada_${filename}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-            
-            showToast("Download concluído com sucesso!", 'success');
+        // 4. Delay extra garantido para o parser síncrono do KaTeX finalizar
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        try {
+            window.print();
         } catch (error: any) {
-            showToast(error.message || "Falha ao baixar o PDF gerado.", 'error');
+            showToast(error.message || "Falha ao abrir diálogo de impressão.", 'error');
+        } finally {
+            // Restaura o estado CSS original
+            if (prevBg) root.style.setProperty('--print-bg-color', prevBg);
+            else root.style.removeProperty('--print-bg-color');
         }
     };
 
@@ -625,10 +634,23 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
         }
         @media print {
           header, aside, .editor-toolbar, button, .no-print { display: none !important; }
-          body { background: white !important; padding: 0 !important; margin: 0 !important; }
-          #print-area { width: 100% !important; transform: none !important; margin: 0 !important; padding: 20mm !important; box-shadow: none !important; border: none !important; height: auto !important; }
-          .question-block { page-break-inside: avoid; break-inside: avoid; margin-bottom: 25px; padding: 10px 0; }
-          @page { margin: 10mm; }
+          body {
+            background-color: var(--print-bg-color, white) !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          #print-area {
+            width: 100% !important;
+            transform: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+          }
+          .question-block { page-break-inside: avoid; break-inside: avoid; }
+          @page { margin: 15mm; size: A4; }
         }
       `}</style>
 
@@ -641,7 +663,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                         </button>
                         <div>
                             <h1 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                                <FileText size={16} className="text-blue-600" /> 
+                                <FileText size={16} className="text-blue-600" />
                                 <span className="truncate max-w-[300px]" title={filename}>{filename}</span>
                             </h1>
                             <div className="flex items-center gap-2 mt-0.5">
@@ -743,7 +765,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
 
             {/* 3. MAIN WORKSPACE */}
             <div className="flex-1 overflow-hidden flex relative">
-                
+
                 {/* [NAVIGATION RAIL] */}
                 <div className="w-14 bg-white border-r border-slate-200 flex flex-col items-center py-4 gap-2 overflow-y-auto no-print z-10 hidden sm:flex shrink-0">
                     <div className="text-[10px] font-bold text-slate-300 uppercase mb-2 text-center">Nav</div>
@@ -822,24 +844,24 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                                             key={q.id || idx}
                                             id={`q-${idx}`}
                                             className={`question-block transition-all duration-150 ${isActive ? 'bg-black/5 border-l-4 border-blue-500' : 'border-l-4 border-transparent hover:border-slate-300'} ${hasWarning ? 'border-l-amber-500 bg-amber-50/10' : ''}`}
-                                            style={{ 
-                                                position: 'relative', 
-                                                paddingLeft: '1rem', 
+                                            style={{
+                                                position: 'relative',
+                                                paddingLeft: '1rem',
                                                 marginLeft: '-1rem',
                                                 borderTopRightRadius: '0.5rem',
                                                 borderBottomRightRadius: '0.5rem'
                                             }}
                                             onClick={(e) => { e.stopPropagation(); setActiveIdx(idx); }}
                                         >
-                                            <span 
+                                            <span
                                                 className="select-none transition-colors"
                                                 style={{
                                                     position: 'absolute',
                                                     left: '-2.5rem',
                                                     top: '0.5rem',
-                                                    fontSize: '18px', 
-                                                    fontWeight: '900', 
-                                                    color: isActive ? '#0848d1' : '#94a3b8', 
+                                                    fontSize: '18px',
+                                                    fontWeight: '900',
+                                                    color: isActive ? '#0848d1' : '#94a3b8',
                                                     fontFamily: 'sans-serif',
                                                     textAlign: 'right',
                                                     width: '2rem'
@@ -873,9 +895,9 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                                                         autoFocus
                                                     />
                                                 ) : (
-                                                    <LaTeXViewer 
-                                                        htmlContent={q.adapted_content} 
-                                                        dynamicStyle={dynamicStyle} 
+                                                    <LaTeXViewer
+                                                        htmlContent={q.adapted_content}
+                                                        dynamicStyle={dynamicStyle}
                                                         className="whitespace-pre-wrap"
                                                     />
                                                 )}
