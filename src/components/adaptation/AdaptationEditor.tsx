@@ -3,7 +3,7 @@
 import React, { useReducer, useEffect, useCallback, useRef, useState, useLayoutEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { EditorContentSkeleton } from './SkeletonLoader';
+import { SkeletonLoader } from './SkeletonLoader';
 import DOMPurify from 'isomorphic-dompurify';  // 🔐 SECURITY: XSS protection
 import {
     CheckCircle2, Image as ImageIcon, RotateCcw, RotateCw,
@@ -377,7 +377,7 @@ const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) =
             FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],
             FORBID_ATTR: ['onerror', 'onload', 'onclick']
         });
-        
+
         if (divRef.current && sanitized !== divRef.current.innerHTML) {
             if (!isFocused.current) {
                 divRef.current.innerHTML = sanitized;
@@ -622,7 +622,10 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
 
             {isProcessing && (
                 <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-50 flex items-center justify-center">
-                    <EditorContentSkeleton />
+                    <SkeletonLoader
+                        filename={filename}
+                        studentName={state.data.metadata?.student_name || "Aluno Não Identificado"}
+                    />
                 </div>
             )}
 
