@@ -666,9 +666,10 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
           }
 
           /* 4. Delegação de margens para o motor nativo de impressão */
+          /* 4. Mata as margens do navegador para aniquilar a URL e a Data */
           @page {
-            margin: 15mm; 
-            size: A4;
+            margin: 0; 
+            size: auto;
           }
           
           body {
@@ -678,14 +679,14 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             margin: 0 !important;
           }
           
-          /* 5. Proteção do Canvas (A Prova Intacta) */
+          /* 5. Proteção do Canvas (A Prova Intacta com margem interna restaurada) */
           #print-area {
             width: 100% !important;
             max-width: 100% !important;
             transform: none !important;
             zoom: 1 !important; 
             margin: 0 !important;
-            padding: 0 !important; /* ZERADO para evitar o efeito "folha dentro de folha" */
+            padding: 15mm !important; /* Margem controlada estritamente pelo React */
             box-shadow: none !important;
             border: none !important;
             display: block !important;

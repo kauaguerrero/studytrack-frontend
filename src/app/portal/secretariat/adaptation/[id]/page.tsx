@@ -45,11 +45,11 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
     return () => { isMounted = false; };
   }, [id]);
 
-  // --- ARQUITETURA DE ELITE: SUPABASE REALTIME (WebSockets) ---
+  // --- ARQUITETURA DE ELITE HÍBRIDA (WebSockets + Polling Fallback) ---
   useEffect(() => {
     if (!id || !job || job.adaptation_status !== 'processing') return;
 
-    // Abre o canal de escuta direto com o banco de dados
+    // 1. VIA EXPRESSA (WebSockets): Rápido, mas o evento cai se o JSON ultrapassar 1MB
     const channel = supabase
       .channel(`job_tracker_${id}`)
       .on(
@@ -65,8 +65,7 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
 
           // Quando o Python terminar (sucesso ou falha), o Supabase avisa aqui
           if (updatedJob.adaptation_status !== 'processing') {
-            // Bypass Crítico: Provas grandes estouram o limite de 1MB do payload do WebSocket.
-            // O evento chega, mas com dados vazios. Forçamos um select para garantir o JSON completo.
+            // Bypass Crítico: Forçamos um select para garantir o JSON completo e escapar de payload truncado
             const { data, error } = await supabase.from('adapted_exams').select('*').eq('id', id).single();
             
             if (data && !error) {
@@ -80,13 +79,25 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('Radar de adaptação ativo via WebSockets.');
+          console.log('Radar de adaptação ativo via WebSockets (Modo Híbrido).');
         }
       });
 
-    // Cleanup: se o usuário sair da página antes de terminar, mata a conexão
+    // 2. REDE DE SEGURANÇA (Polling): Roda a cada 5s para resgatar a UI caso o WebSocket falhe em avisar
+    const fallbackInterval = setInterval(async () => {
+      const { data, error } = await supabase.from('adapted_exams').select('*').eq('id', id).single();
+      
+      if (data && !error && data.adaptation_status !== 'processing') {
+        setJob(data);
+        clearInterval(fallbackInterval);
+        supabase.removeChannel(channel); // Desacopla o socket se o polling vencer a corrida
+      }
+    }, 5000);
+
+    // Cleanup: se o usuário sair da página antes de terminar, mata a conexão e o timer
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(fallbackInterval);
     };
   }, [id, job?.adaptation_status, supabase]);
 
