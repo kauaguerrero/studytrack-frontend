@@ -637,6 +637,10 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
         }
         @media print {
           header, aside, .editor-toolbar, button, .no-print { display: none !important; }
+          @page {
+            margin: 0; /* REMOVE O CABEÇALHO/RODAPÉ PADRÃO DO NAVEGADOR (LINK/DATA) */
+            size: auto;
+          }
           body {
             background-color: var(--print-bg-color, white) !important;
             -webkit-print-color-adjust: exact !important;
@@ -647,13 +651,14 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
           #print-area {
             width: 100% !important;
             transform: none !important;
+            zoom: 1 !important; /* FORÇA O RESET DO ZOOM NO PRINT */
             margin: 0 !important;
-            padding: 0 !important;
+            padding: 15mm !important; /* PADDING INTERNO PARA SUBSTITUIR A MARGEM DA PÁGINA */
             box-shadow: none !important;
             border: none !important;
+            min-height: auto !important;
           }
           .question-block { page-break-inside: avoid; break-inside: avoid; }
-          @page { margin: 15mm; size: A4; }
         }
       `}</style>
 

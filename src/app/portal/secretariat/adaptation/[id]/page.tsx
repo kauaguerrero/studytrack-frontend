@@ -1,12 +1,5 @@
 'use client'
 
-/**
- * PAGE ARCHITECTURE (Unified Enterprise Version):
- * Atua como um Server Component Wrapper (embora seja cliente) para Data Fetching.
- * Isola o contexto de dados do contexto de UI do Editor.
- * Agora suporta metadados de Auditoria e Feedback do novo AdaptationService.
- */
-
 import { useEffect, useState, use } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { AdaptationEditor } from '@/components/adaptation/AdaptationEditor';
@@ -124,23 +117,6 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  // --- PROCESSANDO (job assíncrono) ---
-  if (job.adaptation_status === 'processing') {
-    return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] bg-slate-50">
-        <div className="flex flex-col items-center space-y-6 animate-in fade-in duration-500">
-          <div className="h-20 w-20 rounded-2xl bg-white shadow-xl border border-slate-200 flex items-center justify-center">
-            <RefreshCcw className="animate-spin text-blue-600" size={32} />
-          </div>
-          <div className="text-center space-y-1">
-            <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-widest">Processando sua prova</h3>
-            <p className="text-xs text-slate-500">A adaptação está sendo gerada. Esta página atualiza automaticamente.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // --- JOB FALHOU ---
   if (job.adaptation_status === 'failed') {
     const err = (job.final_json_data as any)?.error ?? 'Processamento falhou.';
@@ -158,17 +134,17 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  // --- SEM DADOS PARA EDITOR (review_required/completed mas sem final_json_data) ---
-  if (!job.final_json_data?.questions?.length) {
+  if (job.adaptation_status !== 'processing' && !job.final_json_data?.questions?.length) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] bg-slate-50">
-        <p className="text-sm text-slate-500">Carregando questões...</p>
-        <RefreshCcw className="animate-spin text-slate-400 mt-4" size={24} />
+        <p className="text-sm text-slate-500">A prova foi processada, mas nenhuma questão pôde ser estruturada.</p>
+        <button onClick={() => router.back()} className="mt-4 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-black">
+          Voltar
+        </button>
       </div>
     );
   }
 
-  // --- MAIN RENDER (ZEN MODE CONTEXT) ---
   return (
     <div className="h-[calc(100vh-64px)] w-full bg-slate-100 overflow-hidden relative flex flex-col">
       {/* Background Pattern Sutil */}
@@ -185,7 +161,7 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
             jobId={job.id} 
             studentId={job.student_id ?? undefined}
             initialData={{
-              ...(job.final_json_data as any),
+              ...(job.final_json_data as any || {}),
               metadata: {
                 ...(job.final_json_data as any)?.metadata,
                 // Injeta dados extras se necessário para a nova interface
