@@ -636,46 +636,63 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                 </div>
             )}
 
-<style jsx global>{`
+            <style jsx global>{`
         #print-area .whitespace-pre-wrap {
           white-space: pre-wrap;
           word-break: break-all;
           overflow-wrap: break-word;
         }
         @media print {
-          header, aside, .editor-toolbar, button, .no-print { display: none !important; }
+          /* 1. Ocultação da Interface (Chrome) */
+          header, aside, .editor-toolbar, button, .no-print { 
+            display: none !important; 
+          }
           
-          /* ⚠️ FIX CRÍTICO DE ARQUITETURA PARA IMPRESSÃO ⚠️ */
-          /* Destrava o scroll e o encapsulamento flex para permitir paginação nativa */
-          body, html, .overflow-y-auto, .flex-1, .h-full, .overflow-hidden {
+          /* 2. Destravamento Cirúrgico de Paginação (Apenas Wrappers de Layout) */
+          /* Isso mata a barra de rolagem infinita do React sem encostar na Prova */
+          body, html, .overflow-y-auto, .overflow-hidden, .flex-1 {
             height: auto !important;
             min-height: auto !important;
+            max-height: none !important;
             overflow: visible !important;
             display: block !important;
+            position: static !important;
+          }
+
+          /* 3. Limpeza de espaçamentos da interface que empurram o PDF */
+          .py-12, .px-8, .pb-32 {
+            padding: 0 !important;
+            margin: 0 !important;
           }
 
           @page {
             margin: 0; 
             size: auto;
           }
+          
           body {
             background-color: var(--print-bg-color, white) !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-            margin: 0 !important;
-            padding: 0 !important;
           }
+          
+          /* 4. Proteção do Canvas (A Prova Intacta) */
           #print-area {
             width: 100% !important;
             transform: none !important;
             zoom: 1 !important; 
             margin: 0 !important;
-            padding: 15mm !important; 
+            padding: 15mm !important; /* Margem da folha física */
             box-shadow: none !important;
             border: none !important;
-            min-height: auto !important;
+            display: block !important;
           }
-          .question-block { page-break-inside: avoid; break-inside: avoid; }
+          
+          /* Impede que a quebra de página corte uma questão ao meio */
+          .question-block { 
+            page-break-inside: avoid !important; 
+            break-inside: avoid !important; 
+          }
         }
       `}</style>
 
