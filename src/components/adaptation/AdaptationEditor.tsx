@@ -796,7 +796,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                     className="flex-1 overflow-y-auto bg-slate-100/50 flex justify-center cursor-default pb-32"
                     onClick={() => setActiveIdx(null)}
                 >
-                    <div className="py-12 px-8 min-h-min w-full flex justify-center items-start no-print">
+                    <div className="py-12 px-8 min-h-min w-full flex justify-center items-start">
 
                         <div
                             id="print-area"
