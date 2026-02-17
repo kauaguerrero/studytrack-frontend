@@ -487,6 +487,13 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
         originalAdaptedContents: parsedInitialData.questions.map(q => q.adapted_content)
     });
 
+    // Sincroniza o Reducer interno do React quando os dados chegarem do Webhook/Realtime
+    useEffect(() => {
+        if (parsedInitialData.questions && parsedInitialData.questions.length > 0) {
+            dispatch({ type: 'SET_DATA', payload: parsedInitialData });
+        }
+    }, [parsedInitialData]);
+
     const [activeIdx, setActiveIdx] = useState<number | null>(null);
     const [zoom, setZoom] = useState(100);
     const [sidebarOpen, setSidebarOpen] = useState(false);
