@@ -38,6 +38,10 @@ export async function updateSession(request: NextRequest) {
 
   // 0. Callback OAuth (Segurança)
   if (path.startsWith('/auth/callback')) {
+    // #region agent log
+    console.log('[DEBUG-MIDDLEWARE] Early return for callback', {path, url: request.url});
+    fetch('http://127.0.0.1:7242/ingest/d98e8a81-19bf-449a-a82a-80e8da19381f',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'middleware.ts:40',message:'Middleware early return for callback',data:{path,url:request.url},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     return response;
   }
 
