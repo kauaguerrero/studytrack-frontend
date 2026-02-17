@@ -102,12 +102,12 @@ function LoginForm() {
   };
 
   return (
-    <div className="w-full max-w-[440px] min-w-0 mx-auto pb-4 pr-0">
-      <div className="mb-6 min-w-0"> 
+    <div className="w-full max-w-[440px] min-w-0 mx-auto pb-4 pr-0 box-border">
+      <div className="mb-6 min-w-0 overflow-hidden"> 
         <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-3xl xl:text-4xl font-extrabold text-slate-900 mb-2 tracking-tight break-words">
           Bem-vindo de volta! <span className="inline-block hover:animate-pulse cursor-default" aria-hidden>👋</span>
         </h1>
-        <p className="text-slate-500 text-base sm:text-lg leading-relaxed">
+        <p className="text-slate-500 text-base sm:text-lg leading-relaxed break-words min-w-0 overflow-hidden">
           Sua meta de hoje está te esperando.
         </p>
       </div>
@@ -127,9 +127,9 @@ function LoginForm() {
       </div>
 
       {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-medium flex items-start gap-2 animate-pulse">
-              <AlertTriangle className="w-5 h-5 shrink-0" />
-              <span>{error}</span>
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-medium flex items-start gap-2 animate-pulse min-w-0">
+              <AlertTriangle className="w-5 h-5 shrink-0 flex-none" />
+              <span className="min-w-0 break-words">{error}</span>
           </div>
       )}
 
@@ -191,7 +191,7 @@ function LoginForm() {
         </button>
       </form>
 
-      <p className="mt-5 text-center text-sm text-slate-500">
+      <p className="mt-5 text-center text-sm text-slate-500 break-words min-w-0">
         Não tem conta?{' '}
         <a href="/auth/register?plan=free" className="font-bold text-blue-600 hover:text-blue-800">
           Cadastre-se gratuitamente
@@ -207,11 +207,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen w-full flex bg-white font-sans text-slate-900 overflow-x-hidden">
       {/* --- LADO ESQUERDO: INTERATIVO --- */}
-      <div className="w-full min-w-0 lg:min-w-[400px] lg:w-1/2 flex flex-col h-screen min-h-0 relative z-20 bg-white shrink-0">
+      <div className="w-full min-w-0 lg:w-1/2 flex flex-col h-screen min-h-0 relative z-20 bg-white shrink-0">
         
-        <div className="flex-none shrink-0 p-4 sm:p-6 lg:p-6 xl:p-8">
-          <div className="flex items-center gap-0 group cursor-pointer w-fit" onClick={() => router.push('/')}>
-             <div className="group-hover:scale-110 transition-transform duration-300 flex items-center justify-center -mr-3">
+        <div className="flex-none shrink-0 p-4 sm:p-6 lg:p-6 xl:p-8 min-w-0">
+          <div className="flex items-center gap-0 group cursor-pointer w-fit min-w-0 max-w-full flex-wrap" onClick={() => router.push('/')}>
+             <div className="group-hover:scale-110 transition-transform duration-300 flex items-center justify-center -mr-3 shrink-0">
                <Image 
                  src="/logost-transparente-sombra.png" 
                  alt="Logo StudyTrack" 
@@ -222,13 +222,13 @@ export default function LoginPage() {
                  unoptimized
                />
              </div>
-             <span className="font-extrabold text-xl tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
+             <span className="font-extrabold text-xl tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors break-words min-w-0">
                Study<span className="text-blue-600 group-hover:text-slate-900 transition-colors">Track</span>
              </span>
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 min-w-0 flex flex-col justify-center px-4 sm:px-6 md:px-8 lg:px-8 xl:px-12 overflow-y-auto custom-scrollbar">
+        <div className="flex-1 min-h-0 min-w-0 flex flex-col justify-center px-4 sm:px-6 md:px-8 lg:px-8 xl:px-12 overflow-y-auto overflow-x-auto custom-scrollbar">
           <Suspense fallback={<div>Carregando...</div>}>
             <LoginForm />
           </Suspense>
