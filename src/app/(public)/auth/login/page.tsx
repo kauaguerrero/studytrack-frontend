@@ -22,7 +22,6 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({ email: '', password: '' });
-  const [debugInfo, setDebugInfo] = useState<any>(null);
   
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -30,16 +29,6 @@ function LoginForm() {
 
   useEffect(() => {
     const errorMsg = searchParams.get('error');
-    const debugParam = searchParams.get('debug');
-    if (debugParam) {
-      try {
-        const info = JSON.parse(decodeURIComponent(debugParam));
-        console.log('[DEBUG-LOGIN] Debug info from callback:', info);
-        setDebugInfo(info);
-      } catch (e) {
-        console.error('[DEBUG-LOGIN] Failed to parse debug info', e);
-      }
-    }
     if (errorMsg) {
       if (errorMsg.includes('Flow state not found')) {
         setError("A conexão expirou. Por favor, tente fazer login novamente.");
@@ -141,27 +130,6 @@ function LoginForm() {
           <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-medium flex items-start gap-2 animate-pulse min-w-0">
               <AlertTriangle className="w-5 h-5 shrink-0 flex-none" />
               <span className="min-w-0 break-words">{error}</span>
-          </div>
-      )}
-
-      {debugInfo && (
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded-lg text-xs font-mono min-w-0">
-              <div className="font-bold text-yellow-800 mb-2">🐛 DEBUG INFO (Callback)</div>
-              <div className="space-y-1 text-yellow-700 break-words">
-                <div><strong>Step:</strong> {debugInfo.step}</div>
-                <div><strong>HasCode:</strong> {String(debugInfo.hasCode)}</div>
-                <div><strong>CodePrefix:</strong> {debugInfo.codePrefix || 'N/A'}</div>
-                <div><strong>ExchangeError:</strong> {debugInfo.exchangeError || 'None'}</div>
-                <div><strong>ExchangeErrorCode:</strong> {debugInfo.exchangeErrorCode || 'N/A'}</div>
-                <div><strong>CapturedCookies:</strong> {debugInfo.capturedCookies || 0}</div>
-                <div><strong>Timestamp:</strong> {new Date(debugInfo.timestamp).toLocaleString()}</div>
-              </div>
-              <button 
-                onClick={() => setDebugInfo(null)} 
-                className="mt-2 text-yellow-600 underline text-xs hover:text-yellow-800"
-              >
-                Fechar Debug
-              </button>
           </div>
       )}
 
