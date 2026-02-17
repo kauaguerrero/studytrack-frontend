@@ -102,13 +102,12 @@ function LoginForm() {
   };
 
   return (
-    <div className="w-full max-w-[440px] mx-auto pb-4">
-            
+    <div className="w-full max-w-[440px] min-w-0 mx-auto pb-4 pr-0">
       <div className="mb-6 min-w-0"> 
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 mb-2 tracking-tight break-words">
-          Bem-vindo de volta! <span className="inline-block hover:animate-pulse cursor-default">👋</span>
+        <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-3xl xl:text-4xl font-extrabold text-slate-900 mb-2 tracking-tight break-words">
+          Bem-vindo de volta! <span className="inline-block hover:animate-pulse cursor-default" aria-hidden>👋</span>
         </h1>
-        <p className="text-slate-500 text-lg leading-relaxed">
+        <p className="text-slate-500 text-base sm:text-lg leading-relaxed">
           Sua meta de hoje está te esperando.
         </p>
       </div>
@@ -208,9 +207,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen w-full flex bg-white font-sans text-slate-900 overflow-x-hidden">
       {/* --- LADO ESQUERDO: INTERATIVO --- */}
-      <div className="w-full lg:w-1/2 flex flex-col h-screen min-h-0 relative z-20 bg-white">
+      <div className="w-full min-w-0 lg:min-w-[400px] lg:w-1/2 flex flex-col h-screen min-h-0 relative z-20 bg-white shrink-0">
         
-        <div className="flex-none shrink-0 p-6 lg:p-8">
+        <div className="flex-none shrink-0 p-4 sm:p-6 lg:p-6 xl:p-8">
           <div className="flex items-center gap-0 group cursor-pointer w-fit" onClick={() => router.push('/')}>
              <div className="group-hover:scale-110 transition-transform duration-300 flex items-center justify-center -mr-3">
                <Image 
@@ -229,7 +228,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 flex flex-col justify-center px-8 sm:px-12 lg:px-24 overflow-y-auto custom-scrollbar">
+        <div className="flex-1 min-h-0 min-w-0 flex flex-col justify-center px-4 sm:px-6 md:px-8 lg:px-8 xl:px-12 overflow-y-auto custom-scrollbar">
           <Suspense fallback={<div>Carregando...</div>}>
             <LoginForm />
           </Suspense>
