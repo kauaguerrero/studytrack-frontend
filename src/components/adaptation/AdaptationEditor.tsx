@@ -643,13 +643,12 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
           overflow-wrap: break-word;
         }
         @media print {
-          /* 1. Ocultação da Interface (Chrome) */
-          header, aside, .editor-toolbar, button, .no-print { 
+          /* 1. Ocultação da Interface (Adicionado .w-14 para aniquilar a barra lateral NAV) */
+          header, aside, .editor-toolbar, button, .no-print, .w-14 { 
             display: none !important; 
           }
           
-          /* 2. Destravamento Cirúrgico de Paginação (Apenas Wrappers de Layout) */
-          /* Isso mata a barra de rolagem infinita do React sem encostar na Prova */
+          /* 2. Destravamento Cirúrgico de Paginação */
           body, html, .overflow-y-auto, .overflow-hidden, .flex-1 {
             height: auto !important;
             min-height: auto !important;
@@ -657,38 +656,41 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             overflow: visible !important;
             display: block !important;
             position: static !important;
+            background: transparent !important;
           }
 
-          /* 3. Limpeza de espaçamentos da interface que empurram o PDF */
-          .py-12, .px-8, .pb-32 {
+          /* 3. Limpeza de espaçamentos da interface que empurram o PDF para o centro */
+          .py-12, .px-8, .pb-32, .min-h-min {
             padding: 0 !important;
             margin: 0 !important;
           }
 
+          /* 4. Delegação de margens para o motor nativo de impressão */
           @page {
-            margin: 0; 
-            size: auto;
+            margin: 15mm; 
+            size: A4;
           }
           
           body {
             background-color: var(--print-bg-color, white) !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            margin: 0 !important;
           }
           
-          /* 4. Proteção do Canvas (A Prova Intacta) */
+          /* 5. Proteção do Canvas (A Prova Intacta) */
           #print-area {
             width: 100% !important;
+            max-width: 100% !important;
             transform: none !important;
             zoom: 1 !important; 
             margin: 0 !important;
-            padding: 15mm !important; /* Margem da folha física */
+            padding: 0 !important; /* ZERADO para evitar o efeito "folha dentro de folha" */
             box-shadow: none !important;
             border: none !important;
             display: block !important;
           }
           
-          /* Impede que a quebra de página corte uma questão ao meio */
           .question-block { 
             page-break-inside: avoid !important; 
             break-inside: avoid !important; 

@@ -60,13 +60,21 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
           table: 'adapted_exams',
           filter: `id=eq.${id}` // Escuta ESTRITAMENTE a linha desta prova
         },
-        (payload) => {
+        async (payload) => {
           const updatedJob = payload.new as AdaptationJob;
 
           // Quando o Python terminar (sucesso ou falha), o Supabase avisa aqui
           if (updatedJob.adaptation_status !== 'processing') {
-            setJob(updatedJob);
-            supabase.removeChannel(channel); // Desacopla o socket para poupar memória do navegador
+            // Bypass Crítico: Provas grandes estouram o limite de 1MB do payload do WebSocket.
+            // O evento chega, mas com dados vazios. Forçamos um select para garantir o JSON completo.
+            const { data, error } = await supabase.from('adapted_exams').select('*').eq('id', id).single();
+            
+            if (data && !error) {
+              setJob(data);
+            } else {
+              setJob(updatedJob); // Fallback de segurança
+            }
+            supabase.removeChannel(channel); // Desacopla o socket
           }
         }
       )
