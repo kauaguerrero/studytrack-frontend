@@ -12,7 +12,7 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
   const [job, setJob] = useState<AdaptationJob | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
+
   const supabase = createClient();
   const router = useRouter();
 
@@ -45,46 +45,62 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
     return () => { isMounted = false; };
   }, [id]);
 
-  // Polling quando o job está em processamento (fluxo assíncrono)
+  // --- ARQUITETURA DE ELITE: SUPABASE REALTIME (WebSockets) ---
   useEffect(() => {
     if (!id || !job || job.adaptation_status !== 'processing') return;
 
-    const interval = setInterval(async () => {
-      const { data, error } = await supabase
-        .from('adapted_exams')
-        .select('*')
-        .eq('id', id)
-        .single();
+    // Abre o canal de escuta direto com o banco de dados
+    const channel = supabase
+      .channel(`job_tracker_${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'adapted_exams',
+          filter: `id=eq.${id}` // Escuta ESTRITAMENTE a linha desta prova
+        },
+        (payload) => {
+          const updatedJob = payload.new as AdaptationJob;
 
-      if (error || !data) return;
-      setJob(data);
-      if (data.adaptation_status !== 'processing') {
-        clearInterval(interval);
-      }
-    }, 4000);
+          // Quando o Python terminar (sucesso ou falha), o Supabase avisa aqui
+          if (updatedJob.adaptation_status !== 'processing') {
+            setJob(updatedJob);
+            supabase.removeChannel(channel); // Desacopla o socket para poupar memória do navegador
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Radar de adaptação ativo via WebSockets.');
+        }
+      });
 
-    return () => clearInterval(interval);
-  }, [id, job?.adaptation_status]);
+    // Cleanup: se o usuário sair da página antes de terminar, mata a conexão
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, job?.adaptation_status, supabase]);
 
   // --- INDUSTRIAL LOADER STATE ---
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] bg-slate-50">
         <div className="flex flex-col items-center space-y-6 animate-in fade-in duration-700">
-           <div className="relative">
-              {/* Spinner Premium */}
-              <div className="h-20 w-20 rounded-2xl bg-white shadow-xl border border-slate-200 flex items-center justify-center relative overflow-hidden">
-                  <div className="absolute inset-0 bg-blue-50/50 animate-pulse"></div>
-                  <RefreshCcw className="animate-spin text-blue-600 relative z-10" size={32} />
-              </div>
-              <div className="absolute -bottom-3 -right-3 bg-slate-900 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-lg border-2 border-white">
-                V.2.0
-              </div>
-           </div>
-           <div className="text-center space-y-1">
-              <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-widest">Carregando Ambiente</h3>
-              <p className="text-xs text-slate-500 font-mono">Sincronizando estado da auditoria...</p>
-           </div>
+          <div className="relative">
+            {/* Spinner Premium */}
+            <div className="h-20 w-20 rounded-2xl bg-white shadow-xl border border-slate-200 flex items-center justify-center relative overflow-hidden">
+              <div className="absolute inset-0 bg-blue-50/50 animate-pulse"></div>
+              <RefreshCcw className="animate-spin text-blue-600 relative z-10" size={32} />
+            </div>
+            <div className="absolute -bottom-3 -right-3 bg-slate-900 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-lg border-2 border-white">
+              V.2.0
+            </div>
+          </div>
+          <div className="text-center space-y-1">
+            <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-widest">Carregando Ambiente</h3>
+            <p className="text-xs text-slate-500 font-mono">Sincronizando estado da auditoria...</p>
+          </div>
         </div>
       </div>
     );
@@ -93,27 +109,27 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
   // --- ERRO OU JOB NÃO ENCONTRADO (narrowing: abaixo job é non-null) ---
   if (errorMsg || !job) {
     return (
-        <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] bg-red-50/30 p-6">
-            <div className="bg-white p-12 rounded-3xl shadow-2xl border border-red-100 max-w-lg w-full text-center relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 to-red-600" />
-                <div className="bg-red-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 ring-8 ring-red-50/50">
-                    <AlertOctagon className="h-12 w-12 text-red-600" />
-                </div>
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">Falha de Integridade</h2>
-                <p className="text-slate-500 text-sm mb-8">Não foi possível recuperar o documento solicitado.</p>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-8 text-left">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Error Trace</span>
-                    <code className="text-xs font-mono text-red-600 break-all">{errorMsg}</code>
-                </div>
-                <button 
-                    onClick={() => router.back()}
-                    className="w-full bg-slate-900 hover:bg-black text-white font-medium py-3.5 rounded-xl transition-all shadow-lg shadow-slate-900/20 active:scale-[0.98] flex items-center justify-center gap-2"
-                >
-                    <ShieldCheck size={18}/>
-                    Retornar ao Painel Seguro
-                </button>
-            </div>
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-64px)] bg-red-50/30 p-6">
+        <div className="bg-white p-12 rounded-3xl shadow-2xl border border-red-100 max-w-lg w-full text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 to-red-600" />
+          <div className="bg-red-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 ring-8 ring-red-50/50">
+            <AlertOctagon className="h-12 w-12 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Falha de Integridade</h2>
+          <p className="text-slate-500 text-sm mb-8">Não foi possível recuperar o documento solicitado.</p>
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-8 text-left">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Error Trace</span>
+            <code className="text-xs font-mono text-red-600 break-all">{errorMsg}</code>
+          </div>
+          <button
+            onClick={() => router.back()}
+            className="w-full bg-slate-900 hover:bg-black text-white font-medium py-3.5 rounded-xl transition-all shadow-lg shadow-slate-900/20 active:scale-[0.98] flex items-center justify-center gap-2"
+          >
+            <ShieldCheck size={18} />
+            Retornar ao Painel Seguro
+          </button>
         </div>
+      </div>
     );
   }
 
@@ -149,29 +165,29 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
     <div className="h-[calc(100vh-64px)] w-full bg-slate-100 overflow-hidden relative flex flex-col">
       {/* Background Pattern Sutil */}
       <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px] opacity-40 pointer-events-none" />
-      
+
       {/* SECURITY BADGE / WATERMARK */}
       <div className="fixed bottom-4 left-6 pointer-events-none opacity-30 z-0 flex items-center gap-2 select-none">
-         <ShieldCheck size={14} className="text-slate-600" />
-         <span className="text-[10px] font-mono font-bold uppercase text-slate-600 tracking-wider">StudyTrack Secure Environment • {new Date().getFullYear()}</span>
+        <ShieldCheck size={14} className="text-slate-600" />
+        <span className="text-[10px] font-mono font-bold uppercase text-slate-600 tracking-wider">StudyTrack Secure Environment • {new Date().getFullYear()}</span>
       </div>
 
       <div className="relative z-10 flex-1 flex flex-col h-full">
-          <AdaptationEditor 
-            jobId={job.id} 
-            studentId={job.student_id ?? undefined}
-            initialData={{
-              ...(job.final_json_data as any || {}),
-              metadata: {
-                ...(job.final_json_data as any)?.metadata,
-                // Injeta dados extras se necessário para a nova interface
-                version: (job.final_json_data as any)?.metadata?.version || '2.0.0',
-                audit_status: (job.final_json_data as any)?.metadata?.audit_report ? 'AUDITED' : 'PENDING'
-              }
-            }} 
-            status={job.adaptation_status}
-            filename={job.original_filename}
-          />
+        <AdaptationEditor
+          jobId={job.id}
+          studentId={job.student_id ?? undefined}
+          initialData={{
+            ...(job.final_json_data as any || {}),
+            metadata: {
+              ...(job.final_json_data as any)?.metadata,
+              // Injeta dados extras se necessário para a nova interface
+              version: (job.final_json_data as any)?.metadata?.version || '2.0.0',
+              audit_status: (job.final_json_data as any)?.metadata?.audit_report ? 'AUDITED' : 'PENDING'
+            }
+          }}
+          status={job.adaptation_status}
+          filename={job.original_filename}
+        />
       </div>
     </div>
   );

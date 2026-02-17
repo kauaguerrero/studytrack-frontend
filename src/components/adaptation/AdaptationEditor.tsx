@@ -629,7 +629,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                 </div>
             )}
 
-            <style jsx global>{`
+<style jsx global>{`
         #print-area .whitespace-pre-wrap {
           white-space: pre-wrap;
           word-break: break-all;
@@ -637,8 +637,18 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
         }
         @media print {
           header, aside, .editor-toolbar, button, .no-print { display: none !important; }
+          
+          /* ⚠️ FIX CRÍTICO DE ARQUITETURA PARA IMPRESSÃO ⚠️ */
+          /* Destrava o scroll e o encapsulamento flex para permitir paginação nativa */
+          body, html, .overflow-y-auto, .flex-1, .h-full, .overflow-hidden {
+            height: auto !important;
+            min-height: auto !important;
+            overflow: visible !important;
+            display: block !important;
+          }
+
           @page {
-            margin: 0; /* REMOVE O CABEÇALHO/RODAPÉ PADRÃO DO NAVEGADOR (LINK/DATA) */
+            margin: 0; 
             size: auto;
           }
           body {
@@ -651,9 +661,9 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
           #print-area {
             width: 100% !important;
             transform: none !important;
-            zoom: 1 !important; /* FORÇA O RESET DO ZOOM NO PRINT */
+            zoom: 1 !important; 
             margin: 0 !important;
-            padding: 15mm !important; /* PADDING INTERNO PARA SUBSTITUIR A MARGEM DA PÁGINA */
+            padding: 15mm !important; 
             box-shadow: none !important;
             border: none !important;
             min-height: auto !important;
