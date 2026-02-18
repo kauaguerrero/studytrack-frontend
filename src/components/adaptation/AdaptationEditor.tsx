@@ -174,10 +174,17 @@ interface EditorState {
 // Transforma tags de backend em HTML visualizável no Editor.
 const parseBackendTagsToHTML = (htmlString: string): string => {
     if (!htmlString) return '';
-    return htmlString.replace(/\[\[IMG_REF:(.*?):(AUTO|[\d.]+)\]\]/g, (match, url, ratio) => {
+    let parsed = htmlString.replace(/\[\[IMG_REF:(.*?):(AUTO|[\d.]+)\]\]/g, (match, url, ratio) => {
         const width = ratio === 'AUTO' ? '100%' : `${parseFloat(ratio) * 100}%`;
         return `<img src="${url}" alt="Imagem de apoio" class="wysiwyg-exam-img" style="max-width: ${width}; height: auto; display: block; margin: 15px auto; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />`;
     });
+    // Injeta as linhas de resposta como divs responsivas garantindo a largura exata do contêiner
+    parsed = parsed.replace(/\[LINHAS_RESPOSTA:(\d+)\]/g, (match, count) => {
+        const num = parseInt(count, 10) || 1;
+        const lines = Array(num).fill(`<div style="border-bottom: 1px solid #cbd5e1; height: 32px; width: 100%;"></div>`).join('');
+        return `<div class="answer-lines-container" style="margin-top: 10px; margin-bottom: 15px; width: 100%; display: flex; flex-direction: column;">${lines}</div>`;
+    });
+    return parsed;
 };
 
 // ============================================================================
@@ -643,54 +650,54 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
           overflow-wrap: break-word;
         }
         @media print {
-          /* 1. Ocultação Absoluta da Interface (Destruindo o NAV) */
+          /* 1. MATA TUDO QUE NÃO É A PROVA (Header, NAV, botões) */
           header, aside, .editor-toolbar, button, .no-print, .w-14 { 
             display: none !important; 
           }
           
-          /* 2. Destravamento Cirúrgico de Paginação */
-          body, html, .overflow-y-auto, .overflow-hidden, .flex-1 {
+          /* 2. TRANSFORMA O REACT EM FANTASMA (Invisível, sem empurrar o layout) */
+          body, html, .flex-col, .flex-1, .overflow-hidden, .overflow-y-auto {
             height: auto !important;
-            min-height: auto !important;
+            min-height: 0 !important;
             max-height: none !important;
             overflow: visible !important;
             display: block !important;
             position: static !important;
-            background: transparent !important;
+            background: transparent !important; /* REACT NULO: Não interfere na cor do papel */
           }
 
-          /* 3. Limpeza de espaçamentos da interface */
+          /* 3. ZERA PADDINGS DOS WRAPPERS (Para não empurrar a prova pro lado) */
           .py-12, .px-8, .pb-32, .min-h-min {
             padding: 0 !important;
             margin: 0 !important;
           }
 
-          /* 4. Delegação de margens para o motor nativo de impressão */
+          /* 4. CALA O NAVEGADOR (Sem URL, Sem Data) */
           @page {
-            margin: 15mm; 
+            margin: 0; 
             size: A4;
           }
           
-          body {
-            background-color: var(--print-bg-color, white) !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            margin: 0 !important;
-          }
-          
-          /* 5. A Folha da Prova (Fim do efeito folha dupla e dos buracos gigantes) */
+          /* 5. O CONTAINER DA PROVA ASSUME O CONTROLE TOTAL */
           #print-area {
             width: 100% !important;
-            max-width: 100% !important;
-            transform: none !important;
+            max-width: none !important;
+            transform: none !important; /* Mata a distorção do zoom */
             zoom: 1 !important; 
             margin: 0 !important;
-            padding: 15mm !important; 
-            box-shadow: none !important;
-            border: none !important;
+            padding: 15mm !important; /* RESPIRO DO TEXTO (Já que o @page é 0) */
+            box-shadow: none !important; /* Fim da folha dentro de folha */
+            border: none !important; /* Fim da folha dentro de folha */
             display: block !important;
-            min-height: auto !important; /* FIX: Mata o espaçamento gigante entre questões curtas */
+            min-height: 0 !important; /* Fim do buraco de 1 folha em branco */
+            background-color: var(--print-bg-color, white) !important; /* Mantém a cor acessível do aluno */
           }
+          
+          .question-block { 
+            page-break-inside: avoid !important; 
+            break-inside: avoid !important; 
+          }
+        }
           
           .question-block { 
             page-break-inside: avoid !important; 
