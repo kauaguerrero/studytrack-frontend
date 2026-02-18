@@ -654,29 +654,32 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
     }
 
     @media print {
-        /* 1. DESTRÓI O FLEXBOX/GRID DO NEXT.JS (O segredo do empilhamento nativo) */
-        /* Forçamos display: block para que o navegador consiga calcular quebras de página */
-        body, html, #__next, main, div {
+        /* 1. ACHATA A HIERARQUIA EXTERNA (Sem destruir a prova interna) */
+        /* Removemos o 'div'. Atacamos apenas os wrappers do Next.js e as classes de layout do Tailwind */
+        body, html, #__next, main, .flex-col, .flex-1, .overflow-hidden, .overflow-y-auto, .py-12, .px-8 {
             display: block !important;
             overflow: visible !important;
             height: auto !important;
             max-height: none !important;
-            position: static !important; /* Mata qualquer absolute/relative que bugue o Firefox */
+            position: static !important; /* Proteção contra o bug do Firefox */
+            margin: 0 !important;
+            padding: 0 !important; /* CRÍTICO: Remove o padding (px-8) que estava espremendo a largura da prova */
+            width: 100% !important;
         }
 
         /* 2. OBLITERA A UI GLOBAL */
-        /* display: none remove o elemento da árvore, impedindo que a Sidebar (aside) empurre a prova */
         header, aside, nav, button, .no-print, .editor-toolbar, .w-14 {
             display: none !important;
         }
 
         /* 3. O DOM GOVERNA A FOLHA */
         #print-area {
+            display: block !important; /* Garante que a raiz da prova seja um bloco íntegro */
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
-            padding: 15mm 20mm !important; /* Respiro seguro da impressora */
-            transform: none !important; /* Mata o zoom do React */
+            padding: 15mm 20mm !important; /* O único respiro que importa agora */
+            transform: none !important; /* Mata o zoom */
             box-shadow: none !important;
             border: none !important;
             background-color: var(--print-bg-color, white) !important;
@@ -700,7 +703,8 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
         /* 6. PROTEÇÃO DE INTEGRIDADE */
         .question-block img, 
         .answer-lines-container,
-        .wysiwyg-exam-img {
+        .wysiwyg-exam-img,
+        #exam-header {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
         }
