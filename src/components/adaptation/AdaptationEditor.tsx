@@ -644,8 +644,8 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                 </div>
             )}
 
-            <style jsx global>{`
-    /* Garante que o texto não corte palavras erradas (hifenação segura) */
+<style jsx global>{`
+    /* Garante hifenação segura */
     #print-area .whitespace-pre-wrap {
         white-space: pre-wrap;
         word-break: normal;
@@ -653,13 +653,12 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
     }
 
     @media print {
-        /* 1. MATA A UI GLOBAL (Evita vazamentos de novos componentes) */
-        body > *:not(main), /* Esconde tudo no body que não seja a tag main */
-        header, aside, nav, button, .no-print { 
+        /* 1. MATA A UI GLOBAL (Alvejando componentes específicos sem destruir o Root do Next.js) */
+        header, aside, nav, button, .no-print, .editor-toolbar, .w-14 { 
             display: none !important; 
         }
         
-        /* 2. NEUTRALIZA O FLEXBOX DO REACT (Impede que a interface esprema o layout) */
+        /* 2. NEUTRALIZA O FLEXBOX DO REACT (Impede esmagamento do layout) */
         body, html, #__next, .flex-col, .flex-1, .overflow-hidden, .overflow-y-auto, main {
             display: block !important;
             height: auto !important;
@@ -670,7 +669,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             background: transparent !important;
         }
 
-        /* 3. CONFIGURA A FOLHA A4 FÍSICA E MATA A MARGEM DO SO */
+        /* 3. CONFIGURA A FOLHA A4 FÍSICA */
         @page {
             margin: 0; 
             size: A4;
@@ -681,8 +680,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
-            /* CRÍTICO: Este é o respiro do papel. 15mm de margem real para a impressora não cortar o texto */
-            padding: 15mm 20mm !important; 
+            padding: 15mm 20mm !important; /* Margem real para a impressora não cortar o texto */
             transform: none !important; /* MATA O ZOOM AQUI */
             box-shadow: none !important;
             border: none !important;
@@ -691,14 +689,14 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             print-color-adjust: exact !important;
         }
         
-        /* 5. A CURA DOS BURACOS EM BRANCO (Deixa a questão quebrar de página) */
+        /* 5. A CURA DOS BURACOS EM BRANCO */
         .question-block { 
             page-break-inside: auto !important; 
             break-inside: auto !important; 
             margin-bottom: 2rem !important;
         }
         
-        /* 6. PROTEÇÃO DE INTEGRIDADE (Não corta imagens e linhas de resposta ao meio) */
+        /* 6. PROTEÇÃO DE INTEGRIDADE */
         .question-block img, 
         .answer-lines-container,
         .wysiwyg-exam-img {
