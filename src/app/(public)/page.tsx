@@ -15,7 +15,8 @@ import {
   ChevronDown,
   Menu,
   X,
-  School
+  School,
+  ShieldCheck
 } from 'lucide-react';
 
 // --- CSS CUSTOMIZADO ---
@@ -61,11 +62,15 @@ export default function Home() {
     },
     {
       question: "Posso cancelar se não estiver ajudando?",
-      answer: "Claro! Você pode cancelar sua assinatura a qualquer momento diretamente pelo painel do usuário. Se estiver no período de teste de 3 dias, não haverá cobrança alguma. Queremos que você só continue se estiver sendo útil."
+      answer: "Sim. Você pode cancelar a qualquer momento pelo painel. No teste de 3 dias, não há cobrança. Não pedimos cartão para começar — você só assina se decidir continuar."
     },
     {
       question: "Funciona para diferentes tipos de vestibulares?",
       answer: "Sim. Nosso sistema adapta a intensidade e os tópicos baseados no seu objetivo. Para cursos concorridos como Medicina, priorizamos a consolidação da base e aprofundamento em matérias específicas, sempre trabalhando em harmonia com seu plano de estudos escolar."
+    },
+    {
+      question: "Preciso de cartão para o teste grátis?",
+      answer: "Não. Você cria sua conta e começa a usar. Só pedimos cartão se decidir assinar um plano pago após o trial. Sem surpresas."
     }
   ];
 
@@ -145,8 +150,8 @@ export default function Home() {
             <a href="/auth/login" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
               Entrar
             </a>
-            <a href="#planos" className="px-5 py-2.5 rounded-full bg-slate-900 text-white text-sm font-bold hover:bg-blue-600 hover:scale-105 transition-all shadow-lg shadow-blue-900/20 flex items-center gap-2">
-              Começar Agora <ArrowRight className="w-4 h-4" />
+            <a href="/auth/register?plan=free" className="px-5 py-2.5 rounded-full bg-slate-900 text-white text-sm font-bold hover:bg-blue-600 hover:scale-105 transition-all shadow-lg shadow-blue-900/20 flex items-center gap-2">
+              Testar grátis 3 dias <ArrowRight className="w-4 h-4" />
             </a>
           </div>
 
@@ -161,7 +166,7 @@ export default function Home() {
           <div className="md:hidden absolute top-full left-0 w-full bg-white border-t border-slate-100 shadow-xl flex flex-col p-4 gap-4 animate-fade-in-up">
             <a href="#planos" onClick={() => setMobileMenuOpen(false)} className="text-slate-700 font-medium p-2">Planos</a>
             <a href="/auth/login" className="text-slate-700 font-medium p-2">Entrar</a>
-            <a href="#planos" className="bg-blue-600 text-white text-center p-3 rounded-lg font-bold">Começar Agora</a>
+            <a href="/auth/register?plan=free" className="bg-blue-600 text-white text-center p-3 rounded-lg font-bold">Testar grátis 3 dias</a>
           </div>
         )}
       </header>
@@ -174,32 +179,36 @@ export default function Home() {
               
               {/* Copywriting */}
               <div className="flex-1 text-center lg:text-left animate-fade-in-up">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-xs font-bold mb-8 uppercase tracking-wide hover:bg-blue-100 transition-colors cursor-pointer">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-xs font-bold mb-8 uppercase tracking-wide">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                   </span>
-                  Seu Companheiro de Estudos – Teste Grátis por 3 Dias!
+                  Teste grátis por 3 dias • Cancele quando quiser
                 </div>
                 
                 <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight text-slate-900 mb-6 leading-[1.1]">
-                  Seu guia pessoal para a <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-violet-600">aprovação</span>.
+                  Passe no ENEM com um plano que <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-violet-600">se adapta a você</span>.
                 </h1>
                 
                 <p className="text-lg md:text-xl text-slate-600 mb-10 leading-relaxed max-w-xl mx-auto lg:mx-0">
-                  O StudyTrack caminha ao seu lado na jornada de estudos. Junto com sua escola e professores, organizamos seu aprendizado, adaptamos seu ritmo e te guiamos rumo à aprovação dos seus sonhos.
+                  Organize sua rotina, acompanhe sua escola e tenha conteúdo certo no momento certo — em 3 dias de teste grátis, sem compromisso.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                   <a href="/auth/register?plan=free" className="px-8 py-4 rounded-2xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 transform hover:-translate-y-1 hover:shadow-2xl ring-4 ring-blue-600/10">
-                    Começar Minha Jornada
+                    Começar teste grátis
                     <Zap className="w-5 h-5 fill-current" />
                   </a>
                   <a href="#recursos" className="px-8 py-4 rounded-2xl bg-white border border-slate-200 text-slate-700 font-semibold text-lg hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2">
                     <TrendingUp className="w-5 h-5" />
-                    Como Funciona
+                    Ver como funciona
                   </a>
                 </div>
+                <p className="mt-4 text-sm text-slate-500 flex items-center justify-center lg:justify-start gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                  Sem cartão no trial • Cancele a qualquer momento
+                </p>
               </div>
 
               {/* SIMULAÇÃO INTERATIVA (Phone) */}
@@ -280,12 +289,21 @@ export default function Home() {
           </div>
         </section>
 
+        {/* --- PROVA SOCIAL / TRUST --- */}
+        <section className="py-12 bg-slate-100 border-y border-slate-200">
+          <div className="max-w-4xl mx-auto px-4 text-center">
+            <p className="text-slate-600 font-medium">
+              Plataforma feita para vestibulandos • Funciona no celular via WhatsApp • Respeita o calendário da sua escola
+            </p>
+          </div>
+        </section>
+
         {/* --- SEÇÃO COLABORATIVA --- */}
         <section className="py-20 bg-white">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6">Estudamos <span className="text-blue-600">juntos</span>, não sozinhos.</h2>
-              <p className="text-lg text-slate-600 max-w-3xl mx-auto">O StudyTrack trabalha em parceria com sua escola, professores e família para criar um ambiente de aprendizado colaborativo e eficaz.</p>
+              <p className="text-lg text-slate-600 max-w-3xl mx-auto">Escola + cursinho + estudo em casa: conciliar tudo é difícil. O StudyTrack conecta esses mundos em um só lugar.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-8">
@@ -293,24 +311,24 @@ export default function Home() {
                 <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-blue-200 transition-colors">
                   <School className="w-8 h-8 text-blue-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-3">Com Sua Escola</h3>
-                <p className="text-slate-600">Respeitamos o calendário escolar e complementamos o trabalho dos professores com tecnologia inteligente.</p>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">Com sua escola</h3>
+                <p className="text-slate-600">Seu plano respeita o calendário e os conteúdos da escola. Nada de duplicar esforço ou ficar perdido.</p>
               </div>
 
               <div className="text-center group">
                 <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-green-200 transition-colors">
                   <Brain className="w-8 h-8 text-green-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-3">Com Você</h3>
-                <p className="text-slate-600">Adaptamos seu ritmo de aprendizado, respeitamos sua rotina e celebramos cada progresso conquistado.</p>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">Com você</h3>
+                <p className="text-slate-600">O plano se ajusta ao seu ritmo real: dias corridos, matérias difíceis e tempo disponível. Sem atraso acumulado.</p>
               </div>
 
               <div className="text-center group">
                 <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-purple-200 transition-colors">
                   <TrendingUp className="w-8 h-8 text-purple-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-3">Para Seu Futuro</h3>
-                <p className="text-slate-600">Guiamos você rumo à aprovação dos seus sonhos, transformando esforço em conquistas reais.</p>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">Para sua aprovação</h3>
+                <p className="text-slate-600">Tudo organizado para chegar na prova sabendo o que estudar, quando e em qual intensidade.</p>
               </div>
             </div>
           </div>
@@ -320,41 +338,41 @@ export default function Home() {
         <section id="recursos" className="py-24 bg-slate-50 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16 max-w-3xl mx-auto">
-              <h2 className="text-3xl md:text-5xl font-bold text-slate-900 mb-6">Estudar sozinho é desafiador.<br/>Com o StudyTrack, você tem um <span className="text-blue-600">companheiro</span>.</h2>
-              <p className="text-lg text-slate-600">O StudyTrack trabalha junto com sua escola e professores, potencializando seu aprendizado através de tecnologia inteligente e suporte personalizado.</p>
+              <h2 className="text-3xl md:text-5xl font-bold text-slate-900 mb-6">Estudar sozinho é difícil.<br/>Com o StudyTrack, você tem <span className="text-blue-600">direção clara</span>.</h2>
+              <p className="text-lg text-slate-600">Menos tempo escolhendo o que estudar. Menos atraso acumulado. Mais progresso visível. Veja como funciona:</p>
             </div>
             <div className="grid md:grid-cols-3 gap-8">
-              {/* Feature 1 */}
+              {/* Feature 1 — Benefício: conteúdo certo no momento certo */}
               <div className="group bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-2xl hover:border-blue-100 hover:-translate-y-2 transition-all duration-300 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150 z-0"></div>
                 <div className="relative z-10">
                   <div className="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-600/20">
                     <TrendingUp className="w-7 h-7" />
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Curadoria Inteligente</h3>
-                  <p className="text-slate-600 mb-4">Encontramos os melhores conteúdos educacionais para complementar suas aulas, trabalhando em harmonia com o plano de estudos da sua escola.</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Conteúdo certo no momento certo</h3>
+                  <p className="text-slate-600 mb-4">Indicamos vídeos, exercícios e materiais que complementam o que você vê na escola — sem perder tempo procurando o que estudar.</p>
                 </div>
               </div>
-              {/* Feature 2 */}
+              {/* Feature 2 — Benefício: plano que acompanha sua rotina */}
               <div className="group bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-2xl hover:border-purple-100 hover:-translate-y-2 transition-all duration-300 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150 z-0"></div>
                 <div className="relative z-10">
                   <div className="w-14 h-14 bg-purple-600 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-purple-600/20">
                     <Clock className="w-7 h-7" />
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Cronograma Adaptativo</h3>
-                  <p className="text-slate-600 mb-4">Seu plano de estudos se ajusta à sua rotina real, respeitando os prazos da escola e se adaptando aos seus ritmos de aprendizado.</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Plano que acompanha sua rotina</h3>
+                  <p className="text-slate-600 mb-4">O cronograma se ajusta aos seus dias reais: se faltou aula ou levou mais tempo em uma matéria, o plano recalcula sem você ficar atrasado.</p>
                 </div>
               </div>
-              {/* Feature 3 */}
+              {/* Feature 3 — Benefício: progresso visível */}
               <div className="group bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-2xl hover:border-orange-100 hover:-translate-y-2 transition-all duration-300 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150 z-0"></div>
                 <div className="relative z-10">
                   <div className="w-14 h-14 bg-orange-500 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-orange-500/20">
                     <Zap className="w-7 h-7" />
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Suporte Motivacional</h3>
-                  <p className="text-slate-600 mb-4">Acompanhe seu progresso, mantenha sua motivação e celebre cada conquista no caminho para sua aprovação.</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Progresso que você vê</h3>
+                  <p className="text-slate-600 mb-4">Metas, questões resolvidas e evolução por matéria — você acompanha o que está avançando e onde precisa focar.</p>
                 </div>
               </div>
             </div>
@@ -370,7 +388,8 @@ export default function Home() {
 
           <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-5xl font-bold mb-6">Invista no seu futuro<br/>com quem caminha ao seu lado.</h2>
+              <h2 className="text-3xl md:text-5xl font-bold mb-6">Planos que cabem no seu orçamento de estudante.</h2>
+              <p className="text-lg text-slate-300 max-w-2xl mx-auto">Escolha o que faz sentido para sua fase. Teste grátis, cancele quando quiser.</p>
             </div>
 
             <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
@@ -379,10 +398,10 @@ export default function Home() {
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide">Degustação</div>
                 <h3 className="text-lg font-medium text-slate-400">Trial 72h</h3>
                 <div className="my-4"><span className="text-4xl font-bold text-white">Grátis</span></div>
-                <p className="text-sm text-slate-400 mb-6 flex-1">Experimente gratuitamente como podemos te ajudar nos estudos.</p>
+                <p className="text-sm text-slate-400 mb-6 flex-1">Experimente sem compromisso. Sem cartão no trial.</p>
                 
                 <div className="mt-auto">
-                    <a href="/auth/register?plan=free" className="block w-full py-3 rounded-xl border border-slate-600 hover:bg-slate-700 text-center font-semibold transition-all">Testar Agora</a>
+                    <a href="/auth/register?plan=free" className="block w-full py-3 rounded-xl border border-slate-600 hover:bg-slate-700 text-center font-semibold transition-all">Começar teste grátis</a>
                     <div className="mt-8 space-y-3 text-sm text-slate-300">
                     <p className="flex gap-2 text-slate-400"><CheckCircle className="w-4 h-4"/> Acesso ao Chat IA</p>
                     <p className="flex gap-2 text-slate-400"><CheckCircle className="w-4 h-4"/> Curadoria de Conteúdo</p>
@@ -418,10 +437,10 @@ export default function Home() {
                     <span className="text-5xl font-bold text-white">R$ 29,90</span>
                     <span className="text-sm text-blue-200 mb-2">/mês</span>
                 </div>
-                <p className="text-sm text-blue-100 mb-8 opacity-90 flex-1">Acompanhamento completo e personalizado para sua aprovação.</p>
+                <p className="text-sm text-blue-100 mb-8 opacity-90 flex-1">O mais completo: IA avançada, cronograma adaptativo e tutor de exatas.</p>
                 
                 <div className="mt-auto">
-                    <a href="/auth/register?plan=pro" className="block w-full py-4 rounded-xl bg-white text-blue-700 text-center font-bold hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">Caminhar Junto Comigo</a>
+                    <a href="/auth/register?plan=pro" className="block w-full py-4 rounded-xl bg-white text-blue-700 text-center font-bold hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">Começar teste grátis</a>
                     
                     <div className="mt-8 space-y-4 text-sm text-white font-medium">
                     <div className="flex gap-3 items-center">
@@ -461,6 +480,25 @@ export default function Home() {
               </div>
 
             </div>
+
+            <div className="mt-12 text-center">
+              <p className="text-slate-400 text-sm flex items-center justify-center gap-2 flex-wrap">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                Cancele a qualquer momento • Sem fidelidade • Suporte por WhatsApp
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* --- CTA FINAL --- */}
+        <section className="py-20 bg-white">
+          <div className="max-w-2xl mx-auto px-4 text-center">
+            <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-4">Pronto para organizar seus estudos?</h2>
+            <p className="text-slate-600 mb-8">Comece em 2 minutos. Teste grátis por 3 dias, sem cartão.</p>
+            <a href="/auth/register?plan=free" className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 hover:-translate-y-0.5">
+              Começar teste grátis
+              <ArrowRight className="w-5 h-5" />
+            </a>
           </div>
         </section>
 
@@ -484,7 +522,7 @@ export default function Home() {
                     <ChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-transform duration-300 ${openFaq === i ? 'rotate-180 text-blue-600' : ''}`} />
                   </div>
                     
-                  <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === i ? 'max-h-40 opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
+                  <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === i ? 'max-h-64 opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
                     <p className="text-slate-600 leading-relaxed">
                       {item.answer}
                     </p>

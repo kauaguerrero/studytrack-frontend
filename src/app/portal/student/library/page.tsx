@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { Book, BookOpen, ExternalLink, Library as LibraryIcon, Trophy, Crown, User } from "lucide-react";
@@ -146,7 +147,13 @@ function BookCard({ book }: { book: LibraryBook }) {
     <Card className="group h-full flex flex-col overflow-hidden border border-slate-200 bg-white hover:border-blue-300 hover:shadow-xl hover:shadow-blue-100/50 hover:-translate-y-1 transition-all duration-300 rounded-2xl">
       <div className="relative aspect-[2/3] w-full bg-slate-100 overflow-hidden">
         {book.cover_url ? (
-          <img src={book.cover_url} alt={book.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+          <Image
+            src={book.cover_url}
+            alt={book.title}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            className="object-cover transition-transform duration-700 group-hover:scale-110"
+          />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300">
             <Book size={48} className="mb-2" />
