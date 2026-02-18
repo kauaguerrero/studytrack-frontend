@@ -639,11 +639,11 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             <style jsx global>{`
         #print-area .whitespace-pre-wrap {
           white-space: pre-wrap;
-          word-break: break-all;
+          word-break: normal; /* FIX: Impede que palavras sejam cortadas no meio (ex: cruzad-inha) */
           overflow-wrap: break-word;
         }
         @media print {
-          /* 1. Ocultação da Interface (Adicionado .w-14 para aniquilar a barra lateral NAV) */
+          /* 1. Ocultação Absoluta da Interface (Destruindo o NAV) */
           header, aside, .editor-toolbar, button, .no-print, .w-14 { 
             display: none !important; 
           }
@@ -659,17 +659,16 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             background: transparent !important;
           }
 
-          /* 3. Limpeza de espaçamentos da interface que empurram o PDF para o centro */
+          /* 3. Limpeza de espaçamentos da interface */
           .py-12, .px-8, .pb-32, .min-h-min {
             padding: 0 !important;
             margin: 0 !important;
           }
 
           /* 4. Delegação de margens para o motor nativo de impressão */
-          /* 4. Mata as margens do navegador para aniquilar a URL e a Data */
           @page {
-            margin: 0; 
-            size: auto;
+            margin: 15mm; 
+            size: A4;
           }
           
           body {
@@ -679,17 +678,18 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             margin: 0 !important;
           }
           
-          /* 5. Proteção do Canvas (A Prova Intacta com margem interna restaurada) */
+          /* 5. A Folha da Prova (Fim do efeito folha dupla e dos buracos gigantes) */
           #print-area {
             width: 100% !important;
             max-width: 100% !important;
             transform: none !important;
             zoom: 1 !important; 
             margin: 0 !important;
-            padding: 15mm !important; /* Margem controlada estritamente pelo React */
+            padding: 15mm !important; 
             box-shadow: none !important;
             border: none !important;
             display: block !important;
+            min-height: auto !important; /* FIX: Mata o espaçamento gigante entre questões curtas */
           }
           
           .question-block { 
