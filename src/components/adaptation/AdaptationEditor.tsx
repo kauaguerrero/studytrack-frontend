@@ -590,42 +590,43 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
     // --- Geração de PDF client-side nativa (impressão do DOM com @media print) ---
     const handlePrintPDF = async () => {
         setActiveIdx(null);
-        showToast("Preparando documento, aguarde as imagens carregarem...", 'success');
+        setSidebarOpen(false); // Garante que a sidebar não interfira no reflow
+        showToast("Preparando documento, aguarde...", 'success');
 
         // 1. Salva progresso no banco
         await saveData();
 
-        // 2. Prepara variáveis CSS para a impressão do fundo 
+        // 2. Prepara a variável CSS para a impressão do fundo (Cores Irlen, etc)
         const root = document.documentElement;
         const prevBg = root.style.getPropertyValue('--print-bg-color');
         root.style.setProperty('--print-bg-color', state.paperColor || '#ffffff');
 
-        // 3. Estratégia de Carregamento Resiliente de Imagens (Anti-SPOF)
+        // 3. Estratégia Anti-SPOF (Garante que as imagens estão no cache antes do print)
         const printArea = document.getElementById('print-area');
         if (printArea) {
             const images = Array.from(printArea.getElementsByTagName('img'));
             const imagePromises = images.map(img => {
                 if (img.complete) return Promise.resolve();
                 return new Promise(resolve => {
-                    img.onload = resolve; // Carregou com sucesso
-                    img.onerror = resolve; // Falhou, mas resolve para não travar a thread
+                    img.onload = resolve;
+                    img.onerror = resolve; // Resolve mesmo com erro para não travar
                 });
             });
 
-            // Timeout de segurança: Tenta esperar as imagens por no máximo 3 segundos.
-            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 3000));
-            await Promise.race([Promise.all(imagePromises), timeoutPromise]);
+            // Espera imagens carregarem ou dá timeout de 2.5s
+            await Promise.race([Promise.all(imagePromises), new Promise(res => setTimeout(res, 2500))]);
         }
 
-        // 4. Delay extra garantido para o parser síncrono do KaTeX finalizar
+        // 4. Delay de segurança para o DOM repintar sem a sidebar e aplicar o CSS
         await new Promise(resolve => setTimeout(resolve, 300));
 
+        // 5. Aciona o motor nativo (A thread do JS pausa aqui até o usuário fechar o modal)
         try {
             window.print();
         } catch (error: any) {
             showToast(error.message || "Falha ao abrir diálogo de impressão.", 'error');
         } finally {
-            // Restaura o estado CSS original
+            // 6. Restaura a limpeza do root
             if (prevBg) root.style.setProperty('--print-bg-color', prevBg);
             else root.style.removeProperty('--print-bg-color');
         }
@@ -644,67 +645,68 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             )}
 
             <style jsx global>{`
-        #print-area .whitespace-pre-wrap {
-          white-space: pre-wrap;
-          word-break: normal; /* FIX: Impede que palavras sejam cortadas no meio (ex: cruzad-inha) */
-          overflow-wrap: break-word;
-        }
-        @media print {
-          /* 1. MATA TUDO QUE NÃO É A PROVA (Header, NAV, botões) */
-          header, aside, .editor-toolbar, button, .no-print, .w-14 { 
+    /* Garante que o texto não corte palavras erradas (hifenação segura) */
+    #print-area .whitespace-pre-wrap {
+        white-space: pre-wrap;
+        word-break: normal;
+        overflow-wrap: break-word;
+    }
+
+    @media print {
+        /* 1. MATA A UI GLOBAL (Evita vazamentos de novos componentes) */
+        body > *:not(main), /* Esconde tudo no body que não seja a tag main */
+        header, aside, nav, button, .no-print { 
             display: none !important; 
-          }
-          
-          /* 2. TRANSFORMA O REACT EM FANTASMA (Invisível, sem empurrar o layout) */
-          body, html, .flex-col, .flex-1, .overflow-hidden, .overflow-y-auto {
+        }
+        
+        /* 2. NEUTRALIZA O FLEXBOX DO REACT (Impede que a interface esprema o layout) */
+        body, html, #__next, .flex-col, .flex-1, .overflow-hidden, .overflow-y-auto, main {
+            display: block !important;
             height: auto !important;
             min-height: 0 !important;
             max-height: none !important;
             overflow: visible !important;
-            display: block !important;
             position: static !important;
-            background: transparent !important; /* REACT NULO: Não interfere na cor do papel */
-          }
+            background: transparent !important;
+        }
 
-          /* 3. ZERA PADDINGS DOS WRAPPERS (Para não empurrar a prova pro lado) */
-          .py-12, .px-8, .pb-32, .min-h-min {
-            padding: 0 !important;
-            margin: 0 !important;
-          }
-
-          /* 4. CALA O NAVEGADOR (Sem URL, Sem Data) */
-          @page {
+        /* 3. CONFIGURA A FOLHA A4 FÍSICA E MATA A MARGEM DO SO */
+        @page {
             margin: 0; 
             size: A4;
-          }
-          
-          /* 5. O CONTAINER DA PROVA ASSUME O CONTROLE TOTAL */
-          #print-area {
+        }
+        
+        /* 4. O DOM GOVERNA A FOLHA (Garante WYSIWYG e Margem Segura) */
+        #print-area {
             width: 100% !important;
             max-width: none !important;
-            transform: none !important; /* Mata a distorção do zoom */
-            zoom: 1 !important; 
             margin: 0 !important;
-            padding: 15mm !important; /* RESPIRO DO TEXTO (Já que o @page é 0) */
-            box-shadow: none !important; /* Fim da folha dentro de folha */
-            border: none !important; /* Fim da folha dentro de folha */
-            display: block !important;
-            min-height: 0 !important; /* Fim do buraco de 1 folha em branco */
-            background-color: var(--print-bg-color, white) !important; /* Mantém a cor acessível do aluno */
-          }
-          
-          .question-block { 
-            page-break-inside: avoid !important; 
-            break-inside: avoid !important; 
-          }
+            /* CRÍTICO: Este é o respiro do papel. 15mm de margem real para a impressora não cortar o texto */
+            padding: 15mm 20mm !important; 
+            transform: none !important; /* MATA O ZOOM AQUI */
+            box-shadow: none !important;
+            border: none !important;
+            background-color: var(--print-bg-color, white) !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
         }
-          
-          .question-block { 
-            page-break-inside: avoid !important; 
-            break-inside: avoid !important; 
-          }
+        
+        /* 5. A CURA DOS BURACOS EM BRANCO (Deixa a questão quebrar de página) */
+        .question-block { 
+            page-break-inside: auto !important; 
+            break-inside: auto !important; 
+            margin-bottom: 2rem !important;
         }
-      `}</style>
+        
+        /* 6. PROTEÇÃO DE INTEGRIDADE (Não corta imagens e linhas de resposta ao meio) */
+        .question-block img, 
+        .answer-lines-container,
+        .wysiwyg-exam-img {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+    }
+`}</style>
 
             {/* 1. TOP BAR */}
             {!state.isZenMode && (
