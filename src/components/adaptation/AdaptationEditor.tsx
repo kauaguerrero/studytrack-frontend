@@ -645,48 +645,49 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             )}
 
 <style jsx global>{`
-    /* Garante hifenação segura */
+    /* Garante hifenação segura e legibilidade acessível */
     #print-area .whitespace-pre-wrap {
         white-space: pre-wrap;
-        word-break: normal;
+        word-break: normal; 
         overflow-wrap: break-word;
+        hyphens: auto;
     }
 
     @media print {
-        /* 1. MATA A UI GLOBAL (Alvejando componentes específicos sem destruir o Root do Next.js) */
-        header, aside, nav, button, .no-print, .editor-toolbar, .w-14 { 
-            display: none !important; 
-        }
-        
-        /* 2. NEUTRALIZA O FLEXBOX DO REACT (Impede esmagamento do layout) */
-        body, html, #__next, .flex-col, .flex-1, .overflow-hidden, .overflow-y-auto, main {
+        /* 1. DESTRÓI O FLEXBOX/GRID DO NEXT.JS (O segredo do empilhamento nativo) */
+        /* Forçamos display: block para que o navegador consiga calcular quebras de página */
+        body, html, #__next, main, div {
             display: block !important;
-            height: auto !important;
-            min-height: 0 !important;
-            max-height: none !important;
             overflow: visible !important;
-            position: static !important;
-            background: transparent !important;
+            height: auto !important;
+            max-height: none !important;
+            position: static !important; /* Mata qualquer absolute/relative que bugue o Firefox */
         }
 
-        /* 3. CONFIGURA A FOLHA A4 FÍSICA */
-        @page {
-            margin: 0; 
-            size: A4;
+        /* 2. OBLITERA A UI GLOBAL */
+        /* display: none remove o elemento da árvore, impedindo que a Sidebar (aside) empurre a prova */
+        header, aside, nav, button, .no-print, .editor-toolbar, .w-14 {
+            display: none !important;
         }
-        
-        /* 4. O DOM GOVERNA A FOLHA (Garante WYSIWYG e Margem Segura) */
+
+        /* 3. O DOM GOVERNA A FOLHA */
         #print-area {
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
-            padding: 15mm 20mm !important; /* Margem real para a impressora não cortar o texto */
-            transform: none !important; /* MATA O ZOOM AQUI */
+            padding: 15mm 20mm !important; /* Respiro seguro da impressora */
+            transform: none !important; /* Mata o zoom do React */
             box-shadow: none !important;
             border: none !important;
             background-color: var(--print-bg-color, white) !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+        }
+
+        /* 4. CONFIGURA A FOLHA A4 FÍSICA */
+        @page {
+            margin: 0; 
+            size: A4;
         }
         
         /* 5. A CURA DOS BURACOS EM BRANCO */
@@ -702,6 +703,11 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
         .wysiwyg-exam-img {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
+        }
+        
+        /* 7. FORÇA A QUEBRA DE LINKS GIGANTES */
+        #print-area a {
+            word-break: break-all !important; 
         }
     }
 `}</style>
