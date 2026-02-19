@@ -644,7 +644,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                 </div>
             )}
 
-            <style jsx global>{`
+<style jsx global>{`
     /* Garante hifenação segura e legibilidade acessível */
     #print-area .whitespace-pre-wrap {
         white-space: pre-wrap;
@@ -660,19 +660,21 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
         }
 
         /* 2. ACHATA A HIERARQUIA EXTERNA (Blindado contra "Fogo Amigo") */
-        /* O :not() impede que a regra ressuscite a Sidebar ou o Header caso eles usem classes do Tailwind */
+        /* O :not() impede que a regra ressuscite a Nav Rail, Sidebar ou o Header caso usem classes do Tailwind */
         body, html, #__next, main, 
-        .flex-col:not(aside):not(header):not(nav), 
-        .flex-1:not(aside):not(header):not(nav), 
-        .overflow-hidden, .overflow-y-auto, .py-12, .px-8 {
+        .flex-col:not(aside):not(header):not(nav):not(.w-14):not(.no-print), 
+        .flex-1:not(aside):not(header):not(nav):not(.w-14):not(.no-print), 
+        .overflow-hidden, .overflow-y-auto, .py-12, .px-8, .pb-32 {
             display: block !important;
             overflow: visible !important;
             height: auto !important;
+            min-height: 0 !important;
             max-height: none !important;
-            position: static !important; /* Proteção contra o bug do Firefox */
+            position: static !important;
             margin: 0 !important;
-            padding: 0 !important; /* CRÍTICO: Remove o padding (px-8) que estava espremendo a largura da prova */
+            padding: 0 !important; /* CRÍTICO: Remove o padding externo que espreme a prova */
             width: 100% !important;
+            background: transparent !important;
         }
 
         /* 3. O DOM GOVERNA A FOLHA */
@@ -681,8 +683,9 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
-            padding: 15mm 20mm !important; /* Respiro físico */
-            transform: none !important; /* Mata o zoom */
+            padding: 15mm 20mm !important; /* Respiro físico da impressora */
+            transform: none !important; /* Mata o zoom do React */
+            zoom: 1 !important;
             box-shadow: none !important;
             border: none !important;
             background-color: var(--print-bg-color, white) !important;
@@ -696,14 +699,14 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             size: A4;
         }
         
-        /* 5. A CURA DOS BURACOS EM BRANCO */
+        /* 5. A CURA DOS BURACOS EM BRANCO E PROTEÇÃO DE CONTEÚDO */
         .question-block { 
             page-break-inside: auto !important; 
             break-inside: auto !important; 
             margin-bottom: 2rem !important;
         }
         
-        /* 6. PROTEÇÃO DE INTEGRIDADE */
+        /* Protege elementos que não podem ser rasgados ao meio na virada da página */
         .question-block img, 
         .answer-lines-container,
         .wysiwyg-exam-img,
@@ -712,7 +715,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             break-inside: avoid !important;
         }
         
-        /* 7. FORÇA A QUEBRA DE LINKS GIGANTES */
+        /* 6. FORÇA A QUEBRA DE LINKS GIGANTES */
         #print-area a {
             word-break: break-all !important; 
         }
