@@ -644,7 +644,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                 </div>
             )}
 
-<style jsx global>{`
+            <style jsx global>{`
     /* Garante hifenação segura e legibilidade acessível */
     #print-area .whitespace-pre-wrap {
         white-space: pre-wrap;
@@ -654,9 +654,17 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
     }
 
     @media print {
-        /* 1. ACHATA A HIERARQUIA EXTERNA (Sem destruir a prova interna) */
-        /* Removemos o 'div'. Atacamos apenas os wrappers do Next.js e as classes de layout do Tailwind */
-        body, html, #__next, main, .flex-col, .flex-1, .overflow-hidden, .overflow-y-auto, .py-12, .px-8 {
+        /* 1. OBLITERA A UI GLOBAL (O Isolamento Absoluto) */
+        header, aside, nav, button, .no-print, .editor-toolbar, .w-14 {
+            display: none !important;
+        }
+
+        /* 2. ACHATA A HIERARQUIA EXTERNA (Blindado contra "Fogo Amigo") */
+        /* O :not() impede que a regra ressuscite a Sidebar ou o Header caso eles usem classes do Tailwind */
+        body, html, #__next, main, 
+        .flex-col:not(aside):not(header):not(nav), 
+        .flex-1:not(aside):not(header):not(nav), 
+        .overflow-hidden, .overflow-y-auto, .py-12, .px-8 {
             display: block !important;
             overflow: visible !important;
             height: auto !important;
@@ -667,18 +675,13 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             width: 100% !important;
         }
 
-        /* 2. OBLITERA A UI GLOBAL */
-        header, aside, nav, button, .no-print, .editor-toolbar, .w-14 {
-            display: none !important;
-        }
-
         /* 3. O DOM GOVERNA A FOLHA */
         #print-area {
-            display: block !important; /* Garante que a raiz da prova seja um bloco íntegro */
+            display: block !important;
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
-            padding: 15mm 20mm !important; /* O único respiro que importa agora */
+            padding: 15mm 20mm !important; /* Respiro físico */
             transform: none !important; /* Mata o zoom */
             box-shadow: none !important;
             border: none !important;
