@@ -24,8 +24,8 @@ export function MobileLibraryNav(props: MobileNavProps) {
       
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
-          <Button variant="ghost" size="icon">
-            <Menu className="text-slate-600" />
+          <Button variant="ghost" size="icon-touch" aria-label="Abrir menu de navegação">
+            <Menu className="text-slate-600" aria-hidden />
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="p-0 w-72">

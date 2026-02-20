@@ -191,7 +191,7 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
 
   if (success) {
       return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-xl p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-xl p-4" role="alert" aria-live="polite">
             <motion.div 
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -218,7 +218,7 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-lg p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-lg p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="subscription-lock-title">
       <motion.div 
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -236,7 +236,7 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
                         <Lock size={14} /> 
                         <span className="text-xs font-bold tracking-widest uppercase">Checkout Seguro</span>
                     </div>
-                    <h2 className="text-3xl font-black tracking-tight mb-1">Desbloquear {planTier}</h2>
+                    <h2 id="subscription-lock-title" className="text-3xl font-black tracking-tight mb-1">Desbloquear {planTier}</h2>
                     <p className="text-white/80 text-sm font-medium">Complete sua assinatura para continuar.</p>
                 </div>
                 <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-lg border border-white/10">
@@ -298,8 +298,9 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
                                     </p>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CPF (Obrigatório)</label>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-cpf-pix">CPF (Obrigatório)</label>
                                     <input 
+                                        id="subscription-cpf-pix"
                                         name="cpf" value={formData.cpf} onChange={handleInputChange} 
                                         placeholder="000.000.000-00"
                                         className="w-full h-14 px-4 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
@@ -321,7 +322,7 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
                                 </div>
                                 <div className="flex gap-2">
                                     <input readOnly value={pixData.payload} className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 text-xs text-slate-500 font-mono truncate outline-none" />
-                                    <button onClick={copyPix} className="bg-slate-900 text-white p-3 rounded-xl hover:bg-slate-700 transition-colors"><Copy size={16}/></button>
+                                    <button type="button" onClick={copyPix} className="min-w-[44px] min-h-[44px] flex items-center justify-center bg-slate-900 text-white p-3 rounded-xl hover:bg-slate-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label="Copiar código Pix"><Copy size={16} aria-hidden /></button>
                                 </div>
                                 <div className="flex justify-center items-center gap-2 text-xs font-bold text-blue-600 animate-pulse">
                                     <Loader2 size={14} className="animate-spin"/> Aguardando banco...
@@ -338,9 +339,10 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
                     >
                          <div className="space-y-4">
                             <div className="space-y-1.5 relative">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Número do Cartão</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-card-number">Número do Cartão</label>
                                 <div className="relative">
                                     <input 
+                                        id="subscription-card-number"
                                         name="cardNumber" value={formData.cardNumber} onChange={handleInputChange} 
                                         placeholder="0000 0000 0000 0000"
                                         className="w-full h-12 pl-12 pr-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm focus:bg-white focus:border-blue-500 transition-all outline-none shadow-sm"
@@ -351,28 +353,28 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Validade</label>
-                                    <input name="expiry" value={formData.expiry} onChange={handleInputChange} placeholder="MM/AAAA" className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm focus:bg-white focus:border-blue-500 transition-all outline-none" />
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-expiry">Validade</label>
+                                    <input id="subscription-expiry" name="expiry" value={formData.expiry} onChange={handleInputChange} placeholder="MM/AAAA" className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm focus:bg-white focus:border-blue-500 transition-all outline-none" />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CVV</label>
-                                    <input name="ccv" value={formData.ccv} onChange={handleInputChange} placeholder="123" maxLength={4} className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm focus:bg-white focus:border-blue-500 transition-all outline-none" />
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-ccv">CVV</label>
+                                    <input id="subscription-ccv" name="ccv" value={formData.ccv} onChange={handleInputChange} placeholder="123" maxLength={4} className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm focus:bg-white focus:border-blue-500 transition-all outline-none" />
                                 </div>
                             </div>
                             
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome no Cartão</label>
-                                <input name="holderName" value={formData.holderName} onChange={handleInputChange} placeholder="NOME IMPRESSO" className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold uppercase focus:bg-white focus:border-blue-500 transition-all outline-none" />
+                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-holder-name">Nome no Cartão</label>
+                                <input id="subscription-holder-name" name="holderName" value={formData.holderName} onChange={handleInputChange} placeholder="NOME IMPRESSO" className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold uppercase focus:bg-white focus:border-blue-500 transition-all outline-none" />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CPF</label>
-                                    <input name="cpf" value={formData.cpf} onChange={handleInputChange} placeholder="000..." className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:border-blue-500 outline-none" />
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-cpf-card">CPF</label>
+                                    <input id="subscription-cpf-card" name="cpf" value={formData.cpf} onChange={handleInputChange} placeholder="000..." className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:border-blue-500 outline-none" />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">CEP</label>
-                                    <input name="postalCode" value={formData.postalCode} onChange={handleInputChange} placeholder="00000..." className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:border-blue-500 outline-none" />
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-postal-code">CEP</label>
+                                    <input id="subscription-postal-code" name="postalCode" value={formData.postalCode} onChange={handleInputChange} placeholder="00000..." className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:border-blue-500 outline-none" />
                                 </div>
                             </div>
                         </div>

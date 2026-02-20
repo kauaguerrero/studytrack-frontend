@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import Image from 'next/image';
 import { 
   Mail, Lock, Eye, EyeOff, Loader2, User, 
-  GraduationCap, School
+  GraduationCap, School, Rocket
 } from 'lucide-react';
 
 const PLANS = [
@@ -227,7 +227,9 @@ function RegisterForm() {
   return (
     <div className="w-full max-w-[440px] mx-auto pb-4 min-w-0">
       <div className="mb-6 min-w-0"> 
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 mb-2 tracking-tight break-words">Crie sua conta 🚀</h1>
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 mb-2 tracking-tight break-words flex items-center gap-2 flex-wrap">
+          Crie sua conta <Rocket className="w-8 h-8 sm:w-9 sm:h-9 text-blue-600 shrink-0" aria-hidden />
+        </h1>
         <p className="text-slate-500 text-lg">
           {userType === 'student' 
             ? 'Comece a estudar de forma inteligente.' 
@@ -236,11 +238,11 @@ function RegisterForm() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-6 p-1 bg-slate-100 rounded-xl">
-        <button type="button" onClick={() => { setUserType('student'); setSchoolRole(null); }} className={`flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all duration-200 ${userType === 'student' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-          <GraduationCap size={18} /> Conta de Aluno
+        <button type="button" onClick={() => { setUserType('student'); setSchoolRole(null); }} className={`flex items-center justify-center gap-2 min-h-[44px] py-3 rounded-lg text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${userType === 'student' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+          <GraduationCap size={18} aria-hidden /> Conta de Aluno
         </button>
-        <button type="button" onClick={() => setUserType('school')} className={`flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all duration-200 ${userType === 'school' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-          <School size={18} /> Vinculado à Escola
+        <button type="button" onClick={() => setUserType('school')} className={`flex items-center justify-center gap-2 min-h-[44px] py-3 rounded-lg text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${userType === 'school' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+          <School size={18} aria-hidden /> Vinculado à Escola
         </button>
       </div>
 
@@ -343,8 +345,8 @@ function RegisterForm() {
               value={formData.password} 
               onChange={(e) => setFormData({...formData, password: e.target.value})} 
             />
-            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all">
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}>
+              {showPassword ? <EyeOff className="w-5 h-5" aria-hidden /> : <Eye className="w-5 h-5" aria-hidden />}
             </button>
           </div>
           <PasswordChecklist />
@@ -367,8 +369,8 @@ function RegisterForm() {
               value={formData.confirmPassword} 
               onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})} 
             />
-            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all">
-              {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label={showConfirmPassword ? 'Ocultar confirmar senha' : 'Mostrar confirmar senha'}>
+              {showConfirmPassword ? <EyeOff className="w-5 h-5" aria-hidden /> : <Eye className="w-5 h-5" aria-hidden />}
             </button>
           </div>
           {formData.confirmPassword && !passwordsMatch && (
@@ -382,9 +384,9 @@ function RegisterForm() {
         </div>
 
         <button 
-          type="submit" 
-          disabled={isLoading || !isPasswordValid || !passwordsMatch || !formData.name || !formData.email} 
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 rounded-2xl shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-70 transition-all mt-6"
+          type="submit"
+          disabled={isLoading || !isPasswordValid || !passwordsMatch || !formData.name || !formData.email}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold min-h-[48px] h-14 rounded-2xl shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-70 transition-all mt-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
         >
           {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (userType === 'school' ? "Iniciar Validação Escolar" : "Criar Conta de Aluno")}
         </button>

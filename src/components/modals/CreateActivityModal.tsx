@@ -91,8 +91,8 @@ export function CreateActivityModal({ isOpen, onClose, classroomId, classroomNam
                 Turma: <span className="font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{classroomName}</span>
             </p>
           </div>
-          <button onClick={onClose} className="p-2 bg-white rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm border border-slate-100">
-            <X size={20} />
+          <button type="button" onClick={onClose} className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2 bg-white rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm border border-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label="Fechar">
+            <X size={20} aria-hidden />
           </button>
         </div>
 

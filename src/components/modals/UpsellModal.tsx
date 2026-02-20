@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Crown, CheckCircle2, Lock, ArrowRight, Star, Zap, BookOpen } from 'lucide-react';
+import { X, Crown, CheckCircle2, Lock, ArrowRight, Star, Zap, BookOpen, Rocket } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SubscriptionLock } from '@/components/dashboard/SubscriptionLock';
 
@@ -30,19 +30,23 @@ export function UpsellModal({ isOpen, onClose, reason, userName = "Estudante" }:
     // --- PASSO 3: CHECKOUT ---
     if (step === 'CHECKOUT') {
         return (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm">
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Checkout de assinatura">
                 <SubscriptionLock planTier={selectedPlan} userName={userName} />
                 <button 
+                    type="button"
                     onClick={() => setStep('PLANS')} 
-                    className="absolute top-4 left-4 z-[101] bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full text-white text-sm font-bold transition-colors flex items-center gap-2"
+                    className="absolute top-4 left-4 z-50 min-w-[44px] min-h-[44px] flex items-center justify-center bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full text-white text-sm font-bold transition-colors gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+                    aria-label="Voltar para planos"
                 >
                     ← Voltar
                 </button>
                 <button 
+                    type="button"
                     onClick={onClose}
-                    className="absolute top-4 right-4 z-[101] bg-white/10 hover:bg-white/20 p-2 rounded-full text-white transition-colors"
+                    className="absolute top-4 right-4 z-50 min-w-[44px] min-h-[44px] flex items-center justify-center bg-white/10 hover:bg-white/20 p-2 rounded-full text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+                    aria-label="Fechar"
                 >
-                    <X size={24} />
+                    <X size={24} aria-hidden />
                 </button>
             </div>
         )
@@ -69,7 +73,7 @@ export function UpsellModal({ isOpen, onClose, reason, userName = "Estudante" }:
             locked: true
         },
         'GENERIC_UPSELL': {
-            title: "Seja um Aluno de Elite 🚀",
+            title: "Seja um Aluno de Elite",
             subtitle: "Acelere sua aprovação.",
             body: "Tenha acesso a simulados infinitos, correções detalhadas por IA e cronogramas adaptativos.",
             cta: "Ver Ofertas"
@@ -77,7 +81,7 @@ export function UpsellModal({ isOpen, onClose, reason, userName = "Estudante" }:
     }[reason];
 
     return (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto" role="dialog" aria-modal="true" aria-label="Ofertas e planos">
             <AnimatePresence mode="wait">
                 
                 {/* --- PASSO 1: ALERTA --- */}
@@ -94,12 +98,15 @@ export function UpsellModal({ isOpen, onClose, reason, userName = "Estudante" }:
                             <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto mb-4 border border-white/20 shadow-lg">
                                 {reason === 'TRIAL_EXPIRED' ? <Lock className="text-white w-8 h-8" /> : <Crown className="text-amber-300 w-8 h-8 fill-amber-300" />}
                             </div>
-                            <h2 className="text-2xl font-black text-white mb-1 tracking-tight">{alertContent.title}</h2>
+                            <h2 className="text-2xl font-black text-white mb-1 tracking-tight flex items-center justify-center gap-2 flex-wrap">
+                                {reason === 'GENERIC_UPSELL' && <Rocket className="w-7 h-7 text-amber-300 shrink-0" aria-hidden />}
+                                {alertContent.title}
+                            </h2>
                             <p className="text-blue-100 font-medium text-sm">{alertContent.subtitle}</p>
 
                             {reason !== 'TRIAL_EXPIRED' && (
-                                <button onClick={onClose} className="absolute top-4 right-4 text-white/60 hover:text-white hover:bg-white/10 rounded-full p-1 transition-colors">
-                                    <X size={20} />
+                                <button type="button" onClick={onClose} className="absolute top-4 right-4 min-w-[44px] min-h-[44px] flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 rounded-full p-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-blue-600" aria-label="Fechar">
+                                    <X size={20} aria-hidden />
                                 </button>
                             )}
                         </div>
@@ -116,7 +123,7 @@ export function UpsellModal({ isOpen, onClose, reason, userName = "Estudante" }:
                                 <ArrowRight size={18} />
                             </button>
                             {reason !== 'TRIAL_EXPIRED' && (
-                                <button onClick={onClose} className="mt-4 text-slate-400 text-xs font-bold hover:text-slate-600">
+                                <button type="button" onClick={onClose} className="mt-4 min-h-[44px] px-4 text-slate-400 text-xs font-bold hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded-lg">
                                     Talvez depois
                                 </button>
                             )}
@@ -133,8 +140,8 @@ export function UpsellModal({ isOpen, onClose, reason, userName = "Estudante" }:
                         exit={{ opacity: 0, scale: 0.9 }}
                         className="bg-slate-50 w-full max-w-6xl rounded-[2rem] shadow-2xl border border-white/50 relative flex flex-col lg:flex-row overflow-hidden"
                     >
-                        <button onClick={onClose} className="absolute top-4 right-4 z-20 bg-slate-200/50 hover:bg-slate-300 p-2 rounded-full text-slate-500 transition-colors">
-                            <X size={20} />
+                        <button type="button" onClick={onClose} className="absolute top-4 right-4 z-20 min-w-[44px] min-h-[44px] flex items-center justify-center bg-slate-200/50 hover:bg-slate-300 p-2 rounded-full text-slate-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label="Fechar">
+                            <X size={20} aria-hidden />
                         </button>
 
                         {/* === PLANO BASIC === */}

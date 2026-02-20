@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence, easeInOut } from 'framer-motion';
 import { usePathname } from 'next/navigation';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 const pageVariants = {
   initial: {
@@ -21,21 +22,27 @@ const pageVariants = {
 const pageTransition = {
   type: 'tween' as const,
   ease: easeInOut,
-  duration: 0.4,
+  duration: 0.3,
+};
+
+const reducedTransition = {
+  type: 'tween' as const,
+  duration: 0.01,
 };
 
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const reducedMotion = useReducedMotion();
 
   return (
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={pathname}
-        initial="initial"
-        animate="in"
-        exit="out"
-        variants={pageVariants}
-        transition={pageTransition}
+        initial={reducedMotion ? false : 'initial'}
+        animate={reducedMotion ? false : 'in'}
+        exit={reducedMotion ? false : 'out'}
+        variants={reducedMotion ? undefined : pageVariants}
+        transition={reducedMotion ? reducedTransition : pageTransition}
         className="w-full h-full"
       >
         {children}

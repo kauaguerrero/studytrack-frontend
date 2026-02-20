@@ -51,14 +51,24 @@ function LoginForm() {
 
       if (error) throw error;
 
-      // Redirecionar por role (agora usa RLS direto)
+      const session = authData?.session;
+      if (session?.access_token && session?.refresh_token) {
+        await fetch('/api/auth/set-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+          }),
+        });
+      }
+
       const userId = authData?.user?.id;
       const { data: profile } = userId
         ? await supabase.from('profiles').select('role').eq('id', userId).single()
         : { data: null };
-      
       const role = profile?.role ?? null;
-      
       const roleToPath: Record<string, string> = {
         teacher: '/portal/teacher',
         manager: '/portal/manager',
@@ -67,8 +77,8 @@ function LoginForm() {
         student: '/portal/student/dashboard',
       };
       const target = role && roleToPath[role] ? roleToPath[role] : '/portal';
-      router.push(target);
-      router.refresh();
+      window.location.href = target;
+      return;
     } catch (err: any) {
       // Mensagem de erro mais amigável
       if (err.message?.includes('Invalid login credentials') || err.message?.includes('Email not confirmed')) {
@@ -113,8 +123,8 @@ function LoginForm() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 mb-6">
-        <button onClick={() => handleSocialLogin('google')} type="button" className="flex items-center justify-center gap-3 h-12 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-200 hover:shadow-md transition-all duration-300 group">
-          <div className="group-hover:scale-110 transition-transform"><GoogleIcon /></div>
+        <button onClick={() => handleSocialLogin('google')} type="button" className="flex items-center justify-center gap-3 min-h-[48px] h-12 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-200 hover:shadow-md transition-all duration-300 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
+          <div className="group-hover:scale-110 transition-transform" aria-hidden><GoogleIcon /></div>
           <span className="font-semibold text-sm text-slate-700">Google</span>
         </button>
       </div>
@@ -165,17 +175,20 @@ function LoginForm() {
               onChange={(e) => setFormData({...formData, password: e.target.value})}
             />
             <button 
-              type="button" onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all"
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
             >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              {showPassword ? <EyeOff className="w-5 h-5" aria-hidden /> : <Eye className="w-5 h-5" aria-hidden />}
             </button>
           </div>
         </div>
 
         <button 
-          type="submit" disabled={isLoading || !formData.email || !formData.password}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-14 rounded-2xl shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-4"
+          type="submit"
+          disabled={isLoading || !formData.email || !formData.password}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold min-h-[48px] h-14 rounded-2xl shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
         >
           {isLoading ? (
             <>

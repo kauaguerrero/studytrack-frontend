@@ -115,6 +115,26 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+/* Escala de z-index: 10 base, 20 sidebar/sticky, 30 header, 40 navbar, 50 overlay/drawer, 60 modal */
+:root {
+  --z-base: 10;
+  --z-sticky: 20;
+  --z-header: 30;
+  --z-navbar: 40;
+  --z-overlay: 50;
+  --z-modal: 60;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

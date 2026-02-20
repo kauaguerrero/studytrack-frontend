@@ -53,7 +53,7 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
       <Link 
         href={href} 
         onClick={onCloseMobile}
-        className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+        className={`group flex items-center gap-3 min-h-[44px] px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
           active 
             ? 'bg-blue-50/80 text-blue-700 shadow-sm' 
             : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'

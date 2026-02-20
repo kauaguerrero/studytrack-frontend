@@ -37,7 +37,10 @@ const customStyles = `
   .animate-float { animation: float 6s ease-in-out infinite; }
   .animate-pulse-glow { animation: pulse-glow 3s infinite; }
   .animate-fade-in-up { animation: fade-in-up 0.8s ease-out forwards; }
-   
+  @media (prefers-reduced-motion: reduce) {
+    .animate-float, .animate-pulse-glow { animation: none !important; }
+    .animate-fade-in-up { animation-duration: 0.01ms !important; }
+  }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 `;
@@ -155,19 +158,19 @@ export default function Home() {
             </a>
           </div>
 
-          {/* Mobile Menu Button */}
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden text-slate-700">
-            {mobileMenuOpen ? <X /> : <Menu />}
+          {/* Mobile Menu Button - alvo de toque 44px */}
+          <button type="button" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded-lg" aria-label={mobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}>
+            {mobileMenuOpen ? <X size={22} aria-hidden /> : <Menu size={22} aria-hidden />}
           </button>
         </div>
 
         {/* Mobile Nav */}
         {mobileMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 w-full bg-white border-t border-slate-100 shadow-xl flex flex-col p-4 gap-4 animate-fade-in-up">
-            <a href="#planos" onClick={() => setMobileMenuOpen(false)} className="text-slate-700 font-medium p-2">Planos</a>
-            <a href="/auth/login" className="text-slate-700 font-medium p-2">Entrar</a>
-            <a href="/auth/register?plan=free" className="bg-blue-600 text-white text-center p-3 rounded-lg font-bold">Testar grátis 3 dias</a>
-          </div>
+          <nav className="md:hidden absolute top-full left-0 w-full bg-white border-t border-slate-100 shadow-xl flex flex-col p-4 gap-1 animate-fade-in-up" aria-label="Menu mobile">
+            <a href="#planos" onClick={() => setMobileMenuOpen(false)} className="text-slate-700 font-medium min-h-[44px] flex items-center px-3 rounded-lg hover:bg-slate-50">Planos</a>
+            <a href="/auth/login" className="text-slate-700 font-medium min-h-[44px] flex items-center px-3 rounded-lg hover:bg-slate-50">Entrar</a>
+            <a href="/auth/register?plan=free" className="bg-blue-600 text-white text-center min-h-[48px] flex items-center justify-center p-3 rounded-lg font-bold hover:bg-blue-700">Testar grátis 3 dias</a>
+          </nav>
         )}
       </header>
 

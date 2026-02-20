@@ -224,8 +224,8 @@ export function CreateGoalModal({
                         </h2>
                         <p className="text-sm text-slate-500 mt-1">Defina objetivos para engajar seus alunos.</p>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors">
-                        <X size={20} />
+                    <button type="button" onClick={onClose} className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-2 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" aria-label="Fechar">
+                        <X size={20} aria-hidden />
                     </button>
                 </div>
 

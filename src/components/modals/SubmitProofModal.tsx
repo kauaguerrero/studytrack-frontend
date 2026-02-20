@@ -51,8 +51,8 @@ export function SubmitProofModal({ isOpen, onClose, goalId, goalTitle, userId }:
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl p-6 relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700">
-            <X size={20} />
+        <button type="button" onClick={onClose} className="absolute top-4 right-4 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 rounded-full" aria-label="Fechar">
+            <X size={20} aria-hidden />
         </button>
 
         <h2 className="text-xl font-bold text-slate-800 mb-1">Concluir Meta</h2>
@@ -60,10 +60,11 @@ export function SubmitProofModal({ isOpen, onClose, goalId, goalTitle, userId }:
 
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Link da Comprovação</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2" htmlFor="submit-proof-url">Link da Comprovação</label>
                 <div className="relative">
-                    <LinkIcon className="absolute left-3 top-3 text-slate-400" size={16} />
+                    <LinkIcon className="absolute left-3 top-3 text-slate-400" size={16} aria-hidden />
                     <input 
+                        id="submit-proof-url"
                         type="url" 
                         required
                         placeholder="https://drive.google.com/..."
