@@ -138,6 +138,7 @@ export interface AdaptedExamMetadata {
     version: number | string;
     audit_warnings?: string[];
     total_questions?: number; // Metadado vindo do Backend Batching
+    header_url?: string;      // NOVO: Permite ao TS reconhecer a imagem do cabeçalho
 }
 
 export interface AdaptedExamData {
@@ -385,8 +386,8 @@ const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) =
     useLayoutEffect(() => {
         // 🔐 SECURITY: Sanitiza HTML antes de injetar
         const sanitized = DOMPurify.sanitize(html, {
-            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div'],
-            ALLOWED_ATTR: ['class', 'style'],
+            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div', 'img'],
+            ALLOWED_ATTR: ['class', 'style', 'src', 'alt', 'width', 'height'],
             FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],
             FORBID_ATTR: ['onerror', 'onload', 'onclick']
         });
@@ -518,10 +519,56 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
     const [reportModalOpen, setReportModalOpen] = useState(false);
     const [bnccReport, setBnccReport] = useState<any>(null);
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+    const [isUploadingImg, setIsUploadingImg] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const questionList = useMemo(() => state.data.questions, [state.data.questions]);
+
+    const handleInsertImageWysiwyg = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || activeIdx === null) return;
+
+        setIsUploadingImg(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error("Não autenticado");
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/enterprise/inclusion/upload-image`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${session.access_token}` },
+                body: formData
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Erro no upload');
+
+            const imgHtml = `<img src="${data.url}" alt="Imagem Adicionada" class="wysiwyg-exam-img" style="max-width: 100%; height: auto; display: block; margin: 15px auto; border-radius: 8px; resize: both; overflow: hidden;" />`;
+
+            // API nativa para injetar no ponto exato do cursor
+            document.execCommand('insertHTML', false, imgHtml);
+
+            // Atualiza o estado lendo o DOM modificado para não perder o tracking do React
+            const activeEl = document.querySelector(`#q-${activeIdx} [contenteditable]`);
+            if (activeEl) {
+                dispatch({
+                    type: 'UPDATE_QUESTION',
+                    payload: { index: activeIdx, field: 'adapted_content', value: activeEl.innerHTML }
+                });
+            }
+
+            showToast("Imagem inserida com sucesso!", "success");
+        } catch (error: any) {
+            showToast(error.message, "error");
+        } finally {
+            setIsUploadingImg(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
 
     const scrollToQuestion = (index: number) => {
         const el = document.getElementById(`q-${index}`);
@@ -542,17 +589,10 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                 }))
             };
 
-            // 1. INVALIDE O CACHE LOCAL (Memória do React)
-            // Se o usuário salvar uma alteração, destruímos o relatório antigo da tela dele.
-            // Assim, o 'if (bnccReport) return' falha e obriga o botão a bater na API de novo.
-            setBnccReport(null); 
-
-            // 2. INVALIDE O CACHE DO BANCO DE DADOS
-            // Anulamos a coluna para que a IA processe a nova versão da prova.
-            const payload: any = { 
-                final_json_data: dataToSave, 
-                bncc_report_data: null, 
-                updated_at: new Date().toISOString() 
+            // Cache local preservado. A invalidação estrutural será feita apenas se o texto mudar drasticamente, não no auto-save de layout.
+            const payload: any = {
+                final_json_data: dataToSave,
+                updated_at: new Date().toISOString()
             };
             const { error } = await supabase.from('adapted_exams').update(payload).eq('id', jobId);
 
@@ -656,20 +696,20 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
     const handleGenerateReport = async () => {
         setReportModalOpen(true);
         if (bnccReport) return; // Se já gerou nesta sessão, usa o cache local
-        
+
         setIsGeneratingReport(true);
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("Não autenticado.");
-            
+
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/enterprise/inclusion/job/${jobId}/bncc-report`, {
                 headers: { 'Authorization': `Bearer ${session.access_token}` }
             });
             const data = await res.json();
-            
+
             if (!res.ok) throw new Error(data.error || 'Erro ao gerar relatório');
             setBnccReport(data.report);
-            
+
         } catch (e: any) {
             showToast(e.message, 'error');
             setReportModalOpen(false);
@@ -690,7 +730,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                 </div>
             )}
 
-<style jsx global>{`
+            <style jsx global>{`
     /* Garante hifenação segura e legibilidade acessível */
     #print-area .whitespace-pre-wrap {
         white-space: pre-wrap;
@@ -813,20 +853,17 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             {/* 2. EDITOR TOOLBAR */}
             <div className={`bg-white/90 backdrop-blur-md border-b border-slate-200/60 px-6 py-2 flex items-center justify-between z-20 sticky top-0 transition-all duration-300 no-print ${state.isZenMode ? 'px-8 py-3' : ''}`}>
                 <div className="flex items-center gap-1">
-                    <div className="flex items-center bg-slate-100/50 p-1 rounded-lg border border-slate-200/50 mr-4">
-                        <ToolButton icon={RotateCcw} onClick={() => dispatch({ type: 'UNDO' })} disabled={state.history.length === 0} shortcut="Ctrl+Z" />
-                        <ToolButton icon={RotateCw} onClick={() => dispatch({ type: 'REDO' })} disabled={state.future.length === 0} shortcut="Ctrl+Y" />
-                    </div>
-
+                    
+                    {/* CONTROLES GLOBAIS (Não dependem do activeIdx) */}
                     <div className="flex items-center gap-2 mr-4 border-r border-slate-200 pr-4">
                         <Palette size={16} className="text-slate-400" />
                         <div className="flex gap-1">
                             {[
                                 { color: '#ffffff', label: 'Branco' },
-                                { color: '#fffbeb', label: 'Creme (Irlen)' }, // Amber-50
-                                { color: '#eff6ff', label: 'Azul (Suave)' }, // Blue-50
-                                { color: '#f0fdf4', label: 'Verde (Descanso)' }, // Green-50
-                                { color: '#faf5ff', label: 'Roxo (Foco)' }  // Purple-50
+                                { color: '#fffbeb', label: 'Creme (Irlen)' },
+                                { color: '#eff6ff', label: 'Azul (Suave)' },
+                                { color: '#f0fdf4', label: 'Verde (Descanso)' },
+                                { color: '#faf5ff', label: 'Roxo (Foco)' } 
                             ].map((bg) => (
                                 <button
                                     key={bg.color}
@@ -839,6 +876,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                         </div>
                     </div>
 
+                    {/* CONTROLES LOCAIS (Exigem que o usuário tenha clicado em uma questão) */}
                     {activeIdx !== null ? (
                         <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-4 duration-300">
                             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-md shadow-sm px-1 h-9">
@@ -861,9 +899,29 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                                     {['12px', '14px', '16px', '18px', '20px', '24px', '28px'].map(s => <option key={s} value={s}>{s}</option>)}
                                 </select>
                             </div>
+                            
                             <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200/60">
                                 <ToolButton icon={Bold} active={state.data.questions[activeIdx].css_style?.fontWeight === 'bold'} onClick={() => dispatch({ type: 'UPDATE_STYLE', payload: { index: activeIdx, field: 'fontWeight', value: state.data.questions[activeIdx].css_style?.fontWeight === 'bold' ? 'normal' : 'bold' } })} />
                                 <ToolButton icon={Italic} />
+                                
+                                <div className="w-px h-4 bg-slate-200 mx-1" />
+                                
+                                <input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    onChange={handleInsertImageWysiwyg} 
+                                    accept="image/png, image/jpeg" 
+                                    className="hidden" 
+                                />
+                                <button
+                                    onMouseDown={(e) => e.preventDefault()} 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isUploadingImg}
+                                    title="Inserir Imagem na Questão"
+                                    className={`relative flex items-center justify-center h-8 w-8 rounded-md transition-all duration-200 active:scale-95 ${isUploadingImg ? 'opacity-50 cursor-not-allowed text-blue-500' : 'text-slate-500 hover:bg-slate-200 hover:text-slate-900'}`}
+                                >
+                                    {isUploadingImg ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} strokeWidth={2} />}
+                                </button>
                             </div>
                         </div>
                     ) : (
@@ -872,6 +930,8 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                         </div>
                     )}
                 </div>
+                
+                {/* MENU DE VISUALIZAÇÃO E ZOOM */}
                 <div className="flex items-center gap-2">
                     <div className="flex items-center bg-slate-100 rounded-md px-2 py-1">
                         <button onClick={() => setZoom(z => Math.max(50, z - 10))} className="p-1 hover:bg-slate-200 rounded"><ZoomOut size={14} /></button>
@@ -926,24 +986,34 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                             onClick={(e) => e.stopPropagation()}
                         >
                             {/* [HEADER DA PROVA] */}
-                            <div id="exam-header" style={{ borderBottom: '2px solid #1e293b', paddingBottom: '8px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontFamily: 'sans-serif' }}>
-                                <div>
-                                    <h1 style={{ fontSize: '30px', fontWeight: '900', textTransform: 'uppercase', color: '#0f172a', margin: 0, lineHeight: 1 }}>Avaliação</h1>
-                                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <span>StudyTrack</span>
-                                        <span style={{ height: '12px', width: '1px', backgroundColor: '#cbd5e1', display: 'inline-block' }}></span>
-                                        <span>Grupo Neder Educação</span>
+                            {state.data.metadata.header_url ? (
+                                <div id="exam-header" className="mb-6 border-b-2 border-slate-800 pb-4">
+                                    <img
+                                        src={state.data.metadata.header_url}
+                                        alt="Cabeçalho Original da Escola"
+                                        className="w-full h-auto max-h-40 object-contain object-top"
+                                    />
+                                </div>
+                            ) : (
+                                <div id="exam-header" style={{ borderBottom: '2px solid #1e293b', paddingBottom: '8px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontFamily: 'sans-serif' }}>
+                                    <div>
+                                        <h1 style={{ fontSize: '30px', fontWeight: '900', textTransform: 'uppercase', color: '#0f172a', margin: 0, lineHeight: 1 }}>Avaliação</h1>
+                                        <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span>StudyTrack</span>
+                                            <span style={{ height: '12px', width: '1px', backgroundColor: '#cbd5e1', display: 'inline-block' }}></span>
+                                            <span>Grupo Neder Educação</span>
+                                        </div>
+                                    </div>
+                                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
+                                        <div style={{ fontSize: '12px', color: '#475569', fontWeight: '500', marginBottom: '4px' }}>
+                                            <span style={{ fontWeight: '700', color: '#0f172a', textTransform: 'uppercase' }}>Aluno:</span> {state.data.metadata.student_name || "_______________________"}
+                                        </div>
+                                        <div style={{ fontSize: '12px', color: '#475569', fontWeight: '500' }}>
+                                            <span style={{ fontWeight: '700', color: '#0f172a', textTransform: 'uppercase' }}>Data:</span> {new Date().toLocaleDateString()}
+                                        </div>
                                     </div>
                                 </div>
-                                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
-                                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '500', marginBottom: '4px' }}>
-                                        <span style={{ fontWeight: '700', color: '#0f172a', textTransform: 'uppercase' }}>Aluno:</span> {state.data.metadata.student_name || "_______________________"}
-                                    </div>
-                                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '500' }}>
-                                        <span style={{ fontWeight: '700', color: '#0f172a', textTransform: 'uppercase' }}>Data:</span> {new Date().toLocaleDateString()}
-                                    </div>
-                                </div>
-                            </div>
+                            )}
 
                             {/* QUESTIONS RENDERER */}
                             <div className="space-y-4">
@@ -1022,7 +1092,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                                                         className="whitespace-pre-wrap"
                                                     />
                                                 )}
-                                            </div>                        
+                                            </div>
                                         </div>
                                     );
                                 })}
@@ -1132,15 +1202,15 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             {reportModalOpen && (
                 // 1. Removemos o no-print daqui. Usamos print:block e print:relative para soltar o modal na folha
                 <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 print:block print:p-0 print:bg-white print:static">
-                    
+
                     {/* 2. Soltamos a altura (h-auto) e larguras máximas para o papel */}
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 print:h-auto print:max-w-none print:w-full print:shadow-none print:rounded-none">
-                        
+
                         {/* 3. O cabeçalho com botões some na impressão (print:hidden) */}
                         <div className="h-16 border-b border-slate-200 px-6 flex items-center justify-between bg-slate-50 shrink-0 print:hidden">
                             <div>
                                 <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                                    <ShieldAlert className="text-purple-600" size={20} /> 
+                                    <ShieldAlert className="text-purple-600" size={20} />
                                     Parecer de Conformidade Legal e Pedagógica
                                 </h2>
                                 <p className="text-xs text-slate-500 font-medium mt-0.5">Mapeamento estrutural de habilidades BNCC mantidas na adaptação.</p>
@@ -1150,7 +1220,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                                 <button onClick={() => setReportModalOpen(false)} className="p-2 hover:bg-red-100 text-slate-500 hover:text-red-600 rounded-lg transition-colors"><X size={20} /></button>
                             </div>
                         </div>
-                        
+
                         {/* 4. A área de rolagem é liberada para crescer (print:overflow-visible) */}
                         <div className="flex-1 overflow-y-auto p-6 bg-slate-50 print:overflow-visible print:bg-white print:p-0" id="report-print-area">
                             {isGeneratingReport ? (
@@ -1212,7 +1282,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                             )}
                         </div>
                     </div>
-                    
+
                     <style type="text/css">{`
                         @media print {
                             /* Esconde o resto da interface do StudyTrack */
