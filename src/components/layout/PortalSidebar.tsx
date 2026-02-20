@@ -195,7 +195,7 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
 
 export function PortalSidebar(props: PortalSidebarProps) {
   return (
-    <aside className="w-72 border-r border-slate-200 hidden md:flex flex-col h-full z-20 sticky top-0">
+    <aside className="w-72 border-r border-slate-200 hidden md:flex flex-col h-full z-0 sticky top-0">
       <SidebarContent {...props} />
     </aside>
   );
