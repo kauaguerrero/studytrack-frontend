@@ -38,9 +38,9 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={pathname}
-        initial={reducedMotion ? false : 'initial'}
-        animate={reducedMotion ? false : 'in'}
-        exit={reducedMotion ? false : 'out'}
+        initial={reducedMotion ? undefined : 'initial'}
+        animate={reducedMotion ? undefined : 'in'}
+        exit={reducedMotion ? undefined : 'out'}
         variants={reducedMotion ? undefined : pageVariants}
         transition={reducedMotion ? reducedTransition : pageTransition}
         className="w-full h-full"
