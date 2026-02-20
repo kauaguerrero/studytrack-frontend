@@ -1130,7 +1130,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
 
             {/* INÍCIO DO MODAL BNCC */}
             {reportModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 no-print">
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 no-print">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                         <div className="h-16 border-b border-slate-200 px-6 flex items-center justify-between bg-slate-50 shrink-0">
                             <div>
@@ -1148,9 +1148,29 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                         
                         <div className="flex-1 overflow-y-auto p-6 bg-slate-50" id="report-print-area">
                             {isGeneratingReport ? (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4">
-                                    <Loader2 size={32} className="animate-spin text-purple-500" />
-                                    <p className="text-sm font-medium">A Inteligência Artificial está realizando a perícia pedagógica da prova...</p>
+                                <div className="space-y-4">
+                                    <div className="mb-6 flex flex-col items-center justify-center text-purple-600 mb-8 mt-4">
+                                        <Loader2 size={32} className="animate-spin mb-3" />
+                                        <p className="text-sm font-bold animate-pulse">A Inteligência Artificial está realizando a perícia pedagógica...</p>
+                                        <p className="text-xs text-slate-400 mt-1">Isso pode levar alguns segundos dependendo do tamanho da prova.</p>
+                                    </div>
+                                    {/* SKELETON LOADER ANIMADO */}
+                                    {[1, 2, 3].map((i) => (
+                                        <div key={i} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm animate-pulse">
+                                            <div className="flex items-start gap-3 mb-3 border-b border-slate-100 pb-3">
+                                                <div className="w-8 h-8 rounded-full bg-slate-200 shrink-0"></div>
+                                                <div className="space-y-2 flex-1">
+                                                    <div className="h-4 w-20 bg-green-100 rounded"></div>
+                                                    <div className="h-4 w-3/4 bg-slate-200 rounded"></div>
+                                                </div>
+                                            </div>
+                                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-2 mt-2">
+                                                <div className="h-3 w-1/3 bg-slate-200 rounded"></div>
+                                                <div className="h-3 w-full bg-slate-200 rounded"></div>
+                                                <div className="h-3 w-5/6 bg-slate-200 rounded"></div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             ) : bnccReport && (
                                 <div className="space-y-4">
@@ -1182,12 +1202,30 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                         </div>
                     </div>
                     
-                    {/* BURLA DO NEXT.JS: Tag <style> HTML nativa não sofre parse do Turbopack */}
                     <style type="text/css">{`
                         @media print {
+                            /* 1. Esconde tudo fora do modal */
                             body * { visibility: hidden; }
+                            
+                            /* 2. Remove limites de altura e barras de rolagem que causam a "página em branco" */
+                            html, body { height: auto !important; overflow: visible !important; min-height: 100% !important; }
+                            .fixed { position: absolute !important; }
+                            .overflow-y-auto, .overflow-hidden { overflow: visible !important; height: auto !important; max-height: none !important; }
+                            
+                            /* 3. Mostra apenas a área de relatório */
                             #report-print-area, #report-print-area * { visibility: visible; }
-                            #report-print-area { position: absolute; left: 0; top: 0; width: 100%; background: white !important; padding: 20px; }
+                            #report-print-area { 
+                                position: absolute; 
+                                left: 0; 
+                                top: 0; 
+                                width: 100%; 
+                                background: white !important; 
+                                padding: 0; 
+                                margin: 0; 
+                            }
+                            
+                            /* Evita quebras de página no meio de um card de questão */
+                            #report-print-area > div > div { page-break-inside: avoid; break-inside: avoid; margin-bottom: 20px; }
                         }
                     `}</style>
                 </div>
