@@ -138,7 +138,6 @@ export interface AdaptedExamMetadata {
     version: number | string;
     audit_warnings?: string[];
     total_questions?: number; // Metadado vindo do Backend Batching
-    header_url?: string;      // NOVO: Permite ao TS reconhecer a imagem do cabeçalho
 }
 
 export interface AdaptedExamData {
@@ -985,35 +984,25 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                             }}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            {/* [HEADER DA PROVA] */}
-                            {state.data.metadata.header_url ? (
-                                <div id="exam-header" className="mb-6 border-b-2 border-slate-800 pb-4">
-                                    <img
-                                        src={state.data.metadata.header_url}
-                                        alt="Cabeçalho Original da Escola"
-                                        className="w-full h-auto max-h-40 object-contain object-top"
-                                    />
-                                </div>
-                            ) : (
-                                <div id="exam-header" style={{ borderBottom: '2px solid #1e293b', paddingBottom: '8px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontFamily: 'sans-serif' }}>
-                                    <div>
-                                        <h1 style={{ fontSize: '30px', fontWeight: '900', textTransform: 'uppercase', color: '#0f172a', margin: 0, lineHeight: 1 }}>Avaliação</h1>
-                                        <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <span>StudyTrack</span>
-                                            <span style={{ height: '12px', width: '1px', backgroundColor: '#cbd5e1', display: 'inline-block' }}></span>
-                                            <span>Grupo Neder Educação</span>
-                                        </div>
-                                    </div>
-                                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
-                                        <div style={{ fontSize: '12px', color: '#475569', fontWeight: '500', marginBottom: '4px' }}>
-                                            <span style={{ fontWeight: '700', color: '#0f172a', textTransform: 'uppercase' }}>Aluno:</span> {state.data.metadata.student_name || "_______________________"}
-                                        </div>
-                                        <div style={{ fontSize: '12px', color: '#475569', fontWeight: '500' }}>
-                                            <span style={{ fontWeight: '700', color: '#0f172a', textTransform: 'uppercase' }}>Data:</span> {new Date().toLocaleDateString()}
-                                        </div>
+                            {/* [HEADER DA PROVA ORIGINAL DO STUDYTRACK] */}
+                            <div id="exam-header" style={{ borderBottom: '2px solid #1e293b', paddingBottom: '8px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontFamily: 'sans-serif' }}>
+                                <div>
+                                    <h1 style={{ fontSize: '30px', fontWeight: '900', textTransform: 'uppercase', color: '#0f172a', margin: 0, lineHeight: 1 }}>Avaliação</h1>
+                                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span>StudyTrack</span>
+                                        <span style={{ height: '12px', width: '1px', backgroundColor: '#cbd5e1', display: 'inline-block' }}></span>
+                                        <span>Grupo Neder Educação</span>
                                     </div>
                                 </div>
-                            )}
+                                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
+                                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '500', marginBottom: '4px' }}>
+                                        <span style={{ fontWeight: '700', color: '#0f172a', textTransform: 'uppercase' }}>Aluno:</span> {state.data.metadata.student_name || "_______________________"}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#475569', fontWeight: '500' }}>
+                                        <span style={{ fontWeight: '700', color: '#0f172a', textTransform: 'uppercase' }}>Data:</span> {new Date().toLocaleDateString()}
+                                    </div>
+                                </div>
+                            </div>
 
                             {/* QUESTIONS RENDERER */}
                             <div className="space-y-4">
