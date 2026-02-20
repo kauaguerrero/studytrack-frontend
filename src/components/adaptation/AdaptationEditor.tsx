@@ -174,11 +174,17 @@ interface EditorState {
 // Transforma tags de backend em HTML visualizável no Editor.
 const parseBackendTagsToHTML = (htmlString: string): string => {
     if (!htmlString) return '';
-    let parsed = htmlString.replace(/\[\[IMG_REF:(.*?):(AUTO|[\d.]+)\]\]/g, (match, url, ratio) => {
-        const width = ratio === 'AUTO' ? '100%' : `${parseFloat(ratio) * 100}%`;
+    // FIX: Regex flexibilizado para aceitar URLs com query strings e proporção opcional
+    let parsed = htmlString.replace(/\[\[IMG_REF:(.*?)(?::(AUTO|[\d.]+))?\]\]/g, (match, url, ratio) => {
+        const width = (!ratio || ratio === 'AUTO') ? '100%' : `${parseFloat(ratio) * 100}%`;
         return `<img src="${url}" alt="Imagem de apoio" class="wysiwyg-exam-img" style="max-width: ${width}; height: auto; display: block; margin: 15px auto; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />`;
     });
-    // Injeta as linhas de resposta como divs responsivas garantindo a largura exata do contêiner
+    // FIX: Nova tag [GAP] para lacunas no meio de frases (completar letras/palavras)
+    parsed = parsed.replace(/\[GAP:?(\d+)?\]/g, (match, size) => {
+        const width = size ? `${parseInt(size, 10)}ch` : '30px';
+        return `<span style="display:inline-block; border-bottom: 1px solid #1e293b; width: ${width}; margin: 0 4px;"></span>`;
+    });
+    // Injeta as linhas de resposta como divs responsivas...
     parsed = parsed.replace(/\[LINHAS_RESPOSTA:(\d+)\]/g, (match, count) => {
         const num = parseInt(count, 10) || 1;
         const lines = Array(num).fill(`<div style="border-bottom: 1px solid #cbd5e1; height: 32px; width: 100%;"></div>`).join('');
@@ -509,6 +515,9 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
     const [feedbackNotes, setFeedbackNotes] = useState('');
     const [feedbackSending, setFeedbackSending] = useState(false);
     const [feedbackSent, setFeedbackSent] = useState(false);
+    const [reportModalOpen, setReportModalOpen] = useState(false);
+    const [bnccReport, setBnccReport] = useState<any>(null);
+    const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -533,7 +542,18 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                 }))
             };
 
-            const payload: any = { final_json_data: dataToSave, updated_at: new Date().toISOString() };
+            // 1. INVALIDE O CACHE LOCAL (Memória do React)
+            // Se o usuário salvar uma alteração, destruímos o relatório antigo da tela dele.
+            // Assim, o 'if (bnccReport) return' falha e obriga o botão a bater na API de novo.
+            setBnccReport(null); 
+
+            // 2. INVALIDE O CACHE DO BANCO DE DADOS
+            // Anulamos a coluna para que a IA processe a nova versão da prova.
+            const payload: any = { 
+                final_json_data: dataToSave, 
+                bncc_report_data: null, 
+                updated_at: new Date().toISOString() 
+            };
             const { error } = await supabase.from('adapted_exams').update(payload).eq('id', jobId);
 
             if (error) throw error;
@@ -629,6 +649,32 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             // 6. Restaura a limpeza do root
             if (prevBg) root.style.setProperty('--print-bg-color', prevBg);
             else root.style.removeProperty('--print-bg-color');
+        }
+    };
+
+    // --- FUNÇÃO DO RELATÓRIO BNCC ---
+    const handleGenerateReport = async () => {
+        setReportModalOpen(true);
+        if (bnccReport) return; // Se já gerou nesta sessão, usa o cache local
+        
+        setIsGeneratingReport(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) throw new Error("Não autenticado.");
+            
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/enterprise/inclusion/job/${jobId}/bncc-report`, {
+                headers: { 'Authorization': `Bearer ${session.access_token}` }
+            });
+            const data = await res.json();
+            
+            if (!res.ok) throw new Error(data.error || 'Erro ao gerar relatório');
+            setBnccReport(data.report);
+            
+        } catch (e: any) {
+            showToast(e.message, 'error');
+            setReportModalOpen(false);
+        } finally {
+            setIsGeneratingReport(false);
         }
     };
 
@@ -747,6 +793,13 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                     <div className="flex items-center gap-4">
                         <StatusBadge saving={state.isSaving} lastSaved={state.lastSaved} />
                         <div className="h-6 w-px bg-slate-200" />
+                        <button
+                            onClick={handleGenerateReport}
+                            className="bg-purple-100 text-purple-700 border border-purple-200 px-4 py-2 rounded-lg text-xs font-bold hover:bg-purple-200 transition-all flex items-center gap-2 active:scale-95 shadow-sm no-print"
+                        >
+                            <ShieldAlert size={14} /> Relatório BNCC
+                        </button>
+
                         <button
                             onClick={handlePrintPDF}
                             className="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black transition-all flex items-center gap-2 active:scale-95 shadow-lg shadow-slate-900/20"
@@ -969,30 +1022,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                                                         className="whitespace-pre-wrap"
                                                     />
                                                 )}
-                                            </div>
-
-                                            {/* Suporte Visual */}
-                                            {q.visual_cues && (
-                                                <div className={`mt-4 flex gap-4 p-4 rounded-lg border border-dashed transition-all ${isActive ? 'border-blue-300 bg-blue-50/50' : 'border-slate-300 bg-black/5'}`}>
-                                                    <div className="flex-shrink-0 h-16 w-16 bg-slate-200 rounded flex items-center justify-center text-slate-400 no-print">
-                                                        <ImageIcon size={24} />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block no-print">Descrição de Apoio Visual (Faltante)</label>
-                                                        {isActive ? (
-                                                            <AutoResizingTextarea
-                                                                value={q.visual_cues}
-                                                                onChange={(e: any) => dispatch({ type: 'UPDATE_QUESTION', payload: { index: idx, field: 'visual_cues', value: e.target.value } })}
-                                                                className="w-full bg-transparent text-sm text-slate-600 outline-none resize-none font-medium"
-                                                            />
-                                                        ) : (
-                                                            <p className="text-sm text-slate-700 font-medium italic bg-slate-100/50 p-2 rounded border border-slate-200">
-                                                                <b>[Suporte Visual]:</b> {q.visual_cues}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
+                                            </div>                        
                                         </div>
                                     );
                                 })}
@@ -1097,6 +1127,72 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                     </aside>
                 )}
             </div>
+
+            {/* INÍCIO DO MODAL BNCC */}
+            {reportModalOpen && (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4 no-print">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="h-16 border-b border-slate-200 px-6 flex items-center justify-between bg-slate-50 shrink-0">
+                            <div>
+                                <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                                    <ShieldAlert className="text-purple-600" size={20} /> 
+                                    Parecer de Conformidade Legal e Pedagógica
+                                </h2>
+                                <p className="text-xs text-slate-500 font-medium mt-0.5">Mapeamento estrutural de habilidades BNCC mantidas na adaptação.</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => window.print()} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-bold transition-colors">Imprimir Relatório</button>
+                                <button onClick={() => setReportModalOpen(false)} className="p-2 hover:bg-red-100 text-slate-500 hover:text-red-600 rounded-lg transition-colors"><X size={20} /></button>
+                            </div>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50" id="report-print-area">
+                            {isGeneratingReport ? (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4">
+                                    <Loader2 size={32} className="animate-spin text-purple-500" />
+                                    <p className="text-sm font-medium">A Inteligência Artificial está realizando a perícia pedagógica da prova...</p>
+                                </div>
+                            ) : bnccReport && (
+                                <div className="space-y-4">
+                                    {bnccReport.items.map((item: any, i: number) => (
+                                        <div key={i} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                            <div className="flex items-start justify-between mb-3 border-b border-slate-100 pb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-black text-xs flex items-center justify-center border border-slate-200">
+                                                        {i + 1}
+                                                    </span>
+                                                    <div>
+                                                        <span className="inline-block px-2 py-1 bg-green-100 text-green-800 font-mono text-[10px] font-bold rounded border border-green-200 mb-1">
+                                                            {item.bncc_code}
+                                                        </span>
+                                                        <h3 className="text-sm font-bold text-slate-800">{item.skill_description}</h3>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                                                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Defesa Jurídico-Pedagógica</h4>
+                                                <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                                                    {item.legal_pedagogical_defense}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {/* BURLA DO NEXT.JS: Tag <style> HTML nativa não sofre parse do Turbopack */}
+                    <style type="text/css">{`
+                        @media print {
+                            body * { visibility: hidden; }
+                            #report-print-area, #report-print-area * { visibility: visible; }
+                            #report-print-area { position: absolute; left: 0; top: 0; width: 100%; background: white !important; padding: 20px; }
+                        }
+                    `}</style>
+                </div>
+            )}
+            {/* FIM DO MODAL BNCC */}
 
             {toast && (
                 <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 rounded-full shadow-2xl z-50 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 no-print ${toast.type === 'success' ? 'bg-slate-900 text-white' : 'bg-red-500 text-white'}`}>
