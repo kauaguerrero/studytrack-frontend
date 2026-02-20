@@ -1130,9 +1130,14 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
 
             {/* INÍCIO DO MODAL BNCC */}
             {reportModalOpen && (
-                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 no-print">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="h-16 border-b border-slate-200 px-6 flex items-center justify-between bg-slate-50 shrink-0">
+                // 1. Removemos o no-print daqui. Usamos print:block e print:relative para soltar o modal na folha
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 print:block print:p-0 print:bg-white print:static">
+                    
+                    {/* 2. Soltamos a altura (h-auto) e larguras máximas para o papel */}
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 print:h-auto print:max-w-none print:w-full print:shadow-none print:rounded-none">
+                        
+                        {/* 3. O cabeçalho com botões some na impressão (print:hidden) */}
+                        <div className="h-16 border-b border-slate-200 px-6 flex items-center justify-between bg-slate-50 shrink-0 print:hidden">
                             <div>
                                 <h2 className="text-lg font-black text-slate-800 flex items-center gap-2">
                                     <ShieldAlert className="text-purple-600" size={20} /> 
@@ -1146,15 +1151,15 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                             </div>
                         </div>
                         
-                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50" id="report-print-area">
+                        {/* 4. A área de rolagem é liberada para crescer (print:overflow-visible) */}
+                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50 print:overflow-visible print:bg-white print:p-0" id="report-print-area">
                             {isGeneratingReport ? (
-                                <div className="space-y-4">
+                                <div className="space-y-4 print:hidden">
                                     <div className="mb-6 flex flex-col items-center justify-center text-purple-600 mb-8 mt-4">
                                         <Loader2 size={32} className="animate-spin mb-3" />
                                         <p className="text-sm font-bold animate-pulse">A Inteligência Artificial está realizando a perícia pedagógica...</p>
                                         <p className="text-xs text-slate-400 mt-1">Isso pode levar alguns segundos dependendo do tamanho da prova.</p>
                                     </div>
-                                    {/* SKELETON LOADER ANIMADO */}
                                     {[1, 2, 3].map((i) => (
                                         <div key={i} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm animate-pulse">
                                             <div className="flex items-start gap-3 mb-3 border-b border-slate-100 pb-3">
@@ -1174,23 +1179,29 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                                 </div>
                             ) : bnccReport && (
                                 <div className="space-y-4">
+                                    {/* CABEÇALHO DO RELATÓRIO EXCLUSIVO PARA IMPRESSÃO */}
+                                    <div className="hidden print:block mb-8 text-center border-b-2 border-slate-800 pb-4">
+                                        <h1 className="text-2xl font-black text-slate-900 uppercase">Parecer de Conformidade Legal e Pedagógica</h1>
+                                        <p className="text-sm text-slate-600 mt-1">StudyTrack - Mapeamento Estrutural de Habilidades BNCC</p>
+                                    </div>
+
                                     {bnccReport.items.map((item: any, i: number) => (
-                                        <div key={i} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                                        <div key={i} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm print:shadow-none print:border-slate-300 print:mb-6">
                                             <div className="flex items-start justify-between mb-3 border-b border-slate-100 pb-3">
                                                 <div className="flex items-center gap-3">
-                                                    <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-black text-xs flex items-center justify-center border border-slate-200">
+                                                    <span className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-black text-xs flex items-center justify-center border border-slate-200 print:border-slate-400">
                                                         {i + 1}
                                                     </span>
                                                     <div>
-                                                        <span className="inline-block px-2 py-1 bg-green-100 text-green-800 font-mono text-[10px] font-bold rounded border border-green-200 mb-1">
+                                                        <span className="inline-block px-2 py-1 bg-green-100 text-green-800 font-mono text-[10px] font-bold rounded border border-green-200 mb-1 print:border-slate-300 print:bg-white print:text-slate-800">
                                                             {item.bncc_code}
                                                         </span>
                                                         <h3 className="text-sm font-bold text-slate-800">{item.skill_description}</h3>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                                                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Defesa Jurídico-Pedagógica</h4>
+                                            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 print:bg-white print:border-slate-200">
+                                                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 print:text-slate-600">Defesa Jurídico-Pedagógica</h4>
                                                 <p className="text-sm text-slate-700 leading-relaxed font-medium">
                                                     {item.legal_pedagogical_defense}
                                                 </p>
@@ -1204,28 +1215,21 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                     
                     <style type="text/css">{`
                         @media print {
-                            /* 1. Esconde tudo fora do modal */
-                            body * { visibility: hidden; }
+                            /* Esconde o resto da interface do StudyTrack */
+                            header, aside, #print-area { display: none !important; }
                             
-                            /* 2. Remove limites de altura e barras de rolagem que causam a "página em branco" */
-                            html, body { height: auto !important; overflow: visible !important; min-height: 100% !important; }
-                            .fixed { position: absolute !important; }
-                            .overflow-y-auto, .overflow-hidden { overflow: visible !important; height: auto !important; max-height: none !important; }
-                            
-                            /* 3. Mostra apenas a área de relatório */
-                            #report-print-area, #report-print-area * { visibility: visible; }
-                            #report-print-area { 
-                                position: absolute; 
-                                left: 0; 
-                                top: 0; 
-                                width: 100%; 
-                                background: white !important; 
-                                padding: 0; 
-                                margin: 0; 
+                            /* Remove scrollbars e deixa a folha crescer naturalmente */
+                            html, body, main, #__next { 
+                                height: auto !important; 
+                                overflow: visible !important; 
+                                background: white !important;
                             }
                             
-                            /* Evita quebras de página no meio de um card de questão */
-                            #report-print-area > div > div { page-break-inside: avoid; break-inside: avoid; margin-bottom: 20px; }
+                            /* Evita quebras de página no meio de um card da BNCC */
+                            #report-print-area > div > div { 
+                                page-break-inside: avoid !important; 
+                                break-inside: avoid !important; 
+                            }
                         }
                     `}</style>
                 </div>
