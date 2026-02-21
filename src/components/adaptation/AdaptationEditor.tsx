@@ -187,8 +187,8 @@ const parseBackendTagsToHTML = (htmlString: string): string => {
     // Injeta as linhas de resposta como divs responsivas...
     parsed = parsed.replace(/\[LINHAS_RESPOSTA:(\d+)\]/g, (match, count) => {
         const num = parseInt(count, 10) || 1;
-        const lines = Array(num).fill(`<div style="border-bottom: 1px solid #cbd5e1; height: 32px; width: 100%;"></div>`).join('');
-        return `<div class="answer-lines-container" style="margin-top: 10px; margin-bottom: 15px; width: 100%; display: flex; flex-direction: column;">${lines}</div>`;
+        const lines = Array(num).fill(`<div style="border-bottom: 1px solid #cbd5e1; height: 24px; width: 100%;"></div>`).join('');
+        return `<div class="answer-lines-container" style="margin-top: 8px; margin-bottom: 8px; width: 100%; display: flex; flex-direction: column;">${lines}</div>`;
     });
     return parsed;
 };
@@ -358,9 +358,10 @@ const LaTeXViewer = ({ htmlContent, dynamicStyle, className }: { htmlContent: st
     }, [htmlContent, katexLib]);
 
     // 🔐 SECURITY: Sanitiza HTML antes de renderizar para prevenir XSS
+    // 🔐 SECURITY: Sanitiza HTML antes de renderizar para prevenir XSS
     const sanitizedHTML = useMemo(() => {
         return DOMPurify.sanitize(htmlContent, {
-            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li'],
+            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'small'],
             ALLOWED_ATTR: ['class', 'style', 'src', 'alt', 'width', 'height'],
             FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
             FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover']
@@ -385,7 +386,7 @@ const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) =
     useLayoutEffect(() => {
         // 🔐 SECURITY: Sanitiza HTML antes de injetar
         const sanitized = DOMPurify.sanitize(html, {
-            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div', 'img'],
+            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div', 'img', 'small'],
             ALLOWED_ATTR: ['class', 'style', 'src', 'alt', 'width', 'height'],
             FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],
             FORBID_ATTR: ['onerror', 'onload', 'onclick']
