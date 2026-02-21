@@ -788,7 +788,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
         .question-block { 
             page-break-inside: auto !important; 
             break-inside: auto !important; 
-            margin-bottom: 2rem !important;
+            margin-bottom: 1rem !important;
         }
         
         /* Protege elementos que não podem ser rasgados ao meio na virada da página */
