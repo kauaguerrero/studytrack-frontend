@@ -53,6 +53,56 @@ const DIFFICULTY_OPTIONS = [
   'Outros'
 ];
 
+/** Mapeia nome/ano da turma para uma opção de GRADE_OPTIONS quando possível */
+function inferGradeFromClassroom(classroomName: string | null, classroomYear: number | null): string {
+  const name = (classroomName || '').toLowerCase();
+  const year = classroomYear ?? 0;
+  // Mapeamento por ano (ex: 2025 = 3º EM em muitos casos; usamos nome quando disponível)
+  if (name.includes('1º') && (name.includes('fundamental') || name.includes('ef'))) return GRADE_OPTIONS[0];
+  if (name.includes('2º') && (name.includes('fundamental') || name.includes('ef'))) return GRADE_OPTIONS[1];
+  if (name.includes('3º') && (name.includes('fundamental') || name.includes('ef'))) return GRADE_OPTIONS[2];
+  if (name.includes('4º') && (name.includes('fundamental') || name.includes('ef'))) return GRADE_OPTIONS[3];
+  if (name.includes('5º') && (name.includes('fundamental') || name.includes('ef'))) return GRADE_OPTIONS[4];
+  if (name.includes('6º') && (name.includes('fundamental') || name.includes('ef'))) return GRADE_OPTIONS[5];
+  if (name.includes('7º') && (name.includes('fundamental') || name.includes('ef'))) return GRADE_OPTIONS[6];
+  if (name.includes('8º') && (name.includes('fundamental') || name.includes('ef'))) return GRADE_OPTIONS[7];
+  if (name.includes('9º') && (name.includes('fundamental') || name.includes('ef'))) return GRADE_OPTIONS[8];
+  if (name.includes('1º') && (name.includes('médio') || name.includes('em'))) return GRADE_OPTIONS[9];
+  if (name.includes('2º') && (name.includes('médio') || name.includes('em'))) return GRADE_OPTIONS[10];
+  if (name.includes('3º') && (name.includes('médio') || name.includes('em'))) return GRADE_OPTIONS[11];
+  // Fallback por ano (ex: year 1 = 1º, 2 = 2º... 9 = 9º EF, 10/11/12 = 1º/2º/3º EM)
+  if (year >= 1 && year <= 9) return GRADE_OPTIONS[year - 1] ?? '';
+  if (year === 10) return GRADE_OPTIONS[9];
+  if (year === 11) return GRADE_OPTIONS[10];
+  if (year === 12) return GRADE_OPTIONS[11];
+  return '';
+}
+
+/** Extrai tags de dificuldade a partir do diagnóstico (condition_name + specific_needs) */
+function tagsFromDiagnostic(conditionName: string | null, specificNeeds: Record<string, unknown> | null): string[] {
+  const tags: string[] = [];
+  const condition = (conditionName || '').trim();
+  if (condition) {
+    const match = DIFFICULTY_OPTIONS.find(
+      opt => opt.toLowerCase() === condition.toLowerCase() || condition.toLowerCase().includes(opt.toLowerCase())
+    );
+    if (match) tags.push(match);
+    else tags.push(condition); // condição custom (ex: "TEA Nível 1")
+  }
+  if (specificNeeds && typeof specificNeeds === 'object') {
+    const keys = Object.keys(specificNeeds);
+    for (const k of keys) {
+      const v = specificNeeds[k];
+      if (k === 'conditions' && Array.isArray(v)) {
+        (v as string[]).forEach((c: string) => {
+          if (c && !tags.includes(c)) tags.push(c);
+        });
+      }
+    }
+  }
+  return tags;
+}
+
 const StepIndicator = ({ step, current, label, icon: Icon }: any) => {
   const status = step === current ? 'active' : step < current ? 'completed' : 'pending';
   
@@ -238,10 +288,10 @@ export default function NewAdaptationWizard() {
         return;
       }
 
-      // Buscar alunos da organização
+      // Buscar alunos da organização (com turma para preencher ano/série)
       const { data: studentsInOrg, error: studentsError } = await supabase
         .from('profiles')
-        .select('id, full_name, email')
+        .select('id, full_name, email, classroom_id, classrooms(id, name, year)')
         .eq('organization_id', profile.organization_id);
 
       if (studentsError) {
@@ -268,15 +318,18 @@ export default function NewAdaptationWizard() {
         throw error;
       }
 
-      // Combinar dados dos alunos com os diagnósticos
+      // Combinar dados dos alunos com os diagnósticos (incluindo turma)
       const studentsWithDiagnosticsData = diagnostics?.map(diagnostic => {
-        const studentProfile = studentsInOrg?.find(student => student.id === diagnostic.student_id);
+        const studentProfile = studentsInOrg?.find((s: any) => s.id === diagnostic.student_id);
+        const classroom = studentProfile?.classrooms as { id?: string; name?: string; year?: number } | null;
         return {
           ...diagnostic,
           profiles: studentProfile ? {
             full_name: studentProfile.full_name,
             email: studentProfile.email
-          } : null
+          } : null,
+          classroom_name: classroom?.name ?? null,
+          classroom_year: classroom?.year ?? null
         };
       }) || [];
 
@@ -289,10 +342,14 @@ export default function NewAdaptationWizard() {
   };
 
   const handleStudentSelect = (student: any) => {
+    const grade = inferGradeFromClassroom(student.classroom_name, student.classroom_year);
+    const tags = tagsFromDiagnostic(student.condition_name, student.specific_needs || null);
     setFormData({
       ...formData,
       selectedStudent: student,
-      studentName: student.profiles?.full_name || ''
+      studentName: student.profiles?.full_name || '',
+      grade: grade || formData.grade,
+      tags: tags.length > 0 ? tags : formData.tags
     });
   };
 
