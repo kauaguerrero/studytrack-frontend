@@ -174,21 +174,25 @@ interface EditorState {
 // Transforma tags de backend em HTML visualizável no Editor.
 const parseBackendTagsToHTML = (htmlString: string): string => {
     if (!htmlString) return '';
-    // FIX: Container blindado contra quebra de página para imagens
-    let parsed = htmlString.replace(/\[\[IMG_REF:(.*?)(?::(AUTO|[\d.]+))?\]\]/g, (match, url, ratio) => {
-        const width = (!ratio || ratio === 'AUTO') ? '100%' : `${parseFloat(ratio) * 100}%`;
-        return `<div style="page-break-inside: avoid !important; break-inside: avoid !important; text-align: center; margin: 15px 0;"><img src="${url}" alt="Imagem de apoio" class="wysiwyg-exam-img" style="max-width: ${width}; height: auto; display: inline-block; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" /></div>`;
+    
+    // FIX: Uso de SPAN (inline) com display: block para não corromper o <p> do HTML
+    // Adicionado flag 'i' e flexibilidade de espaços caso o LLM erre a sintaxe da tag
+    let parsed = htmlString.replace(/\[\[IMG_REF:\s*(.*?)\s*(?::\s*(AUTO|[\d.]+)\s*)?\]\]/gi, (match, url, ratio) => {
+        const width = (!ratio || ratio.toUpperCase() === 'AUTO') ? '100%' : `${parseFloat(ratio) * 100}%`;
+        return `<span style="display: block; page-break-inside: avoid !important; break-inside: avoid !important; text-align: center; margin: 15px 0;"><img src="${url}" alt="Imagem de apoio" class="wysiwyg-exam-img" style="max-width: ${width}; height: auto; display: inline-block; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" /></span>`;
     });
-    // FIX: Nova tag [GAP] para lacunas no meio de frases com linha mais forte
-    parsed = parsed.replace(/\[GAP:?(\d+)?\]/g, (match, size) => {
+    
+    // FIX: GAP blindado
+    parsed = parsed.replace(/\[GAP:?(\d+)?\]/gi, (match, size) => {
         const width = size ? `${parseInt(size, 10)}ch` : '30px';
         return `<span style="display:inline-block; border-bottom: 1.5px solid #0f172a; width: ${width}; margin: 0 4px;"></span>`;
     });
-    // FIX: Linhas de resposta escuras, com maior espessura e protegidas contra quebra
-    parsed = parsed.replace(/\[LINHAS_RESPOSTA:(\d+)\]/g, (match, count) => {
+    
+    // FIX: Linhas de resposta blindadas como SPAN flexível
+    parsed = parsed.replace(/\[LINHAS_RESPOSTA:(\d+)\]/gi, (match, count) => {
         const num = parseInt(count, 10) || 1;
-        const lines = Array(num).fill(`<div style="border-bottom: 1.5px solid #1e293b; height: 24px; width: 100%;"></div>`).join('');
-        return `<div class="answer-lines-container" style="margin-top: 8px; margin-bottom: 8px; width: 100%; display: flex; flex-direction: column; page-break-inside: avoid !important; break-inside: avoid !important;">${lines}</div>`;
+        const lines = Array(num).fill(`<span style="display: block; border-bottom: 1.5px solid #1e293b; height: 24px; width: 100%;"></span>`).join('');
+        return `<span class="answer-lines-container" style="margin-top: 8px; margin-bottom: 8px; width: 100%; display: flex; flex-direction: column; page-break-inside: avoid !important; break-inside: avoid !important;">${lines}</span>`;
     });
     return parsed;
 };
@@ -361,7 +365,7 @@ const LaTeXViewer = ({ htmlContent, dynamicStyle, className }: { htmlContent: st
     // 🔐 SECURITY: Sanitiza HTML antes de renderizar para prevenir XSS
     const sanitizedHTML = useMemo(() => {
         return DOMPurify.sanitize(htmlContent, {
-            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'small'],
+            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'small', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
             ALLOWED_ATTR: ['class', 'style', 'src', 'alt', 'width', 'height'],
             FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
             FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover']
@@ -386,7 +390,7 @@ const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) =
     useLayoutEffect(() => {
         // 🔐 SECURITY: Sanitiza HTML antes de injetar
         const sanitized = DOMPurify.sanitize(html, {
-            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div', 'img', 'small'],
+            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'small', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
             ALLOWED_ATTR: ['class', 'style', 'src', 'alt', 'width', 'height'],
             FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],
             FORBID_ATTR: ['onerror', 'onload', 'onclick']
