@@ -1048,7 +1048,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
             <div className="flex-1 overflow-hidden flex relative">
 
                 {/* [NAVIGATION RAIL] */}
-                <div className="w-14 bg-white border-r border-slate-200 flex flex-col items-center py-4 gap-2 overflow-y-auto no-print z-10 hidden sm:flex shrink-0">
+                <nav className="w-14 bg-white border-r border-slate-200 flex flex-col items-center py-4 gap-2 overflow-y-auto no-print z-10 hidden sm:flex shrink-0 print:hidden">
                     <div className="text-[10px] font-bold text-slate-300 uppercase mb-2 text-center">Nav</div>
                     {questionList.map((q, i) => (
                         <button
@@ -1063,7 +1063,7 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
                             {i + 1}
                         </button>
                     ))}
-                </div>
+                </nav>
 
                 <div
                     className="flex-1 overflow-y-auto bg-slate-100/50 flex justify-center cursor-default pb-32"
