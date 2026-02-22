@@ -53,11 +53,16 @@ const DIFFICULTY_OPTIONS = [
   'Outros'
 ];
 
-/** Mapeia nome/ano da turma para uma opção de GRADE_OPTIONS quando possível */
-function inferGradeFromClassroom(classroomName: string | null, classroomYear: number | null): string {
+/** Retorna opção de ano/série: prioriza grade da turma (DB), depois inferência por nome/ano */
+function resolveGradeFromClassroom(
+  classroomGrade: string | null,
+  classroomName: string | null,
+  classroomYear: number | null
+): string {
+  const exact = (classroomGrade || '').trim();
+  if (exact && GRADE_OPTIONS.includes(exact)) return exact;
   const name = (classroomName || '').toLowerCase();
   const year = classroomYear ?? 0;
-  // Mapeamento por ano (ex: 2025 = 3º EM em muitos casos; usamos nome quando disponível)
   if (name.includes('1º') && (name.includes('fundamental') || name.includes('ef'))) return GRADE_OPTIONS[0];
   if (name.includes('2º') && (name.includes('fundamental') || name.includes('ef'))) return GRADE_OPTIONS[1];
   if (name.includes('3º') && (name.includes('fundamental') || name.includes('ef'))) return GRADE_OPTIONS[2];
@@ -70,12 +75,35 @@ function inferGradeFromClassroom(classroomName: string | null, classroomYear: nu
   if (name.includes('1º') && (name.includes('médio') || name.includes('em'))) return GRADE_OPTIONS[9];
   if (name.includes('2º') && (name.includes('médio') || name.includes('em'))) return GRADE_OPTIONS[10];
   if (name.includes('3º') && (name.includes('médio') || name.includes('em'))) return GRADE_OPTIONS[11];
-  // Fallback por ano (ex: year 1 = 1º, 2 = 2º... 9 = 9º EF, 10/11/12 = 1º/2º/3º EM)
   if (year >= 1 && year <= 9) return GRADE_OPTIONS[year - 1] ?? '';
   if (year === 10) return GRADE_OPTIONS[9];
   if (year === 11) return GRADE_OPTIONS[10];
   if (year === 12) return GRADE_OPTIONS[11];
   return '';
+}
+
+/** Formata specific_needs/visual_preferences para exibição legível (não JSON bruto) */
+function formatSpecificNeeds(specificNeeds: Record<string, unknown> | null, visualPreferences?: Record<string, unknown> | null): string[] {
+  const lines: string[] = [];
+  const label: Record<string, string> = {
+    font_size: 'Tamanho da fonte',
+    font_family: 'Fonte',
+    line_height: 'Entrelinha',
+    font_scale: 'Escala da fonte',
+    mode: 'Modo visual'
+  };
+  const add = (obj: Record<string, unknown> | null) => {
+    if (!obj || typeof obj !== 'object') return;
+    Object.entries(obj).forEach(([key, value]) => {
+      if (value == null || key === 'conditions') return;
+      const l = label[key] || key.replace(/_/g, ' ');
+      const v = typeof value === 'object' ? JSON.stringify(value) : String(value);
+      lines.push(`${l}: ${v}`);
+    });
+  };
+  add(visualPreferences ?? null);
+  add(specificNeeds);
+  return lines;
 }
 
 /** Extrai tags de dificuldade a partir do diagnóstico (condition_name + specific_needs) */
@@ -288,10 +316,10 @@ export default function NewAdaptationWizard() {
         return;
       }
 
-      // Buscar alunos da organização (com turma para preencher ano/série)
+      // Buscar alunos da organização (turma: name, year, grade para auto-preenchimento de Ano/Série)
       const { data: studentsInOrg, error: studentsError } = await supabase
         .from('profiles')
-        .select('id, full_name, email, classroom_id, classrooms(id, name, year)')
+        .select('id, full_name, email, classroom_id, classrooms(id, name, year, grade)')
         .eq('organization_id', profile.organization_id);
 
       if (studentsError) {
@@ -299,14 +327,14 @@ export default function NewAdaptationWizard() {
         throw studentsError;
       }
 
-      const studentIds = studentsInOrg?.map(s => s.id) || [];
+      const studentIds = studentsInOrg?.map((s: { id: string }) => s.id) || [];
 
       if (studentIds.length === 0) {
         console.log("No students found in organization");
         return;
       }
 
-      // Buscar diagnósticos desses alunos
+      // Buscar diagnósticos (inclui visual_preferences e specific_needs)
       const { data: diagnostics, error } = await supabase
         .from('student_diagnostics')
         .select('*')
@@ -318,10 +346,13 @@ export default function NewAdaptationWizard() {
         throw error;
       }
 
-      // Combinar dados dos alunos com os diagnósticos (incluindo turma)
-      const studentsWithDiagnosticsData = diagnostics?.map(diagnostic => {
-        const studentProfile = studentsInOrg?.find((s: any) => s.id === diagnostic.student_id);
-        const classroom = studentProfile?.classrooms as { id?: string; name?: string; year?: number } | null;
+      type ClassroomRow = { id?: string; name?: string; year?: number; grade?: string } | null;
+      const getClassroom = (p: Record<string, unknown>): ClassroomRow =>
+        (p?.classrooms as ClassroomRow) ?? (p?.classroom as ClassroomRow) ?? null;
+
+      const studentsWithDiagnosticsData = (diagnostics ?? []).map((diagnostic: Record<string, unknown>) => {
+        const studentProfile = studentsInOrg?.find((s: { id: string }) => s.id === diagnostic.student_id) as Record<string, unknown> | undefined;
+        const classroom = studentProfile ? getClassroom(studentProfile) : null;
         return {
           ...diagnostic,
           profiles: studentProfile ? {
@@ -329,9 +360,10 @@ export default function NewAdaptationWizard() {
             email: studentProfile.email
           } : null,
           classroom_name: classroom?.name ?? null,
-          classroom_year: classroom?.year ?? null
+          classroom_year: classroom?.year ?? null,
+          classroom_grade: classroom?.grade ?? null
         };
-      }) || [];
+      });
 
       setStudentsWithDiagnostics(studentsWithDiagnosticsData);
     } catch (err) {
@@ -342,7 +374,11 @@ export default function NewAdaptationWizard() {
   };
 
   const handleStudentSelect = (student: any) => {
-    const grade = inferGradeFromClassroom(student.classroom_name, student.classroom_year);
+    const grade = resolveGradeFromClassroom(
+      student.classroom_grade ?? null,
+      student.classroom_name ?? null,
+      student.classroom_year ?? null
+    );
     const tags = tagsFromDiagnostic(student.condition_name, student.specific_needs || null);
     setFormData({
       ...formData,
@@ -616,24 +652,39 @@ export default function NewAdaptationWizard() {
                      {/* ALUNO SELECIONADO */}
                      {formData.selectedStudent && (
                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                         <h4 className="font-semibold text-blue-900 mb-2">Aluno Selecionado:</h4>
-                         <div className="space-y-2 text-sm">
+                         <h4 className="font-semibold text-blue-900 mb-2">Aluno Selecionado</h4>
+                         <div className="space-y-2 text-sm text-slate-700">
                            <p><strong>Nome:</strong> {formData.selectedStudent.profiles?.full_name}</p>
                            <p><strong>Condição:</strong> {formData.selectedStudent.condition_name}</p>
                            {formData.selectedStudent.cid_code && (
                              <p><strong>CID:</strong> {formData.selectedStudent.cid_code}</p>
                            )}
-                           {formData.selectedStudent.specific_needs && Object.keys(formData.selectedStudent.specific_needs).length > 0 && (
-                             <div>
-                               <strong>Necessidades Específicas:</strong>
-                               <pre className="text-xs bg-white p-2 rounded mt-1 overflow-x-auto">
-                                 {JSON.stringify(formData.selectedStudent.specific_needs, null, 2)}
-                               </pre>
-                             </div>
-                           )}
+                           {(() => {
+                             const needLines = formatSpecificNeeds(
+                               formData.selectedStudent.specific_needs ?? null,
+                               formData.selectedStudent.visual_preferences ?? null
+                             );
+                             if (needLines.length === 0) return null;
+                             return (
+                               <div>
+                                 <strong>Necessidades específicas:</strong>
+                                 <ul className="list-disc list-inside mt-1 space-y-0.5 text-slate-600">
+                                   {needLines.map((line, i) => (
+                                     <li key={i}>{line}</li>
+                                   ))}
+                                 </ul>
+                               </div>
+                             );
+                           })()}
                          </div>
                          <button
-                           onClick={() => setFormData({...formData, selectedStudent: null, studentName: ''})}
+                           onClick={() => setFormData({
+                             ...formData,
+                             selectedStudent: null,
+                             studentName: '',
+                             grade: formData.studentInputMode === 'database' ? '' : formData.grade,
+                             tags: formData.studentInputMode === 'database' ? [] : formData.tags
+                           })}
                            className="mt-3 text-xs text-blue-600 hover:text-blue-800 underline"
                          >
                            Alterar seleção
