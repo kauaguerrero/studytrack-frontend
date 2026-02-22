@@ -382,10 +382,14 @@ const LaTeXViewer = ({ htmlContent, dynamicStyle, className }: { htmlContent: st
     );
 };
 
-// --- COMPONENTE DE EDIÇÃO DE TEXTO RICO ---
+// --- COMPONENTE DE EDIÇÃO DE TEXTO RICO (COM FLOATING TOOLBAR E SLIDER GRANULAR) ---
 const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) => {
     const divRef = useRef<HTMLDivElement>(null);
     const isFocused = useRef(false);
+    
+    // Estados da Toolbar Flutuante
+    const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
+    const [imgWidth, setImgWidth] = useState<string>('100');
 
     useLayoutEffect(() => {
         // 🔐 SECURITY: Sanitiza HTML antes de injetar
@@ -399,6 +403,7 @@ const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) =
         if (divRef.current && sanitized !== divRef.current.innerHTML) {
             if (!isFocused.current) {
                 divRef.current.innerHTML = sanitized;
+                setSelectedImg(null); // Reseta a barra se o HTML mudar externamente
             }
         }
     }, [html]);
@@ -421,23 +426,105 @@ const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) =
         if (onChange) onChange(e.currentTarget.innerHTML);
     };
 
+    // Rastreia cliques. Captura a imagem e lê sua largura atual para setar no Slider
+    const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'IMG') {
+            const imgEl = target as HTMLImageElement;
+            setSelectedImg(imgEl);
+            
+            // Extrai a porcentagem atual da imagem (ou assume 100% se não houver)
+            const currentMax = imgEl.style.maxWidth;
+            const val = currentMax && currentMax.includes('%') ? currentMax.replace('%', '') : '100';
+            setImgWidth(val);
+        } else {
+            setSelectedImg(null);
+        }
+    };
+
+    // Atualiza a imagem em tempo real enquanto o professor arrasta o slider
+    const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setImgWidth(val);
+        
+        if (selectedImg && divRef.current) {
+            selectedImg.style.maxWidth = `${val}%`;
+            // Dispara o onChange para garantir que o React/Supabase salvem o novo tamanho
+            if (onChange) onChange(divRef.current.innerHTML);
+        }
+    };
+
+    // Deleta a imagem e seu cofre protetor
+    const deleteSelectedImage = () => {
+        if (selectedImg && divRef.current) {
+            const parent = selectedImg.parentElement;
+            if (parent && parent.tagName === 'SPAN' && parent.style.display === 'block') {
+                parent.remove(); 
+            } else {
+                selectedImg.remove();
+            }
+            setSelectedImg(null);
+            if (onChange) onChange(divRef.current.innerHTML);
+        }
+    };
+
     return (
-        <div
-            ref={divRef}
-            className={className}
-            style={{
-                ...style,
-                outline: 'none',
-                cursor: 'text',
-                whiteSpace: 'pre-wrap',
-                minHeight: '1.5em'
-            }}
-            contentEditable
-            onInput={handleInput}
-            onFocus={() => isFocused.current = true}
-            onBlur={() => isFocused.current = false}
-            suppressContentEditableWarning
-        />
+        <div className="relative">
+            <div
+                ref={divRef}
+                className={className}
+                style={{
+                    ...style,
+                    outline: 'none',
+                    cursor: 'text',
+                    whiteSpace: 'pre-wrap',
+                    minHeight: '1.5em'
+                }}
+                contentEditable
+                onInput={handleInput}
+                onClick={handleClick}
+                onFocus={() => isFocused.current = true}
+                onBlur={() => isFocused.current = false}
+                suppressContentEditableWarning
+            />
+
+            {/* BARRA FLUTUANTE DA IMAGEM (Nível Enterprise) */}
+            {selectedImg && (
+                <div
+                    className="absolute z-[100] flex items-center gap-3 bg-slate-800 border border-slate-700 shadow-2xl p-2 rounded-lg no-print animate-in zoom-in-95 duration-200"
+                    style={{
+                        top: Math.max(0, selectedImg.offsetTop - 55),
+                        left: Math.max(0, selectedImg.offsetLeft + (selectedImg.offsetWidth / 2) - 140),
+                    }}
+                >
+                    <div className="flex items-center gap-2 px-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ajuste:</span>
+                        
+                        {/* O SLIDER (Input Range Nativo com Accent do Tailwind) */}
+                        <input
+                            type="range"
+                            min="15"
+                            max="100"
+                            value={imgWidth}
+                            onChange={handleSliderChange}
+                            className="w-24 h-1.5 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            title="Arraste para redimensionar"
+                        />
+                        <span className="text-xs font-mono text-slate-300 w-9 text-right">{imgWidth}%</span>
+                    </div>
+
+                    <div className="w-px h-5 bg-slate-700 mx-1" />
+                    
+                    <button 
+                        onMouseDown={(e) => { e.preventDefault(); deleteSelectedImage(); }} 
+                        className="px-2 py-1 text-xs text-red-400 hover:bg-red-500 hover:text-white rounded transition-colors font-bold flex items-center gap-1" 
+                        title="Excluir Imagem Definitivamente"
+                    >
+                        <X size={14}/> Remover
+                    </button>
+                </div>
+            )}
+        </div>
     );
 };
 
@@ -809,6 +896,15 @@ export function AdaptationEditor({ jobId, initialData, status, filename, student
         #print-area a {
             word-break: break-all !important; 
         }
+    }
+    
+    /* Melhora a UX do editor: Mostra que a imagem é interativa */
+    .wysiwyg-exam-img {
+        cursor: pointer;
+        transition: outline 0.2s ease;
+    }
+    .wysiwyg-exam-img:hover {
+        outline: 3px dashed #94a3b8;
     }
 `}</style>
 
