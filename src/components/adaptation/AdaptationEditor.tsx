@@ -365,7 +365,7 @@ const LaTeXViewer = ({ htmlContent, dynamicStyle, className }: { htmlContent: st
     // 🔐 SECURITY: Sanitiza HTML antes de renderizar para prevenir XSS
     const sanitizedHTML = useMemo(() => {
         return DOMPurify.sanitize(htmlContent, {
-            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'small', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
+            ALLOWED_TAGS: ['p', 'b', 'strong', 'br', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'small', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
             ALLOWED_ATTR: ['class', 'style', 'src', 'alt', 'width', 'height'],
             FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
             FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover']
@@ -390,7 +390,7 @@ const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) =
     useLayoutEffect(() => {
         // 🔐 SECURITY: Sanitiza HTML antes de injetar
         const sanitized = DOMPurify.sanitize(html, {
-            ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'small', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
+            ALLOWED_TAGS: ['p', 'b', 'strong', 'br', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'small', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
             ALLOWED_ATTR: ['class', 'style', 'src', 'alt', 'width', 'height'],
             FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],
             FORBID_ATTR: ['onerror', 'onload', 'onclick']
