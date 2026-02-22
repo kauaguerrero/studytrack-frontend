@@ -174,21 +174,21 @@ interface EditorState {
 // Transforma tags de backend em HTML visualizável no Editor.
 const parseBackendTagsToHTML = (htmlString: string): string => {
     if (!htmlString) return '';
-    // FIX: Regex flexibilizado para aceitar URLs com query strings e proporção opcional
+    // FIX: Container blindado contra quebra de página para imagens
     let parsed = htmlString.replace(/\[\[IMG_REF:(.*?)(?::(AUTO|[\d.]+))?\]\]/g, (match, url, ratio) => {
         const width = (!ratio || ratio === 'AUTO') ? '100%' : `${parseFloat(ratio) * 100}%`;
-        return `<img src="${url}" alt="Imagem de apoio" class="wysiwyg-exam-img" style="max-width: ${width}; height: auto; display: block; margin: 15px auto; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" />`;
+        return `<div style="page-break-inside: avoid !important; break-inside: avoid !important; text-align: center; margin: 15px 0;"><img src="${url}" alt="Imagem de apoio" class="wysiwyg-exam-img" style="max-width: ${width}; height: auto; display: inline-block; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" /></div>`;
     });
-    // FIX: Nova tag [GAP] para lacunas no meio de frases (completar letras/palavras)
+    // FIX: Nova tag [GAP] para lacunas no meio de frases com linha mais forte
     parsed = parsed.replace(/\[GAP:?(\d+)?\]/g, (match, size) => {
         const width = size ? `${parseInt(size, 10)}ch` : '30px';
-        return `<span style="display:inline-block; border-bottom: 1px solid #1e293b; width: ${width}; margin: 0 4px;"></span>`;
+        return `<span style="display:inline-block; border-bottom: 1.5px solid #0f172a; width: ${width}; margin: 0 4px;"></span>`;
     });
-    // Injeta as linhas de resposta como divs responsivas...
+    // FIX: Linhas de resposta escuras, com maior espessura e protegidas contra quebra
     parsed = parsed.replace(/\[LINHAS_RESPOSTA:(\d+)\]/g, (match, count) => {
         const num = parseInt(count, 10) || 1;
-        const lines = Array(num).fill(`<div style="border-bottom: 1px solid #cbd5e1; height: 24px; width: 100%;"></div>`).join('');
-        return `<div class="answer-lines-container" style="margin-top: 8px; margin-bottom: 8px; width: 100%; display: flex; flex-direction: column;">${lines}</div>`;
+        const lines = Array(num).fill(`<div style="border-bottom: 1.5px solid #1e293b; height: 24px; width: 100%;"></div>`).join('');
+        return `<div class="answer-lines-container" style="margin-top: 8px; margin-bottom: 8px; width: 100%; display: flex; flex-direction: column; page-break-inside: avoid !important; break-inside: avoid !important;">${lines}</div>`;
     });
     return parsed;
 };
