@@ -318,7 +318,7 @@ const StatusBadge = ({ saving, lastSaved }: { saving: boolean, lastSaved: Date |
 
 const KATEX_CDN = 'https://cdn.jsdelivr.net/npm/katex@0.16.28/dist';
 
-// Carrega KaTeX via CDN (CSS + script) para não depender do pacote no build
+// Carrega KaTeX via CDN com controle de concorrência (Race Condition Proof)
 function useKaTeX(): KatexLib | null {
     const [katexLib, setKatexLib] = useState<KatexLib | null>(() => (typeof window !== 'undefined' ? (window as unknown as { katex?: KatexLib }).katex ?? null : null));
 
@@ -335,16 +335,24 @@ function useKaTeX(): KatexLib | null {
             link.href = `${KATEX_CDN}/katex.min.css`;
             document.head.appendChild(link);
         }
+        
         const scriptId = 'katex-script';
-        if (document.getElementById(scriptId)) {
-            if (win.katex) setKatexLib(win.katex);
+        const existingScript = document.getElementById(scriptId);
+        
+        if (existingScript) {
+            existingScript.addEventListener('load', () => {
+                setKatexLib((window as unknown as { katex: KatexLib }).katex);
+            });
             return;
         }
+        
         const script = document.createElement('script');
         script.id = scriptId;
         script.src = `${KATEX_CDN}/katex.min.js`;
         script.async = true;
-        script.onload = () => setKatexLib((window as unknown as { katex: KatexLib }).katex);
+        script.addEventListener('load', () => {
+            setKatexLib((window as unknown as { katex: KatexLib }).katex);
+        });
         document.head.appendChild(script);
     }, []);
 
