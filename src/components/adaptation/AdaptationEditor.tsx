@@ -13,7 +13,7 @@ import {
     ShieldAlert, Loader2, Palette, ListOrdered, GraduationCap, AlertTriangle, Brain, Star, Send
 } from 'lucide-react';
 // Tipo do KaTeX carregado via CDN (evita dependência no build)
-type KatexLib = { render: (expr: string, options?: { displayMode?: boolean; throwOnError?: boolean; errorColor?: string }) => string };
+type KatexLib = { renderToString: (expr: string, options?: { displayMode?: boolean; throwOnError?: boolean; errorColor?: string }) => string };
 
 // Auto-render LaTeX no elemento (usa lib passada; KaTeX é carregado via CDN)
 function renderMathInElement(elem: HTMLElement, options: {
@@ -89,12 +89,14 @@ function renderMathInElement(elem: HTMLElement, options: {
             } else {
                 const span = document.createElement('span');
                 try {
-                    span.innerHTML = katexLib.render(seg.content, {
+                    // Substituído para 'renderToString' para gerar o HTML estático válido
+                    span.innerHTML = katexLib.renderToString(seg.content, {
                         displayMode: seg.display,
                         throwOnError,
                         errorColor
                     });
-                } catch {
+                } catch (e) {
+                    console.error("[KaTeX Render Error]:", e); // Visibilidade é inegociável
                     span.textContent = seg.content;
                     span.style.color = errorColor;
                 }
