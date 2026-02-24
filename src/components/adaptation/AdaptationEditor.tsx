@@ -171,6 +171,14 @@ interface EditorState {
 // --- 2. UTILS & PARSERS (A Mágica WYSIWYG)
 // ============================================================================
 
+const protectMathForDOMPurify = (rawHtml: string): string => {
+    if (!rawHtml) return '';
+    const mathRegex = /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$[^$\n]+?\$)/g;
+    return rawHtml.replace(mathRegex, (match) => {
+        return match.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    });
+};
+
 // Transforma tags de backend em HTML visualizável no Editor.
 const parseBackendTagsToHTML = (htmlString: string): string => {
     if (!htmlString) return '';
@@ -346,8 +354,26 @@ const LaTeXViewer = ({ htmlContent, dynamicStyle, className }: { htmlContent: st
     const containerRef = useRef<HTMLDivElement>(null);
     const katexLib = useKaTeX();
 
-    useEffect(() => {
-        if (containerRef.current && katexLib) {
+    // 1. Sanitização isolada (Pura manipulação de string em memória)
+    const sanitizedHTML = useMemo(() => {
+        const mathProtectedHTML = protectMathForDOMPurify(htmlContent);
+        return DOMPurify.sanitize(mathProtectedHTML, {
+            ALLOWED_TAGS: ['p', 'b', 'strong', 'br', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'small', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
+            ALLOWED_ATTR: ['class', 'style', 'src', 'alt', 'width', 'height'],
+            FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
+            FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover']
+        });
+    }, [htmlContent]);
+
+    // 2. Isolamento Síncrono do Ciclo de Vida (useLayoutEffect)
+    useLayoutEffect(() => {
+        if (!containerRef.current) return;
+
+        // ASSUMIMOS O CONTROLE MANUAL: O React não gerencia este innerHTML
+        containerRef.current.innerHTML = sanitizedHTML;
+
+        // MUTAMOS O DOM IMEDIATAMENTE: Antes que o navegador pinte a tela
+        if (katexLib) {
             renderMathInElement(containerRef.current, {
                 delimiters: [
                     { left: '$$', right: '$$', display: true },
@@ -359,27 +385,10 @@ const LaTeXViewer = ({ htmlContent, dynamicStyle, className }: { htmlContent: st
                 errorColor: '#cc0000'
             }, katexLib);
         }
-    }, [htmlContent, katexLib]);
+    }, [sanitizedHTML, katexLib]); // Re-executa estritamente se o payload seguro mudar
 
-    // 🔐 SECURITY: Sanitiza HTML antes de renderizar para prevenir XSS
-    // 🔐 SECURITY: Sanitiza HTML antes de renderizar para prevenir XSS
-    const sanitizedHTML = useMemo(() => {
-        return DOMPurify.sanitize(htmlContent, {
-            ALLOWED_TAGS: ['p', 'b', 'strong', 'br', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'small', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
-            ALLOWED_ATTR: ['class', 'style', 'src', 'alt', 'width', 'height'],
-            FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
-            FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover']
-        });
-    }, [htmlContent]);
-
-    return (
-        <div
-            ref={containerRef}
-            className={className}
-            style={dynamicStyle}
-            dangerouslySetInnerHTML={{ __html: sanitizedHTML }}
-        />
-    );
+    // 3. A Casca Vazia: O React re-renderiza apenas as classes e estilos CSS do wrapper
+    return <div ref={containerRef} className={className} style={dynamicStyle} />;
 };
 
 // --- COMPONENTE DE EDIÇÃO DE TEXTO RICO (COM FLOATING TOOLBAR E SLIDER GRANULAR) ---
@@ -392,8 +401,11 @@ const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) =
     const [imgWidth, setImgWidth] = useState<string>('100');
 
     useLayoutEffect(() => {
-        // 🔐 SECURITY: Sanitiza HTML antes de injetar
-        const sanitized = DOMPurify.sanitize(html, {
+        // 1. Blinda a matemática
+        const mathProtected = protectMathForDOMPurify(html);
+
+        // 2. Sanitiza HTML antes de injetar
+        const sanitized = DOMPurify.sanitize(mathProtected, {
             ALLOWED_TAGS: ['p', 'b', 'strong', 'br', 'em', 'u', 'span', 'div', 'img', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'small', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
             ALLOWED_ATTR: ['class', 'style', 'src', 'alt', 'width', 'height'],
             FORBID_TAGS: ['script', 'iframe', 'object', 'embed'],
@@ -403,7 +415,7 @@ const ContentEditable = ({ html, onChange, style, className, autoFocus }: any) =
         if (divRef.current && sanitized !== divRef.current.innerHTML) {
             if (!isFocused.current) {
                 divRef.current.innerHTML = sanitized;
-                setSelectedImg(null); // Reseta a barra se o HTML mudar externamente
+                setSelectedImg(null); 
             }
         }
     }, [html]);
