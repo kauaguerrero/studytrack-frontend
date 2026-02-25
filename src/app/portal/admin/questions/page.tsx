@@ -6,14 +6,15 @@ import { createClient } from '@/lib/supabase/client';
 import ReactMarkdown from 'react-markdown';
 import { 
   CheckCircle2, 
-  Trash2, // Ícone de Lixeira
+  Trash2, 
   Inbox, 
   Filter, 
   Bot, 
   Calendar, 
   BookOpen, 
   AlertCircle,
-  ArrowLeft
+  ArrowLeft,
+  Layers
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -92,7 +93,7 @@ export default function AdminQuestionApproval() {
 
   // --- ACTIONS ---
   const handleDecision = async (id: string, decision: 'approve' | 'reject') => {
-    // 1. Optimistic Update
+    // 1. Optimistic Update (Padrão de Fila - Remove o item imediatamente)
     const previousQuestions = [...questions];
     setQuestions(prev => prev.filter(q => q.id !== id));
     setProcessingId(id);
@@ -150,24 +151,27 @@ export default function AdminQuestionApproval() {
 
   const subjects = Array.from(new Set(questions.map(q => q.subject))).sort();
 
+  // Fila: Pega sempre a primeira questão dos resultados filtrados
+  const activeQuestion = filteredQuestions[0];
+
   // --- RENDER HELPERS ---
   const getDifficultyColor = (diff: string) => {
     if (!diff) return 'bg-slate-100 text-slate-700';
     switch (diff.toLowerCase()) {
-      case 'fácil': return 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200';
-      case 'médio': return 'bg-amber-100 text-amber-700 hover:bg-amber-200';
-      case 'difícil': return 'bg-rose-100 text-rose-700 hover:bg-rose-200';
+      case 'fácil': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      case 'médio': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'difícil': return 'bg-rose-100 text-rose-700 border-rose-200';
       default: return 'bg-slate-100 text-slate-700';
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6 md:p-10 font-sans text-slate-900">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900 flex flex-col">
+      <div className="max-w-4xl mx-auto w-full space-y-6 flex-1 flex flex-col">
         
         {/* --- HEADER & TOOLBAR --- */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-start gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm shrink-0">
+          <div className="flex items-center gap-4">
             <Link href="/portal/admin">
                 <Button variant="outline" size="icon" className="shrink-0 h-10 w-10 rounded-xl border-slate-200 hover:bg-slate-50 hover:text-slate-900">
                     <ArrowLeft size={20} />
@@ -175,30 +179,28 @@ export default function AdminQuestionApproval() {
             </Link>
 
             <div>
-                <h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
-                Curadoria de Conteúdo
-                <Badge variant="secondary" className="text-base px-3 py-1">Admin</Badge>
+                <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
+                  Curadoria
+                  <Badge variant="secondary" className="text-xs px-2 py-0.5 font-medium bg-slate-100 text-slate-600">Modo Foco</Badge>
                 </h1>
-                <p className="text-slate-500 mt-2 text-lg max-w-2xl">
-                Revise, valide e publique questões submetidas pela IA ou equipe pedagógica.
-                </p>
             </div>
           </div>
           
-          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto pl-14 md:pl-0">
-             {/* Stats Pill */}
-             <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-lg border border-slate-200 mr-2">
-                <div className={`w-2 h-2 rounded-full ${questions.length > 0 ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`} />
-                <span className="font-bold text-slate-700 text-sm">
-                  {questions.length} Pendentes
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+             {/* Stats Pill - Agora reflete o tamanho da fila filtrada */}
+             <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
+                <div className={`w-2 h-2 rounded-full ${filteredQuestions.length > 0 ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`} />
+                <span className="font-semibold text-slate-700 text-sm flex items-center gap-1">
+                  <Layers size={14} className="text-slate-400" />
+                  {filteredQuestions.length} na fila
                 </span>
              </div>
 
              {/* Filters */}
              <div className="flex gap-2 w-full md:w-auto">
                <Select value={filterSubject} onValueChange={setFilterSubject}>
-                 <SelectTrigger className="w-[160px] bg-white">
-                   <Filter className="w-4 h-4 mr-2 text-slate-400" />
+                 <SelectTrigger className="w-[140px] md:w-[160px] bg-white h-9 text-sm">
+                   <Filter className="w-3.5 h-3.5 mr-2 text-slate-400" />
                    <SelectValue placeholder="Matéria" />
                  </SelectTrigger>
                  <SelectContent>
@@ -208,7 +210,7 @@ export default function AdminQuestionApproval() {
                </Select>
 
                <Select value={filterDifficulty} onValueChange={setFilterDifficulty}>
-                 <SelectTrigger className="w-[140px] bg-white">
+                 <SelectTrigger className="w-[120px] md:w-[140px] bg-white h-9 text-sm">
                    <SelectValue placeholder="Dificuldade" />
                  </SelectTrigger>
                  <SelectContent>
@@ -222,183 +224,203 @@ export default function AdminQuestionApproval() {
           </div>
         </div>
 
-        {/* --- CONTENT AREA --- */}
-        {loading ? (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-             {[1,2,3,4].map(i => (
-               <div key={i} className="space-y-4 p-6 bg-white rounded-2xl border border-slate-200">
-                  <div className="flex justify-between">
-                    <Skeleton className="h-6 w-24" />
-                    <Skeleton className="h-6 w-12" />
-                  </div>
-                  <Skeleton className="h-32 w-full" />
-                  <div className="space-y-2">
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-               </div>
-             ))}
-          </div>
-        ) : filteredQuestions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-32 bg-white rounded-3xl border border-dashed border-slate-300 shadow-sm animate-in fade-in zoom-in duration-500">
-            <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 ring-8 ring-slate-50/50">
-              <Inbox size={48} className="text-slate-300" />
+        {/* --- CONTENT AREA: THE QUEUE --- */}
+        <div className="flex-1 flex flex-col justify-center">
+          {loading ? (
+            <Card className="w-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden h-[600px] flex flex-col">
+              <CardHeader className="border-b border-slate-100 p-6">
+                <Skeleton className="h-6 w-1/3 mb-2" />
+                <Skeleton className="h-4 w-1/4" />
+              </CardHeader>
+              <CardContent className="p-8 flex-1 space-y-6">
+                <Skeleton className="h-32 w-full" />
+                <div className="space-y-3">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : !activeQuestion ? (
+            <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-dashed border-slate-300 shadow-sm animate-in fade-in zoom-in duration-300">
+              <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6 ring-8 ring-emerald-50/50">
+                <CheckCircle2 size={40} className="text-emerald-500" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900">Fila Limpa!</h3>
+              <p className="text-slate-500 mt-2 max-w-sm text-center">
+                Nenhuma questão pendente para os filtros atuais. A curadoria está em dia.
+              </p>
+              {(filterSubject !== 'all' || filterDifficulty !== 'all') && (
+                 <Button variant="link" onClick={() => { setFilterSubject('all'); setFilterDifficulty('all'); }} className="mt-4 text-blue-600">
+                   Limpar filtros e ver tudo
+                 </Button>
+              )}
+              <Button onClick={fetchPending} variant="outline" className="mt-6 border-slate-300 text-slate-600">
+                Recarregar Base
+              </Button>
             </div>
-            <h3 className="text-2xl font-bold text-slate-900">Fila Zerada!</h3>
-            <p className="text-slate-500 mt-2 max-w-md text-center">
-              Nenhuma questão pendente corresponde aos filtros atuais. Ótimo trabalho.
-            </p>
-            {(filterSubject !== 'all' || filterDifficulty !== 'all') && (
-               <Button variant="link" onClick={() => { setFilterSubject('all'); setFilterDifficulty('all'); }}>
-                 Limpar filtros
-               </Button>
-            )}
-            <Button onClick={fetchPending} variant="outline" className="mt-8 border-slate-300 text-slate-600">
-              Recarregar Dados
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {filteredQuestions.map((q) => (
-              <Card key={q.id} className="overflow-hidden border-slate-200 shadow-sm hover:shadow-md transition-all duration-300 group">
-                
-                {/* --- CARD HEADER --- */}
-                <CardHeader className="bg-slate-50/50 border-b border-slate-100 pb-4">
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="flex flex-wrap gap-2">
-                      <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none uppercase tracking-wider text-[10px] px-2">
-                        {q.subject}
+          ) : (
+            /* ACTIVE QUESTION CARD (NUBANK STYLE) */
+            <Card 
+              key={activeQuestion.id} 
+              className="w-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col max-h-[85vh] animate-in slide-in-from-right-8 fade-in duration-300"
+            >
+              
+              {/* HEADER DA QUESTÃO */}
+              <div className="bg-slate-50/80 border-b border-slate-100 p-5 shrink-0">
+                <div className="flex justify-between items-start gap-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none uppercase tracking-wider text-xs px-2.5 py-0.5 font-semibold rounded-md">
+                      {activeQuestion.subject}
+                    </Badge>
+                    <Badge variant="outline" className={`border uppercase tracking-wider text-xs px-2.5 py-0.5 font-semibold rounded-md ${getDifficultyColor(activeQuestion.difficulty)}`}>
+                      {activeQuestion.difficulty}
+                    </Badge>
+                    {activeQuestion.year && (
+                      <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 gap-1.5 px-2.5 py-0.5 rounded-md">
+                         <Calendar size={12} /> {activeQuestion.year}
                       </Badge>
-                      <Badge variant="outline" className={`border-none uppercase tracking-wider text-[10px] px-2 ${getDifficultyColor(q.difficulty)}`}>
-                        {q.difficulty}
+                    )}
+                    {activeQuestion.is_ai_generated && (
+                      <Badge className="bg-purple-100 text-purple-700 border border-purple-200 gap-1.5 hover:bg-purple-200 px-2.5 py-0.5 rounded-md">
+                         <Bot size={12} /> IA Gerada
                       </Badge>
-                      {q.year && (
-                        <Badge variant="outline" className="bg-white text-slate-500 border-slate-200 gap-1">
-                           <Calendar size={10} /> {q.year}
-                        </Badge>
-                      )}
-                      {q.is_ai_generated && (
-                        <Badge className="bg-purple-100 text-purple-700 border-purple-200 gap-1 hover:bg-purple-200">
-                           <Bot size={12} /> IA Generated
-                        </Badge>
-                      )}
-                    </div>
-                    <span className="text-[10px] font-mono text-slate-400 shrink-0 bg-slate-100 px-1.5 py-0.5 rounded">
-                      ID: {q.external_id?.substring(0,8) || 'N/A'}
-                    </span>
-                  </div>
-                </CardHeader>
-
-                {/* --- CARD CONTENT --- */}
-                <CardContent className="p-6 space-y-6">
-                  
-                  {/* Contexto */}
-                  {q.context && (
-                    <div className="relative pl-4 border-l-4 border-slate-200 py-1">
-                      <div className="absolute -left-[27px] -top-1 bg-white text-slate-300 p-1 rounded-full border border-slate-100">
-                         <BookOpen size={14} />
-                      </div>
-                      <div className="prose prose-sm prose-slate max-w-none text-slate-600 italic leading-relaxed">
-                        <ReactMarkdown>{q.context}</ReactMarkdown>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Enunciado */}
-                  <div className="prose prose-slate max-w-none text-slate-900 font-medium leading-relaxed">
-                    <ReactMarkdown>{q.statement}</ReactMarkdown>
-                  </div>
-
-                  {/* Imagens */}
-                  {q.images && q.images.length > 0 && (
-                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                      {q.images.map((img, i) => (
-                        <div key={i} className="relative group/img">
-                           <img 
-                              src={img} 
-                              alt={`Apoio ${i}`} 
-                              className="h-28 w-auto rounded-lg border border-slate-200 object-cover hover:scale-105 transition-transform cursor-zoom-in" 
-                           />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Alternativas */}
-                  <div className="grid gap-2 pt-2">
-                    {q.alternatives?.map((alt) => {
-                      const isCorrect = alt.letter === q.correct_alternative;
-                      return (
-                        <div 
-                          key={alt.letter}
-                          className={`
-                            relative flex items-start gap-3 p-3 rounded-xl border text-sm transition-all
-                            ${isCorrect 
-                               ? 'bg-emerald-50/70 border-emerald-200 shadow-sm' 
-                               : 'bg-white border-slate-100 text-slate-500 opacity-90'
-                            }
-                          `}
-                        >
-                          <div className={`
-                             shrink-0 w-6 h-6 flex items-center justify-center rounded-md font-bold text-xs border
-                             ${isCorrect 
-                                ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                : 'bg-slate-50 border-slate-200 text-slate-400'
-                             }
-                          `}>
-                            {alt.letter}
-                          </div>
-                          <div className={`flex-1 leading-snug ${isCorrect ? 'text-emerald-900 font-medium' : ''}`}>
-                             {alt.text || <span className="italic opacity-50">Conteúdo de Imagem</span>}
-                          </div>
-                          {isCorrect && <CheckCircle2 size={16} className="text-emerald-600 mt-0.5" />}
-                        </div>
-                      )
-                    })}
-                    {!q.alternatives && (
-                        <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-800 rounded-lg text-sm border border-amber-200">
-                            <AlertCircle size={16} /> 
-                            Questão sem alternativas cadastradas.
-                        </div>
                     )}
                   </div>
-                </CardContent>
+                  <span className="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
+                    {activeQuestion.external_id || activeQuestion.id.substring(0,8)}
+                  </span>
+                </div>
+              </div>
 
-                {/* --- CARD FOOTER --- */}
-                <CardFooter className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
-                   <Button 
-                      variant="outline" 
-                      className="flex-1 border-red-100 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200 h-11"
-                      onClick={() => handleDecision(q.id, 'reject')}
-                      disabled={!!processingId}
-                   >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Deletar
-                   </Button>
-                   
-                   <Button 
-                      className="flex-[2] bg-slate-900 hover:bg-slate-800 text-white h-11 shadow-lg shadow-slate-200"
-                      onClick={() => handleDecision(q.id, 'approve')}
-                      disabled={!!processingId}
-                   >
-                      {processingId === q.id ? (
-                        <div className="flex items-center gap-2">
-                           <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                           Processando...
+              {/* CONTEÚDO SCROLLABLE */}
+              <div className="overflow-y-auto flex-1 p-6 md:p-8 space-y-8 custom-scrollbar">
+                
+                {/* Contexto */}
+                {activeQuestion.context && (
+                  <div className="relative pl-5 border-l-4 border-slate-200 py-1">
+                    <div className="absolute -left-[30px] -top-1 bg-white text-slate-400 p-1.5 rounded-full border border-slate-200 shadow-sm">
+                       <BookOpen size={16} />
+                    </div>
+                    <div className="prose prose-slate max-w-none text-slate-600 italic leading-relaxed text-[15px]">
+                      <ReactMarkdown>{activeQuestion.context}</ReactMarkdown>
+                    </div>
+                  </div>
+                )}
+
+                {/* Enunciado Principal */}
+                <div className="prose prose-slate prose-lg max-w-none text-slate-900 font-medium leading-relaxed">
+                  <ReactMarkdown>{activeQuestion.statement}</ReactMarkdown>
+                </div>
+
+                {/* Imagens de Apoio */}
+                {activeQuestion.images && activeQuestion.images.length > 0 && (
+                  <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
+                    {activeQuestion.images.map((img, i) => (
+                      <div key={i} className="relative shrink-0 snap-center group/img">
+                         <img 
+                            src={img} 
+                            alt={`Apoio ${i}`} 
+                            className="h-48 w-auto rounded-xl border border-slate-200 object-cover shadow-sm hover:shadow-md transition-all cursor-zoom-in" 
+                         />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Bloco de Alternativas */}
+                <div className="space-y-3 pt-4 border-t border-slate-100">
+                  <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Alternativas</h4>
+                  {activeQuestion.alternatives?.map((alt) => {
+                    const isCorrect = alt.letter === activeQuestion.correct_alternative;
+                    return (
+                      <div 
+                        key={alt.letter}
+                        className={`
+                          relative flex items-center gap-4 p-4 rounded-xl border transition-all
+                          ${isCorrect 
+                             ? 'bg-emerald-50/50 border-emerald-300 shadow-sm ring-1 ring-emerald-100' 
+                             : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                          }
+                        `}
+                      >
+                        <div className={`
+                           shrink-0 w-8 h-8 flex items-center justify-center rounded-lg font-bold text-sm border
+                           ${isCorrect 
+                              ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm' 
+                              : 'bg-slate-100 border-slate-200 text-slate-500'
+                           }
+                        `}>
+                          {alt.letter}
                         </div>
-                      ) : (
-                        <>
-                           <CheckCircle2 className="w-4 h-4 mr-2" />
-                           Aprovar Questão
-                        </>
-                      )}
-                   </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        )}
+                        <div className={`flex-1 text-[15px] leading-snug ${isCorrect ? 'text-emerald-950 font-medium' : 'text-slate-700'}`}>
+                           {alt.text || <span className="italic opacity-50">Conteúdo em anexo/imagem</span>}
+                        </div>
+                        {isCorrect && (
+                          <div className="shrink-0 pl-2">
+                             <CheckCircle2 size={24} className="text-emerald-500" />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {!activeQuestion.alternatives && (
+                      <div className="flex items-center gap-3 p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
+                          <AlertCircle size={20} className="shrink-0" /> 
+                          <span className="font-medium">ATENÇÃO:</span> Esta questão foi importada sem as alternativas.
+                      </div>
+                  )}
+                </div>
+              </div>
+
+              {/* STICKY FOOTER ACTIONS (Decision Layer) */}
+              <div className="bg-slate-50/90 backdrop-blur-md border-t border-slate-200 p-5 shrink-0 flex gap-4 rounded-b-3xl">
+                 <Button 
+                    variant="outline" 
+                    className="flex-1 h-14 text-base font-semibold border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 rounded-xl transition-colors"
+                    onClick={() => handleDecision(activeQuestion.id, 'reject')}
+                    disabled={!!processingId}
+                 >
+                    <Trash2 className="w-5 h-5 mr-2" />
+                    Descartar Questão
+                 </Button>
+                 
+                 <Button 
+                    className="flex-[2] h-14 text-base font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-lg shadow-slate-900/10 transition-all hover:translate-y-[-1px]"
+                    onClick={() => handleDecision(activeQuestion.id, 'approve')}
+                    disabled={!!processingId}
+                 >
+                    {processingId === activeQuestion.id ? (
+                      <div className="flex items-center gap-2">
+                         <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                         Processando...
+                      </div>
+                    ) : (
+                      <>
+                         <CheckCircle2 className="w-5 h-5 mr-2" />
+                         Aprovar e Publicar
+                      </>
+                    )}
+                 </Button>
+              </div>
+
+            </Card>
+          )}
+        </div>
       </div>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: #cbd5e1;
+          border-radius: 20px;
+        }
+      `}</style>
     </div>
   );
 }
