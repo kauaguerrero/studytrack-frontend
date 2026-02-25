@@ -36,20 +36,26 @@ interface Alternative {
   letter: string;
   text: string;
   image?: string;
+  isCorrect?: boolean;
 }
 
 interface AdminQuestion {
   id: string;
   external_id: string;
-  year: number;
+  exam_year: number;
   subject: string;
+  discipline?: string;
   difficulty: string;
-  statement: string;
+  title?: string;
+  alternatives_intro: string;
   context?: string;
   alternatives: Alternative[];
   correct_alternative: string;
   images: string[];
   is_ai_generated?: boolean;
+  ai_reasoning?: {
+    thought: string;
+  };
   metadata?: any;
 }
 
@@ -78,7 +84,52 @@ export default function AdminQuestionApproval() {
         .limit(100);
 
       if (error) throw error;
-      setQuestions(data || []);
+
+      // DATA MAPPER: Higienização e Parse de Strings para JSON
+      const sanitizedData: AdminQuestion[] = (data || []).map((q: any) => {
+        
+        // Parse seguro das alternativas (Evita quebra por stringify duplo ou null)
+        let parsedAlternatives = [];
+        try {
+           parsedAlternatives = typeof q.alternatives === 'string' 
+             ? JSON.parse(q.alternatives) 
+             : q.alternatives || [];
+        } catch (e) {
+           console.error(`Erro ao fazer parse das alternativas na questão ${q.id}`, e);
+        }
+
+        // Parse do raciocínio da IA
+        let parsedReasoning = null;
+        try {
+           if (q.ai_reasoning) {
+             parsedReasoning = typeof q.ai_reasoning === 'string' 
+               ? JSON.parse(q.ai_reasoning) 
+               : q.ai_reasoning;
+           }
+        } catch (e) {
+           console.error(`Erro ao fazer parse do ai_reasoning na questão ${q.id}`, e);
+        }
+
+        // Parse do metadata (opcional, mas recomendado)
+        let parsedMetadata = null;
+        try {
+           if (q.metadata) {
+             parsedMetadata = typeof q.metadata === 'string' 
+               ? JSON.parse(q.metadata) 
+               : q.metadata;
+           }
+        } catch (e) {}
+
+        return {
+          ...q,
+          alternatives: parsedAlternatives,
+          ai_reasoning: parsedReasoning,
+          metadata: parsedMetadata,
+          images: q.images || [], // Garante array nativo ao invés de null
+        };
+      });
+
+      setQuestions(sanitizedData);
     } catch (error) {
       console.error("Erro Supabase:", error);
       toast.error("Erro de conexão com o banco de dados.");
@@ -93,7 +144,7 @@ export default function AdminQuestionApproval() {
 
   // --- ACTIONS ---
   const handleDecision = async (id: string, decision: 'approve' | 'reject') => {
-    // 1. Optimistic Update (Padrão de Fila - Remove o item imediatamente)
+    // 1. Optimistic Update (Padrão de Fila - Remove o item imediatamente da UI)
     const previousQuestions = [...questions];
     setQuestions(prev => prev.filter(q => q.id !== id));
     setProcessingId(id);
@@ -118,8 +169,8 @@ export default function AdminQuestionApproval() {
             .from('questions')
             .update({ 
                 is_verified: true, 
-                status: 'approved',
-                // verified_by: user.id, // Descomente se tiver a coluna
+                status: 'active', // Ajustado para 'active' conforme seu banco de dados
+                verified_by: user.id, 
                 updated_at: new Date().toISOString()
             })
             .eq('id', id);
@@ -149,10 +200,31 @@ export default function AdminQuestionApproval() {
     });
   }, [questions, filterSubject, filterDifficulty]);
 
-  const subjects = Array.from(new Set(questions.map(q => q.subject))).sort();
+  const subjects = Array.from(new Set(questions.map(q => q.subject))).filter(Boolean).sort();
 
   // Fila: Pega sempre a primeira questão dos resultados filtrados
   const activeQuestion = filteredQuestions[0];
+
+  // --- KEYBOARD SHORTCUTS (UX/UI B2B Flow) ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!activeQuestion || processingId) return;
+      
+      // Ignora atalhos se o usuário estiver digitando em algum input global
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleDecision(activeQuestion.id, 'approve');
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        handleDecision(activeQuestion.id, 'reject');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeQuestion, processingId]);
 
   // --- RENDER HELPERS ---
   const getDifficultyColor = (diff: string) => {
@@ -187,7 +259,7 @@ export default function AdminQuestionApproval() {
           </div>
           
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-             {/* Stats Pill - Agora reflete o tamanho da fila filtrada */}
+             {/* Stats Pill */}
              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
                 <div className={`w-2 h-2 rounded-full ${filteredQuestions.length > 0 ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`} />
                 <span className="font-semibold text-slate-700 text-sm flex items-center gap-1">
@@ -260,10 +332,10 @@ export default function AdminQuestionApproval() {
               </Button>
             </div>
           ) : (
-            /* ACTIVE QUESTION CARD (NUBANK STYLE) */
+            /* ACTIVE QUESTION CARD */
             <Card 
               key={activeQuestion.id} 
-              className="w-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col max-h-[85vh] animate-in slide-in-from-right-8 fade-in duration-300"
+              className="w-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col max-h-[85vh] animate-in slide-in-from-right-8 fade-in duration-300 relative group"
             >
               
               {/* HEADER DA QUESTÃO */}
@@ -273,12 +345,17 @@ export default function AdminQuestionApproval() {
                     <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none uppercase tracking-wider text-xs px-2.5 py-0.5 font-semibold rounded-md">
                       {activeQuestion.subject}
                     </Badge>
+                    {activeQuestion.discipline && (
+                      <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 uppercase tracking-wider text-[10px] px-2 py-0.5 rounded-md">
+                        {activeQuestion.discipline}
+                      </Badge>
+                    )}
                     <Badge variant="outline" className={`border uppercase tracking-wider text-xs px-2.5 py-0.5 font-semibold rounded-md ${getDifficultyColor(activeQuestion.difficulty)}`}>
                       {activeQuestion.difficulty}
                     </Badge>
-                    {activeQuestion.year && (
+                    {activeQuestion.exam_year && (
                       <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 gap-1.5 px-2.5 py-0.5 rounded-md">
-                         <Calendar size={12} /> {activeQuestion.year}
+                         <Calendar size={12} /> {activeQuestion.exam_year}
                       </Badge>
                     )}
                     {activeQuestion.is_ai_generated && (
@@ -310,8 +387,22 @@ export default function AdminQuestionApproval() {
 
                 {/* Enunciado Principal */}
                 <div className="prose prose-slate prose-lg max-w-none text-slate-900 font-medium leading-relaxed">
-                  <ReactMarkdown>{activeQuestion.statement}</ReactMarkdown>
+                  {activeQuestion.title && <h3 className="text-xl font-bold mb-2 text-slate-800">{activeQuestion.title}</h3>}
+                  <ReactMarkdown>{activeQuestion.alternatives_intro || ''}</ReactMarkdown>
                 </div>
+
+                {/* Raciocínio da IA (Audit View) */}
+                {activeQuestion.is_ai_generated && activeQuestion.ai_reasoning?.thought && (
+                  <div className="mt-6 p-4 bg-purple-50/50 border border-purple-100 rounded-xl">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Bot size={16} className="text-purple-600" />
+                      <span className="text-sm font-bold text-purple-900 uppercase tracking-wider">Raciocínio da IA</span>
+                    </div>
+                    <p className="text-sm text-purple-800 leading-relaxed italic">
+                      "{activeQuestion.ai_reasoning.thought}"
+                    </p>
+                  </div>
+                )}
 
                 {/* Imagens de Apoio */}
                 {activeQuestion.images && activeQuestion.images.length > 0 && (
@@ -331,50 +422,63 @@ export default function AdminQuestionApproval() {
                 {/* Bloco de Alternativas */}
                 <div className="space-y-3 pt-4 border-t border-slate-100">
                   <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Alternativas</h4>
-                  {activeQuestion.alternatives?.map((alt) => {
-                    const isCorrect = alt.letter === activeQuestion.correct_alternative;
-                    return (
-                      <div 
-                        key={alt.letter}
-                        className={`
-                          relative flex items-center gap-4 p-4 rounded-xl border transition-all
-                          ${isCorrect 
-                             ? 'bg-emerald-50/50 border-emerald-300 shadow-sm ring-1 ring-emerald-100' 
-                             : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                          }
-                        `}
-                      >
-                        <div className={`
-                           shrink-0 w-8 h-8 flex items-center justify-center rounded-lg font-bold text-sm border
-                           ${isCorrect 
-                              ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm' 
-                              : 'bg-slate-100 border-slate-200 text-slate-500'
-                           }
-                        `}>
-                          {alt.letter}
-                        </div>
-                        <div className={`flex-1 text-[15px] leading-snug ${isCorrect ? 'text-emerald-950 font-medium' : 'text-slate-700'}`}>
-                           {alt.text || <span className="italic opacity-50">Conteúdo em anexo/imagem</span>}
-                        </div>
-                        {isCorrect && (
-                          <div className="shrink-0 pl-2">
-                             <CheckCircle2 size={24} className="text-emerald-500" />
+                  {activeQuestion.alternatives && activeQuestion.alternatives.length > 0 ? (
+                    activeQuestion.alternatives.map((alt) => {
+                      // Verifica tanto a letra exata quanto o booleano 'isCorrect' retornado pela IA
+                      const isCorrect = alt.letter === activeQuestion.correct_alternative || alt.isCorrect === true;
+                      
+                      return (
+                        <div 
+                          key={alt.letter}
+                          className={`
+                            relative flex items-center gap-4 p-4 rounded-xl border transition-all
+                            ${isCorrect 
+                               ? 'bg-emerald-50/50 border-emerald-300 shadow-sm ring-1 ring-emerald-100' 
+                               : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                            }
+                          `}
+                        >
+                          <div className={`
+                             shrink-0 w-8 h-8 flex items-center justify-center rounded-lg font-bold text-sm border
+                             ${isCorrect 
+                                ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm' 
+                                : 'bg-slate-100 border-slate-200 text-slate-500'
+                             }
+                          `}>
+                            {alt.letter}
                           </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                  {!activeQuestion.alternatives && (
-                      <div className="flex items-center gap-3 p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
-                          <AlertCircle size={20} className="shrink-0" /> 
-                          <span className="font-medium">ATENÇÃO:</span> Esta questão foi importada sem as alternativas.
-                      </div>
+                          <div className={`flex-1 text-[15px] leading-snug ${isCorrect ? 'text-emerald-950 font-medium' : 'text-slate-700'}`}>
+                             {alt.text || <span className="italic opacity-50">Conteúdo em anexo/imagem</span>}
+                          </div>
+                          {isCorrect && (
+                            <div className="shrink-0 pl-2">
+                               <CheckCircle2 size={24} className="text-emerald-500" />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="flex items-center gap-3 p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
+                        <AlertCircle size={20} className="shrink-0" /> 
+                        <span className="font-medium">ATENÇÃO:</span> Esta questão foi importada sem alternativas ou houve falha no parsing.
+                    </div>
                   )}
                 </div>
               </div>
 
               {/* STICKY FOOTER ACTIONS (Decision Layer) */}
-              <div className="bg-slate-50/90 backdrop-blur-md border-t border-slate-200 p-5 shrink-0 flex gap-4 rounded-b-3xl">
+              <div className="bg-slate-50/90 backdrop-blur-md border-t border-slate-200 p-5 shrink-0 flex gap-4 rounded-b-3xl relative">
+                 {/* Dicas de Teclado Flutuantes */}
+                 <div className="absolute -top-8 left-0 right-0 flex justify-center gap-8 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
+                      Atalho: DEL ou BACKSPACE
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
+                      Atalho: ENTER
+                    </span>
+                 </div>
+
                  <Button 
                     variant="outline" 
                     className="flex-1 h-14 text-base font-semibold border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 rounded-xl transition-colors"
@@ -382,7 +486,7 @@ export default function AdminQuestionApproval() {
                     disabled={!!processingId}
                  >
                     <Trash2 className="w-5 h-5 mr-2" />
-                    Descartar Questão
+                    Descartar
                  </Button>
                  
                  <Button 
