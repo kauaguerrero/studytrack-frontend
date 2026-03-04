@@ -51,23 +51,14 @@ function LoginForm() {
 
       if (error) throw error;
 
-      const session = authData?.session;
-      if (session?.access_token && session?.refresh_token) {
-        await fetch('/api/auth/set-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token,
-          }),
-        });
-      }
+      // O @supabase/ssr já setou os cookies no navegador neste ponto.
+      // O código legado do fetch('/api/auth/set-session') foi removido.
 
       const userId = authData?.user?.id;
       const { data: profile } = userId
         ? await supabase.from('profiles').select('role').eq('id', userId).single()
         : { data: null };
+      
       const role = profile?.role ?? null;
       const roleToPath: Record<string, string> = {
         teacher: '/portal/teacher',
@@ -76,11 +67,14 @@ function LoginForm() {
         secretariat: '/portal/secretariat',
         student: '/portal/student/dashboard',
       };
+      
       const target = role && roleToPath[role] ? roleToPath[role] : '/portal';
-      window.location.href = target;
-      return;
+      
+      // Atualiza o cache do roteador do Next.js para que o Middleware leia os novos cookies
+      router.refresh(); 
+      router.push(target);
+      
     } catch (err: any) {
-      // Mensagem de erro mais amigável
       if (err.message?.includes('Invalid login credentials') || err.message?.includes('Email not confirmed')) {
         setError("E-mail ou senha incorretos. Verifique suas credenciais e tente novamente.");
       } else {

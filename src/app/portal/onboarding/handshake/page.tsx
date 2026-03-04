@@ -23,7 +23,7 @@ export default function OnboardingHandshake() {
       
       if (sessionError || !session) {
         console.error("Sessão inválida:", sessionError);
-        router.push("/login"); // Redireciona se não estiver logado
+        router.push("/auth/login"); // CORREÇÃO: Redireciona para a rota correta
         return;
       }
 
@@ -91,9 +91,10 @@ export default function OnboardingHandshake() {
                 // Mapeamento de rotas por tipo de usuário
                 const dashboardRoutes: Record<string, string> = {
                     student: "/portal/student/dashboard",
-                    teacher: "/portal/teacher/dashboard",
-                    manager: "/portal/school/dashboard",
+                    teacher: "/portal/teacher",
+                    manager: "/portal/manager",
                     admin: "/portal/admin",
+                    secretariat: "/portal/secretariat",
                 };
 
                 const targetRoute = dashboardRoutes[role] || "/portal/student/dashboard";

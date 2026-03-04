@@ -3,13 +3,20 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { UserRole } from '@/types/roles';
 
 export async function updateSession(request: NextRequest) {
-  // 1. Configuração inicial da resposta
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
+  let supabaseResponse = NextResponse.next({ request });
+  const path = request.nextUrl.pathname;
 
+  // 1. OTIMIZAÇÃO CRÍTICA: Ignorar arquivos estáticos IMEDIATAMENTE (Evita Deadlock)
+  if (
+    path.startsWith('/_next') ||
+    path.startsWith('/static') ||
+    path.startsWith('/auth/callback') ||
+    path.includes('.')
+  ) {
+    return supabaseResponse;
+  }
+
+  // 2. Só instancia o Supabase se for uma rota de página
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,84 +26,31 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          // Atualiza request (para o backend ver agora)
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          
-          // Recria a resposta para garantir consistência
-          response = NextResponse.next({ request });
-          
-          // Atualiza resposta (para o navegador salvar)
-          cookiesToSet.forEach(({ name, value, options }) => 
-            response.cookies.set(name, value, options)
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
           );
         },
       },
     }
   );
 
-  const path = request.nextUrl.pathname;
+  // 3. Validação de Sessão
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-  // 0. Callback OAuth (Segurança)
-  if (path.startsWith('/auth/callback')) {
-    return response;
+  if (process.env.NODE_ENV === 'development') {
+      console.log('[MIDDLEWARE][DEBUG] path:', path);
+      console.log('[MIDDLEWARE][DEBUG] user ID:', user?.id || 'null');
+      console.log('[MIDDLEWARE][DEBUG] cookies na requisição:', request.cookies.getAll().map(c => c.name));
   }
 
-  // 2. Verifica/Renova Token (ÚNICO ponto de getUser - evita race condition)
-  let user: { id: string; user_metadata?: { role?: string } } | null = null;
-  try {
-    const res = await supabase.auth.getUser();
-    user = res.data?.user ?? null;
-    if (res.error) {
-      const msg = (res.error?.message ?? '').toLowerCase();
-      if (msg.includes('refresh token') || msg.includes('refresh_token')) {
-        await supabase.auth.signOut();
-        user = null;
-      }
-    }
-  } catch (e: unknown) {
-    const err = e as Error;
-    const msg = (err?.message ?? '').toLowerCase();
-    if (msg.includes('refresh token') || msg.includes('refresh_token')) {
-      try { await supabase.auth.signOut(); } catch { /* ignore */ }
-      user = null;
-    }
-  }
-
-  // Passa user.id via header para o layout (evita 2ª chamada getUser → race condition)
-  const requestHeaders = new Headers(request.headers);
-  if (user) requestHeaders.set('x-user-id', user.id);
-  response = NextResponse.next({ request: { headers: requestHeaders } });
-  request.cookies.getAll().forEach((c) => {
-    response.cookies.set(c.name, c.value, { path: '/' });
-  });
-
-  // Função auxiliar para redirecionar SEM perder os cookies renovados acima
-  const redirect = (url: URL) => {
-    const redirectResponse = NextResponse.redirect(url);
-    // Copia os cookies da resposta original (que tem o token novo) para o redirect
-    const cookiesToCopy = response.cookies.getAll();
-    cookiesToCopy.forEach((cookie) => {
-      redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
-    });
-    return redirectResponse;
-  };
-
-  // 3. Heartbeat de Atividade (DAU/MAU)
-  if (user) {
-    const activityCookie = request.cookies.get('st_activity_heartbeat');
-    if (!activityCookie) {
-      // Async fire-and-forget (não esperamos o await para não travar a req)
-      supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', user.id).then();
-      response.cookies.set('st_activity_heartbeat', 'true', { maxAge: 3600 });
-    }
-  }
-
-  // 4. Rotas Públicas
-  if (path === '/' || path.startsWith('/auth') || path.startsWith('/api') || path.includes('.')) {
+  // 4. Rotas Públicas e Redirect de Auth
+  if (path === '/' || path.startsWith('/auth') || path.startsWith('/api')) {
     if (user && (path === '/auth/login' || path === '/auth/register')) {
-      return redirect(new URL('/portal', request.url));
+      return NextResponse.redirect(new URL('/portal', request.url));
     }
-    return response;
+    return supabaseResponse;
   }
 
   // 5. Proteção do Portal (RBAC)
@@ -104,14 +58,12 @@ export async function updateSession(request: NextRequest) {
     if (!user) {
       const redirectUrl = new URL('/auth/login', request.url);
       redirectUrl.searchParams.set('next', path);
-      return redirect(redirectUrl);
+      return NextResponse.redirect(redirectUrl);
     }
 
-    // Role Check
     let currentRole: UserRole = (user.user_metadata?.role || 'student') as UserRole;
 
     if (path.startsWith('/portal/manager') || path.startsWith('/portal/teacher') || path.startsWith('/portal/secretariat')) {
-        // Busca rápida (RLS agora funciona sem recursão)
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')
@@ -120,37 +72,22 @@ export async function updateSession(request: NextRequest) {
         if (profile?.role) currentRole = profile.role as UserRole;
     }
 
-    // Redirecionamentos de Role
-    if (path.startsWith('/portal/teacher')) {
-      if (currentRole !== 'teacher' && currentRole !== 'admin') {
-        const dest = currentRole === 'manager' ? '/portal/manager' 
-                   : currentRole === 'secretariat' ? '/portal/secretariat'
-                   : '/portal/student/dashboard';
-        return redirect(new URL(dest, request.url));
-      }
+    // Redirects baseados em Role
+    if (path.startsWith('/portal/teacher') && currentRole !== 'teacher' && currentRole !== 'admin') {
+        const dest = currentRole === 'manager' ? '/portal/manager' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
+        return NextResponse.redirect(new URL(dest, request.url));
     }
 
-    if (path.startsWith('/portal/manager')) {
-      if (currentRole !== 'manager' && currentRole !== 'admin') {
-         const dest = currentRole === 'teacher' ? '/portal/teacher' 
-                    : currentRole === 'secretariat' ? '/portal/secretariat'
-                    : '/portal/student/dashboard';
-         return redirect(new URL(dest, request.url));
-      }
+    if (path.startsWith('/portal/manager') && currentRole !== 'manager' && currentRole !== 'admin') {
+         const dest = currentRole === 'teacher' ? '/portal/teacher' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
+         return NextResponse.redirect(new URL(dest, request.url));
     }
 
-    if (path.startsWith('/portal/secretariat')) {
-      if (currentRole !== 'secretariat' && currentRole !== 'admin') {
-        const dest = currentRole === 'manager' ? '/portal/manager'
-                   : currentRole === 'teacher' ? '/portal/teacher'
-                   : '/portal/student/dashboard';
-        return redirect(new URL(dest, request.url));
-      }
+    if (path.startsWith('/portal/secretariat') && currentRole !== 'secretariat' && currentRole !== 'admin') {
+        const dest = currentRole === 'manager' ? '/portal/manager' : currentRole === 'teacher' ? '/portal/teacher' : '/portal/student/dashboard';
+        return NextResponse.redirect(new URL(dest, request.url));
     }
   }
 
-  // Migração Legado
-  if (path === '/dashboard') return redirect(new URL('/portal/student/dashboard', request.url));
-  
-  return response;
+  return supabaseResponse;
 }
