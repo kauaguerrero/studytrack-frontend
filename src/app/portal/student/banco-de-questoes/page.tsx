@@ -23,9 +23,9 @@ const SUBJECTS = [
     "Inglês", "Espanhol"
 ];
 
-// Gerar anos de 2015 até o ano atual + 1
+// Gerar anos de 2009 até o ano atual
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: CURRENT_YEAR - 2014 }, (_, i) => (CURRENT_YEAR + 1 - i).toString());
+const YEARS = Array.from({ length: CURRENT_YEAR - 2008 }, (_, i) => (CURRENT_YEAR - i).toString());
 
 const DIFFICULTIES = ["Fácil", "Médio", "Difícil"];
 
@@ -64,9 +64,9 @@ export default function BancoDeQuestoes() {
     
     // Filtros principais
     const [filterSubject, setFilterSubject] = useState('')
-    const [filterTopic, setFilterTopic] = useState('')
-    const [filterYear, setFilterYear] = useState('')
-    const [filterDifficulty, setFilterDifficulty] = useState('')
+    const [filterTopic, setFilterTopic] = useState('Todos')
+    const [filterYear, setFilterYear] = useState('Todos')
+    const [filterDifficulty, setFilterDifficulty] = useState('Todas')
     
     const [availableTopics, setAvailableTopics] = useState<Topic[]>([])
     
@@ -78,6 +78,7 @@ export default function BancoDeQuestoes() {
     const [loadingMore, setLoadingMore] = useState(false)
     const [userId, setUserId] = useState<string | null>(null)
     const [userProfile, setUserProfile] = useState<any>(null)
+    const [totalQuestionsFound, setTotalQuestionsFound] = useState<number>(0)
     
     // State: Pagination & Upsell
     const [page, setPage] = useState(1);
@@ -88,6 +89,9 @@ export default function BancoDeQuestoes() {
 
     // Refs
     const isLoadingRef = useRef(false);
+
+    //total questions 
+    const [totalQuestions, setTotalQuestions] = useState<number>(2700);
 
     // 1. Init: Auth & User Data
     useEffect(() => {
@@ -118,20 +122,37 @@ export default function BancoDeQuestoes() {
         init()
     }, [])
 
+    // Busca o total global de questões aprovadas
+    useEffect(() => {
+        const fetchTotal = async () => {
+            try {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+                const res = await fetch(`${apiUrl}/api/questions/total`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.total) setTotalQuestions(data.total);
+                }
+            } catch (err) {
+                console.error("Erro ao buscar total de questões:", err);
+            }
+        };
+        fetchTotal();
+    }, []);
+
     // 2. Topics Fetching
     useEffect(() => {
         async function loadTopics() {
-            if (!filterSubject || filterSubject === 'Todas') {
-                setAvailableTopics([]); 
-                setFilterTopic(''); 
-                return;
-            }
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-                const res = await fetch(`${apiUrl}/api/questions/topics?subject=${encodeURIComponent(filterSubject)}`);
+                
+                // Se não houver matéria ou for "Todas", enviamos uma string vazia para o backend trazer tudo
+                const subjectQuery = (!filterSubject || filterSubject === 'Todas') ? '' : filterSubject;
+                
+                const res = await fetch(`${apiUrl}/api/questions/topics?subject=${encodeURIComponent(subjectQuery)}`);
                 const data = await res.json();
+                
                 setAvailableTopics(data);
-                setFilterTopic('');
+                setFilterTopic('Todos');
             } catch (err) { console.error(err); }
         }
         loadTopics();
@@ -183,17 +204,22 @@ export default function BancoDeQuestoes() {
                 user_id: userId
             });
             
-            if (filterSubject) params.append('subject', filterSubject);
+            if (filterSubject && filterSubject !== 'Todas') params.append('subject', filterSubject);
             if (filterTopic && filterTopic !== 'Todos') params.append('topic', filterTopic);
+            if (filterYear && filterYear !== 'Todos') params.append('year', filterYear);
+            if (filterDifficulty && filterDifficulty !== 'Todas') params.append('difficulty', filterDifficulty);
             
-            // Issue 3 & 4: Adicionando filtros novos
-            if (filterYear) params.append('year', filterYear);
-            if (filterDifficulty) params.append('difficulty', filterDifficulty);
+            params.append('tab', activeTab);
 
             const res = await fetch(`${apiUrl}/api/questions/?${params.toString()}`);
             if (!res.ok) throw new Error("Failed to fetch questions");
             
             const data = await res.json();
+
+            // Salva o total absoluto retornado pelo filtro do banco de dados
+            if (!append) {
+                setTotalQuestionsFound(data.total || 0);
+            }
 
             // Check Quota status from API
             if (data.user_status?.locked) setIsLockedByQuota(true);
@@ -201,11 +227,8 @@ export default function BancoDeQuestoes() {
 
             const rawQuestions = data.data || [];
             
-            // Client-Side filtering based on Tab (Issue 2 Fix: Logic consistency)
-            const filteredQuestions = rawQuestions.filter((q: any) => {
-                const isAnswered = answeredIds.has(q.id);
-                return activeTab === 'todo' ? !isAnswered : isAnswered;
-            });
+            // O Backend agora processa as abas. O Frontend apenas confia nos dados.
+            const filteredQuestions = rawQuestions;
 
             // Logic: Se a página veio cheia mas o filtro client-side esvaziou tudo, busca a próxima
             const shouldFetchNextPageImmediately = rawQuestions.length > 0 && filteredQuestions.length === 0;
@@ -279,7 +302,6 @@ export default function BancoDeQuestoes() {
 
     // Derived State
     const currentQ = questions[currentIdx];
-    const progressPercentage = questions.length > 0 ? ((currentIdx + 1) / questions.length) * 100 : 0;
     const isNextDisabled = currentIdx === questions.length - 1;
 
     return (
@@ -362,7 +384,8 @@ export default function BancoDeQuestoes() {
                                     onChange={(e) => setFilterSubject(e.target.value)}
                                     value={filterSubject}
                                 >
-                                    <option value="" className="text-slate-400">Selecione a Matéria</option>
+                                    <option value="" disabled className="text-slate-400">Selecione a Matéria</option>
+                                    <option value="Todas" className="font-bold text-blue-600">📚 Todas as Matérias</option>
                                     {SUBJECTS.map(subj => (
                                         <option key={subj} value={subj}>{subj}</option>
                                     ))}
@@ -370,24 +393,23 @@ export default function BancoDeQuestoes() {
                                 <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                             </div>
 
-                            {/* 2. Tópico (Issue 5 Fix) */}
+                            {/* 2. Tópico */}
                             <div className="relative group">
                                 <select 
                                     className="w-full bg-slate-50 border border-slate-200 hover:border-sky-300 hover:bg-white text-slate-700 text-sm font-semibold rounded-xl pl-3 pr-8 py-3 outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-500 appearance-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-100 shadow-sm"
                                     onChange={(e) => setFilterTopic(e.target.value)}
                                     value={filterTopic}
-                                    disabled={!filterSubject || availableTopics.length === 0}
+                                    disabled={!filterSubject} 
                                 >
-                                    <option value="">Tópico</option>
-                                    <option value="Todos">Todos</option>
+                                    <option value="Todos" className="font-bold text-sky-600">Todos os Tópicos</option>
                                     {availableTopics.map((t) => (
-                                        <option key={t.name} value={t.name}>{t.name} ({t.count})</option>
+                                        <option key={t.name} value={t.name}>{t.name} </option>
                                     ))}
                                 </select>
                                 <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                             </div>
 
-                            {/* 3. Ano (Issue 3 Fix) */}
+                            {/* 3. Ano */}
                             <div className="relative group">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                                     <Calendar size={14} className="text-slate-400" />
@@ -397,7 +419,7 @@ export default function BancoDeQuestoes() {
                                     onChange={(e) => setFilterYear(e.target.value)}
                                     value={filterYear}
                                 >
-                                    <option value="">Ano</option>
+                                    <option value="Todos" className="font-bold text-indigo-600">Todos os Anos</option>
                                     {YEARS.map(year => (
                                         <option key={year} value={year}>{year}</option>
                                     ))}
@@ -405,7 +427,7 @@ export default function BancoDeQuestoes() {
                                 <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                             </div>
 
-                            {/* 4. Dificuldade (Issue 4 Fix) */}
+                            {/* 4. Dificuldade */}
                             <div className="relative group">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                                     <BarChart size={14} className="text-slate-400" />
@@ -415,7 +437,7 @@ export default function BancoDeQuestoes() {
                                     onChange={(e) => setFilterDifficulty(e.target.value)}
                                     value={filterDifficulty}
                                 >
-                                    <option value="">Dificuldade</option>
+                                    <option value="Todas" className="font-bold text-purple-600">Todas Dificuldades</option>
                                     {DIFFICULTIES.map(diff => (
                                         <option key={diff} value={diff}>{diff}</option>
                                     ))}
@@ -455,7 +477,7 @@ export default function BancoDeQuestoes() {
                             Bem vindo ao banco de questões da StudyTrack
                         </h2>
                         <p className="text-slate-600 max-w-lg text-lg leading-relaxed">
-                            O banco de questões com mais de <span className="font-bold text-blue-600">2700 questões</span>. 
+                        O banco de questões com mais de <span className="font-bold text-blue-600">{totalQuestions.toLocaleString('pt-BR')} questões</span>. 
                             <br />
                             Selecione a <span className="font-bold text-slate-800">matéria acima</span> e um tópico específico se preferir para começar.
                         </p>
@@ -488,17 +510,13 @@ export default function BancoDeQuestoes() {
                                 </h2>
                             </div>
                             
-                            <div className="hidden md:block w-48">
-                                <div className="flex justify-between text-[10px] text-slate-400 mb-1 font-bold uppercase tracking-widest">
-                                    <span>Navegação</span>
-                                    <span>{questions.length} items</span>
-                                </div>
-                                <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
-                                    <div 
-                                        style={{ width: `${progressPercentage}%` }} 
-                                        className={`h-full transition-all duration-300 ${activeTab === 'todo' ? 'bg-blue-500' : 'bg-emerald-500'}`}
-                                    />
-                                </div>
+                            <div className="hidden md:flex flex-col items-end justify-end">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                                    Total do Filtro
+                                </span>
+                                <span className="text-sm font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+                                    {totalQuestionsFound} questões
+                                </span>
                             </div>
                         </div>
 

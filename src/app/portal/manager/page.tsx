@@ -67,6 +67,7 @@ export default function PedagogicalDashboard() {
   const [error, setError] = useState('');
 
   const supabase = createClient();
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL; // CORREÇÃO: Consome a URL de ambiente
 
   // 1. Fetch Lista de Escolas
   useEffect(() => {
@@ -75,7 +76,8 @@ export default function PedagogicalDashboard() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        const res = await fetch('http://localhost:5000/api/enterprise/manager/schools', {
+        // CORREÇÃO: Usando a variável de ambiente no lugar do localhost chumbado
+        const res = await fetch(`${apiUrl}/api/enterprise/manager/schools`, {
           headers: { 
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json'
@@ -100,7 +102,7 @@ export default function PedagogicalDashboard() {
       }
     }
     fetchSchoolsList();
-  }, []);
+  }, [apiUrl, supabase.auth]);
 
   // 2. Fetch Dados do Dashboard
   useEffect(() => {
@@ -112,7 +114,8 @@ export default function PedagogicalDashboard() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        const res = await fetch(`http://localhost:5000/api/enterprise/manager/dashboard/${selectedSchoolId}`, {
+        // CORREÇÃO: Usando a variável de ambiente no lugar do localhost chumbado
+        const res = await fetch(`${apiUrl}/api/enterprise/manager/dashboard/${selectedSchoolId}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
 
@@ -128,7 +131,7 @@ export default function PedagogicalDashboard() {
     }
 
     fetchDashboardData();
-  }, [selectedSchoolId]);
+  }, [selectedSchoolId, apiUrl, supabase.auth]);
 
   // Handler de cores dos quadrantes
   const getPointColor = (errorRate: number, receptivity: number) => {
