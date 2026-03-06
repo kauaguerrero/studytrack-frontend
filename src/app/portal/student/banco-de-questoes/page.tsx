@@ -89,28 +89,30 @@ export default function BancoDeQuestoes() {
 
     // Refs
     const isLoadingRef = useRef(false);
+    /** Token JWT obtido uma única vez no init; usado em todos os fetch da API de questões. */
+    const authTokenRef = useRef<string | null>(null);
 
     //total questions 
     const [totalQuestions, setTotalQuestions] = useState<number>(2700);
 
-    // 1. Init: Auth & User Data
+    // 1. Init: Auth, sessão (token) e dados do usuário — uma única chamada getSession
     useEffect(() => {
         const init = async () => {
             try {
-                const supabase = createClient()
-                const { data: { user } } = await supabase.auth.getUser()
-                
+                const supabase = createClient();
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.access_token) authTokenRef.current = session.access_token;
+
+                const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
-                    setUserId(user.id)
-                    
-                    // Parallel fetching for performance
+                    setUserId(user.id);
+
                     const [profileRes, answersRes] = await Promise.all([
                         supabase.from("profiles").select("full_name").eq("id", user.id).single(),
                         supabase.from('user_answers').select('question_id').eq('user_id', user.id)
                     ]);
 
-                    setUserProfile(profileRes.data)
-                    
+                    setUserProfile(profileRes.data);
                     if (answersRes.data) {
                         setAnsweredIds(new Set(answersRes.data.map(a => a.question_id)));
                     }
@@ -118,16 +120,21 @@ export default function BancoDeQuestoes() {
             } catch (error) {
                 console.error("Critical Init Error:", error);
             }
-        }
-        init()
-    }, [])
+        };
+        init();
+    }, []);
 
-    // Busca o total global de questões aprovadas
+    // Busca o total global de questões aprovadas (só com token; evita chamadas inúteis)
     useEffect(() => {
+        const token = authTokenRef.current;
+        if (!token) return;
+
         const fetchTotal = async () => {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-                const res = await fetch(`${apiUrl}/api/questions/total`);
+                const res = await fetch(`${apiUrl}/api/questions/total`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
                 if (res.ok) {
                     const data = await res.json();
                     if (data.total) setTotalQuestions(data.total);
@@ -137,26 +144,27 @@ export default function BancoDeQuestoes() {
             }
         };
         fetchTotal();
-    }, []);
+    }, [userId]);
 
-    // 2. Topics Fetching
+    // 2. Topics Fetching (usa o mesmo token do ref)
     useEffect(() => {
+        const token = authTokenRef.current;
+        if (!token) return;
+
         async function loadTopics() {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-                
-                // Se não houver matéria ou for "Todas", enviamos uma string vazia para o backend trazer tudo
                 const subjectQuery = (!filterSubject || filterSubject === 'Todas') ? '' : filterSubject;
-                
-                const res = await fetch(`${apiUrl}/api/questions/topics?subject=${encodeURIComponent(subjectQuery)}`);
+                const res = await fetch(`${apiUrl}/api/questions/topics?subject=${encodeURIComponent(subjectQuery)}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
                 const data = await res.json();
-                
                 setAvailableTopics(data);
                 setFilterTopic('Todos');
             } catch (err) { console.error(err); }
         }
         loadTopics();
-    }, [filterSubject]);
+    }, [filterSubject, userId]);
 
     // Reset ao mudar filtros principais
     useEffect(() => {
@@ -172,18 +180,19 @@ export default function BancoDeQuestoes() {
         }
     }, [filterSubject, filterTopic, filterYear, filterDifficulty, activeTab, userId]); 
 
-    // 3. Core Fetch Logic (Questions)
+    // 3. Core Fetch Logic (Questions) — user_id vem do token no backend (IDOR-safe)
     const fetchQuestions = useCallback(async (targetPage = 1, append = false, retryCount = 0) => {
-        if (!userId) return; 
+        const token = authTokenRef.current;
+        if (!token || !userId) return;
         if (!filterSubject) return; // Não busca se não tiver matéria (Regra do Welcome State)
-        
+
         // Bloqueio de concorrência
         if (isLoadingRef.current && retryCount === 0) return;
 
         // Circuit Breaker
         if (retryCount > 10) {
-             setLoading(false); 
-             setLoadingMore(false); 
+             setLoading(false);
+             setLoadingMore(false);
              setHasMore(false);
              isLoadingRef.current = false;
              return;
@@ -198,22 +207,32 @@ export default function BancoDeQuestoes() {
 
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-            const params = new URLSearchParams({ 
-                page: targetPage.toString(), 
-                limit: '20',
-                user_id: userId
+            const params = new URLSearchParams({
+                page: targetPage.toString(),
+                limit: '20'
             });
-            
             if (filterSubject && filterSubject !== 'Todas') params.append('subject', filterSubject);
             if (filterTopic && filterTopic !== 'Todos') params.append('topic', filterTopic);
             if (filterYear && filterYear !== 'Todos') params.append('year', filterYear);
             if (filterDifficulty && filterDifficulty !== 'Todas') params.append('difficulty', filterDifficulty);
-            
             params.append('tab', activeTab);
 
-            const res = await fetch(`${apiUrl}/api/questions/?${params.toString()}`);
-            if (!res.ok) throw new Error("Failed to fetch questions");
-            
+            const res = await fetch(`${apiUrl}/api/questions/?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.status === 401) throw new Error("Unauthorized");
+            if (!res.ok) {
+                const body = await res.text();
+                let errMsg = `Failed to fetch questions (${res.status})`;
+                try {
+                    const j = JSON.parse(body);
+                    if (j?.error) errMsg += `: ${j.error}`;
+                    else if (j?.message) errMsg += `: ${j.message}`;
+                } catch (_) { if (body) errMsg += `: ${body.slice(0, 100)}`; }
+                console.error("[BancoQuestões]", errMsg, { status: res.status, body: body?.slice(0, 200) });
+                throw new Error(errMsg);
+            }
+
             const data = await res.json();
 
             // Salva o total absoluto retornado pelo filtro do banco de dados
@@ -296,13 +315,30 @@ export default function BancoDeQuestoes() {
         if (currentIdx > 0) setCurrentIdx(prev => prev - 1);
     };
 
+    // Derived State (declarado antes do useEffect que usa currentQ)
+    const currentQ = questions[currentIdx];
+    const isNextDisabled = currentIdx === questions.length - 1;
+
+    // Atalho: setas esquerda/direita para navegar entre questões
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!currentQ) return;
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                handleNext();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                handlePrev();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [currentIdx, questions.length, currentQ, isLockedByQuota, loadingMore]);
+
     const handleLocalAnswer = (qId: string) => {
         setAnsweredIds(prev => new Set(prev).add(qId));
     };
-
-    // Derived State
-    const currentQ = questions[currentIdx];
-    const isNextDisabled = currentIdx === questions.length - 1;
 
     return (
         <div className="min-h-screen bg-[#F0F4F8] font-sans text-slate-900 relative selection:bg-blue-100 selection:text-blue-700 flex flex-col">

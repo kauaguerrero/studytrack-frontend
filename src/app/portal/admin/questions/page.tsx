@@ -154,6 +154,7 @@ export default function AdminQuestionApproval() {
     // 1. Optimistic Update (Padrão de Fila - Remove o item imediatamente da UI)
     const previousQuestions = [...questions];
     setQuestions(prev => prev.filter(q => q.id !== id));
+    setCurrentIndex(0);
     setProcessingId(id);
 
     try {
@@ -258,8 +259,11 @@ export default function AdminQuestionApproval() {
 
   const subjects = Array.from(new Set(questions.map(q => q.subject))).filter(Boolean).sort();
 
-  // Fila: Pega sempre a primeira questão dos resultados filtrados
-  const activeQuestion = filteredQuestions[0];
+  // Índice para navegação por setas (seta esq/dir)
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const activeQuestion = filteredQuestions.length
+    ? filteredQuestions[Math.min(currentIndex, filteredQuestions.length - 1)]
+    : undefined;
 
   // --- KEYBOARD SHORTCUTS (UX/UI B2B Flow) ---
   useEffect(() => {
@@ -269,7 +273,13 @@ export default function AdminQuestionApproval() {
       // Ignora atalhos se o usuário estiver digitando em algum input global
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-      if (e.key === 'Enter') {
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setCurrentIndex(i => Math.min(i + 1, filteredQuestions.length - 1));
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setCurrentIndex(i => Math.max(0, i - 1));
+      } else if (e.key === 'Enter') {
         e.preventDefault();
         handleDecision(activeQuestion.id, 'approve');
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -280,7 +290,7 @@ export default function AdminQuestionApproval() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeQuestion, processingId, isEditing]);
+  }, [activeQuestion, processingId, isEditing, filteredQuestions.length]);
 
   // --- RENDER HELPERS ---
   const getDifficultyColor = (diff: string) => {
@@ -315,12 +325,14 @@ export default function AdminQuestionApproval() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-            {/* Stats Pill */}
+            {/* Stats Pill: posição atual na fila */}
             <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
               <div className={`w-2 h-2 rounded-full ${filteredQuestions.length > 0 ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`} />
               <span className="font-semibold text-slate-700 text-sm flex items-center gap-1">
                 <Layers size={14} className="text-slate-400" />
-                {filteredQuestions.length} na fila
+                {filteredQuestions.length > 0
+                  ? `${currentIndex + 1} de ${filteredQuestions.length} na fila`
+                  : '0 na fila'}
               </span>
             </div>
 
