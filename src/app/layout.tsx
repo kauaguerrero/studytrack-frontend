@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-// @ts-ignore: CSS imports are handled by Next.js and don't have type declarations
 import "./globals.css";
+import { Toaster } from "sonner";
 import { PageTransition } from "@/components/ui/PageTransition";
 
 const geistSans = Geist({
@@ -38,6 +38,7 @@ export default function RootLayout({
         <PageTransition>
           {children}
         </PageTransition>
+        <Toaster richColors position="top-center" />
       </body>
     </html>
   );

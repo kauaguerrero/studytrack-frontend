@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { CheckCircle2, XCircle, BrainCircuit, ImageIcon } from 'lucide-react';
+import { CheckCircle2, XCircle, BrainCircuit, ImageIcon, Flag } from 'lucide-react';
 
 interface Alternative {
   letter: string;
@@ -27,9 +27,10 @@ interface QuestionCardProps {
   userId: string;
   onQuotaReached?: (reason: string) => void;
   onAnswer?: () => void;
+  onReportError?: () => void;
 }
 
-export function QuestionCard({ question, userId, onQuotaReached }: QuestionCardProps) {
+export function QuestionCard({ question, userId, onQuotaReached, onReportError }: QuestionCardProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,9 +77,22 @@ export function QuestionCard({ question, userId, onQuotaReached }: QuestionCardP
         <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
             {question.subject}
         </span>
-        <span className="text-slate-400 text-xs font-bold">
+        <div className="flex items-center gap-2">
+          {onReportError && (
+            <button
+              type="button"
+              onClick={onReportError}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300"
+              title="Reportar erro nesta questão"
+            >
+              <Flag className="h-3.5 w-3.5" />
+              Reportar erro
+            </button>
+          )}
+          <span className="text-slate-400 text-xs font-bold">
             {question.year} • {question.difficulty}
-        </span>
+          </span>
+        </div>
       </div>
 
       {question.images?.map((img, i) => (

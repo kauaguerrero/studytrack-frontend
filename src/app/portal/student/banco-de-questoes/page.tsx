@@ -9,6 +9,7 @@ import {
     BarChart, Eye, EyeOff 
 } from 'lucide-react'
 import { QuestionCard } from '@/components/questions/QuestionCard'
+import { ReportDialog } from '@/components/questions/ReportDialog'
 import { UpsellModal } from '@/components/modals/UpsellModal'
 
 // --- TYPES ---
@@ -86,6 +87,8 @@ export default function BancoDeQuestoes() {
     const [isUpsellOpen, setIsUpsellOpen] = useState(false);
     const [upsellReason, setUpsellReason] = useState<'DAILY_QUOTA_REACHED' | 'TRIAL_EXPIRED' | 'GENERIC_UPSELL'>('DAILY_QUOTA_REACHED');
     const [isLockedByQuota, setIsLockedByQuota] = useState(false);
+    const [reportDialogOpen, setReportDialogOpen] = useState(false);
+    const [reportQuestionId, setReportQuestionId] = useState<string | null>(null);
 
     // Refs
     const isLoadingRef = useRef(false);
@@ -350,6 +353,22 @@ export default function BancoDeQuestoes() {
                 userName={userProfile?.full_name}
             />
 
+            <ReportDialog
+                open={reportDialogOpen}
+                onOpenChange={setReportDialogOpen}
+                questionId={reportQuestionId || ''}
+                authToken={authTokenRef.current}
+                onSuccess={() => {
+                    const id = reportQuestionId;
+                    if (!id) return;
+                    const filtered = questions.filter((q) => q.id !== id);
+                    setQuestions(filtered);
+                    setCurrentIdx((prev) => Math.min(prev, Math.max(0, filtered.length - 1)));
+                    setReportDialogOpen(false);
+                    setReportQuestionId(null);
+                }}
+            />
+
             {/* Background Decoration */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
                 <div className="absolute -top-20 -right-20 w-96 h-96 bg-blue-200 rounded-full blur-3xl opacity-40 mix-blend-multiply animate-blob"></div>
@@ -505,7 +524,7 @@ export default function BancoDeQuestoes() {
                     </div>
                 ) : !filterSubject ? (
                     // --- WELCOME STATE (Issue 1 Fix) ---
-                    <div className="flex flex-col items-center justify-center py-20 bg-white/60 backdrop-blur-sm rounded-[2rem] border border-slate-200 shadow-sm mt-8 text-center px-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2rem] border border-slate-200 shadow-xl shadow-slate-200/50 mt-8 text-center px-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
                         <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6 ring-8 ring-blue-50">
                             <Sparkles size={40} className="text-blue-600" />
                         </div>
@@ -581,6 +600,10 @@ export default function BancoDeQuestoes() {
                                     }}
                                     onQuotaReached={handleQuotaLimitReached}
                                     onAnswer={() => handleLocalAnswer(currentQ.id)}
+                                    onReportError={() => {
+                                        setReportQuestionId(currentQ.id);
+                                        setReportDialogOpen(true);
+                                    }}
                                 />
                             </div>
 
