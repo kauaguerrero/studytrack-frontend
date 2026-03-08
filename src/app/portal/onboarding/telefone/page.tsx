@@ -130,9 +130,12 @@ export default function OnboardingTelefone() {
       try {
         await fetch(`${apiUrl}/api/auth/handshake`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
           body: JSON.stringify({
-            phone: cleanPhone, 
+            phone: cleanPhone,
             name: nomeUsuario,
             userId: user.id
           })
