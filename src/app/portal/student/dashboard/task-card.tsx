@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Circle, Calendar, Lock, ExternalLink, Loader2, PlayCircle, FileText } from "lucide-react";
+import { Check, Calendar, Lock, ExternalLink, Loader2, PlayCircle, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 interface TaskProps {
   task: {
@@ -20,6 +21,7 @@ export function TaskCard({ task, isToday, displayDate }: TaskProps) {
   const [isCompleted, setIsCompleted] = useState(task.status === 'completed');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const supabase = createClient();
 
   const content = Array.isArray(task.content_repository)
     ? task.content_repository[0]
@@ -33,9 +35,14 @@ export function TaskCard({ task, isToday, displayDate }: TaskProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000'}/api/tasks/toggle`, {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/tasks/toggle`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token ?? ''}`
+        },
         body: JSON.stringify({ task_id: task.id })
       });
 

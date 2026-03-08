@@ -4,7 +4,6 @@ import { usePathname } from 'next/navigation';
 import { ReactNode, useEffect } from 'react';
 import { PortalSidebar } from '@/components/layout/PortalSidebar';
 import { UserRole } from '@/types/roles';
-import { createClient } from '@/lib/supabase/client';
 
 interface PortalLayoutWrapperProps {
   children: ReactNode;
