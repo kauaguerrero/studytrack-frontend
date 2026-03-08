@@ -9,8 +9,9 @@ import { Progress } from "@/components/ui/progress";
 import { 
   Activity, Users, DollarSign, Brain, Target, 
   Database, ArrowUpRight, Zap, GraduationCap, 
-  School, AlertOctagon, TrendingUp, BarChart3, PieChart,
-  Calculator, ListChecks // Adicionado ícone ListChecks
+  School, AlertOctagon, TrendingUp,   BarChart3,
+  Calculator, ListChecks,
+  Flag
 } from "lucide-react";
 
 export default function SuperAdminDashboard() {
@@ -340,12 +341,20 @@ export default function SuperAdminDashboard() {
                     <BarChart3 className="w-6 h-6 text-slate-600" /> Raio-X do Conteúdo ({dist.total} questões)
                  </h2>
                  
-                 <Link href="/portal/admin/questions" prefetch={false}>
-                    <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition-all shadow-sm hover:shadow-md active:scale-95">
-                        <ListChecks className="w-4 h-4" />
-                        Abrir Mesa de Curadoria
-                    </button>
-                 </Link>
+                 <div className="flex flex-wrap items-center gap-2">
+                    <Link href="/portal/admin/reports" prefetch={false}>
+                        <button className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-4 rounded-md transition-all shadow-sm hover:shadow-md active:scale-95">
+                            <Flag className="w-4 h-4" />
+                            Reports de Questões
+                        </button>
+                    </Link>
+                    <Link href="/portal/admin/questions" prefetch={false}>
+                        <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition-all shadow-sm hover:shadow-md active:scale-95">
+                            <ListChecks className="w-4 h-4" />
+                            Abrir Mesa de Curadoria
+                        </button>
+                    </Link>
+                 </div>
              </div>
              
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

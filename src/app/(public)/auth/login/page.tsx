@@ -63,7 +63,7 @@ function LoginForm() {
       const roleToPath: Record<string, string> = {
         teacher: '/portal/teacher',
         manager: '/portal/manager',
-        admin: '/portal/manager',
+        admin: '/portal/admin',
         secretariat: '/portal/secretariat',
         student: '/portal/student/dashboard',
       };

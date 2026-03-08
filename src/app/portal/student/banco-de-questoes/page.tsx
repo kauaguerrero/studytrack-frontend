@@ -9,6 +9,7 @@ import {
     BarChart, Eye, EyeOff 
 } from 'lucide-react'
 import { QuestionCard } from '@/components/questions/QuestionCard'
+import { ReportDialog } from '@/components/questions/ReportDialog'
 import { UpsellModal } from '@/components/modals/UpsellModal'
 
 // --- TYPES ---
@@ -23,9 +24,9 @@ const SUBJECTS = [
     "Inglês", "Espanhol"
 ];
 
-// Gerar anos de 2015 até o ano atual + 1
+// Gerar anos de 2009 até o ano atual
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: CURRENT_YEAR - 2014 }, (_, i) => (CURRENT_YEAR + 1 - i).toString());
+const YEARS = Array.from({ length: CURRENT_YEAR - 2008 }, (_, i) => (CURRENT_YEAR - i).toString());
 
 const DIFFICULTIES = ["Fácil", "Médio", "Difícil"];
 
@@ -64,9 +65,9 @@ export default function BancoDeQuestoes() {
     
     // Filtros principais
     const [filterSubject, setFilterSubject] = useState('')
-    const [filterTopic, setFilterTopic] = useState('')
-    const [filterYear, setFilterYear] = useState('')
-    const [filterDifficulty, setFilterDifficulty] = useState('')
+    const [filterTopic, setFilterTopic] = useState('Todos')
+    const [filterYear, setFilterYear] = useState('Todos')
+    const [filterDifficulty, setFilterDifficulty] = useState('Todas')
     
     const [availableTopics, setAvailableTopics] = useState<Topic[]>([])
     
@@ -78,6 +79,7 @@ export default function BancoDeQuestoes() {
     const [loadingMore, setLoadingMore] = useState(false)
     const [userId, setUserId] = useState<string | null>(null)
     const [userProfile, setUserProfile] = useState<any>(null)
+    const [totalQuestionsFound, setTotalQuestionsFound] = useState<number>(0)
     
     // State: Pagination & Upsell
     const [page, setPage] = useState(1);
@@ -85,28 +87,35 @@ export default function BancoDeQuestoes() {
     const [isUpsellOpen, setIsUpsellOpen] = useState(false);
     const [upsellReason, setUpsellReason] = useState<'DAILY_QUOTA_REACHED' | 'TRIAL_EXPIRED' | 'GENERIC_UPSELL'>('DAILY_QUOTA_REACHED');
     const [isLockedByQuota, setIsLockedByQuota] = useState(false);
+    const [reportDialogOpen, setReportDialogOpen] = useState(false);
+    const [reportQuestionId, setReportQuestionId] = useState<string | null>(null);
 
     // Refs
     const isLoadingRef = useRef(false);
+    /** Token JWT obtido uma única vez no init; usado em todos os fetch da API de questões. */
+    const authTokenRef = useRef<string | null>(null);
 
-    // 1. Init: Auth & User Data
+    //total questions 
+    const [totalQuestions, setTotalQuestions] = useState<number>(2700);
+
+    // 1. Init: Auth, sessão (token) e dados do usuário — uma única chamada getSession
     useEffect(() => {
         const init = async () => {
             try {
-                const supabase = createClient()
-                const { data: { user } } = await supabase.auth.getUser()
-                
+                const supabase = createClient();
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.access_token) authTokenRef.current = session.access_token;
+
+                const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
-                    setUserId(user.id)
-                    
-                    // Parallel fetching for performance
+                    setUserId(user.id);
+
                     const [profileRes, answersRes] = await Promise.all([
                         supabase.from("profiles").select("full_name").eq("id", user.id).single(),
                         supabase.from('user_answers').select('question_id').eq('user_id', user.id)
                     ]);
 
-                    setUserProfile(profileRes.data)
-                    
+                    setUserProfile(profileRes.data);
                     if (answersRes.data) {
                         setAnsweredIds(new Set(answersRes.data.map(a => a.question_id)));
                     }
@@ -114,28 +123,51 @@ export default function BancoDeQuestoes() {
             } catch (error) {
                 console.error("Critical Init Error:", error);
             }
-        }
-        init()
-    }, [])
+        };
+        init();
+    }, []);
 
-    // 2. Topics Fetching
+    // Busca o total global de questões aprovadas (só com token; evita chamadas inúteis)
     useEffect(() => {
-        async function loadTopics() {
-            if (!filterSubject || filterSubject === 'Todas') {
-                setAvailableTopics([]); 
-                setFilterTopic(''); 
-                return;
-            }
+        const token = authTokenRef.current;
+        if (!token) return;
+
+        const fetchTotal = async () => {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-                const res = await fetch(`${apiUrl}/api/questions/topics?subject=${encodeURIComponent(filterSubject)}`);
+                const res = await fetch(`${apiUrl}/api/questions/total`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.total) setTotalQuestions(data.total);
+                }
+            } catch (err) {
+                console.error("Erro ao buscar total de questões:", err);
+            }
+        };
+        fetchTotal();
+    }, [userId]);
+
+    // 2. Topics Fetching (usa o mesmo token do ref)
+    useEffect(() => {
+        const token = authTokenRef.current;
+        if (!token) return;
+
+        async function loadTopics() {
+            try {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+                const subjectQuery = (!filterSubject || filterSubject === 'Todas') ? '' : filterSubject;
+                const res = await fetch(`${apiUrl}/api/questions/topics?subject=${encodeURIComponent(subjectQuery)}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
                 const data = await res.json();
                 setAvailableTopics(data);
-                setFilterTopic('');
+                setFilterTopic('Todos');
             } catch (err) { console.error(err); }
         }
         loadTopics();
-    }, [filterSubject]);
+    }, [filterSubject, userId]);
 
     // Reset ao mudar filtros principais
     useEffect(() => {
@@ -151,18 +183,19 @@ export default function BancoDeQuestoes() {
         }
     }, [filterSubject, filterTopic, filterYear, filterDifficulty, activeTab, userId]); 
 
-    // 3. Core Fetch Logic (Questions)
+    // 3. Core Fetch Logic (Questions) — user_id vem do token no backend (IDOR-safe)
     const fetchQuestions = useCallback(async (targetPage = 1, append = false, retryCount = 0) => {
-        if (!userId) return; 
+        const token = authTokenRef.current;
+        if (!token || !userId) return;
         if (!filterSubject) return; // Não busca se não tiver matéria (Regra do Welcome State)
-        
+
         // Bloqueio de concorrência
         if (isLoadingRef.current && retryCount === 0) return;
 
         // Circuit Breaker
         if (retryCount > 10) {
-             setLoading(false); 
-             setLoadingMore(false); 
+             setLoading(false);
+             setLoadingMore(false);
              setHasMore(false);
              isLoadingRef.current = false;
              return;
@@ -177,23 +210,38 @@ export default function BancoDeQuestoes() {
 
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-            const params = new URLSearchParams({ 
-                page: targetPage.toString(), 
-                limit: '20',
-                user_id: userId
+            const params = new URLSearchParams({
+                page: targetPage.toString(),
+                limit: '20'
             });
-            
-            if (filterSubject) params.append('subject', filterSubject);
+            if (filterSubject && filterSubject !== 'Todas') params.append('subject', filterSubject);
             if (filterTopic && filterTopic !== 'Todos') params.append('topic', filterTopic);
-            
-            // Issue 3 & 4: Adicionando filtros novos
-            if (filterYear) params.append('year', filterYear);
-            if (filterDifficulty) params.append('difficulty', filterDifficulty);
+            if (filterYear && filterYear !== 'Todos') params.append('year', filterYear);
+            if (filterDifficulty && filterDifficulty !== 'Todas') params.append('difficulty', filterDifficulty);
+            params.append('tab', activeTab);
 
-            const res = await fetch(`${apiUrl}/api/questions/?${params.toString()}`);
-            if (!res.ok) throw new Error("Failed to fetch questions");
-            
+            const res = await fetch(`${apiUrl}/api/questions/?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.status === 401) throw new Error("Unauthorized");
+            if (!res.ok) {
+                const body = await res.text();
+                let errMsg = `Failed to fetch questions (${res.status})`;
+                try {
+                    const j = JSON.parse(body);
+                    if (j?.error) errMsg += `: ${j.error}`;
+                    else if (j?.message) errMsg += `: ${j.message}`;
+                } catch (_) { if (body) errMsg += `: ${body.slice(0, 100)}`; }
+                console.error("[BancoQuestões]", errMsg, { status: res.status, body: body?.slice(0, 200) });
+                throw new Error(errMsg);
+            }
+
             const data = await res.json();
+
+            // Salva o total absoluto retornado pelo filtro do banco de dados
+            if (!append) {
+                setTotalQuestionsFound(data.total || 0);
+            }
 
             // Check Quota status from API
             if (data.user_status?.locked) setIsLockedByQuota(true);
@@ -201,11 +249,8 @@ export default function BancoDeQuestoes() {
 
             const rawQuestions = data.data || [];
             
-            // Client-Side filtering based on Tab (Issue 2 Fix: Logic consistency)
-            const filteredQuestions = rawQuestions.filter((q: any) => {
-                const isAnswered = answeredIds.has(q.id);
-                return activeTab === 'todo' ? !isAnswered : isAnswered;
-            });
+            // O Backend agora processa as abas. O Frontend apenas confia nos dados.
+            const filteredQuestions = rawQuestions;
 
             // Logic: Se a página veio cheia mas o filtro client-side esvaziou tudo, busca a próxima
             const shouldFetchNextPageImmediately = rawQuestions.length > 0 && filteredQuestions.length === 0;
@@ -273,14 +318,30 @@ export default function BancoDeQuestoes() {
         if (currentIdx > 0) setCurrentIdx(prev => prev - 1);
     };
 
+    // Derived State (declarado antes do useEffect que usa currentQ)
+    const currentQ = questions[currentIdx];
+    const isNextDisabled = currentIdx === questions.length - 1;
+
+    // Atalho: setas esquerda/direita para navegar entre questões
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!currentQ) return;
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                handleNext();
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                handlePrev();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [currentIdx, questions.length, currentQ, isLockedByQuota, loadingMore]);
+
     const handleLocalAnswer = (qId: string) => {
         setAnsweredIds(prev => new Set(prev).add(qId));
     };
-
-    // Derived State
-    const currentQ = questions[currentIdx];
-    const progressPercentage = questions.length > 0 ? ((currentIdx + 1) / questions.length) * 100 : 0;
-    const isNextDisabled = currentIdx === questions.length - 1;
 
     return (
         <div className="min-h-screen bg-[#F0F4F8] font-sans text-slate-900 relative selection:bg-blue-100 selection:text-blue-700 flex flex-col">
@@ -290,6 +351,22 @@ export default function BancoDeQuestoes() {
                 onClose={() => setIsUpsellOpen(false)} 
                 reason={upsellReason}
                 userName={userProfile?.full_name}
+            />
+
+            <ReportDialog
+                open={reportDialogOpen}
+                onOpenChange={setReportDialogOpen}
+                questionId={reportQuestionId || ''}
+                authToken={authTokenRef.current}
+                onSuccess={() => {
+                    const id = reportQuestionId;
+                    if (!id) return;
+                    const filtered = questions.filter((q) => q.id !== id);
+                    setQuestions(filtered);
+                    setCurrentIdx((prev) => Math.min(prev, Math.max(0, filtered.length - 1)));
+                    setReportDialogOpen(false);
+                    setReportQuestionId(null);
+                }}
             />
 
             {/* Background Decoration */}
@@ -362,7 +439,8 @@ export default function BancoDeQuestoes() {
                                     onChange={(e) => setFilterSubject(e.target.value)}
                                     value={filterSubject}
                                 >
-                                    <option value="" className="text-slate-400">Selecione a Matéria</option>
+                                    <option value="" disabled className="text-slate-400">Selecione a Matéria</option>
+                                    <option value="Todas" className="font-bold text-blue-600">📚 Todas as Matérias</option>
                                     {SUBJECTS.map(subj => (
                                         <option key={subj} value={subj}>{subj}</option>
                                     ))}
@@ -370,24 +448,23 @@ export default function BancoDeQuestoes() {
                                 <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                             </div>
 
-                            {/* 2. Tópico (Issue 5 Fix) */}
+                            {/* 2. Tópico */}
                             <div className="relative group">
                                 <select 
                                     className="w-full bg-slate-50 border border-slate-200 hover:border-sky-300 hover:bg-white text-slate-700 text-sm font-semibold rounded-xl pl-3 pr-8 py-3 outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-500 appearance-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-100 shadow-sm"
                                     onChange={(e) => setFilterTopic(e.target.value)}
                                     value={filterTopic}
-                                    disabled={!filterSubject || availableTopics.length === 0}
+                                    disabled={!filterSubject} 
                                 >
-                                    <option value="">Tópico</option>
-                                    <option value="Todos">Todos</option>
+                                    <option value="Todos" className="font-bold text-sky-600">Todos os Tópicos</option>
                                     {availableTopics.map((t) => (
-                                        <option key={t.name} value={t.name}>{t.name} ({t.count})</option>
+                                        <option key={t.name} value={t.name}>{t.name} </option>
                                     ))}
                                 </select>
                                 <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                             </div>
 
-                            {/* 3. Ano (Issue 3 Fix) */}
+                            {/* 3. Ano */}
                             <div className="relative group">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                                     <Calendar size={14} className="text-slate-400" />
@@ -397,7 +474,7 @@ export default function BancoDeQuestoes() {
                                     onChange={(e) => setFilterYear(e.target.value)}
                                     value={filterYear}
                                 >
-                                    <option value="">Ano</option>
+                                    <option value="Todos" className="font-bold text-indigo-600">Todos os Anos</option>
                                     {YEARS.map(year => (
                                         <option key={year} value={year}>{year}</option>
                                     ))}
@@ -405,7 +482,7 @@ export default function BancoDeQuestoes() {
                                 <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                             </div>
 
-                            {/* 4. Dificuldade (Issue 4 Fix) */}
+                            {/* 4. Dificuldade */}
                             <div className="relative group">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                                     <BarChart size={14} className="text-slate-400" />
@@ -415,7 +492,7 @@ export default function BancoDeQuestoes() {
                                     onChange={(e) => setFilterDifficulty(e.target.value)}
                                     value={filterDifficulty}
                                 >
-                                    <option value="">Dificuldade</option>
+                                    <option value="Todas" className="font-bold text-purple-600">Todas Dificuldades</option>
                                     {DIFFICULTIES.map(diff => (
                                         <option key={diff} value={diff}>{diff}</option>
                                     ))}
@@ -447,7 +524,7 @@ export default function BancoDeQuestoes() {
                     </div>
                 ) : !filterSubject ? (
                     // --- WELCOME STATE (Issue 1 Fix) ---
-                    <div className="flex flex-col items-center justify-center py-20 bg-white/60 backdrop-blur-sm rounded-[2rem] border border-slate-200 shadow-sm mt-8 text-center px-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2rem] border border-slate-200 shadow-xl shadow-slate-200/50 mt-8 text-center px-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
                         <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6 ring-8 ring-blue-50">
                             <Sparkles size={40} className="text-blue-600" />
                         </div>
@@ -455,7 +532,7 @@ export default function BancoDeQuestoes() {
                             Bem vindo ao banco de questões da StudyTrack
                         </h2>
                         <p className="text-slate-600 max-w-lg text-lg leading-relaxed">
-                            O banco de questões com mais de <span className="font-bold text-blue-600">2700 questões</span>. 
+                        O banco de questões com mais de <span className="font-bold text-blue-600">{totalQuestions.toLocaleString('pt-BR')} questões</span>. 
                             <br />
                             Selecione a <span className="font-bold text-slate-800">matéria acima</span> e um tópico específico se preferir para começar.
                         </p>
@@ -488,17 +565,13 @@ export default function BancoDeQuestoes() {
                                 </h2>
                             </div>
                             
-                            <div className="hidden md:block w-48">
-                                <div className="flex justify-between text-[10px] text-slate-400 mb-1 font-bold uppercase tracking-widest">
-                                    <span>Navegação</span>
-                                    <span>{questions.length} items</span>
-                                </div>
-                                <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
-                                    <div 
-                                        style={{ width: `${progressPercentage}%` }} 
-                                        className={`h-full transition-all duration-300 ${activeTab === 'todo' ? 'bg-blue-500' : 'bg-emerald-500'}`}
-                                    />
-                                </div>
+                            <div className="hidden md:flex flex-col items-end justify-end">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                                    Total do Filtro
+                                </span>
+                                <span className="text-sm font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+                                    {totalQuestionsFound} questões
+                                </span>
                             </div>
                         </div>
 
@@ -527,6 +600,10 @@ export default function BancoDeQuestoes() {
                                     }}
                                     onQuotaReached={handleQuotaLimitReached}
                                     onAnswer={() => handleLocalAnswer(currentQ.id)}
+                                    onReportError={() => {
+                                        setReportQuestionId(currentQ.id);
+                                        setReportDialogOpen(true);
+                                    }}
                                 />
                             </div>
 

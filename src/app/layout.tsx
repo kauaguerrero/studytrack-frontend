@@ -1,7 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-// @ts-ignore: CSS imports are handled by Next.js and don't have type declarations
 import "./globals.css";
+<<<<<<< HEAD
+=======
+import { Toaster } from "sonner";
+import { PageTransition } from "@/components/ui/PageTransition";
+>>>>>>> 648796428de17a1b98c8dbb4010206b9f26ab703
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,7 +38,14 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased animate-in fade-in duration-300`}
       >
+<<<<<<< HEAD
         {children}
+=======
+        <PageTransition>
+          {children}
+        </PageTransition>
+        <Toaster richColors position="top-center" />
+>>>>>>> 648796428de17a1b98c8dbb4010206b9f26ab703
       </body>
     </html>
   );

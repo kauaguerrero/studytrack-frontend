@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname } from 'next/navigation';
-import { ReactNode, useEffect } from 'react';
+import { ReactNode } from 'react';
 import { PortalSidebar } from '@/components/layout/PortalSidebar';
+import { PortalRoleProvider } from '@/contexts/PortalRoleContext';
 import { UserRole } from '@/types/roles';
 
 interface PortalLayoutWrapperProps {
@@ -25,13 +26,16 @@ export function PortalLayoutWrapper({ children, role, fullName, avatarUrl }: Por
   // Se for rota de onboarding, não renderiza sidebar
   if (isOnboardingRoute) {
     return (
-      <div className="min-h-screen w-full bg-white">
-        {children}
-      </div>
+      <PortalRoleProvider role={role}>
+        <div className="min-h-screen w-full bg-white">
+          {children}
+        </div>
+      </PortalRoleProvider>
     );
   }
 
   return (
+    <PortalRoleProvider role={role}>
     <div className="flex h-screen w-full bg-[#F0F4F8] text-slate-900">
       <PortalSidebar role={resolvedRole} fullName={fullName} avatarUrl={avatarUrl} />
 
@@ -49,5 +53,6 @@ export function PortalLayoutWrapper({ children, role, fullName, avatarUrl }: Por
         </div>
       </main>
     </div>
+    </PortalRoleProvider>
   );
 }
