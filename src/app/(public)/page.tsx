@@ -15,7 +15,7 @@ import {
   ChevronDown,
   Menu,
   X,
-  Target,
+  School,
   ShieldCheck
 } from 'lucide-react';
 
@@ -56,8 +56,8 @@ export default function Home() {
   // Conteúdo do FAQ
   const faqItems = [
     {
-      question: "Como o StudyTrack se encaixa na minha rotina de estudos?",
-      answer: "O StudyTrack organiza seu estudo pessoal de forma inteligente. Analisamos seus objetivos, seu tempo disponível e suas dificuldades para criar um plano que se adapta à sua realidade — seja você estudando em casa, no cursinho ou conciliando com trabalho."
+      question: "Como o StudyTrack trabalha junto com minha escola?",
+      answer: "O StudyTrack é um complemento ao trabalho da sua escola e professores. Organizamos seu estudo pessoal, indicamos conteúdos que reforçam o que você aprende em aula e adaptamos seu ritmo de aprendizado, sempre respeitando o calendário escolar."
     },
     {
       question: "Funciona se eu não tiver computador?",
@@ -69,7 +69,7 @@ export default function Home() {
     },
     {
       question: "Funciona para diferentes tipos de vestibulares?",
-      answer: "Sim. Nosso sistema adapta a intensidade e os tópicos baseados no seu objetivo. Para cursos concorridos como Medicina, priorizamos a consolidação da base e aprofundamento em matérias específicas, sempre respeitando seu ritmo e suas prioridades."
+      answer: "Sim. Nosso sistema adapta a intensidade e os tópicos baseados no seu objetivo. Para cursos concorridos como Medicina, priorizamos a consolidação da base e aprofundamento em matérias específicas, sempre trabalhando em harmonia com seu plano de estudos escolar."
     },
     {
       question: "Preciso de cartão para o teste grátis?",
@@ -195,7 +195,7 @@ export default function Home() {
                 </h1>
                 
                 <p className="text-lg md:text-xl text-slate-600 mb-10 leading-relaxed max-w-xl mx-auto lg:mx-0">
-                  Organize sua rotina, domine cada matéria e tenha conteúdo certo no momento certo — em 3 dias de teste grátis, sem compromisso.
+                  Organize sua rotina, acompanhe sua escola e tenha conteúdo certo no momento certo — em 3 dias de teste grátis, sem compromisso.
                 </p>
                 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
@@ -296,7 +296,7 @@ export default function Home() {
         <section className="py-12 bg-slate-100 border-y border-slate-200">
           <div className="max-w-4xl mx-auto px-4 text-center">
             <p className="text-slate-600 font-medium">
-              Plataforma feita para vestibulandos • Funciona no celular via WhatsApp • Cronograma que se adapta à sua rotina
+              Plataforma feita para vestibulandos • Funciona no celular via WhatsApp • Respeita o calendário da sua escola
             </p>
           </div>
         </section>
@@ -306,16 +306,16 @@ export default function Home() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6">Estudamos <span className="text-blue-600">juntos</span>, não sozinhos.</h2>
-              <p className="text-lg text-slate-600 max-w-3xl mx-auto">Cursinho, estudo em casa, revisão de conteúdo: organizar tudo sozinho é difícil. O StudyTrack une tudo em um só lugar.</p>
+              <p className="text-lg text-slate-600 max-w-3xl mx-auto">Escola + cursinho + estudo em casa: conciliar tudo é difícil. O StudyTrack conecta esses mundos em um só lugar.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-8">
               <div className="text-center group">
                 <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-blue-200 transition-colors">
-                  <Target className="w-8 h-8 text-blue-600" />
+                  <School className="w-8 h-8 text-blue-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-3">No seu tempo</h3>
-                <p className="text-slate-600">Seu plano respeita sua rotina e seus horários. Nada de sobrecarga ou cronograma impossível de seguir.</p>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">Com sua escola</h3>
+                <p className="text-slate-600">Seu plano respeita o calendário e os conteúdos da escola. Nada de duplicar esforço ou ficar perdido.</p>
               </div>
 
               <div className="text-center group">
@@ -353,7 +353,7 @@ export default function Home() {
                     <TrendingUp className="w-7 h-7" />
                   </div>
                   <h3 className="text-2xl font-bold text-slate-900 mb-3">Conteúdo certo no momento certo</h3>
-                  <p className="text-slate-600 mb-4">Indicamos vídeos, exercícios e materiais alinhados ao seu objetivo — sem perder tempo procurando o que estudar.</p>
+                  <p className="text-slate-600 mb-4">Indicamos vídeos, exercícios e materiais que complementam o que você vê na escola — sem perder tempo procurando o que estudar.</p>
                 </div>
               </div>
               {/* Feature 2 — Benefício: plano que acompanha sua rotina */}
@@ -364,7 +364,7 @@ export default function Home() {
                     <Clock className="w-7 h-7" />
                   </div>
                   <h3 className="text-2xl font-bold text-slate-900 mb-3">Plano que acompanha sua rotina</h3>
-                  <p className="text-slate-600 mb-4">O cronograma se ajusta aos seus dias reais: se teve um dia corrido ou levou mais tempo em uma matéria, o plano recalcula sem você ficar atrasado.</p>
+                  <p className="text-slate-600 mb-4">O cronograma se ajusta aos seus dias reais: se faltou aula ou levou mais tempo em uma matéria, o plano recalcula sem você ficar atrasado.</p>
                 </div>
               </div>
               {/* Feature 3 — Benefício: progresso visível */}
@@ -462,22 +462,22 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* ELITE / REDAÇÃO — EM BREVE */}
-              <div className="flex flex-col h-full bg-slate-900 border border-slate-700 p-8 rounded-3xl relative transition-all opacity-60 pointer-events-none select-none">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-600 text-slate-300 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide">Em breve</div>
-                <h3 className="text-lg font-medium text-slate-500">Redação Master</h3>
+              {/* ELITE / REDAÇÃO */}
+              <div className="flex flex-col h-full bg-slate-900 border border-violet-500/50 p-8 rounded-3xl relative hover:border-violet-400 transition-all shadow-lg shadow-violet-900/20">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-violet-600 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide">Elite</div>
+                <h3 className="text-lg font-medium text-violet-200">Redação Master</h3>
                 <div className="my-4 flex items-end gap-1">
-                    <span className="text-4xl font-bold text-slate-500">R$ 49,90</span>
-                    <span className="text-xs text-slate-600 mb-1">/mês</span>
+                    <span className="text-4xl font-bold text-white">R$ 49,90</span>
+                    <span className="text-xs text-slate-400 mb-1">/mês</span>
                 </div>
-                <p className="text-sm text-slate-500 mb-6 flex-1">Acompanhamento premium com correção especializada de redações.</p>
+                <p className="text-sm text-slate-400 mb-6 flex-1">Acompanhamento premium com correção especializada de redações.</p>
                 
                 <div className="mt-auto">
-                    <span className="block w-full py-3 rounded-xl border border-slate-700 text-slate-500 text-center font-semibold cursor-not-allowed">Em breve</span>
-                    <div className="mt-8 space-y-3 text-sm text-slate-600">
-                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-slate-600"/> Tudo do Plano Pro</p>
-                    <p className="flex gap-2 font-bold text-slate-500"><PenTool className="w-4 h-4 text-slate-600"/> Correção Ilimitada</p>
-                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-slate-600"/> Feedback Detalhado</p>
+                    <a href="/auth/register?plan=elite" className="block w-full py-3 rounded-xl border border-violet-500 text-violet-300 hover:bg-violet-600 hover:text-white text-center font-semibold transition-all">Assinar Elite</a>
+                    <div className="mt-8 space-y-3 text-sm text-slate-300">
+                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-violet-400"/> Tudo do Plano Pro</p>
+                    <p className="flex gap-2 font-bold text-white"><PenTool className="w-4 h-4 text-violet-400"/> Correção Ilimitada</p>
+                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-violet-400"/> Feedback Detalhado</p>
                     </div>
                 </div>
               </div>

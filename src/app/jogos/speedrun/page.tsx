@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { 
     Zap, Timer, Trophy, ArrowRight, XCircle, CheckCircle2, 
     Loader2, Volume2, VolumeX, History, Crown, Play, RotateCcw, Home,
-    BarChart3, BrainCircuit, Target, Flame, Users, School, Globe
+    BarChart3, BrainCircuit, Target, Flame, Calendar, Globe
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useGameSound } from '@/hooks/useGameSound' 
@@ -35,7 +35,7 @@ type HistoryEntry = {
 }
 
 type GameState = 'MENU' | 'LOADING' | 'PLAYING' | 'GAME_OVER'
-type RankingScope = 'global' | 'school' | 'classroom'
+type RankingScope = 'global' | 'weekly' | 'monthly'
 
 export default function SpeedRunPage() {
   const supabase = createClient()
@@ -59,7 +59,7 @@ export default function SpeedRunPage() {
   const [isLoadingRanking, setIsLoadingRanking] = useState(false)
   
   // Filtros de Ranking
-  const [rankingScope, setRankingScope] = useState<RankingScope>('global')
+  const [rankingScope, setRankingScope] = useState<RankingScope>('weekly')
 
   // State Gameplay
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -365,22 +365,22 @@ export default function SpeedRunPage() {
                                 {/* FILTROS DE RANKING */}
                                 <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
                                     <button 
+                                        onClick={() => setRankingScope('weekly')}
+                                        className={cn("px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-colors", rankingScope === 'weekly' ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700")}
+                                    >
+                                        <Trophy size={14} /> Semana
+                                    </button>
+                                    <button 
+                                        onClick={() => setRankingScope('monthly')}
+                                        className={cn("px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-colors", rankingScope === 'monthly' ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700")}
+                                    >
+                                        <Calendar size={14} /> Mês
+                                    </button>
+                                    <button 
                                         onClick={() => setRankingScope('global')}
                                         className={cn("px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-colors", rankingScope === 'global' ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700")}
                                     >
-                                        <Globe size={14} /> Plataforma
-                                    </button>
-                                    <button 
-                                        onClick={() => setRankingScope('school')}
-                                        className={cn("px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-colors", rankingScope === 'school' ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700")}
-                                    >
-                                        <School size={14} /> Minha Escola
-                                    </button>
-                                    <button 
-                                        onClick={() => setRankingScope('classroom')}
-                                        className={cn("px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-colors", rankingScope === 'classroom' ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-400 hover:bg-slate-700")}
-                                    >
-                                        <Users size={14} /> Minha Turma
+                                        <Globe size={14} /> Geral
                                     </button>
                                 </div>
 

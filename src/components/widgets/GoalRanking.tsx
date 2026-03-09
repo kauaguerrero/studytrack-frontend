@@ -37,7 +37,7 @@ export function GoalRanking({ groupId, condensed = false }: { groupId: string, c
     return (
         <div className="w-full">
             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-                <Crown size={12} className="text-yellow-500" /> Top 5 da Turma
+                <Crown size={12} className="text-yellow-500" /> Top 5
             </h4>
             <div className="flex flex-wrap gap-2">
                 {ranking.map((user) => (

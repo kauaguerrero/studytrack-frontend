@@ -7,7 +7,7 @@ interface LeaderboardWidgetProps {
 }
 
 export default function LeaderboardWidget({ userId }: LeaderboardWidgetProps) {
-  const [scope, setScope] = useState<LeaderboardScope>('class');
+  const [scope, setScope] = useState<LeaderboardScope>('weekly');
   const [leaders, setLeaders] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,16 +48,16 @@ export default function LeaderboardWidget({ userId }: LeaderboardWidgetProps) {
         </h3>
         <div className="flex bg-slate-200/50 dark:bg-slate-700/50 p-1 rounded-lg">
             <button 
-                onClick={() => setScope('class')}
-                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${scope === 'class' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                onClick={() => setScope('weekly')}
+                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${scope === 'weekly' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
-                Turma
+                Semana
             </button>
             <button 
-                onClick={() => setScope('school')}
-                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${scope === 'school' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                onClick={() => setScope('all_time')}
+                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${scope === 'all_time' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
-                Escola
+                Geral
             </button>
         </div>
       </div>

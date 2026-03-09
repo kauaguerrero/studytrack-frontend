@@ -55,11 +55,11 @@ export default async function LibraryPage({
 
   const { data: books } = await query;
 
-  // 3. Fetch Leaderboard (Top 3 leitores da escola)
+  // 3. Fetch Leaderboard (Top 3 leitores da plataforma)
   const { data: leaderboard } = await supabase
     .from('view_library_leaderboard')
     .select('*')
-    .eq('school_id', profile?.school_id) // Filtra pela escola do aluno
+    .order('books_completed', { ascending: false })
     .limit(3);
 
   return (
@@ -83,7 +83,7 @@ export default async function LibraryPage({
                 Biblioteca Digital
                 </h1>
                 <p className="text-muted-foreground text-lg max-w-2xl">
-                Acesse o acervo completo, compartilhe leituras e suba no ranking.
+                Acesse o acervo completo, compartilhe leituras e suba no ranking geral.
                 </p>
             </div>
 
@@ -91,7 +91,7 @@ export default async function LibraryPage({
             <div className="w-full xl:w-96 bg-card dark:bg-card p-4 rounded-2xl border border-border shadow-sm">
                 <div className="flex items-center gap-2 mb-3 text-card-foreground font-bold">
                     <Trophy className="text-yellow-500" size={18} />
-                    Ranking de Leitores (Mês)
+                    Top Leitores da Plataforma
                 </div>
                 <div className="space-y-3">
                     {leaderboard && leaderboard.length > 0 ? leaderboard.map((l: any, idx: number) => (

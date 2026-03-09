@@ -6,4 +6,4 @@ export interface LeaderboardEntry {
   avatar_url?: string;
 }
 
-export type LeaderboardScope = 'class' | 'school';
+export type LeaderboardScope = 'weekly' | 'all_time';
