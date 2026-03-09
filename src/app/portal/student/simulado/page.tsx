@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Timer, ArrowRight, ArrowLeft, CheckCircle2, XCircle, Play, RotateCcw, AlertCircle, Lock } from 'lucide-react'
-import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import { createClient } from '@/lib/supabase/client'
 import { UpsellModal } from '@/components/modals/UpsellModal'
@@ -131,11 +130,6 @@ export default function SimuladoPage() {
             {step === 'setup' && (
                 <div className="min-h-screen bg-slate-50 dark:bg-background flex items-center justify-center p-4 font-sans text-slate-900 dark:text-foreground">
                     <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-xl max-w-md w-full border border-slate-100 dark:border-slate-800 relative">
-                        <div className="absolute top-6 left-6">
-                            <Link href="dashboard" className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 transition-all">
-                                <ArrowLeft className="w-5 h-5" />
-                            </Link>
-                        </div>
                         <div className="flex flex-col items-center mb-8 mt-2">
                             <div className="bg-green-50 dark:bg-green-900/40 p-4 rounded-2xl mb-4 shadow-sm">
                                 <Timer className="text-green-600 dark:text-green-400 w-10 h-10" strokeWidth={1.5} />

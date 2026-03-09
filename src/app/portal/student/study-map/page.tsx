@@ -1,8 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import {
-  ArrowLeft,
   Map as MapIcon,
   CheckCircle2,
   Lock,
@@ -342,17 +340,6 @@ export default async function StudyMapPage() {
 
   return (
     <div className="min-h-screen pb-24 max-w-3xl mx-auto">
-
-      {/* Back link */}
-      <div className="mb-6">
-        <Link
-          href="/portal/student/dashboard"
-          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft size={15} />
-          Voltar ao Dashboard
-        </Link>
-      </div>
 
       {/* ── SECTION 1: HERO / TÍTULO ─────────────────────────────────── */}
       <TitleHero

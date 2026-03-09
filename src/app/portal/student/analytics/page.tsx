@@ -2,16 +2,14 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { 
   Target, Trophy, Brain, TrendingUp, 
   Gamepad2, CalendarDays, CheckCircle2, AlertCircle,
-  BarChart3, Activity, Clock, Flame, ArrowUpRight, ArrowLeft
+  BarChart3, Activity, Clock, Flame, ArrowUpRight
 } from "lucide-react";
 
 // Lazy load Recharts (heavy lib ~100kb) - carrega só quando o usuário acessa analytics
@@ -91,16 +89,6 @@ export default function StudentAnalyticsPage() {
   // --- LOADING STATE (SKELETON UI) ---
   if (loading) return (
     <div className="min-h-screen bg-slate-50 dark:bg-background">
-      <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-          <Button variant="ghost" size="sm" asChild className="gap-2 -ml-2 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30">
-            <Link href="/portal/student/dashboard">
-              <ArrowLeft className="h-4 w-4 shrink-0" />
-              <span className="font-semibold">Voltar ao dashboard</span>
-            </Link>
-          </Button>
-        </div>
-      </div>
       <div className="p-6 md:p-8 space-y-8 animate-pulse">
         <div className="flex justify-between items-center pb-6 border-b border-slate-200 dark:border-slate-800">
             <div className="h-8 w-48 bg-slate-200 dark:bg-slate-700 rounded"></div>
@@ -120,16 +108,6 @@ export default function StudentAnalyticsPage() {
   // --- ERROR STATE ---
   if (!data) return (
     <div className="min-h-screen bg-slate-50 dark:bg-background">
-      <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
-          <Button variant="ghost" size="sm" asChild className="gap-2 -ml-2 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30">
-            <Link href="/portal/student/dashboard">
-              <ArrowLeft className="h-4 w-4 shrink-0" />
-              <span className="font-semibold">Voltar ao dashboard</span>
-            </Link>
-          </Button>
-        </div>
-      </div>
       <div className="flex flex-col items-center justify-center h-[80vh] text-center p-6">
         <div className="bg-red-50 dark:bg-red-900/40 p-4 rounded-full mb-4">
             <AlertCircle className="w-10 h-10 text-red-500 dark:text-red-400" />
@@ -174,18 +152,6 @@ export default function StudentAnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-background font-sans text-slate-900 dark:text-slate-50">
-      {/* Barra superior: Voltar ao dashboard */}
-      <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-          <Button variant="ghost" size="sm" asChild className="gap-2 -ml-2 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30">
-            <Link href="/portal/student/dashboard">
-              <ArrowLeft className="h-4 w-4 shrink-0" />
-              <span className="font-semibold">Voltar ao dashboard</span>
-            </Link>
-          </Button>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto p-6 md:p-10 space-y-8">
       
       {/* --- HEADER --- */}

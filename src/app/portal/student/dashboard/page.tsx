@@ -64,23 +64,25 @@ export default async function Dashboard() {
     // 2. Buscas em Paralelo
     const todayStr = new Date().toISOString().split('T')[0];
 
-    const [tasksRes, historyRes, totalAnsweredRes, totalCorrectRes] = await Promise.all([
+    const [tasksRes, historyRes, totalAnsweredRes, totalCorrectRes, simuladosRes] = await Promise.all([
       supabase.from('plan_tasks')
         .select(`id, task_description, scheduled_date, status, content_repository ( title, url, content_type )`)
         .eq('user_id', user.id).gte('scheduled_date', todayStr).order('scheduled_date', { ascending: true }).limit(5),
-      
+
       supabase.from('user_answers')
         .select(`id, is_correct, created_at, questions ( subject, exam_year, title )`)
         .eq('user_id', user.id).order('created_at', { ascending: false }).limit(5),
-        
+
       supabase.from('user_answers').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
-      supabase.from('user_answers').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_correct', true)
+      supabase.from('user_answers').select('*', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_correct', true),
+      supabase.from('daily_usage').select('simulations_count').eq('user_id', user.id)
     ]);
 
     const tasks = tasksRes.data || [];
     const history = historyRes.data || [];
     const totalAnswered = totalAnsweredRes.count || 0;
     const totalCorrect = totalCorrectRes.count || 0;
+    const totalSimulados = (simuladosRes.data || []).reduce((sum, row) => sum + (row.simulations_count || 0), 0);
     const accuracy = totalAnswered ? Math.round((totalCorrect / totalAnswered) * 100) : 0;
     
     return (
@@ -217,6 +219,10 @@ export default async function Dashboard() {
                   <div className="pt-4 border-t border-white/10 text-sm flex justify-between items-center">
                     <span className="text-slate-400">Questões Realizadas</span>
                     <span className="font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded-md">{totalAnswered || 0}</span>
+                  </div>
+                  <div className="pt-3 text-sm flex justify-between items-center">
+                    <span className="text-slate-400">Simulados Realizados</span>
+                    <span className="font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded-md">{totalSimulados}</span>
                   </div>
                 </div>
               </div>

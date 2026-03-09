@@ -45,7 +45,6 @@ import {
   CheckCircle2,
   Infinity,
   ExternalLink,
-  ArrowLeft
 } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
 
@@ -787,18 +786,6 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-slate-50/30 dark:bg-slate-950/50">
-      {/* Barra superior: Voltar ao dashboard */}
-      <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
-          <Button variant="ghost" size="sm" asChild className="gap-2 -ml-2 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30">
-            <Link href="/portal/student/dashboard">
-              <ArrowLeft className="h-4 w-4 shrink-0" />
-              <span className="font-semibold">Voltar ao dashboard</span>
-            </Link>
-          </Button>
-        </div>
-      </div>
-
       <div className="mx-auto max-w-[1200px] px-4 py-8 md:py-12 lg:px-8">
       <div className="mb-10 flex flex-col gap-3">
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl">

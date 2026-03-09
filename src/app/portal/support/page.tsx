@@ -15,7 +15,6 @@ import {
   ChevronRight,
   ChevronDown,
   Activity,
-  ArrowLeft,
   Users,
   GraduationCap,
   Settings,
@@ -306,18 +305,6 @@ export default function AjudaESuportePage() {
 
   return (
     <div className="min-h-screen bg-[#F4F7FA] dark:bg-background font-sans text-slate-900 dark:text-slate-50 pb-16">
-      {/* Barra superior: Voltar ao dashboard (responsiva) */}
-      <div className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-          <Button variant="ghost" size="sm" asChild className="gap-2 -ml-2 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30">
-            <Link href={DASHBOARD_URL_BY_ROLE[currentRole]}>
-              <ArrowLeft className="h-4 w-4 shrink-0" />
-              <span className="font-semibold">Voltar ao dashboard</span>
-            </Link>
-          </Button>
-        </div>
-      </div>
-
       {/* Hero Section - Identidade StudyTrack */}
       <div className="bg-blue-700 relative pt-12 sm:pt-16 pb-24 sm:pb-28 px-4 md:px-8 border-b border-blue-800 shadow-sm">
         <div className="absolute inset-0 opacity-10 bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)] bg-[size:32px_32px]" />

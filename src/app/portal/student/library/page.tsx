@@ -5,7 +5,6 @@ import { Book, BookOpen, Library as LibraryIcon, Trophy, Crown } from "lucide-re
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LibraryToolbar } from "./library-toolbar";
-import { MobileLibraryNav } from "@/components/layout/MobileLibraryNav";
 
 // Tipos
 type LibraryBook = {
@@ -52,13 +51,6 @@ export default async function LibraryPage({
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-background">
-      
-      {/* MENU MOBILE (Só aparece em telas pequenas via CSS hidden/block dentro do componente) */}
-      <MobileLibraryNav 
-        role={profile?.role || 'student'} 
-        fullName={profile?.full_name || 'Aluno'} 
-      />
-
       <div className="p-6 md:p-10 space-y-8">
         
         <div className="flex flex-col xl:flex-row gap-8 justify-between items-start">

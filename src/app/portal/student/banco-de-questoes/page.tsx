@@ -392,11 +392,6 @@ export default function BancoDeQuestoes() {
                         {/* Top Row: Navigation & Title */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex items-center gap-4">
-                                <Link href="dashboard" className="group flex items-center gap-2 pl-2 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 rounded-xl text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 active:scale-95 shadow-sm">
-                                    <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                                    <span className="text-sm font-bold">Voltar</span>
-                                </Link>
-                                <div className="h-8 w-[1px] bg-slate-200 dark:bg-slate-700 mx-2 hidden sm:block"></div>
                                 <h1 className="text-xl font-bold text-slate-800 dark:text-slate-50 flex items-center gap-2">
                                     <Brain size={20} className="text-blue-500 dark:text-blue-400 fill-blue-100 dark:fill-blue-900/50" />
                                     Banco de Questões
