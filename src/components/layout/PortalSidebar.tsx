@@ -78,11 +78,19 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
     </div>
   );
 
+  // No portal, o logo leva para a home do dashboard (por role), não para a landing
+  const portalHomeHref =
+    resolvedRole === 'student' ? '/portal/student/dashboard' :
+    resolvedRole === 'teacher' ? '/portal/teacher' :
+    resolvedRole === 'secretariat' ? '/portal/secretariat' :
+    resolvedRole === 'manager' ? '/portal/manager' :
+    '/portal';
+
   return (
     <div className="flex flex-col h-full bg-sidebar dark:bg-sidebar text-slate-900 dark:text-sidebar-foreground">
       {/* --- HEADER --- */}
       <div className="p-5 pb-2">
-        <Link href="/" onClick={onCloseMobile} className="group flex items-center gap-1 mb-6 w-fit transition-opacity hover:opacity-80">
+        <Link href={portalHomeHref} onClick={onCloseMobile} className="group flex items-center gap-1 mb-6 w-fit transition-opacity hover:opacity-80">
           <div className="flex items-center justify-center -mr-1 group-hover:scale-110 transition-transform duration-300">
              <Image 
                src="/logost-transparente-sombra.png" 
