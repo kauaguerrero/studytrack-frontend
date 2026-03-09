@@ -79,21 +79,21 @@ function CreatePersonalGoalModal({ isOpen, onClose, userId, onSuccess, initialDa
 
     return (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-100">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800">
                 <div className="flex justify-between items-center mb-5">
-                    <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800">
-                        {initialData ? <Sparkles className="text-purple-600" size={22} /> : <Plus className="text-blue-600" size={22} />}
+                    <h3 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-50">
+                        {initialData ? <Sparkles className="text-purple-600 dark:text-purple-400" size={22} /> : <Plus className="text-blue-600 dark:text-blue-400" size={22} />}
                         {initialData ? 'Aceitar Sugestão IA' : 'Nova Meta Pessoal'}
                     </h3>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
+                    <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-200">✕</button>
                 </div>
                 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Título</label>
+                        <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Título</label>
                         <input 
                             required 
-                            className="w-full mt-1 border border-slate-300 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" 
+                            className="w-full mt-1 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400" 
                             placeholder="Ex: Ler Cap. 3" 
                             value={title || ''} 
                             onChange={e => setTitle(e.target.value)} 
@@ -101,17 +101,17 @@ function CreatePersonalGoalModal({ isOpen, onClose, userId, onSuccess, initialDa
                     </div>
                     
                     {initialData && (
-                        <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
-                            <label className="text-xs font-bold text-purple-700 uppercase tracking-wide">Motivo da Sugestão</label>
-                            <p className="text-xs text-purple-800 mt-1 leading-relaxed">{description}</p>
+                        <div className="bg-purple-50 dark:bg-purple-900/40 p-3 rounded-lg border border-purple-100 dark:border-purple-800">
+                            <label className="text-xs font-bold text-purple-700 dark:text-purple-300 uppercase tracking-wide">Motivo da Sugestão</label>
+                            <p className="text-xs text-purple-800 dark:text-purple-200 mt-1 leading-relaxed">{description}</p>
                         </div>
                     )}
                     
                     {!initialData && (
                         <div>
-                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Descrição (Opcional)</label>
+                             <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Descrição (Opcional)</label>
                              <input 
-                                className="w-full mt-1 border border-slate-300 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" 
+                                className="w-full mt-1 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400" 
                                 placeholder="Detalhes da meta..." 
                                 value={description || ''}
                                 onChange={e => setDescription(e.target.value)} 
@@ -121,29 +121,29 @@ function CreatePersonalGoalModal({ isOpen, onClose, userId, onSuccess, initialDa
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Meta (Qtd)</label>
+                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Meta (Qtd)</label>
                             <input 
                                 required 
                                 type="number" 
                                 min="1" 
-                                className="w-full mt-1 border border-slate-300 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" 
+                                className="w-full mt-1 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" 
                                 value={target || ''} 
                                 onChange={e => setTarget(e.target.value)} 
                             />
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Prazo</label>
+                            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Prazo</label>
                             <input 
                                 required 
                                 type="date" 
-                                className="w-full mt-1 border border-slate-300 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" 
+                                className="w-full mt-1 border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" 
                                 value={deadline || ''} 
                                 onChange={e => setDeadline(e.target.value)} 
                             />
                         </div>
                     </div>
                     <div className="flex gap-3 pt-4">
-                        <button type="button" onClick={onClose} className="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl text-sm hover:bg-slate-200 transition-colors">Cancelar</button>
+                        <button type="button" onClick={onClose} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold py-3 rounded-xl text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Cancelar</button>
                         <button type="submit" disabled={loading} className={`flex-1 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-lg active:scale-95 ${initialData ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-200' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'}`}>
                             {loading ? 'Salvando...' : 'Confirmar Meta'}
                         </button>
@@ -213,12 +213,12 @@ function GoalDetailsModal({ goal, userId, onClose, onUpdate, onDelete }: { goal:
 
     return (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-100 flex flex-col max-h-[90vh]">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col max-h-[90vh]">
                 
                 {/* Header */}
-                <div className="p-6 border-b border-slate-100 flex justify-between items-start">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
                     <div className="flex gap-3">
-                        <div className={`p-2 rounded-lg ${goal.source === 'teacher' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                        <div className={`p-2 rounded-lg ${goal.source === 'teacher' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400' : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400'}`}>
                             {goal.source === 'teacher' ? <BookOpen size={24} /> : <User size={24} />}
                         </div>
                         <div>
@@ -226,24 +226,24 @@ function GoalDetailsModal({ goal, userId, onClose, onUpdate, onDelete }: { goal:
                                 {goal.source === 'teacher' ? 'Meta da Turma' : 'Meta Pessoal'}
                             </span>
                             {isEditing ? (
-                                <input className="block w-full text-xl font-bold border-b border-slate-300 focus:border-blue-500 outline-none mt-1" value={title} onChange={e => setTitle(e.target.value)} />
+                                <input className="block w-full text-xl font-bold border-b border-slate-300 dark:border-slate-600 focus:border-blue-500 outline-none mt-1 bg-transparent text-slate-900 dark:text-slate-100" value={title} onChange={e => setTitle(e.target.value)} />
                             ) : (
-                                <h3 className="text-xl font-bold text-slate-800 leading-tight">{goal.title}</h3>
+                                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-50 leading-tight">{goal.title}</h3>
                             )}
                         </div>
                     </div>
-                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1"><X size={24} /></button>
+                    <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-200 p-1"><X size={24} /></button>
                 </div>
 
                 {/* Body */}
                 <div className="p-6 overflow-y-auto space-y-6">
                     {/* Description */}
                     <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase">Descrição</label>
+                        <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase">Descrição</label>
                         {isEditing ? (
-                            <textarea className="w-full mt-2 p-3 border border-slate-200 rounded-xl text-sm min-h-[100px]" value={description} onChange={e => setDescription(e.target.value)} />
+                            <textarea className="w-full mt-2 p-3 border border-slate-200 dark:border-slate-700 rounded-xl text-sm min-h-[100px] bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" value={description} onChange={e => setDescription(e.target.value)} />
                         ) : (
-                            <div className="mt-2 text-slate-600 text-sm leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <div className="mt-2 text-slate-600 dark:text-slate-400 text-sm leading-relaxed bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
                                 {goal.description || "Sem descrição."}
                             </div>
                         )}
@@ -251,30 +251,30 @@ function GoalDetailsModal({ goal, userId, onClose, onUpdate, onDelete }: { goal:
 
                     {/* Metadata Grid */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="p-3 border border-slate-100 rounded-xl">
-                            <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1"><Clock size={12}/> Prazo</label>
+                        <div className="p-3 border border-slate-100 dark:border-slate-800 rounded-xl">
+                            <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase flex items-center gap-1"><Clock size={12}/> Prazo</label>
                             {isEditing ? (
-                                <input type="date" className="mt-1 w-full text-sm font-bold" value={deadline} onChange={e => setDeadline(e.target.value)} />
+                                <input type="date" className="mt-1 w-full text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded" value={deadline} onChange={e => setDeadline(e.target.value)} />
                             ) : (
-                                <div className="font-bold text-slate-700 mt-1">{new Date(goal.date).toLocaleDateString('pt-BR')}</div>
+                                <div className="font-bold text-slate-700 dark:text-slate-300 mt-1">{new Date(goal.date).toLocaleDateString('pt-BR')}</div>
                             )}
                         </div>
-                        <div className="p-3 border border-slate-100 rounded-xl">
-                            <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1"><Target size={12}/> Alvo</label>
+                        <div className="p-3 border border-slate-100 dark:border-slate-800 rounded-xl">
+                            <label className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase flex items-center gap-1"><Target size={12}/> Alvo</label>
                             {isEditing ? (
-                                <input type="number" className="mt-1 w-full text-sm font-bold" value={target} onChange={e => setTarget(Number(e.target.value))} />
+                                <input type="number" className="mt-1 w-full text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded" value={target} onChange={e => setTarget(Number(e.target.value))} />
                             ) : (
-                                <div className="font-bold text-slate-700 mt-1">{goal.target} {goal.metric || 'unidades'}</div>
+                                <div className="font-bold text-slate-700 dark:text-slate-300 mt-1">{goal.target} {goal.metric || 'unidades'}</div>
                             )}
                         </div>
                     </div>
                 </div>
 
                 {/* Footer Actions */}
-                <div className="p-6 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex justify-between items-center">
+                <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 rounded-b-2xl flex justify-between items-center">
                     {isEditing ? (
                         <>
-                             <button onClick={() => setIsEditing(false)} className="text-slate-500 text-sm font-bold hover:underline">Cancelar</button>
+                             <button onClick={() => setIsEditing(false)} className="text-slate-500 dark:text-slate-400 text-sm font-bold hover:underline">Cancelar</button>
                              <button onClick={handleSave} disabled={loading} className="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-emerald-200 shadow-md hover:bg-emerald-700 flex items-center gap-2">
                                 <Save size={16}/> {loading ? 'Salvando...' : 'Salvar Alterações'}
                              </button>
@@ -283,18 +283,18 @@ function GoalDetailsModal({ goal, userId, onClose, onUpdate, onDelete }: { goal:
                         <>
                             {canEdit ? (
                                 <div className="flex gap-3">
-                                    <button onClick={handleDelete} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold">
+                                    <button onClick={handleDelete} className="text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/40 p-2 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold">
                                         <Trash2 size={16} /> Excluir
                                     </button>
-                                    <button onClick={() => setIsEditing(true)} className="text-slate-600 hover:bg-white hover:shadow-sm p-2 rounded-lg transition-all flex items-center gap-2 text-xs font-bold border border-transparent hover:border-slate-200">
+                                    <button onClick={() => setIsEditing(true)} className="text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm p-2 rounded-lg transition-all flex items-center gap-2 text-xs font-bold border border-transparent hover:border-slate-200 dark:hover:border-slate-700">
                                         <Edit2 size={16} /> Editar
                                     </button>
                                 </div>
                             ) : (
-                                <div className="text-xs text-slate-400 italic">Meta definida pelo professor.</div>
+                                <div className="text-xs text-slate-400 dark:text-slate-500 italic">Meta definida pelo professor.</div>
                             )}
                             
-                            <button onClick={onClose} className="bg-white border border-slate-200 text-slate-700 px-5 py-2 rounded-xl font-bold text-sm hover:bg-slate-50">
+                            <button onClick={onClose} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-5 py-2 rounded-xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-700">
                                 Fechar
                             </button>
                         </>
@@ -342,15 +342,15 @@ function InteractiveProgressWidget({ goal, userId, onUpdate }: { goal: UnifiedGo
 
     return (
         <div className="flex flex-col gap-2 w-full" onClick={e => e.stopPropagation()}> 
-            <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
-                <button onClick={() => updateVal(-1)} className="w-8 h-8 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded-lg flex items-center justify-center transition-colors active:scale-90">
+            <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                <button onClick={() => updateVal(-1)} className="w-8 h-8 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 rounded-lg flex items-center justify-center transition-colors active:scale-90">
                     <Minus size={16} strokeWidth={3} />
                 </button>
                 <div className="flex-1 text-center">
-                    <input type="number" className="w-full bg-transparent text-center font-bold text-slate-800 outline-none" value={val} readOnly />
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">de {goal.target}</div>
+                    <input type="number" className="w-full bg-transparent text-center font-bold text-slate-800 dark:text-slate-100 outline-none" value={val} readOnly />
+                    <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">de {goal.target}</div>
                 </div>
-                <button onClick={() => updateVal(1)} className="w-8 h-8 bg-blue-100 text-blue-600 hover:bg-blue-200 rounded-lg flex items-center justify-center transition-colors active:scale-90">
+                <button onClick={() => updateVal(1)} className="w-8 h-8 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-800 rounded-lg flex items-center justify-center transition-colors active:scale-90">
                     <Plus size={16} strokeWidth={3} />
                 </button>
             </div>
@@ -386,64 +386,64 @@ function LeaderboardView({ userId }: { userId: string }) {
 
     const getMedalColor = (index: number) => {
         switch(index) {
-            case 0: return "text-yellow-500 bg-yellow-100 border-yellow-200";
-            case 1: return "text-slate-400 bg-slate-100 border-slate-200";
-            case 2: return "text-amber-700 bg-amber-100 border-amber-200";
-            default: return "text-slate-600 bg-white border-slate-100";
+            case 0: return "text-yellow-500 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 border-yellow-200 dark:border-yellow-800";
+            case 1: return "text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700";
+            case 2: return "text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 border-amber-200 dark:border-amber-800";
+            default: return "text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700";
         }
     };
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex flex-col md:flex-row justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex bg-slate-100 p-1 rounded-xl w-fit">
-                    <button onClick={() => setScope('classroom')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${scope === 'classroom' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+            <div className="flex flex-col md:flex-row justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-fit">
+                    <button onClick={() => setScope('classroom')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${scope === 'classroom' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                         <Users size={14} /> Minha Turma
                     </button>
-                    <button onClick={() => setScope('school')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${scope === 'school' ? 'bg-white text-purple-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                    <button onClick={() => setScope('school')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${scope === 'school' ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-purple-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                         <School size={14} /> Toda Escola
                     </button>
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-hide">
                     {[{ id: 'general', label: 'Geral', icon: <Trophy size={12}/> }, { id: 'teacher', label: 'Professor (+3)', icon: <BookOpen size={12}/> }, { id: 'ai', label: 'IA (+2)', icon: <Sparkles size={12}/> }, { id: 'personal', label: 'Pessoal (+1)', icon: <User size={12}/> }].map(cat => (
-                        <button key={cat.id} onClick={() => setCategory(cat.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide border whitespace-nowrap transition-all ${category === cat.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>
+                        <button key={cat.id} onClick={() => setCategory(cat.id as any)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wide border whitespace-nowrap transition-all ${category === cat.id ? 'bg-slate-800 text-white border-slate-800' : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'}`}>
                             {cat.icon} {cat.label}
                         </button>
                     ))}
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden min-h-[300px]">
-                <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-700 flex items-center gap-2"><Trophy className="text-yellow-500" size={18} /> Top 5 Goalers</h3>
-                    <span className="text-xs text-slate-400 font-medium">Atualizado em tempo real</span>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden min-h-[300px]">
+                <div className="bg-slate-50 dark:bg-slate-800/50 px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2"><Trophy className="text-yellow-500 dark:text-yellow-400" size={18} /> Top 5 Goalers</h3>
+                    <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">Atualizado em tempo real</span>
                 </div>
 
                 {loading ? (
-                    <div className="p-10 flex flex-col items-center justify-center text-slate-400 gap-3">
+                    <div className="p-10 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 gap-3">
                          <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                          <p className="text-sm">Calculando pontuações...</p>
                     </div>
                 ) : ranking.length === 0 ? (
-                    <div className="p-10 text-center text-slate-400">
+                    <div className="p-10 text-center text-slate-400 dark:text-slate-500">
                         <Medal size={40} className="mx-auto mb-3 opacity-20" />
                         <p>Ninguém pontuou nesta categoria ainda.</p>
                         <p className="text-xs mt-1">Seja o primeiro!</p>
                     </div>
                 ) : (
-                    <div className="divide-y divide-slate-100">
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
                         {ranking.map((user, index) => {
                             const isMe = user.id === userId;
                             return (
-                                <div key={user.id} className={`flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors ${isMe ? 'bg-blue-50/50' : ''}`}>
+                                <div key={user.id} className={`flex items-center gap-4 p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${isMe ? 'bg-blue-50/50 dark:bg-blue-900/20' : ''}`}>
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 font-black text-lg shadow-sm ${getMedalColor(index)}`}>{index + 1}</div>
                                     <div className="flex-1">
-                                        <div className="font-bold text-slate-800 flex items-center gap-2">{user.full_name} {isMe && <span className="bg-blue-100 text-blue-700 text-[9px] px-1.5 py-0.5 rounded uppercase">Você</span>}</div>
-                                        <div className="text-xs text-slate-500">{index === 0 ? "👑 O Rei das Metas" : "Goal Master"}</div>
+                                        <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">{user.full_name} {isMe && <span className="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 text-[9px] px-1.5 py-0.5 rounded uppercase">Você</span>}</div>
+                                        <div className="text-xs text-slate-500 dark:text-slate-400">{index === 0 ? "👑 O Rei das Metas" : "Goal Master"}</div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-2xl font-black text-slate-900 leading-none">{user.score}</div>
-                                        <div className="text-[10px] font-bold text-slate-400 uppercase">Pontos</div>
+                                        <div className="text-2xl font-black text-slate-900 dark:text-slate-50 leading-none">{user.score}</div>
+                                        <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Pontos</div>
                                     </div>
                                 </div>
                             );
@@ -452,7 +452,7 @@ function LeaderboardView({ userId }: { userId: string }) {
                 )}
             </div>
 
-            <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 flex gap-3 text-sm text-blue-800">
+            <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 border border-blue-100 dark:border-blue-800 flex gap-3 text-sm text-blue-800 dark:text-blue-200">
                 <AlertCircle className="shrink-0 mt-0.5" size={16} />
                 <div>
                     <strong className="block mb-1">Como funciona a pontuação?</strong>
@@ -565,11 +565,11 @@ export default function StudentGoalsPage() {
     }
   };
 
-  if (loading) return <div className="text-center p-10 text-slate-400">Carregando...</div>;
+  if (loading) return <div className="min-h-screen bg-[#F0F4F8] dark:bg-slate-950 flex items-center justify-center text-slate-400 dark:text-slate-500">Carregando...</div>;
 
   return (
     // Adicionado Wrapper e Navbar igual ao Dashboard
-    <div className="min-h-screen bg-[#F0F4F8] font-sans pb-20 relative selection:bg-blue-100 selection:text-blue-700">
+    <div className="min-h-screen bg-[#F0F4F8] dark:bg-background font-sans pb-20 relative selection:bg-blue-100 dark:selection:bg-blue-900/50 selection:text-blue-700 dark:selection:text-blue-300">
         <DashboardNavbar 
             firstName={userInfo.firstName} 
             fullName={userInfo.fullName} 
@@ -579,16 +579,16 @@ export default function StudentGoalsPage() {
         <main className="max-w-6xl mx-auto p-4 md:p-8 space-y-8 mt-2 relative z-10">
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-                    Minhas Metas <Trophy className="text-yellow-500 fill-yellow-500" size={28} />
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50 flex items-center gap-3">
+                    Minhas Metas <Trophy className="text-yellow-500 dark:text-yellow-400 fill-yellow-500 dark:fill-yellow-400" size={28} />
                 </h1>
-                <p className="text-slate-500 mt-2 text-base">
+                <p className="text-slate-500 dark:text-slate-400 mt-2 text-base">
                     Transforme seus estudos em conquistas. Acompanhe seu progresso aqui.
                 </p>
             </div>
             
             {/* Controls Row: Tabs + Action Buttons */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 pb-1">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-1">
                 {/* Toggle Tabs */}
                 <div className="flex gap-1">
                     {['pending', 'completed', 'ranking'].map((tab) => (
@@ -597,14 +597,14 @@ export default function StudentGoalsPage() {
                             onClick={() => setActiveTab(tab as any)}
                             className={`px-4 py-2 text-sm font-bold rounded-t-lg transition-all border-b-2 flex items-center gap-2 ${
                                 activeTab === tab 
-                                ? 'border-blue-600 text-blue-600 bg-blue-50/50' 
-                                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                                ? 'border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/30' 
+                                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                             }`}
                         >
                             {tab === 'ranking' && <Trophy size={14} className="text-amber-500" />}
                             {tab === 'pending' ? 'Em Aberto' : tab === 'completed' ? 'Concluídas' : 'Ranking'}
                             {tab === 'pending' && filteredFeed.length > 0 && (
-                                <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px]">
+                                <span className="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded text-[10px]">
                                     {filteredFeed.length}
                                 </span>
                             )}
@@ -617,7 +617,7 @@ export default function StudentGoalsPage() {
                     <div className="flex items-center gap-2 mb-2 md:mb-0 w-full md:w-auto">
                         <button 
                             onClick={handleOpenManualCreate}
-                            className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-all px-4 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm h-10"
+                            className="flex-1 md:flex-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all px-4 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm h-10"
                         >
                             <Plus size={16} /> Nova Meta
                         </button>
@@ -660,26 +660,26 @@ export default function StudentGoalsPage() {
                             </div>
                         </div>
                         
-                        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+                            <h3 className="font-bold text-slate-800 dark:text-slate-50 mb-4 flex items-center gap-2">
                                 <Target className="text-emerald-500" size={20} />
                                 Como ganhar pontos?
                             </h3>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
-                                    <div className="text-2xl font-black text-blue-600 mb-1">+3</div>
-                                    <div className="text-sm font-bold text-slate-700">Meta do Professor</div>
-                                    <div className="text-xs text-slate-500 mt-1">Atividades oficiais da turma.</div>
+                                <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800">
+                                    <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mb-1">+3</div>
+                                    <div className="text-sm font-bold text-slate-700 dark:text-slate-300">Meta do Professor</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Atividades oficiais da turma.</div>
                                 </div>
-                                <div className="p-4 rounded-xl bg-purple-50 border border-purple-100">
-                                    <div className="text-2xl font-black text-purple-600 mb-1">+2</div>
-                                    <div className="text-sm font-bold text-slate-700">Sugestão IA</div>
-                                    <div className="text-xs text-slate-500 mt-1">Metas personalizadas pelo sistema.</div>
+                                <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-900/30 border border-purple-100 dark:border-purple-800">
+                                    <div className="text-2xl font-black text-purple-600 dark:text-purple-400 mb-1">+2</div>
+                                    <div className="text-sm font-bold text-slate-700 dark:text-slate-300">Sugestão IA</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Metas personalizadas pelo sistema.</div>
                                 </div>
-                                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
-                                    <div className="text-2xl font-black text-emerald-600 mb-1">+1</div>
-                                    <div className="text-sm font-bold text-slate-700">Meta Pessoal</div>
-                                    <div className="text-xs text-slate-500 mt-1">Máximo de 3 pontuadas por dia.</div>
+                                <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800">
+                                    <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mb-1">+1</div>
+                                    <div className="text-sm font-bold text-slate-700 dark:text-slate-300">Meta Pessoal</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Máximo de 3 pontuadas por dia.</div>
                                 </div>
                             </div>
                         </div>
@@ -739,12 +739,12 @@ export default function StudentGoalsPage() {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <div className="lg:col-span-2 space-y-5">
                             {filteredFeed.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-slate-300 text-center">
-                                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                                        <Target className="text-slate-300" size={32} />
+                                <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-center">
+                                    <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                                        <Target className="text-slate-300 dark:text-slate-500" size={32} />
                                     </div>
-                                    <h3 className="text-lg font-bold text-slate-700">Tudo limpo por aqui!</h3>
-                                    <p className="text-slate-500 max-w-xs mx-auto mt-1">
+                                    <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200">Tudo limpo por aqui!</h3>
+                                    <p className="text-slate-500 dark:text-slate-400 max-w-xs mx-auto mt-1">
                                         {activeTab === 'pending' ? "Você completou todas as suas missões." : "Nenhuma meta concluída ainda."}
                                     </p>
                                 </div>
@@ -760,16 +760,16 @@ export default function StudentGoalsPage() {
 
                                     const borderColor = isPersonal ? 'bg-emerald-500' : isAi ? 'bg-purple-500' : 'bg-blue-500';
                                     const labelClass = isPersonal 
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                                        ? 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800' 
                                         : isAi
-                                            ? 'bg-purple-50 text-purple-700 border-purple-100'
-                                            : 'bg-blue-50 text-blue-700 border-blue-100';
+                                            ? 'bg-purple-50 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 border-purple-100 dark:border-purple-800'
+                                            : 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800';
 
                                     return (
                                         <div 
                                             key={item.id} 
                                             onClick={() => setSelectedGoalDetails(item)} 
-                                            className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md hover:border-blue-200 transition-all group relative overflow-hidden cursor-pointer"
+                                            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:shadow-md hover:border-blue-200 dark:hover:border-blue-700 transition-all group relative overflow-hidden cursor-pointer"
                                         >
                                             <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${borderColor}`}></div>
 
@@ -780,22 +780,22 @@ export default function StudentGoalsPage() {
                                                             {isPersonal ? <User size={10} /> : isAi ? <Sparkles size={10} /> : <BookOpen size={10} />}
                                                             {isPersonal ? 'Pessoal' : isAi ? 'Sugestão IA' : 'Turma'}
                                                         </span>
-                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide border ${getStatusColor(item.status)}`}>
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide border ${item.status === 'completed' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : item.status === 'in_progress' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800' : 'bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 border-blue-100 dark:border-blue-800'}`}>
                                                             {item.status === 'completed' ? 'Concluída' : 'Em Andamento'}
                                                         </span>
                                                     </div>
                                                     
-                                                    <h3 className="text-lg font-bold text-slate-800 group-hover:text-blue-700 transition-colors">
+                                                    <h3 className="text-lg font-bold text-slate-800 dark:text-slate-50 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">
                                                         {item.title}
                                                     </h3>
                                                     {item.description && (
-                                                        <p className="text-sm text-slate-500 leading-relaxed line-clamp-2">
+                                                        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
                                                             {item.description}
                                                         </p>
                                                     )}
 
                                                     <div className="max-w-md pt-2">
-                                                        <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                                        <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                                             <div 
                                                                 className={`h-full rounded-full transition-all duration-500 ${progress >= 100 ? 'bg-emerald-500' : isPersonal ? 'bg-emerald-500' : isAi ? 'bg-purple-500' : 'bg-blue-500'}`} 
                                                                 style={{ width: `${progress}%` }}
@@ -805,7 +805,7 @@ export default function StudentGoalsPage() {
                                                 </div>
 
                                                 <div className="flex flex-col items-end gap-3 shrink-0 min-w-[140px]">
-                                                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                                                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded border border-slate-100 dark:border-slate-700">
                                                         <Calendar size={13} />
                                                         {new Date(item.date).toLocaleDateString('pt-BR')}
                                                     </div>
@@ -813,7 +813,7 @@ export default function StudentGoalsPage() {
                                                     {activeTab === 'pending' && userId ? (
                                                          <InteractiveProgressWidget goal={item} userId={userId} onUpdate={fetchFeed} />
                                                     ) : (
-                                                        <button className="text-xs text-slate-400 font-bold border border-slate-200 px-3 py-1 rounded-lg cursor-default">
+                                                        <button className="text-xs text-slate-400 dark:text-slate-500 font-bold border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-lg cursor-default">
                                                             Concluída
                                                         </button>
                                                     )}
@@ -828,7 +828,7 @@ export default function StudentGoalsPage() {
                                             
                                             {/* Ranking Widget (Inside Card for Teacher goals) */}
                                             {item.source === 'teacher' && item.group_id && (
-                                                <div className="mt-4 ml-4 pt-3 border-t border-slate-50">
+                                                <div className="mt-4 ml-4 pt-3 border-t border-slate-50 dark:border-slate-800">
                                                     <GoalRanking groupId={item.group_id} condensed />
                                                 </div>
                                             )}
@@ -840,12 +840,12 @@ export default function StudentGoalsPage() {
 
                         {/* Sidebar */}
                         <div className="hidden lg:block space-y-6">
-                            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm sticky top-6">
-                                <h4 className="font-bold text-slate-800 text-sm mb-4 flex items-center gap-2">
+                            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm sticky top-6">
+                                <h4 className="font-bold text-slate-800 dark:text-slate-50 text-sm mb-4 flex items-center gap-2">
                                     <AlertCircle size={18} className="text-blue-500" />
                                     Dicas do Coach
                                 </h4>
-                                <ul className="space-y-3 text-sm text-slate-600">
+                                <ul className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
                                     <li className="flex gap-3">
                                         <Sparkles size={16} className="text-purple-500 mt-0.5 shrink-0" />
                                         <span>Use o botão "Sugestão IA" para descobrir o que priorizar nos estudos.</span>
@@ -857,7 +857,7 @@ export default function StudentGoalsPage() {
                                 </ul>
                                 
                                 {/* Mini Leaderboard Widget here too */}
-                                <div className="mt-8 pt-6 border-t border-slate-100">
+                                <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
                                      {userId && <LeaderboardWidget userId={userId} />}
                                 </div>
                             </div>

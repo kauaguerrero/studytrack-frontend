@@ -16,13 +16,13 @@ export default async function PortalLayout({ children }: { children: ReactNode }
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, full_name')
+    .select('role, full_name, avatar_url')
     .eq('id', user.id)
     .single();
 
   const role = (profile?.role as UserRole) || 'student';
   const fullName = profile?.full_name || 'Usuário';
-  const avatarUrl = undefined; // avatar vem do auth metadata; sem getUser, usamos fallback (iniciais)
+  const avatarUrl = profile?.avatar_url ?? undefined;
 
   return (
     <PortalLayoutWrapper role={role} fullName={fullName} avatarUrl={avatarUrl}>

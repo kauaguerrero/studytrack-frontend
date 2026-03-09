@@ -30,9 +30,9 @@ export function DashboardNavbar({ firstName, fullName, userRole, avatarUrl }: Da
       {/* --- NAVBAR FIXA --- */}
       <nav className={`sticky top-0 z-40 px-4 pt-4 pb-2 transition-all duration-300 ${isMobileMenuOpen ? 'z-50' : ''}`} aria-label="Menu principal">
         <div className={`
-          max-w-6xl mx-auto bg-white/80 backdrop-blur-xl border border-white/50 
+          max-w-6xl mx-auto bg-white/80 dark:bg-card/80 backdrop-blur-xl border border-white/50 dark:border-border
           rounded-2xl px-5 py-3 flex justify-between items-center transition-all
-          ${scrolled ? 'shadow-md border-slate-200/50' : 'shadow-sm'}
+          ${scrolled ? 'shadow-md border-slate-200/50 dark:border-border' : 'shadow-sm'}
         `}>
           
           <div className="flex items-center gap-3">
@@ -40,7 +40,7 @@ export function DashboardNavbar({ firstName, fullName, userRole, avatarUrl }: Da
             <button 
               type="button"
               onClick={() => setIsMobileMenuOpen(true)}
-              className="md:hidden min-w-[44px] min-h-[44px] p-2 -ml-2 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-xl transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              className="md:hidden min-w-[44px] min-h-[44px] p-2 -ml-2 flex items-center justify-center text-foreground hover:bg-muted rounded-xl transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="Abrir menu de navegação"
             >
               <Menu size={22} aria-hidden />
@@ -51,15 +51,15 @@ export function DashboardNavbar({ firstName, fullName, userRole, avatarUrl }: Da
               <Zap size={18} className="fill-white" />
             </div>
             <div className="hidden min-[350px]:block">
-              <h1 className="text-lg font-bold text-slate-800 tracking-tight leading-tight">StudyTrack</h1>
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Dashboard</p>
+              <h1 className="text-lg font-bold text-foreground tracking-tight leading-tight">StudyTrack</h1>
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">Dashboard</p>
             </div>
           </div>
           
           {/* Lado Direito: Perfil e Logout */}
           <div className="flex items-center gap-3 sm:gap-4">
             <div className="hidden sm:flex flex-col items-end mr-1">
-                <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                <span className="text-xs font-bold text-foreground bg-muted px-3 py-1 rounded-full border border-border">
                 Olá, {firstName} <span aria-hidden>👋</span>
                 </span>
             </div>
@@ -67,7 +67,7 @@ export function DashboardNavbar({ firstName, fullName, userRole, avatarUrl }: Da
             <form action="/auth/signout" method="post">
               <button 
                 type="submit"
-                className="min-w-[44px] min-h-[44px] p-2.5 flex items-center justify-center hover:bg-red-50 hover:text-red-500 rounded-xl text-slate-400 transition-all active:scale-95 border border-transparent hover:border-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2"
+                className="min-w-[44px] min-h-[44px] p-2.5 flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-500 dark:hover:text-red-400 rounded-xl text-muted-foreground transition-all active:scale-95 border border-transparent hover:border-red-100 dark:hover:border-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2"
                 aria-label="Sair do sistema"
               >
                 <LogOut size={18} aria-hidden />

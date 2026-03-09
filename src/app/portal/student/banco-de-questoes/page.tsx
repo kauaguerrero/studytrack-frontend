@@ -32,23 +32,23 @@ const DIFFICULTIES = ["Fácil", "Médio", "Difícil"];
 
 // --- COMPONENTS: SKELETON UI (UX Improvement) ---
 const QuestionCardSkeleton = () => (
-    <div className="w-full bg-white rounded-[1.5rem] shadow-xl shadow-blue-900/5 border border-slate-100 p-6 animate-pulse">
+    <div className="w-full bg-card dark:bg-card rounded-[1.5rem] shadow-xl shadow-blue-900/5 dark:shadow-slate-950/50 border border-border p-6 animate-pulse">
         {/* Header Skeleton */}
         <div className="flex justify-between items-start mb-6">
-            <div className="h-6 w-32 bg-slate-200 rounded-lg"></div>
-            <div className="h-6 w-24 bg-slate-200 rounded-lg"></div>
+            <div className="h-6 w-32 bg-muted rounded-lg"></div>
+            <div className="h-6 w-24 bg-muted rounded-lg"></div>
         </div>
         {/* Text Skeleton */}
         <div className="space-y-3 mb-8">
-            <div className="h-4 w-full bg-slate-200 rounded"></div>
-            <div className="h-4 w-11/12 bg-slate-200 rounded"></div>
-            <div className="h-4 w-4/5 bg-slate-200 rounded"></div>
-            <div className="h-4 w-full bg-slate-200 rounded"></div>
+            <div className="h-4 w-full bg-muted rounded"></div>
+            <div className="h-4 w-11/12 bg-muted rounded"></div>
+            <div className="h-4 w-4/5 bg-muted rounded"></div>
+            <div className="h-4 w-full bg-muted rounded"></div>
         </div>
         {/* Alternatives Skeleton */}
         <div className="space-y-4">
             {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-14 w-full bg-slate-100 rounded-xl border border-slate-200"></div>
+                <div key={i} className="h-14 w-full bg-muted rounded-xl border border-border"></div>
             ))}
         </div>
     </div>
@@ -344,7 +344,7 @@ export default function BancoDeQuestoes() {
     };
 
     return (
-        <div className="min-h-screen bg-[#F0F4F8] font-sans text-slate-900 relative selection:bg-blue-100 selection:text-blue-700 flex flex-col">
+        <div className="min-h-screen bg-[#F0F4F8] dark:bg-background font-sans text-slate-900 dark:text-foreground relative selection:bg-blue-100 dark:selection:bg-blue-900 selection:text-blue-700 dark:selection:text-blue-300 flex flex-col">
             
             <UpsellModal 
                 isOpen={isUpsellOpen} 
@@ -371,14 +371,14 @@ export default function BancoDeQuestoes() {
 
             {/* Background Decoration */}
             <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-                <div className="absolute -top-20 -right-20 w-96 h-96 bg-blue-200 rounded-full blur-3xl opacity-40 mix-blend-multiply animate-blob"></div>
-                <div className="absolute -bottom-20 -left-20 w-96 h-96 bg-sky-200 rounded-full blur-3xl opacity-40 mix-blend-multiply animate-blob animation-delay-2000"></div>
+                <div className="absolute -top-20 -right-20 w-96 h-96 bg-blue-200 dark:bg-blue-900/20 rounded-full blur-3xl opacity-40 mix-blend-multiply dark:mix-blend-normal animate-blob"></div>
+                <div className="absolute -bottom-20 -left-20 w-96 h-96 bg-sky-200 dark:bg-sky-900/20 rounded-full blur-3xl opacity-40 mix-blend-multiply dark:mix-blend-normal animate-blob animation-delay-2000"></div>
             </div>
 
             {/* Toggle Menu Button (Issue 6) */}
             <button 
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="fixed top-4 right-4 z-50 p-2 bg-white/80 backdrop-blur border border-slate-200 rounded-full shadow-sm hover:bg-white text-slate-500 hover:text-blue-600 transition-all"
+                className="fixed top-4 right-4 z-50 p-2 bg-card/80 dark:bg-card/80 backdrop-blur border border-border rounded-full shadow-sm hover:bg-card text-muted-foreground hover:text-primary transition-all"
                 title={isMenuOpen ? "Focar na questão" : "Mostrar filtros"}
             >
                 {isMenuOpen ? <EyeOff size={20} /> : <Eye size={20} />}
@@ -387,41 +387,41 @@ export default function BancoDeQuestoes() {
             {/* Header (Controlled by isMenuOpen) */}
             {isMenuOpen && (
                 <div className="relative z-40 px-4 pt-4 pb-2 bg-transparent shrink-0 animate-in slide-in-from-top-4 duration-300">
-                    <div className="max-w-6xl mx-auto bg-white/80 backdrop-blur-xl border border-white/40 shadow-lg shadow-slate-200/50 rounded-2xl px-5 py-4 flex flex-col gap-5">
+                    <div className="max-w-6xl mx-auto bg-card/80 dark:bg-card/80 backdrop-blur-xl border border-border shadow-lg shadow-slate-200/50 dark:shadow-slate-950/50 rounded-2xl px-5 py-4 flex flex-col gap-5">
                         
                         {/* Top Row: Navigation & Title */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div className="flex items-center gap-4">
-                                <Link href="dashboard" className="group flex items-center gap-2 pl-2 pr-4 py-2 bg-white border border-slate-200 hover:border-blue-300 rounded-xl text-slate-500 hover:text-blue-600 transition-all duration-200 active:scale-95 shadow-sm">
+                                <Link href="dashboard" className="group flex items-center gap-2 pl-2 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 rounded-xl text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all duration-200 active:scale-95 shadow-sm">
                                     <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
                                     <span className="text-sm font-bold">Voltar</span>
                                 </Link>
-                                <div className="h-8 w-[1px] bg-slate-200 mx-2 hidden sm:block"></div>
-                                <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                                    <Brain size={20} className="text-blue-500 fill-blue-100" />
+                                <div className="h-8 w-[1px] bg-slate-200 dark:bg-slate-700 mx-2 hidden sm:block"></div>
+                                <h1 className="text-xl font-bold text-slate-800 dark:text-slate-50 flex items-center gap-2">
+                                    <Brain size={20} className="text-blue-500 dark:text-blue-400 fill-blue-100 dark:fill-blue-900/50" />
                                     Banco de Questões
                                 </h1>
                             </div>
 
                             {/* Tabs (Issue 2) */}
-                            <div className="flex p-1 bg-slate-100/80 rounded-xl border border-slate-200 w-full md:w-auto">
+                            <div className="flex p-1 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 w-full md:w-auto">
                                 <button
                                     onClick={() => setActiveTab('todo')}
                                     className={`flex-1 md:w-32 py-2 px-4 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                                         activeTab === 'todo' 
-                                        ? 'bg-white text-blue-600 shadow-sm ring-1 ring-slate-200' 
-                                        : 'text-slate-500 hover:text-slate-700'
+                                        ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700' 
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                                     }`}
                                 >
-                                    <Circle size={14} className={activeTab === 'todo' ? "fill-blue-600 text-blue-600" : ""} />
+                                    <Circle size={14} className={activeTab === 'todo' ? "fill-blue-600 dark:fill-blue-400 text-blue-600 dark:text-blue-400" : ""} />
                                     A Fazer
                                 </button>
                                 <button
                                     onClick={() => setActiveTab('done')}
                                     className={`flex-1 md:w-32 py-2 px-4 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                                         activeTab === 'done' 
-                                        ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200' 
-                                        : 'text-slate-500 hover:text-slate-700'
+                                        ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm ring-1 ring-slate-200 dark:ring-slate-700' 
+                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                                     }`}
                                 >
                                     <CheckCircle2 size={14} className={activeTab === 'done' ? "fill-emerald-600 text-emerald-100" : ""} />
@@ -435,7 +435,7 @@ export default function BancoDeQuestoes() {
                             {/* 1. Matéria */}
                             <div className="relative group">
                                 <select 
-                                    className="w-full bg-slate-50 border border-slate-200 hover:border-blue-300 hover:bg-white text-slate-700 text-sm font-semibold rounded-xl pl-3 pr-8 py-3 outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 appearance-none transition-all cursor-pointer shadow-sm"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-100 text-sm font-semibold rounded-xl pl-3 pr-8 py-3 outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/50 focus:border-blue-500 appearance-none transition-all cursor-pointer shadow-sm"
                                     onChange={(e) => setFilterSubject(e.target.value)}
                                     value={filterSubject}
                                 >
@@ -445,13 +445,13 @@ export default function BancoDeQuestoes() {
                                         <option key={subj} value={subj}>{subj}</option>
                                     ))}
                                 </select>
-                                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                             </div>
 
                             {/* 2. Tópico */}
                             <div className="relative group">
                                 <select 
-                                    className="w-full bg-slate-50 border border-slate-200 hover:border-sky-300 hover:bg-white text-slate-700 text-sm font-semibold rounded-xl pl-3 pr-8 py-3 outline-none focus:ring-4 focus:ring-sky-100 focus:border-sky-500 appearance-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-100 shadow-sm"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-100 text-sm font-semibold rounded-xl pl-3 pr-8 py-3 outline-none focus:ring-4 focus:ring-sky-100 dark:focus:ring-sky-900/50 focus:border-sky-500 appearance-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900 shadow-sm"
                                     onChange={(e) => setFilterTopic(e.target.value)}
                                     value={filterTopic}
                                     disabled={!filterSubject} 
@@ -461,16 +461,16 @@ export default function BancoDeQuestoes() {
                                         <option key={t.name} value={t.name}>{t.name} </option>
                                     ))}
                                 </select>
-                                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                             </div>
 
                             {/* 3. Ano */}
                             <div className="relative group">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                    <Calendar size={14} className="text-slate-400" />
+                                    <Calendar size={14} className="text-slate-400 dark:text-slate-500" />
                                 </div>
                                 <select 
-                                    className="w-full bg-slate-50 border border-slate-200 hover:border-indigo-300 hover:bg-white text-slate-700 text-sm font-semibold rounded-xl pl-9 pr-8 py-3 outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 appearance-none transition-all cursor-pointer shadow-sm"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-600 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-100 text-sm font-semibold rounded-xl pl-9 pr-8 py-3 outline-none focus:ring-4 focus:ring-indigo-100 dark:focus:ring-indigo-900/50 focus:border-indigo-500 appearance-none transition-all cursor-pointer shadow-sm"
                                     onChange={(e) => setFilterYear(e.target.value)}
                                     value={filterYear}
                                 >
@@ -479,16 +479,16 @@ export default function BancoDeQuestoes() {
                                         <option key={year} value={year}>{year}</option>
                                     ))}
                                 </select>
-                                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                             </div>
 
                             {/* 4. Dificuldade */}
                             <div className="relative group">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                    <BarChart size={14} className="text-slate-400" />
+                                    <BarChart size={14} className="text-slate-400 dark:text-slate-500" />
                                 </div>
                                 <select 
-                                    className="w-full bg-slate-50 border border-slate-200 hover:border-purple-300 hover:bg-white text-slate-700 text-sm font-semibold rounded-xl pl-9 pr-8 py-3 outline-none focus:ring-4 focus:ring-purple-100 focus:border-purple-500 appearance-none transition-all cursor-pointer shadow-sm"
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-600 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-100 text-sm font-semibold rounded-xl pl-9 pr-8 py-3 outline-none focus:ring-4 focus:ring-purple-100 dark:focus:ring-purple-900/50 focus:border-purple-500 appearance-none transition-all cursor-pointer shadow-sm"
                                     onChange={(e) => setFilterDifficulty(e.target.value)}
                                     value={filterDifficulty}
                                 >
@@ -497,7 +497,7 @@ export default function BancoDeQuestoes() {
                                         <option key={diff} value={diff}>{diff}</option>
                                     ))}
                                 </select>
-                                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                             </div>
                         </div>
                     </div>
@@ -517,26 +517,26 @@ export default function BancoDeQuestoes() {
                 {loading && page === 1 ? (
                     <div className="animate-in fade-in duration-500">
                          <div className="flex justify-between items-end mb-6 px-1 opacity-50">
-                            <div className="h-6 w-32 bg-slate-200 rounded animate-pulse"></div>
-                            <div className="hidden md:block w-48 h-2 bg-slate-200 rounded animate-pulse"></div>
+                            <div className="h-6 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+                            <div className="hidden md:block w-48 h-2 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
                          </div>
                         <QuestionCardSkeleton />
                     </div>
                 ) : !filterSubject ? (
                     // --- WELCOME STATE (Issue 1 Fix) ---
-                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[2rem] border border-slate-200 shadow-xl shadow-slate-200/50 mt-8 text-center px-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                        <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6 ring-8 ring-blue-50">
-                            <Sparkles size={40} className="text-blue-600" />
+                    <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-slate-950/50 mt-8 text-center px-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        <div className="w-24 h-24 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center mb-6 ring-8 ring-blue-50 dark:ring-blue-900/30">
+                            <Sparkles size={40} className="text-blue-600 dark:text-blue-400" />
                         </div>
-                        <h2 className="text-2xl md:text-3xl font-bold text-slate-800 mb-4">
+                        <h2 className="text-2xl md:text-3xl font-bold text-slate-800 dark:text-slate-50 mb-4">
                             Bem vindo ao banco de questões da StudyTrack
                         </h2>
-                        <p className="text-slate-600 max-w-lg text-lg leading-relaxed">
-                        O banco de questões com mais de <span className="font-bold text-blue-600">{totalQuestions.toLocaleString('pt-BR')} questões</span>. 
+                        <p className="text-slate-600 dark:text-slate-400 max-w-lg text-lg leading-relaxed">
+                        O banco de questões com mais de <span className="font-bold text-blue-600 dark:text-blue-400">{totalQuestions.toLocaleString('pt-BR')} questões</span>. 
                             <br />
-                            Selecione a <span className="font-bold text-slate-800">matéria acima</span> e um tópico específico se preferir para começar.
+                            Selecione a <span className="font-bold text-slate-800 dark:text-slate-200">matéria acima</span> e um tópico específico se preferir para começar.
                         </p>
-                        <div className="mt-8 flex gap-2 text-sm text-slate-400">
+                        <div className="mt-8 flex gap-2 text-sm text-slate-400 dark:text-slate-500">
                             <Filter size={16} /> 
                             <span>Use os filtros para refinar sua busca</span>
                         </div>
@@ -548,28 +548,28 @@ export default function BancoDeQuestoes() {
                             <div>
                                 <span className={`text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border flex inline-flex items-center gap-2 ${
                                     activeTab === 'todo' 
-                                    ? 'text-blue-600 bg-blue-50 border-blue-100' 
-                                    : 'text-emerald-600 bg-emerald-50 border-emerald-100'
+                                    ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 border-blue-100 dark:border-blue-800' 
+                                    : 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/40 border-emerald-100 dark:border-emerald-800'
                                 }`}>
                                     {activeTab === 'todo' ? <Circle size={10} fill="currentColor" /> : <CheckCircle2 size={12} />}
                                     Questão {currentIdx + 1}
                                 </span>
                                 
                                 {isLockedByQuota && (
-                                    <span className="ml-2 text-xs font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100 flex inline-flex items-center gap-1">
+                                    <span className="ml-2 text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/40 px-2.5 py-1 rounded-lg border border-amber-100 dark:border-amber-800 flex inline-flex items-center gap-1">
                                         <Lock size={10} /> Free Limit
                                     </span>
                                 )}
-                                <h2 className="text-slate-400 text-xs mt-2 font-medium pl-1">
+                                <h2 className="text-slate-400 dark:text-slate-500 text-xs mt-2 font-medium pl-1">
                                     {activeTab === 'todo' ? 'Questões disponíveis nesta trilha' : 'Histórico de questões'}
                                 </h2>
                             </div>
                             
                             <div className="hidden md:flex flex-col items-end justify-end">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
                                     Total do Filtro
                                 </span>
-                                <span className="text-sm font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
                                     {totalQuestionsFound} questões
                                 </span>
                             </div>
@@ -581,7 +581,7 @@ export default function BancoDeQuestoes() {
                                 activeTab === 'todo' ? 'bg-gradient-to-r from-blue-400 to-sky-300' : 'bg-gradient-to-r from-emerald-400 to-teal-300'
                             }`}></div>
                             
-                            <div className={`relative bg-white rounded-[1.5rem] shadow-xl shadow-blue-900/5 border border-slate-100 overflow-hidden ${isLockedByQuota ? 'blur-[2px] pointer-events-none select-none grayscale-[0.5]' : ''}`}>
+                            <div className={`relative bg-white dark:bg-slate-900 rounded-[1.5rem] shadow-xl shadow-blue-900/5 dark:shadow-slate-950/50 border border-slate-100 dark:border-slate-800 overflow-hidden ${isLockedByQuota ? 'blur-[2px] pointer-events-none select-none grayscale-[0.5]' : ''}`}>
                                 <QuestionCard 
                                     key={currentQ.id} 
                                     userId={userId || ""}
@@ -611,14 +611,14 @@ export default function BancoDeQuestoes() {
                                 <div className="absolute inset-0 flex items-center justify-center z-20">
                                     <button 
                                         onClick={() => setIsUpsellOpen(true)}
-                                        className="bg-white/90 backdrop-blur-md p-6 rounded-2xl shadow-2xl border border-white/50 flex flex-col items-center gap-3 hover:scale-105 transition-transform cursor-pointer"
+                                        className="bg-white/90 dark:bg-slate-900/95 backdrop-blur-md p-6 rounded-2xl shadow-2xl border border-white/50 dark:border-slate-700 flex flex-col items-center gap-3 hover:scale-105 transition-transform cursor-pointer"
                                     >
-                                        <div className="bg-amber-100 p-3 rounded-full text-amber-600">
+                                        <div className="bg-amber-100 dark:bg-amber-900/50 p-3 rounded-full text-amber-600 dark:text-amber-400">
                                             <Lock size={32} />
                                         </div>
                                         <div className="text-center">
-                                            <h3 className="font-bold text-slate-800">Conteúdo Exclusivo</h3>
-                                            <p className="text-xs text-slate-500">Toque para desbloquear</p>
+                                            <h3 className="font-bold text-slate-800 dark:text-slate-50">Conteúdo Exclusivo</h3>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">Toque para desbloquear</p>
                                         </div>
                                     </button>
                                 </div>
@@ -628,18 +628,18 @@ export default function BancoDeQuestoes() {
                     </div>
                 ) : (
                     // Empty State (Só aparece se filtro selecionado mas 0 questões)
-                    <div className="flex flex-col items-center justify-center py-24 bg-white rounded-[2rem] border border-dashed border-slate-200 shadow-sm mt-8 animate-in fade-in zoom-in duration-500">
+                    <div className="flex flex-col items-center justify-center py-24 bg-white dark:bg-slate-900 rounded-[2rem] border border-dashed border-slate-200 dark:border-slate-700 shadow-sm mt-8 animate-in fade-in zoom-in duration-500">
                         <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-6 ring-8 animate-pulse-slow ${
-                            activeTab === 'todo' ? 'bg-blue-50 text-blue-500 ring-blue-50/50' : 'bg-emerald-50 text-emerald-500 ring-emerald-50/50'
+                            activeTab === 'todo' ? 'bg-blue-50 dark:bg-blue-900/40 text-blue-500 dark:text-blue-400 ring-blue-50/50 dark:ring-blue-900/30' : 'bg-emerald-50 dark:bg-emerald-900/40 text-emerald-500 dark:text-emerald-400 ring-emerald-50/50 dark:ring-emerald-900/30'
                         }`}>
                             {activeTab === 'todo' ? <Sparkles size={40} /> : <CheckCircle2 size={40} />}
                         </div>
-                        <h3 className="text-2xl font-bold text-slate-800 mb-2">
+                        <h3 className="text-2xl font-bold text-slate-800 dark:text-slate-50 mb-2">
                             {activeTab === 'todo' 
                                 ? "Nenhuma questão encontrada" 
                                 : "Histórico vazio"}
                         </h3>
-                        <p className="text-slate-500 text-center max-w-xs mx-auto leading-relaxed">
+                        <p className="text-slate-500 dark:text-slate-400 text-center max-w-xs mx-auto leading-relaxed">
                             {activeTab === 'todo' 
                                 ? "Tente ajustar os filtros de ano ou dificuldade para encontrar mais questões."
                                 : "As questões que você responder aparecerão aqui para revisão."}
@@ -652,17 +652,17 @@ export default function BancoDeQuestoes() {
             {currentQ && userId && !loading && (
                 <div className="w-full px-4 pb-12 pt-6 mt-auto animate-in slide-in-from-bottom-4 fade-in duration-500">
                     <div className="max-w-xl mx-auto">
-                        <div className="bg-white/90 backdrop-blur-md border border-white/50 shadow-xl shadow-blue-900/5 rounded-2xl p-2.5 flex items-center justify-between gap-3">
+                        <div className="bg-white/90 dark:bg-slate-900/95 backdrop-blur-md border border-white/50 dark:border-slate-800 shadow-xl shadow-blue-900/5 dark:shadow-slate-950/50 rounded-2xl p-2.5 flex items-center justify-between gap-3">
                             <button 
                                 onClick={handlePrev}
                                 disabled={currentIdx === 0}
-                                className="flex-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold py-3.5 rounded-xl disabled:opacity-40 disabled:hover:bg-slate-50 transition-all flex justify-center items-center gap-2 group active:scale-[0.98]"
+                                className="flex-1 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold py-3.5 rounded-xl disabled:opacity-40 disabled:hover:bg-slate-50 dark:disabled:hover:bg-slate-800 transition-all flex justify-center items-center gap-2 group active:scale-[0.98]"
                             >
-                                <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform text-slate-400 group-hover:text-slate-600" /> 
+                                <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-200" /> 
                                 <span className="hidden sm:inline">Anterior</span>
                             </button>
                             
-                            <div className="h-8 w-[1px] bg-slate-200 mx-1"></div>
+                            <div className="h-8 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1"></div>
                             
                             <button 
                                 onClick={handleNext}

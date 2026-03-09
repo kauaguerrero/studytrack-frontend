@@ -65,10 +65,10 @@ export function TaskCard({ task, isToday, displayDate }: TaskProps) {
       className={`
         relative group p-5 rounded-2xl border transition-all duration-300 overflow-hidden
         ${isLocked 
-            ? "bg-white/50 border-slate-100 opacity-70 cursor-not-allowed grayscale-[0.3]" 
-            : "bg-white border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 cursor-pointer"
+            ? "bg-card/50 dark:bg-card/30 border-border opacity-70 cursor-not-allowed grayscale-[0.3]" 
+            : "bg-card dark:bg-card border-border shadow-sm hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 cursor-pointer"
         }
-        ${isCompleted ? "bg-emerald-50/50 border-emerald-100" : ""}
+        ${isCompleted ? "bg-emerald-50/50 dark:bg-emerald-900/30 border-emerald-100 dark:border-emerald-800" : ""}
       `}
     >
         {/* Barra lateral de status (Visual Feedback) */}
@@ -81,7 +81,7 @@ export function TaskCard({ task, isToday, displayDate }: TaskProps) {
                 {isLoading ? (
                     <Loader2 size={22} className="animate-spin text-blue-500" />
                 ) : isLocked ? (
-                    <div className="w-6 h-6 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-400">
+                    <div className="w-6 h-6 rounded-full bg-muted border border-border flex items-center justify-center text-muted-foreground">
                         <Lock size={12} />
                     </div>
                 ) : isCompleted ? (
@@ -89,27 +89,27 @@ export function TaskCard({ task, isToday, displayDate }: TaskProps) {
                         <Check size={14} strokeWidth={3} />
                     </div>
                 ) : (
-                    <div className="w-6 h-6 rounded-full bg-white border-2 border-slate-300 group-hover:border-blue-400 transition-colors"></div>
+                    <div className="w-6 h-6 rounded-full bg-card border-2 border-border group-hover:border-blue-400 dark:group-hover:border-blue-500 transition-colors"></div>
                 )}
             </div>
 
             <div className="flex-1 min-w-0">
                 {/* Header do Card */}
                 <div className="flex items-center justify-between mb-2">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide inline-flex items-center gap-1.5 ${isToday ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide inline-flex items-center gap-1.5 ${isToday ? 'bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800' : 'bg-muted text-muted-foreground border border-border'}`}>
                         <Calendar size={10} />
                         {displayDate}
                     </span>
                     
                     {content && !isLocked && (
-                        <span className="text-[10px] font-medium text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">
+                        <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">
                             Material disponível
                         </span>
                     )}
                 </div>
 
                 {/* Título da Tarefa */}
-                <h3 className={`font-semibold text-base leading-snug transition-all duration-300 ${isCompleted ? 'text-slate-400 line-through decoration-slate-300' : 'text-slate-800'}`}>
+                <h3 className={`font-semibold text-base leading-snug transition-all duration-300 ${isCompleted ? 'text-muted-foreground line-through decoration-muted-foreground' : 'text-card-foreground'}`}>
                     {task.task_description}
                 </h3>
 
@@ -121,16 +121,16 @@ export function TaskCard({ task, isToday, displayDate }: TaskProps) {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="group/link inline-flex items-center gap-2 p-2 rounded-lg bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-100 transition-all w-full"
+                            className="group/link inline-flex items-center gap-2 p-2 rounded-lg bg-muted hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-border hover:border-blue-200 dark:hover:border-blue-800 transition-all w-full"
                         >
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${content.content_type === 'video' ? 'bg-red-100 text-red-500' : 'bg-indigo-100 text-indigo-500'}`}>
                                 {content.content_type === 'video' ? <PlayCircle size={16} /> : <FileText size={16} />}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold text-slate-700 group-hover/link:text-blue-700 truncate">
+                                <p className="text-xs font-semibold text-card-foreground group-hover/link:text-primary truncate">
                                     {content.title || "Material de Estudo"}
                                 </p>
-                                <p className="text-[10px] text-slate-400 group-hover/link:text-blue-400 flex items-center gap-1">
+                                <p className="text-[10px] text-muted-foreground group-hover/link:text-primary flex items-center gap-1">
                                     Clique para abrir <ExternalLink size={8} />
                                 </p>
                             </div>

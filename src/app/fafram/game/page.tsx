@@ -503,7 +503,7 @@ export default function FaframSpeedRunPage() {
         <div className="flex flex-col gap-3 w-full max-w-xs z-10">
             <button 
                 onClick={startGameLogic} 
-                className="w-full py-4 bg-white hover:bg-slate-200 text-slate-950 font-black rounded-xl transition-all active:scale-95 shadow-xl shadow-white/10 flex items-center justify-center gap-2"
+                className="w-full py-4 bg-white hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-950 dark:text-slate-100 font-black rounded-xl transition-all active:scale-95 shadow-xl dark:shadow-none dark:border dark:border-slate-700 flex items-center justify-center gap-2"
             >
                 <RotateCcw size={18} strokeWidth={3} /> JOGAR NOVAMENTE
             </button>

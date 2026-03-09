@@ -40,22 +40,22 @@ export default function LeaderboardWidget({ userId }: LeaderboardWidgetProps) {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm h-full">
-      <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-        <h3 className="font-bold text-slate-800 flex items-center gap-2">
-            <Trophy className="text-blue-600" size={18} />
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm dark:shadow-none dark:border-slate-800 h-full">
+      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+        <h3 className="font-bold text-slate-800 dark:text-slate-50 flex items-center gap-2">
+            <Trophy className="text-blue-600 dark:text-blue-400" size={18} />
             Ranking
         </h3>
-        <div className="flex bg-slate-200/50 p-1 rounded-lg">
+        <div className="flex bg-slate-200/50 dark:bg-slate-700/50 p-1 rounded-lg">
             <button 
                 onClick={() => setScope('class')}
-                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${scope === 'class' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${scope === 'class' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
                 Turma
             </button>
             <button 
                 onClick={() => setScope('school')}
-                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${scope === 'school' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${scope === 'school' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
             >
                 Escola
             </button>
@@ -65,10 +65,10 @@ export default function LeaderboardWidget({ userId }: LeaderboardWidgetProps) {
       <div className="p-2">
         {loading ? (
             <div className="space-y-3 p-2">
-                 {[1,2,3,4].map(i => <div key={i} className="h-10 bg-slate-100 rounded-lg animate-pulse" />)}
+                 {[1,2,3,4].map(i => <div key={i} className="h-10 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse" />)}
             </div>
         ) : leaders.length === 0 ? (
-            <div className="text-center py-8 text-slate-400 text-sm">
+            <div className="text-center py-8 text-slate-400 dark:text-slate-500 text-sm">
                 Nenhum dado de ranking disponível.
             </div>
         ) : (
@@ -76,26 +76,26 @@ export default function LeaderboardWidget({ userId }: LeaderboardWidgetProps) {
                 {leaders.map((user) => {
                     const isMe = user.id === userId;
                     return (
-                        <div key={user.id} className={`flex items-center justify-between p-3 rounded-xl transition-colors ${isMe ? 'bg-blue-50 border border-blue-100' : 'hover:bg-slate-50'}`}>
+                        <div key={user.id} className={`flex items-center justify-between p-3 rounded-xl transition-colors ${isMe ? 'bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}>
                             <div className="flex items-center gap-3">
                                 <div className="w-6 flex justify-center">
                                     {getRankIcon(user.rank)}
                                 </div>
-                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
-                                    <span className="text-xs font-bold text-slate-600">
+                                <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700">
+                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
                                         {user.full_name.substring(0,2).toUpperCase()}
                                     </span>
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className={`text-sm font-bold leading-none ${isMe ? 'text-blue-700' : 'text-slate-700'}`}>
+                                    <span className={`text-sm font-bold leading-none ${isMe ? 'text-blue-700 dark:text-blue-300' : 'text-slate-700 dark:text-slate-200'}`}>
                                         {isMe ? 'Você' : user.full_name.split(' ')[0]}
                                     </span>
-                                    {isMe && <span className="text-[10px] text-blue-500 font-medium">Sua posição: {user.rank}º</span>}
+                                    {isMe && <span className="text-[10px] text-blue-500 dark:text-blue-400 font-medium">Sua posição: {user.rank}º</span>}
                                 </div>
                             </div>
                             <div className="text-right">
-                                <span className="block text-sm font-black text-slate-800">{user.total_points}</span>
-                                <span className="text-[10px] text-slate-400 font-medium">pts</span>
+                                <span className="block text-sm font-black text-slate-800 dark:text-slate-100">{user.total_points}</span>
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">pts</span>
                             </div>
                         </div>
                     );

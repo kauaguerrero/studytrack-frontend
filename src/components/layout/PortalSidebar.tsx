@@ -19,7 +19,8 @@ import {
   Gamepad2,
   LogOut,
   Library,
-  ClipboardList // <--- NOVO ÍCONE
+  ClipboardList,
+  User
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 
@@ -55,13 +56,13 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
         onClick={onCloseMobile}
         className={`group flex items-center gap-3 min-h-[44px] px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
           active 
-            ? 'bg-blue-50/80 text-blue-700 shadow-sm' 
-            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            ? 'bg-blue-50/80 dark:bg-sidebar-accent text-blue-700 dark:text-sidebar-accent-foreground shadow-sm' 
+            : 'text-slate-600 dark:text-muted-foreground hover:bg-slate-50 dark:hover:bg-sidebar-accent/50 hover:text-slate-900 dark:hover:text-sidebar-foreground'
         }`}
       >
         <Icon 
           size={18} 
-          className={`transition-colors ${active ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"}`} 
+          className={`transition-colors ${active ? "text-blue-600 dark:text-sidebar-primary" : "text-slate-400 dark:text-muted-foreground group-hover:text-slate-600 dark:group-hover:text-sidebar-foreground"}`} 
         />
         <span>{label}</span>
         {active && <ChevronRight size={14} className="ml-auto text-blue-400" />}
@@ -71,14 +72,14 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
 
   const SectionTitle = ({ children }: { children: React.ReactNode }) => (
     <div className="px-3 mt-6 mb-2">
-      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest leading-none">
+      <span className="text-[11px] font-bold text-slate-400 dark:text-muted-foreground uppercase tracking-widest leading-none">
         {children}
       </span>
     </div>
   );
 
   return (
-    <div className="flex flex-col h-full bg-white text-slate-900">
+    <div className="flex flex-col h-full bg-sidebar dark:bg-sidebar text-slate-900 dark:text-sidebar-foreground">
       {/* --- HEADER --- */}
       <div className="p-5 pb-2">
         <Link href="/" onClick={onCloseMobile} className="group flex items-center gap-1 mb-6 w-fit transition-opacity hover:opacity-80">
@@ -94,12 +95,12 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
              />
           </div>
           <div>
-            <h1 className="font-bold text-lg text-slate-900 tracking-tight leading-none">
-              Study<span className="text-blue-600">Track</span>
+            <h1 className="font-bold text-lg text-slate-900 dark:text-sidebar-foreground tracking-tight leading-none">
+              Study<span className="text-blue-600 dark:text-sidebar-primary">Track</span>
             </h1>
             <div className="flex items-center gap-1.5 mt-1">
                <span className={`inline-block w-2 h-2 rounded-full ${resolvedRole === 'student' ? 'bg-green-500' : 'bg-blue-500'}`}></span>
-               <span className="text-[11px] font-medium text-slate-500 capitalize leading-none">
+               <span className="text-[11px] font-medium text-slate-500 dark:text-muted-foreground capitalize leading-none">
                  {resolvedRole === 'manager' ? 'Gestão' : resolvedRole === 'teacher' ? 'Docente' : resolvedRole === 'secretariat' ? 'Secretaria' : 'Área do Aluno'}
                </span>
             </div>
@@ -164,25 +165,31 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
         )}
 
         {/* Links Comuns */}
-        <div className="mt-8 border-t border-slate-100 pt-4 space-y-0.5">
+        <div className="mt-8 border-t border-slate-100 dark:border-sidebar-border pt-4 space-y-0.5">
+           <NavItem href="/portal/profile" icon={User} label="Meu Perfil" />
            <NavItem href="/portal/support" icon={LifeBuoy} label="Ajuda e Suporte" />
         </div>
       </nav>
 
       {/* --- USER FOOTER --- */}
-      <div className="p-4 border-t border-slate-100">
-        <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 flex items-center gap-3 hover:border-blue-200 hover:bg-blue-50/50 transition-colors group cursor-default">
-          <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-blue-700 font-bold overflow-hidden border border-slate-200 shadow-sm shrink-0">
+      <div className="p-4 border-t border-slate-100 dark:border-sidebar-border">
+        <div className="bg-slate-50 dark:bg-sidebar-accent rounded-xl p-3 border border-slate-100 dark:border-sidebar-border flex items-center gap-3 hover:border-blue-200 dark:hover:border-sidebar-ring hover:bg-blue-50/50 dark:hover:bg-sidebar-accent/80 transition-colors group cursor-default">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center text-blue-700 dark:text-sidebar-primary-foreground font-bold overflow-hidden shrink-0 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600">
             {avatarUrl ? (
-              <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover rounded-full" />
             ) : (
               <span className="text-sm">{fullName.charAt(0)}</span>
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-slate-900 truncate">{fullName}</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-semibold text-slate-900 dark:text-sidebar-foreground truncate">{fullName}</p>
+              {resolvedRole === 'student' && (
+                <span className="text-[10px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-wider shrink-0">Aluno</span>
+              )}
+            </div>
             <form action="/auth/signout" method="post">
-                <button className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-red-600 font-medium transition-colors mt-0.5 w-full text-left">
+                <button className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-muted-foreground hover:text-red-600 dark:hover:text-destructive font-medium transition-colors mt-0.5 w-full text-left">
                     <LogOut size={12} /> Sair da conta
                 </button>
             </form>
@@ -195,7 +202,7 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
 
 export function PortalSidebar(props: PortalSidebarProps) {
   return (
-    <aside className="w-72 border-r border-slate-200 hidden md:flex flex-col h-full z-0 sticky top-0">
+    <aside className="w-72 border-r border-slate-200 dark:border-sidebar-border hidden md:flex flex-col h-full z-0 sticky top-0">
       <SidebarContent {...props} />
     </aside>
   );

@@ -39,8 +39,8 @@ export function LibraryToolbar() {
         variant={isActive ? "default" : "outline"} 
         className={`cursor-pointer px-4 py-2 h-9 text-sm transition-all hover:scale-105 ${
           isActive 
-          ? "bg-blue-600 hover:bg-blue-700 border-transparent shadow-md shadow-blue-200" 
-          : "text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600 bg-white"
+          ? "bg-blue-600 dark:bg-primary hover:bg-blue-700 dark:hover:bg-primary/90 border-transparent shadow-md shadow-blue-200 dark:shadow-primary/30" 
+          : "text-muted-foreground border-border hover:border-blue-300 dark:hover:border-blue-600 hover:text-primary bg-background"
         }`}
         onClick={() => handleCategory(value)}
       >
@@ -51,20 +51,20 @@ export function LibraryToolbar() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col md:flex-row gap-4 items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+      <div className="flex flex-col md:flex-row gap-4 items-center bg-card dark:bg-card p-4 rounded-2xl shadow-sm border border-border">
         {/* Search Input com Icone Integrado */}
         <div className="relative w-full md:w-96 group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={18} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors" size={18} />
           <Input 
             placeholder="Buscar título, autor ou exame..." 
-            className="pl-10 border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all h-11 rounded-xl"
+            className="pl-10 border-border bg-muted/50 dark:bg-input focus:bg-background focus:ring-2 focus:ring-ring transition-all h-11 rounded-xl"
             defaultValue={searchParams.get('q')?.toString()}
             onChange={(e) => handleSearch(e.target.value)}
           />
         </div>
         
         {/* Divisor Vertical (Desktop) */}
-        <div className="hidden md:block w-px h-8 bg-slate-200 mx-2"></div>
+        <div className="hidden md:block w-px h-8 bg-border mx-2"></div>
 
         {/* Filtros */}
         <div className="flex items-center gap-2 w-full overflow-x-auto pb-2 md:pb-0 no-scrollbar">
