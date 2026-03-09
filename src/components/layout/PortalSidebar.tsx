@@ -166,7 +166,7 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
 
         {/* Links Comuns */}
         <div className="mt-8 border-t border-slate-100 dark:border-sidebar-border pt-4 space-y-0.5">
-           <NavItem href="/portal/profile" icon={User} label="Meu Perfil" />
+           <NavItem href="/portal/student/profile" icon={User} label="Meu Perfil" />
            <NavItem href="/portal/support" icon={LifeBuoy} label="Ajuda e Suporte" />
         </div>
       </nav>
