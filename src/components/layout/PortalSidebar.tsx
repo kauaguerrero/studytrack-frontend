@@ -20,7 +20,8 @@ import {
   LogOut,
   Library,
   ClipboardList,
-  User
+  User,
+  Map
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 
@@ -124,6 +125,7 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
           <div className="space-y-0.5">
             <SectionTitle>Estudos</SectionTitle>
             <NavItem href="/portal/student/dashboard" icon={LayoutDashboard} label="Dashboard" />
+            <NavItem href="/portal/student/study-map" icon={Map} label="Mapa ENEM" />
             <NavItem href="/portal/student/library" icon={Library} label="Biblioteca Digital" /> 
             <NavItem href="/portal/student/simulado" icon={FileText} label="Simulados" />
             <NavItem href="/portal/student/banco-de-questoes" icon={BookOpen} label="Banco de Questões" />
@@ -184,7 +186,7 @@ export function SidebarContent({ role, fullName, avatarUrl, onCloseMobile }: Por
         <div className="bg-slate-50 dark:bg-sidebar-accent rounded-xl p-3 border border-slate-100 dark:border-sidebar-border flex items-center gap-3 hover:border-blue-200 dark:hover:border-sidebar-ring hover:bg-blue-50/50 dark:hover:bg-sidebar-accent/80 transition-colors group cursor-default">
           <div className="w-9 h-9 rounded-full flex items-center justify-center text-blue-700 dark:text-sidebar-primary-foreground font-bold overflow-hidden shrink-0 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600">
             {avatarUrl ? (
-              <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover rounded-full" />
+              <Image src={avatarUrl} alt="Avatar" width={36} height={36} className="w-full h-full object-cover rounded-full" />
             ) : (
               <span className="text-sm">{fullName.charAt(0)}</span>
             )}

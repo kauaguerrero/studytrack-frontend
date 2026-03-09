@@ -1,5 +1,3 @@
-'use client'
-
 import Link from 'next/link'
 import { Zap, Lock, Gamepad2, Timer, ArrowRight, Brain, ArrowLeft, LayoutDashboard } from 'lucide-react'
 

@@ -23,18 +23,14 @@ export default async function TeacherDashboard() {
 
   if (authError || !user) redirect('/auth/login');
 
-  // Busca perfil para pegar o nome
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name')
-    .eq('id', user.id)
-    .single();
+  // Queries paralelas para performance
+  const [{ data: profile }, classes] = await Promise.all([
+    supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+    getTeacherClasses(),
+  ]);
 
   const fullName = profile?.full_name || "Docente";
   const firstName = fullName.split(' ')[0];
-
-  // 2. BUSCAR TURMAS
-  const classes = await getTeacherClasses();
   const hasClasses = classes && classes.length > 0;
 
   // --- COMPONENTE INTERNO DE ERRO (Reutilizado) ---

@@ -31,36 +31,24 @@ export default async function LibraryPage({
 
   const resolved = await searchParams;
 
-  // 1. Fetch Profile para o Menu Mobile e Leaderboard
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name, role, school_id')
-    .eq('id', user.id)
-    .single();
-
-  // 2. Fetch Livros com Busca CORRIGIDA (OR logic)
-  let query = supabase
+  // Queries paralelas para performance
+  let booksQuery = supabase
     .from("library_books")
     .select("*")
     .order("created_at", { ascending: false });
 
   if (resolved.category && resolved.category !== 'todos') {
-    query = query.eq("category", resolved.category);
+    booksQuery = booksQuery.eq("category", resolved.category);
   }
-
   if (resolved.q) {
-    // CORREÇÃO DO BUG: Busca no título OU no autor
-    query = query.or(`title.ilike.%${resolved.q}%,author.ilike.%${resolved.q}%`);
+    booksQuery = booksQuery.or(`title.ilike.%${resolved.q}%,author.ilike.%${resolved.q}%`);
   }
 
-  const { data: books } = await query;
-
-  // 3. Fetch Leaderboard (Top 3 leitores da plataforma)
-  const { data: leaderboard } = await supabase
-    .from('view_library_leaderboard')
-    .select('*')
-    .order('books_completed', { ascending: false })
-    .limit(3);
+  const [{ data: profile }, { data: books }, { data: leaderboard }] = await Promise.all([
+    supabase.from('profiles').select('full_name, role, school_id').eq('id', user.id).single(),
+    booksQuery,
+    supabase.from('view_library_leaderboard').select('*').order('books_completed', { ascending: false }).limit(3),
+  ]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-background">

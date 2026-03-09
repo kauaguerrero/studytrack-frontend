@@ -106,17 +106,22 @@ export default async function Dashboard() {
           {/* Cards de Acesso Rápido - NIVELADOS */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             
-            {/* Card 1: Plano */}
-            <div className="bg-card dark:bg-card p-6 rounded-[1.5rem] border border-border shadow-sm relative overflow-hidden group hover:border-sky-200 dark:hover:border-sky-700 hover:shadow-sky-100/50 dark:hover:shadow-sky-900/30 hover:shadow-lg transition-all duration-300">
-               <div className="absolute top-0 right-0 p-8 opacity-[0.03] dark:opacity-[0.06] group-hover:opacity-[0.08] transition-opacity transform group-hover:scale-110 duration-500">
-                 <Calendar size={100} className="text-sky-600 dark:text-sky-400" />
-               </div>
-               <div className="w-12 h-12 bg-sky-50 dark:bg-sky-900/50 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-sky-100 dark:group-hover:bg-sky-800/50 transition-colors duration-300">
-                 <Calendar className="w-6 h-6 text-sky-600 dark:text-sky-400" />
-               </div>
-               <h3 className="font-bold text-lg text-card-foreground mb-1">Plano de Estudos</h3>
-               <p className="text-sm text-muted-foreground">Sua agenda diária e metas.</p>
-            </div>
+            {/* Card 1: Plano de Estudos -> Mapa ENEM */}
+            <Link href="/portal/student/study-map" className="group col-span-1">
+              <div className="bg-card dark:bg-card p-6 rounded-[1.5rem] border border-border shadow-sm relative overflow-hidden h-full group hover:border-sky-200 dark:hover:border-sky-700 hover:shadow-sky-100/50 dark:hover:shadow-sky-900/30 hover:shadow-lg transition-all duration-300">
+                 <div className="absolute top-0 right-0 p-8 opacity-[0.03] dark:opacity-[0.06] group-hover:opacity-[0.08] transition-opacity transform group-hover:scale-110 duration-500">
+                   <Calendar size={100} className="text-sky-600 dark:text-sky-400" />
+                 </div>
+                 <div className="w-12 h-12 bg-sky-50 dark:bg-sky-900/50 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-sky-100 dark:group-hover:bg-sky-800/50 transition-colors duration-300">
+                   <Calendar className="w-6 h-6 text-sky-600 dark:text-sky-400" />
+                 </div>
+                 <h3 className="font-bold text-lg text-card-foreground mb-1">Plano de Estudos</h3>
+                 <p className="text-sm text-muted-foreground mb-2">Seu mapa completo do ENEM.</p>
+                 <span className="text-xs font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1 opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all">
+                     Ver Mapa <ArrowRight size={12} />
+                 </span>
+              </div>
+            </Link>
 
             {/* Card 2: Banco (Agora nivelado, mas com identidade Azul Forte) */}
             <Link href="/portal/student/banco-de-questoes" className="group col-span-1 md:col-span-1">
