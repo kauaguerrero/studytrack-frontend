@@ -8,7 +8,7 @@ export const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 ano
 export function parseSidebarCollapsedCookie(value: string | undefined): boolean {
   if (value === 'true') return true;
   if (value === 'false') return false;
-  return false; // default: expandida
+  return true; // default: colapsada (hover-expand ativo por padrão)
 }
 
 /** Escreve o cookie no cliente (apenas browser). */
