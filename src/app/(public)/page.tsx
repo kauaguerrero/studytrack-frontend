@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image'; // Importação do Image
-import { 
-  CheckCircle, 
-  ArrowRight, 
-  PenTool, 
-  Brain, 
+import {
+  CheckCircle,
+  ArrowRight,
+  PenTool,
+  Brain,
   Send,
   Zap,
   Star,
@@ -49,31 +49,31 @@ export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [chatStep, setChatStep] = useState(0);
-   
+
   // Estado para controlar qual FAQ está aberto (null = nenhum)
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   // Conteúdo do FAQ
   const faqItems = [
     {
-      question: "Como o StudyTrack trabalha junto com minha escola?",
-      answer: "O StudyTrack é um complemento ao trabalho da sua escola e professores. Organizamos seu estudo pessoal, indicamos conteúdos que reforçam o que você aprende em aula e adaptamos seu ritmo de aprendizado, sempre respeitando o calendário escolar."
+      question: "Preciso baixar algum aplicativo?",
+      answer: "Não. A missão diária chega no WhatsApp e você pode resolver questões diretamente por lá. O dashboard de desempenho fica disponível no navegador. A operação diária é zero fricção."
     },
     {
-      question: "Funciona se eu não tiver computador?",
-      answer: "Com certeza. O StudyTrack foi desenvolvido para funcionar perfeitamente no seu celular via WhatsApp e navegador mobile. Você recebe suas orientações e acessa o conteúdo onde estiver, facilitando seus estudos diários."
+      question: "E se eu não conseguir estudar em algum dia?",
+      answer: "O plano recalcula automaticamente. A IA redistribui o conteúdo e retoma sem acúmulo de pendências. Você não perde o fio."
     },
     {
-      question: "Posso cancelar se não estiver ajudando?",
-      answer: "Sim. Você pode cancelar a qualquer momento pelo painel. No teste de 3 dias, não há cobrança. Não pedimos cartão para começar — você só assina se decidir continuar."
+      question: "Funciona para quem está começando do zero?",
+      answer: "Sim. O sistema identifica seu nível atual durante o onboarding e constrói o plano a partir daí. Sem pré-requisito de base de conhecimento."
     },
     {
-      question: "Funciona para diferentes tipos de vestibulares?",
-      answer: "Sim. Nosso sistema adapta a intensidade e os tópicos baseados no seu objetivo. Para cursos concorridos como Medicina, priorizamos a consolidação da base e aprofundamento em matérias específicas, sempre trabalhando em harmonia com seu plano de estudos escolar."
+      question: "Preciso colocar cartão de crédito para testar?",
+      answer: "Não. O trial de 72 horas é gratuito e não requer dados de pagamento. Você só assina se decidir continuar."
     },
     {
-      question: "Preciso de cartão para o teste grátis?",
-      answer: "Não. Você cria sua conta e começa a usar. Só pedimos cartão se decidir assinar um plano pago após o trial. Sem surpresas."
+      question: "Vale para outros vestibulares além do ENEM?",
+      answer: "Sim. Você informa seu objetivo durante o onboarding — ENEM, FUVEST, UNICAMP — e a IA ajusta o banco de questões, o cronograma e os materiais."
     }
   ];
 
@@ -115,21 +115,21 @@ export default function Home() {
       </div>
 
       {/* --- NAVBAR --- */}
-      <header 
+      <header
         className={`fixed top-0 w-full z-50 transition-all duration-300 ${
           isScrolled ? 'bg-white/90 backdrop-blur-lg shadow-sm py-2' : 'bg-transparent py-4'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          
+
           {/* LOGO NO HEADER */}
           <div className="flex items-center gap-0 font-extrabold text-2xl tracking-tight text-slate-900 cursor-pointer group" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
             <div className="flex items-center justify-center -mr3 group-hover:scale-105 transition-transform duration-300">
-              <Image 
-                 src="/logost-transparente-sombra.png" 
-                 alt="Logo StudyTrack" 
-                 width={50} 
-                 height={50} 
+              <Image
+                 src="/logost-transparente-sombra.png"
+                 alt="Logo StudyTrack"
+                 width={50}
+                 height={50}
                  className="w-12 h-12 object-contain"
                  priority
                  unoptimized
@@ -154,7 +154,7 @@ export default function Home() {
               Entrar
             </a>
             <a href="/auth/register?plan=free" className="px-5 py-2.5 rounded-full bg-slate-900 text-white text-sm font-bold hover:bg-blue-600 hover:scale-105 transition-all shadow-lg shadow-blue-900/20 flex items-center gap-2">
-              Testar grátis 3 dias <ArrowRight className="w-4 h-4" />
+              Criar conta grátis <ArrowRight className="w-4 h-4" />
             </a>
           </div>
 
@@ -169,7 +169,7 @@ export default function Home() {
           <nav className="md:hidden absolute top-full left-0 w-full bg-white border-t border-slate-100 shadow-xl flex flex-col p-4 gap-1 animate-fade-in-up" aria-label="Menu mobile">
             <a href="#planos" onClick={() => setMobileMenuOpen(false)} className="text-slate-700 font-medium min-h-[44px] flex items-center px-3 rounded-lg hover:bg-slate-50">Planos</a>
             <a href="/auth/login" className="text-slate-700 font-medium min-h-[44px] flex items-center px-3 rounded-lg hover:bg-slate-50">Entrar</a>
-            <a href="/auth/register?plan=free" className="bg-blue-600 text-white text-center min-h-[48px] flex items-center justify-center p-3 rounded-lg font-bold hover:bg-blue-700">Testar grátis 3 dias</a>
+            <a href="/auth/register?plan=free" className="bg-blue-600 text-white text-center min-h-[48px] flex items-center justify-center p-3 rounded-lg font-bold hover:bg-blue-700">Criar conta grátis</a>
           </nav>
         )}
       </header>
@@ -179,7 +179,7 @@ export default function Home() {
         <section className="relative pt-32 pb-20 lg:pt-44 lg:pb-32 overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col lg:flex-row items-center gap-16 lg:gap-24">
-              
+
               {/* Copywriting */}
               <div className="flex-1 text-center lg:text-left animate-fade-in-up">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-xs font-bold mb-8 uppercase tracking-wide">
@@ -187,30 +187,30 @@ export default function Home() {
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                   </span>
-                  Teste grátis por 3 dias • Cancele quando quiser
+                  ACESSO ANTECIPADO · DESCONTO DE LANÇAMENTO
                 </div>
-                
-                <h1 className="text-5xl lg:text-7xl font-extrabold tracking-tight text-slate-900 mb-6 leading-[1.1]">
-                  Passe no ENEM com um plano que <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-violet-600">se adapta a você</span>.
+
+                <h1 className="text-4xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight text-slate-900 mb-6 leading-[1.1]">
+                  Pare de estudar sem direção.<br className="hidden sm:block" /><span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-violet-600">Comece a saber exatamente o que fazer — todo dia.</span>
                 </h1>
-                
-                <p className="text-lg md:text-xl text-slate-600 mb-10 leading-relaxed max-w-xl mx-auto lg:mx-0">
-                  Organize sua rotina, acompanhe sua escola e tenha conteúdo certo no momento certo — em 3 dias de teste grátis, sem compromisso.
+
+                <p className="text-base md:text-lg text-slate-600 mb-10 leading-relaxed max-w-xl mx-auto lg:mx-0">
+                  A IA da StudyTrack analisa seu histórico, seu tempo disponível e o que o ENEM cobra — e manda sua missão do dia direto no WhatsApp. Se você ignorar, ela cobra de volta.
                 </p>
-                
+
                 <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                  <a href="/auth/register?plan=free" className="px-8 py-4 rounded-2xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 transform hover:-translate-y-1 hover:shadow-2xl ring-4 ring-blue-600/10">
-                    Começar teste grátis
-                    <Zap className="w-5 h-5 fill-current" />
+                  <a href="/auth/register?plan=free" className="px-6 sm:px-8 py-4 rounded-2xl bg-blue-600 text-white font-bold text-base sm:text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 flex items-center justify-center gap-2 transform hover:-translate-y-1 hover:shadow-2xl ring-4 ring-blue-600/10">
+                    Criar meu plano agora — 3 dias grátis, sem cartão
+                    <Zap className="w-5 h-5 fill-current shrink-0" />
                   </a>
-                  <a href="#recursos" className="px-8 py-4 rounded-2xl bg-white border border-slate-200 text-slate-700 font-semibold text-lg hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2">
+                  <a href="#recursos" className="px-6 sm:px-8 py-4 rounded-2xl bg-white border border-slate-200 text-slate-700 font-semibold text-base sm:text-lg hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2">
                     <TrendingUp className="w-5 h-5" />
-                    Ver como funciona
+                    Ver como a IA funciona →
                   </a>
                 </div>
                 <p className="mt-4 text-sm text-slate-500 flex items-center justify-center lg:justify-start gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-                  Sem cartão no trial • Cancele a qualquer momento
+                  Sem compromisso nos primeiros 3 dias · Cancele quando quiser · Funciona 100% no WhatsApp
                 </p>
               </div>
 
@@ -293,10 +293,10 @@ export default function Home() {
         </section>
 
         {/* --- PROVA SOCIAL / TRUST --- */}
-        <section className="py-12 bg-slate-100 border-y border-slate-200">
+        <section className="py-16 bg-slate-100 border-y border-slate-200">
           <div className="max-w-4xl mx-auto px-4 text-center">
-            <p className="text-slate-600 font-medium">
-              Plataforma feita para vestibulandos • Funciona no celular via WhatsApp • Respeita o calendário da sua escola
+            <p className="text-slate-600 font-medium text-sm md:text-base">
+              Funciona 100% no WhatsApp · 2.700 questões do ENEM · Plano adaptativo por IA · Sem app para baixar · Trial sem cartão
             </p>
           </div>
         </section>
@@ -305,8 +305,8 @@ export default function Home() {
         <section className="py-20 bg-white">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6">Estudamos <span className="text-blue-600">juntos</span>, não sozinhos.</h2>
-              <p className="text-lg text-slate-600 max-w-3xl mx-auto">Escola + cursinho + estudo em casa: conciliar tudo é difícil. O StudyTrack conecta esses mundos em um só lugar.</p>
+              <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6">Do cadastro ao plano, em <span className="text-blue-600">menos de 3 minutos</span>.</h2>
+              <p className="text-base md:text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed">Se você estuda mas sente que não está evoluindo, o problema não é esforço. É a falta de um sistema que decida por você.</p>
             </div>
 
             <div className="grid md:grid-cols-3 gap-8">
@@ -314,24 +314,24 @@ export default function Home() {
                 <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-blue-200 transition-colors">
                   <School className="w-8 h-8 text-blue-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-3">Com sua escola</h3>
-                <p className="text-slate-600">Seu plano respeita o calendário e os conteúdos da escola. Nada de duplicar esforço ou ficar perdido.</p>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">Conte seu objetivo à IA</h3>
+                <p className="text-slate-600">Você informa: área de foco, horas disponíveis por dia e sua maior dificuldade. A IA processa e monta a estrutura do seu plano.</p>
               </div>
 
               <div className="text-center group">
                 <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-green-200 transition-colors">
                   <Brain className="w-8 h-8 text-green-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-3">Com você</h3>
-                <p className="text-slate-600">O plano se ajusta ao seu ritmo real: dias corridos, matérias difíceis e tempo disponível. Sem atraso acumulado.</p>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">Receba sua missão no WhatsApp todo dia</h3>
+                <p className="text-slate-600">Cada manhã, a IA envia o que estudar: vídeo selecionado, questões do banco e meta de revisão. Você não tem o trabalho de decidir — você executa.</p>
               </div>
 
               <div className="text-center group">
                 <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-6 group-hover:bg-purple-200 transition-colors">
                   <TrendingUp className="w-8 h-8 text-purple-600" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-3">Para sua aprovação</h3>
-                <p className="text-slate-600">Tudo organizado para chegar na prova sabendo o que estudar, quando e em qual intensidade.</p>
+                <h3 className="text-xl font-bold text-slate-900 mb-3">A IA acompanha e recalcula</h3>
+                <p className="text-slate-600">Não estudou um dia? Teve imprevisto? O plano absorve e redistribui. Nenhum atraso acumulado. Nenhum cronograma que quebra na primeira semana difícil.</p>
               </div>
             </div>
           </div>
@@ -341,41 +341,44 @@ export default function Home() {
         <section id="recursos" className="py-24 bg-slate-50 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16 max-w-3xl mx-auto">
-              <h2 className="text-3xl md:text-5xl font-bold text-slate-900 mb-6">Estudar sozinho é difícil.<br/>Com o StudyTrack, você tem <span className="text-blue-600">direção clara</span>.</h2>
-              <p className="text-lg text-slate-600">Menos tempo escolhendo o que estudar. Menos atraso acumulado. Mais progresso visível. Veja como funciona:</p>
+              <h2 className="text-3xl md:text-5xl font-bold text-slate-900 mb-6 leading-tight">
+                <span className="block">O objetivo te mantém em movimento.</span>
+                <span className="block">A StudyTrack transforma movimento em <span className="text-blue-600">resultado</span>.</span>
+              </h2>
+              <p className="text-base md:text-lg text-slate-600 leading-relaxed">A IA do WhatsApp é a apenas a ponta do iceberg. Por trás, existe uma infraestrutura construída especificamente para garantir sua aprovação no curso dos sonhos.</p>
             </div>
             <div className="grid md:grid-cols-3 gap-8">
-              {/* Feature 1 — Benefício: conteúdo certo no momento certo */}
+              {/* Feature 1 */}
               <div className="group bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-2xl hover:border-blue-100 hover:-translate-y-2 transition-all duration-300 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150 z-0"></div>
                 <div className="relative z-10">
                   <div className="w-14 h-14 bg-blue-600 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-600/20">
                     <TrendingUp className="w-7 h-7" />
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Conteúdo certo no momento certo</h3>
-                  <p className="text-slate-600 mb-4">Indicamos vídeos, exercícios e materiais que complementam o que você vê na escola — sem perder tempo procurando o que estudar.</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Execução sem paralisia de escolha</h3>
+                  <p className="text-slate-600 mb-4">Você acorda sabendo exatamente o que fazer. A IA analisa o que o ENEM cobra, o que você domina e o seu tempo disponível. A missão chega no WhatsApp. Sem perder tempo decidindo o que estudar.</p>
                 </div>
               </div>
-              {/* Feature 2 — Benefício: plano que acompanha sua rotina */}
+              {/* Feature 2 */}
               <div className="group bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-2xl hover:border-purple-100 hover:-translate-y-2 transition-all duration-300 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150 z-0"></div>
                 <div className="relative z-10">
                   <div className="w-14 h-14 bg-purple-600 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-purple-600/20">
                     <Clock className="w-7 h-7" />
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Plano que acompanha sua rotina</h3>
-                  <p className="text-slate-600 mb-4">O cronograma se ajusta aos seus dias reais: se faltou aula ou levou mais tempo em uma matéria, o plano recalcula sem você ficar atrasado.</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Plano que não quebra</h3>
+                  <p className="text-slate-600 mb-4">Prova na escola, treino, dia ruim. O algoritmo redistribui o conteúdo automaticamente. Nenhuma culpa de atraso acumulado. Nenhum cronograma descartado na segunda semana.</p>
                 </div>
               </div>
-              {/* Feature 3 — Benefício: progresso visível */}
+              {/* Feature 3 */}
               <div className="group bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-2xl hover:border-orange-100 hover:-translate-y-2 transition-all duration-300 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150 z-0"></div>
                 <div className="relative z-10">
                   <div className="w-14 h-14 bg-orange-500 text-white rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-orange-500/20">
                     <Zap className="w-7 h-7" />
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900 mb-3">Progresso que você vê</h3>
-                  <p className="text-slate-600 mb-4">Metas, questões resolvidas e evolução por matéria — você acompanha o que está avançando e onde precisa focar.</p>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-3">+2.700 questões — não aleatórias, direcionadas</h3>
+                  <p className="text-slate-600 mb-4">O banco é filtrado por disciplina, ano e nível de dificuldade. Você pratica o que o algoritmo identificou como sua lacuna. Cada questão tem propósito.</p>
                 </div>
               </div>
             </div>
@@ -391,8 +394,8 @@ export default function Home() {
 
           <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-5xl font-bold mb-6">Planos que cabem no seu orçamento de estudante.</h2>
-              <p className="text-lg text-slate-300 max-w-2xl mx-auto">Escolha o que faz sentido para sua fase. Teste grátis, cancele quando quiser.</p>
+              <h2 className="text-3xl md:text-5xl font-bold mb-6">Você não precisa gastar R$ 500 por mês para ter um plano estruturado.</h2>
+              <p className="text-base md:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">Planos a partir de R$ 14,90. 3 dias de teste sem cartão. Assine só se decidir continuar.</p>
             </div>
 
             <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
@@ -401,13 +404,13 @@ export default function Home() {
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-700 text-slate-300 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide">Degustação</div>
                 <h3 className="text-lg font-medium text-slate-400">Trial 72h</h3>
                 <div className="my-4"><span className="text-4xl font-bold text-white">Grátis</span></div>
-                <p className="text-sm text-slate-400 mb-6 flex-1">Experimente sem compromisso. Sem cartão no trial.</p>
-                
+                <p className="text-sm text-slate-400 mb-6 flex-1">Acesse sem compromisso. Sem cartão.</p>
+
                 <div className="mt-auto">
-                    <a href="/auth/register?plan=free" className="block w-full py-3 rounded-xl border border-slate-600 hover:bg-slate-700 text-center font-semibold transition-all">Começar teste grátis</a>
+                    <a href="/auth/register?plan=free" className="block w-full py-3 rounded-xl border border-slate-600 hover:bg-slate-700 text-center font-semibold transition-all">Criar minha conta grátis</a>
                     <div className="mt-8 space-y-3 text-sm text-slate-300">
-                    <p className="flex gap-2 text-slate-400"><CheckCircle className="w-4 h-4"/> Acesso ao Chat IA</p>
-                    <p className="flex gap-2 text-slate-400"><CheckCircle className="w-4 h-4"/> Curadoria de Conteúdo</p>
+                    <p className="flex gap-2 text-slate-400"><CheckCircle className="w-4 h-4"/> Missão diária no WhatsApp</p>
+                    <p className="flex gap-2 text-slate-400"><CheckCircle className="w-4 h-4"/> Banco de questões</p>
                     </div>
                 </div>
               </div>
@@ -419,13 +422,13 @@ export default function Home() {
                     <span className="text-4xl font-bold text-white">R$ 14,90</span>
                     <span className="text-xs text-slate-400 mb-1">/mês</span>
                 </div>
-                <p className="text-sm text-slate-400 mb-6 flex-1">Suporte essencial para acompanhar seus estudos diários.</p>
-                
+                <p className="text-sm text-slate-400 mb-6 flex-1">Estrutura essencial para quem está começando.</p>
+
                 <div className="mt-auto">
-                    <a href="/auth/register?plan=basic" className="block w-full py-3 rounded-xl bg-slate-700 text-white hover:bg-slate-600 text-center font-semibold transition-all border border-slate-600">Assinar Básico</a>
+                    <a href="/auth/register?plan=basic" className="block w-full py-3 rounded-xl bg-slate-700 text-white hover:bg-slate-600 text-center font-semibold transition-all border border-slate-600">Começar com o plano Básico</a>
                     <div className="mt-8 space-y-3 text-sm text-slate-300">
-                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-blue-400"/> Cronograma Standard</p>
-                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-blue-400"/> Curadoria Básica</p>
+                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-blue-400"/> Tudo do Trial</p>
+                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-blue-400"/> Cronograma automático</p>
                     </div>
                 </div>
               </div>
@@ -440,23 +443,23 @@ export default function Home() {
                     <span className="text-5xl font-bold text-white">R$ 29,90</span>
                     <span className="text-sm text-blue-200 mb-2">/mês</span>
                 </div>
-                <p className="text-sm text-blue-100 mb-8 opacity-90 flex-1">O mais completo: IA avançada, cronograma adaptativo e tutor de exatas.</p>
-                
+                <p className="text-sm text-blue-100 mb-8 opacity-90 flex-1">O sistema completo. IA avançada, simulados e tutor.</p>
+
                 <div className="mt-auto">
-                    <a href="/auth/register?plan=pro" className="block w-full py-4 rounded-xl bg-white text-blue-700 text-center font-bold hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">Começar teste grátis</a>
-                    
+                    <a href="/auth/register?plan=pro" className="block w-full py-4 rounded-xl bg-white text-blue-700 text-center font-bold hover:bg-blue-50 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1">Ativar meu plano Pro</a>
+
                     <div className="mt-8 space-y-4 text-sm text-white font-medium">
                     <div className="flex gap-3 items-center">
-                        <div className="p-1 bg-blue-500 rounded-full shrink-0"><CheckCircle className="w-3 h-3"/></div> 
-                        Curadoria IA Avançada
+                        <div className="p-1 bg-blue-500 rounded-full shrink-0"><CheckCircle className="w-3 h-3"/></div>
+                        Tudo do Básico
                     </div>
                     <div className="flex gap-3 items-center">
-                        <div className="p-1 bg-blue-500 rounded-full shrink-0"><CheckCircle className="w-3 h-3"/></div> 
-                        Cronograma Adaptativo IA
+                        <div className="p-1 bg-blue-500 rounded-full shrink-0"><CheckCircle className="w-3 h-3"/></div>
+                        Simulados completos
                     </div>
                     <div className="flex gap-3 items-center">
-                        <div className="p-1 bg-blue-500 rounded-full shrink-0"><Brain className="w-3 h-3"/></div> 
-                        Tutor Exatas Passo-a-Passo
+                        <div className="p-1 bg-blue-500 rounded-full shrink-0"><Brain className="w-3 h-3"/></div>
+                        Tutor de Exatas passo a passo
                     </div>
                     </div>
                 </div>
@@ -470,14 +473,14 @@ export default function Home() {
                     <span className="text-4xl font-bold text-white">R$ 49,90</span>
                     <span className="text-xs text-slate-400 mb-1">/mês</span>
                 </div>
-                <p className="text-sm text-slate-400 mb-6 flex-1">Acompanhamento premium com correção especializada de redações.</p>
-                
+                <p className="text-sm text-slate-400 mb-6 flex-1">Pro + correção ilimitada de redações com feedback detalhado.</p>
+
                 <div className="mt-auto">
-                    <a href="/auth/register?plan=elite" className="block w-full py-3 rounded-xl border border-violet-500 text-violet-300 hover:bg-violet-600 hover:text-white text-center font-semibold transition-all">Assinar Elite</a>
+                    <a href="/auth/register?plan=elite" className="block w-full py-3 rounded-xl border border-violet-500 text-violet-300 hover:bg-violet-600 hover:text-white text-center font-semibold transition-all">Assinar o Redação Master</a>
                     <div className="mt-8 space-y-3 text-sm text-slate-300">
-                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-violet-400"/> Tudo do Plano Pro</p>
-                    <p className="flex gap-2 font-bold text-white"><PenTool className="w-4 h-4 text-violet-400"/> Correção Ilimitada</p>
-                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-violet-400"/> Feedback Detalhado</p>
+                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-violet-400"/> Tudo do Pro</p>
+                    <p className="flex gap-2 font-bold text-white"><PenTool className="w-4 h-4 text-violet-400"/> Correção ilimitada de redações</p>
+                    <p className="flex gap-2"><CheckCircle className="w-4 h-4 text-violet-400"/> Feedback estruturado por competência</p>
                     </div>
                 </div>
               </div>
@@ -487,7 +490,7 @@ export default function Home() {
             <div className="mt-12 text-center">
               <p className="text-slate-400 text-sm flex items-center justify-center gap-2 flex-wrap">
                 <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                Cancele a qualquer momento • Sem fidelidade • Suporte por WhatsApp
+                Sem fidelidade · Cancele a qualquer momento · Suporte via WhatsApp
               </p>
             </div>
           </div>
@@ -495,36 +498,37 @@ export default function Home() {
 
         {/* --- CTA FINAL --- */}
         <section className="py-20 bg-white">
-          <div className="max-w-2xl mx-auto px-4 text-center">
-            <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-4">Pronto para organizar seus estudos?</h2>
-            <p className="text-slate-600 mb-8">Comece em 2 minutos. Teste grátis por 3 dias, sem cartão.</p>
+          <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
+            <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-4 leading-tight">O que seria diferente na sua preparação se você soubesse exatamente o que estudar — todo dia, sem falhar?</h2>
+            <p className="text-base md:text-lg text-slate-600 mb-8 leading-relaxed">Esse é o sistema. Está disponível agora.<br/>3 dias para testar. Sem cartão. Sem compromisso.</p>
             <a href="/auth/register?plan=free" className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-blue-600 text-white font-bold text-lg hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 hover:-translate-y-0.5">
-              Começar teste grátis
+              Criar meu plano agora
               <ArrowRight className="w-5 h-5" />
             </a>
+            <p className="mt-4 text-sm text-slate-500">Em menos de 3 minutos você tem o primeiro plano ativo.</p>
           </div>
         </section>
 
         {/* --- FAQ --- */}
         <section id="duvidas" className="py-20 bg-white">
           <div className="max-w-3xl mx-auto px-4">
-            <h2 className="text-3xl font-bold text-center mb-12 text-slate-900">Dúvidas Frequentes</h2>
+            <h2 className="text-3xl font-bold text-center mb-12 text-slate-900">Perguntas diretas. Respostas diretas.</h2>
             <div className="space-y-4">
               {faqItems.map((item, i) => (
-                <div 
-                  key={i} 
+                <div
+                  key={i}
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className={`border border-slate-200 rounded-2xl p-6 cursor-pointer group transition-all bg-slate-50 hover:bg-white ${
                     openFaq === i ? 'ring-2 ring-blue-500 bg-white shadow-md' : 'hover:border-blue-200'
                   }`}
                 >
-                  <div className="flex justify-between items-center">
-                    <h3 className={`font-bold text-lg transition-colors ${openFaq === i ? 'text-blue-600' : 'text-slate-700 group-hover:text-blue-600'}`}>
+                  <div className="flex justify-between items-center gap-4">
+                    <h3 className={`flex-1 font-bold text-base sm:text-lg transition-colors ${openFaq === i ? 'text-blue-600' : 'text-slate-700 group-hover:text-blue-600'}`}>
                       {item.question}
                     </h3>
-                    <ChevronDown className={`w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-transform duration-300 ${openFaq === i ? 'rotate-180 text-blue-600' : ''}`} />
+                    <ChevronDown className={`w-5 h-5 shrink-0 text-slate-400 group-hover:text-blue-600 transition-transform duration-300 ${openFaq === i ? 'rotate-180 text-blue-600' : ''}`} />
                   </div>
-                    
+
                   <div className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === i ? 'max-h-64 opacity-100 mt-4' : 'max-h-0 opacity-0'}`}>
                     <p className="text-slate-600 leading-relaxed">
                       {item.answer}
@@ -542,11 +546,11 @@ export default function Home() {
             {/* LOGO NO FOOTER */}
             <div className="flex items-center justify-center gap-0 font-bold text-2xl text-slate-900 mb-6">
               <div className="flex items-center justify-center -mr-2">
-                <Image 
-                   src="/logost-transparente-sombra.png" 
-                   alt="Logo StudyTrack" 
-                   width={60} 
-                   height={60} 
+                <Image
+                   src="/logost-transparente-sombra.png"
+                   alt="Logo StudyTrack"
+                   width={60}
+                   height={60}
                    className="w-16 h-16 object-contain"
                    priority
                    unoptimized
@@ -554,7 +558,7 @@ export default function Home() {
               </div>
               <span>StudyTrack</span>
             </div>
-            <p className="text-slate-400 text-sm">© 2025 StudyTrack.</p>
+            <p className="text-slate-400 text-sm">© 2025 StudyTrack. Todos os direitos reservados.</p>
           </div>
         </footer>
       </main>

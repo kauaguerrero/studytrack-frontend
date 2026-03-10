@@ -21,6 +21,17 @@ type Question = {
   correct_option: string
 }
 
+type AnswerRecord = {
+  question_id: string
+  statement: string        // texto da pergunta
+  selected_option: string  // letra escolhida pelo utilizador
+  selected_text: string    // conteúdo da alternativa escolhida
+  correct_option: string   // letra correta
+  correct_text: string     // conteúdo da alternativa correta
+  is_correct: boolean
+  time_spent_ms: number
+}
+
 type LeaderboardEntry = {
     name: string
     score: number
@@ -32,6 +43,17 @@ type HistoryEntry = {
     score: number
     max_combo: number
     created_at: string
+}
+
+type SessionAnswer = {
+    id: string
+    question_id: string
+    statement: string
+    selected_option: string
+    selected_text: string
+    correct_option: string
+    correct_text: string
+    is_correct: boolean
 }
 
 type GameState = 'MENU' | 'LOADING' | 'PLAYING' | 'GAME_OVER'
@@ -57,6 +79,8 @@ export default function SpeedRunPage() {
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [userId, setUserId] = useState<string | null>(null)
   const [isLoadingRanking, setIsLoadingRanking] = useState(false)
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null)
+  const [sessionAnswers, setSessionAnswers] = useState<Record<string, SessionAnswer[]>>({})
   
   // Filtros de Ranking
   const [rankingScope, setRankingScope] = useState<RankingScope>('weekly')
@@ -75,7 +99,9 @@ export default function SpeedRunPage() {
   // Analytics
   const sessionStartRef = useRef<number>(0)
   const questionStartRef = useRef<number>(0)
-  const answersLog = useRef<any[]>([])
+  const answersLog = useRef<AnswerRecord[]>([])
+  const gameEndedRef = useRef(false)
+  const isAnsweringRef = useRef(false)
 
   // --- INIT ---
   useEffect(() => {
@@ -127,6 +153,26 @@ export default function SpeedRunPage() {
       } catch (e) { console.error(e) }
   }
 
+  const fetchSessionAnswers = async (sessionId: string) => {
+    if (!userId || sessionAnswers[sessionId]) return
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/games/speedrun/session/${sessionId}/answers?user_id=${userId}`)
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        setSessionAnswers(prev => ({ ...prev, [sessionId]: data }))
+      }
+    } catch (e) { console.error(e) }
+  }
+
+  const toggleSession = (sessionId: string) => {
+    if (expandedSessionId === sessionId) {
+      setExpandedSessionId(null)
+    } else {
+      setExpandedSessionId(sessionId)
+      fetchSessionAnswers(sessionId)
+    }
+  }
+
   const fetchQuestions = async () => {
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/games/speedrun/questions`)
@@ -170,12 +216,15 @@ export default function SpeedRunPage() {
     setMaxCombo(0)
     setCurrentIndex(0)
     answersLog.current = []
+    gameEndedRef.current = false
+    isAnsweringRef.current = false
     sessionStartRef.current = Date.now()
     questionStartRef.current = Date.now()
   }
 
   const handleAnswer = (selectedLetter: string) => {
-    if (gameState !== 'PLAYING') return
+    if (gameState !== 'PLAYING' || isAnsweringRef.current) return
+    isAnsweringRef.current = true
 
     const currentQ = questions[currentIndex]
     if (!currentQ) return; 
@@ -183,9 +232,16 @@ export default function SpeedRunPage() {
     const isCorrect = selectedLetter.toLowerCase() === currentQ.correct_option.toLowerCase()
     const timeSpent = Date.now() - questionStartRef.current
 
+    const selectedAlt = currentQ.alternatives.find(a => a.id.toLowerCase() === selectedLetter.toLowerCase())
+    const correctAlt = currentQ.alternatives.find(a => a.id.toLowerCase() === currentQ.correct_option.toLowerCase())
+
     answersLog.current.push({
       question_id: currentQ.id,
+      statement: currentQ.statement,
       selected_option: selectedLetter,
+      selected_text: selectedAlt?.text || '',
+      correct_option: currentQ.correct_option,
+      correct_text: correctAlt?.text || '',
       is_correct: isCorrect,
       time_spent_ms: timeSpent
     })
@@ -215,7 +271,8 @@ export default function SpeedRunPage() {
       setTimeout(() => {
         setCurrentIndex(prev => prev + 1)
         setFeedback(null)
-      }, 200) 
+        isAnsweringRef.current = false
+      }, 200)
     } else {
       endGame() 
     }
@@ -226,7 +283,8 @@ export default function SpeedRunPage() {
   }
 
   const endGame = async () => {
-    if (gameState === 'GAME_OVER') return;
+    if (gameEndedRef.current) return;
+    gameEndedRef.current = true;
     toggleBGM(false)
     setGameState('GAME_OVER')
     const totalTime = Math.floor((Date.now() - sessionStartRef.current) / 1000)
@@ -441,22 +499,69 @@ export default function SpeedRunPage() {
                                     </div>
                                 ) : (
                                     history.map((game) => (
-                                        <div key={game.id} className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-colors">
-                                            <div className="flex items-center gap-4">
-                                                <div className="p-2.5 bg-slate-900 rounded-lg shrink-0">
-                                                    <Target size={16} className="text-slate-400" />
+                                        <div key={game.id} className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+                                            <button
+                                                onClick={() => toggleSession(game.id)}
+                                                className="flex items-center justify-between p-4 w-full hover:border-slate-600 transition-colors text-left"
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <div className="p-2.5 bg-slate-900 rounded-lg shrink-0">
+                                                        <Target size={16} className="text-slate-400" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-200 text-xs mb-0.5">
+                                                            {new Date(game.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} • {new Date(game.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute:'2-digit' })}
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider bg-slate-900 px-1.5 py-0.5 rounded inline-block">SpeedRun</p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="font-bold text-slate-200 text-xs mb-0.5">
-                                                        {new Date(game.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} • {new Date(game.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute:'2-digit' })}
-                                                    </p>
-                                                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider bg-slate-900 px-1.5 py-0.5 rounded inline-block">SpeedRun</p>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="text-right">
+                                                        <span className="font-black text-white text-lg block">{game.score}</span>
+                                                        <span className="text-[10px] text-slate-500 font-bold uppercase">Pontos</span>
+                                                    </div>
+                                                    <ArrowRight size={16} className={cn("text-slate-500 transition-transform shrink-0", expandedSessionId === game.id && "rotate-90")} />
                                                 </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className="font-black text-white text-lg block">{game.score}</span>
-                                                <span className="text-[10px] text-slate-500 font-bold uppercase">Pontos</span>
-                                            </div>
+                                            </button>
+                                            {expandedSessionId === game.id && (
+                                                <div className="border-t border-slate-700/50 p-4 space-y-3">
+                                                    {!sessionAnswers[game.id] ? (
+                                                        <div className="flex justify-center py-4">
+                                                            <Loader2 className="animate-spin text-blue-500" size={20} />
+                                                        </div>
+                                                    ) : sessionAnswers[game.id].length === 0 ? (
+                                                        <p className="text-slate-500 text-xs text-center py-2">Sem detalhes disponíveis para esta sessão.</p>
+                                                    ) : (
+                                                        sessionAnswers[game.id].map((ans, ansIdx) => (
+                                                            <div key={ansIdx} className={cn("p-3 rounded-lg border text-left", ans.is_correct ? "bg-emerald-500/5 border-emerald-500/20" : "bg-rose-500/5 border-rose-500/20")}>
+                                                                <p className="text-slate-300 text-xs leading-snug mb-2 font-medium">{ans.statement || `Questão ${ansIdx + 1}`}</p>
+                                                                <div className="flex flex-col gap-1">
+                                                                    <div className="flex items-start gap-2">
+                                                                        <span className={cn("w-5 h-5 rounded flex items-center justify-center text-[9px] font-black shrink-0 mt-0.5", ans.is_correct ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-rose-500/20 text-rose-400 border border-rose-500/30")}>
+                                                                            {ans.selected_option?.toUpperCase()}
+                                                                        </span>
+                                                                        <div>
+                                                                            <span className={cn("text-[9px] font-bold uppercase tracking-wider", ans.is_correct ? "text-emerald-400" : "text-rose-400")}>Sua resposta</span>
+                                                                            {ans.selected_text && <p className="text-[11px] text-slate-400 mt-0.5">{ans.selected_text}</p>}
+                                                                        </div>
+                                                                    </div>
+                                                                    {!ans.is_correct && (
+                                                                        <div className="flex items-start gap-2">
+                                                                            <span className="w-5 h-5 rounded flex items-center justify-center text-[9px] font-black shrink-0 mt-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                                                                {ans.correct_option?.toUpperCase()}
+                                                                            </span>
+                                                                            <div>
+                                                                                <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">Resposta correta</span>
+                                                                                {ans.correct_text && <p className="text-[11px] text-slate-400 mt-0.5">{ans.correct_text}</p>}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     ))
                                 )}
@@ -489,59 +594,118 @@ export default function SpeedRunPage() {
 
   // 3. TELA DE GAME OVER (RESULTADO)
   if (gameState === 'GAME_OVER') {
+    const failedAnswers = answersLog.current.filter(a => !a.is_correct)
+    const totalAnswered = answersLog.current.length
+    const correctCount = totalAnswered - failedAnswers.length
+    const accuracy = totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) : 0
+
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-center animate-in zoom-in-95 duration-500 font-sans relative overflow-hidden">
-        
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center p-6 text-center animate-in zoom-in-95 duration-500 font-sans relative overflow-x-hidden">
+
         {/* Background FX */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-950 to-slate-950 pointer-events-none"></div>
 
-        <div className="relative mb-8 z-10">
+        <div className="relative mb-6 mt-10 z-10">
             <div className="absolute inset-0 bg-yellow-500/20 blur-3xl rounded-full animate-pulse"></div>
-            <Crown size={80} className="text-yellow-400 relative z-10 mx-auto drop-shadow-lg" />
+            <Crown size={72} className="text-yellow-400 relative z-10 mx-auto drop-shadow-lg" />
         </div>
 
         <h2 className="text-2xl font-bold text-slate-300 mb-2 tracking-wide uppercase z-10">Sessão Finalizada</h2>
-        
+
         {/* SCORE GIGANTE */}
-        <div className="relative z-10 mb-10">
+        <div className="relative z-10 mb-8">
             <div className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400 tracking-tighter drop-shadow-2xl">
             {score}
             </div>
             <div className="text-sm font-bold text-blue-500 uppercase tracking-[0.5em] mt-2 border-t border-slate-800 pt-2 inline-block">Pontuação Final</div>
         </div>
-        
+
         {/* GRID DE STATS */}
-        <div className="grid grid-cols-2 gap-4 w-full max-w-sm mb-10 z-10">
-            <div className="bg-slate-900/50 p-5 rounded-2xl border border-slate-800 backdrop-blur-sm">
-                <div className="flex items-center gap-2 mb-2 text-slate-400">
-                    <Flame size={14} />
-                    <p className="text-[10px] uppercase font-bold tracking-wider">Maior Combo</p>
+        <div className="grid grid-cols-3 gap-3 w-full max-w-sm mb-8 z-10">
+            <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 backdrop-blur-sm">
+                <div className="flex items-center gap-1.5 mb-2 text-slate-400 justify-center">
+                    <Flame size={13} />
+                    <p className="text-[9px] uppercase font-bold tracking-wider">Combo</p>
                 </div>
-                <p className="text-3xl font-black text-white">{maxCombo}x</p>
+                <p className="text-2xl font-black text-white">{maxCombo}x</p>
             </div>
-            <div className="bg-slate-900/50 p-5 rounded-2xl border border-slate-800 backdrop-blur-sm">
-                 <div className="flex items-center gap-2 mb-2 text-slate-400">
-                    <Target size={14} />
-                    <p className="text-[10px] uppercase font-bold tracking-wider">Precisão</p>
+            <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 backdrop-blur-sm">
+                 <div className="flex items-center gap-1.5 mb-2 text-slate-400 justify-center">
+                    <Target size={13} />
+                    <p className="text-[9px] uppercase font-bold tracking-wider">Precisão</p>
                 </div>
-                <p className="text-3xl font-black text-white">
-                  {answersLog.current.length > 0 
-                     ? Math.round((answersLog.current.filter(a => a.is_correct).length / answersLog.current.length) * 100) 
-                     : 0}%
-                </p>
+                <p className="text-2xl font-black text-white">{accuracy}%</p>
+            </div>
+            <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 backdrop-blur-sm">
+                 <div className="flex items-center gap-1.5 mb-2 text-slate-400 justify-center">
+                    <CheckCircle2 size={13} />
+                    <p className="text-[9px] uppercase font-bold tracking-wider">Acertos</p>
+                </div>
+                <p className="text-2xl font-black text-white">{correctCount}/{totalAnswered}</p>
             </div>
         </div>
 
+        {/* RESUMO DE ERROS */}
+        {failedAnswers.length > 0 && (
+          <div className="w-full max-w-lg mb-8 z-10 text-left">
+            <div className="flex items-center gap-2 mb-3">
+              <XCircle size={16} className="text-rose-500 shrink-0" />
+              <h3 className="text-sm font-black text-slate-300 uppercase tracking-widest">
+                Questões Falhadas ({failedAnswers.length})
+              </h3>
+            </div>
+            <div className="space-y-3 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+              {failedAnswers.map((ans, idx) => (
+                <div
+                  key={`${ans.question_id}-${idx}`}
+                  className="bg-slate-900/70 border border-rose-500/20 rounded-xl p-4 text-left"
+                >
+                  <p className="text-slate-300 text-sm leading-snug mb-3 font-medium">
+                    {ans.statement}
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-start gap-2">
+                      <span className="w-6 h-6 rounded-md bg-rose-500/20 flex items-center justify-center text-[10px] font-black text-rose-400 shrink-0 border border-rose-500/30 mt-0.5">
+                        {ans.selected_option.toUpperCase()}
+                      </span>
+                      <div>
+                        <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider">Sua resposta</span>
+                        {ans.selected_text && <p className="text-xs text-rose-300 mt-0.5">{ans.selected_text}</p>}
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-6 h-6 rounded-md bg-emerald-500/20 flex items-center justify-center text-[10px] font-black text-emerald-400 shrink-0 border border-emerald-500/30 mt-0.5">
+                        {ans.correct_option.toUpperCase()}
+                      </span>
+                      <div>
+                        <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Resposta correta</span>
+                        {ans.correct_text && <p className="text-xs text-emerald-300 mt-0.5">{ans.correct_text}</p>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {failedAnswers.length === 0 && totalAnswered > 0 && (
+          <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-6 py-4 mb-8 z-10 max-w-sm">
+            <CheckCircle2 size={24} className="text-emerald-400 shrink-0" />
+            <p className="text-emerald-300 font-bold text-sm">Sessão perfeita! Nenhum erro registado.</p>
+          </div>
+        )}
+
         {/* ACTIONS */}
-        <div className="flex flex-col gap-3 w-full max-w-xs z-10">
-            <button 
-                onClick={startGameLogic} 
+        <div className="flex flex-col gap-3 w-full max-w-xs z-10 mb-10">
+            <button
+                onClick={startGameLogic}
                 className="w-full py-4 bg-white hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-950 dark:text-slate-100 font-black rounded-xl transition-all active:scale-95 shadow-xl dark:shadow-none dark:border dark:border-slate-700 flex items-center justify-center gap-2"
             >
                 <RotateCcw size={18} strokeWidth={3} /> JOGAR NOVAMENTE
             </button>
-            <button 
-                onClick={returnToMenu} 
+            <button
+                onClick={returnToMenu}
                 className="w-full py-4 bg-transparent border border-slate-800 text-slate-400 font-bold rounded-xl hover:bg-slate-900 hover:text-white transition-colors flex items-center justify-center gap-2"
             >
                 <BarChart3 size={18} /> VER RANKING

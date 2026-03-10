@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -82,6 +83,12 @@ interface ProfileData {
   email_notifications: boolean
   theme_preference?: string | null
   current_period_end?: string | null
+  // Campos de identidade expandida
+  username: string | null
+  bio: string | null
+  pronouns: string | null
+  public_profile: boolean
+  accessibility_needs: string | null
 }
 
 /** Dados consolidados de billing (GET /api/account/billing) */
@@ -141,6 +148,11 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState('')
   const [whatsappPhone, setWhatsappPhone] = useState('')
   const [birthDate, setBirthDate] = useState('')
+  const [username, setUsername] = useState('')
+  const [bio, setBio] = useState('')
+  const [pronouns, setPronouns] = useState('')
+  const [publicProfile, setPublicProfile] = useState(false)
+  const [accessibilityNeeds, setAccessibilityNeeds] = useState('')
   const [savingPersonal, setSavingPersonal] = useState(false)
 
   // States - Jornada Educacional (alinhado ao onboarding)
@@ -270,6 +282,11 @@ export default function ProfilePage() {
     setFullName(p.full_name ?? '')
     setWhatsappPhone(p.whatsapp_phone ?? p.phone ?? '')
     setBirthDate(p.birth_date ?? '')
+    setUsername(p.username ?? '')
+    setBio(p.bio ?? '')
+    setPronouns(p.pronouns ?? '')
+    setPublicProfile(p.public_profile ?? false)
+    setAccessibilityNeeds(p.accessibility_needs ?? '')
     setTargetCourse(p.target_course ?? '')
     setTargetUniversity(p.target_university ?? '')
     setSchoolYear(p.school_year ?? '')
@@ -389,6 +406,11 @@ export default function ProfilePage() {
     full_name: fullName || null,
     whatsapp_phone: whatsappPhone || null,
     birth_date: birthDate || null,
+    username: username || null,
+    bio: bio || null,
+    pronouns: pronouns || null,
+    public_profile: publicProfile,
+    accessibility_needs: accessibilityNeeds || null,
   }, setSavingPersonal)
 
   const AVATAR_BUCKET = 'avatars'
@@ -868,13 +890,13 @@ export default function ProfilePage() {
                           </div>
                         )}
                       </button>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-slate-900 dark:text-slate-50 text-lg">{fullName || 'Estudante'}</h3>
-                          <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Membro</span>
+                      <div className="space-y-1.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold text-slate-900 dark:text-slate-50 text-lg truncate">{fullName || 'Estudante'}</h3>
+                          <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">Membro</span>
                         </div>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">{user?.email ?? ''}</p>
-                        <div className="flex gap-2 mt-1">
+                        <p className="text-sm text-slate-500 dark:text-slate-400 break-all">{user?.email ?? ''}</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
                           {profile?.avatar_url && (
                             <Button
                               type="button"
@@ -904,15 +926,57 @@ export default function ProfilePage() {
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2 sm:col-span-2">
                         <Label htmlFor="fullName" className="text-slate-700 dark:text-slate-200 font-bold">Nome Completo</Label>
-                        <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} className="rounded-xl bg-slate-50/50 focus-visible:ring-blue-500 transition-all" />
+                        <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} className="rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus-visible:ring-blue-500 transition-all" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="username" className="text-slate-700 dark:text-slate-200 font-bold">Nome de Utilizador</Label>
+                        <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="@seunome" className="rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus-visible:ring-blue-500" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="pronouns" className="text-slate-700 dark:text-slate-200 font-bold">Pronome</Label>
+                        <Input id="pronouns" value={pronouns} onChange={(e) => setPronouns(e.target.value)} placeholder="Ex: ele/dele, ela/dela, elu/delu" className="rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus-visible:ring-blue-500" />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="birthDate" className="text-slate-700 dark:text-slate-200 font-bold">Data de Nascimento</Label>
-                        <Input id="birthDate" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="rounded-xl bg-slate-50/50 focus-visible:ring-blue-500" />
+                        <Input id="birthDate" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus-visible:ring-blue-500" />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="whatsapp_phone" className="text-slate-700 dark:text-slate-200 font-bold">WhatsApp / Telefone</Label>
-                        <Input id="whatsapp_phone" value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} placeholder="(11) 99999-9999" className="rounded-xl bg-slate-50/50 focus-visible:ring-blue-500" />
+                        <Input id="whatsapp_phone" value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} placeholder="(11) 99999-9999" className="rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus-visible:ring-blue-500" />
+                      </div>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label htmlFor="bio" className="text-slate-700 dark:text-slate-200 font-bold">Biografia</Label>
+                        <Textarea
+                          id="bio"
+                          value={bio}
+                          onChange={(e) => setBio(e.target.value)}
+                          placeholder="Conte um pouco sobre você..."
+                          maxLength={500}
+                          className="rounded-xl bg-slate-50/50 focus-visible:ring-blue-500 resize-none min-h-[90px]"
+                        />
+                        <p className="text-xs text-muted-foreground text-right">{bio.length}/500</p>
+                      </div>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label htmlFor="accessibilityNeeds" className="text-slate-700 dark:text-slate-200 font-bold">Necessidade de Acessibilidade</Label>
+                        <Textarea
+                          id="accessibilityNeeds"
+                          value={accessibilityNeeds}
+                          onChange={(e) => setAccessibilityNeeds(e.target.value)}
+                          placeholder="Ex: dislexia, daltonismo, baixa visão..."
+                          maxLength={500}
+                          className="rounded-xl bg-slate-50/50 focus-visible:ring-blue-500 resize-none min-h-[72px]"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-5 py-4 sm:col-span-2">
+                        <div className="space-y-0.5">
+                          <Label className="text-slate-700 dark:text-slate-200 font-bold">Perfil Público</Label>
+                          <p className="text-xs text-muted-foreground">Permite que outros utilizadores vejam o seu perfil e estatísticas.</p>
+                        </div>
+                        <Switch
+                          checked={publicProfile}
+                          onCheckedChange={setPublicProfile}
+                          aria-label="Perfil público"
+                        />
                       </div>
                     </div>
                   </CardContent>
@@ -1057,22 +1121,22 @@ export default function ProfilePage() {
                     <CardHeader className="border-b border-slate-100/60 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 pb-6 pt-8 px-8">
                       <CardTitle className="text-2xl font-bold tracking-tight">Credenciais de Acesso</CardTitle>
                       <CardDescription className="text-sm mt-1 text-muted-foreground">
-                        E-mail associado: <span className="font-mono text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{user?.email}</span>
+                        E-mail associado: <span className="font-mono text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{user?.email}</span>
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6 pt-8 px-8 max-w-xl">
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-200 font-bold">Senha Atual</Label>
-                        <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="rounded-xl focus-visible:ring-slate-900 bg-slate-50/50" />
+                        <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="rounded-xl focus-visible:ring-slate-900 bg-slate-50/50 dark:bg-slate-800/50" />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label className="text-slate-700 dark:text-slate-200 font-bold">Nova Senha</Label>
-                          <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="rounded-xl focus-visible:ring-slate-900 bg-slate-50/50" />
+                          <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="rounded-xl focus-visible:ring-slate-900 bg-slate-50/50 dark:bg-slate-800/50" />
                         </div>
                         <div className="space-y-2">
                           <Label className="text-slate-700 dark:text-slate-200 font-bold">Confirmação</Label>
-                          <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="rounded-xl focus-visible:ring-slate-900 bg-slate-50/50" />
+                          <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="rounded-xl focus-visible:ring-slate-900 bg-slate-50/50 dark:bg-slate-800/50" />
                         </div>
                       </div>
                     </CardContent>
@@ -1090,10 +1154,10 @@ export default function ProfilePage() {
                       <CardDescription className="text-xs mt-1">Faça login com um clique.</CardDescription>
                     </CardHeader>
                     <CardContent className="pt-6 px-8">
-                      <div className="flex items-center justify-between border border-slate-200 p-4 rounded-xl bg-white">
+                      <div className="flex items-center justify-between border border-slate-200 dark:border-slate-700 p-4 rounded-xl bg-white dark:bg-slate-800/50">
                         <div className="flex items-center gap-3">
                           <Mail className="text-red-500" size={20} />
-                          <span className="font-semibold text-sm text-slate-800">Google</span>
+                          <span className="font-semibold text-sm text-slate-800 dark:text-slate-100">Google</span>
                         </div>
                         {loadingAuthUser ? (
                           <Skeleton className="h-7 w-24 rounded-lg" />
@@ -1129,20 +1193,20 @@ export default function ProfilePage() {
                           {activeSessions.map((s, idx) => {
                             const isCurrent = idx === 0
                             return (
-                              <div key={s.id} className="flex items-center justify-between border-b border-slate-100 pb-4 last:border-0 last:pb-0">
+                              <div key={s.id} className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4 last:border-0 last:pb-0">
                                 <div className="flex items-center gap-4">
-                                  <div className={`p-2.5 rounded-full ${isCurrent ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                                  <div className={`p-2.5 rounded-full ${isCurrent ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}>
                                     <Laptop size={18} />
                                   </div>
                                   <div>
-                                    <p className="text-sm font-bold text-slate-900">{s.device_info ?? 'Dispositivo'}</p>
-                                    <p className="text-xs text-slate-500">
+                                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{s.device_info ?? 'Dispositivo'}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
                                       {s.location ? `${s.location} • ` : ''}{formatLastActive(s.last_active_at)}
                                     </p>
                                   </div>
                                 </div>
                                 {isCurrent ? (
-                                  <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-full">Atual</span>
+                                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-2 py-1 rounded-full">Atual</span>
                                 ) : (
                                   <Button
                                     variant="ghost"
@@ -1607,6 +1671,7 @@ export default function ProfilePage() {
         onClose={() => setUpgradeModalOpen(false)}
         reason="GENERIC_UPSELL"
         userName={profile?.full_name?.split(' ')[0] || 'Estudante'}
+        currentPlanTier={profile?.plan_tier}
       />
       </div>
     </div>

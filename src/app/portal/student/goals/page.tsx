@@ -144,7 +144,7 @@ function CreatePersonalGoalModal({ isOpen, onClose, userId, onSuccess, initialDa
                     </div>
                     <div className="flex gap-3 pt-4">
                         <button type="button" onClick={onClose} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold py-3 rounded-xl text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Cancelar</button>
-                        <button type="submit" disabled={loading} className={`flex-1 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-lg active:scale-95 ${initialData ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-200' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'}`}>
+                        <button type="submit" disabled={loading} className={`flex-1 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-lg active:scale-95 ${initialData ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-500/30 dark:shadow-purple-900/50' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/30 dark:shadow-blue-900/50'}`}>
                             {loading ? 'Salvando...' : 'Confirmar Meta'}
                         </button>
                     </div>
@@ -275,7 +275,7 @@ function GoalDetailsModal({ goal, userId, onClose, onUpdate, onDelete }: { goal:
                     {isEditing ? (
                         <>
                              <button onClick={() => setIsEditing(false)} className="text-slate-500 dark:text-slate-400 text-sm font-bold hover:underline">Cancelar</button>
-                             <button onClick={handleSave} disabled={loading} className="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-emerald-200 shadow-md hover:bg-emerald-700 flex items-center gap-2">
+                             <button onClick={handleSave} disabled={loading} className="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-emerald-500/30 dark:shadow-emerald-900/50 shadow-md hover:bg-emerald-700 flex items-center gap-2">
                                 <Save size={16}/> {loading ? 'Salvando...' : 'Salvar Alterações'}
                              </button>
                         </>
@@ -625,7 +625,7 @@ export default function StudentGoalsPage() {
                         <button 
                             onClick={handleAiSuggestion}
                             disabled={loadingAi}
-                            className="flex-1 md:flex-none bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 transition-all px-4 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-200 h-10 disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="flex-1 md:flex-none bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 transition-all px-4 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-500/30 dark:shadow-purple-900/50 h-10 disabled:opacity-70 disabled:cursor-not-allowed"
                         >
                             {loadingAi ? (
                                 <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></span>
@@ -697,8 +697,8 @@ export default function StudentGoalsPage() {
                             onClick={() => setSelectedGoalDetails(urgentGoal)} 
                             className={`relative overflow-hidden rounded-2xl text-white shadow-xl mb-8 p-8 flex flex-col md:flex-row justify-between items-center bg-gradient-to-r ${
                                 urgentGoal.source === 'personal' || urgentGoal.source === 'ai'
-                                ? 'bg-gradient-to-r from-emerald-600 to-teal-700 shadow-emerald-200/50'
-                                : 'bg-gradient-to-r from-blue-600 to-indigo-700 shadow-blue-200/50'
+                                ? 'bg-gradient-to-r from-emerald-600 to-teal-700 shadow-emerald-500/20 dark:shadow-emerald-900/40'
+                                : 'bg-gradient-to-r from-blue-600 to-indigo-700 shadow-blue-500/20 dark:shadow-blue-900/40'
                             } cursor-pointer group`}
                         >
                             <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-all"></div>

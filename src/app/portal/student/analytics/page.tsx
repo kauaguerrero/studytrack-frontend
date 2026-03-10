@@ -263,7 +263,7 @@ export default function StudentAnalyticsPage() {
             
             {/* --- GAMIFICATION / SPEEDRUN --- */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Card className="bg-violet-600 text-white border-0 shadow-lg shadow-violet-200 relative overflow-hidden">
+                <Card className="bg-violet-600 text-white border-0 shadow-lg shadow-violet-500/30 dark:shadow-violet-900/50 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-32 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
                     <CardHeader className="pb-2 relative z-10">
                         <CardTitle className="flex items-center gap-2 text-base font-medium text-violet-100">

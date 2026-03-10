@@ -199,9 +199,9 @@ export default function SimuladoPage() {
                                     const isSelected = userAnswers[questions[currentIdx].id] === alt.letter;
                                     return (
                                         <button key={alt.letter} onClick={() => handleSelectOption(alt.letter)}
-                                            className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-center group ${isSelected ? 'bg-blue-50/50 dark:bg-blue-900/40 border-blue-500 dark:border-blue-600 shadow-sm' : 'hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-100 dark:border-slate-700'}`}>
-                                            <span className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-bold shrink-0 transition-colors ${isSelected ? 'bg-blue-500 text-white border-blue-500' : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-300 border-slate-200 dark:border-slate-600'}`}>{alt.letter}</span>
-                                            <span className={`text-base leading-snug ${isSelected ? 'text-blue-900 dark:text-blue-100 font-medium' : 'text-slate-600 dark:text-slate-300'}`}>{alt.text}</span>
+                                            className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-center group ${isSelected ? 'bg-blue-50/50 dark:bg-blue-900/40 border-blue-500 dark:border-blue-600 shadow-sm' : 'bg-white dark:bg-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
+                                            <span className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-bold shrink-0 transition-colors ${isSelected ? 'bg-blue-500 text-white border-blue-500' : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-200 border-slate-200 dark:border-slate-600'}`}>{alt.letter}</span>
+                                            <span className={`text-base leading-snug ${isSelected ? 'text-blue-900 dark:text-blue-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}>{alt.text}</span>
                                         </button>
                                     )
                                 })}

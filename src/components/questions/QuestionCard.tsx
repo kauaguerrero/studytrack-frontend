@@ -116,21 +116,21 @@ export function QuestionCard({ question, userId, onQuotaReached, onReportError }
           const isSelected = selected === alt.letter;
           const isCorrect = String(alt.letter).toUpperCase() === String(question.correct_option).toUpperCase();
           
-          let style = "border-slate-200 hover:bg-slate-50 hover:border-blue-200 cursor-pointer";
-          let circleStyle = "bg-white text-slate-500 border-slate-200";
+          let style = "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-blue-200 dark:hover:border-blue-700 cursor-pointer";
+          let circleStyle = "bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-600";
 
           if (showAnswer) {
             if (isCorrect) {
-                style = "border-green-500 bg-green-50/50 ring-1 ring-green-500 cursor-default";
+                style = "border-green-500 bg-green-50/50 dark:bg-green-900/30 ring-1 ring-green-500 cursor-default";
                 circleStyle = "bg-green-500 text-white border-green-500";
             } else if (isSelected && !isCorrect) {
-                style = "border-red-500 bg-red-50/50 ring-1 ring-red-500 cursor-default";
+                style = "border-red-500 bg-red-50/50 dark:bg-red-900/30 ring-1 ring-red-500 cursor-default";
                 circleStyle = "bg-red-500 text-white border-red-500";
             } else {
-                style = "opacity-50 grayscale border-slate-100 cursor-default";
+                style = "opacity-50 grayscale border-slate-100 dark:border-slate-700 cursor-default";
             }
           } else if (isSelected) {
-            style = "border-blue-600 bg-blue-50/50 ring-1 ring-blue-600";
+            style = "border-blue-600 bg-blue-50/50 dark:bg-blue-900/40 ring-1 ring-blue-600";
             circleStyle = "bg-blue-600 text-white border-blue-600";
           }
 
@@ -152,11 +152,11 @@ export function QuestionCard({ question, userId, onQuotaReached, onReportError }
                       </div>
                   )}
                   {alt.text ? (
-                      <span className={`text-base leading-snug ${showAnswer && isCorrect ? 'text-green-900 font-medium' : 'text-slate-700'}`}>
+                      <span className={`text-base leading-snug ${showAnswer && isCorrect ? 'text-green-900 dark:text-green-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}>
                           {alt.text}
                       </span>
                   ) : !alt.image && (
-                      <span className="text-slate-400 italic text-sm">(Imagem indisponível)</span>
+                      <span className="text-slate-400 dark:text-slate-500 italic text-sm">(Imagem indisponível)</span>
                   )}
               </div>
               
@@ -167,23 +167,23 @@ export function QuestionCard({ question, userId, onQuotaReached, onReportError }
         })}
       </div>
 
-      <div className="mt-8 pt-6 border-t border-slate-100">
+      <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
         {!showAnswer ? (
             <button
             onClick={confirmAnswer}
             disabled={!selected || isSubmitting}
-            className="w-full sm:w-auto px-8 py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-slate-200 hover:-translate-y-1"
+            className="w-full sm:w-auto px-8 py-4 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-bold rounded-xl hover:bg-slate-800 dark:hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-slate-200 dark:shadow-slate-950 hover:-translate-y-1"
             >
             Confirmar Resposta
             </button>
         ) : (
-             <div className="p-6 bg-blue-50/50 rounded-2xl border border-blue-100 flex gap-4 items-start animate-in fade-in slide-in-from-top-4">
-                <div className="bg-blue-100 p-2 rounded-lg text-blue-600 shrink-0">
+             <div className="p-6 bg-blue-50/50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800/50 flex gap-4 items-start animate-in fade-in slide-in-from-top-4">
+                <div className="bg-blue-100 dark:bg-blue-900/50 p-2 rounded-lg text-blue-600 dark:text-blue-400 shrink-0">
                     <BrainCircuit size={24} />
                 </div>
                 <div>
-                    <h4 className="font-bold text-blue-900 mb-2">Comentário do Professor</h4>
-                    <p className="text-slate-700 text-sm leading-relaxed">{question.explanation}</p>
+                    <h4 className="font-bold text-blue-900 dark:text-blue-100 mb-2">Comentário do Professor</h4>
+                    <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">{question.explanation}</p>
                 </div>
              </div>
         )}
