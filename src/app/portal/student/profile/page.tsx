@@ -71,8 +71,10 @@ interface ProfileData {
   trial_start_date: string | null
   focus_area: string | null
   study_pace: string | null
+  study_period: string | null
   days_per_week: number | null
   hours_per_day: number | null
+  free_hours: string | null
   birth_date: string | null
   target_course: string | null
   target_university: string | null
@@ -164,8 +166,12 @@ export default function ProfilePage() {
 
   // States - Rotina (focus_area, study_pace, days_per_week, hours_per_day - alinhado ao onboarding)
   const [studyPace, setStudyPace] = useState('')
+  const [studyPeriod, setStudyPeriod] = useState('')
   const [daysPerWeek, setDaysPerWeek] = useState<number>(5)
   const [hoursPerDay, setHoursPerDay] = useState<number>(2)
+  // free_hours armazenado internamente como dois inputs de horário (ex: "19:00" e "21:00")
+  const [freeHoursStart, setFreeHoursStart] = useState('19:00')
+  const [freeHoursEnd, setFreeHoursEnd] = useState('21:00')
   const [savingRoutine, setSavingRoutine] = useState(false)
 
   // States - Segurança & Contas
@@ -292,8 +298,18 @@ export default function ProfilePage() {
     setSchoolYear(p.school_year ?? '')
     setFocusArea(p.focus_area ?? 'enem_geral')
     setStudyPace(p.study_pace ?? 'moderate')
+    setStudyPeriod(p.study_period ?? '')
     setDaysPerWeek(typeof p.days_per_week === 'number' ? Math.min(7, Math.max(1, p.days_per_week)) : 5)
     setHoursPerDay(typeof p.hours_per_day === 'number' ? Math.min(12, Math.max(1, p.hours_per_day)) : 2)
+    // Parseia a primeira janela de free_hours (formato "HH:MM-HH:MM")
+    if (p.free_hours) {
+      const firstWindow = p.free_hours.split(',')[0].trim()
+      const parts = firstWindow.split('-')
+      if (parts.length === 2) {
+        setFreeHoursStart(parts[0].trim())
+        setFreeHoursEnd(parts[1].trim())
+      }
+    }
     setEmailNotifications(p.email_notifications ?? true)
     setThemePref((p as ProfileData & { theme_preference?: string })?.theme_preference ?? 'system')
   }, [profileResponse])
@@ -572,11 +588,18 @@ export default function ProfilePage() {
     focus_area: focusArea || 'enem_geral',
   }, setSavingJourney)
 
-  const handleSaveRoutine = () => handleUpdateProfile({
-    study_pace: studyPace || 'moderate',
-    days_per_week: daysPerWeek,
-    hours_per_day: hoursPerDay,
-  }, setSavingRoutine)
+  const handleSaveRoutine = () => {
+    // Monta free_hours no formato "HH:MM-HH:MM" somente se ambos os horários estiverem preenchidos
+    const freeHours =
+      freeHoursStart && freeHoursEnd ? `${freeHoursStart}-${freeHoursEnd}` : null
+    handleUpdateProfile({
+      study_pace: studyPace || 'moderate',
+      study_period: studyPeriod || null,
+      days_per_week: daysPerWeek,
+      hours_per_day: hoursPerDay,
+      free_hours: freeHours,
+    }, setSavingRoutine)
+  }
 
   const handleSavePreferences = (field: 'email' | 'theme', value: string | boolean) => {
     if (field === 'email') {
@@ -1063,20 +1086,42 @@ export default function ProfilePage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8 pt-8 px-8">
+
+                    {/* Ritmo de Estudo */}
                     <div className="space-y-2">
-                        <Label className="text-slate-700 dark:text-slate-200 font-bold">Ritmo de Estudo</Label>
+                      <Label className="text-slate-700 dark:text-slate-200 font-bold">Ritmo de Estudo</Label>
                       <Select value={studyPace || 'moderate'} onValueChange={setStudyPace}>
                         <SelectTrigger className="rounded-xl focus-visible:ring-indigo-500 bg-slate-50/50">
                           <SelectValue placeholder="Selecione o ritmo" />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl">
-                          <SelectItem value="slow">Leve</SelectItem>
-                          <SelectItem value="moderate">Médio</SelectItem>
-                          <SelectItem value="intense">Intenso</SelectItem>
+                          <SelectItem value="slow">🐢 Leve — poucas tarefas por dia</SelectItem>
+                          <SelectItem value="moderate">⚡ Médio — ritmo equilibrado</SelectItem>
+                          <SelectItem value="intense">🔥 Intenso — máximo aproveitamento</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Período preferido + Dias/Horas */}
                     <div className="grid gap-6 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label className="text-slate-700 dark:text-slate-200 font-bold">Período preferido</Label>
+                        <Select value={studyPeriod || ''} onValueChange={setStudyPeriod}>
+                          <SelectTrigger className="rounded-xl focus-visible:ring-indigo-500 bg-slate-50/50">
+                            <SelectValue placeholder="Quando prefere estudar?" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="morning">🌅 Manhã</SelectItem>
+                            <SelectItem value="afternoon">☀️ Tarde</SelectItem>
+                            <SelectItem value="evening">🌙 Noite</SelectItem>
+                            <SelectItem value="flexible">🔄 Flexível</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Período geral de preferência para estudo.
+                        </p>
+                      </div>
+
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-200 font-bold">Dias por semana</Label>
                         <Select value={String(daysPerWeek)} onValueChange={(v) => setDaysPerWeek(parseInt(v, 10))}>
@@ -1090,20 +1135,62 @@ export default function ProfilePage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-slate-700 dark:text-slate-200 font-bold">Horas por dia</Label>
-                        <Select value={String(hoursPerDay)} onValueChange={(v) => setHoursPerDay(parseInt(v, 10))}>
-                          <SelectTrigger className="rounded-xl focus-visible:ring-indigo-500 bg-slate-50/50">
-                            <SelectValue placeholder="1 a 12" />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-xl">
-                            {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
-                              <SelectItem key={n} value={String(n)}>{n} h/dia</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
                     </div>
+
+                    {/* Horas por dia */}
+                    <div className="space-y-2">
+                      <Label className="text-slate-700 dark:text-slate-200 font-bold">Horas por dia</Label>
+                      <Select value={String(hoursPerDay)} onValueChange={(v) => setHoursPerDay(parseInt(v, 10))}>
+                        <SelectTrigger className="rounded-xl focus-visible:ring-indigo-500 bg-slate-50/50 max-w-xs">
+                          <SelectValue placeholder="1 a 12" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                            <SelectItem key={n} value={String(n)}>{n} h/dia</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Janela de horário livre */}
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-slate-700 dark:text-slate-200 font-bold flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-indigo-500" />
+                          Horário livre para estudar
+                        </Label>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Defina a janela de horário em que você fica disponível. Os lembretes de WhatsApp serão enviados nesse período.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-xs text-muted-foreground font-medium">Das</Label>
+                          <input
+                            type="time"
+                            value={freeHoursStart}
+                            onChange={(e) => setFreeHoursStart(e.target.value)}
+                            className="flex h-10 w-full rounded-xl border border-input bg-slate-50/50 px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:bg-slate-800/50 dark:border-slate-700"
+                          />
+                        </div>
+                        <div className="pt-5 text-muted-foreground font-medium text-sm select-none">até</div>
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-xs text-muted-foreground font-medium">Às</Label>
+                          <input
+                            type="time"
+                            value={freeHoursEnd}
+                            onChange={(e) => setFreeHoursEnd(e.target.value)}
+                            className="flex h-10 w-full rounded-xl border border-input bg-slate-50/50 px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:bg-slate-800/50 dark:border-slate-700"
+                          />
+                        </div>
+                      </div>
+                      {freeHoursStart && freeHoursEnd && (
+                        <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                          ⏰ Lembretes ativados: {freeHoursStart} às {freeHoursEnd}
+                        </p>
+                      )}
+                    </div>
+
                   </CardContent>
                   <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-8 py-5 flex justify-end">
                     <Button onClick={handleSaveRoutine} disabled={savingRoutine} className="bg-slate-900 text-white hover:bg-slate-800 rounded-xl px-8 font-semibold shadow-md">
