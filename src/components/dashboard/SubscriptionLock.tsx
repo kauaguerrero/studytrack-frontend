@@ -299,11 +299,11 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-cpf-pix">CPF (Obrigatório)</label>
-                                    <input 
+                                    <input
                                         id="subscription-cpf-pix"
-                                        name="cpf" value={formData.cpf} onChange={handleInputChange} 
+                                        name="cpf" value={formData.cpf} onChange={handleInputChange}
                                         placeholder="000.000.000-00"
-                                        className="w-full h-14 px-4 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
+                                        className="w-full h-14 px-4 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
                                     />
                                 </div>
                                 <button 
@@ -341,11 +341,11 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
                             <div className="space-y-1.5 relative">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-card-number">Número do Cartão</label>
                                 <div className="relative">
-                                    <input 
+                                    <input
                                         id="subscription-card-number"
-                                        name="cardNumber" value={formData.cardNumber} onChange={handleInputChange} 
+                                        name="cardNumber" value={formData.cardNumber} onChange={handleInputChange}
                                         placeholder="0000 0000 0000 0000"
-                                        className="w-full h-12 pl-12 pr-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm focus:bg-white focus:border-blue-500 transition-all outline-none shadow-sm"
+                                        className="w-full h-12 pl-12 pr-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm text-slate-900 focus:bg-white focus:border-blue-500 transition-all outline-none shadow-sm"
                                     />
                                     <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                                 </div>
@@ -354,27 +354,27 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-expiry">Validade</label>
-                                    <input id="subscription-expiry" name="expiry" value={formData.expiry} onChange={handleInputChange} placeholder="MM/AAAA" className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm focus:bg-white focus:border-blue-500 transition-all outline-none" />
+                                    <input id="subscription-expiry" name="expiry" value={formData.expiry} onChange={handleInputChange} placeholder="MM/AAAA" className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm text-slate-900 focus:bg-white focus:border-blue-500 transition-all outline-none" />
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-ccv">CVV</label>
-                                    <input id="subscription-ccv" name="ccv" value={formData.ccv} onChange={handleInputChange} placeholder="123" maxLength={4} className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm focus:bg-white focus:border-blue-500 transition-all outline-none" />
+                                    <input id="subscription-ccv" name="ccv" value={formData.ccv} onChange={handleInputChange} placeholder="123" maxLength={4} className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-sm text-slate-900 focus:bg-white focus:border-blue-500 transition-all outline-none" />
                                 </div>
                             </div>
                             
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-holder-name">Nome no Cartão</label>
-                                <input id="subscription-holder-name" name="holderName" value={formData.holderName} onChange={handleInputChange} placeholder="NOME IMPRESSO" className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold uppercase focus:bg-white focus:border-blue-500 transition-all outline-none" />
+                                <input id="subscription-holder-name" name="holderName" value={formData.holderName} onChange={handleInputChange} placeholder="NOME IMPRESSO" className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-bold uppercase focus:bg-white focus:border-blue-500 transition-all outline-none" />
                             </div>
 
                             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-cpf-card">CPF</label>
-                                    <input id="subscription-cpf-card" name="cpf" value={formData.cpf} onChange={handleInputChange} placeholder="000..." className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:border-blue-500 outline-none" />
+                                    <input id="subscription-cpf-card" name="cpf" value={formData.cpf} onChange={handleInputChange} placeholder="000..." className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-900 focus:bg-white focus:border-blue-500 outline-none" />
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase ml-1" htmlFor="subscription-postal-code">CEP</label>
-                                    <input id="subscription-postal-code" name="postalCode" value={formData.postalCode} onChange={handleInputChange} placeholder="00000..." className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:bg-white focus:border-blue-500 outline-none" />
+                                    <input id="subscription-postal-code" name="postalCode" value={formData.postalCode} onChange={handleInputChange} placeholder="00000..." className="w-full h-12 px-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs text-slate-900 focus:bg-white focus:border-blue-500 outline-none" />
                                 </div>
                             </div>
                         </div>

@@ -1433,7 +1433,7 @@ export default function ProfilePage() {
                                     {isPaid ? 'Pago' : 'Pendente'}
                                   </span>
                                   <div>
-                                    <p className="font-semibold text-slate-900">R$ {inv.value.toFixed(2).replace('.', ',')}</p>
+                                    <p className="font-semibold text-slate-900 dark:text-white">R$ {inv.value.toFixed(2).replace('.', ',')}</p>
                                     <p className="text-xs text-slate-500">{inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('pt-BR') : '—'}</p>
                                   </div>
                                 </div>
@@ -1457,13 +1457,6 @@ export default function ProfilePage() {
                     <Button size="lg" className="bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-600/20 rounded-xl font-bold text-base h-12 px-8" onClick={() => setUpgradeModalOpen(true)}>
                       <Zap className="mr-2 h-5 w-5" /> Fazer Upgrade
                     </Button>
-                    {billing?.subscription_status === 'active' && billing?.asaas_available && (
-                      <Button variant="outline" className="text-slate-600 border-slate-200 hover:bg-slate-50 rounded-xl font-semibold h-12 px-8" asChild>
-                        <a href={billing?.payment_link || 'https://www.asaas.com'} target="_blank" rel="noopener noreferrer">
-                          Gerenciar Método de Pagamento
-                        </a>
-                      </Button>
-                    )}
                     {billing?.subscription_status === 'active' && (
                       <Button variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl font-semibold h-12 ml-auto" onClick={() => setCancelModalOpen(true)}>
                         Cancelar Plano
