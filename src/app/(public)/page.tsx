@@ -191,7 +191,7 @@ export default function Home() {
                 </div>
 
                 <h1 className="text-4xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight text-slate-900 mb-6 leading-[1.1]">
-                  Pare de estudar sem direção.<br className="hidden sm:block" /><span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-violet-600">Comece a saber exatamente o que fazer — todo dia.</span>
+                  Pare de estudar sem direção.<br className="hidden sm:block" /><span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-violet-600"> Comece a saber exatamente o que fazer — todo dia.</span>
                 </h1>
 
                 <p className="text-base md:text-lg text-slate-600 mb-10 leading-relaxed max-w-xl mx-auto lg:mx-0">
