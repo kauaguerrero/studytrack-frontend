@@ -73,10 +73,10 @@ export default function OnboardingHandshake() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // IMPORTANTE: Agora buscamos também a 'role' para o redirect correto
+        // IMPORTANTE: Buscamos role, subscription_status e plan_tier para redirect correto
         const { data: profile } = await supabase
             .from('profiles')
-            .select('handshake_completed, whatsapp_phone, role')
+            .select('handshake_completed, whatsapp_phone, role, subscription_status, plan_tier')
             .eq('id', user.id)
             .single();
 
@@ -84,11 +84,23 @@ export default function OnboardingHandshake() {
             clearInterval(interval);
             setStep('success');
 
-            // Lógica de Redirecionamento Dinâmico baseada no cargo (role)
+            // Lógica de Redirecionamento Dinâmico
             setTimeout(() => {
                 const role = profile.role || 'student';
-                
-                // Mapeamento de rotas por tipo de usuário
+                const planTier = (profile.plan_tier || 'free').toLowerCase();
+                const subStatus = (profile.subscription_status || '').toLowerCase();
+
+                // Mudança 2: Redireciona para upgrade se pagamento pendente
+                if (
+                    role === 'student' &&
+                    planTier !== 'free' &&
+                    planTier !== 'b2b_student' &&
+                    subStatus !== 'active'
+                ) {
+                    window.location.href = '/portal/student/dashboard';
+                    return;
+                }
+
                 const dashboardRoutes: Record<string, string> = {
                     student: "/portal/student/dashboard",
                     teacher: "/portal/teacher",
@@ -98,8 +110,6 @@ export default function OnboardingHandshake() {
                 };
 
                 const targetRoute = dashboardRoutes[role] || "/portal/student/dashboard";
-                
-                // Usando window.location para garantir refresh completo dos menus/sidebar
                 window.location.href = targetRoute;
             }, 2000);
         }
