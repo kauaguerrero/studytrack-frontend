@@ -96,6 +96,10 @@ export default function SpeedRunPage() {
   const [feedback, setFeedback] = useState<'HIT' | 'MISS' | null>(null)
   const [shaking, setShaking] = useState(false)
 
+  // Resultado ao fim da partida (login verificado no endGame)
+  const [isLoggedInAtGameOver, setIsLoggedInAtGameOver] = useState<boolean | null>(null)
+  const [gameOverTime, setGameOverTime] = useState(0)
+
   // Analytics
   const sessionStartRef = useRef<number>(0)
   const questionStartRef = useRef<number>(0)
@@ -286,22 +290,27 @@ export default function SpeedRunPage() {
     if (gameEndedRef.current) return;
     gameEndedRef.current = true;
     toggleBGM(false)
-    setGameState('GAME_OVER')
     const totalTime = Math.floor((Date.now() - sessionStartRef.current) / 1000)
+    setGameOverTime(totalTime)
+    setIsLoggedInAtGameOver(null)
+    setGameState('GAME_OVER')
 
-    if (userId) {
+    const { data } = await supabase.auth.getUser()
+    const isLoggedIn = !!data?.user
+    setIsLoggedInAtGameOver(isLoggedIn)
+
+    if (isLoggedIn && data?.user?.id) {
       await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/games/speedrun/finish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: userId,
+          user_id: data.user.id,
           score,
           max_combo: maxCombo,
           survival_time: totalTime,
           answers: answersLog.current
         })
       })
-      // Não precisa chamar fetchHistory aqui pois o useEffect do activeTab cuidará disso quando o usuário voltar
     }
   }
 
@@ -599,9 +608,18 @@ export default function SpeedRunPage() {
     const correctCount = totalAnswered - failedAnswers.length
     const accuracy = totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) : 0
 
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center p-6 text-center animate-in zoom-in-95 duration-500 font-sans relative overflow-x-hidden">
+    // Verificando login (breve loading)
+    if (isLoggedInAtGameOver === null) {
+      return (
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center font-sans">
+          <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+          <p className="text-slate-400 font-bold text-sm uppercase tracking-widest mt-4">Salvando resultado...</p>
+        </div>
+      )
+    }
 
+    const resultContent = (
+      <>
         {/* Background FX */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-slate-950 to-slate-950 pointer-events-none"></div>
 
@@ -615,7 +633,7 @@ export default function SpeedRunPage() {
         {/* SCORE GIGANTE */}
         <div className="relative z-10 mb-8">
             <div className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-slate-400 tracking-tighter drop-shadow-2xl">
-            {score}
+            {score.toLocaleString('pt-BR')}
             </div>
             <div className="text-sm font-bold text-blue-500 uppercase tracking-[0.5em] mt-2 border-t border-slate-800 pt-2 inline-block">Pontuação Final</div>
         </div>
@@ -696,21 +714,69 @@ export default function SpeedRunPage() {
           </div>
         )}
 
-        {/* ACTIONS */}
-        <div className="flex flex-col gap-3 w-full max-w-xs z-10 mb-10">
-            <button
-                onClick={startGameLogic}
-                className="w-full py-4 bg-white hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-950 dark:text-slate-100 font-black rounded-xl transition-all active:scale-95 shadow-xl dark:shadow-none dark:border dark:border-slate-700 flex items-center justify-center gap-2"
-            >
-                <RotateCcw size={18} strokeWidth={3} /> JOGAR NOVAMENTE
-            </button>
-            <button
-                onClick={returnToMenu}
-                className="w-full py-4 bg-transparent border border-slate-800 text-slate-400 font-bold rounded-xl hover:bg-slate-900 hover:text-white transition-colors flex items-center justify-center gap-2"
-            >
-                <BarChart3 size={18} /> VER RANKING
-            </button>
+        {/* ACTIONS — só para usuário logado */}
+        {isLoggedInAtGameOver && (
+          <div className="flex flex-col gap-3 w-full max-w-xs z-10 mb-10">
+              <button
+                  onClick={startGame}
+                  className="w-full py-4 bg-white hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-950 dark:text-slate-100 font-black rounded-xl transition-all active:scale-95 shadow-xl dark:shadow-none dark:border dark:border-slate-700 flex items-center justify-center gap-2"
+              >
+                  <RotateCcw size={18} strokeWidth={3} /> JOGAR NOVAMENTE
+              </button>
+              <button
+                  onClick={returnToMenu}
+                  className="w-full py-4 bg-transparent border border-slate-800 text-slate-400 font-bold rounded-xl hover:bg-slate-900 hover:text-white transition-colors flex items-center justify-center gap-2"
+              >
+                  <BarChart3 size={18} /> VER RANKING
+              </button>
+          </div>
+        )}
+      </>
+    )
+
+    // Não logado: overlay/modal sobre a tela de resultado
+    if (!isLoggedInAtGameOver) {
+      const minutes = Math.floor(gameOverTime / 60)
+      const seconds = gameOverTime % 60
+      const timeStr = minutes > 0 ? `${minutes}min ${seconds}s` : `${seconds}s`
+      return (
+        <div className="min-h-screen bg-slate-950 flex flex-col items-center p-6 text-center animate-in zoom-in-95 duration-500 font-sans relative overflow-x-hidden">
+          {resultContent}
+          {/* Overlay para convidado */}
+          <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-sm">
+            <div className="max-w-md w-full bg-slate-900 border border-slate-700 rounded-3xl p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-300">
+              <div className="mb-6">
+                <p className="text-3xl font-black text-white mb-1">
+                  Você fez <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">{score.toLocaleString('pt-BR')}</span> pontos!
+                </p>
+                <p className="text-slate-400 text-sm font-medium">{timeStr} de jogo</p>
+              </div>
+              <p className="text-slate-300 font-medium mb-8 leading-relaxed">
+                Quer salvar seu progresso e participar da promoção do Top 1?
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => router.push('/auth/register')}
+                  className="w-full py-4 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-black rounded-xl transition-all active:scale-[0.98] shadow-lg"
+                >
+                  Criar conta grátis
+                </button>
+                <button
+                  onClick={() => router.push('/auth/login')}
+                  className="w-full py-4 bg-transparent border-2 border-slate-600 text-slate-300 font-bold rounded-xl hover:bg-slate-800 hover:border-slate-500 transition-colors"
+                >
+                  Já tenho conta
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
+      )
+    }
+
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center p-6 text-center animate-in zoom-in-95 duration-500 font-sans relative overflow-x-hidden">
+        {resultContent}
       </div>
     )
   }
