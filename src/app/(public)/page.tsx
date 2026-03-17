@@ -31,6 +31,17 @@ const customStyles = `
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  @keyframes notification-fall {
+    0% { opacity: 0; transform: translateY(-32px) scale(0.94); }
+    14% { opacity: 1; transform: translateY(6px) scale(1.02); }
+    22% { opacity: 1; transform: translateY(0) scale(1); }
+    82% { opacity: 1; transform: translateY(0) scale(1); }
+    90% { opacity: 0; transform: translateY(-24px) scale(0.96); }
+    100% { opacity: 0; transform: translateY(-32px) scale(0.94); }
+  }
+  .animate-notification-in {
+    animation: notification-fall 6s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+  }
   @keyframes blob {
     0%, 100% { transform: translate(0, 0) scale(1); }
     33% { transform: translate(30px, -50px) scale(1.1); }
@@ -58,9 +69,14 @@ const customStyles = `
   .reveal-d4 { transition-delay: 0.4s; }
   .reveal-d5 { transition-delay: 0.5s; }
 
+  /* Em mobile, todo conteúdo reveal já nasce visível (evita seções invisíveis) */
+  @media (max-width: 767px) {
+    .reveal { opacity: 1 !important; transform: translateY(0) !important; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .animate-float, .animate-pulse-glow, .animate-blob,
-    .animate-blob-2, .animate-blob-3 { animation: none !important; }
+    .animate-blob-2, .animate-blob-3, .animate-notification-in { animation: none !important; }
     .animate-fade-in-up { animation-duration: 0.01ms !important; }
     .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
   }
@@ -290,27 +306,52 @@ export default function Home() {
             aria-hidden
           ></div>
 
+          {/* Notificação StudyTrack — direita em telas sm+ */}
+          <div
+            className="absolute right-3 top-[16%] sm:right-6 sm:top-[20%] md:right-10 md:top-1/4 z-10 animate-notification-in w-[200px] sm:w-[220px] md:w-[260px] max-sm:hidden"
+            aria-hidden
+          >
+            <div className="glass rounded-2xl border border-white/10 p-3.5 shadow-xl">
+              <div className="flex items-center gap-2.5 mb-2">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center shrink-0">
+                  <Brain className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-white font-semibold text-sm truncate">StudyTrack</p>
+                  <p className="text-emerald-400 text-[10px] font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Agora
+                  </p>
+                </div>
+              </div>
+              <p className="text-white/80 text-xs leading-snug">
+                Missões sendo enviadas agora
+              </p>
+            </div>
+          </div>
+
           <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
 
-            {/* Status badge */}
-            <div
-              className="inline-flex items-center gap-2 glass px-4 py-1.5 rounded-full text-blue-300 text-xs font-bold mb-8 uppercase tracking-widest animate-fade-in-up text-center max-w-full"
-              style={{ animationDelay: '0s' }}
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-400"></span>
-              </span>
-              Missões sendo enviadas agora
+            {/* Notificação StudyTrack — acima do texto em telas menores */}
+            <div className="sm:hidden flex justify-center mb-6 animate-notification-in" aria-hidden>
+              <div className="glass rounded-2xl border border-white/10 p-3.5 shadow-xl w-full max-w-[240px]">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center shrink-0">
+                    <Brain className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-white font-semibold text-sm truncate">StudyTrack</p>
+                    <p className="text-emerald-400 text-[10px] font-medium flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Agora
+                    </p>
+                  </div>
+                </div>
+                <p className="text-white/80 text-xs leading-snug">
+                  Missões sendo enviadas agora
+                </p>
+              </div>
             </div>
-
-            {/* Micro-cena */}
-            <p
-              className="text-sm italic text-white/45 mb-8 leading-relaxed max-w-lg mx-auto animate-fade-in-up"
-              style={{ animationDelay: '0.1s' }}
-            >
-              São 23h14. Você abriu o computador para estudar. Trinta minutos depois, ainda está no Google, com nove abas abertas, sem ter resolvido uma questão sequer.
-            </p>
 
             {/* Headline */}
             <h1
@@ -318,7 +359,7 @@ export default function Home() {
               style={{ animationDelay: '0.2s' }}
             >
               Enquanto você decide o que estudar hoje,{' '}
-              <span className="text-gradient">outra pessoa acabou de fechar a lacuna que vai te custar pontos.</span>
+              <span className="text-gradient">outra pessoa acabou de fechar o conteúdo que vai te custar pontos.</span>
             </h1>
 
             {/* Subtítulo */}
@@ -343,35 +384,10 @@ export default function Home() {
               <p className="text-xs text-white/35">3 dias grátis · Sem cartão · Cancela em 1 toque</p>
             </div>
 
-            {/* Social proof pill */}
-            <div
-              className="mt-10 animate-fade-in-up"
-              style={{ animationDelay: '0.5s' }}
-            >
-              <div className="inline-flex items-center gap-3 glass px-5 py-3 rounded-full">
-                <div className="flex -space-x-2">
-                  {[
-                    { l: 'B', bg: '#3B82F6' },
-                    { l: 'M', bg: '#8B5CF6' },
-                    { l: 'L', bg: '#06B6D4' },
-                    { l: 'K', bg: '#10B981' },
-                  ].map(({ l, bg }, i) => (
-                    <div
-                      key={i}
-                      className="w-7 h-7 rounded-full border-2 border-slate-900 flex items-center justify-center text-[9px] font-bold text-white"
-                      style={{ background: bg }}
-                    >
-                      {l}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-sm text-white/65 font-medium">4.217 estudantes já receberam a missão de hoje</p>
-              </div>
-            </div>
           </div>
 
           {/* Scroll indicator */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce" aria-hidden>
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce max-md:hidden" aria-hidden>
             <div className="w-6 h-10 rounded-full border-2 border-white/20 flex items-start justify-center pt-2">
               <div className="w-1.5 h-3 rounded-full bg-white/35"></div>
             </div>
@@ -461,7 +477,7 @@ export default function Home() {
         {/* ================================================================
             SEÇÃO 3 — WHATSAPP COMO REVOLUÇÃO
         ================================================================ */}
-        <section className="py-16 sm:py-24 bg-slate-950 relative overflow-hidden">
+        <section id="section-whatsapp" className="py-16 sm:py-24 bg-slate-950 relative overflow-hidden">
           <div className="absolute inset-0 pointer-events-none" aria-hidden>
             <div className="absolute top-0 right-[-10%] w-[400px] h-[400px] bg-emerald-500/10 rounded-full blur-[100px]"></div>
             <div className="absolute bottom-0 left-[-5%] w-[300px] h-[300px] bg-blue-600/10 rounded-full blur-[80px]"></div>
@@ -1036,21 +1052,21 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Redação Master */}
-              <div className="reveal reveal-d3 flex flex-col h-full bg-slate-900/80 border border-violet-500/25 p-8 rounded-3xl relative hover:border-violet-400/50 hover:-translate-y-1 transition-all duration-300 shadow-lg shadow-violet-900/10">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-white px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide whitespace-nowrap" style={{ background: 'linear-gradient(135deg, #7C3AED, #9333EA)' }}>Elite</div>
-                <h3 className="text-lg font-medium text-violet-300">Redação Master</h3>
+              {/* Redação Master — Em breve */}
+              <div className="reveal reveal-d3 flex flex-col h-full bg-slate-900/60 border border-slate-600/50 p-8 rounded-3xl relative opacity-75 cursor-not-allowed transition-all duration-300">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-600 text-slate-400 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide whitespace-nowrap">Em breve</div>
+                <h3 className="text-lg font-medium text-slate-500">Redação Master</h3>
                 <div className="my-4 flex items-end gap-1">
-                  <span className="text-4xl font-bold text-white">R$ 49,90</span>
-                  <span className="text-xs text-slate-400 mb-1">/mês</span>
+                  <span className="text-4xl font-bold text-slate-500">R$ 49,90</span>
+                  <span className="text-xs text-slate-500 mb-1">/mês</span>
                 </div>
-                <p className="text-sm text-slate-400 mb-6 flex-1">Para quem quer dominar o que mais assusta.</p>
+                <p className="text-sm text-slate-500 mb-6 flex-1">Para quem quer dominar o que mais assusta.</p>
                 <div className="mt-auto">
-                  <a href="/auth/register?plan=elite" className="block w-full py-3 rounded-xl border border-violet-500/40 text-violet-300 hover:bg-violet-600 hover:text-white hover:border-violet-600 text-center font-semibold transition-all cursor-pointer">Assinar o Redação Master</a>
-                  <div className="mt-6 space-y-3 text-sm text-slate-300">
-                    <p className="flex gap-2 items-center"><CheckCircle className="w-4 h-4 text-violet-400 shrink-0" /> Tudo do Pro</p>
-                    <p className="flex gap-2 items-center font-bold text-white"><PenTool className="w-4 h-4 text-violet-400 shrink-0" /> Correção ilimitada de redações</p>
-                    <p className="flex gap-2 items-center"><CheckCircle className="w-4 h-4 text-violet-400 shrink-0" /> Feedback estruturado por competência</p>
+                  <span className="block w-full py-3 rounded-xl border border-slate-600 text-slate-500 text-center font-semibold bg-slate-800/50 cursor-not-allowed select-none">Em breve</span>
+                  <div className="mt-6 space-y-3 text-sm text-slate-500">
+                    <p className="flex gap-2 items-center"><CheckCircle className="w-4 h-4 text-slate-500 shrink-0" /> Tudo do Pro</p>
+                    <p className="flex gap-2 items-center"><PenTool className="w-4 h-4 text-slate-500 shrink-0" /> Correção ilimitada de redações</p>
+                    <p className="flex gap-2 items-center"><CheckCircle className="w-4 h-4 text-slate-500 shrink-0" /> Feedback estruturado por competência</p>
                   </div>
                 </div>
               </div>
@@ -1109,7 +1125,7 @@ export default function Home() {
         {/* ================================================================
             SEÇÃO 11 — CTA FINAL
         ================================================================ */}
-        <section className="py-16 sm:py-28 relative overflow-hidden" style={{ background: 'linear-gradient(150deg, #0F172A 0%, #1E1B4B 40%, #0F172A 100%)' }}>
+        <section id="section-cta-final" className="py-16 sm:py-28 relative overflow-hidden" style={{ background: 'linear-gradient(150deg, #0F172A 0%, #1E1B4B 40%, #0F172A 100%)' }}>
           <div className="absolute inset-0 pointer-events-none" aria-hidden>
             <div className="absolute top-[-20%] left-[10%] w-[400px] h-[400px] bg-blue-600/20 rounded-full blur-[100px] animate-blob"></div>
             <div className="absolute bottom-[-10%] right-[10%] w-[300px] h-[300px] bg-violet-600/20 rounded-full blur-[80px] animate-blob-2"></div>
@@ -1134,11 +1150,6 @@ export default function Home() {
               Quero minha primeira missão amanhã às 8h →
             </a>
             <p className="text-sm text-white/35 mb-8">3 dias grátis · Sem cartão · Se não fizer sentido, não paga nada</p>
-
-            <div className="inline-flex items-center gap-2 glass px-5 py-2.5 rounded-full mb-12">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-              <p className="text-sm text-white/65 font-medium">4.200+ estudantes já sabem o que estudar hoje</p>
-            </div>
 
             <p className="text-xs text-white/30 italic leading-relaxed max-w-md mx-auto">
               Se a única coisa que mudar depois desta página for você acordar amanhã sabendo exatamente o que estudar — valeu a pena? A página continua aqui se você precisar voltar. A missão de amanhã, não.
