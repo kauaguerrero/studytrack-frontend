@@ -18,6 +18,20 @@ type ChatItem =
       payload: any;
     };
 
+type WhatsappLogRow = {
+  id: string;
+  direction: 'inbound' | 'outbound' | null;
+  payload: any;
+  created_at: string | null;
+};
+
+type AdminActionRow = {
+  id: string;
+  action_type: string | null;
+  payload: any;
+  created_at: string | null;
+};
+
 function extractText(payload: any): string {
   if (!payload || typeof payload !== 'object') return '';
   const t = payload?.text?.body;
@@ -43,7 +57,7 @@ export async function GET(request: Request) {
   const userId = url.searchParams.get('userId');
   if (!userId) return NextResponse.json({ error: 'Parâmetro userId é obrigatório' }, { status: 400 });
 
-  const [{ data: logs, error: e1 }, { data: actions, error: e2 }] = await Promise.all([
+  const [{ data: logsRes, error: e1 }, { data: actionsRes, error: e2 }] = await Promise.all([
     auth.supabaseAdmin
       .from('whatsapp_logs')
       .select('id, direction, payload, created_at')
@@ -63,21 +77,23 @@ export async function GET(request: Request) {
 
   const items: ChatItem[] = [];
 
-  for (const l of logs ?? []) {
+  const logs = (logsRes ?? []) as WhatsappLogRow[];
+  for (const l of logs) {
     items.push({
       kind: 'whatsapp_log',
-      id: l.id as string,
-      direction: (l.direction as any) ?? null,
+      id: String(l.id),
+      direction: (l.direction as WhatsappLogRow['direction']) ?? null,
       text: extractText(l.payload),
       created_at: (l.created_at as string | null) ?? null,
     });
   }
 
-  for (const a of actions ?? []) {
+  const actions = (actionsRes ?? []) as AdminActionRow[];
+  for (const a of actions) {
     const payload = a.payload ?? {};
     items.push({
       kind: 'admin_action',
-      id: a.id as string,
+      id: String(a.id),
       action_type: (a.action_type as string | null) ?? null,
       text: formatAdminAction((a.action_type as string | null) ?? null, payload),
       created_at: (a.created_at as string | null) ?? null,
