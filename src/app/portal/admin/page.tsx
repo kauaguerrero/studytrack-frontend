@@ -152,7 +152,7 @@ export default function SuperAdminDashboard() {
                 <CardTitle className="flex items-center gap-2 text-lg">
                     <Zap className="w-5 h-5 text-amber-500" /> Fidelidade de Uso (Stickiness)
                 </CardTitle>
-                <CardDescription>DAU/MAU Ratio: Quanto seu app é um hábito diário?</CardDescription>
+                <CardDescription>DAU/MAU por último dia com atividade (last_activity_date).</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="flex items-center justify-between mb-4">
