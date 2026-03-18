@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import 'server-only';
 
 let _admin: ReturnType<typeof createClient> | null = null;
 
@@ -7,7 +8,20 @@ export function createAdminClient() {
 
   // Server-only: não use NEXT_PUBLIC_* para chaves sensíveis
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
+
+  // Se alguém configurou a service role como NEXT_PUBLIC em produção, é melhor falhar cedo.
+  if (
+    process.env.NODE_ENV === 'production' &&
+    !process.env.SUPABASE_SERVICE_ROLE_KEY &&
+    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
+  ) {
+    throw new Error(
+      'Supabase admin client: não use NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY em produção. Use SUPABASE_SERVICE_ROLE_KEY apenas.'
+    );
+  }
 
   if (!url || !serviceKey) {
     const missing = [
