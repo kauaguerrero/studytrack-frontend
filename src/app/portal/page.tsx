@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { UserRole } from '@/types/roles';
 
 export default async function PortalRedirect() {
   const supabase = await createClient();
@@ -16,7 +17,11 @@ export default async function PortalRedirect() {
     .eq('id', user.id)
     .single();
 
-  const role = profile?.role || user.user_metadata?.role || 'student';
+  const rawRole = profile?.role || user.user_metadata?.role || 'student';
+  const roleStr = String(rawRole ?? 'student').trim().toLowerCase();
+  const role: UserRole = (['student', 'teacher', 'manager', 'admin', 'secretariat'] as const).includes(roleStr as any)
+    ? (roleStr as UserRole)
+    : 'student';
 
   // Redireciona para a página inicial de cada papel
   switch (role) {
