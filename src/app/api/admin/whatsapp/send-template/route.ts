@@ -3,6 +3,16 @@ import { requireAdmin } from '@/app/api/admin/_utils';
 
 type BodyParam = { type: 'text'; text: string };
 
+function formatPhone(phone: string): string {
+  const clean = String(phone ?? '')
+    .split('')
+    .filter((c) => c >= '0' && c <= '9')
+    .join('');
+  if (!clean) return '';
+  if (clean.length === 10 || clean.length === 11) return `55${clean}`;
+  return clean;
+}
+
 export async function POST(request: Request) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
@@ -33,6 +43,10 @@ export async function POST(request: Request) {
   const parameters: BodyParam[] = (variables ?? []).map((v) => ({ type: 'text', text: String(v ?? '') }));
 
   const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
+  const formattedTo = formatPhone(to);
+  if (!formattedTo) {
+    return NextResponse.json({ error: 'Número de WhatsApp inválido (to)' }, { status: 400 });
+  }
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -41,7 +55,7 @@ export async function POST(request: Request) {
     },
     body: JSON.stringify({
       messaging_product: 'whatsapp',
-      to,
+      to: formattedTo,
       type: 'template',
       template: {
         name: template_name,
