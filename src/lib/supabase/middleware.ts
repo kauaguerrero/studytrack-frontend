@@ -6,6 +6,13 @@ export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
   const path = request.nextUrl.pathname;
 
+  const normalizeRole = (role: unknown): UserRole | null => {
+    if (!role) return null;
+    const s = String(role).trim().toLowerCase();
+    const allowed: UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat'];
+    return allowed.includes(s as UserRole) ? (s as UserRole) : null;
+  };
+
   // 1. OTIMIZAÇÃO CRÍTICA: Ignorar arquivos estáticos IMEDIATAMENTE (Evita Deadlock)
   if (
     path.startsWith('/_next') ||
@@ -61,7 +68,8 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    let currentRole: UserRole = (user.user_metadata?.role || 'student') as UserRole;
+    let currentRole: UserRole = (normalizeRole(user.user_metadata?.role) ?? 'student') as UserRole;
+    let profileRoleForLog: unknown = null;
 
     if (
       path.startsWith('/portal/manager') ||
@@ -74,7 +82,9 @@ export async function updateSession(request: NextRequest) {
           .select('role')
           .eq('id', user.id)
           .single();
-        if (profile?.role) currentRole = profile.role as UserRole;
+        profileRoleForLog = profile?.role ?? null;
+        const dbRole = normalizeRole(profile?.role);
+        if (dbRole) currentRole = dbRole;
     }
 
     // Redirects baseados em Role
@@ -84,6 +94,15 @@ export async function updateSession(request: NextRequest) {
     }
 
     if (path.startsWith('/portal/admin') && currentRole !== 'admin') {
+        if (process.env.NODE_ENV === 'production') {
+          console.log('[RBAC][ADMIN] redirect detected', {
+            path,
+            currentRole,
+            metaRole: user.user_metadata?.role,
+            profileRole: profileRoleForLog,
+            userId: user.id,
+          });
+        }
         const dest = currentRole === 'manager' ? '/portal/manager' : currentRole === 'teacher' ? '/portal/teacher' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
         return NextResponse.redirect(new URL(dest, request.url));
     }
