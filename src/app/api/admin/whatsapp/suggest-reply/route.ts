@@ -20,6 +20,7 @@ function extractText(payload: any): string {
 export async function POST(request: Request) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
+  const supabaseAdmin = auth.supabaseAdmin as any;
 
   const { userId, messageId, userMessage } = (await request.json().catch(() => ({}))) as {
     userId?: string;
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Env ANTHROPIC_API_KEY ausente' }, { status: 500 });
   }
 
-  const { data: profile } = await auth.supabaseAdmin
+  const { data: profile } = await supabaseAdmin
     .from('profiles')
     .select('conversion_stage')
     .eq('id', userId)
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
 
   const conversionStage = (profile?.conversion_stage as string | null) ?? 'nao_abordado';
 
-  const { data: logs } = await auth.supabaseAdmin
+  const { data: logs } = await supabaseAdmin
     .from('whatsapp_logs')
     .select('id, direction, payload, created_at')
     .eq('user_id', userId)

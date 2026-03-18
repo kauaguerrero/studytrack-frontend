@@ -85,6 +85,7 @@ function daysSince(iso: string | null | undefined) {
 export async function GET(request: Request) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
+  const supabaseAdmin = auth.supabaseAdmin as any;
 
   const url = new URL(request.url);
   const page = clampInt(url.searchParams.get('page'), 1, 1, 500);
@@ -98,7 +99,7 @@ export async function GET(request: Request) {
   const all = url.searchParams.get('all') === 'true';
 
   // Perfis trial (tamanho atual pequeno ~122). Mantemos simples e robusto: carrega e agrega em memória.
-  const { data: profiles, error: profilesErr } = await auth.supabaseAdmin
+  const { data: profiles, error: profilesErr } = await supabaseAdmin
     .from('profiles')
     .select([
       'id',
@@ -125,18 +126,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: profilesErr.message }, { status: 500 });
   }
 
-  const ids = (profiles ?? []).map((p) => p.id).filter(Boolean);
+  const ids = ((profiles ?? []) as any[]).map((p: any) => p.id).filter(Boolean);
 
   // whatsapp_daily_usage: soma de message_count e OR de limit_reached
   const usageByUser = new Map<string, { messages: number; limit: boolean }>();
   if (ids.length) {
-    const { data: usageRows } = await auth.supabaseAdmin
+    const { data: usageRows } = await supabaseAdmin
       .from('whatsapp_daily_usage')
       .select('user_id, message_count, limit_reached')
       .in('user_id', ids)
       .limit(100000);
 
-    for (const r of usageRows ?? []) {
+    for (const r of (usageRows ?? []) as any[]) {
       const userId = r.user_id as string | null;
       if (!userId) continue;
       const prev = usageByUser.get(userId) ?? { messages: 0, limit: false };
@@ -150,13 +151,13 @@ export async function GET(request: Request) {
   // whatsapp_logs: contagem e última interação (created_at)
   const logByUser = new Map<string, { count: number; lastAt: string | null; lastInboundAt: string | null }>();
   if (ids.length) {
-    const { data: logRows } = await auth.supabaseAdmin
+    const { data: logRows } = await supabaseAdmin
       .from('whatsapp_logs')
       .select('user_id, created_at, direction')
       .in('user_id', ids)
       .limit(100000);
 
-    for (const r of logRows ?? []) {
+    for (const r of (logRows ?? []) as any[]) {
       const userId = r.user_id as string | null;
       if (!userId) continue;
       const createdAt = (r.created_at as string | null) ?? null;
@@ -173,14 +174,14 @@ export async function GET(request: Request) {
   // admin_actions_log: contagem de abordagens (message_sent + template_sent)
   const approachesByUser = new Map<string, number>();
   if (ids.length) {
-    const { data: actionRows } = await auth.supabaseAdmin
+    const { data: actionRows } = await supabaseAdmin
       .from('admin_actions_log')
       .select('user_id, action_type')
       .in('user_id', ids)
       .in('action_type', ['message_sent', 'template_sent'])
       .limit(100000);
 
-    for (const r of actionRows ?? []) {
+    for (const r of (actionRows ?? []) as any[]) {
       const userId = r.user_id as string | null;
       if (!userId) continue;
       approachesByUser.set(userId, (approachesByUser.get(userId) ?? 0) + 1);

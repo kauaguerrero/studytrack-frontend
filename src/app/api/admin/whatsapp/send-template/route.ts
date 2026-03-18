@@ -6,6 +6,7 @@ type BodyParam = { type: 'text'; text: string };
 export async function POST(request: Request) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
+  const supabaseAdmin = auth.supabaseAdmin as any;
 
   const {
     to,
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
   try {
     let targetUserId = userId ?? null;
     if (!targetUserId) {
-      const { data: p } = await auth.supabaseAdmin
+      const { data: p } = await supabaseAdmin
         .from('profiles')
         .select('id')
         .eq('whatsapp_phone', to)
@@ -73,21 +74,21 @@ export async function POST(request: Request) {
     }
 
     if (targetUserId) {
-      await auth.supabaseAdmin.from('admin_actions_log').insert({
+      await supabaseAdmin.from('admin_actions_log').insert({
         user_id: targetUserId,
         admin_id: auth.user.id,
         action_type: 'template_sent',
         payload: { template_name, variables: variables ?? [] },
       });
 
-      const { data: existing } = await auth.supabaseAdmin
+      const { data: existing } = await supabaseAdmin
         .from('profiles')
         .select('conversion_stage')
         .eq('id', targetUserId)
         .maybeSingle();
 
       if ((existing?.conversion_stage as string | null) === 'nao_abordado' || !existing?.conversion_stage) {
-        await auth.supabaseAdmin.from('profiles').update({ conversion_stage: 'abordado' }).eq('id', targetUserId);
+        await supabaseAdmin.from('profiles').update({ conversion_stage: 'abordado' }).eq('id', targetUserId);
       }
     }
   } catch {

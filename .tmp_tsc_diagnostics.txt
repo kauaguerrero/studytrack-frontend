@@ -1,0 +1,35 @@
+npm warn Unknown env config "devdir". This will stop working in the next major version of npm.
+src/app/api/admin/reengagement/stage/route.ts(30,31): error TS2339: Property 'conversion_stage' does not exist on type 'never'.
+src/app/api/admin/reengagement/stage/route.ts(34,13): error TS2345: Argument of type '{ conversion_stage: string; }' is not assignable to parameter of type 'never'.
+src/app/api/admin/reengagement/stage/route.ts(40,56): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: never, options?: { count?: "exact" | "planned" | "estimated" | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: string; }, never, never, null, "admin_actions_log", never, "POST">', gave the following error.
+    Argument of type '{ user_id: string; admin_id: string; action_type: string; payload: { old_stage: string; new_stage: string; }; }' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(values: never[], options?: { count?: "exact" | "planned" | "estimated" | undefined; defaultToNull?: boolean | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: string; }, never, never, null, "admin_actions_log", never, "POST">', gave the following error.
+    Object literal may only specify known properties, and 'user_id' does not exist in type 'never[]'.
+src/app/api/admin/reengagement/users/route.ts(128,45): error TS2339: Property 'id' does not exist on type 'never'.
+src/app/api/admin/reengagement/users/route.ts(140,24): error TS2339: Property 'user_id' does not exist on type 'never'.
+src/app/api/admin/reengagement/users/route.ts(144,44): error TS2339: Property 'message_count' does not exist on type 'never'.
+src/app/api/admin/reengagement/users/route.ts(145,34): error TS2339: Property 'limit_reached' does not exist on type 'never'.
+src/app/api/admin/reengagement/users/route.ts(160,24): error TS2339: Property 'user_id' does not exist on type 'never'.
+src/app/api/admin/reengagement/users/route.ts(162,28): error TS2339: Property 'created_at' does not exist on type 'never'.
+src/app/api/admin/reengagement/users/route.ts(163,28): error TS2339: Property 'direction' does not exist on type 'never'.
+src/app/api/admin/reengagement/users/route.ts(184,24): error TS2339: Property 'user_id' does not exist on type 'never'.
+src/app/api/admin/whatsapp/send-template/route.ts(72,26): error TS2339: Property 'id' does not exist on type 'never'.
+src/app/api/admin/whatsapp/send-template/route.ts(76,58): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: never, options?: { count?: "exact" | "planned" | "estimated" | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: string; }, never, never, null, "admin_actions_log", never, "POST">', gave the following error.
+    Argument of type '{ user_id: string; admin_id: string; action_type: string; payload: { template_name: string; variables: string[]; }; }' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(values: never[], options?: { count?: "exact" | "planned" | "estimated" | undefined; defaultToNull?: boolean | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: string; }, never, never, null, "admin_actions_log", never, "POST">', gave the following error.
+    Object literal may only specify known properties, and 'user_id' does not exist in type 'never[]'.
+src/app/api/admin/whatsapp/send-template/route.ts(89,22): error TS2339: Property 'conversion_stage' does not exist on type 'never'.
+src/app/api/admin/whatsapp/send-template/route.ts(89,90): error TS2339: Property 'conversion_stage' does not exist on type 'never'.
+src/app/api/admin/whatsapp/send-template/route.ts(90,58): error TS2345: Argument of type '{ conversion_stage: string; }' is not assignable to parameter of type 'never'.
+src/app/api/admin/whatsapp/send/route.ts(49,26): error TS2339: Property 'id' does not exist on type 'never'.
+src/app/api/admin/whatsapp/send/route.ts(53,58): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: never, options?: { count?: "exact" | "planned" | "estimated" | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: string; }, never, never, null, "admin_actions_log", never, "POST">', gave the following error.
+    Argument of type '{ user_id: string; admin_id: string; action_type: string; payload: { message: string; }; }' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(values: never[], options?: { count?: "exact" | "planned" | "estimated" | undefined; defaultToNull?: boolean | undefined; } | undefined): PostgrestFilterBuilder<{ PostgrestVersion: string; }, never, never, null, "admin_actions_log", never, "POST">', gave the following error.
+    Object literal may only specify known properties, and 'user_id' does not exist in type 'never[]'.
+src/app/api/admin/whatsapp/send/route.ts(66,22): error TS2339: Property 'conversion_stage' does not exist on type 'never'.
+src/app/api/admin/whatsapp/send/route.ts(66,90): error TS2339: Property 'conversion_stage' does not exist on type 'never'.
+src/app/api/admin/whatsapp/send/route.ts(67,58): error TS2345: Argument of type '{ conversion_stage: string; }' is not assignable to parameter of type 'never'.
+src/app/api/admin/whatsapp/suggest-reply/route.ts(45,37): error TS2339: Property 'conversion_stage' does not exist on type 'never'.
