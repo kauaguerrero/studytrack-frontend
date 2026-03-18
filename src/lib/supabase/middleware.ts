@@ -78,6 +78,11 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(new URL(dest, request.url));
     }
 
+    if (path.startsWith('/portal/admin') && currentRole !== 'admin') {
+        const dest = currentRole === 'manager' ? '/portal/manager' : currentRole === 'teacher' ? '/portal/teacher' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
+        return NextResponse.redirect(new URL(dest, request.url));
+    }
+
     if (path.startsWith('/portal/manager') && currentRole !== 'manager' && currentRole !== 'admin') {
          const dest = currentRole === 'teacher' ? '/portal/teacher' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
          return NextResponse.redirect(new URL(dest, request.url));
