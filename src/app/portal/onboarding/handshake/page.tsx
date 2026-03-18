@@ -20,10 +20,10 @@ export default function OnboardingHandshake() {
 
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
+
       if (sessionError || !session) {
         console.error("Sessão inválida:", sessionError);
-        router.push("/auth/login"); // CORREÇÃO: Redireciona para a rota correta
+        router.push("/auth/login");
         return;
       }
 
@@ -90,7 +90,7 @@ export default function OnboardingHandshake() {
                 const planTier = (profile.plan_tier || 'free').toLowerCase();
                 const subStatus = (profile.subscription_status || '').toLowerCase();
 
-                // Mudança 2: Redireciona para upgrade se pagamento pendente
+                // Pagamento pendente: vai ao dashboard, que vai exibir o SubscriptionLock
                 if (
                     role === 'student' &&
                     planTier !== 'free' &&
@@ -158,7 +158,7 @@ export default function OnboardingHandshake() {
         <h2 className="text-2xl font-extrabold text-slate-900 mb-3 tracking-tight">
           Ative seu Assistente
         </h2>
-        
+
         <p className="text-slate-500 mb-8 leading-relaxed text-sm">
             Clique no botão abaixo para abrir o WhatsApp e enviar o código de conexão automática.
         </p>

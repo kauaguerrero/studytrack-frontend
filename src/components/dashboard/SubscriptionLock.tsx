@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Lock, CreditCard, CheckCircle2, Loader2, ShieldCheck, 
-  AlertCircle, QrCode, Copy, Sparkles, ChevronRight, Fingerprint 
+import {
+  Lock, CreditCard, CheckCircle2, Loader2, ShieldCheck,
+  AlertCircle, QrCode, Copy, Sparkles, ChevronRight, Fingerprint, X
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
@@ -12,9 +12,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface SubscriptionLockProps {
   planTier: string;
   userName: string;
+  onClose?: () => void; // quando definido, exibe botão X para voltar à seleção de planos
 }
 
-export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) {
+export function SubscriptionLock({ planTier, userName, onClose }: SubscriptionLockProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'CREDIT_CARD' | 'PIX'>('PIX');
   const [loading, setLoading] = useState(false);
@@ -80,6 +81,22 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
     setFormData(prev => ({ ...prev, [name]: v }));
   };
 
+  const redirectAfterPayment = async () => {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { window.location.href = '/auth/login'; return; }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('handshake_completed')
+      .eq('id', session.user.id)
+      .single();
+    if (!profile?.handshake_completed) {
+      window.location.href = '/portal/onboarding/handshake';
+    } else {
+      window.location.href = '/portal/student/dashboard';
+    }
+  };
+
   const handleCreditCardPayment = async () => {
     setError('');
     // Validação básica visual
@@ -89,21 +106,20 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
     }
 
     setLoading(true);
-    
+
     try {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Sessão expirada.");
 
       const [expMonth, expYear] = formData.expiry.split('/');
-      
-      // Envia o planTier correto (basic/pro/elite)
+
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/auth/subscribe-cc`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
             cpf: formData.cpf,
-            plan: planTier, // ENVIA O PLANO
+            plan: planTier,
             creditCard: {
                 holderName: formData.holderName,
                 number: formData.cardNumber.replace(/\s/g, ''),
@@ -121,9 +137,9 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Pagamento recusado.");
-      
+
       setSuccess(true);
-      setTimeout(() => window.location.reload(), 2500);
+      setTimeout(() => redirectAfterPayment(), 2500);
 
     } catch (err: any) {
       setError(err.message);
@@ -147,9 +163,9 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/auth/subscribe-pix`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 cpf: formData.cpf,
-                plan: planTier // ENVIA O PLANO
+                plan: planTier
             })
         });
 
@@ -177,7 +193,7 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
              if (data.paid && data.status === 'CONFIRMED') {
                  if (pollingRef.current) clearInterval(pollingRef.current);
                  setSuccess(true);
-                 setTimeout(() => window.location.reload(), 2500);
+                 setTimeout(() => redirectAfterPayment(), 2500);
              }
           } catch (e) { console.error("Polling...", e); }
       }, 3000);
@@ -204,13 +220,13 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
                 >
                     <CheckCircle2 className="w-12 h-12 text-green-500" />
                 </motion.div>
-                <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">Sucesso!</h2>
+                <h2 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">Acesso liberado!</h2>
                 <p className="text-slate-500 font-medium mb-8">
-                    Bem-vindo à StudyTrack, {userName}.<br/>Seu acesso foi liberado.
+                    Bem-vindo à StudyTrack, {userName}.<br/>Estamos preparando seu ambiente.
                 </p>
                 <div className="flex items-center justify-center gap-2 text-sm font-bold text-slate-400 bg-slate-50 py-3 rounded-xl animate-pulse">
                     <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                    Entrando no painel...
+                    Carregando sua plataforma...
                 </div>
             </motion.div>
         </div>
@@ -230,10 +246,16 @@ export function SubscriptionLock({ planTier, userName }: SubscriptionLockProps) 
             <motion.div animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute top-0 left-0 w-full h-full bg-noise opacity-10 pointer-events-none"></div>
 
+            {onClose && (
+                <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors z-20" aria-label="Voltar">
+                    <X size={16} className="text-white" />
+                </button>
+            )}
+
             <div className="relative z-10 flex justify-between items-start">
                 <div>
                     <div className="flex items-center gap-2 mb-2 opacity-90">
-                        <Lock size={14} /> 
+                        <Lock size={14} />
                         <span className="text-xs font-bold tracking-widest uppercase">Checkout Seguro</span>
                     </div>
                     <h2 id="subscription-lock-title" className="text-3xl font-black tracking-tight mb-1">Desbloquear {planTier}</h2>
