@@ -13,8 +13,11 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 
 type Segment = 'HOT' | 'WARM' | 'COLD';
+type SegmentFilter = Segment | 'ALL';
 type ConversionStage = 'nao_abordado' | 'abordado' | 'oferta_feita' | 'oferta_especial' | 'convertido' | 'perdido';
 
 type UserRow = {
@@ -24,8 +27,10 @@ type UserRow = {
   segment: Segment;
   last_whatsapp_at: string | null;
   conversion_stage: ConversionStage;
+  last_user_message_at: string | null;
   meta_window_active: boolean;
   admin_approaches_count: number;
+  has_unread?: boolean;
 };
 
 type ChatItem =
@@ -97,13 +102,36 @@ export default function AdminReengagementConversationPage() {
 
   const [suggestions, setSuggestions] = useState<Record<string, { loading: boolean; text: string | null }>>({});
 
+  const [readAtMap, setReadAtMap] = useState<Record<string, number>>({});
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+
+  const [segment, setSegment] = useState<SegmentFilter>('ALL');
+  const [stageFilter, setStageFilter] = useState<string>('ALL');
+  const [minTrialDays, setMinTrialDays] = useState<string>('0');
+  const [maxTrialDays, setMaxTrialDays] = useState<string>('3650');
+  const [limitReached, setLimitReached] = useState<'all' | 'true' | 'false'>('all');
+  const [sort, setSort] = useState<'messages_desc' | 'points_desc' | 'trial_days_desc'>('messages_desc');
+  const [sort2, setSort2] = useState<string>('none');
+  const [activeWindowOnly, setActiveWindowOnly] = useState(false);
+
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollToBottom = useCallback(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), []);
 
   const fetchUsers = useCallback(async () => {
     setLoadingUsers(true);
     try {
-      const params = new URLSearchParams({ all: 'true', pageSize: '2000', sort: 'messages_desc' });
+      const params = new URLSearchParams({
+        all: 'true',
+        pageSize: '2000',
+        segment,
+        minTrialDays: minTrialDays || '0',
+        maxTrialDays: maxTrialDays || '3650',
+        sort,
+      });
+      if (stageFilter !== 'ALL') params.set('stage', stageFilter);
+      if (sort2 !== 'none') params.set('sort2', sort2);
+      if (limitReached !== 'all') params.set('limitReached', limitReached);
+      if (activeWindowOnly) params.set('activeWindowOnly', 'true');
       const res = await fetch(`/api/admin/reengagement/users?${params.toString()}`);
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || 'Falha ao carregar usuários');
@@ -114,7 +142,7 @@ export default function AdminReengagementConversationPage() {
     } finally {
       setLoadingUsers(false);
     }
-  }, []);
+  }, [segment, stageFilter, minTrialDays, maxTrialDays, limitReached, sort, sort2, activeWindowOnly]);
 
   const fetchConversation = useCallback(async () => {
     if (!userId) return;
@@ -136,6 +164,43 @@ export default function AdminReengagementConversationPage() {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  // Carrega "último timestamp lido" da conversa por usuário (localStorage).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('reengajamento_readAtMap');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, number>;
+      if (parsed && typeof parsed === 'object') setReadAtMap(parsed);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Marca como "lido" nesta sessão ao abrir a conversa (client-side, sem persistência).
+  useEffect(() => {
+    if (!userId) return;
+    setReadIds((prev) => new Set(prev).add(userId));
+  }, [userId]);
+
+  // Marca como "lido" quando o admin abre a conversa (persistido em localStorage).
+  useEffect(() => {
+    if (!userId) return;
+    if (!selectedUser?.last_user_message_at) return;
+
+    const lastAtMs = new Date(selectedUser.last_user_message_at).getTime();
+    if (!Number.isFinite(lastAtMs)) return;
+
+    setReadAtMap((prev) => {
+      const next = { ...prev, [userId]: lastAtMs };
+      try {
+        localStorage.setItem('reengajamento_readAtMap', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, [selectedUser?.last_user_message_at, userId]);
 
   useEffect(() => {
     fetchConversation();
@@ -312,7 +377,25 @@ export default function AdminReengagementConversationPage() {
     }
   }
 
-  const sidebarUsers = useMemo(() => users, [users]);
+  const sidebarUsers = useMemo(() => {
+    return [...users].sort((a, b) => {
+      const ta = a.last_user_message_at ? new Date(a.last_user_message_at).getTime() : 0;
+      const tb = b.last_user_message_at ? new Date(b.last_user_message_at).getTime() : 0;
+      return tb - ta;
+    });
+  }, [users]);
+
+  // Mesma lógica da listagem principal: verde = mensagem nova do usuário que o admin não leu;
+  // some ao abrir a conversa (readIds nesta sessão + readAtMap persistido).
+  function shouldShowGreenDot(u: UserRow) {
+    if (u.id === userId) return false;
+    if (readIds.has(u.id)) return false;
+    if (!u.has_unread) return false;
+    const readAt = readAtMap[u.id];
+    if (readAt == null) return true;
+    const lastUserAt = u.last_user_message_at ? new Date(u.last_user_message_at).getTime() : 0;
+    return lastUserAt > readAt;
+  }
 
   return (
     <div className="h-[calc(100vh-0px)] bg-slate-50/50 text-slate-900">
@@ -330,20 +413,102 @@ export default function AdminReengagementConversationPage() {
 
       <div className="grid grid-cols-[360px_1fr] h-[calc(100vh-73px)]">
         {/* Sidebar */}
-        <div className="border-r bg-white overflow-y-auto">
-          <div className="p-4 border-b">
+        <div className="border-r bg-white overflow-y-auto flex flex-col">
+          <div className="p-4 border-b shrink-0">
             <p className="text-sm font-semibold text-slate-700">Usuários</p>
-            <p className="text-xs text-slate-500">{loadingUsers ? 'Carregando...' : `${sidebarUsers.length} na lista`}</p>
+            <p className="text-xs text-slate-500 mb-3">{loadingUsers ? 'Carregando...' : `${sidebarUsers.length} na lista`}</p>
+            <div className="space-y-2">
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 mb-0.5">Segmento</p>
+                <Select value={segment} onValueChange={(v) => setSegment(v as SegmentFilter)}>
+                  <SelectTrigger className="rounded-lg h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todos</SelectItem>
+                    <SelectItem value="HOT">HOT</SelectItem>
+                    <SelectItem value="WARM">WARM</SelectItem>
+                    <SelectItem value="COLD">COLD</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 mb-0.5">Stage</p>
+                <Select value={stageFilter} onValueChange={setStageFilter}>
+                  <SelectTrigger className="rounded-lg h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todos</SelectItem>
+                    <SelectItem value="nao_abordado">Não abordado</SelectItem>
+                    <SelectItem value="abordado">Abordado</SelectItem>
+                    <SelectItem value="oferta_feita">Oferta feita</SelectItem>
+                    <SelectItem value="oferta_especial">Oferta especial</SelectItem>
+                    <SelectItem value="convertido">Convertido</SelectItem>
+                    <SelectItem value="perdido">Perdido</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                <div>
+                  <p className="text-[11px] font-semibold text-slate-500 mb-0.5">Min trial</p>
+                  <Input className="rounded-lg h-8 text-xs" value={minTrialDays} onChange={(e) => setMinTrialDays(e.target.value)} />
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold text-slate-500 mb-0.5">Max trial</p>
+                  <Input className="rounded-lg h-8 text-xs" value={maxTrialDays} onChange={(e) => setMaxTrialDays(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 mb-0.5">Limit reached</p>
+                <Select value={limitReached} onValueChange={(v) => setLimitReached(v as any)}>
+                  <SelectTrigger className="rounded-lg h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="true">Sim</SelectItem>
+                    <SelectItem value="false">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 mb-0.5">Ordenação</p>
+                <Select value={sort} onValueChange={(v) => setSort(v as any)}>
+                  <SelectTrigger className="rounded-lg h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="messages_desc">Mensagens ↓</SelectItem>
+                    <SelectItem value="points_desc">Pontos ↓</SelectItem>
+                    <SelectItem value="trial_days_desc">Dias trial ↓</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 mb-0.5">Ordenação sec.</p>
+                <Select value={sort2} onValueChange={setSort2}>
+                  <SelectTrigger className="rounded-lg h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhuma</SelectItem>
+                    <SelectItem value="messages_desc">Mensagens ↓</SelectItem>
+                    <SelectItem value="points_desc">Pontos ↓</SelectItem>
+                    <SelectItem value="trial_days_desc">Dias trial ↓</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <Switch checked={activeWindowOnly} onCheckedChange={setActiveWindowOnly} />
+                <span className="text-xs text-slate-600">Janela 24h</span>
+              </div>
+            </div>
           </div>
 
+          <div className="flex-1 overflow-y-auto">
           {sidebarUsers.map((u) => {
             const active = u.id === userId;
+            const showGreenDot = shouldShowGreenDot(u);
             return (
               <Link key={u.id} href={`/portal/admin/reengagement/${u.id}`} prefetch={false}>
-                <div className={`px-4 py-3 border-b hover:bg-slate-50 ${active ? 'bg-slate-50' : ''}`}>
+                <div className={`px-4 py-3 border-b hover:bg-slate-50 ${active ? 'bg-slate-50' : ''} ${showGreenDot ? 'bg-green-50' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-semibold truncate">{u.full_name}</p>
+                      <div className="flex items-center gap-2">
+                        {showGreenDot && <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse inline-block shrink-0" />}
+                        <p className="font-semibold truncate">{u.full_name}</p>
+                      </div>
                       <p className="text-xs text-slate-500 truncate">{u.whatsapp_phone || '—'}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {segmentBadge(u.segment)}
@@ -370,6 +535,7 @@ export default function AdminReengagementConversationPage() {
               </Link>
             );
           })}
+          </div>
         </div>
 
         {/* Chat */}

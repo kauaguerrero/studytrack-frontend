@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, Flame, Thermometer, Snowflake, Send, Loader2, MessageSquareText, CheckCircle2, XCircle, AlertTriangle, Clock } from 'lucide-react';
 
@@ -37,6 +38,7 @@ type UserRow = {
   last_user_message_at: string | null;
   meta_window_active: boolean;
   admin_approaches_count: number;
+  has_unread?: boolean;
 };
 
 type ApiResponse = {
@@ -78,7 +80,9 @@ export default function AdminReengagementPage() {
   const [minTrialDays, setMinTrialDays] = useState<string>('0');
   const [maxTrialDays, setMaxTrialDays] = useState<string>('3650');
   const [limitReached, setLimitReached] = useState<'all' | 'true' | 'false'>('all');
+  const [stageFilter, setStageFilter] = useState<string>('ALL');
   const [sort, setSort] = useState<'messages_desc' | 'points_desc' | 'trial_days_desc'>('messages_desc');
+  const [sort2, setSort2] = useState<string>('none');
   const [page, setPage] = useState(1);
   const [activeWindowOnly, setActiveWindowOnly] = useState(false);
 
@@ -101,13 +105,21 @@ export default function AdminReengagementPage() {
   const [bulkRunning, setBulkRunning] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ sent: number; total: number; ok: number; fail: number } | null>(null);
   const [bulkActiveWindowOnly, setBulkActiveWindowOnly] = useState(true);
+  const [bulkTargetCount, setBulkTargetCount] = useState<number>(0);
+  const [bulkCountLoading, setBulkCountLoading] = useState(false);
+
+  const pathname = usePathname();
+  const [readAtMap, setReadAtMap] = useState<Record<string, number>>({});
 
   const segmentCounts = data?.summary ?? { HOT: 0, WARM: 0, COLD: 0, total: 0 };
 
-  const bulkTargetCount = useMemo(() => {
-    if (bulkSegment === 'TODOS') return segmentCounts.total;
-    return segmentCounts[bulkSegment];
-  }, [bulkSegment, segmentCounts]);
+  function showUnreadInList(u: UserRow) {
+    if (!u.has_unread) return false;
+    const readAt = readAtMap[u.id];
+    if (readAt == null) return true;
+    const lastUserAt = u.last_user_message_at ? new Date(u.last_user_message_at).getTime() : 0;
+    return lastUserAt > readAt;
+  }
 
   const previewUser = useMemo(() => {
     if (!data?.users?.length) return null;
@@ -131,6 +143,8 @@ export default function AdminReengagementPage() {
         maxTrialDays: maxTrialDays || '3650',
         sort,
       });
+      if (stageFilter !== 'ALL') params.set('stage', stageFilter);
+      if (sort2 !== 'none') params.set('sort2', sort2);
       if (limitReached !== 'all') params.set('limitReached', limitReached);
       if (activeWindowOnly) params.set('activeWindowOnly', 'true');
 
@@ -144,11 +158,76 @@ export default function AdminReengagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, segment, minTrialDays, maxTrialDays, limitReached, sort, activeWindowOnly]);
+  }, [page, segment, stageFilter, minTrialDays, maxTrialDays, limitReached, sort, sort2, activeWindowOnly]);
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('reengajamento_readAtMap');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, number>;
+      if (parsed && typeof parsed === 'object') setReadAtMap(parsed);
+    } catch {
+      // ignore
+    }
+  }, [pathname]);
+
+  // Atualiza lista ao voltar para a aba (nova msg do usuário → verde de novo)
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState !== 'visible') return;
+      fetchUsers();
+      try {
+        const raw = localStorage.getItem('reengajamento_readAtMap');
+        if (raw) {
+          const parsed = JSON.parse(raw) as Record<string, number>;
+          if (parsed && typeof parsed === 'object') setReadAtMap(parsed);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [fetchUsers]);
+
+  // Polling a cada 60s na listagem para refletir novas mensagens (verde "não lida")
+  const REFETCH_INTERVAL_MS = 60_000;
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchUsers();
+    }, REFETCH_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [fetchUsers]);
+
+  // Contagem do disparo em massa com os mesmos filtros da tabela
+  useEffect(() => {
+    let cancelled = false;
+    setBulkCountLoading(true);
+    const params = new URLSearchParams({
+      page: '1',
+      pageSize: '1',
+      segment: bulkSegment === 'TODOS' ? 'ALL' : bulkSegment,
+      minTrialDays: minTrialDays || '0',
+      maxTrialDays: maxTrialDays || '3650',
+      sort,
+    });
+    if (stageFilter !== 'ALL') params.set('stage', stageFilter);
+    if (sort2 !== 'none') params.set('sort2', sort2);
+    if (limitReached !== 'all') params.set('limitReached', limitReached);
+    if (bulkActiveWindowOnly) params.set('activeWindowOnly', 'true');
+    fetch(`/api/admin/reengagement/users?${params.toString()}`)
+      .then((res) => res.json())
+      .then((json: ApiResponse & { totalFiltered?: number }) => {
+        if (!cancelled) setBulkTargetCount(json?.totalFiltered ?? 0);
+      })
+      .catch(() => { if (!cancelled) setBulkTargetCount(0); })
+      .finally(() => { if (!cancelled) setBulkCountLoading(false); });
+    return () => { cancelled = true; };
+  }, [bulkSegment, stageFilter, minTrialDays, maxTrialDays, limitReached, bulkActiveWindowOnly, sort, sort2]);
 
   const totalPages = useMemo(() => {
     const total = data?.totalFiltered ?? 0;
@@ -315,6 +394,8 @@ export default function AdminReengagementPage() {
         maxTrialDays: maxTrialDays || '3650',
       });
       if (bulkSegment !== 'TODOS') params.set('segment', bulkSegment);
+      if (stageFilter !== 'ALL') params.set('stage', stageFilter);
+      if (sort2 !== 'none') params.set('sort2', sort2);
       if (limitReached !== 'all') params.set('limitReached', limitReached);
       if (bulkActiveWindowOnly) params.set('activeWindowOnly', 'true');
 
@@ -422,7 +503,7 @@ export default function AdminReengagementPage() {
           <CardDescription>Filtre e envie mensagens individuais.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Segmento</p>
               <Select value={segment} onValueChange={(v) => { setPage(1); setSegment(v as SegmentFilter); }}>
@@ -432,6 +513,21 @@ export default function AdminReengagementPage() {
                   <SelectItem value="HOT">HOT</SelectItem>
                   <SelectItem value="WARM">WARM</SelectItem>
                   <SelectItem value="COLD">COLD</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">Stage</p>
+              <Select value={stageFilter} onValueChange={(v) => { setPage(1); setStageFilter(v); }}>
+                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Stage" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Todos</SelectItem>
+                  <SelectItem value="nao_abordado">Não abordado</SelectItem>
+                  <SelectItem value="abordado">Abordado</SelectItem>
+                  <SelectItem value="oferta_feita">Oferta feita</SelectItem>
+                  <SelectItem value="oferta_especial">Oferta especial</SelectItem>
+                  <SelectItem value="convertido">Convertido</SelectItem>
+                  <SelectItem value="perdido">Perdido</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -459,9 +555,21 @@ export default function AdminReengagementPage() {
               <Select value={sort} onValueChange={(v) => { setPage(1); setSort(v as any); }}>
                 <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="messages_desc">Mensagens (desc)</SelectItem>
-                  <SelectItem value="points_desc">Pontos (desc)</SelectItem>
-                  <SelectItem value="trial_days_desc">Dias trial (desc)</SelectItem>
+                  <SelectItem value="messages_desc">Mensagens ↓</SelectItem>
+                  <SelectItem value="points_desc">Pontos ↓</SelectItem>
+                  <SelectItem value="trial_days_desc">Dias trial ↓</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">Ordenação secundária</p>
+              <Select value={sort2} onValueChange={(v) => { setPage(1); setSort2(v); }}>
+                <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  <SelectItem value="messages_desc">Mensagens ↓</SelectItem>
+                  <SelectItem value="points_desc">Pontos ↓</SelectItem>
+                  <SelectItem value="trial_days_desc">Dias trial ↓</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -505,8 +613,15 @@ export default function AdminReengagementPage() {
                   </tr>
                 )}
                 {!loading && data?.users?.map((u) => (
-                  <tr key={u.id} className="border-t hover:bg-slate-50/50">
-                    <td className="p-3 font-medium">{u.full_name}</td>
+                  <tr key={u.id} className={`border-t hover:bg-slate-50/50 ${showUnreadInList(u) ? 'bg-green-50' : ''}`}>
+                    <td className="p-3 font-medium">
+                      <span className="inline-flex items-center">
+                        {u.full_name}
+                        {showUnreadInList(u) && (
+                          <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse inline-block ml-2 shrink-0" />
+                        )}
+                      </span>
+                    </td>
                     <td className="p-3 text-slate-600">{u.whatsapp_phone || '—'}</td>
                     <td className="p-3">{segmentBadge(u.segment)}</td>
                     <td className="p-3">
@@ -602,16 +717,10 @@ export default function AdminReengagementPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Disparo em massa</CardTitle>
-          <CardDescription>Envie um template com variável <span className="font-mono">{'{{nome}}'}</span> para um segmento.</CardDescription>
+          <CardDescription>Envie um template com variável <span className="font-mono">{'{{nome}}'}</span> para um segmento. Usa os mesmos filtros da tabela acima.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Switch checked={bulkActiveWindowOnly} onCheckedChange={(v) => setBulkActiveWindowOnly(!!v)} />
-            <span className="text-sm text-slate-700 font-medium">Apenas janela ativa</span>
-            <span className="text-xs text-slate-500">(recomendado)</span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Segmento alvo</p>
               <Select value={bulkSegment} onValueChange={(v) => setBulkSegment(v as BulkSegment)}>
@@ -624,7 +733,49 @@ export default function AdminReengagementPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="md:col-span-2">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">Stage</p>
+              <Select value={stageFilter} onValueChange={setStageFilter}>
+                <SelectTrigger className="rounded-xl"><SelectValue placeholder="Stage" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Todos</SelectItem>
+                  <SelectItem value="nao_abordado">Não abordado</SelectItem>
+                  <SelectItem value="abordado">Abordado</SelectItem>
+                  <SelectItem value="oferta_feita">Oferta feita</SelectItem>
+                  <SelectItem value="oferta_especial">Oferta especial</SelectItem>
+                  <SelectItem value="convertido">Convertido</SelectItem>
+                  <SelectItem value="perdido">Perdido</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">Min dias trial</p>
+              <Input className="rounded-xl" value={minTrialDays} onChange={(e) => setMinTrialDays(e.target.value)} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">Max dias trial</p>
+              <Input className="rounded-xl" value={maxTrialDays} onChange={(e) => setMaxTrialDays(e.target.value)} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">Limit reached</p>
+              <Select value={limitReached} onValueChange={(v) => setLimitReached(v as any)}>
+                <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="true">Sim</SelectItem>
+                  <SelectItem value="false">Não</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3 md:col-span-6">
+              <Switch checked={bulkActiveWindowOnly} onCheckedChange={(v) => setBulkActiveWindowOnly(!!v)} />
+              <span className="text-sm text-slate-700 font-medium">Apenas janela ativa</span>
+              <span className="text-xs text-slate-500">(recomendado)</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-3">
+            <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Template</p>
               <Textarea className="rounded-xl min-h-[88px]" value={bulkTemplate} onChange={(e) => setBulkTemplate(e.target.value)} placeholder="Ex: Oi {{nome}}, vi que você começou o StudyTrack..." />
             </div>
@@ -653,10 +804,10 @@ export default function AdminReengagementPage() {
             <Button
               className="rounded-xl"
               onClick={() => setBulkConfirmOpen(true)}
-              disabled={bulkRunning || bulkTargetCount === 0}
+              disabled={bulkRunning || bulkTargetCount === 0 || bulkCountLoading}
             >
-              {bulkRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-              Disparar para {bulkTargetCount} usuários
+              {bulkRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : bulkCountLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+              Disparar para {bulkCountLoading ? '…' : bulkTargetCount} usuários
             </Button>
           </div>
         </CardContent>
@@ -821,7 +972,7 @@ export default function AdminReengagementPage() {
           <DialogHeader>
             <DialogTitle>Confirmar disparo</DialogTitle>
             <DialogDescription>
-              Enviar para <span className="font-semibold">{bulkTargetCount}</span> usuários do segmento <span className="font-semibold">{bulkSegment}</span>.
+              Enviar para <span className="font-semibold">{bulkTargetCount}</span> usuários (segmento <span className="font-semibold">{bulkSegment}</span>, stage e demais filtros aplicados).
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">

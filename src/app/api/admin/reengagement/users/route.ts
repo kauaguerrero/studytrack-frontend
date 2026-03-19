@@ -45,6 +45,7 @@ type UserComputed = {
   last_user_message_at: string | null;
   meta_window_active: boolean;
   admin_approaches_count: number;
+  has_unread: boolean;
 };
 
 function clampInt(value: string | null, def: number, min: number, max: number) {
@@ -95,7 +96,9 @@ export async function GET(request: Request) {
   const maxTrialDays = clampInt(url.searchParams.get('maxTrialDays'), 3650, 0, 3650);
   const limitReachedFilter = parseBool(url.searchParams.get('limitReached'));
   const activeWindowOnly = url.searchParams.get('activeWindowOnly') === 'true';
+  const stageFilter = (url.searchParams.get('stage') || 'ALL').toLowerCase();
   const sort = (url.searchParams.get('sort') || 'messages_desc').toLowerCase();
+  const sort2 = (url.searchParams.get('sort2') || 'none').toLowerCase();
   const all = url.searchParams.get('all') === 'true';
 
   // Perfis trial (tamanho atual pequeno ~122). Mantemos simples e robusto: carrega e agrega em memória.
@@ -199,6 +202,10 @@ export async function GET(request: Request) {
     const metaWindowActive = !!(lastUserAt && new Date(lastUserAt).getTime() >= windowCutoff);
     const conversionStage = (p.conversion_stage ?? 'nao_abordado') as ConversionStage;
     const adminApproaches = approachesByUser.get(p.id) ?? 0;
+    const hasUnread = !!(
+      lastUserAt &&
+      (adminApproaches === 0 || new Date(lastUserAt) > new Date(logs.lastAt || 0))
+    );
 
     const u = {
       id: p.id,
@@ -223,6 +230,7 @@ export async function GET(request: Request) {
       last_user_message_at: lastUserAt,
       meta_window_active: metaWindowActive,
       admin_approaches_count: adminApproaches,
+      has_unread: hasUnread,
     };
 
     return { ...u, segment: segmentOf(u) };
@@ -240,6 +248,7 @@ export async function GET(request: Request) {
   // filtros
   const filtered = users.filter((u) => {
     if (segmentFilter !== 'ALL' && segmentFilter !== u.segment) return false;
+    if (stageFilter !== 'all' && stageFilter !== u.conversion_stage) return false;
     const days = u.days_in_trial ?? 0;
     if (days < minTrialDays || days > maxTrialDays) return false;
     if (limitReachedFilter !== null && u.limit_reached !== limitReachedFilter) return false;
@@ -247,13 +256,18 @@ export async function GET(request: Request) {
     return true;
   });
 
-  // ordenação
+  // ordenação (primária + secundária)
   const sorters: Record<string, (a: UserComputed, b: UserComputed) => number> = {
     messages_desc: (a, b) => (b.messages_total ?? 0) - (a.messages_total ?? 0),
     points_desc: (a, b) => (b.total_points ?? 0) - (a.total_points ?? 0),
     trial_days_desc: (a, b) => (b.days_in_trial ?? 0) - (a.days_in_trial ?? 0),
   };
-  filtered.sort(sorters[sort] ?? sorters.messages_desc);
+  filtered.sort((a, b) => {
+    const primary = (sorters[sort] ?? sorters.messages_desc)(a, b);
+    if (primary !== 0) return primary;
+    if (sort2 && sort2 !== 'none' && sorters[sort2]) return sorters[sort2](a, b);
+    return 0;
+  });
 
   const totalFiltered = filtered.length;
 
