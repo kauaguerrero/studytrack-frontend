@@ -37,11 +37,14 @@ export async function requireAdmin() {
     };
   }
 
+  const { data: { session } } = await supabase.auth.getSession();
+
   return {
     ok: true as const,
     user,
     supabase,
     supabaseAdmin,
+    token: session?.access_token ?? null,
   };
 }
 

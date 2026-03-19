@@ -71,12 +71,7 @@ export async function updateSession(request: NextRequest) {
     let currentRole: UserRole = (normalizeRole(user.user_metadata?.role) ?? 'student') as UserRole;
     let profileRoleForLog: unknown = null;
 
-    if (
-      path.startsWith('/portal/manager') ||
-      path.startsWith('/portal/teacher') ||
-      path.startsWith('/portal/secretariat') ||
-      path.startsWith('/portal/admin')
-    ) {
+    if (path.startsWith('/portal/manager') || path.startsWith('/portal/teacher') || path.startsWith('/portal/secretariat') || path.startsWith('/portal/admin')) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')

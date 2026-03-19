@@ -8,27 +8,10 @@ export function createAdminClient() {
 
   // Server-only: não use NEXT_PUBLIC_* para chaves sensíveis
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
-
-  // Se alguém configurou a service role como NEXT_PUBLIC em produção, é melhor falhar cedo.
-  if (
-    process.env.NODE_ENV === 'production' &&
-    !process.env.SUPABASE_SERVICE_ROLE_KEY &&
-    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY
-  ) {
-    throw new Error(
-      'Supabase admin client: não use NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY em produção. Use SUPABASE_SERVICE_ROLE_KEY apenas.'
-    );
-  }
+  const serviceKey = process.env.SUPABASE_SERVICE_KEY;
 
   if (!url || !serviceKey) {
-    const missing = [
-      !url ? 'SUPABASE_URL (ou NEXT_PUBLIC_SUPABASE_URL)' : null,
-      !serviceKey ? 'SUPABASE_SERVICE_ROLE_KEY (ou NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY)' : null,
-    ].filter(Boolean);
-    throw new Error(`Supabase admin client: env ausentes: ${missing.join(', ')}.`);
+    throw new Error('Supabase admin client: env SUPABASE_URL (ou NEXT_PUBLIC_SUPABASE_URL) / SUPABASE_SERVICE_KEY ausentes.');
   }
 
   _admin = createClient(url, serviceKey, {

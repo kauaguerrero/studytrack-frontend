@@ -6,12 +6,12 @@ import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Activity, Users, DollarSign, Brain, Target, 
-  Database, ArrowUpRight, Zap, GraduationCap, 
+import {
+  Activity, Users, DollarSign, Brain, Target,
+  Database, ArrowUpRight, Zap, GraduationCap,
   School, AlertOctagon, TrendingUp,   BarChart3,
   Calculator, ListChecks,
-  Flag
+  Flag, ClipboardList
 } from "lucide-react";
 
 export default function SuperAdminDashboard() {
@@ -79,6 +79,11 @@ export default function SuperAdminDashboard() {
             <p className="text-slate-500 mt-1">Visão holística de Negócio, Produto e Pedagogia.</p>
         </div>
         <div className="flex items-center gap-2">
+            <Link href="/portal/admin/tasks" className="mr-2">
+                <span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                    <ClipboardList className="w-4 h-4 text-indigo-500" /> Tasks
+                </span>
+            </Link>
             <Link href="/portal/admin/reengagement" className="mr-3">
                 <span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
                     <Zap className="w-4 h-4 text-amber-500" /> Reengajamento
