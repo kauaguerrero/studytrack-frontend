@@ -1,22 +1,33 @@
-// src/app/api/admin/tasks/[taskId]/status/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/app/api/admin/_utils';
+
+const BACKEND = process.env.NEXT_PUBLIC_API_URL;
 
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ taskId: string }> }
 ) {
-  // 1. Aguarde a resolução da Promise antes de extrair os dados
   const { taskId } = await context.params;
 
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
+  const body = await request.json();
+
+  const res = await fetch(`${BACKEND}/api/admin/tasks/${taskId}/status`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const text = await res.text();
+  let data: unknown;
   try {
-    // 2. Sua lógica de negócio entra aqui
-    // const body = await request.json();
-    
-    return NextResponse.json({ success: true, taskId });
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Erro ao atualizar status da tarefa' }, 
-      { status: 500 }
-    );
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    return NextResponse.json({ error: 'Resposta inválida do backend' }, { status: 502 });
   }
+
+  if (!res.ok) return NextResponse.json(data, { status: res.status });
+  return NextResponse.json(data, { status: res.status });
 }

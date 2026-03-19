@@ -14,11 +14,8 @@ export async function GET(
   const resolvedParams = await params;
   const taskId = resolvedParams.taskId;
 
-  const { data: { session } } = await auth.supabase.auth.getSession();
-  const token = session?.access_token;
-
   const res = await fetch(`${BACKEND}/api/admin/tasks/${taskId}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${auth.token}` },
   });
 
   if (!res.ok) return NextResponse.json({ error: 'Erro no backend' }, { status: res.status });

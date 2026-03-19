@@ -162,5 +162,9 @@ export async function apiDismissSuggestion(id: string): Promise<void> {
 }
 
 export async function apiGenerateSuggestions(): Promise<void> {
-  await fetch('/api/admin/tasks/ai/suggestions', { method: 'POST' });
+  const res = await fetch('/api/admin/tasks/ai/suggestions', { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string })?.error ?? `HTTP ${res.status}`);
+  }
 }

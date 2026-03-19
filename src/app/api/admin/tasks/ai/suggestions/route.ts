@@ -7,16 +7,19 @@ export async function GET(_req: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
 
-  const { data: { session } } = await auth.supabase.auth.getSession();
-  const token = session?.access_token;
-
   const res = await fetch(`${BACKEND}/api/admin/tasks/ai/suggestions`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${auth.token}` },
   });
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
-  
+  let data: unknown;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    return NextResponse.json({ error: 'Resposta inválida do backend' }, { status: 502 });
+  }
+
+  if (!res.ok) return NextResponse.json(data, { status: res.status });
   return NextResponse.json(data, { status: res.status });
 }
 
@@ -24,16 +27,19 @@ export async function POST(_req: NextRequest) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
 
-  const { data: { session } } = await auth.supabase.auth.getSession();
-  const token = session?.access_token;
-
   const res = await fetch(`${BACKEND}/api/admin/tasks/ai/suggestions/generate`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json' },
   });
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
-  
+  let data: unknown;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    return NextResponse.json({ error: 'Resposta inválida do backend' }, { status: 502 });
+  }
+
+  if (!res.ok) return NextResponse.json(data, { status: res.status });
   return NextResponse.json(data, { status: res.status });
 }

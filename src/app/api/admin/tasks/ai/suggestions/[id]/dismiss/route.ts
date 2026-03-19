@@ -12,17 +12,19 @@ export async function POST(
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
 
-  const { data: { session } } = await auth.supabase.auth.getSession();
-  const token = session?.access_token;
-
   const res = await fetch(`${BACKEND}/api/admin/tasks/ai/suggestions/${id}/dismiss`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json' },
   });
 
-  // Defesa contra respostas não-JSON do backend (ex: erro 502 HTML)
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
-  
+  let data: unknown;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    return NextResponse.json({ error: 'Resposta inválida do backend' }, { status: 502 });
+  }
+
+  if (!res.ok) return NextResponse.json(data, { status: res.status });
   return NextResponse.json(data, { status: res.status });
 }
