@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useTheme } from 'next-themes';
 import { Task, TaskStatus } from './hooks/useTasks';
 import TaskCard from './TaskCard';
 import { ChevronDown, ChevronRight, LayoutGrid } from 'lucide-react';
@@ -53,16 +52,15 @@ interface Props {
   onDragStart: (task: Task) => void;
   onDrop: (status: TaskStatus) => void;
   collapsible?: boolean;
+  isDark: boolean;
 }
 
 export default function KanbanColumn({
-  status, tasks, onTaskClick, onDragStart, onDrop, collapsible,
+  status, tasks, onTaskClick, onDragStart, onDrop, collapsible, isDark,
 }: Props) {
   const [collapsed, setCollapsed] = useState(!!collapsible);
   const [isDragOver, setIsDragOver] = useState(false);
   const config = COLUMN_CONFIG[status];
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme !== 'light';
 
   return (
     <div

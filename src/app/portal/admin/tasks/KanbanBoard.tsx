@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 import { mutate } from 'swr';
 import { Task, TaskStatus, apiUpdateStatus } from './hooks/useTasks';
@@ -28,6 +29,10 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
   const [dragging, setDragging] = useState<Task | null>(null);
   const [progressModal, setProgressModal] = useState<{ task: Task } | null>(null);
   const [completeModal, setCompleteModal] = useState<{ task: Task } | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const { resolvedTheme } = useTheme();
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted && resolvedTheme !== 'light';
 
   function tasksByStatus(status: TaskStatus) {
     return tasks.filter(t => t.status === status);
@@ -79,6 +84,7 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
             onDragStart={setDragging}
             onDrop={handleDrop}
             collapsible={status === 'archived'}
+            isDark={isDark}
           />
         ))}
       </div>
