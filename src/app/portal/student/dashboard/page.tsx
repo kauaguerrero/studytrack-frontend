@@ -40,26 +40,29 @@ export default async function Dashboard() {
     if (profileError && profileError.code !== 'PGRST116') throw profileError;
     if (!profile?.whatsapp_phone) redirect('/portal/onboarding/objetivo');
 
-    // Se tiver telefone mas não confirmou o handshake, manda pra sala de espera
+    const firstName = profile.full_name?.split(' ')[0] || "Estudante";
+    const fullName = profile.full_name || "Estudante";
+
+    // =========================================================================
+    // ORDEM CORRETA: handshake → onboarding no WhatsApp → pagamento
+    //
+    // 1. Se o WhatsApp ainda não foi conectado, o usuário precisa fazer o
+    //    onboarding primeiro — o aviso de pagamento vem NO FIM do onboarding,
+    //    enviado pelo próprio bot via WhatsApp.
+    // 2. Só após o onboarding completo o SubscriptionLock faz sentido aparecer.
+    // =========================================================================
     if (!profile?.handshake_completed) {
       redirect('/portal/onboarding/handshake');
     }
 
-    const firstName = profile.full_name?.split(' ')[0] || "Estudante";
-    const fullName = profile.full_name || "Estudante";
-    
-    // =========================================================================
-    // LÓGICA LOCK-WALL (BLOQUEIO DE PAGAMENTO)
-    // =========================================================================
     const plan = profile.plan_tier || 'free';
     const status = profile.subscription_status || 'inactive';
-    
-    if (plan !== 'free' && status !== 'active') {
+
+    if (plan !== 'free' && plan !== 'b2b_student' && status !== 'active') {
         return (
             <SubscriptionLock planTier={plan} userName={firstName} />
         );
     }
-    // =========================================================================
 
     // 2. Buscas em Paralelo
     const todayStr = new Date().toISOString().split('T')[0];
