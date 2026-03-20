@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/app/api/admin/_utils';
+import { requireAdmin, recordHistory, getTaskDetail } from '@/app/api/admin/_utils';
 
-const BACKEND = process.env.NEXT_PUBLIC_API_URL;
-
-// 1. Tipagem ajustada para receber uma Promise em params
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ taskId: string }> }
@@ -11,23 +8,35 @@ export async function PATCH(
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
 
-  // 2. Aguardando a resolução dos parâmetros dinâmicos
-  const resolvedParams = await params;
-  const taskId = resolvedParams.taskId;
-
+  const { taskId } = await params;
   const body = await request.json();
 
-  const res = await fetch(`${BACKEND}/api/admin/tasks/${taskId}/assignee`, {
-    method: 'PATCH',
-    headers: { Authorization: `Bearer ${auth.token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  const { data: current, error: fetchErr } = await auth.supabaseAdmin
+    .from('admin_tasks')
+    .select('assignee_id, deadline')
+    .eq('id', taskId)
+    .single();
 
-  // 3. Tratamento de erro recomendado (veja a crítica abaixo)
-  if (!res.ok) {
-     return NextResponse.json({ error: 'Erro no backend' }, { status: res.status });
+  if (fetchErr || !current) return NextResponse.json({ error: 'Task não encontrada' }, { status: 404 });
+
+  const cur = current as { assignee_id: string | null; deadline: string | null };
+  const updates: Record<string, unknown> = {};
+
+  if (body.assignee_id !== undefined && body.assignee_id !== cur.assignee_id) {
+    updates.assignee_id = body.assignee_id;
+    await recordHistory(auth.supabaseAdmin, taskId, auth.user.id, 'assignee_id', cur.assignee_id, body.assignee_id);
+  }
+  if (body.deadline !== undefined && body.deadline !== cur.deadline) {
+    updates.deadline = body.deadline;
+    await recordHistory(auth.supabaseAdmin, taskId, auth.user.id, 'deadline', cur.deadline, body.deadline);
   }
 
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
+  if (Object.keys(updates).length) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (auth.supabaseAdmin as any).from('admin_tasks').update(updates).eq('id', taskId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const task = await getTaskDetail(auth.supabaseAdmin, taskId);
+  return NextResponse.json(task);
 }

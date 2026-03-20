@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/app/api/admin/_utils';
 
-const BACKEND = process.env.NEXT_PUBLIC_API_URL;
-
 export async function GET() {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
 
-  const res = await fetch(`${BACKEND}/api/admin/admin-profiles`, {
-    headers: { Authorization: `Bearer ${auth.token}` },
-  });
+  const { data, error } = await auth.supabaseAdmin
+    .from('profiles')
+    .select('id, full_name, avatar_url')
+    .eq('role', 'admin')
+    .order('full_name');
 
-  if (!res.ok) return NextResponse.json({ error: 'Erro no backend' }, { status: res.status });
-  const data = await res.json();
-  return NextResponse.json(data);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data ?? []);
 }

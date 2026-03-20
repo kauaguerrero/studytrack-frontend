@@ -3,8 +3,17 @@
 import { useTheme } from 'next-themes';
 import { Search, AlertTriangle, X } from 'lucide-react';
 
+const PRIORITY_PILLS: Array<{ value: string; label: string; accent?: string }> = [
+  { value: '', label: 'Todos' },
+  { value: 'critical', label: '🔴 Crítico', accent: '#ef4444' },
+  { value: 'high',     label: '🟠 Alto',    accent: '#f97316' },
+  { value: 'medium',   label: '🟡 Médio',   accent: '#eab308' },
+  { value: 'low',      label: '🟢 Baixo',   accent: '#22c55e' },
+];
+
 interface Filters {
   status: string;
+  priority: string;
   search: string;
   overdue: boolean;
 }
@@ -79,6 +88,29 @@ export default function TaskFilters({ filters, onChange }: Props) {
                       color: isDark ? '#52525b' : '#71717a',
                       borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.1)',
                     }
+              }
+            >
+              {pill.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Priority pills */}
+      <div className="flex items-center gap-1">
+        {PRIORITY_PILLS.map(pill => {
+          const active = filters.priority === pill.value;
+          return (
+            <button
+              key={pill.value}
+              onClick={() => onChange({ ...filters, priority: pill.value })}
+              className="text-xs px-2.5 py-1.5 rounded-lg font-medium border transition-all duration-150 cursor-pointer"
+              style={
+                active
+                  ? pill.accent
+                    ? { background: `${pill.accent}22`, color: pill.accent, borderColor: `${pill.accent}45` }
+                    : { background: 'rgba(255,255,255,0.1)', color: '#e4e4e7', borderColor: 'rgba(255,255,255,0.15)' }
+                  : { background: 'transparent', color: isDark ? '#52525b' : '#71717a', borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.1)' }
               }
             >
               {pill.label}
