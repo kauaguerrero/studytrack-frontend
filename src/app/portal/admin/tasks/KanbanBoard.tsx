@@ -14,8 +14,8 @@ const COLUMNS: TaskStatus[] = ['backlog', 'in_progress', 'review', 'done', 'arch
 const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   backlog: ['in_progress', 'archived'],
   in_progress: ['review', 'backlog', 'archived'],
-  review: ['done', 'in_progress', 'archived'],
-  done: ['archived'],
+  review: ['done', 'in_progress', 'backlog', 'archived'],
+  done: ['review', 'in_progress', 'archived'],
   archived: ['backlog'],
 };
 

@@ -64,7 +64,7 @@ export default function KanbanColumn({
 
   return (
     <div
-      className="flex flex-col rounded-2xl transition-all duration-200 min-w-[265px] flex-shrink-0"
+      className="flex flex-col rounded-2xl transition-all duration-200 w-[265px] flex-shrink-0"
       style={{
         background: isDragOver
           ? `linear-gradient(180deg, ${config.accent}18 0%, ${config.accent}08 100%)`

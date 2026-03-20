@@ -1,6 +1,6 @@
 'use client';
 
-import { Task, TaskStatus } from './hooks/useTasks';
+import { Task, TaskPriority, TaskStatus } from './hooks/useTasks';
 import { Calendar, AlertCircle, GripVertical, Clock } from 'lucide-react';
 
 export const COLUMN_ACCENT: Record<TaskStatus, string> = {
@@ -9,6 +9,13 @@ export const COLUMN_ACCENT: Record<TaskStatus, string> = {
   review: '#f59e0b',
   done: '#10b981',
   archived: '#71717a',
+};
+
+export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string; bg: string; border: string }> = {
+  critical: { label: 'Crítico', color: '#ef4444', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.30)' },
+  high:     { label: 'Alto',    color: '#f97316', bg: 'rgba(249,115,22,0.12)', border: 'rgba(249,115,22,0.30)' },
+  medium:   { label: 'Médio',   color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.30)' },
+  low:      { label: 'Baixo',   color: '#22c55e', bg: 'rgba(34,197,94,0.12)',  border: 'rgba(34,197,94,0.30)'  },
 };
 
 const AVATAR_COLORS = [
@@ -51,18 +58,21 @@ interface Props {
 export default function TaskCard({ task, onClick, onDragStart }: Props) {
   const overdue = isOverdue(task);
   const assigneeName = task.assignee?.full_name ?? '';
+  const assigneeAvatar = task.assignee?.avatar_url ?? null;
   const initials = assigneeName
     ? assigneeName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : '?';
   const accentColor = COLUMN_ACCENT[task.status];
   const avatarColor = assigneeName ? getAvatarColor(assigneeName) : 'bg-zinc-700';
+  const priority = task.priority ?? 'medium';
+  const pc = PRIORITY_CONFIG[priority] ?? PRIORITY_CONFIG.medium;
 
   return (
     <div
       draggable
       onDragStart={() => onDragStart(task)}
       onClick={() => onClick(task)}
-      className="group relative bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/90 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 rounded-xl p-3.5 cursor-pointer transition-all duration-150 select-none hover:shadow-xl hover:shadow-black/10 dark:hover:shadow-black/30 hover:-translate-y-0.5 active:scale-[0.97] active:opacity-75"
+      className="group relative bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/90 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 rounded-xl p-3.5 cursor-pointer transition-all duration-150 select-none hover:shadow-xl hover:shadow-black/10 dark:hover:shadow-black/30 hover:-translate-y-0.5 active:scale-[0.97] active:opacity-75 w-full"
       style={{ borderLeft: `3px solid ${accentColor}` }}
     >
       {/* Drag handle */}
@@ -70,10 +80,18 @@ export default function TaskCard({ task, onClick, onDragStart }: Props) {
         <GripVertical className="w-3.5 h-3.5 text-zinc-400" />
       </div>
 
-      {/* Title */}
-      <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-100 leading-snug line-clamp-2 mb-3 pr-5">
-        {task.title}
-      </p>
+      {/* Priority + Title row */}
+      <div className="mb-3 pr-6">
+        <span
+          className="text-[9px] font-bold px-1.5 py-0.5 rounded mb-1.5 inline-block"
+          style={{ background: pc.bg, color: pc.color, border: `1px solid ${pc.border}` }}
+        >
+          {pc.label}
+        </span>
+        <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-100 leading-snug break-words">
+          {task.title}
+        </p>
+      </div>
 
       {/* In-progress snippet */}
       {task.status === 'in_progress' && task.currently_doing && (
@@ -97,17 +115,24 @@ export default function TaskCard({ task, onClick, onDragStart }: Props) {
       <div className="flex items-center justify-between gap-2">
         {/* Assignee */}
         <div className="flex items-center gap-1.5 min-w-0">
-          <div
-            className={`w-5 h-5 rounded-full ${avatarColor} flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 ring-1 ring-black/20`}
-          >
-            {initials}
-          </div>
-          {assigneeName && (
+          {assigneeAvatar ? (
+            <img
+              src={assigneeAvatar}
+              alt={assigneeName}
+              className="w-5 h-5 rounded-full object-cover flex-shrink-0 ring-1 ring-black/20"
+            />
+          ) : (
+            <div
+              className={`w-5 h-5 rounded-full ${avatarColor} flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 ring-1 ring-black/20`}
+            >
+              {initials}
+            </div>
+          )}
+          {assigneeName ? (
             <span className="text-[11px] text-zinc-500 truncate">
               {assigneeName.split(' ')[0]}
             </span>
-          )}
-          {!assigneeName && (
+          ) : (
             <span className="text-[11px] text-zinc-400 dark:text-zinc-700 italic">Sem responsável</span>
           )}
         </div>

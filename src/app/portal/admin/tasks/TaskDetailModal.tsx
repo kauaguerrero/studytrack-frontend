@@ -2,11 +2,14 @@
 
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { X, User, Calendar, Clock, FileText, History, CheckCircle2, AlertCircle, Edit3, Save, XCircle } from 'lucide-react';
-import { TaskDetail, TaskStatus, apiUpdateProgress } from './hooks/useTasks';
+import {
+  X, User, Calendar, Clock, FileText, History, CheckCircle2,
+  AlertCircle, Edit3, Save, XCircle, Trash2, Flag,
+} from 'lucide-react';
+import { TaskDetail, TaskStatus, TaskPriority, apiUpdateProgress, apiUpdateTask, apiUpdateStatus, apiDeleteTask, useAdminProfiles } from './hooks/useTasks';
+import { PRIORITY_CONFIG, COLUMN_ACCENT } from './TaskCard';
 import { mutate } from 'swr';
 import { toast } from 'sonner';
-import { COLUMN_ACCENT } from './TaskCard';
 
 const STATUS_LABELS: Record<string, string> = {
   backlog: 'Backlog',
@@ -25,6 +28,8 @@ const TABS: { key: Tab; label: string; icon: typeof FileText }[] = [
   { key: 'history', label: 'Histórico', icon: History },
 ];
 
+const PRIORITIES: TaskPriority[] = ['low', 'medium', 'high', 'critical'];
+
 interface Props {
   task: TaskDetail | null;
   open: boolean;
@@ -39,13 +44,36 @@ function formatDate(iso: string | null | undefined) {
   });
 }
 
+function toDateInputValue(iso: string | null | undefined): string {
+  if (!iso) return '';
+  return iso.split('T')[0];
+}
+
 export default function TaskDetailModal({ task, open, onClose }: Props) {
   const [tab, setTab] = useState<Tab>('details');
+
+  // Edit task fields
+  const [editMode, setEditMode] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editScope, setEditScope] = useState('');
+  const [editPriority, setEditPriority] = useState<TaskPriority>('medium');
+  const [editAssigneeId, setEditAssigneeId] = useState('');
+  const [editDeadline, setEditDeadline] = useState('');
+  const [editStatus, setEditStatus] = useState<TaskStatus>('backlog');
+  const [savingTask, setSavingTask] = useState(false);
+
+  // Archive
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+
+  // Progress
   const [editProgress, setEditProgress] = useState(false);
   const [alreadyDone, setAlreadyDone] = useState('');
   const [currentlyDoing, setCurrentlyDoing] = useState('');
   const [remaining, setRemaining] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const { profiles } = useAdminProfiles();
 
   if (!task) return null;
 
@@ -54,6 +82,56 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
     new Date(task.deadline) < new Date() &&
     task.status !== 'done' &&
     task.status !== 'archived';
+
+  function startEditTask() {
+    setEditTitle(task!.title);
+    setEditScope(task!.scope);
+    setEditPriority(task!.priority ?? 'medium');
+    setEditAssigneeId(task!.assignee_id ?? '');
+    setEditDeadline(toDateInputValue(task!.deadline));
+    setEditStatus(task!.status);
+    setEditMode(true);
+  }
+
+  async function saveTask() {
+    if (!editTitle.trim() || !editScope.trim()) return;
+    setSavingTask(true);
+    try {
+      // Se o status mudou, atualiza separadamente (usa a rota correta)
+      if (editStatus !== task!.status) {
+        await apiUpdateStatus(task!.id, { status: editStatus });
+      }
+      await apiUpdateTask(task!.id, {
+        title: editTitle.trim(),
+        scope: editScope.trim(),
+        priority: editPriority,
+        assignee_id: editAssigneeId || null,
+        deadline: editDeadline ? new Date(editDeadline).toISOString() : null,
+      });
+      toast.success('Task atualizada!');
+      mutate(key => typeof key === 'string' && key.startsWith('/api/admin/tasks'));
+      setEditMode(false);
+    } catch (e: any) {
+      toast.error(e.message ?? 'Erro ao salvar');
+    } finally {
+      setSavingTask(false);
+    }
+  }
+
+  async function handleArchive() {
+    setArchiving(true);
+    try {
+      await apiDeleteTask(task!.id);
+      toast.success('Task arquivada!');
+      mutate(key => typeof key === 'string' && key.startsWith('/api/admin/tasks'));
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message ?? 'Erro ao arquivar');
+    } finally {
+      setArchiving(false);
+      setConfirmArchive(false);
+    }
+  }
 
   function startEditProgress() {
     setAlreadyDone(task!.progress?.already_done ?? '');
@@ -107,13 +185,52 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
             </div>
             <DialogTitle className="text-base font-bold text-zinc-100 leading-snug">{task.title}</DialogTitle>
           </div>
-          <button
-            onClick={onClose}
-            className="text-zinc-600 hover:text-zinc-300 transition-colors p-1 rounded-lg hover:bg-zinc-800 flex-shrink-0"
-            aria-label="Fechar"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {task.status !== 'archived' && !editMode && (
+              <>
+                <button
+                  onClick={startEditTask}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-all"
+                  title="Editar task"
+                >
+                  <Edit3 className="w-4 h-4" />
+                </button>
+                {!confirmArchive ? (
+                  <button
+                    onClick={() => setConfirmArchive(true)}
+                    className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                    title="Arquivar task"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/20 rounded-xl px-2 py-1">
+                    <span className="text-[11px] text-red-400 font-medium">Arquivar?</span>
+                    <button
+                      onClick={handleArchive}
+                      disabled={archiving}
+                      className="text-[11px] font-bold text-red-400 hover:text-red-300 disabled:opacity-50"
+                    >
+                      {archiving ? '...' : 'Sim'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmArchive(false)}
+                      className="text-[11px] text-zinc-600 hover:text-zinc-400"
+                    >
+                      Não
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+            <button
+              onClick={onClose}
+              className="text-zinc-600 hover:text-zinc-300 transition-colors p-1 rounded-lg hover:bg-zinc-800 flex-shrink-0"
+              aria-label="Fechar"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -144,14 +261,153 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
 
           {tab === 'details' && (
             <div className="space-y-4">
-              <InfoBlock label="Escopo" icon={FileText} value={task.scope} multiline />
-              <div className="grid grid-cols-2 gap-4">
-                <InfoBlock label="Responsável" icon={User} value={task.assignee?.full_name ?? 'Não atribuído'} />
-                <InfoBlock label="Criado por" icon={User} value={task.creator?.full_name ?? '—'} />
-                <InfoBlock label="Prazo" icon={Calendar} value={formatDate(task.deadline)} />
-                <InfoBlock label="Criado em" icon={Clock} value={formatDate(task.created_at)} />
-              </div>
-              <InfoBlock label="Última atualização" icon={Clock} value={formatDate(task.updated_at)} />
+              {editMode ? (
+                /* ── Edit mode ── */
+                <div className="space-y-4">
+                  {/* Title */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                      <FileText className="w-3 h-3" /> Título
+                    </label>
+                    <input
+                      value={editTitle}
+                      onChange={e => setEditTitle(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                    />
+                  </div>
+
+                  {/* Scope */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                      <FileText className="w-3 h-3" /> Escopo
+                    </label>
+                    <textarea
+                      value={editScope}
+                      onChange={e => setEditScope(e.target.value)}
+                      rows={4}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 resize-none focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                    />
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                      <Clock className="w-3 h-3" /> Status
+                    </label>
+                    <div className="flex gap-2 flex-wrap">
+                      {(Object.keys(STATUS_LABELS) as TaskStatus[]).map(s => {
+                        const color = COLUMN_ACCENT[s];
+                        const selected = editStatus === s;
+                        return (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => setEditStatus(s)}
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+                            style={{
+                              background: selected ? `${color}22` : 'transparent',
+                              color: selected ? color : '#71717a',
+                              border: `1px solid ${selected ? `${color}50` : 'rgba(113,113,122,0.3)'}`,
+                            }}
+                          >
+                            {STATUS_LABELS[s]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Priority */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                      <Flag className="w-3 h-3" /> Prioridade
+                    </label>
+                    <div className="flex gap-2 flex-wrap">
+                      {PRIORITIES.map(p => {
+                        const pc = PRIORITY_CONFIG[p];
+                        const selected = editPriority === p;
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setEditPriority(p)}
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+                            style={{
+                              background: selected ? pc.bg : 'transparent',
+                              color: selected ? pc.color : '#71717a',
+                              border: `1px solid ${selected ? pc.border : 'rgba(113,113,122,0.3)'}`,
+                            }}
+                          >
+                            {pc.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Assignee */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                      <User className="w-3 h-3" /> Responsável
+                    </label>
+                    <select
+                      value={editAssigneeId}
+                      onChange={e => setEditAssigneeId(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-300 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                    >
+                      <option value="">Não atribuído</option>
+                      {profiles.map(p => (
+                        <option key={p.id} value={p.id}>{p.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Deadline */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                      <Calendar className="w-3 h-3" /> Prazo
+                    </label>
+                    <input
+                      type="date"
+                      value={editDeadline}
+                      onChange={e => setEditDeadline(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-300 focus:outline-none focus:border-indigo-500/50 transition-all [color-scheme:dark]"
+                    />
+                  </div>
+
+                  {/* Save / Cancel */}
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={saveTask}
+                      disabled={savingTask || !editTitle.trim() || !editScope.trim()}
+                      className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl text-white transition-all disabled:opacity-50"
+                      style={{ background: accent }}
+                    >
+                      <Save className="w-3 h-3" />
+                      {savingTask ? 'Salvando...' : 'Salvar'}
+                    </button>
+                    <button
+                      onClick={() => setEditMode(false)}
+                      className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-xl border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-all"
+                    >
+                      <XCircle className="w-3 h-3" /> Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* ── View mode ── */
+                <div className="space-y-4">
+                  <InfoBlock label="Escopo" icon={FileText} value={task.scope} multiline />
+                  <div className="grid grid-cols-2 gap-4">
+                    <InfoBlock label="Prioridade" icon={Flag} value={PRIORITY_CONFIG[task.priority ?? 'medium']?.label ?? '—'} accentColor={PRIORITY_CONFIG[task.priority ?? 'medium']?.color} />
+                    <InfoBlock label="Responsável" icon={User} value={task.assignee?.full_name ?? 'Não atribuído'} />
+                    <InfoBlock label="Criado por" icon={User} value={task.creator?.full_name ?? '—'} />
+                    <InfoBlock label="Prazo" icon={Calendar} value={formatDate(task.deadline)} />
+                    <InfoBlock label="Criado em" icon={Clock} value={formatDate(task.created_at)} />
+                    <InfoBlock label="Atualizado em" icon={Clock} value={formatDate(task.updated_at)} />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -192,24 +448,9 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
 
                   {editProgress && (
                     <div className="space-y-4">
-                      <ProgressField
-                        label="O que já foi feito"
-                        value={alreadyDone}
-                        onChange={setAlreadyDone}
-                        accent="#10b981"
-                      />
-                      <ProgressField
-                        label="O que está sendo feito"
-                        value={currentlyDoing}
-                        onChange={setCurrentlyDoing}
-                        accent="#3b82f6"
-                      />
-                      <ProgressField
-                        label="O que falta"
-                        value={remaining}
-                        onChange={setRemaining}
-                        accent="#f59e0b"
-                      />
+                      <ProgressField label="O que já foi feito" value={alreadyDone} onChange={setAlreadyDone} accent="#10b981" />
+                      <ProgressField label="O que está sendo feito" value={currentlyDoing} onChange={setCurrentlyDoing} accent="#3b82f6" />
+                      <ProgressField label="O que falta" value={remaining} onChange={setRemaining} accent="#f59e0b" />
                       <div className="flex gap-2 pt-1">
                         <button
                           onClick={saveProgress}
@@ -303,13 +544,14 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
 }
 
 function InfoBlock({
-  label, icon: Icon, value, multiline, accent,
+  label, icon: Icon, value, multiline, accent, accentColor,
 }: {
   label: string;
   icon: typeof FileText;
   value: string;
   multiline?: boolean;
   accent?: string;
+  accentColor?: string;
 }) {
   return (
     <div
@@ -320,32 +562,25 @@ function InfoBlock({
       }}
     >
       <div className="flex items-center gap-1.5 mb-1.5">
-        <Icon className="w-3 h-3" style={{ color: accent ?? '#52525b' }} />
-        <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: accent ?? '#52525b' }}>
+        <Icon className="w-3 h-3" style={{ color: accentColor ?? accent ?? '#52525b' }} />
+        <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: accentColor ?? accent ?? '#52525b' }}>
           {label}
         </p>
       </div>
-      <p className={`text-sm text-zinc-200 leading-relaxed ${multiline ? 'whitespace-pre-wrap' : ''}`}>
+      <p
+        className={`text-sm text-zinc-200 leading-relaxed ${multiline ? 'whitespace-pre-wrap' : ''}`}
+        style={accentColor ? { color: accentColor } : undefined}
+      >
         {value || '—'}
       </p>
     </div>
   );
 }
 
-function ProgressField({
-  label, value, onChange, accent,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  accent: string;
-}) {
+function ProgressField({ label, value, onChange, accent }: { label: string; value: string; onChange: (v: string) => void; accent: string }) {
   return (
     <div>
-      <label
-        className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block"
-        style={{ color: accent }}
-      >
+      <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: accent }}>
         {label}
       </label>
       <textarea

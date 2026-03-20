@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useTheme } from 'next-themes';
-import { Plus, Kanban } from 'lucide-react';
+import { Plus, Kanban, ChevronLeft } from 'lucide-react';
+import Link from 'next/link';
 import { useTasks, useTaskDetail, type TaskStatus } from './hooks/useTasks';
 import KanbanBoard from './KanbanBoard';
 import TaskFilters from './TaskFilters';
@@ -42,6 +43,13 @@ export default function AdminTasksPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-3.5 border-b border-zinc-200 dark:border-white/[0.06] flex-shrink-0">
         <div className="flex items-center gap-3">
+          <Link
+            href="/portal/admin"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 transition-all flex-shrink-0"
+            title="Voltar ao painel"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Link>
           <div className="w-8 h-8 rounded-xl bg-indigo-500/15 flex items-center justify-center">
             <Kanban className="w-4 h-4 text-indigo-400" />
           </div>

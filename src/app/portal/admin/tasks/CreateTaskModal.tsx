@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Calendar, FileText, Tag } from 'lucide-react';
-import { apiCreateTask } from './hooks/useTasks';
+import { Plus, Calendar, FileText, Tag, User, Flag } from 'lucide-react';
+import { apiCreateTask, useAdminProfiles, TaskPriority } from './hooks/useTasks';
+import { PRIORITY_CONFIG } from './TaskCard';
 import { mutate } from 'swr';
 import { toast } from 'sonner';
 
@@ -13,12 +14,17 @@ interface Props {
   onClose: () => void;
 }
 
+const PRIORITIES: TaskPriority[] = ['low', 'medium', 'high', 'critical'];
+
 export default function CreateTaskModal({ open, userId, onClose }: Props) {
   const [title, setTitle] = useState('');
   const [scope, setScope] = useState('');
   const [deadline, setDeadline] = useState('');
+  const [priority, setPriority] = useState<TaskPriority>('medium');
+  const [assigneeId, setAssigneeId] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
+  const { profiles } = useAdminProfiles();
   const isValid = title.trim() && scope.trim();
 
   async function handleSubmit() {
@@ -29,12 +35,13 @@ export default function CreateTaskModal({ open, userId, onClose }: Props) {
         title: title.trim(),
         scope: scope.trim(),
         created_by: userId,
+        priority,
+        assignee_id: assigneeId || undefined,
         deadline: deadline ? new Date(deadline).toISOString() : undefined,
       });
       toast.success('Task criada com sucesso!');
       mutate(key => typeof key === 'string' && key.startsWith('/api/admin/tasks'));
-      setTitle(''); setScope(''); setDeadline('');
-      onClose();
+      handleClose();
     } catch (e: any) {
       toast.error(e.message ?? 'Erro ao criar task');
     } finally {
@@ -44,6 +51,7 @@ export default function CreateTaskModal({ open, userId, onClose }: Props) {
 
   function handleClose() {
     setTitle(''); setScope(''); setDeadline('');
+    setPriority('medium'); setAssigneeId('');
     onClose();
   }
 
@@ -95,6 +103,51 @@ export default function CreateTaskModal({ open, userId, onClose }: Props) {
               rows={4}
               className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-600 resize-none focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
             />
+          </div>
+
+          {/* Priority */}
+          <div>
+            <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+              <Flag className="w-3 h-3" /> Prioridade
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              {PRIORITIES.map(p => {
+                const pc = PRIORITY_CONFIG[p];
+                const selected = priority === p;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPriority(p)}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+                    style={{
+                      background: selected ? pc.bg : 'transparent',
+                      color: selected ? pc.color : '#71717a',
+                      border: `1px solid ${selected ? pc.border : 'rgba(113,113,122,0.3)'}`,
+                    }}
+                  >
+                    {pc.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Assignee */}
+          <div>
+            <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+              <User className="w-3 h-3" /> Responsável <span className="text-zinc-700">(opcional)</span>
+            </label>
+            <select
+              value={assigneeId}
+              onChange={e => setAssigneeId(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+            >
+              <option value="">Não atribuído</option>
+              {profiles.map(p => (
+                <option key={p.id} value={p.id}>{p.full_name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Deadline */}

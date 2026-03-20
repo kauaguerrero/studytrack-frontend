@@ -4,15 +4,22 @@ import useSWR, { mutate } from 'swr';
 import { apiFetcher } from '@/lib/api-fetcher';
 
 export type TaskStatus = 'backlog' | 'in_progress' | 'review' | 'done' | 'archived';
-export type TaskPriority = 'low' | 'medium' | 'high';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+
+export interface AdminProfile {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+}
 
 export interface Task {
   id: string;
   title: string;
   scope: string;
   status: TaskStatus;
+  priority: TaskPriority;
   assignee_id: string | null;
-  assignee: { id: string; full_name: string } | null;
+  assignee: { id: string; full_name: string; avatar_url: string | null } | null;
   created_by: string;
   deadline: string | null;
   created_at: string;
@@ -21,7 +28,7 @@ export interface Task {
 }
 
 export interface TaskDetail extends Task {
-  creator: { id: string; full_name: string } | null;
+  creator: { id: string; full_name: string; avatar_url: string | null } | null;
   progress: {
     task_id: string;
     already_done: string;
@@ -96,6 +103,14 @@ export function useAISuggestions() {
   };
 }
 
+export function useAdminProfiles() {
+  const { data, error, isLoading } = useSWR<AdminProfile[]>(
+    '/api/admin/profiles',
+    apiFetcher
+  );
+  return { profiles: data ?? [], isLoading, error };
+}
+
 // Mutations (fire-and-forget helpers, caller should mutate SWR after)
 export async function apiUpdateStatus(taskId: string, body: object): Promise<TaskDetail> {
   const res = await fetch(`/api/admin/tasks/${taskId}/status`, {
@@ -113,6 +128,19 @@ export async function apiUpdateStatus(taskId: string, body: object): Promise<Tas
 export async function apiCreateTask(body: object): Promise<Task> {
   const res = await fetch('/api/admin/tasks', {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any)?.error ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function apiUpdateTask(taskId: string, body: object): Promise<TaskDetail> {
+  const res = await fetch(`/api/admin/tasks/${taskId}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
