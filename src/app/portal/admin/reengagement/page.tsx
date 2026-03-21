@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import { MarketingBroadcastModal } from '@/components/admin/MarketingBroadcastModal';
 
 type Segment = 'HOT' | 'WARM' | 'COLD';
 type SegmentFilter = Segment | 'ALL';
@@ -107,6 +108,7 @@ export default function AdminReengagementPage() {
   const [bulkActiveWindowOnly, setBulkActiveWindowOnly] = useState(true);
   const [bulkTargetCount, setBulkTargetCount] = useState<number>(0);
   const [bulkCountLoading, setBulkCountLoading] = useState(false);
+  const [isMarketingModalOpen, setIsMarketingModalOpen] = useState(false);
 
   const pathname = usePathname();
   const [readAtMap, setReadAtMap] = useState<Record<string, number>>({});
@@ -441,6 +443,10 @@ export default function AdminReengagementPage() {
 
   return (
     <div className="p-8 space-y-8 bg-slate-50/50 min-h-screen font-sans text-slate-900">
+      <MarketingBroadcastModal
+        isOpen={isMarketingModalOpen}
+        onClose={() => setIsMarketingModalOpen(false)}
+      />
       <div className="flex items-center justify-between border-b pb-6">
         <div>
           <div className="flex items-center gap-3">
@@ -451,9 +457,14 @@ export default function AdminReengagementPage() {
           </div>
           <p className="text-slate-500 mt-1">Segmentação automática e disparos via WhatsApp.</p>
         </div>
-        <Link href="/portal/admin">
-          <Button variant="outline" className="rounded-xl">Voltar</Button>
-        </Link>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button className="rounded-xl" onClick={() => setIsMarketingModalOpen(true)}>
+            📣 Fazer envio de marketing
+          </Button>
+          <Link href="/portal/admin">
+            <Button variant="outline" className="rounded-xl">Voltar</Button>
+          </Link>
+        </div>
       </div>
 
       {/* Cards resumo */}

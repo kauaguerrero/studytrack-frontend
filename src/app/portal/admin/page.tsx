@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link"; // Adicionado para navegação
 import { createClient } from "@/lib/supabase/client";
+import MarketingBroadcastModal from "@/components/admin/MarketingBroadcastModal";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -11,13 +12,14 @@ import {
   Database, ArrowUpRight, Zap, GraduationCap,
   School, AlertOctagon, TrendingUp,   BarChart3,
   Calculator, ListChecks,
-  Flag, ClipboardList
+  Flag, ClipboardList, Megaphone
 } from "lucide-react";
 
 export default function SuperAdminDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [dist, setDist] = useState<any>(null); // Dados de distribuição
   const [loading, setLoading] = useState(true);
+  const [marketingOpen, setMarketingOpen] = useState(false);
   const supabase = createClient();
 
   const SUPABASE_FREE_LIMIT = 500 * 1024 * 1024; 
@@ -25,21 +27,23 @@ export default function SuperAdminDashboard() {
   useEffect(() => {
     async function fetchData() {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+
       const headers = { Authorization: `Bearer ${session.access_token}` };
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
 
       try {
-        // Busca Paralela das duas rotas
+        // Busca Paralela das duas rotas (backend Flask; exige NEXT_PUBLIC_API_URL em prod)
         const [resStats, resDist] = await Promise.all([
-            fetch(`${apiUrl}/api/admin/stats`, { headers }),
-            fetch(`${apiUrl}/api/admin/stats/distribution`, { headers })
+          fetch(`${apiUrl}/api/admin/stats`, { headers }),
+          fetch(`${apiUrl}/api/admin/stats/distribution`, { headers }),
         ]);
-        
+
         if (resStats.ok) setStats(await resStats.json());
         if (resDist.ok) setDist(await resDist.json());
-
       } catch (error) {
         console.error("Erro ao buscar dados do dashboard:", error);
       }
@@ -71,6 +75,7 @@ export default function SuperAdminDashboard() {
 
   return (
     <div className="p-8 space-y-8 bg-slate-50/50 min-h-screen font-sans text-slate-900">
+      <MarketingBroadcastModal isOpen={marketingOpen} onClose={() => setMarketingOpen(false)} />
       
       {/* --- HEADER --- */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b pb-6">
@@ -89,6 +94,13 @@ export default function SuperAdminDashboard() {
                     <Zap className="w-4 h-4 text-amber-500" /> Reengajamento
                 </span>
             </Link>
+            <button
+                type="button"
+                onClick={() => setMarketingOpen(true)}
+                className="mr-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+                <Megaphone className="w-4 h-4 text-rose-500" /> Marketing
+            </button>
             <span className="flex h-3 w-3 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
