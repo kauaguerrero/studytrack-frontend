@@ -5,17 +5,53 @@ import { createClient } from '@/lib/supabase/client';
 import { useTheme } from 'next-themes';
 import { Plus, Kanban, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
-import { useTasks, useTaskDetail, type TaskStatus } from './hooks/useTasks';
+import { useTasks, useTaskDetail, type Task, type TaskStatus } from './hooks/useTasks';
 import KanbanBoard from './KanbanBoard';
-import TaskFilters from './TaskFilters';
+import TaskFilters, { type Filters, DEFAULT_FILTERS } from './TaskFilters';
 import TaskDetailModal from './TaskDetailModal';
 import CreateTaskModal from './CreateTaskModal';
 import AISuggestionsPanel from './AISuggestionsPanel';
 
+// ─── Client-side filter logic ─────────────────────────────────────────────────
+
+function applyFilters(tasks: Task[], filters: Filters): Task[] {
+  return tasks.filter(t => {
+    if (filters.status.length && !filters.status.includes(t.status)) return false;
+    if (filters.priority.length && !filters.priority.includes(t.priority)) return false;
+    if (
+      filters.assignee_ids.length &&
+      (!t.assignee_id || !filters.assignee_ids.includes(t.assignee_id))
+    )
+      return false;
+    if (filters.created_by && t.created_by !== filters.created_by) return false;
+    if (filters.date_range) {
+      const now = new Date();
+      const created = new Date(t.created_at);
+      if (filters.date_range === 'today') {
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (created < start) return false;
+      } else if (filters.date_range === 'week') {
+        const day = now.getDay();
+        const diff = day === 0 ? -6 : 1 - day; // Monday
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff);
+        if (created < start) return false;
+      } else if (filters.date_range === 'month') {
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        if (created < start) return false;
+      } else if (filters.date_range === 'year') {
+        const start = new Date(now.getFullYear(), 0, 1);
+        if (created < start) return false;
+      }
+    }
+    return true;
+  });
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminTasksPage() {
   const [userId, setUserId] = useState<string | null>(null);
-  const [filters, setFilters] = useState({ status: '', priority: '', search: '', overdue: false, assignee_id: '' });
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const supabase = createClient();
@@ -28,18 +64,21 @@ export default function AdminTasksPage() {
     });
   }, []);
 
+  // Server-side params: only search and overdue (everything else is client-side)
   const queryParams: Record<string, string> = {};
-  if (filters.status) queryParams.status = filters.status;
   if (filters.search) queryParams.search = filters.search;
   if (filters.overdue) queryParams.overdue = 'true';
-  if (filters.assignee_id) queryParams.assignee_id = filters.assignee_id;
 
-  const { tasks: rawTasks, isLoading } = useTasks(Object.keys(queryParams).length ? queryParams : undefined);
-  const tasks = filters.priority
-    ? rawTasks.filter(t => t.priority === filters.priority)
-    : rawTasks;
+  const { tasks: rawTasks, isLoading } = useTasks(
+    Object.keys(queryParams).length ? queryParams : undefined
+  );
+
+  const tasks = applyFilters(rawTasks, filters);
   const { task: selectedTask } = useTaskDetail(selectedTaskId);
 
+  // Pass single status to KanbanBoard for column visibility (backward compat)
+  const statusFilter =
+    filters.status.length === 1 ? (filters.status[0] as TaskStatus) : ('' as TaskStatus);
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 overflow-hidden">
@@ -107,7 +146,11 @@ export default function AdminTasksPage() {
             </div>
           </div>
         ) : (
-          <KanbanBoard tasks={tasks} onTaskClick={t => setSelectedTaskId(t.id)} statusFilter={filters.status as TaskStatus} />
+          <KanbanBoard
+            tasks={tasks}
+            onTaskClick={t => setSelectedTaskId(t.id)}
+            statusFilter={statusFilter}
+          />
         )}
 
         {userId && <AISuggestionsPanel userId={userId} />}
