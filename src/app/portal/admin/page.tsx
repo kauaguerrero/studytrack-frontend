@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link"; // Adicionado para navegação
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import MarketingBroadcastModal from "@/components/admin/MarketingBroadcastModal";
 import PeakHoursCard from "@/components/admin/PeakHoursCard";
@@ -11,19 +11,19 @@ import { Progress } from "@/components/ui/progress";
 import {
   Activity, Users, DollarSign, Brain, Target,
   Database, ArrowUpRight, Zap, GraduationCap,
-  School, AlertOctagon, TrendingUp,   BarChart3,
+  School, AlertOctagon, TrendingUp, BarChart3,
   Calculator, ListChecks,
   Flag, ClipboardList, Megaphone
 } from "lucide-react";
 
 export default function SuperAdminDashboard() {
   const [stats, setStats] = useState<any>(null);
-  const [dist, setDist] = useState<any>(null); // Dados de distribuição
+  const [dist, setDist] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [marketingOpen, setMarketingOpen] = useState(false);
   const supabase = createClient();
 
-  const SUPABASE_FREE_LIMIT = 500 * 1024 * 1024; 
+  const SUPABASE_FREE_LIMIT = 500 * 1024 * 1024;
 
   useEffect(() => {
     async function fetchData() {
@@ -37,7 +37,6 @@ export default function SuperAdminDashboard() {
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
 
       try {
-        // Busca Paralela das duas rotas (backend Flask; exige NEXT_PUBLIC_API_URL em prod)
         const [resStats, resDist] = await Promise.all([
           fetch(`${apiUrl}/api/admin/stats`, { headers }),
           fetch(`${apiUrl}/api/admin/stats/distribution`, { headers }),
@@ -54,7 +53,7 @@ export default function SuperAdminDashboard() {
   }, []);
 
   if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-gray-50">
+    <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-slate-900">
         <div className="flex flex-col items-center gap-4 animate-pulse">
             <div className="h-12 w-12 bg-indigo-200 rounded-full"></div>
             <p className="text-indigo-600 font-medium">Carregando Inteligência do SaaS...</p>
@@ -65,40 +64,39 @@ export default function SuperAdminDashboard() {
   if (!stats) return <div className="p-10 text-red-500 text-center">Erro ao carregar dados. Verifique a API.</div>;
 
   const { health, product, financial, infrastructure, education, b2b } = stats || {};
-  
-  // Cálculos de Infra
-  const dbUsagePercent = infrastructure?.db_size_bytes 
-    ? (infrastructure.db_size_bytes / SUPABASE_FREE_LIMIT) * 100 
+
+  const dbUsagePercent = infrastructure?.db_size_bytes
+    ? (infrastructure.db_size_bytes / SUPABASE_FREE_LIMIT) * 100
     : 0;
-  const dbSizeMB = infrastructure?.db_size_bytes 
-    ? (infrastructure.db_size_bytes / 1024 / 1024).toFixed(1) 
+  const dbSizeMB = infrastructure?.db_size_bytes
+    ? (infrastructure.db_size_bytes / 1024 / 1024).toFixed(1)
     : "0";
 
   return (
-    <div className="p-8 space-y-8 bg-slate-50/50 min-h-screen font-sans text-slate-900">
+    <div className="p-8 space-y-8 bg-slate-50/50 dark:bg-slate-900/50 min-h-screen font-sans text-slate-900 dark:text-slate-100">
       <MarketingBroadcastModal isOpen={marketingOpen} onClose={() => setMarketingOpen(false)} />
-      
+
       {/* --- HEADER --- */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b pb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-slate-200 dark:border-slate-700 pb-6">
         <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Master Control</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Master Control</h1>
             <p className="text-slate-500 mt-1">Visão holística de Negócio, Produto e Pedagogia.</p>
         </div>
         <div className="flex items-center gap-2">
             <Link href="/portal/admin/tasks" className="mr-2">
-                <span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                     <ClipboardList className="w-4 h-4 text-indigo-500" /> Tasks
                 </span>
             </Link>
             <Link href="/portal/admin/reengagement" className="mr-3">
-                <span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                <span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                     <Zap className="w-4 h-4 text-amber-500" /> Reengajamento
                 </span>
             </Link>
             <button
                 type="button"
                 onClick={() => setMarketingOpen(true)}
-                className="mr-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="mr-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
                 <Megaphone className="w-4 h-4 text-rose-500" /> Marketing
             </button>
@@ -119,11 +117,11 @@ export default function SuperAdminDashboard() {
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="text-sm font-medium text-slate-500 uppercase">Total de Usuários</p>
-                        <h3 className="text-4xl font-bold text-slate-900 mt-2">{health?.total_users || 0}</h3>
+                        <h3 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mt-2">{health?.total_users || 0}</h3>
                     </div>
-                    <div className="p-3 bg-blue-50 rounded-lg"><Users className="w-6 h-6 text-blue-600" /></div>
+                    <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-lg"><Users className="w-6 h-6 text-blue-600" /></div>
                 </div>
-                <div className="mt-4 flex items-center gap-2 text-sm text-slate-600">
+                <div className="mt-4 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                     <span className="font-semibold text-blue-600">{health?.onboarding_rate}%</span> completaram cadastro
                 </div>
             </CardContent>
@@ -134,12 +132,12 @@ export default function SuperAdminDashboard() {
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="text-sm font-medium text-slate-500 uppercase">Receita (MRR)</p>
-                        <h3 className="text-4xl font-bold text-slate-900 mt-2">R$ {financial?.mrr_brl || "0.00"}</h3>
+                        <h3 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mt-2">R$ {financial?.mrr_brl || "0.00"}</h3>
                     </div>
-                    <div className="p-3 bg-emerald-50 rounded-lg"><DollarSign className="w-6 h-6 text-emerald-600" /></div>
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg"><DollarSign className="w-6 h-6 text-emerald-600" /></div>
                 </div>
-                <div className="mt-4 flex items-center gap-2 text-sm text-slate-600">
-                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                <div className="mt-4 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                    <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 border-emerald-200">
                         {product?.active_pros || 0} Assinantes Pro
                     </Badge>
                 </div>
@@ -151,11 +149,11 @@ export default function SuperAdminDashboard() {
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="text-sm font-medium text-slate-500 uppercase">Lucro Líquido</p>
-                        <h3 className={`text-4xl font-bold mt-2 ${financial?.net_profit_brl >= 0 ? 'text-indigo-900' : 'text-red-600'}`}>
+                        <h3 className={`text-4xl font-bold mt-2 ${financial?.net_profit_brl >= 0 ? 'text-indigo-900 dark:text-indigo-200' : 'text-red-600'}`}>
                             R$ {financial?.net_profit_brl || "0.00"}
                         </h3>
                     </div>
-                    <div className={`p-3 rounded-lg ${financial?.net_profit_brl >= 0 ? 'bg-indigo-50' : 'bg-red-50'}`}>
+                    <div className={`p-3 rounded-lg ${financial?.net_profit_brl >= 0 ? 'bg-indigo-50 dark:bg-indigo-950/40' : 'bg-red-50 dark:bg-red-950/40'}`}>
                         <TrendingUp className={`w-6 h-6 ${financial?.net_profit_brl >= 0 ? 'text-indigo-600' : 'text-red-600'}`} />
                     </div>
                 </div>
@@ -180,15 +178,15 @@ export default function SuperAdminDashboard() {
             <CardContent>
                 <div className="flex items-center justify-between mb-4">
                     <div className="text-center">
-                        <p className="text-3xl font-bold text-slate-900">{health?.dau || 0}</p>
+                        <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{health?.dau || 0}</p>
                         <p className="text-xs text-slate-500 font-bold uppercase mt-1">DAU (24h)</p>
                     </div>
-                    <div className="h-8 w-px bg-slate-200"></div>
+                    <div className="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
                     <div className="text-center">
-                        <p className="text-3xl font-bold text-slate-900">{health?.mau || 0}</p>
+                        <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{health?.mau || 0}</p>
                         <p className="text-xs text-slate-500 font-bold uppercase mt-1">MAU (30d)</p>
                     </div>
-                    <div className="h-8 w-px bg-slate-200"></div>
+                    <div className="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
                     <div className="text-center">
                         <p className={`text-3xl font-bold ${health?.stickiness > 20 ? 'text-green-600' : 'text-amber-600'}`}>
                             {health?.stickiness || 0}%
@@ -196,12 +194,12 @@ export default function SuperAdminDashboard() {
                         <p className="text-xs text-slate-500 font-bold uppercase mt-1">Retenção</p>
                     </div>
                 </div>
-                <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 flex items-center justify-between">
+                <div className="bg-orange-50 dark:bg-orange-950/40 border border-orange-100 dark:border-orange-900/50 rounded-lg p-3 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Activity className="w-4 h-4 text-orange-600" />
-                        <span className="text-sm font-medium text-orange-800">Risco de Churn (Inativos +30d)</span>
+                        <span className="text-sm font-medium text-orange-800 dark:text-orange-300">Risco de Churn (Inativos +30d)</span>
                     </div>
-                    <span className="font-bold text-orange-900">{health?.churn_risk_users || 0}</span>
+                    <span className="font-bold text-orange-900 dark:text-orange-200">{health?.churn_risk_users || 0}</span>
                 </div>
             </CardContent>
         </Card>
@@ -216,19 +214,19 @@ export default function SuperAdminDashboard() {
             <CardContent className="space-y-6">
                 <div>
                     <div className="flex justify-between mb-2">
-                        <span className="text-sm font-medium text-slate-700">Aderência aos Planos (Semanal)</span>
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Aderência aos Planos (Semanal)</span>
                         <span className={`text-sm font-bold ${product?.plan_adherence > 60 ? 'text-green-600' : 'text-red-500'}`}>
                             {product?.plan_adherence || 0}%
                         </span>
                     </div>
                     <Progress value={product?.plan_adherence || 0} className="h-2" />
                 </div>
-                <div className="flex items-center gap-4 pt-2 border-t">
+                <div className="flex items-center gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
                     <div className="flex-1">
                         <p className="text-xs text-slate-500 font-bold uppercase">Fila de Redação</p>
                         <div className="flex items-center gap-2 mt-1">
                             <div className={`w-3 h-3 rounded-full ${product?.stuck_essays > 0 ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
-                            <span className="text-sm font-medium text-slate-700">
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                 {product?.stuck_essays > 0 ? `${product.stuck_essays} Travados` : "Operacional"}
                             </span>
                         </div>
@@ -237,7 +235,7 @@ export default function SuperAdminDashboard() {
                           <p className="text-xs text-slate-500 font-bold uppercase">Custo IA</p>
                           <div className="flex items-center gap-1 mt-1">
                             <Brain className="w-4 h-4 text-slate-400" />
-                            <span className="text-lg font-bold text-slate-700">R$ {financial?.ai_cost_brl || 0}</span>
+                            <span className="text-lg font-bold text-slate-700 dark:text-slate-300">R$ {financial?.ai_cost_brl || 0}</span>
                           </div>
                     </div>
                 </div>
@@ -260,16 +258,16 @@ export default function SuperAdminDashboard() {
             </CardHeader>
             <CardContent>
                 <div className="flex flex-col gap-4">
-                    <div className="flex justify-between items-end border-b pb-2">
+                    <div className="flex justify-between items-end border-b border-slate-200 dark:border-slate-700 pb-2">
                         <div>
                             <p className="text-xs font-bold uppercase text-slate-400">Tokens Totais</p>
-                            <p className="text-2xl font-mono font-bold text-slate-800">
+                            <p className="text-2xl font-mono font-bold text-slate-800 dark:text-slate-200">
                                 {financial?.ai_total_tokens ? financial.ai_total_tokens.toLocaleString() : 0}
                             </p>
                         </div>
                         <Calculator className="w-5 h-5 text-slate-300 mb-1" />
                     </div>
-                    
+
                     <div className="flex justify-between items-end">
                         <div>
                             <p className="text-xs font-bold uppercase text-slate-400">Custo Estimado</p>
@@ -285,25 +283,25 @@ export default function SuperAdminDashboard() {
             </CardContent>
         </Card>
 
-      {/* SEÇÃO 3: EDUCAÇÃO & B2B (NOVA) */}
+      {/* SEÇÃO 3: EDUCAÇÃO & B2B */}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Ponto Fraco */}
-        <Card className="bg-red-50 border-red-100 md:col-span-1">
+        <Card className="bg-red-50 dark:bg-red-950/30 border-red-100 dark:border-red-900/40 md:col-span-1">
             <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-lg text-red-900">
+                <CardTitle className="flex items-center gap-2 text-lg text-red-900 dark:text-red-200">
                     <AlertOctagon className="w-5 h-5 text-red-600" /> Ponto Fraco
                 </CardTitle>
-                <CardDescription className="text-red-700/70">Matéria com maior índice de erro.</CardDescription>
+                <CardDescription className="text-red-700/70 dark:text-red-300/70">Matéria com maior índice de erro.</CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="mt-2">
-                    <h3 className="text-2xl font-bold text-red-900 truncate" title={education?.hardest_subject}>
+                    <h3 className="text-2xl font-bold text-red-900 dark:text-red-200 truncate" title={education?.hardest_subject}>
                         {education?.hardest_subject || "N/A"}
                     </h3>
                     <div className="flex items-center gap-2 mt-1">
                         <span className="text-3xl font-bold text-red-600">{education?.lowest_accuracy}%</span>
-                        <span className="text-sm font-medium text-red-800">de acerto</span>
+                        <span className="text-sm font-medium text-red-800 dark:text-red-300">de acerto</span>
                     </div>
                     <p className="text-xs text-red-600/60 mt-4">Baseado nas últimas {education?.total_answers_analyzed} respostas.</p>
                 </div>
@@ -311,7 +309,7 @@ export default function SuperAdminDashboard() {
         </Card>
 
         {/* B2B */}
-        <Card className="bg-white hover:border-indigo-300 transition-colors md:col-span-1">
+        <Card className="bg-white dark:bg-slate-900 hover:border-indigo-300 transition-colors md:col-span-1">
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-lg">
                     <School className="w-5 h-5 text-indigo-500" /> Escolas B2B
@@ -321,14 +319,14 @@ export default function SuperAdminDashboard() {
             <CardContent>
                 <div className="flex items-center justify-between mt-2">
                     <div>
-                        <span className="text-4xl font-bold text-slate-900">{b2b?.active_schools || 0}</span>
+                        <span className="text-4xl font-bold text-slate-900 dark:text-slate-100">{b2b?.active_schools || 0}</span>
                         <p className="text-sm text-slate-500 font-medium">Escolas</p>
                     </div>
-                    <div className="h-12 w-12 bg-indigo-50 rounded-full flex items-center justify-center">
+                    <div className="h-12 w-12 bg-indigo-50 dark:bg-indigo-950/40 rounded-full flex items-center justify-center">
                          <GraduationCap className="w-6 h-6 text-indigo-600" />
                     </div>
                 </div>
-                <div className="mt-4 pt-4 border-t border-slate-100">
+                <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                     <button className="text-sm text-indigo-600 font-medium hover:underline flex items-center gap-1">
                         Gerenciar <ArrowUpRight className="w-3 h-3" />
                     </button>
@@ -336,7 +334,7 @@ export default function SuperAdminDashboard() {
             </CardContent>
         </Card>
 
-        {/* Infra DB */}
+        {/* Infra DB — já é dark por padrão, não mexer */}
         <Card className="bg-slate-900 text-slate-50 md:col-span-1 border-t-4 border-t-cyan-400">
              <CardContent className="p-6">
                  <div className="flex justify-between items-center mb-4">
@@ -350,7 +348,7 @@ export default function SuperAdminDashboard() {
                      <span className="text-sm text-slate-400">/ 500 MB</span>
                  </div>
                  <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden mb-2">
-                    <div className={`h-full transition-all ${dbUsagePercent > 90 ? 'bg-red-500' : 'bg-cyan-500'}`} 
+                    <div className={`h-full transition-all ${dbUsagePercent > 90 ? 'bg-red-500' : 'bg-cyan-500'}`}
                          style={{ width: `${Math.min(dbUsagePercent, 100)}%` }}></div>
                  </div>
                  <p className="text-xs text-slate-500 text-right">{dbUsagePercent.toFixed(1)}% utilizado</p>
@@ -362,13 +360,12 @@ export default function SuperAdminDashboard() {
       {/* SEÇÃO 4: ANÁLISE DO BANCO DE QUESTÕES (DISTRIBUIÇÃO) */}
       {/* ================================================================================== */}
       {dist && (
-        <div className="pt-6 border-t border-slate-200">
-             {/* HEADER ATUALIZADO COM O BOTÃO DE AÇÃO */}
+        <div className="pt-6 border-t border-slate-200 dark:border-slate-700">
              <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                  <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <BarChart3 className="w-6 h-6 text-slate-600" /> Raio-X do Conteúdo ({dist.total} questões)
+                    <BarChart3 className="w-6 h-6 text-slate-600 dark:text-slate-400" /> Raio-X do Conteúdo ({dist.total} questões)
                  </h2>
-                 
+
                  <div className="flex flex-wrap items-center gap-2">
                     <Link href="/portal/admin/reports" prefetch={false}>
                         <button className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-4 rounded-md transition-all shadow-sm hover:shadow-md active:scale-95">
@@ -384,7 +381,7 @@ export default function SuperAdminDashboard() {
                     </Link>
                  </div>
              </div>
-             
+
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  {/* Por Matéria */}
                  <Card>
@@ -394,8 +391,8 @@ export default function SuperAdminDashboard() {
                      <CardContent className="h-64 overflow-y-auto pr-2 custom-scrollbar">
                         <div className="space-y-2">
                             {dist.by_subject.map((s: any) => (
-                                <div key={s.name} className="flex justify-between items-center text-sm p-2 hover:bg-slate-50 rounded">
-                                    <span className="font-medium text-slate-700">{s.name}</span>
+                                <div key={s.name} className="flex justify-between items-center text-sm p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded">
+                                    <span className="font-medium text-slate-700 dark:text-slate-300">{s.name}</span>
                                     <Badge variant="secondary">{s.count}</Badge>
                                 </div>
                             ))}
@@ -403,7 +400,7 @@ export default function SuperAdminDashboard() {
                      </CardContent>
                  </Card>
 
-                 {/* Por Dificuldade e Ano (Grid Interno) */}
+                 {/* Por Dificuldade e Ano */}
                  <div className="space-y-6">
                      <Card>
                         <CardHeader className="pb-2">
@@ -412,8 +409,8 @@ export default function SuperAdminDashboard() {
                         <CardContent>
                             <div className="flex gap-2 flex-wrap">
                                 {dist.by_difficulty.map((d: any) => (
-                                    <div key={d.name} className="flex-1 bg-slate-50 p-3 rounded text-center border border-slate-100">
-                                        <div className="text-2xl font-bold text-slate-800">{d.count}</div>
+                                    <div key={d.name} className="flex-1 bg-slate-50 dark:bg-slate-800 p-3 rounded text-center border border-slate-100 dark:border-slate-800">
+                                        <div className="text-2xl font-bold text-slate-800 dark:text-slate-200">{d.count}</div>
                                         <div className="text-xs text-slate-500 font-bold uppercase mt-1">{d.name}</div>
                                     </div>
                                 ))}
@@ -429,9 +426,9 @@ export default function SuperAdminDashboard() {
                             <div className="space-y-2">
                                 {dist.by_year.slice(0, 5).map((y: any) => (
                                     <div key={y.name} className="flex items-center gap-3">
-                                        <span className="text-sm font-bold w-12 text-slate-600">{y.name}</span>
-                                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                            <div className="h-full bg-indigo-500" 
+                                        <span className="text-sm font-bold w-12 text-slate-600 dark:text-slate-400">{y.name}</span>
+                                        <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                            <div className="h-full bg-indigo-500"
                                                  style={{ width: `${(y.count / dist.total) * 100}%` }}></div>
                                         </div>
                                         <span className="text-xs text-slate-400 w-8 text-right">{y.count}</span>

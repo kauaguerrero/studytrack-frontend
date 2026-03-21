@@ -35,13 +35,13 @@ export default function MoveToProgressModal({ open, taskTitle, onConfirm, onCanc
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onCancel()}>
-      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-lg p-0 gap-0 overflow-hidden rounded-2xl">
+      <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 max-w-lg w-[calc(100%-2rem)] p-0 gap-0 rounded-2xl flex flex-col max-h-[min(90vh,680px)] overflow-hidden">
 
         {/* Accent bar */}
-        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #3b82f6, #3b82f640)' }} />
+        <div className="h-[3px] rounded-t-2xl flex-shrink-0" style={{ background: 'linear-gradient(90deg, #3b82f6, #3b82f640)' }} />
 
         {/* Header */}
-        <div className="px-6 pt-5 pb-4 border-b border-zinc-800/60">
+        <div className="px-6 pt-5 pb-4 border-b border-zinc-800/60 flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: '#3b82f620' }}>
               <Play className="w-4 h-4 text-blue-400" />
@@ -54,7 +54,7 @@ export default function MoveToProgressModal({ open, taskTitle, onConfirm, onCanc
         </div>
 
         {/* Form */}
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1 min-h-0">
           <ProgressField
             label="O que já foi feito?"
             icon={CheckCircle2}
@@ -82,7 +82,7 @@ export default function MoveToProgressModal({ open, taskTitle, onConfirm, onCanc
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-5 flex items-center justify-end gap-2.5">
+        <div className="px-6 pb-5 flex items-center justify-end gap-2.5 flex-shrink-0 border-t border-zinc-800/40 pt-4">
           <button
             onClick={onCancel}
             className="text-sm font-medium px-4 py-2 rounded-xl border border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700 transition-all"

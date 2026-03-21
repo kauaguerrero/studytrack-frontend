@@ -50,9 +50,9 @@ type ApiResponse = {
 };
 
 function segmentBadge(seg: Segment) {
-  if (seg === 'HOT') return <Badge className="bg-red-50 text-red-700 border border-red-200">HOT</Badge>;
-  if (seg === 'WARM') return <Badge className="bg-amber-50 text-amber-700 border border-amber-200">WARM</Badge>;
-  return <Badge className="bg-sky-50 text-sky-700 border border-sky-200">COLD</Badge>;
+  if (seg === 'HOT') return <Badge className="bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">HOT</Badge>;
+  if (seg === 'WARM') return <Badge className="bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">WARM</Badge>;
+  return <Badge className="bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">COLD</Badge>;
 }
 
 function fmtDate(value: string | null) {
@@ -63,12 +63,12 @@ function fmtDate(value: string | null) {
 }
 
 function stageBadge(stage: ConversionStage) {
-  if (stage === 'abordado') return <Badge className="bg-blue-50 text-blue-700 border border-blue-200">Abordado</Badge>;
-  if (stage === 'oferta_feita') return <Badge className="bg-amber-50 text-amber-800 border border-amber-200">Oferta feita</Badge>;
-  if (stage === 'oferta_especial') return <Badge className="bg-orange-50 text-orange-800 border border-orange-200">Oferta especial</Badge>;
-  if (stage === 'convertido') return <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">Convertido</Badge>;
-  if (stage === 'perdido') return <Badge className="bg-red-50 text-red-700 border border-red-200">Perdido</Badge>;
-  return <Badge className="bg-slate-100 text-slate-700 border border-slate-200">Não abordado</Badge>;
+  if (stage === 'abordado') return <Badge className="bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">Abordado</Badge>;
+  if (stage === 'oferta_feita') return <Badge className="bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">Oferta feita</Badge>;
+  if (stage === 'oferta_especial') return <Badge className="bg-orange-50 dark:bg-orange-950/50 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-800">Oferta especial</Badge>;
+  if (stage === 'convertido') return <Badge className="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">Convertido</Badge>;
+  if (stage === 'perdido') return <Badge className="bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">Perdido</Badge>;
+  return <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">Não abordado</Badge>;
 }
 
 export default function AdminReengagementPage() {
@@ -454,15 +454,15 @@ export default function AdminReengagementPage() {
   }
 
   return (
-    <div className="p-8 space-y-8 bg-slate-50/50 min-h-screen font-sans text-slate-900">
+    <div className="p-8 space-y-8 bg-slate-50/50 dark:bg-slate-900/50 min-h-screen font-sans text-slate-900 dark:text-slate-100">
       <MarketingBroadcastModal
         isOpen={isMarketingModalOpen}
         onClose={() => setIsMarketingModalOpen(false)}
       />
-      <div className="flex items-center justify-between border-b pb-6">
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-6">
         <div>
           <div className="flex items-center gap-3">
-            <Link href="/portal/admin" className="text-slate-500 hover:text-slate-900">
+            <Link href="/portal/admin" className="text-slate-500 hover:text-slate-900 dark:hover:text-slate-100">
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <h1 className="text-3xl font-bold tracking-tight">Reengajamento</h1>
@@ -488,7 +488,7 @@ export default function AdminReengagementPage() {
                 <p className="text-sm font-medium text-slate-500 uppercase">HOT</p>
                 <h3 className="text-4xl font-bold mt-2">{loading ? '—' : segmentCounts.HOT}</h3>
               </div>
-              <div className="p-3 bg-red-50 rounded-lg"><Flame className="w-6 h-6 text-red-600" /></div>
+              <div className="p-3 bg-red-50 dark:bg-red-950/40 rounded-lg"><Flame className="w-6 h-6 text-red-600" /></div>
             </div>
             <p className="text-sm text-slate-500 mt-4">Alta probabilidade de conversão.</p>
           </CardContent>
@@ -500,7 +500,7 @@ export default function AdminReengagementPage() {
                 <p className="text-sm font-medium text-slate-500 uppercase">WARM</p>
                 <h3 className="text-4xl font-bold mt-2">{loading ? '—' : segmentCounts.WARM}</h3>
               </div>
-              <div className="p-3 bg-amber-50 rounded-lg"><Thermometer className="w-6 h-6 text-amber-600" /></div>
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 rounded-lg"><Thermometer className="w-6 h-6 text-amber-600" /></div>
             </div>
             <p className="text-sm text-slate-500 mt-4">Ativo, mas ainda sem sinal forte.</p>
           </CardContent>
@@ -512,7 +512,7 @@ export default function AdminReengagementPage() {
                 <p className="text-sm font-medium text-slate-500 uppercase">COLD</p>
                 <h3 className="text-4xl font-bold mt-2">{loading ? '—' : segmentCounts.COLD}</h3>
               </div>
-              <div className="p-3 bg-sky-50 rounded-lg"><Snowflake className="w-6 h-6 text-sky-600" /></div>
+              <div className="p-3 bg-sky-50 dark:bg-sky-950/40 rounded-lg"><Snowflake className="w-6 h-6 text-sky-600" /></div>
             </div>
             <p className="text-sm text-slate-500 mt-4">Ainda não concluiu onboarding/handshake.</p>
           </CardContent>
@@ -622,13 +622,13 @@ export default function AdminReengagementPage() {
 
           <div className="flex items-center gap-3">
             <Switch checked={activeWindowOnly} onCheckedChange={(v) => { setPage(1); setActiveWindowOnly(!!v); }} />
-            <span className="text-sm text-slate-700 font-medium">Apenas janela ativa</span>
+            <span className="text-sm text-slate-700 dark:text-slate-300 font-medium">Apenas janela ativa</span>
             <span className="text-xs text-slate-500">(última mensagem do usuário nas últimas 24h)</span>
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
+              <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                 <tr>
                   <th className="text-left p-3">Nome</th>
                   <th className="text-left p-3">WhatsApp</th>
@@ -658,7 +658,7 @@ export default function AdminReengagementPage() {
                   </tr>
                 )}
                 {!loading && data?.users?.map((u) => (
-                  <tr key={u.id} className={`border-t hover:bg-slate-50/50 ${u.has_unread === true ? 'bg-green-50' : ''}`}>
+                  <tr key={u.id} className={`border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 ${u.has_unread === true ? 'bg-green-50 dark:bg-green-950/30' : ''}`}>
                     <td className="p-3 font-medium">
                       <span className="inline-flex items-center">
                         {u.full_name}
@@ -667,16 +667,16 @@ export default function AdminReengagementPage() {
                         )}
                       </span>
                     </td>
-                    <td className="p-3 text-slate-600">{u.whatsapp_phone || '—'}</td>
+                    <td className="p-3 text-slate-600 dark:text-slate-400">{u.whatsapp_phone || '—'}</td>
                     <td className="p-3">{segmentBadge(u.segment)}</td>
                     <td className="p-3">
                       {u.meta_window_active ? (
-                        <Badge className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <Badge className="inline-flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                           <CheckCircle2 className="w-4 h-4" />
                           Janela ativa
                         </Badge>
                       ) : (
-                        <Badge className="inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200">
+                        <Badge className="inline-flex items-center gap-2 bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
                           <XCircle className="w-4 h-4" />
                           Janela expirada
                         </Badge>
@@ -708,7 +708,7 @@ export default function AdminReengagementPage() {
                       <div className="flex items-center justify-end gap-2">
                         <span className="tabular-nums">{u.admin_approaches_count ?? 0}</span>
                         {(u.admin_approaches_count ?? 0) >= 3 && u.conversion_stage !== 'convertido' && (
-                          <Badge className="inline-flex items-center gap-2 bg-orange-50 text-orange-800 border border-orange-200">
+                          <Badge className="inline-flex items-center gap-2 bg-orange-50 dark:bg-orange-950/50 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
                             <AlertTriangle className="w-4 h-4" />
                             3+ tentativas
                           </Badge>
@@ -718,8 +718,8 @@ export default function AdminReengagementPage() {
                     <td className="p-3 text-right tabular-nums">{u.messages_total}</td>
                     <td className="p-3 text-right tabular-nums">{u.total_points}</td>
                     <td className="p-3 text-right tabular-nums">{u.days_in_trial ?? '—'}</td>
-                    <td className="p-3 text-center">{u.limit_reached ? <Badge className="bg-red-50 text-red-700 border border-red-200">Sim</Badge> : <span className="text-slate-400">—</span>}</td>
-                    <td className="p-3 text-slate-600">{u.last_activity_date || '—'}</td>
+                    <td className="p-3 text-center">{u.limit_reached ? <Badge className="bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">Sim</Badge> : <span className="text-slate-400">—</span>}</td>
+                    <td className="p-3 text-slate-600 dark:text-slate-400">{u.last_activity_date || '—'}</td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         <Link href={`/portal/admin/reengagement/${u.id}`} prefetch={false}>
@@ -753,7 +753,7 @@ export default function AdminReengagementPage() {
               <Button variant="outline" className="rounded-xl" disabled={page <= 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                 Anterior
               </Button>
-              <span className="text-sm text-slate-600 tabular-nums">{page} / {totalPages}</span>
+              <span className="text-sm text-slate-600 dark:text-slate-400 tabular-nums">{page} / {totalPages}</span>
               <Button variant="outline" className="rounded-xl" disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
                 Próxima
               </Button>
@@ -847,19 +847,19 @@ export default function AdminReengagementPage() {
           </div>
 
           {bulkTargetCount > 30 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3 text-sm text-amber-900 dark:text-amber-300">
               Este segmento tem mais de 30 usuários. O disparo é limitado a 30 por vez — considere filtrar por “apenas janela ativa” ou segmentar melhor.
             </div>
           )}
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
             <p className="text-xs font-semibold text-slate-500 mb-1">Preview</p>
-            <p className="text-sm text-slate-800 whitespace-pre-wrap">{bulkPreviewText || '—'}</p>
+            <p className="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{bulkPreviewText || '—'}</p>
             <p className="text-xs text-slate-400 mt-2">Exemplo com: {previewUser?.full_name ?? '—'}</p>
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="text-sm text-slate-600">
+            <div className="text-sm text-slate-600 dark:text-slate-400">
               {bulkProgress ? (
                 <span className="tabular-nums">Enviando {bulkProgress.sent}/{bulkProgress.total}… (ok {bulkProgress.ok}, falhas {bulkProgress.fail})</span>
               ) : (
@@ -906,7 +906,7 @@ export default function AdminReengagementPage() {
                 </Button>
               </div>
 
-              <div className="max-h-[240px] overflow-auto rounded-xl border border-slate-200 bg-white">
+              <div className="max-h-[240px] overflow-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                 {templatesLoading && (
                   <div className="p-4 text-sm text-slate-500 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" /> Carregando templates...
@@ -920,27 +920,27 @@ export default function AdminReengagementPage() {
                   const canUse = status === 'APPROVED';
                   const statusBadge = status === 'APPROVED'
                     ? (
-                      <Badge className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <Badge className="inline-flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                         <CheckCircle2 className="w-4 h-4" />
                         APPROVED
                       </Badge>
                     )
                     : status === 'PENDING'
                       ? (
-                        <Badge className="inline-flex items-center gap-2 bg-amber-50 text-amber-800 border border-amber-200">
+                        <Badge className="inline-flex items-center gap-2 bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                           <Clock className="w-4 h-4" />
                           PENDING
                         </Badge>
                       )
                       : status === 'REJECTED'
                         ? (
-                          <Badge className="inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200">
+                          <Badge className="inline-flex items-center gap-2 bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
                             <XCircle className="w-4 h-4" />
                             REJECTED
                           </Badge>
                         )
                         : (
-                          <Badge className="inline-flex items-center gap-2 bg-slate-100 text-slate-700 border border-slate-200">
+                          <Badge className="inline-flex items-center gap-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                             <Clock className="w-4 h-4" />
                             DISABLED
                           </Badge>
@@ -949,7 +949,7 @@ export default function AdminReengagementPage() {
                   const preview = templateBodyPreview(tpl);
                   const isSelected = selectedTemplate?.name && selectedTemplate?.name === tpl?.name;
                   return (
-                    <div key={tpl?.name ?? Math.random()} className={`p-4 border-b last:border-b-0 ${isSelected ? 'bg-indigo-50/40' : ''}`}>
+                    <div key={tpl?.name ?? Math.random()} className={`p-4 border-b dark:border-slate-800 last:border-b-0 ${isSelected ? 'bg-indigo-50/40 dark:bg-indigo-950/30' : ''}`}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-semibold text-slate-900 truncate">{tpl?.name ?? '—'}</p>

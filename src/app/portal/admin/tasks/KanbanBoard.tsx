@@ -61,12 +61,34 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
   }
 
   async function performStatusUpdate(task: Task, newStatus: TaskStatus, extra?: object) {
+    const previousTasks = tasks
+
+    // 1. Atualiza visualmente IMEDIATO via mutate otimista
+    mutate(
+      (key: unknown) => typeof key === 'string' && key.startsWith('/api/admin/tasks'),
+      (current: unknown) =>
+        Array.isArray(current)
+          ? (current as Task[]).map(t =>
+              t.id === task.id ? { ...t, status: newStatus } : t
+            )
+          : current,
+      false // não revalida ainda
+    )
+
     try {
-      await apiUpdateStatus(task.id, { status: newStatus, ...extra });
-      toast.success('Status atualizado!');
-      mutate(key => typeof key === 'string' && key.startsWith('/api/admin/tasks'));
+      // 2. Persiste no banco em background
+      await apiUpdateStatus(task.id, { status: newStatus, ...extra })
+      toast.success('Status atualizado!')
+      // 3. Revalida para sincronizar com o servidor
+      mutate((key: unknown) => typeof key === 'string' && key.startsWith('/api/admin/tasks'))
     } catch (e: any) {
-      toast.error(e.message ?? 'Erro ao atualizar status');
+      // 4. Rollback em caso de erro
+      mutate(
+        (key: unknown) => typeof key === 'string' && key.startsWith('/api/admin/tasks'),
+        (current: unknown) => Array.isArray(current) ? previousTasks : current,
+        false
+      )
+      toast.error(e.message ?? 'Erro ao atualizar status')
     }
   }
 

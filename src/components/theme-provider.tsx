@@ -20,7 +20,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       attribute="class"
       defaultTheme="system"
       enableSystem
-      disableTransitionOnChange
+      storageKey="studytrack-theme"
+      disableTransitionOnChange={false}
       forcedTheme={forceLight ? "light" : undefined}
     >
       {children}

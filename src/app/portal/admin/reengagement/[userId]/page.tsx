@@ -51,18 +51,18 @@ type ChatItem =
     };
 
 function segmentBadge(seg: Segment) {
-  if (seg === 'HOT') return <Badge className="bg-red-50 text-red-700 border border-red-200">HOT</Badge>;
-  if (seg === 'WARM') return <Badge className="bg-amber-50 text-amber-700 border border-amber-200">WARM</Badge>;
-  return <Badge className="bg-sky-50 text-sky-700 border border-sky-200">COLD</Badge>;
+  if (seg === 'HOT') return <Badge className="bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">HOT</Badge>;
+  if (seg === 'WARM') return <Badge className="bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">WARM</Badge>;
+  return <Badge className="bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">COLD</Badge>;
 }
 
 function stageBadge(stage: ConversionStage) {
-  if (stage === 'abordado') return <Badge className="bg-blue-50 text-blue-700 border border-blue-200">Abordado</Badge>;
-  if (stage === 'oferta_feita') return <Badge className="bg-amber-50 text-amber-800 border border-amber-200">Oferta feita</Badge>;
-  if (stage === 'oferta_especial') return <Badge className="bg-orange-50 text-orange-800 border border-orange-200">Oferta especial</Badge>;
-  if (stage === 'convertido') return <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200">Convertido</Badge>;
-  if (stage === 'perdido') return <Badge className="bg-red-50 text-red-700 border border-red-200">Perdido</Badge>;
-  return <Badge className="bg-slate-100 text-slate-700 border border-slate-200">Não abordado</Badge>;
+  if (stage === 'abordado') return <Badge className="bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">Abordado</Badge>;
+  if (stage === 'oferta_feita') return <Badge className="bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">Oferta feita</Badge>;
+  if (stage === 'oferta_especial') return <Badge className="bg-orange-50 dark:bg-orange-950/50 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-800">Oferta especial</Badge>;
+  if (stage === 'convertido') return <Badge className="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">Convertido</Badge>;
+  if (stage === 'perdido') return <Badge className="bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">Perdido</Badge>;
+  return <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">Não abordado</Badge>;
 }
 
 function fmtTime(iso: string | null): string {
@@ -498,17 +498,17 @@ export default function AdminReengagementConversationPage() {
   }, [users]);
 
   return (
-    <div className="h-[calc(100vh-0px)] bg-slate-50/50 text-slate-900">
-      <div className="flex items-center justify-between border-b bg-white px-6 py-4 gap-4">
+    <div className="h-[calc(100vh-0px)] bg-slate-50/50 dark:bg-slate-900/50 text-slate-900 dark:text-slate-100">
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-6 py-4 gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href="/portal/admin/reengagement" className="text-slate-500 hover:text-slate-900 shrink-0">
+          <Link href="/portal/admin/reengagement" className="text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="min-w-0">
             <h1 className="text-xl font-bold tracking-tight truncate">
               {selectedUser?.full_name ?? 'Carregando...'}
             </h1>
-            <p className="text-sm text-slate-500 font-mono">
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-mono">
               {selectedUser?.whatsapp_phone ?? '—'}
             </p>
           </div>
@@ -517,11 +517,11 @@ export default function AdminReengagementConversationPage() {
           {selectedUser && segmentBadge(selectedUser.segment)}
           {selectedUser && stageBadge(selectedUser.conversion_stage)}
           {selectedUser?.meta_window_active ? (
-            <Badge className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <Badge className="inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
               <CheckCircle2 className="w-3 h-3" /> Janela ativa
             </Badge>
           ) : selectedUser ? (
-            <Badge className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200">
+            <Badge className="inline-flex items-center gap-1 bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
               <XCircle className="w-3 h-3" /> Janela expirada
             </Badge>
           ) : null}
@@ -539,9 +539,9 @@ export default function AdminReengagementConversationPage() {
 
       <div className="grid grid-cols-[360px_1fr] h-[calc(100vh-73px)]">
         {/* Sidebar */}
-        <div className="border-r bg-white overflow-y-auto flex flex-col">
-          <div className="p-4 border-b shrink-0">
-            <p className="text-sm font-semibold text-slate-700">Usuários</p>
+        <div className="border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-y-auto flex flex-col">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Usuários</p>
             <p className="text-xs text-slate-500 mb-3">{loadingUsers ? 'Carregando...' : `${sidebarUsers.length} na lista`}</p>
             <div className="space-y-2">
               <div>
@@ -628,24 +628,24 @@ export default function AdminReengagementConversationPage() {
             const showGreenDot = u.has_unread === true && u.id !== userId;
             return (
               <Link key={u.id} href={`/portal/admin/reengagement/${u.id}`} prefetch={false}>
-                <div className={`px-4 py-3 border-b hover:bg-slate-50 ${active ? 'bg-slate-50' : ''} ${showGreenDot ? 'bg-green-50' : ''}`}>
+                <div className={`px-4 py-3 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 ${active ? 'bg-slate-50 dark:bg-slate-800' : ''} ${showGreenDot ? 'bg-green-50 dark:bg-green-950/30' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         {showGreenDot && <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse inline-block shrink-0" />}
-                        <p className="font-semibold truncate">{u.full_name}</p>
+                        <p className="font-semibold truncate dark:text-slate-100">{u.full_name}</p>
                       </div>
                       <p className="text-xs text-slate-500 truncate">{u.whatsapp_phone || '—'}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {segmentBadge(u.segment)}
                         {stageBadge(u.conversion_stage)}
                         {u.meta_window_active ? (
-                          <Badge className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <Badge className="inline-flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                             <CheckCircle2 className="w-4 h-4" />
                             Janela ativa
                           </Badge>
                         ) : (
-                          <Badge className="inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200">
+                          <Badge className="inline-flex items-center gap-2 bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
                             <XCircle className="w-4 h-4" />
                             Expirada
                           </Badge>
@@ -654,7 +654,7 @@ export default function AdminReengagementConversationPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-slate-500">{fmtTime(u.last_whatsapp_at)}</p>
-                      <p className="mt-2 text-xs text-slate-700 font-semibold tabular-nums">{u.admin_approaches_count} abordagens</p>
+                      <p className="mt-2 text-xs text-slate-700 dark:text-slate-300 font-semibold tabular-nums">{u.admin_approaches_count} abordagens</p>
                     </div>
                   </div>
                 </div>
@@ -690,7 +690,7 @@ export default function AdminReengagementConversationPage() {
                 <Fragment key={`${it.kind}-${it.id}`}>
                   {showDateSep && (
                     <div className="flex justify-center py-2">
-                      <span className="text-xs font-medium text-slate-500 bg-slate-200/80 px-3 py-1 rounded-full">
+                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-200/80 dark:bg-slate-700/80 px-3 py-1 rounded-full">
                         {chatDateSeparatorLabel(it.created_at)}
                       </span>
                     </div>
@@ -764,16 +764,16 @@ export default function AdminReengagementConversationPage() {
           </div>
 
           {/* Composer */}
-          <div className="border-t bg-white p-4">
+          <div className="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
             <div className="mb-3 flex items-center gap-2">
               {selectedUser ? stageBadge(selectedUser.conversion_stage) : null}
               {selectedUser?.meta_window_active ? (
-                <Badge className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Badge className="inline-flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                   <CheckCircle2 className="w-4 h-4" />
                   Janela ativa
                 </Badge>
               ) : (
-                <Badge className="inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200">
+                <Badge className="inline-flex items-center gap-2 bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
                   <XCircle className="w-4 h-4" />
                   Janela expirada
                 </Badge>
@@ -792,7 +792,7 @@ export default function AdminReengagementConversationPage() {
 
               <TabsContent value="free" className="space-y-2 mt-3">
                 {!selectedUser?.meta_window_active && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3 text-sm text-amber-900 dark:text-amber-300">
                     Este usuário está fora da janela de 24h da Meta. Use um template aprovado para iniciar a conversa.
                   </div>
                 )}
@@ -834,16 +834,16 @@ export default function AdminReengagementConversationPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-slate-200 bg-white max-h-[210px] overflow-auto">
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 max-h-[210px] overflow-auto">
                     {(templates ?? []).filter((t) => String(t?.status ?? '').toUpperCase() === 'APPROVED').map((tpl) => (
                       <button
                         type="button"
                         key={tpl?.name ?? Math.random()}
-                        className={`w-full text-left p-3 border-b last:border-b-0 hover:bg-slate-50 ${selectedTemplate?.name === tpl?.name ? 'bg-indigo-50/40' : ''}`}
+                        className={`w-full text-left p-3 border-b dark:border-slate-800 last:border-b-0 hover:bg-slate-50 dark:hover:bg-slate-800 ${selectedTemplate?.name === tpl?.name ? 'bg-indigo-50/40 dark:bg-indigo-950/30' : ''}`}
                         onClick={() => selectTemplate(tpl)}
                       >
                         <p className="font-semibold text-sm">{tpl?.name ?? '—'}</p>
-                        <p className="text-xs text-slate-600 mt-1 whitespace-pre-wrap">{templateBodyPreview(tpl) || '—'}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 whitespace-pre-wrap">{templateBodyPreview(tpl) || '—'}</p>
                       </button>
                     ))}
                     {templatesLoading && (
