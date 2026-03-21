@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link"; // Adicionado para navegação
 import { createClient } from "@/lib/supabase/client";
 import MarketingBroadcastModal from "@/components/admin/MarketingBroadcastModal";
+import PeakHoursCard from "@/components/admin/PeakHoursCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -243,6 +244,11 @@ export default function SuperAdminDashboard() {
             </CardContent>
         </Card>
       </div>
+
+      {/* ================================================================================== */}
+      {/* SEÇÃO 2.5: HORÁRIOS DE PICO */}
+      {/* ================================================================================== */}
+      <PeakHoursCard />
 
       {/* CONSUMO DE TOKENS E CUSTO IA */}
         <Card className="hover:border-slate-300 transition-colors lg:col-span-1 border-t-4 border-t-purple-600">
