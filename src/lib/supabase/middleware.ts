@@ -13,17 +13,20 @@ export async function updateSession(request: NextRequest) {
     return allowed.includes(s as UserRole) ? (s as UserRole) : null;
   };
 
-  // 1. OTIMIZAÇÃO CRÍTICA: Ignorar arquivos estáticos IMEDIATAMENTE (Evita Deadlock)
+  // 1. OTIMIZAÇÃO CRÍTICA: ignorar estáticos imediatamente (evita deadlock).
+  // /auth/callback NÃO entra aqui: o bypass antigo devolvia NextResponse.next()
+  // antes do createServerClient + getUser(), e os cookies da sessão OAuth não
+  // eram propagados. O matcher já exclui assets; em /auth/* o bloco público
+  // abaixo retorna supabaseResponse já atualizado por setAll durante getUser().
   if (
     path.startsWith('/_next') ||
     path.startsWith('/static') ||
-    path.startsWith('/auth/callback') ||
     path.includes('.')
   ) {
     return supabaseResponse;
   }
 
-  // 2. Só instancia o Supabase se for uma rota de página
+  // 2. Instancia Supabase e valida sessão (inclui /auth/callback)
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
