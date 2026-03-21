@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/app/api/admin/_utils';
+import { whatsappLogsOrFilterForUser } from '@/app/api/admin/reengagement/_whatsappLogsScope';
 
 type ChatItem =
   | {
@@ -34,18 +35,71 @@ type AdminActionRow = {
 
 function extractText(payload: any): string {
   if (!payload || typeof payload !== 'object') return '';
-  const t = payload?.text?.body;
-  if (typeof t === 'string') return t;
+
+  // Texto simples
+  const textBody = payload?.text?.body;
+  if (typeof textBody === 'string' && textBody.trim()) return textBody;
+
+  // Caption de imagem
   const caption = payload?.image?.caption;
-  if (typeof caption === 'string') return caption;
-  if (payload?.template?.name) return `[Template: ${payload.template.name}]`;
-  return '';
+  if (typeof caption === 'string' && caption.trim()) return caption;
+
+  // Template — extrai nome + componentes para debug
+  if (payload?.template?.name) {
+    const name = payload.template.name;
+    const components = (payload?.template?.components as any[]) ?? [];
+    const parts: string[] = [`[Template: ${name}]`];
+
+    for (const comp of components) {
+      const type = String(comp?.type ?? '').toUpperCase();
+      const params = (comp?.parameters as any[]) ?? [];
+      if (params.length > 0) {
+        const values = params
+          .map((p: any) => p?.text ?? p?.image?.link ?? p?.document?.link ?? '')
+          .filter(Boolean)
+          .join(' | ');
+        if (values) parts.push(`${type}: ${values}`);
+      }
+    }
+
+    return parts.join('\n');
+  }
+
+  // Áudio
+  if (payload?.audio?.id) return '[Áudio]';
+
+  // Documento
+  if (payload?.document?.filename) return `[Documento: ${payload.document.filename}]`;
+  if (payload?.document?.id) return '[Documento]';
+
+  // Imagem sem caption
+  if (payload?.image?.id || payload?.image?.link) return '[Imagem]';
+
+  // Sticker
+  if (payload?.sticker?.id) return '[Sticker]';
+
+  // Localização
+  if (payload?.location) {
+    const { latitude, longitude, name: locName } = payload.location;
+    return `[Localização: ${locName ?? `${latitude}, ${longitude}`}]`;
+  }
+
+  // Reação
+  if (payload?.reaction?.emoji) return `[Reação: ${payload.reaction.emoji}]`;
+
+  // Fallback: serializa o payload para debug
+  try {
+    return `[Payload desconhecido: ${JSON.stringify(payload).slice(0, 200)}]`;
+  } catch {
+    return '[Payload ilegível]';
+  }
 }
 
 function formatAdminAction(actionType: string | null, payload: any): string {
   if (actionType === 'message_sent') return String(payload?.message ?? '').trim() || '[Mensagem enviada]';
   if (actionType === 'template_sent') return `Template enviado: ${String(payload?.template_name ?? payload?.template ?? '—')}`;
   if (actionType === 'stage_updated') return `Stage atualizado: ${String(payload?.old_stage ?? '—')} → ${String(payload?.new_stage ?? '—')}`;
+  if (actionType === 'conversation_read') return 'Conversa visualizada';
   return 'Ação do admin';
 }
 
@@ -57,11 +111,19 @@ export async function GET(request: Request) {
   const userId = url.searchParams.get('userId');
   if (!userId) return NextResponse.json({ error: 'Parâmetro userId é obrigatório' }, { status: 400 });
 
+  const { data: profileRow } = await auth.supabaseAdmin
+    .from('profiles')
+    .select('whatsapp_phone')
+    .eq('id', userId)
+    .maybeSingle();
+
+  const logsFilter = whatsappLogsOrFilterForUser(userId, (profileRow as { whatsapp_phone?: string | null } | null)?.whatsapp_phone);
+
   const [{ data: logsRes, error: e1 }, { data: actionsRes, error: e2 }] = await Promise.all([
     auth.supabaseAdmin
       .from('whatsapp_logs')
       .select('id, direction, payload, created_at')
-      .eq('user_id', userId)
+      .or(logsFilter)
       .order('created_at', { ascending: true })
       .limit(5000),
     auth.supabaseAdmin

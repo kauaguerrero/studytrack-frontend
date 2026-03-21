@@ -1,8 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, Flame, Thermometer, Snowflake, Send, Loader2, MessageSquareText, CheckCircle2, XCircle, AlertTriangle, Clock } from 'lucide-react';
 
@@ -80,6 +79,9 @@ export default function AdminReengagementPage() {
   const [segment, setSegment] = useState<SegmentFilter>('ALL');
   const [minTrialDays, setMinTrialDays] = useState<string>('0');
   const [maxTrialDays, setMaxTrialDays] = useState<string>('3650');
+  const [minTrialDaysInput, setMinTrialDaysInput] = useState<string>('0');
+  const [maxTrialDaysInput, setMaxTrialDaysInput] = useState<string>('3650');
+  const [stageSelectOpen, setStageSelectOpen] = useState(false);
   const [limitReached, setLimitReached] = useState<'all' | 'true' | 'false'>('all');
   const [stageFilter, setStageFilter] = useState<string>('ALL');
   const [sort, setSort] = useState<'messages_desc' | 'points_desc' | 'trial_days_desc'>('messages_desc');
@@ -110,18 +112,27 @@ export default function AdminReengagementPage() {
   const [bulkCountLoading, setBulkCountLoading] = useState(false);
   const [isMarketingModalOpen, setIsMarketingModalOpen] = useState(false);
 
-  const pathname = usePathname();
-  const [readAtMap, setReadAtMap] = useState<Record<string, number>>({});
+  const lastManualFetchAtRef = useRef(0);
+  const minTrialDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maxTrialDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleMinTrialDaysCommit = useCallback((value: string) => {
+    if (minTrialDebounceRef.current) clearTimeout(minTrialDebounceRef.current);
+    minTrialDebounceRef.current = setTimeout(() => {
+      minTrialDebounceRef.current = null;
+      setMinTrialDays(value);
+    }, 500);
+  }, []);
+
+  const scheduleMaxTrialDaysCommit = useCallback((value: string) => {
+    if (maxTrialDebounceRef.current) clearTimeout(maxTrialDebounceRef.current);
+    maxTrialDebounceRef.current = setTimeout(() => {
+      maxTrialDebounceRef.current = null;
+      setMaxTrialDays(value);
+    }, 500);
+  }, []);
 
   const segmentCounts = data?.summary ?? { HOT: 0, WARM: 0, COLD: 0, total: 0 };
-
-  function showUnreadInList(u: UserRow) {
-    if (!u.has_unread) return false;
-    const readAt = readAtMap[u.id];
-    if (readAt == null) return true;
-    const lastUserAt = u.last_user_message_at ? new Date(u.last_user_message_at).getTime() : 0;
-    return lastUserAt > readAt;
-  }
 
   const previewUser = useMemo(() => {
     if (!data?.users?.length) return null;
@@ -134,7 +145,10 @@ export default function AdminReengagementPage() {
     return (bulkTemplate || '').replaceAll('{{nome}}', name);
   }, [bulkTemplate, previewUser?.full_name]);
 
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (fromPolling = false) => {
+    if (!fromPolling) {
+      lastManualFetchAtRef.current = Date.now();
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -166,44 +180,33 @@ export default function AdminReengagementPage() {
     fetchUsers();
   }, [fetchUsers]);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('reengajamento_readAtMap');
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Record<string, number>;
-      if (parsed && typeof parsed === 'object') setReadAtMap(parsed);
-    } catch {
-      // ignore
-    }
-  }, [pathname]);
+  useEffect(() => () => {
+    if (minTrialDebounceRef.current) clearTimeout(minTrialDebounceRef.current);
+    if (maxTrialDebounceRef.current) clearTimeout(maxTrialDebounceRef.current);
+  }, []);
 
-  // Atualiza lista ao voltar para a aba (nova msg do usuário → verde de novo)
+  // Atualiza lista ao voltar para a aba (nova msg do usuário → has_unread do backend)
   useEffect(() => {
     const handler = () => {
       if (document.visibilityState !== 'visible') return;
       fetchUsers();
-      try {
-        const raw = localStorage.getItem('reengajamento_readAtMap');
-        if (raw) {
-          const parsed = JSON.parse(raw) as Record<string, number>;
-          if (parsed && typeof parsed === 'object') setReadAtMap(parsed);
-        }
-      } catch {
-        // ignore
-      }
     };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
   }, [fetchUsers]);
 
-  // Polling a cada 60s na listagem para refletir novas mensagens (verde "não lida")
-  const REFETCH_INTERVAL_MS = 60_000;
+  // Polling na listagem para refletir novas mensagens (verde "não lida")
+  const REFETCH_INTERVAL_MS = 120_000;
+  const MIN_GAP_AFTER_MANUAL_MS = 10_000;
   useEffect(() => {
     const id = setInterval(() => {
-      if (document.visibilityState === 'visible') fetchUsers();
+      if (document.visibilityState !== 'visible') return;
+      if (stageSelectOpen) return;
+      if (Date.now() - lastManualFetchAtRef.current < MIN_GAP_AFTER_MANUAL_MS) return;
+      fetchUsers(true);
     }, REFETCH_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [fetchUsers]);
+  }, [fetchUsers, stageSelectOpen]);
 
   // Contagem do disparo em massa com os mesmos filtros da tabela
   useEffect(() => {
@@ -364,6 +367,15 @@ export default function AdminReengagementPage() {
   }
 
   async function updateStage(userId: string, newStage: ConversionStage) {
+    setData((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        users: prev.users.map((u) =>
+          u.id === userId ? { ...u, conversion_stage: newStage } : u
+        ),
+      };
+    });
     try {
       const res = await fetch('/api/admin/reengagement/stage', {
         method: 'PATCH',
@@ -373,9 +385,9 @@ export default function AdminReengagementPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || 'Falha ao atualizar stage');
       toast.success('Stage atualizado');
-      fetchUsers();
     } catch (e: any) {
       toast.error(e?.message || 'Erro ao atualizar stage');
+      fetchUsers();
     }
   }
 
@@ -529,7 +541,11 @@ export default function AdminReengagementPage() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Stage</p>
-              <Select value={stageFilter} onValueChange={(v) => { setPage(1); setStageFilter(v); }}>
+              <Select
+                value={stageFilter}
+                onOpenChange={setStageSelectOpen}
+                onValueChange={(v) => { setPage(1); setStageFilter(v); }}
+              >
                 <SelectTrigger className="rounded-xl"><SelectValue placeholder="Stage" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">Todos</SelectItem>
@@ -544,11 +560,29 @@ export default function AdminReengagementPage() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Min dias trial</p>
-              <Input className="rounded-xl" value={minTrialDays} onChange={(e) => { setPage(1); setMinTrialDays(e.target.value); }} />
+              <Input
+                className="rounded-xl"
+                value={minTrialDaysInput}
+                onChange={(e) => {
+                  setPage(1);
+                  const v = e.target.value;
+                  setMinTrialDaysInput(v);
+                  scheduleMinTrialDaysCommit(v);
+                }}
+              />
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Max dias trial</p>
-              <Input className="rounded-xl" value={maxTrialDays} onChange={(e) => { setPage(1); setMaxTrialDays(e.target.value); }} />
+              <Input
+                className="rounded-xl"
+                value={maxTrialDaysInput}
+                onChange={(e) => {
+                  setPage(1);
+                  const v = e.target.value;
+                  setMaxTrialDaysInput(v);
+                  scheduleMaxTrialDaysCommit(v);
+                }}
+              />
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Limit reached</p>
@@ -624,11 +658,11 @@ export default function AdminReengagementPage() {
                   </tr>
                 )}
                 {!loading && data?.users?.map((u) => (
-                  <tr key={u.id} className={`border-t hover:bg-slate-50/50 ${showUnreadInList(u) ? 'bg-green-50' : ''}`}>
+                  <tr key={u.id} className={`border-t hover:bg-slate-50/50 ${u.has_unread === true ? 'bg-green-50' : ''}`}>
                     <td className="p-3 font-medium">
                       <span className="inline-flex items-center">
                         {u.full_name}
-                        {showUnreadInList(u) && (
+                        {u.has_unread === true && (
                           <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse inline-block ml-2 shrink-0" />
                         )}
                       </span>
@@ -651,7 +685,11 @@ export default function AdminReengagementPage() {
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         {stageBadge(u.conversion_stage)}
-                        <Select value={u.conversion_stage} onValueChange={(v) => updateStage(u.id, v as ConversionStage)}>
+                        <Select
+                          value={u.conversion_stage}
+                          onOpenChange={setStageSelectOpen}
+                          onValueChange={(v) => updateStage(u.id, v as ConversionStage)}
+                        >
                           <SelectTrigger className="h-8 w-[170px] rounded-xl">
                             <SelectValue />
                           </SelectTrigger>
@@ -746,7 +784,7 @@ export default function AdminReengagementPage() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Stage</p>
-              <Select value={stageFilter} onValueChange={setStageFilter}>
+              <Select value={stageFilter} onOpenChange={setStageSelectOpen} onValueChange={setStageFilter}>
                 <SelectTrigger className="rounded-xl"><SelectValue placeholder="Stage" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">Todos</SelectItem>
@@ -761,11 +799,27 @@ export default function AdminReengagementPage() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Min dias trial</p>
-              <Input className="rounded-xl" value={minTrialDays} onChange={(e) => setMinTrialDays(e.target.value)} />
+              <Input
+                className="rounded-xl"
+                value={minTrialDaysInput}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setMinTrialDaysInput(v);
+                  scheduleMinTrialDaysCommit(v);
+                }}
+              />
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Max dias trial</p>
-              <Input className="rounded-xl" value={maxTrialDays} onChange={(e) => setMaxTrialDays(e.target.value)} />
+              <Input
+                className="rounded-xl"
+                value={maxTrialDaysInput}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setMaxTrialDaysInput(v);
+                  scheduleMaxTrialDaysCommit(v);
+                }}
+              />
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Limit reached</p>

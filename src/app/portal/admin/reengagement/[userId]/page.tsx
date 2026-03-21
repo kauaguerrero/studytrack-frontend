@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -65,18 +65,66 @@ function stageBadge(stage: ConversionStage) {
   return <Badge className="bg-slate-100 text-slate-700 border border-slate-200">Não abordado</Badge>;
 }
 
-function fmtTime(iso: string | null) {
+function fmtTime(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const diffMs = Date.now() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'agora';
+  if (diffMin < 60) return `${diffMin}min atrás`;
+  if (diffMin < 1440) return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-function bubbleClass(kind: ChatItem['kind'], direction?: ChatItem extends any ? any : never) {
-  if (kind === 'admin_action') return 'bg-purple-950/70 border border-purple-700 text-purple-50';
+function localDayKey(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function sameLocalCalendarDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function chatDateSeparatorLabel(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (sameLocalCalendarDay(d, now)) return 'Hoje';
+  if (sameLocalCalendarDay(d, yesterday)) return 'Ontem';
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function bubbleClass(kind: ChatItem['kind'], direction?: string, actionType?: string | null): string {
+  if (kind === 'admin_action') {
+    if (actionType === 'template_sent') return 'bg-blue-950/70 border border-blue-700 text-blue-50';
+    if (actionType === 'stage_updated') return 'bg-slate-800/60 border border-slate-600 text-slate-300 text-xs italic';
+    if (actionType === 'conversation_read') return 'bg-slate-800/50 border border-slate-600 text-slate-400 text-xs italic';
+    return 'bg-purple-950/70 border border-purple-700 text-purple-50';
+  }
   if (direction === 'outbound') return 'bg-emerald-950/60 border border-emerald-700 text-emerald-50 ml-auto';
   if (direction === 'inbound') return 'bg-slate-900/70 border border-slate-700 text-slate-50';
   return 'bg-slate-900/70 border border-slate-700 text-slate-50';
+}
+
+function getSenderLabel(it: ChatItem): string {
+  if (it.kind === 'admin_action') {
+    if (it.action_type === 'message_sent') return 'Admin';
+    if (it.action_type === 'template_sent') return 'Admin (Template)';
+    if (it.action_type === 'stage_updated') return 'Sistema';
+    if (it.action_type === 'conversation_read') return 'Sistema';
+    return 'Admin';
+  }
+  if ((it as { direction?: string }).direction === 'inbound') return 'Usuário';
+  return 'Bot';
 }
 
 export default function AdminReengagementConversationPage() {
@@ -102,9 +150,6 @@ export default function AdminReengagementConversationPage() {
 
   const [suggestions, setSuggestions] = useState<Record<string, { loading: boolean; text: string | null }>>({});
 
-  const [readAtMap, setReadAtMap] = useState<Record<string, number>>({});
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
-
   const [segment, setSegment] = useState<SegmentFilter>('ALL');
   const [stageFilter, setStageFilter] = useState<string>('ALL');
   const [minTrialDays, setMinTrialDays] = useState<string>('0');
@@ -113,9 +158,23 @@ export default function AdminReengagementConversationPage() {
   const [sort, setSort] = useState<'messages_desc' | 'points_desc' | 'trial_days_desc'>('messages_desc');
   const [sort2, setSort2] = useState<string>('none');
   const [activeWindowOnly, setActiveWindowOnly] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'connected' | 'error'>('connecting');
 
+  const chatRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const lastFetchUsersRef = useRef<number>(0);
+
   const scrollToBottom = useCallback(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), []);
+
+  function isNearBottom() {
+    const el = chatRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+  }
+
+  function smartScrollToBottom() {
+    if (isNearBottom()) scrollToBottom();
+  }
 
   const fetchUsers = useCallback(async () => {
     setLoadingUsers(true);
@@ -144,66 +203,60 @@ export default function AdminReengagementConversationPage() {
     }
   }, [segment, stageFilter, minTrialDays, maxTrialDays, limitReached, sort, sort2, activeWindowOnly]);
 
-  const fetchConversation = useCallback(async () => {
-    if (!userId) return;
-    setLoadingChat(true);
-    try {
-      const res = await fetch(`/api/admin/reengagement/conversation?userId=${encodeURIComponent(userId)}`);
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error || 'Falha ao carregar conversa');
-      setItems((json?.items as ChatItem[]) ?? []);
-      setTimeout(scrollToBottom, 50);
-    } catch (e: any) {
-      toast.error(e?.message || 'Erro ao carregar conversa');
-      setItems([]);
-    } finally {
-      setLoadingChat(false);
-    }
-  }, [scrollToBottom, userId]);
+  const fetchUsersLatestRef = useRef(fetchUsers);
+  useEffect(() => {
+    fetchUsersLatestRef.current = fetchUsers;
+  }, [fetchUsers]);
+
+  const throttledFetchUsers = useCallback(() => {
+    const now = Date.now();
+    if (now - lastFetchUsersRef.current < 30_000) return;
+    lastFetchUsersRef.current = now;
+    void fetchUsersLatestRef.current();
+  }, []);
+
+  const fetchConversation = useCallback(
+    async (scroll: 'always' | 'smart' = 'smart') => {
+      if (!userId) return;
+      setLoadingChat(true);
+      try {
+        const res = await fetch(`/api/admin/reengagement/conversation?userId=${encodeURIComponent(userId)}`);
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.error || 'Falha ao carregar conversa');
+        setItems((json?.items as ChatItem[]) ?? []);
+        if (scroll === 'always') setTimeout(() => scrollToBottom(), 50);
+        else setTimeout(() => smartScrollToBottom(), 50);
+      } catch (e: any) {
+        toast.error(e?.message || 'Erro ao carregar conversa');
+        setItems([]);
+      } finally {
+        setLoadingChat(false);
+      }
+    },
+    [scrollToBottom, userId]
+  );
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
 
-  // Carrega "último timestamp lido" da conversa por usuário (localStorage).
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('reengajamento_readAtMap');
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Record<string, number>;
-      if (parsed && typeof parsed === 'object') setReadAtMap(parsed);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  // Marca como "lido" nesta sessão ao abrir a conversa (client-side, sem persistência).
+  // Marca conversa como lida: UI imediata + persistência no backend (fail-open).
   useEffect(() => {
     if (!userId) return;
-    setReadIds((prev) => new Set(prev).add(userId));
+
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, has_unread: false } : u))
+    );
+
+    fetch('/api/admin/reengagement/mark-read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    }).catch(() => {});
   }, [userId]);
 
-  // Marca como "lido" quando o admin abre a conversa (persistido em localStorage).
   useEffect(() => {
-    if (!userId) return;
-    if (!selectedUser?.last_user_message_at) return;
-
-    const lastAtMs = new Date(selectedUser.last_user_message_at).getTime();
-    if (!Number.isFinite(lastAtMs)) return;
-
-    setReadAtMap((prev) => {
-      const next = { ...prev, [userId]: lastAtMs };
-      try {
-        localStorage.setItem('reengajamento_readAtMap', JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  }, [selectedUser?.last_user_message_at, userId]);
-
-  useEffect(() => {
-    fetchConversation();
+    fetchConversation('always');
   }, [fetchConversation]);
 
   useEffect(() => {
@@ -211,31 +264,92 @@ export default function AdminReengagementConversationPage() {
     setSendTab(selectedUser.meta_window_active ? 'free' : 'templates');
   }, [selectedUser?.meta_window_active]);
 
-  // Realtime: novas mensagens no whatsapp_logs
+  // Realtime: whatsapp_logs + admin_actions_log; reconexão em falha de canal
   useEffect(() => {
     if (!userId) return;
+
     const supabase = createClient();
-    const channel = supabase
-      .channel(`conversa-${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'whatsapp_logs',
-          filter: `user_id=eq.${userId}`,
-        },
-        () => {
-          fetchConversation();
-          fetchUsers();
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let reconnectPending = false;
+
+    function scheduleReconnect() {
+      if (cancelled || reconnectPending) return;
+      reconnectPending = true;
+      setRealtimeStatus('error');
+      reconnectTimeout = setTimeout(() => {
+        reconnectTimeout = null;
+        reconnectPending = false;
+        if (cancelled) return;
+        if (channel) {
+          supabase.removeChannel(channel);
+          channel = null;
         }
-      )
-      .subscribe();
+        connect();
+      }, 3000);
+    }
+
+    function connect() {
+      if (cancelled) return;
+      setRealtimeStatus('connecting');
+      if (channel) {
+        supabase.removeChannel(channel);
+        channel = null;
+      }
+
+      const ch = supabase
+        .channel(`conversa-${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'whatsapp_logs',
+            filter: `user_id=eq.${userId}`,
+          },
+          () => {
+            void fetchConversation();
+            throttledFetchUsers();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'admin_actions_log',
+            filter: `user_id=eq.${userId}`,
+          },
+          () => {
+            void fetchConversation();
+          }
+        )
+        .on('system', {}, (status: unknown) => {
+          const s = typeof status === 'string' ? status : (status as { status?: string })?.status;
+          if (s === 'CHANNEL_ERROR') {
+            scheduleReconnect();
+          }
+        })
+        .subscribe((status) => {
+          if (cancelled) return;
+          if (status === 'SUBSCRIBED') setRealtimeStatus('connected');
+          if (status === 'CHANNEL_ERROR') scheduleReconnect();
+          if (status === 'TIMED_OUT') scheduleReconnect();
+          if (status === 'CLOSED') setRealtimeStatus('error');
+        });
+
+      channel = ch;
+    }
+
+    connect();
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (channel) supabase.removeChannel(channel);
     };
-  }, [fetchConversation, fetchUsers, userId]);
+  }, [fetchConversation, throttledFetchUsers, userId]);
 
   async function loadTemplates() {
     setTemplatesLoading(true);
@@ -297,9 +411,8 @@ export default function AdminReengagementConversationPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || 'Falha ao enviar');
       setMessage('');
-      fetchConversation();
+      await fetchConversation();
       fetchUsers();
-      setTimeout(scrollToBottom, 50);
       toast.success('Mensagem enviada');
     } catch (e: any) {
       toast.error(e?.message || 'Erro ao enviar');
@@ -344,9 +457,8 @@ export default function AdminReengagementConversationPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || 'Falha ao enviar template');
-      fetchConversation();
+      await fetchConversation();
       fetchUsers();
-      setTimeout(scrollToBottom, 50);
       toast.success('Template enviado');
     } catch (e: any) {
       toast.error(e?.message || 'Erro ao enviar template');
@@ -385,29 +497,43 @@ export default function AdminReengagementConversationPage() {
     });
   }, [users]);
 
-  // Mesma lógica da listagem principal: verde = mensagem nova do usuário que o admin não leu;
-  // some ao abrir a conversa (readIds nesta sessão + readAtMap persistido).
-  function shouldShowGreenDot(u: UserRow) {
-    if (u.id === userId) return false;
-    if (readIds.has(u.id)) return false;
-    if (!u.has_unread) return false;
-    const readAt = readAtMap[u.id];
-    if (readAt == null) return true;
-    const lastUserAt = u.last_user_message_at ? new Date(u.last_user_message_at).getTime() : 0;
-    return lastUserAt > readAt;
-  }
-
   return (
     <div className="h-[calc(100vh-0px)] bg-slate-50/50 text-slate-900">
-      <div className="flex items-center justify-between border-b bg-white px-6 py-4">
-        <div className="flex items-center gap-3">
-          <Link href="/portal/admin/reengagement" className="text-slate-500 hover:text-slate-900">
+      <div className="flex items-center justify-between border-b bg-white px-6 py-4 gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link href="/portal/admin/reengagement" className="text-slate-500 hover:text-slate-900 shrink-0">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Conversa</h1>
-            <p className="text-sm text-slate-500">Reengajamento · estilo WhatsApp Web</p>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold tracking-tight truncate">
+              {selectedUser?.full_name ?? 'Carregando...'}
+            </h1>
+            <p className="text-sm text-slate-500 font-mono">
+              {selectedUser?.whatsapp_phone ?? '—'}
+            </p>
           </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+          {selectedUser && segmentBadge(selectedUser.segment)}
+          {selectedUser && stageBadge(selectedUser.conversion_stage)}
+          {selectedUser?.meta_window_active ? (
+            <Badge className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <CheckCircle2 className="w-3 h-3" /> Janela ativa
+            </Badge>
+          ) : selectedUser ? (
+            <Badge className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200">
+              <XCircle className="w-3 h-3" /> Janela expirada
+            </Badge>
+          ) : null}
+          {realtimeStatus === 'connected' && (
+            <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" title="Tempo real ativo" />
+          )}
+          {realtimeStatus === 'error' && (
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" title="Reconectando..." />
+          )}
+          {realtimeStatus === 'connecting' && (
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" title="Conectando..." />
+          )}
         </div>
       </div>
 
@@ -499,7 +625,7 @@ export default function AdminReengagementConversationPage() {
           <div className="flex-1 overflow-y-auto">
           {sidebarUsers.map((u) => {
             const active = u.id === userId;
-            const showGreenDot = shouldShowGreenDot(u);
+            const showGreenDot = u.has_unread === true && u.id !== userId;
             return (
               <Link key={u.id} href={`/portal/admin/reengagement/${u.id}`} prefetch={false}>
                 <div className={`px-4 py-3 border-b hover:bg-slate-50 ${active ? 'bg-slate-50' : ''} ${showGreenDot ? 'bg-green-50' : ''}`}>
@@ -540,7 +666,7 @@ export default function AdminReengagementConversationPage() {
 
         {/* Chat */}
         <div className="flex flex-col">
-          <div className="flex-1 overflow-y-auto p-6 space-y-3">
+          <div ref={chatRef} className="flex-1 overflow-y-auto p-6 space-y-3">
             {loadingChat && (
               <div className="text-sm text-slate-500 flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" /> Carregando conversa...
@@ -551,55 +677,86 @@ export default function AdminReengagementConversationPage() {
               <div className="text-sm text-slate-500">Sem mensagens ainda.</div>
             )}
 
-            {items.map((it) => {
-              const isLog = it.kind === 'whatsapp_log';
-              const isUser = isLog && it.direction === 'inbound';
-              const sug = isLog ? suggestions[it.id] : undefined;
-              return (
-                <div key={`${it.kind}-${it.id}`} className={`max-w-[75%] rounded-2xl px-4 py-3 ${bubbleClass(it.kind, (it as any).direction)}`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold opacity-80">
-                      {it.kind === 'admin_action' ? 'Admin' : isUser ? 'Usuário' : 'Bot'}
-                    </p>
-                    <p className="text-[11px] opacity-70 tabular-nums">{fmtTime(it.created_at)}</p>
-                  </div>
-                  <p className="mt-2 text-sm whitespace-pre-wrap leading-relaxed">{it.text || '—'}</p>
+            {items.map((it, i) => {
+              const prev = i > 0 ? items[i - 1] : null;
+              const prevDay = localDayKey(prev?.created_at ?? null);
+              const currDay = localDayKey(it.created_at);
+              const showDateSep = currDay != null && currDay !== prevDay;
 
-                  {isUser && (
-                    <div className="mt-3 flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-xl bg-white/5 border-white/10 text-white hover:bg-white/10"
-                        onClick={() => suggestReply(it as any)}
-                        disabled={!!sug?.loading}
-                      >
-                        {sug?.loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                        Sugerir resposta
-                      </Button>
+              const isLog = it.kind === 'whatsapp_log';
+              const sug = isLog ? suggestions[it.id] : undefined;
+              const adminIt = it.kind === 'admin_action' ? it : null;
+              return (
+                <Fragment key={`${it.kind}-${it.id}`}>
+                  {showDateSep && (
+                    <div className="flex justify-center py-2">
+                      <span className="text-xs font-medium text-slate-500 bg-slate-200/80 px-3 py-1 rounded-full">
+                        {chatDateSeparatorLabel(it.created_at)}
+                      </span>
                     </div>
                   )}
+                  <div
+                    className={`max-w-[75%] rounded-2xl px-4 py-3 ${bubbleClass(
+                      it.kind,
+                      (it as { direction?: string }).direction,
+                      adminIt?.action_type ?? null
+                    )}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold opacity-80">
+                        {getSenderLabel(it)}
+                      </p>
+                      <p className="text-[11px] opacity-70 tabular-nums">{fmtTime(it.created_at)}</p>
+                    </div>
+                    {it.kind === 'admin_action' && it.action_type === 'template_sent' && it.payload?.template_name && (
+                      <p className="text-[11px] font-bold text-blue-300 mb-1 uppercase tracking-wider">
+                        Template: {it.payload.template_name}
+                      </p>
+                    )}
+                    {it.kind === 'admin_action' && it.action_type === 'stage_updated' ? (
+                      <p className="text-[11px] opacity-70 mt-2">
+                        Stage: {it.payload?.old_stage ?? '—'} → {it.payload?.new_stage ?? '—'}
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-sm whitespace-pre-wrap leading-relaxed">{it.text || '—'}</p>
+                    )}
 
-                  {isUser && sug?.text && (
-                    <Card className="mt-3 bg-slate-950/40 border border-slate-700 text-slate-50 p-3 rounded-xl">
-                      <p className="text-xs font-semibold text-slate-200 mb-1">Sugestão da IA</p>
-                      <p className="text-sm whitespace-pre-wrap">{sug.text}</p>
+                    {it.kind === 'whatsapp_log' && it.direction === 'inbound' && (
                       <div className="mt-3 flex items-center gap-2">
-                        <Button size="sm" className="rounded-xl" onClick={() => setMessage(sug.text || '')}>
-                          Usar esta resposta
-                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="rounded-xl"
-                          onClick={() => setSuggestions((prev) => ({ ...prev, [it.id]: { loading: false, text: null } }))}
+                          className="rounded-xl bg-white/5 border-white/10 text-white hover:bg-white/10"
+                          onClick={() => suggestReply(it as Extract<ChatItem, { kind: 'whatsapp_log' }>)}
+                          disabled={!!sug?.loading}
                         >
-                          Descartar
+                          {sug?.loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                          Sugerir resposta
                         </Button>
                       </div>
-                    </Card>
-                  )}
-                </div>
+                    )}
+
+                    {it.kind === 'whatsapp_log' && it.direction === 'inbound' && sug?.text && (
+                      <Card className="mt-3 bg-slate-950/40 border border-slate-700 text-slate-50 p-3 rounded-xl">
+                        <p className="text-xs font-semibold text-slate-200 mb-1">Sugestão da IA</p>
+                        <p className="text-sm whitespace-pre-wrap">{sug.text}</p>
+                        <div className="mt-3 flex items-center gap-2">
+                          <Button size="sm" className="rounded-xl" onClick={() => setMessage(sug.text || '')}>
+                            Usar esta resposta
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-xl"
+                            onClick={() => setSuggestions((prev) => ({ ...prev, [it.id]: { loading: false, text: null } }))}
+                          >
+                            Descartar
+                          </Button>
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                </Fragment>
               );
             })}
 
@@ -608,24 +765,19 @@ export default function AdminReengagementConversationPage() {
 
           {/* Composer */}
           <div className="border-t bg-white p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {selectedUser ? stageBadge(selectedUser.conversion_stage) : null}
-                {selectedUser?.meta_window_active ? (
-                  <Badge className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Janela ativa
-                  </Badge>
-                ) : (
-                  <Badge className="inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200">
-                    <XCircle className="w-4 h-4" />
-                    Janela expirada
-                  </Badge>
-                )}
-              </div>
-              <Button variant="outline" className="rounded-xl" onClick={() => { fetchConversation(); fetchUsers(); }}>
-                Recarregar
-              </Button>
+            <div className="mb-3 flex items-center gap-2">
+              {selectedUser ? stageBadge(selectedUser.conversion_stage) : null}
+              {selectedUser?.meta_window_active ? (
+                <Badge className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Janela ativa
+                </Badge>
+              ) : (
+                <Badge className="inline-flex items-center gap-2 bg-red-50 text-red-700 border border-red-200">
+                  <XCircle className="w-4 h-4" />
+                  Janela expirada
+                </Badge>
+              )}
             </div>
 
             <Tabs value={sendTab} onValueChange={(v) => setSendTab(v as any)} className="w-full">
@@ -645,14 +797,26 @@ export default function AdminReengagementConversationPage() {
                   </div>
                 )}
                 <div className="flex items-start gap-3">
-                  <Textarea
-                    className="rounded-xl min-h-[60px]"
-                    value={message}
-                    maxLength={1024}
-                    disabled={!selectedUser?.meta_window_active}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Digite sua mensagem..."
-                  />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <Textarea
+                      className="rounded-xl min-h-[60px]"
+                      value={message}
+                      maxLength={1024}
+                      disabled={!selectedUser?.meta_window_active}
+                      onChange={(e) => setMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                          e.preventDefault();
+                          void sendFreeMessage();
+                        }
+                      }}
+                      placeholder="Digite sua mensagem..."
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-slate-500">Ctrl+Enter para enviar</p>
+                      <span className="text-xs text-slate-500 tabular-nums">{message.length}/1024</span>
+                    </div>
+                  </div>
                   <Button className="rounded-xl" onClick={sendFreeMessage} disabled={sending || !selectedUser?.meta_window_active}>
                     {sending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
                     Enviar

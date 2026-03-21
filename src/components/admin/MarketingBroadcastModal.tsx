@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Megaphone, X, Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Megaphone, X, Sparkles, Loader2, AlertCircle, Info } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 const MAX_FEATURES_LEN = 900;
@@ -314,11 +315,33 @@ export default function MarketingBroadcastModal({
 
               <div className="flex items-start justify-between gap-4 rounded-xl border border-zinc-200 dark:border-zinc-800 px-3 py-3">
                 <div className="min-w-0 pr-2">
-                  <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    Enviar apenas para usuários na janela de horário ativo
-                  </p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                      Apenas usuários com janela ativa (Meta)
+                    </p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="rounded-md p-0.5 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+                          aria-label="Sobre a janela de 24 horas da Meta"
+                        >
+                          <Info className="w-4 h-4 shrink-0" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        className="max-w-[280px] text-left text-xs leading-relaxed p-3 bg-zinc-900 text-zinc-100 border border-zinc-700"
+                      >
+                        A Meta permite mensagens de texto livre apenas quando o usuário interagiu nas
+                        últimas 24h. Para marketing, o template é sempre usado — mas usuários com
+                        janela ativa tendem a ter maior taxa de resposta.
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-                    Respeita o horário livre configurado por cada aluno
+                    Filtra usuários que enviaram mensagem nas últimas 24h. Fora dessa janela, apenas
+                    templates aprovados podem ser enviados.
                   </p>
                 </div>
                 <Switch
@@ -345,7 +368,7 @@ export default function MarketingBroadcastModal({
                 {segmentLabel(segment)}
               </p>
               <p>
-                <span className="text-zinc-500">Janela ativa:</span>{' '}
+                <span className="text-zinc-500">Janela Meta (24h):</span>{' '}
                 {onlyActiveWindow ? 'sim' : 'não'}
               </p>
               <p className="font-medium text-zinc-900 dark:text-zinc-100 pt-1">

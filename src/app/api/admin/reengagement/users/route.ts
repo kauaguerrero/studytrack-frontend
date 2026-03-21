@@ -174,20 +174,27 @@ export async function GET(request: Request) {
     }
   }
 
-  // admin_actions_log: contagem de abordagens (message_sent + template_sent)
-  const approachesByUser = new Map<string, number>();
+  // admin_actions_log: contagem de abordagens (só envios) + última "ação do admin" (inclui conversation_read p/ has_unread)
+  const adminEngagementByUser = new Map<string, { approachCount: number; lastActionAt: string | null }>();
   if (ids.length) {
     const { data: actionRows } = await supabaseAdmin
       .from('admin_actions_log')
-      .select('user_id, action_type')
+      .select('user_id, action_type, created_at')
       .in('user_id', ids)
-      .in('action_type', ['message_sent', 'template_sent'])
+      .in('action_type', ['message_sent', 'template_sent', 'conversation_read'])
       .limit(100000);
 
     for (const r of (actionRows ?? []) as any[]) {
-      const userId = r.user_id as string | null;
-      if (!userId) continue;
-      approachesByUser.set(userId, (approachesByUser.get(userId) ?? 0) + 1);
+      const uid = r.user_id as string | null;
+      if (!uid) continue;
+      const actionType = String(r.action_type ?? '');
+      const createdAt = (r.created_at as string | null) ?? null;
+      const prev = adminEngagementByUser.get(uid) ?? { approachCount: 0, lastActionAt: null };
+      const approachCount =
+        prev.approachCount + (actionType === 'message_sent' || actionType === 'template_sent' ? 1 : 0);
+      const lastActionAt =
+        createdAt && (!prev.lastActionAt || createdAt > prev.lastActionAt) ? createdAt : prev.lastActionAt;
+      adminEngagementByUser.set(uid, { approachCount, lastActionAt });
     }
   }
 
@@ -201,10 +208,12 @@ export async function GET(request: Request) {
     const lastUserAt = logs.lastInboundAt;
     const metaWindowActive = !!(lastUserAt && new Date(lastUserAt).getTime() >= windowCutoff);
     const conversionStage = (p.conversion_stage ?? 'nao_abordado') as ConversionStage;
-    const adminApproaches = approachesByUser.get(p.id) ?? 0;
+    const engagement = adminEngagementByUser.get(p.id) ?? { approachCount: 0, lastActionAt: null };
+    const adminApproaches = engagement.approachCount;
+    const lastAdminActionAt = engagement.lastActionAt;
     const hasUnread = !!(
       lastUserAt &&
-      (adminApproaches === 0 || new Date(lastUserAt) > new Date(logs.lastAt || 0))
+      (!lastAdminActionAt || new Date(lastUserAt) > new Date(lastAdminActionAt))
     );
 
     const u = {

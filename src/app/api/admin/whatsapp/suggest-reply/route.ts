@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/app/api/admin/_utils';
+import { whatsappLogsOrFilterForUser } from '@/app/api/admin/reengagement/_whatsappLogsScope';
 
 type WhatsAppLogRow = {
   id: string;
@@ -39,16 +40,18 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabaseAdmin
     .from('profiles')
-    .select('conversion_stage')
+    .select('conversion_stage, whatsapp_phone')
     .eq('id', userId)
     .maybeSingle();
 
   const conversionStage = (profile?.conversion_stage as string | null) ?? 'nao_abordado';
 
+  const logsFilter = whatsappLogsOrFilterForUser(userId, (profile as { whatsapp_phone?: string | null } | null)?.whatsapp_phone);
+
   const { data: logs } = await supabaseAdmin
     .from('whatsapp_logs')
     .select('id, direction, payload, created_at')
-    .eq('user_id', userId)
+    .or(logsFilter)
     .order('created_at', { ascending: false })
     .limit(10);
 
