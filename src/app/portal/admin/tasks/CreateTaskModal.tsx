@@ -22,6 +22,7 @@ export default function CreateTaskModal({ open, userId, onClose }: Props) {
   const [deadline, setDeadline] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
   const [assigneeId, setAssigneeId] = useState<string>('');
+  const [coAssigneeId, setCoAssigneeId] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
   const { profiles } = useAdminProfiles();
@@ -37,6 +38,7 @@ export default function CreateTaskModal({ open, userId, onClose }: Props) {
         created_by: userId,
         priority,
         assignee_id: assigneeId || undefined,
+        co_assignee_id: coAssigneeId || undefined,
         deadline: deadline ? new Date(deadline).toISOString() : undefined,
       });
       toast.success('Task criada com sucesso!');
@@ -51,7 +53,7 @@ export default function CreateTaskModal({ open, userId, onClose }: Props) {
 
   function handleClose() {
     setTitle(''); setScope(''); setDeadline('');
-    setPriority('medium'); setAssigneeId('');
+    setPriority('medium'); setAssigneeId(''); setCoAssigneeId('');
     onClose();
   }
 
@@ -133,21 +135,38 @@ export default function CreateTaskModal({ open, userId, onClose }: Props) {
             </div>
           </div>
 
-          {/* Assignee */}
-          <div>
-            <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
-              <User className="w-3 h-3" /> Responsável <span className="text-zinc-700">(opcional)</span>
-            </label>
-            <select
-              value={assigneeId}
-              onChange={e => setAssigneeId(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
-            >
-              <option value="">Não atribuído</option>
-              {profiles.map(p => (
-                <option key={p.id} value={p.id}>{p.full_name}</option>
-              ))}
-            </select>
+          {/* Assignees */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                <User className="w-3 h-3" /> Responsável <span className="text-zinc-700">(opcional)</span>
+              </label>
+              <select
+                value={assigneeId}
+                onChange={e => setAssigneeId(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+              >
+                <option value="">Não atribuído</option>
+                {profiles.map(p => (
+                  <option key={p.id} value={p.id} disabled={p.id === coAssigneeId}>{p.full_name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                <User className="w-3 h-3" /> Co-responsável <span className="text-zinc-700">(opcional)</span>
+              </label>
+              <select
+                value={coAssigneeId}
+                onChange={e => setCoAssigneeId(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+              >
+                <option value="">Nenhum</option>
+                {profiles.map(p => (
+                  <option key={p.id} value={p.id} disabled={p.id === assigneeId}>{p.full_name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Deadline */}

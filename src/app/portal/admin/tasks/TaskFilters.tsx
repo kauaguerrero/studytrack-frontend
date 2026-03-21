@@ -1,7 +1,8 @@
 'use client';
 
 import { useTheme } from 'next-themes';
-import { Search, AlertTriangle, X } from 'lucide-react';
+import { Search, AlertTriangle, X, User } from 'lucide-react';
+import { useAdminProfiles } from './hooks/useTasks';
 
 const PRIORITY_PILLS: Array<{ value: string; label: string; accent?: string }> = [
   { value: '', label: 'Todos' },
@@ -16,6 +17,7 @@ interface Filters {
   priority: string;
   search: string;
   overdue: boolean;
+  assignee_id: string;
 }
 
 interface Props {
@@ -38,6 +40,7 @@ const STATUS_PILLS: Array<{
 export default function TaskFilters({ filters, onChange }: Props) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme !== 'light';
+  const { profiles } = useAdminProfiles();
   return (
     <div className="flex items-center gap-3 flex-wrap">
       {/* Search */}
@@ -132,6 +135,31 @@ export default function TaskFilters({ filters, onChange }: Props) {
         <AlertTriangle className="w-3 h-3" />
         Vencidas
       </button>
+
+      {/* Assignee filter */}
+      {profiles.length > 0 && (
+        <div className="relative flex items-center">
+          <User
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none"
+            style={{ color: filters.assignee_id ? '#6366f1' : isDark ? '#52525b' : '#71717a' }}
+          />
+          <select
+            value={filters.assignee_id}
+            onChange={e => onChange({ ...filters, assignee_id: e.target.value })}
+            className="pl-8 pr-3 py-1.5 text-xs rounded-lg font-medium border transition-all duration-150 focus:outline-none appearance-none cursor-pointer"
+            style={
+              filters.assignee_id
+                ? { background: 'rgba(99,102,241,0.12)', color: '#818cf8', borderColor: 'rgba(99,102,241,0.35)' }
+                : { background: 'transparent', color: isDark ? '#52525b' : '#71717a', borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.1)' }
+            }
+          >
+            <option value="">Todos responsáveis</option>
+            {profiles.map(p => (
+              <option key={p.id} value={p.id}>{p.full_name}</option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   );
 }

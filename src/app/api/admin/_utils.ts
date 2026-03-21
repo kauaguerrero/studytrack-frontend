@@ -32,6 +32,7 @@ export async function getTaskDetail(supabaseAdmin: AdminClient, taskId: string) 
     .select(`
       *,
       assignee:profiles!admin_tasks_assignee_id_fkey(id, full_name, avatar_url),
+      co_assignee:profiles!admin_tasks_co_assignee_id_fkey(id, full_name, avatar_url),
       creator:profiles!admin_tasks_created_by_fkey(id, full_name, avatar_url)
     `)
     .eq('id', taskId)

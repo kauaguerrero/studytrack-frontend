@@ -15,7 +15,7 @@ import AISuggestionsPanel from './AISuggestionsPanel';
 
 export default function AdminTasksPage() {
   const [userId, setUserId] = useState<string | null>(null);
-  const [filters, setFilters] = useState({ status: '', priority: '', search: '', overdue: false });
+  const [filters, setFilters] = useState({ status: '', priority: '', search: '', overdue: false, assignee_id: '' });
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const supabase = createClient();
@@ -32,6 +32,7 @@ export default function AdminTasksPage() {
   if (filters.status) queryParams.status = filters.status;
   if (filters.search) queryParams.search = filters.search;
   if (filters.overdue) queryParams.overdue = 'true';
+  if (filters.assignee_id) queryParams.assignee_id = filters.assignee_id;
 
   const { tasks: rawTasks, isLoading } = useTasks(Object.keys(queryParams).length ? queryParams : undefined);
   const tasks = filters.priority

@@ -9,13 +9,15 @@ export async function GET(request: Request) {
   const status = url.searchParams.get('status');
   const search = url.searchParams.get('search');
   const overdue = url.searchParams.get('overdue') === 'true';
+  const assigneeId = url.searchParams.get('assignee_id');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query: any = auth.supabaseAdmin
     .from('admin_tasks')
-    .select('*, assignee:profiles!admin_tasks_assignee_id_fkey(id, full_name, avatar_url)');
+    .select('*, assignee:profiles!admin_tasks_assignee_id_fkey(id, full_name, avatar_url), co_assignee:profiles!admin_tasks_co_assignee_id_fkey(id, full_name, avatar_url)');
 
   if (status) query = query.eq('status', status);
+  if (assigneeId) query = query.or(`assignee_id.eq.${assigneeId},co_assignee_id.eq.${assigneeId}`);
   if (overdue) {
     const now = new Date().toISOString();
     query = query.lt('deadline', now).not('status', 'in', '("done","archived")');
@@ -67,6 +69,7 @@ export async function POST(request: Request) {
 
   const payload: Record<string, unknown> = { title, scope, created_by: createdBy, status: 'backlog', priority };
   if (body.assignee_id) payload.assignee_id = body.assignee_id;
+  if (body.co_assignee_id) payload.co_assignee_id = body.co_assignee_id;
   if (body.deadline) payload.deadline = body.deadline;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

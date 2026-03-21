@@ -20,6 +20,8 @@ export interface Task {
   priority: TaskPriority;
   assignee_id: string | null;
   assignee: { id: string; full_name: string; avatar_url: string | null } | null;
+  co_assignee_id: string | null;
+  co_assignee: { id: string; full_name: string; avatar_url: string | null } | null;
   created_by: string;
   deadline: string | null;
   created_at: string;

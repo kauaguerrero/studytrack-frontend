@@ -24,7 +24,7 @@ export async function PATCH(
   const { taskId } = await params;
   const body = await request.json();
 
-  const allowed = new Set(['title', 'scope', 'deadline', 'priority', 'assignee_id']);
+  const allowed = new Set(['title', 'scope', 'deadline', 'priority', 'assignee_id', 'co_assignee_id']);
   const validPriorities = ['low', 'medium', 'high', 'critical'];
 
   const updates: Record<string, unknown> = {};

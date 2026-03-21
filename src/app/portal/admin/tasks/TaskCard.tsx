@@ -113,24 +113,51 @@ export default function TaskCard({ task, onClick, onDragStart }: Props) {
 
       {/* Footer */}
       <div className="flex items-center justify-between gap-2">
-        {/* Assignee */}
+        {/* Assignees */}
         <div className="flex items-center gap-1.5 min-w-0">
-          {assigneeAvatar ? (
-            <img
-              src={assigneeAvatar}
-              alt={assigneeName}
-              className="w-5 h-5 rounded-full object-cover flex-shrink-0 ring-1 ring-black/20"
-            />
-          ) : (
-            <div
-              className={`w-5 h-5 rounded-full ${avatarColor} flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 ring-1 ring-black/20`}
-            >
-              {initials}
-            </div>
-          )}
+          <div className="flex items-center -space-x-1.5">
+            {/* Primary assignee */}
+            {assigneeAvatar ? (
+              <img
+                src={assigneeAvatar}
+                alt={assigneeName}
+                title={assigneeName}
+                className="w-5 h-5 rounded-full object-cover flex-shrink-0 ring-1 ring-black/20"
+              />
+            ) : (
+              <div
+                className={`w-5 h-5 rounded-full ${avatarColor} flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 ring-1 ring-black/20`}
+                title={assigneeName || undefined}
+              >
+                {initials}
+              </div>
+            )}
+            {/* Co-assignee */}
+            {task.co_assignee && (() => {
+              const coName = task.co_assignee.full_name;
+              const coAvatar = task.co_assignee.avatar_url;
+              const coInitials = coName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
+              const coColor = getAvatarColor(coName);
+              return coAvatar ? (
+                <img
+                  src={coAvatar}
+                  alt={coName}
+                  title={coName}
+                  className="w-5 h-5 rounded-full object-cover flex-shrink-0 ring-1 ring-black/20"
+                />
+              ) : (
+                <div
+                  className={`w-5 h-5 rounded-full ${coColor} flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0 ring-1 ring-black/20`}
+                  title={coName}
+                >
+                  {coInitials}
+                </div>
+              );
+            })()}
+          </div>
           {assigneeName ? (
             <span className="text-[11px] text-zinc-500 truncate">
-              {assigneeName.split(' ')[0]}
+              {assigneeName.split(' ')[0]}{task.co_assignee ? ` + ${task.co_assignee.full_name.split(' ')[0]}` : ''}
             </span>
           ) : (
             <span className="text-[11px] text-zinc-400 dark:text-zinc-700 italic">Sem responsável</span>

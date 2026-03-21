@@ -58,6 +58,7 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
   const [editScope, setEditScope] = useState('');
   const [editPriority, setEditPriority] = useState<TaskPriority>('medium');
   const [editAssigneeId, setEditAssigneeId] = useState('');
+  const [editCoAssigneeId, setEditCoAssigneeId] = useState('');
   const [editDeadline, setEditDeadline] = useState('');
   const [editStatus, setEditStatus] = useState<TaskStatus>('backlog');
   const [savingTask, setSavingTask] = useState(false);
@@ -88,6 +89,7 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
     setEditScope(task!.scope);
     setEditPriority(task!.priority ?? 'medium');
     setEditAssigneeId(task!.assignee_id ?? '');
+    setEditCoAssigneeId(task!.co_assignee_id ?? '');
     setEditDeadline(toDateInputValue(task!.deadline));
     setEditStatus(task!.status);
     setEditMode(true);
@@ -106,6 +108,7 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
         scope: editScope.trim(),
         priority: editPriority,
         assignee_id: editAssigneeId || null,
+        co_assignee_id: editCoAssigneeId || null,
         deadline: editDeadline ? new Date(editDeadline).toISOString() : null,
       });
       toast.success('Task atualizada!');
@@ -345,21 +348,38 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
                     </div>
                   </div>
 
-                  {/* Assignee */}
-                  <div>
-                    <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
-                      <User className="w-3 h-3" /> Responsável
-                    </label>
-                    <select
-                      value={editAssigneeId}
-                      onChange={e => setEditAssigneeId(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-300 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
-                    >
-                      <option value="">Não atribuído</option>
-                      {profiles.map(p => (
-                        <option key={p.id} value={p.id}>{p.full_name}</option>
-                      ))}
-                    </select>
+                  {/* Assignees */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                        <User className="w-3 h-3" /> Responsável
+                      </label>
+                      <select
+                        value={editAssigneeId}
+                        onChange={e => setEditAssigneeId(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-300 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                      >
+                        <option value="">Não atribuído</option>
+                        {profiles.map(p => (
+                          <option key={p.id} value={p.id} disabled={p.id === editCoAssigneeId}>{p.full_name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
+                        <User className="w-3 h-3" /> Co-responsável
+                      </label>
+                      <select
+                        value={editCoAssigneeId}
+                        onChange={e => setEditCoAssigneeId(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-300 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                      >
+                        <option value="">Nenhum</option>
+                        {profiles.map(p => (
+                          <option key={p.id} value={p.id} disabled={p.id === editAssigneeId}>{p.full_name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {/* Deadline */}
@@ -401,6 +421,7 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
                   <div className="grid grid-cols-2 gap-4">
                     <InfoBlock label="Prioridade" icon={Flag} value={PRIORITY_CONFIG[task.priority ?? 'medium']?.label ?? '—'} accentColor={PRIORITY_CONFIG[task.priority ?? 'medium']?.color} />
                     <InfoBlock label="Responsável" icon={User} value={task.assignee?.full_name ?? 'Não atribuído'} />
+                    <InfoBlock label="Co-responsável" icon={User} value={task.co_assignee?.full_name ?? '—'} />
                     <InfoBlock label="Criado por" icon={User} value={task.creator?.full_name ?? '—'} />
                     <InfoBlock label="Prazo" icon={Calendar} value={formatDate(task.deadline)} />
                     <InfoBlock label="Criado em" icon={Clock} value={formatDate(task.created_at)} />
