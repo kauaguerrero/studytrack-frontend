@@ -115,6 +115,8 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
         <MoveToProgressModal
           open
           taskTitle={progressModal.task.title}
+          taskScope={progressModal.task.scope}
+          taskPriority={progressModal.task.priority}
           onConfirm={async (data) => {
             await performStatusUpdate(progressModal.task, 'in_progress', { progress: data });
             setProgressModal(null);
