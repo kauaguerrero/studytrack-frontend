@@ -7,6 +7,7 @@ import MarketingBroadcastModal from "@/components/admin/MarketingBroadcastModal"
 import PeakHoursCard from "@/components/admin/PeakHoursCard";
 import FinancialPanel from "@/components/admin/FinancialPanel";
 import SubscribersModal from "@/components/admin/SubscribersModal";
+import CreateAnnouncementModal from "@/components/admin/CreateAnnouncementModal";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -15,7 +16,7 @@ import {
   Database, ArrowUpRight, Zap, GraduationCap,
   School, AlertOctagon, BarChart3,
   Calculator, ListChecks,
-  Flag, ClipboardList, Megaphone
+  Flag, ClipboardList, Megaphone, Bell
 } from "lucide-react";
 
 export default function SuperAdminDashboard() {
@@ -24,6 +25,7 @@ export default function SuperAdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [marketingOpen, setMarketingOpen] = useState(false);
   const [subscribersOpen, setSubscribersOpen] = useState(false);
+  const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
   const supabase = createClient();
 
   const SUPABASE_FREE_LIMIT = 500 * 1024 * 1024;
@@ -79,6 +81,7 @@ export default function SuperAdminDashboard() {
     <div className="p-4 md:p-8 space-y-6 md:space-y-8 bg-slate-50/50 dark:bg-slate-900/50 min-h-screen font-sans text-slate-900 dark:text-slate-100 overflow-x-hidden">
       <MarketingBroadcastModal isOpen={marketingOpen} onClose={() => setMarketingOpen(false)} />
       <SubscribersModal isOpen={subscribersOpen} onClose={() => setSubscribersOpen(false)} />
+      <CreateAnnouncementModal isOpen={announcementModalOpen} onClose={() => setAnnouncementModalOpen(false)} />
 
       {/* --- HEADER --- */}
       <div className="flex flex-col gap-4 border-b border-slate-200 dark:border-slate-700 pb-4 md:pb-6">
@@ -100,9 +103,16 @@ export default function SuperAdminDashboard() {
             <button
                 type="button"
                 onClick={() => setMarketingOpen(true)}
-                className="mr-3 inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
                 <Megaphone className="w-4 h-4 text-rose-500" /> Marketing
+            </button>
+            <button
+                type="button"
+                onClick={() => setAnnouncementModalOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+                <Bell className="w-4 h-4 text-violet-500" /> Anunciar novidade
             </button>
             <span className="flex h-3 w-3 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
