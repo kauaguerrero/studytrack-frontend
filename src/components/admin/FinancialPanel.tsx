@@ -500,11 +500,11 @@ export default function FinancialPanel() {
               <CardHeader className="pb-2 pt-4 px-5">
                 <CardTitle className="text-sm font-bold flex items-center gap-2 justify-between">
                   <span className="flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4 text-green-500" /> WhatsApp Business
+                    <MessageCircle className="w-4 h-4 text-indigo-500" /> WhatsApp Business
                   </span>
                   <button
                     onClick={() => { setExpCategory('whatsapp'); setAddOpen(true); }}
-                    className="flex items-center gap-1 text-xs font-semibold text-green-600 hover:text-green-700"
+                    className="flex items-center gap-1 text-xs font-semibold text-indigo-700 hover:text-indigo-800"
                   >
                     <Plus className="w-3 h-3" /> Adicionar custo Meta
                   </button>
@@ -513,7 +513,7 @@ export default function FinancialPanel() {
               <CardContent className="px-5 pb-4">
                 {data.costs.whatsapp.total_brl > 0 ? (
                   <>
-                    <p className="text-2xl font-bold text-green-700">R$ {fmt(data.costs.whatsapp.total_brl)}</p>
+                    <p className="text-2xl font-bold text-indigo-700">R$ {fmt(data.costs.whatsapp.total_brl)}</p>
                     <p className="text-xs text-slate-400 mt-1">Valor inserido manualmente via painel Meta</p>
                   </>
                 ) : (

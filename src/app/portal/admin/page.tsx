@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import MarketingBroadcastModal from "@/components/admin/MarketingBroadcastModal";
 import PeakHoursCard from "@/components/admin/PeakHoursCard";
 import FinancialPanel from "@/components/admin/FinancialPanel";
+import SubscribersModal from "@/components/admin/SubscribersModal";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -22,6 +23,7 @@ export default function SuperAdminDashboard() {
   const [dist, setDist] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [marketingOpen, setMarketingOpen] = useState(false);
+  const [subscribersOpen, setSubscribersOpen] = useState(false);
   const supabase = createClient();
 
   const SUPABASE_FREE_LIMIT = 500 * 1024 * 1024;
@@ -74,16 +76,17 @@ export default function SuperAdminDashboard() {
     : "0";
 
   return (
-    <div className="p-8 space-y-8 bg-slate-50/50 dark:bg-slate-900/50 min-h-screen font-sans text-slate-900 dark:text-slate-100">
+    <div className="p-4 md:p-8 space-y-6 md:space-y-8 bg-slate-50/50 dark:bg-slate-900/50 min-h-screen font-sans text-slate-900 dark:text-slate-100 overflow-x-hidden">
       <MarketingBroadcastModal isOpen={marketingOpen} onClose={() => setMarketingOpen(false)} />
+      <SubscribersModal isOpen={subscribersOpen} onClose={() => setSubscribersOpen(false)} />
 
       {/* --- HEADER --- */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-slate-200 dark:border-slate-700 pb-6">
+      <div className="flex flex-col gap-4 border-b border-slate-200 dark:border-slate-700 pb-4 md:pb-6">
         <div>
             <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Master Control</h1>
             <p className="text-slate-500 mt-1">Visão holística de Negócio, Produto e Pedagogia.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
             <Link href="/portal/admin/tasks" className="mr-2">
                 <span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                     <ClipboardList className="w-4 h-4 text-indigo-500" /> Tasks
@@ -112,13 +115,13 @@ export default function SuperAdminDashboard() {
       {/* ================================================================================== */}
       {/* SEÇÃO 1: BIG NUMBERS (KPIs) */}
       {/* ================================================================================== */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
         <Card className="border-l-4 border-l-blue-500 hover:shadow-lg transition-all">
             <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="text-sm font-medium text-slate-500 uppercase">Total de Usuários</p>
-                        <h3 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mt-2">{health?.total_users || 0}</h3>
+                        <h3 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-100 mt-2">{health?.total_users || 0}</h3>
                     </div>
                     <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-lg"><Users className="w-6 h-6 text-blue-600" /></div>
                 </div>
@@ -128,12 +131,15 @@ export default function SuperAdminDashboard() {
             </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-emerald-500 hover:shadow-lg transition-all">
+        <Card
+          className="border-l-4 border-l-emerald-500 hover:shadow-lg transition-all cursor-pointer"
+          onClick={() => setSubscribersOpen(true)}
+        >
             <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="text-sm font-medium text-slate-500 uppercase">Assinantes Pro</p>
-                        <h3 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mt-2">{product?.active_pros || 0}</h3>
+                        <h3 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-100 mt-2">{product?.active_pros || 0}</h3>
                     </div>
                     <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg"><DollarSign className="w-6 h-6 text-emerald-600" /></div>
                 </div>
@@ -142,6 +148,9 @@ export default function SuperAdminDashboard() {
                         Plano Pro ativo
                     </Badge>
                 </div>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1">
+                    <Users className="w-3 h-3" /> Clique para ver detalhes
+                </p>
             </CardContent>
         </Card>
       </div>
@@ -154,7 +163,7 @@ export default function SuperAdminDashboard() {
       {/* ================================================================================== */}
       {/* SEÇÃO 2: SAÚDE & ENGAJAMENTO */}
       {/* ================================================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
         <Card className="hover:border-slate-300 transition-colors">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -163,19 +172,19 @@ export default function SuperAdminDashboard() {
                 <CardDescription>DAU/MAU por último dia com atividade (last_activity_date).</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="flex items-center justify-between mb-4">
-                    <div className="text-center">
-                        <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{health?.dau || 0}</p>
+                <div className="flex items-center justify-between mb-4 gap-2">
+                    <div className="text-center flex-1">
+                        <p className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100">{health?.dau || 0}</p>
                         <p className="text-xs text-slate-500 font-bold uppercase mt-1">DAU (24h)</p>
                     </div>
-                    <div className="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
-                    <div className="text-center">
-                        <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{health?.mau || 0}</p>
+                    <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 flex-shrink-0"></div>
+                    <div className="text-center flex-1">
+                        <p className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100">{health?.mau || 0}</p>
                         <p className="text-xs text-slate-500 font-bold uppercase mt-1">MAU (30d)</p>
                     </div>
-                    <div className="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
-                    <div className="text-center">
-                        <p className={`text-3xl font-bold ${health?.stickiness > 20 ? 'text-green-600' : 'text-amber-600'}`}>
+                    <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 flex-shrink-0"></div>
+                    <div className="text-center flex-1">
+                        <p className={`text-2xl md:text-3xl font-bold ${health?.stickiness > 20 ? 'text-green-600' : 'text-amber-600'}`}>
                             {health?.stickiness || 0}%
                         </p>
                         <p className="text-xs text-slate-500 font-bold uppercase mt-1">Retenção</p>
@@ -196,7 +205,9 @@ export default function SuperAdminDashboard() {
                 <CardTitle className="flex items-center gap-2 text-lg">
                     <Target className="w-5 h-5 text-purple-500" /> Performance do Produto
                 </CardTitle>
-                <CardDescription>Qualidade da IA e estabilidade técnica.</CardDescription>
+                <CardDescription>
+                    Aderência baseada em {product?.active_users_in_adherence ?? 0} usuários ativos nos últimos 7 dias.
+                </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <div>
@@ -272,7 +283,7 @@ export default function SuperAdminDashboard() {
 
       {/* SEÇÃO 3: EDUCAÇÃO & B2B */}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Ponto Fraco */}
         <Card className="bg-red-50 dark:bg-red-950/30 border-red-100 dark:border-red-900/40 md:col-span-1">
             <CardHeader className="pb-2">
@@ -355,13 +366,13 @@ export default function SuperAdminDashboard() {
 
                  <div className="flex flex-wrap items-center gap-2">
                     <Link href="/portal/admin/reports" prefetch={false}>
-                        <button className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-4 rounded-md transition-all shadow-sm hover:shadow-md active:scale-95">
+                        <button className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-3 md:px-4 text-sm rounded-md transition-all shadow-sm hover:shadow-md active:scale-95">
                             <Flag className="w-4 h-4" />
                             Reports de Questões
                         </button>
                     </Link>
                     <Link href="/portal/admin/questions" prefetch={false}>
-                        <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition-all shadow-sm hover:shadow-md active:scale-95">
+                        <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-3 md:px-4 text-sm rounded-md transition-all shadow-sm hover:shadow-md active:scale-95">
                             <ListChecks className="w-4 h-4" />
                             Abrir Mesa de Curadoria
                         </button>
@@ -369,13 +380,13 @@ export default function SuperAdminDashboard() {
                  </div>
              </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                  {/* Por Matéria */}
                  <Card>
                      <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-bold text-slate-500 uppercase">Distribuição por Matéria</CardTitle>
                      </CardHeader>
-                     <CardContent className="h-64 overflow-y-auto pr-2 custom-scrollbar">
+                     <CardContent className="h-48 md:h-64 overflow-y-auto pr-2 custom-scrollbar">
                         <div className="space-y-2">
                             {dist.by_subject.map((s: any) => (
                                 <div key={s.name} className="flex justify-between items-center text-sm p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded">
@@ -405,7 +416,7 @@ export default function SuperAdminDashboard() {
                         </CardContent>
                      </Card>
 
-                     <Card>
+                     <Card className="overflow-hidden">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-bold text-slate-500 uppercase">Top 5 Anos Recentes</CardTitle>
                         </CardHeader>
