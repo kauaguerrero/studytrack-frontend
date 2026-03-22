@@ -60,7 +60,7 @@ export default function CompleteTaskModal({ open, taskTitle, onConfirm, onCancel
         </div>
 
         {/* Form */}
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-4 min-w-0">
           {/* Summary */}
           <div>
             <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 mb-2">
@@ -71,7 +71,7 @@ export default function CompleteTaskModal({ open, taskTitle, onConfirm, onCancel
               onChange={e => setSummary(e.target.value)}
               placeholder="Descreva o que foi implementado e o resultado final..."
               rows={3}
-              className="w-full bg-zinc-900 border rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 resize-none focus:outline-none transition-colors"
+              className="box-border w-full bg-zinc-900 border rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 resize-none focus:outline-none transition-colors"
               style={{ borderColor: '#10b98130' }}
               onFocus={e => (e.target.style.borderColor = '#10b98160')}
               onBlur={e => (e.target.style.borderColor = '#10b98130')}
@@ -88,7 +88,7 @@ export default function CompleteTaskModal({ open, taskTitle, onConfirm, onCancel
               onChange={e => setFilesRaw(e.target.value)}
               placeholder={'src/components/Foo.tsx\napp/services/bar.py'}
               rows={4}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 resize-none focus:outline-none focus:border-zinc-600 transition-colors font-mono text-xs"
+              className="box-border w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 resize-none focus:outline-none focus:border-zinc-600 transition-colors font-mono text-xs"
             />
             {filesList.length > 0 && (
               <p className="text-xs text-zinc-600 mt-1.5">
