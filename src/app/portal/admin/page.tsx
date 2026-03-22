@@ -5,13 +5,14 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import MarketingBroadcastModal from "@/components/admin/MarketingBroadcastModal";
 import PeakHoursCard from "@/components/admin/PeakHoursCard";
+import FinancialPanel from "@/components/admin/FinancialPanel";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   Activity, Users, DollarSign, Brain, Target,
   Database, ArrowUpRight, Zap, GraduationCap,
-  School, AlertOctagon, TrendingUp, BarChart3,
+  School, AlertOctagon, BarChart3,
   Calculator, ListChecks,
   Flag, ClipboardList, Megaphone
 } from "lucide-react";
@@ -111,7 +112,7 @@ export default function SuperAdminDashboard() {
       {/* ================================================================================== */}
       {/* SEÇÃO 1: BIG NUMBERS (KPIs) */}
       {/* ================================================================================== */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="border-l-4 border-l-blue-500 hover:shadow-lg transition-all">
             <CardContent className="p-6">
                 <div className="flex justify-between items-start">
@@ -131,38 +132,24 @@ export default function SuperAdminDashboard() {
             <CardContent className="p-6">
                 <div className="flex justify-between items-start">
                     <div>
-                        <p className="text-sm font-medium text-slate-500 uppercase">Receita (MRR)</p>
-                        <h3 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mt-2">R$ {financial?.mrr_brl || "0.00"}</h3>
+                        <p className="text-sm font-medium text-slate-500 uppercase">Assinantes Pro</p>
+                        <h3 className="text-4xl font-bold text-slate-900 dark:text-slate-100 mt-2">{product?.active_pros || 0}</h3>
                     </div>
                     <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg"><DollarSign className="w-6 h-6 text-emerald-600" /></div>
                 </div>
                 <div className="mt-4 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                     <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 border-emerald-200">
-                        {product?.active_pros || 0} Assinantes Pro
+                        Plano Pro ativo
                     </Badge>
                 </div>
             </CardContent>
         </Card>
-
-        <Card className={`border-l-4 hover:shadow-lg transition-all ${financial?.net_profit_brl >= 0 ? 'border-l-indigo-500' : 'border-l-red-500'}`}>
-            <CardContent className="p-6">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <p className="text-sm font-medium text-slate-500 uppercase">Lucro Líquido</p>
-                        <h3 className={`text-4xl font-bold mt-2 ${financial?.net_profit_brl >= 0 ? 'text-indigo-900 dark:text-indigo-200' : 'text-red-600'}`}>
-                            R$ {financial?.net_profit_brl || "0.00"}
-                        </h3>
-                    </div>
-                    <div className={`p-3 rounded-lg ${financial?.net_profit_brl >= 0 ? 'bg-indigo-50 dark:bg-indigo-950/40' : 'bg-red-50 dark:bg-red-950/40'}`}>
-                        <TrendingUp className={`w-6 h-6 ${financial?.net_profit_brl >= 0 ? 'text-indigo-600' : 'text-red-600'}`} />
-                    </div>
-                </div>
-                <div className="mt-4 text-sm text-slate-500">
-                    Descontando custos de IA (R$ {financial?.ai_cost_brl})
-                </div>
-            </CardContent>
-        </Card>
       </div>
+
+      {/* ================================================================================== */}
+      {/* SEÇÃO 1.5: PAINEL FINANCEIRO REAL */}
+      {/* ================================================================================== */}
+      <FinancialPanel />
 
       {/* ================================================================================== */}
       {/* SEÇÃO 2: SAÚDE & ENGAJAMENTO */}
