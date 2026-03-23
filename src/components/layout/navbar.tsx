@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { Zap, LogOut, Menu, X } from 'lucide-react';
+import { LogOut, Menu, X } from 'lucide-react';
+import Image from 'next/image';
 import { SidebarContent } from '@/components/layout/PortalSidebar';
 
 export type UserRole = 'student' | 'teacher' | 'manager';
@@ -59,9 +60,13 @@ export function DashboardNavbar({
               </button>
             )}
 
-            <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/20 shrink-0">
-              <Zap size={18} className="fill-white" />
-            </div>
+            <Image
+              src="/logost-transparente-sombra.png"
+              alt="Logo StudyTrack"
+              width={55}
+              height={55}
+              className="object-contain shrink-0"
+            />
             <div className="hidden min-[350px]:block">
               <h1 className="text-lg font-bold text-foreground tracking-tight leading-tight">
                 StudyTrack
