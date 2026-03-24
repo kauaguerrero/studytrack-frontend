@@ -144,7 +144,7 @@ export default function Home() {
     },
     {
       question: "Por que é tão barato?",
-      answer: "Porque acreditamos que estudante não deveria pagar R$ 1.200 por mês para ter direção. O ENEM é a maior ferramenta de mobilidade social do Brasil. Acesso a um sistema que funciona não pode ser privilégio de quem pode pagar cursinho."
+      answer: "Porque acreditamos que direção personalizada não deveria ser privilégio de poucos. O ENEM é a maior ferramenta de mobilidade social do Brasil — e todo estudante merece ter acesso a um sistema que funciona, independente da sua condição financeira."
     },
     {
       question: "Vai realmente fazer diferença?",
@@ -410,8 +410,8 @@ export default function Home() {
               {[
                 {
                   n: '01',
-                  title: 'A escola te ensinou errado',
-                  text: 'O ENEM cobra padrões concentrados em menos de 30% do conteúdo total — e esses padrões se repetem há 20 anos. Existem tipos de questão, estruturas de argumento e contextos temáticos que aparecem de forma consistente em quase todas as edições. Ninguém te ensinou isso. A escola te ensinou a cobrir o máximo de conteúdo possível, sem nunca te mostrar onde o ENEM realmente concentra as cobranças. Você estudou muito. Mas estudou as coisas erradas, na proporção errada.',
+                  title: 'O ENEM tem um padrão específico — e ele pode ser mapeado',
+                  text: 'O ENEM cobra padrões concentrados em menos de 30% do conteúdo total — e esses padrões se repetem há 20 anos. Existem tipos de questão, estruturas de argumento e contextos temáticos que aparecem de forma consistente em quase todas as edições. Conhecer esses padrões e praticar especificamente com eles é o diferencial que separa quem acerta de quem erra. A StudyTrack mapeia exatamente onde o ENEM concentra as cobranças e direciona seu estudo para lá.',
                   from: 'from-red-50',
                   to: 'to-orange-50/50',
                   border: 'border-red-100',
@@ -682,10 +682,10 @@ export default function Home() {
             </div>
             <div className="reveal reveal-d1 space-y-5 mb-10">
               <p className="text-base md:text-lg text-slate-600 leading-relaxed">
-                O ENEM não testa memorização de fórmulas. Ele testa raciocínio aplicado a contextos novos — a capacidade de pegar um conceito e usá-lo em uma situação que você nunca viu antes. Isso é completamente diferente do que a escola treina.
+                O ENEM não testa memorização de fórmulas. Ele testa raciocínio aplicado a contextos novos — a capacidade de pegar um conceito e usá-lo em uma situação que você nunca viu antes. É um formato que exige treino específico e direcionado.
               </p>
               <p className="text-base md:text-lg text-slate-600 leading-relaxed">
-                É por isso que estudantes com 9 na escola reprovam no ENEM. E é por isso que estudantes considerados &quot;medianos&quot; aprovam com nota alta. A diferença não é inteligência — é calibração. É saber o que o ENEM realmente cobra e praticar especificamente isso.
+                É por isso que a nota no colégio nem sempre prediz o resultado no ENEM — e por isso que estudantes considerados &quot;medianos&quot; aprovam com nota alta quando treinam da forma certa. A diferença não é inteligência — é calibração. É saber o que o ENEM realmente cobra e praticar especificamente isso.
               </p>
               <p className="text-base md:text-lg text-slate-600 leading-relaxed">
                 Você não está atrasado porque é menos capaz. Você está atrasado porque ninguém nunca te mostrou o mapa certo.
@@ -940,8 +940,7 @@ export default function Home() {
                   className="reveal bg-white rounded-2xl border border-slate-100 p-5 text-center shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
                 >
                   <p className="text-3xl font-extrabold mb-1 tabular-nums text-gradient-dark">
-                    {m.fmt(m.val)}{m.suffix !== '+' && m.suffix !== '%' ? '' : m.suffix !== '+' ? m.suffix : ''}
-                    {m.suffix === '+' ? (m.val > 0 ? '+' : '') : m.suffix}
+                    {m.fmt(m.val)}{m.suffix}
                   </p>
                   <p className="text-xs text-slate-500 leading-snug">{m.label}</p>
                 </div>
@@ -992,8 +991,8 @@ export default function Home() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="text-center mb-16 reveal">
               <h2 className="text-2xl md:text-4xl font-bold mb-4 leading-tight max-w-2xl mx-auto">
-                O cursinho custa R$ 1.200 por mês. A aula particular, R$ 120 por hora.{' '}
-                <span className="text-gradient">Nenhum dos dois sabe o que você precisa estudar amanhã.</span>
+                Direção personalizada, todos os dias.{' '}
+                <span className="text-gradient">Pelo preço de uma assinatura de streaming.</span>
               </h2>
             </div>
 
