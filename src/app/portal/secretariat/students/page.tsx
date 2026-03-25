@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -180,6 +181,7 @@ export default function StudentsNEEPage() {
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           console.error("Erro ao buscar alunos NEE:", err);
+          void reportError("SecretariatStudentsError", String(err));
           toast.error(err?.error || "Falha ao carregar alunos NEE.");
           setStudents([]);
           return;
@@ -192,6 +194,7 @@ export default function StudentsNEEPage() {
 
       } catch (err) {
         console.error("Failed to fetch students", err);
+        void reportError("SecretariatStudentsError", String(err));
         toast.error("Erro ao carregar alunos NEE.");
       } finally {
         setLoading(false);
@@ -228,6 +231,7 @@ export default function StudentsNEEPage() {
 
     } catch (err) {
       console.error("Failed to update student", err);
+      void reportError("SecretariatStudentsError", String(err));
       toast.error("Erro ao salvar alterações.");
     }
   };

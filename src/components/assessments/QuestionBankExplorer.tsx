@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { Search, PlusCircle, CheckCircle, Loader2, LayoutGrid, List, AlertCircle, ChevronDown, ImageIcon, Filter, BookOpen } from 'lucide-react';
 import { QuestionCard } from '@/components/questions/QuestionCard';
 
@@ -91,6 +92,7 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds }: Question
 
     } catch (err) {
       console.error(err);
+      void reportError("QuestionBankExplorerError", String(err));
       setError("Erro ao conectar com o banco de questões.");
     } finally {
       setLoading(false);

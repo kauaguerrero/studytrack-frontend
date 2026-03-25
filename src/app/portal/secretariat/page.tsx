@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
@@ -62,6 +63,7 @@ export default function SecretariatDashboard() {
 
             if (!userProfile?.school_id) {
                 console.error('Usuário sem school_id vinculado');
+                void reportError("SecretariatPageError", String('Usuário sem school_id vinculado'));
                 setLoading(false);
                 return;
             }
@@ -78,6 +80,7 @@ export default function SecretariatDashboard() {
             setJobs(data || []);
         } catch (err) {
             console.error("Failed to fetch dashboard data", err);
+            void reportError("SecretariatPageError", String(err));
         } finally {
             setLoading(false);
         }
@@ -111,6 +114,7 @@ export default function SecretariatDashboard() {
       setShowDeleteAllModal(false);
     } catch (err) {
       console.error("Failed to delete all exams", err);
+      void reportError("SecretariatPageError", String(err));
       alert("Erro ao excluir todas as provas. Tente novamente.");
     }
   };
@@ -132,6 +136,7 @@ export default function SecretariatDashboard() {
       setJobs(jobs.filter(job => job.id !== jobId));
     } catch (err) {
       console.error("Failed to delete exam", err);
+      void reportError("SecretariatPageError", String(err));
       alert("Erro ao excluir a prova. Tente novamente.");
     }
   };

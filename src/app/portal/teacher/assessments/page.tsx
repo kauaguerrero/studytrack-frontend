@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { 
   Plus, 
   FileText, 
@@ -176,6 +177,7 @@ export default function AssessmentsDashboard() {
           a.remove();
       } catch (e) {
           console.error(e);
+          void reportError("TeacherAssessmentsError", String(e));
           alert("Não foi possível baixar o PDF. Tente novamente.");
       } finally {
           setDownloadingId(null);
@@ -198,6 +200,7 @@ export default function AssessmentsDashboard() {
           setExams(prev => prev.filter(e => e.id !== examId));
       } catch (e) {
           console.error(e);
+          void reportError("TeacherAssessmentsError", String(e));
           alert("Erro ao excluir a prova.");
       } finally {
           setDeletingId(null);

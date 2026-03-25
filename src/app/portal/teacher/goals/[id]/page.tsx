@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle, Clock, XCircle, AlertTriangle } from 'lucide-react';
 import { notFound } from 'next/navigation';
+import { reportError } from '@/lib/reportError';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -53,6 +54,7 @@ export default async function GoalDetailsPage({ params }: PageProps) {
     }
   } catch (error) {
     console.error("Erro fetch details:", error);
+    void reportError("TeacherGoalDetailFetchError", String(error));
   }
 
   if (!goalDetails) {

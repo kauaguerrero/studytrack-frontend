@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { reportError } from '@/lib/reportError';
 import MarketingBroadcastModal from "@/components/admin/MarketingBroadcastModal";
 import PeakHoursCard from "@/components/admin/PeakHoursCard";
 import FinancialPanel from "@/components/admin/FinancialPanel";
@@ -51,6 +52,7 @@ export default function SuperAdminDashboard() {
         if (resDist.ok) setDist(await resDist.json());
       } catch (error) {
         console.error("Erro ao buscar dados do dashboard:", error);
+        void reportError("AdminDashboardFetchError", String(error));
       }
       setLoading(false);
     }

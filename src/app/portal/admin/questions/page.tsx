@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import ReactMarkdown from 'react-markdown';
 import {
   CheckCircle2,
@@ -103,6 +104,7 @@ export default function AdminQuestionApproval() {
             : q.alternatives || [];
         } catch (e) {
           console.error(`Erro ao fazer parse das alternativas na questão ${q.id}`, e);
+          void reportError("AdminQuestionsParseError", String(e));
         }
 
         // Parse do raciocínio da IA
@@ -115,6 +117,7 @@ export default function AdminQuestionApproval() {
           }
         } catch (e) {
           console.error(`Erro ao fazer parse do ai_reasoning na questão ${q.id}`, e);
+          void reportError("AdminQuestionsParseError", String(e));
         }
 
         // Parse do metadata (opcional, mas recomendado)
@@ -139,6 +142,7 @@ export default function AdminQuestionApproval() {
       setQuestions(sanitizedData);
     } catch (error) {
       console.error("Erro Supabase:", error);
+      void reportError("AdminQuestionsFetchError", String(error));
       toast.error("Erro de conexão com o banco de dados.");
     } finally {
       setLoading(false);
@@ -189,6 +193,7 @@ export default function AdminQuestionApproval() {
     } catch (err: any) {
       // Rollback UI
       console.error("ERRO DETALHADO:", JSON.stringify(err, null, 2));
+      void reportError("AdminQuestionsEditError", String(err));
       const errorMessage = err?.message || "Erro desconhecido";
 
       setQuestions(previousQuestions);
@@ -242,6 +247,7 @@ export default function AdminQuestionApproval() {
       setEditForm(null);
     } catch (err: any) {
       console.error("Erro ao salvar edição:", err);
+      void reportError("AdminQuestionsEditError", String(err));
       toast.error(`Falha ao salvar: ${err.message}`);
     } finally {
       setProcessingId(null);

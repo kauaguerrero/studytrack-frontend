@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { 
-    getAllMyStudents, 
-    getAllMyGrades, 
-    GeneralStudent, 
-    GradeEntry 
-} from "../actions"; 
+import {
+    getAllMyStudents,
+    getAllMyGrades,
+    GeneralStudent,
+    GradeEntry
+} from "../actions";
+import { reportError } from '@/lib/reportError'; 
 import { 
     Card, CardContent 
 } from "@/components/ui/card";
@@ -82,6 +83,7 @@ export default function TeacherStudentsPage() {
         setStudents(processedData);
       } catch (error) {
         console.error("Erro data:", error);
+        void reportError("TeacherStudentsDataError", String(error));
       } finally {
         setLoading(false);
       }

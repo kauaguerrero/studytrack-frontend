@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { reportError } from '@/lib/reportError'
 import { useRouter } from 'next/navigation'
 import { 
     Zap, Timer, Trophy, ArrowRight, XCircle, CheckCircle2, 
@@ -140,9 +141,10 @@ export default function SpeedRunPage() {
         } else {
             setLeaderboard([])
         }
-      } catch (e) { 
+      } catch (e) {
           console.error(e)
-          setLeaderboard([]) 
+          void reportError("SpeedrunError", String(e))
+          setLeaderboard([])
       } finally {
           setIsLoadingRanking(false)
       }
@@ -154,7 +156,7 @@ export default function SpeedRunPage() {
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/games/speedrun/history?user_id=${userId}`)
         const data = await res.json()
         if(Array.isArray(data)) setHistory(data)
-      } catch (e) { console.error(e) }
+      } catch (e) { console.error(e); void reportError("SpeedrunError", String(e)); }
   }
 
   const fetchSessionAnswers = async (sessionId: string) => {
@@ -165,7 +167,7 @@ export default function SpeedRunPage() {
       if (Array.isArray(data)) {
         setSessionAnswers(prev => ({ ...prev, [sessionId]: data }))
       }
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(e); void reportError("SpeedrunError", String(e)); }
   }
 
   const toggleSession = (sessionId: string) => {
@@ -188,6 +190,7 @@ export default function SpeedRunPage() {
       }
     } catch (err) {
       console.error("Erro ao carregar jogo:", err)
+      void reportError("SpeedrunError", String(err))
     }
   }
 

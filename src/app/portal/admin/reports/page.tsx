@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import {
   ArrowLeft,
   Flag,
@@ -132,6 +133,7 @@ export default function AdminReportsPage() {
       setTotal(data.total ?? 0);
     } catch (err) {
       console.error(err);
+      void reportError("AdminReportsError", String(err));
       toast.error('Erro ao carregar reports.');
       setReports([]);
     } finally {
@@ -170,6 +172,7 @@ export default function AdminReportsPage() {
       setTotal((t) => Math.max(0, t - 1));
     } catch (err) {
       console.error(err);
+      void reportError("AdminReportsError", String(err));
       toast.error('Erro ao processar.');
     } finally {
       setProcessingId(null);

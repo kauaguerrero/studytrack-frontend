@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { CheckCircle, Loader2, PenTool, AlignLeft, ListChecks, HelpCircle, BookOpen } from 'lucide-react';
 import { getSubjects, getTopics } from '@/constants/taxonomy';
 
@@ -62,6 +63,7 @@ export function ManualQuestionForm({ onSuccess }: ManualFormProps) {
       }
     } catch (e) {
       console.error(e);
+      void reportError("ManualQuestionFormError", String(e));
       alert("Erro de conexão.");
     } finally {
       setLoading(false);

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, Loader2, Send, Calendar, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 
 interface CreateActivityModalProps {
   isOpen: boolean;
@@ -71,6 +72,7 @@ export function CreateActivityModal({ isOpen, onClose, classroomId, classroomNam
       
     } catch (error: any) {
       console.error(error);
+      void reportError("CreateActivityModalError", String(error));
       setErrorMsg(error.message || "Erro desconhecido ao processar.");
     } finally {
       setLoading(false);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { reportError } from '@/lib/reportError';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, BarChart2, TrendingUp } from "lucide-react";
@@ -92,6 +93,7 @@ export default function PeakHoursCard() {
       if (res.ok) setData(await res.json());
     } catch (err) {
       console.error("Erro ao buscar horários de pico:", err);
+      void reportError("PeakHoursCardError", String(err));
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { X, UploadCloud, Link as LinkIcon, Check } from 'lucide-react';
+import { reportError } from '@/lib/reportError';
 
 interface SubmitProofModalProps {
   isOpen: boolean;
@@ -41,7 +42,7 @@ export function SubmitProofModal({ isOpen, onClose, goalId, goalTitle, userId }:
             alert("Erro ao enviar. Tente novamente.");
         }
     } catch (error) {
-        console.error(error);
+        void reportError("SubmitProofError", String(error), { goalId });
         alert("Erro de conexão.");
     } finally {
         setLoading(false);

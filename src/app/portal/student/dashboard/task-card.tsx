@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, Calendar, Lock, ExternalLink, Loader2, PlayCircle, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { reportError } from '@/lib/reportError';
 
 interface TaskProps {
   task: {
@@ -50,6 +51,7 @@ export function TaskCard({ task, isToday, displayDate }: TaskProps) {
       router.refresh();
     } catch (error) {
       console.error("Erro ao sincronizar:", error);
+      void reportError("TaskCardSyncError", String(error));
       setIsCompleted(previousStatus);
     } finally {
       setIsLoading(false);

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Phone, ArrowRight, Loader2, Brain, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { reportError } from '@/lib/reportError';
 
 const loadingStyles = `
   @keyframes pulse-ring {
@@ -158,6 +159,7 @@ export default function OnboardingTelefone() {
 
     } catch (error: any) {
       console.error("Erro no processo de onboarding:", error);
+      await reportError("OnboardingTelefoneError", String(error), { flow: "onboarding_telefone" });
       setStep('input'); // Volta para input apenas se der erro fatal no passo 2
       setLoading(false);
       alert(`Ocorreu um erro: ${error.message}`);

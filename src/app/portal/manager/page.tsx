@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, ScatterChart, Scatter, ReferenceLine, Label, LabelList
@@ -96,6 +97,7 @@ export default function PedagogicalDashboard() {
         }
       } catch (err) {
         console.error(err);
+        void reportError("ManagerPageError", String(err));
         setError("Erro de conexão com o servidor.");
       } finally {
         setLoading(false);

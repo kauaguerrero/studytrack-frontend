@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import Image from 'next/image'; 
 import { 
   Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertTriangle
@@ -101,6 +102,7 @@ function LoginForm() {
         });
     } catch (error) {
         console.error("Erro social auth:", error);
+        void reportError("LoginSocialAuthError", String(error));
         setIsLoading(false);
     }
   };

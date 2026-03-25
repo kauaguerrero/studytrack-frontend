@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { School, KeyRound, Search, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { reportError } from '@/lib/reportError';
 
 export default function TeacherSchoolValidation() {
   const router = useRouter();
@@ -35,6 +36,7 @@ export default function TeacherSchoolValidation() {
             // Se der erro aqui, olhe o console do navegador (F12)
             if (schoolError) {
                 console.error("Erro Supabase:", schoolError);
+                void reportError("TeacherSchoolOnboardingError", String(schoolError));
             }
 
             if (schoolError || !school) {
@@ -81,6 +83,7 @@ export default function TeacherSchoolValidation() {
 
     } catch (error: any) {
         console.error(error);
+        void reportError("TeacherSchoolOnboardingError", String(error));
         alert("Erro ao processar: " + error.message);
     } finally {
         setIsLoading(false);

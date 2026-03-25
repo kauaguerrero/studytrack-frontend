@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { toast } from 'sonner';
 import {
   Dialog, DialogContent, DialogTitle,
@@ -229,6 +230,7 @@ export default function SubscribersModal({ isOpen, onClose }: Props) {
       }
     } catch (e) {
       console.error('SubscribersModal fetch:', e);
+      void reportError("SubscribersModalError", String(e));
     } finally {
       setLoading(false);
     }

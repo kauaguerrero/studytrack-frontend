@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Crown, User } from 'lucide-react';
+import { reportError } from '@/lib/reportError';
 
 interface RankingItem {
     rank: number;
@@ -24,6 +25,7 @@ export function GoalRanking({ groupId, condensed = false }: { groupId: string, c
                 }
             } catch (error) {
                 console.error(error);
+                void reportError("GoalRankingError", String(error));
             } finally {
                 setLoading(false);
             }

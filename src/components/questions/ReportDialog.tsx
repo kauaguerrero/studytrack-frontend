@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { toast } from 'sonner';
+import { reportError } from '@/lib/reportError';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import {
   Dialog,
@@ -119,7 +120,8 @@ export function ReportDialog({
       setStep(3);
       toast.success('Report enviado! Obrigado por contribuir.');
       onSuccess?.();
-    } catch {
+    } catch (err) {
+      void reportError("ReportDialogError", String(err));
       setError('Erro de conexão. Tente novamente.');
     } finally {
       setIsLoading(false);

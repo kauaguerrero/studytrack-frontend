@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { X, Calendar, Target, Type, Users, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,6 +134,7 @@ export function CreateGoalModal({
 
         } catch (err) {
             console.error("Erro ao buscar turmas:", err);
+            void reportError("CreateGoalModalFetchError", String(err), { flow: "fetch_classrooms" });
             setError("Não foi possível carregar suas turmas.");
         } finally {
             setIsLoadingClasses(false);
@@ -203,6 +205,7 @@ export function CreateGoalModal({
             alert("Meta criada com sucesso!");
         } catch (err: any) {
             console.error(err);
+            void reportError("CreateGoalModalSubmitError", String(err));
             setError(err.message || "Erro ao criar metas.");
         } finally {
             setIsSubmitting(false);

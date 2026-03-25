@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { Trophy, Clock, Target, AlertCircle, CheckCircle, Zap, TrendingUp, Calendar, Plus, User, BookOpen, Minus, Sparkles, X, Trash2, Edit2, Save, Users, School, Medal } from 'lucide-react';
 import { SubmitProofModal } from '@/components/modals/SubmitProofModal';
 import { GoalRanking } from '@/components/widgets/GoalRanking';
@@ -72,6 +73,7 @@ function CreatePersonalGoalModal({ isOpen, onClose, userId, onSuccess, initialDa
             }
         } catch (err) {
             console.error(err);
+            void reportError("StudentGoalsFetchError", String(err));
         } finally {
             setLoading(false);
         }
@@ -188,7 +190,7 @@ function GoalDetailsModal({ goal, userId, onClose, onUpdate, onDelete }: { goal:
             } else {
                 alert("Erro ao salvar.");
             }
-        } catch(e) { console.error(e); }
+        } catch(e) { console.error(e); void reportError("StudentGoalsOpError", String(e)); }
         setLoading(false);
     };
 
@@ -207,7 +209,7 @@ function GoalDetailsModal({ goal, userId, onClose, onUpdate, onDelete }: { goal:
             } else {
                 alert("Erro ao excluir.");
             }
-        } catch(e) { console.error(e); }
+        } catch(e) { console.error(e); void reportError("StudentGoalsOpError", String(e)); }
         setLoading(false);
     };
 
@@ -337,7 +339,7 @@ function InteractiveProgressWidget({ goal, userId, onUpdate }: { goal: UnifiedGo
                     alert(`🎉 Parabéns! Você ganhou +${data.points_awarded} pontos no ranking!`);
                 }
             }
-        } catch (e) { console.error(e); } finally { setSaving(false); }
+        } catch (e) { console.error(e); void reportError("StudentGoalsUpdateError", String(e)); } finally { setSaving(false); }
     };
 
     return (
@@ -378,7 +380,7 @@ function LeaderboardView({ userId }: { userId: string }) {
                 const query = new URLSearchParams({ user_id: userId, scope, category });
                 const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/student/goals/leaderboard?${query}`);
                 if (res.ok) setRanking(await res.json());
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error(e); void reportError("StudentGoalsOpError", String(e)); }
             setLoading(false);
         };
         fetchRanking();
@@ -498,7 +500,7 @@ export default function StudentGoalsPage() {
                 setTotalPoints(profile.total_points || 0);
             }
 
-        } catch (error) { console.error("❌ Erro de conexão:", error); }
+        } catch (error) { console.error("❌ Erro de conexão:", error); void reportError("StudentGoalsConnectionError", String(error)); }
         setLoading(false);
   };
 

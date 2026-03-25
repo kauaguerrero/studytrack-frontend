@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Smartphone, CheckCircle2, Loader2, ExternalLink, RefreshCw, AlertCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { reportError } from '@/lib/reportError';
 
 export default function OnboardingHandshake() {
   const [step, setStep] = useState<'loading_token' | 'error' | 'waiting_click' | 'verifying' | 'success'>('loading_token');
@@ -23,6 +24,7 @@ export default function OnboardingHandshake() {
 
       if (sessionError || !session) {
         console.error("Sessão inválida:", sessionError);
+        void reportError("OnboardingHandshakeSessionError", String(sessionError));
         router.push("/auth/login");
         return;
       }
@@ -55,6 +57,7 @@ export default function OnboardingHandshake() {
 
     } catch (e: any) {
       console.error("Erro crítico ao gerar token:", e);
+      await reportError("OnboardingHandshakeTokenError", String(e), { flow: "generate_handshake_token" });
       setErrorMessage(e.message || "Erro desconhecido ao comunicar com o servidor.");
       setStep('error');
     }

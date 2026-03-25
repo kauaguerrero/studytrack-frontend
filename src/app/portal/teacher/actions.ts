@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { reportError } from '@/lib/reportError';
 
 // ==============================================================================
 // 1. Interfaces
@@ -104,6 +105,7 @@ export async function getTeacherClasses(): Promise<TeacherClassroom[]> {
 
   if (error) {
     console.error('❌ Erro Query Turmas:', error);
+    await reportError("TeacherActionRpcError", String(error), { flow: "get_teacher_classes" });
     return [];
   }
 
@@ -174,6 +176,7 @@ export async function getClassroomStudents(classroomId: string): Promise<Student
 
   if (error) {
     console.error('❌ [RPC] Erro crítico get_classroom_students_secure:', error.message);
+    await reportError("TeacherActionRpcError", String(error), { flow: "get_classroom_students_secure" });
     return [];
   }
 
@@ -213,6 +216,7 @@ export async function getAllMyStudents(): Promise<GeneralStudent[]> {
 
   if (error) {
     console.error('❌ [RPC] Erro get_all_my_students_secure:', error.message);
+    await reportError("TeacherActionRpcError", String(error), { flow: "get_all_my_students_secure" });
     return [];
   }
 
@@ -237,6 +241,7 @@ export async function getAllMyGrades(): Promise<GradeEntry[]> {
 
   if (error) {
     console.error('❌ [RPC] Erro get_all_my_grades_secure:', error.message);
+    await reportError("TeacherActionRpcError", String(error), { flow: "get_all_my_grades_secure" });
     return [];
   }
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { reportError } from '@/lib/reportError'
 import Link from 'next/link'
 import { 
     ChevronDown, ArrowLeft, ArrowRight, Brain, Filter, Lock, 
@@ -122,6 +123,7 @@ export default function BancoDeQuestoes() {
                 }
             } catch (error) {
                 console.error("Critical Init Error:", error);
+                await reportError("QuestionBankInitError", String(error), { flow: "question_bank_init" });
             }
         };
         init();
@@ -144,6 +146,7 @@ export default function BancoDeQuestoes() {
                 }
             } catch (err) {
                 console.error("Erro ao buscar total de questões:", err);
+                void reportError("QuestionBankTotalFetchError", String(err));
             }
         };
         fetchTotal();
@@ -164,7 +167,7 @@ export default function BancoDeQuestoes() {
                 const data = await res.json();
                 setAvailableTopics(data);
                 setFilterTopic('Todos');
-            } catch (err) { console.error(err); }
+            } catch (err) { console.error(err); void reportError("QuestionBankError", String(err)); }
         }
         loadTopics();
     }, [filterSubject, userId]);
@@ -233,6 +236,7 @@ export default function BancoDeQuestoes() {
                     else if (j?.message) errMsg += `: ${j.message}`;
                 } catch (_) { if (body) errMsg += `: ${body.slice(0, 100)}`; }
                 console.error("[BancoQuestões]", errMsg, { status: res.status, body: body?.slice(0, 200) });
+                void reportError("QuestionBankApiError", String(errMsg), { status: res.status });
                 throw new Error(errMsg);
             }
 
@@ -275,9 +279,10 @@ export default function BancoDeQuestoes() {
                 }
             }
 
-        } catch (err) { 
+        } catch (err) {
             console.error(err);
-        } finally { 
+            void reportError("QuestionBankError", String(err));
+        } finally {
             if (retryCount === 0) {
                 setLoading(false); 
                 setLoadingMore(false); 

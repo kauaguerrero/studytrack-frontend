@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Trophy, Medal, User } from "lucide-react";
+import { reportError } from '@/lib/reportError';
 import { LeaderboardEntry, LeaderboardScope } from "@/types/gamification";
 
 interface LeaderboardWidgetProps {
@@ -25,6 +26,7 @@ export default function LeaderboardWidget({ userId }: LeaderboardWidgetProps) {
       }
     } catch (error) {
       console.error("Failed to fetch leaderboard", error);
+      void reportError("LeaderboardWidgetError", String(error));
     } finally {
       setLoading(false);
     }

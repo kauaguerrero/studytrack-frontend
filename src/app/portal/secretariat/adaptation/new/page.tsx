@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { SkeletonLoader } from '@/components/adaptation/SkeletonLoader';
 import { 
   Loader2, UploadCloud, FileText, User, GraduationCap, CheckCircle2, 
@@ -324,6 +325,7 @@ export default function NewAdaptationWizard() {
 
       if (studentsError) {
         console.error("Error fetching students in org:", studentsError);
+        void reportError("SecretariatAdaptationError", String(studentsError));
         throw studentsError;
       }
 
@@ -343,6 +345,7 @@ export default function NewAdaptationWizard() {
 
       if (error) {
         console.error("Error fetching diagnostics:", error);
+        void reportError("SecretariatAdaptationError", String(error));
         throw error;
       }
 
@@ -368,6 +371,7 @@ export default function NewAdaptationWizard() {
       setStudentsWithDiagnostics(studentsWithDiagnosticsData);
     } catch (err) {
       console.error("Failed to fetch students with diagnostics", err);
+      void reportError("SecretariatAdaptationError", String(err));
     } finally {
       setIsLoadingStudents(false);
     }

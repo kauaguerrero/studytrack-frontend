@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { 
   Trophy, Users, Target, CheckCircle, Search, 
   BarChart2, Filter, Download, ArrowUpRight, Crown, AlertCircle 
@@ -68,10 +69,12 @@ export default function TeacherGoalsDashboard() {
         setFilteredMetrics(data);
       } else {
         console.error("Formato inesperado (Dashboard):", data);
+        void reportError("TeacherGoalsDashboardFormatError", String(data));
         setMetrics([]);
       }
     } catch (error) {
       console.error("Failed to fetch dashboard", error);
+      void reportError("TeacherGoalsDashboardFetchError", String(error));
     } finally {
       setLoading(false);
     }
@@ -346,11 +349,13 @@ function TeacherLeaderboardList({ teacherId, scope }: { teacherId: string, scope
                     setRanking(data);
                 } else {
                     console.error("Formato inválido no Ranking:", data);
+                    void reportError("TeacherGoalsRankingFormatError", String(data));
                     setRanking([]);
                 }
             })
             .catch(err => {
                 console.error("Ranking fetch error:", err);
+                void reportError("TeacherGoalsRankingFetchError", String(err));
                 setError("Falha ao carregar");
             })
             .finally(() => setLoading(false));

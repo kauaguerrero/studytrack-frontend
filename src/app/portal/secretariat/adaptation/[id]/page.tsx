@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { AdaptationEditor } from '@/components/adaptation/AdaptationEditor';
 import { AdaptationJob } from '@/types/adaptation';
 import { FileText, AlertOctagon, RefreshCcw, ShieldCheck, CheckCircle2 } from 'lucide-react';
@@ -35,6 +36,7 @@ export default function AdaptationJobPage({ params }: { params: Promise<{ id: st
         setJob(data);
       } catch (err: any) {
         console.error("Critical Error Fetching Job:", err);
+        await reportError("SecretariatAdaptationDetailError", String(err));
         setErrorMsg(err.message || "Erro desconhecido ao carregar contexto de adaptação.");
       } finally {
         if (isMounted) setLoading(false);

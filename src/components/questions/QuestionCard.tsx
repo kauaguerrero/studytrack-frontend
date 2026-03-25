@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { CheckCircle2, XCircle, BrainCircuit, ImageIcon, Flag } from 'lucide-react';
+import { reportError } from '@/lib/reportError';
 
 interface Alternative {
   letter: string;
@@ -65,7 +66,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onReportError }
             onQuotaReached("DAILY_QUOTA_REACHED");
         }
 
-    } catch(e) { console.error(e) }
+    } catch(e) { console.error(e); void reportError("QuestionCardError", String(e)); }
 
     setShowAnswer(true);
     setIsSubmitting(false);

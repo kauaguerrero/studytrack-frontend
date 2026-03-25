@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
@@ -168,6 +169,7 @@ export default function FinancialPanel() {
       if (res.ok) setData(await res.json());
     } catch (e) {
       console.error('FinancialPanel fetchData:', e);
+      void reportError("FinancialPanelError", String(e));
     } finally {
       setLoading(false);
     }
@@ -224,6 +226,7 @@ export default function FinancialPanel() {
       setChartData(results);
     } catch (e) {
       console.error('FinancialPanel fetchChart:', e);
+      void reportError("FinancialPanelError", String(e));
     } finally {
       setChartLoading(false);
     }
@@ -281,6 +284,7 @@ export default function FinancialPanel() {
       }
     } catch (e) {
       console.error(e);
+      void reportError("FinancialPanelError", String(e));
     } finally {
       setExpLoading(false);
     }

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { reportError } from "@/lib/reportError";
 import { redirect } from "next/navigation";
 import { Calendar, Trophy, BarChart3, CheckCircle2, XCircle, BookOpen, Timer, Sparkles, ArrowRight } from "lucide-react";
 import { TaskCard } from "./task-card";
@@ -265,7 +266,7 @@ export default async function Dashboard() {
     );
   } catch (err: any) {
     if (err.digest?.startsWith('NEXT_REDIRECT')) throw err;
-    console.error("Erro Dashboard:", err);
+    await reportError("DashboardError", String(err), { source: "server_component" });
     return (<div className="flex justify-center p-10">Erro de conexão.</div>);
   }
 }

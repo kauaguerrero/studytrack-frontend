@@ -6,6 +6,7 @@ import {
   AlertCircle, QrCode, Copy, Sparkles, ChevronRight, Fingerprint, X
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -195,7 +196,7 @@ export function SubscriptionLock({ planTier, userName, onClose }: SubscriptionLo
                  setSuccess(true);
                  setTimeout(() => redirectAfterPayment(), 2500);
              }
-          } catch (e) { console.error("Polling...", e); }
+          } catch (e) { console.error("Polling...", e); void reportError("SubscriptionLockPollingError", String(e)); }
       }, 3000);
   };
 

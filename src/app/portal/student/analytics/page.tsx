@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
+import { reportError } from "@/lib/reportError";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -76,10 +77,10 @@ export default function StudentAnalyticsPage() {
           const jsonData = await res.json();
           setData(jsonData);
         } else {
-          console.error("Erro na API Analytics");
+          void reportError("AnalyticsApiError", `HTTP ${res.status}`, { endpoint: "analytics/dashboard" });
         }
       } catch (error) {
-        console.error("Erro ao buscar dados:", error);
+        void reportError("AnalyticsFetchError", String(error), { endpoint: "analytics/dashboard" });
       }
       setLoading(false);
     }

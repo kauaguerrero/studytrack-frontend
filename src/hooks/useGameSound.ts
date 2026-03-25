@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { reportError } from '@/lib/reportError'
 
 export function useGameSound() {
   const [isMuted, setIsMuted] = useState(false)
@@ -26,6 +27,7 @@ export function useGameSound() {
             if (errorSfx.current) errorSfx.current.volume = 0.5
         } catch (e) {
             console.error("Erro ao inicializar audio:", e)
+            void reportError("GameSoundError", String(e))
         }
     }
     return () => {

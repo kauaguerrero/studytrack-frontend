@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -304,7 +305,7 @@ function QuestionCard({ question, index, onRemove }: { question: Question, index
         } else if (Array.isArray(question.alternatives)) {
             alternativesData = question.alternatives;
         }
-    } catch (e) { console.error("Erro ao parsear alternativas", e); }
+    } catch (e) { console.error("Erro ao parsear alternativas", e); void reportError("AssessmentParseAlternativasError", String(e)); }
 
     let imageUrl = null;
     let imageDescription = "";
@@ -522,6 +523,7 @@ export default function CreateExamWizard() {
           }
       } catch (error) {
           console.error(error);
+          void reportError("AssessmentCreateError", String(error));
           alert("Erro ao gerar questões. Tente novamente.");
           setAiStage('CONFIG');
       }
@@ -561,7 +563,7 @@ export default function CreateExamWizard() {
           } else {
               alert("Erro ao salvar: " + (data.error || "Erro desconhecido"));
           }
-      } catch (e) { console.error(e); alert("Erro de conexão."); } 
+      } catch (e) { console.error(e); void reportError("AssessmentSubmitError", String(e)); alert("Erro de conexão."); }
       finally { setLoading(false); }
   };
 
@@ -584,7 +586,7 @@ export default function CreateExamWizard() {
           document.body.appendChild(a);
           a.click();
           a.remove();
-      } catch (e) { console.error(e); alert("Erro ao baixar PDF."); } 
+      } catch (e) { console.error(e); void reportError("AssessmentPdfError", String(e)); alert("Erro ao baixar PDF."); }
       finally { setDistributing(false); }
   };
 
@@ -596,7 +598,7 @@ export default function CreateExamWizard() {
           await new Promise(resolve => setTimeout(resolve, 1500));
           alert(`Prova enviada com sucesso!`);
           router.push('/portal/teacher/assessments');
-      } catch (e) { console.error(e); alert("Erro."); } 
+      } catch (e) { console.error(e); void reportError("AssessmentOpError", String(e)); alert("Erro."); }
       finally { setDistributing(false); }
   };
 

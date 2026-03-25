@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { reportError } from '@/lib/reportError';
 import { Bot, Sparkles, Loader2, AlertCircle, BrainCircuit } from 'lucide-react';
 
 interface AiFactoryProps {
@@ -39,20 +40,19 @@ export function AiQuestionFactory({ onQuestionGenerated }: AiFactoryProps) {
             })
         });
 
-        const data = await res.json();
-        
         if (!res.ok) {
-            // Exibe mensagem de erro amigável se vier do backend
-            throw new Error(data.error || "Erro desconhecido na geração");
+            const errData = await res.json().catch(() => ({}));
+            throw new Error((errData as any).error || "Erro desconhecido na geração");
         }
 
+        const data = await res.json();
         if (data.success) {
             onQuestionGenerated(data.question);
         } else {
             setError(data.error || "Erro ao processar resposta");
         }
     } catch (err: any) {
-        console.error("Erro AI:", err);
+        void reportError("AiQuestionFactoryError", err?.message ?? String(err), { topic, difficulty });
         setError(err.message || "Falha de conexão com o servidor de IA.");
     } finally {
         setLoading(false);
