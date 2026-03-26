@@ -9,6 +9,7 @@ import PeakHoursCard from "@/components/admin/PeakHoursCard";
 import FinancialPanel from "@/components/admin/FinancialPanel";
 import SubscribersModal from "@/components/admin/SubscribersModal";
 import CreateAnnouncementModal from "@/components/admin/CreateAnnouncementModal";
+import StickinessCard from "@/components/admin/StickinessCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -176,41 +177,10 @@ export default function SuperAdminDashboard() {
       {/* SEÇÃO 2: SAÚDE & ENGAJAMENTO */}
       {/* ================================================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-        <Card className="hover:border-slate-300 transition-colors">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                    <Zap className="w-5 h-5 text-amber-500" /> Fidelidade de Uso (Stickiness)
-                </CardTitle>
-                <CardDescription>DAU/MAU por último dia com atividade (last_activity_date).</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="flex items-center justify-between mb-4 gap-2">
-                    <div className="text-center flex-1">
-                        <p className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100">{health?.dau || 0}</p>
-                        <p className="text-xs text-slate-500 font-bold uppercase mt-1">DAU (24h)</p>
-                    </div>
-                    <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 flex-shrink-0"></div>
-                    <div className="text-center flex-1">
-                        <p className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100">{health?.mau || 0}</p>
-                        <p className="text-xs text-slate-500 font-bold uppercase mt-1">MAU (30d)</p>
-                    </div>
-                    <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 flex-shrink-0"></div>
-                    <div className="text-center flex-1">
-                        <p className={`text-2xl md:text-3xl font-bold ${health?.stickiness > 20 ? 'text-green-600' : 'text-amber-600'}`}>
-                            {health?.stickiness || 0}%
-                        </p>
-                        <p className="text-xs text-slate-500 font-bold uppercase mt-1">Retenção</p>
-                    </div>
-                </div>
-                <div className="bg-orange-50 dark:bg-orange-950/40 border border-orange-100 dark:border-orange-900/50 rounded-lg p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Activity className="w-4 h-4 text-orange-600" />
-                        <span className="text-sm font-medium text-orange-800 dark:text-orange-300">Risco de Churn (Inativos +30d)</span>
-                    </div>
-                    <span className="font-bold text-orange-900 dark:text-orange-200">{health?.churn_risk_users || 0}</span>
-                </div>
-            </CardContent>
-        </Card>
+        <StickinessCard
+            health={health}
+            apiUrl={(process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "")}
+        />
 
         <Card className="hover:border-slate-300 transition-colors">
             <CardHeader>

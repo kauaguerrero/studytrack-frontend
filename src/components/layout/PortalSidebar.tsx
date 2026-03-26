@@ -23,6 +23,7 @@ import {
   ClipboardList,
   User,
   Map,
+  BrainCircuit,
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -240,6 +241,11 @@ export function SidebarContent({
               label="Minhas Metas"
             />
             <NavItem href="/jogos" icon={Gamepad2} label="Sala de Jogos" />
+            <NavItem
+              href="/portal/student/flashcards"
+              icon={BrainCircuit}
+              label="Flashcards"
+            />
             <SectionTitle>Performance</SectionTitle>
             <NavItem
               href="/portal/student/analytics"
