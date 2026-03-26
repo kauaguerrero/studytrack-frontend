@@ -89,7 +89,7 @@ export default function FlashcardPreferences({ apiUrl, preferences, onSaved }: P
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-lg">
+    <div className="flex flex-col gap-6 w-full max-w-lg overflow-x-hidden">
       {/* Enable toggle */}
       <div className="flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
         <div>
@@ -120,15 +120,21 @@ export default function FlashcardPreferences({ apiUrl, preferences, onSaved }: P
           {times.map((t) => (
             <span
               key={t}
-              className="inline-flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-sm px-3 py-1 rounded-full border border-blue-200 dark:border-blue-800"
+              className="inline-flex items-center gap-1.5
+                         bg-blue-50 dark:bg-blue-900/30
+                         text-blue-700 dark:text-blue-300
+                         border border-blue-200 dark:border-blue-700
+                         rounded-full px-3 py-1.5 text-sm font-medium"
             >
               {t}
               <button
                 type="button"
                 onClick={() => removeTime(t)}
-                className="hover:text-blue-900 dark:hover:text-blue-100 transition-colors"
+                className="text-blue-400 hover:text-blue-600
+                           dark:hover:text-blue-200 transition-colors
+                           p-0.5 rounded-full"
               >
-                <X className="w-3 h-3" />
+                <X className="w-3.5 h-3.5" />
               </button>
             </span>
           ))}
@@ -136,21 +142,28 @@ export default function FlashcardPreferences({ apiUrl, preferences, onSaved }: P
             <p className="text-xs text-slate-400">Nenhum horário configurado.</p>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 mb-3">
           <input
             type="time"
             value={newTime}
             onChange={(e) => setNewTime(e.target.value)}
-            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-200 px-3 py-2 focus:outline-none focus:border-blue-400"
+            className="flex-1 min-w-0 rounded-lg border border-slate-200
+                       dark:border-slate-700 bg-white dark:bg-slate-800
+                       text-slate-900 dark:text-slate-100
+                       px-3 py-2.5 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             type="button"
             onClick={addTime}
             disabled={!newTime}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold px-3 py-2 transition-colors"
+            className="shrink-0 flex items-center gap-1.5 px-4 py-2.5
+                       bg-blue-600 hover:bg-blue-700 disabled:opacity-40
+                       text-white text-sm font-medium rounded-lg
+                       transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Adicionar
+            <span>Adicionar</span>
           </button>
         </div>
       </div>
@@ -192,10 +205,14 @@ export default function FlashcardPreferences({ apiUrl, preferences, onSaved }: P
             <input
               type="number"
               min={1}
-              max={60}
+              max={365}
               value={easyDays}
               onChange={(e) => setEasyDays(Number(e.target.value))}
-              className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-slate-50 dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-200 px-3 py-2 focus:outline-none focus:border-emerald-400 text-center"
+              className="w-20 rounded-lg border border-slate-200
+                         dark:border-slate-700 bg-white dark:bg-slate-800
+                         text-slate-900 dark:text-slate-100
+                         px-3 py-2 text-sm text-center
+                         focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <span className="text-xs text-slate-400 text-center">dias</span>
           </div>
@@ -204,10 +221,14 @@ export default function FlashcardPreferences({ apiUrl, preferences, onSaved }: P
             <input
               type="number"
               min={1}
-              max={60}
+              max={365}
               value={mediumDays}
               onChange={(e) => setMediumDays(Number(e.target.value))}
-              className="rounded-lg border border-amber-200 dark:border-amber-800 bg-slate-50 dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-200 px-3 py-2 focus:outline-none focus:border-amber-400 text-center"
+              className="w-20 rounded-lg border border-slate-200
+                         dark:border-slate-700 bg-white dark:bg-slate-800
+                         text-slate-900 dark:text-slate-100
+                         px-3 py-2 text-sm text-center
+                         focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <span className="text-xs text-slate-400 text-center">dias</span>
           </div>
@@ -216,10 +237,14 @@ export default function FlashcardPreferences({ apiUrl, preferences, onSaved }: P
             <input
               type="number"
               min={1}
-              max={60}
+              max={365}
               value={hardDays}
               onChange={(e) => setHardDays(Number(e.target.value))}
-              className="rounded-lg border border-red-200 dark:border-red-800 bg-slate-50 dark:bg-slate-800 text-sm text-slate-800 dark:text-slate-200 px-3 py-2 focus:outline-none focus:border-red-400 text-center"
+              className="w-20 rounded-lg border border-slate-200
+                         dark:border-slate-700 bg-white dark:bg-slate-800
+                         text-slate-900 dark:text-slate-100
+                         px-3 py-2 text-sm text-center
+                         focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <span className="text-xs text-slate-400 text-center">dias</span>
           </div>
@@ -230,9 +255,13 @@ export default function FlashcardPreferences({ apiUrl, preferences, onSaved }: P
         type="button"
         onClick={handleSave}
         disabled={loading}
-        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 transition-colors"
+        className="w-full sm:w-auto flex items-center justify-center
+                   gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700
+                   disabled:opacity-50 text-white font-semibold
+                   rounded-xl transition-colors"
       >
-        {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</> : "Salvar preferências"}
+        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+        {loading ? "Salvando..." : "Salvar preferências"}
       </button>
     </div>
   );
