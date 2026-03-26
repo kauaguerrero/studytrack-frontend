@@ -13,8 +13,8 @@ import { reportError } from "@/lib/reportError";
 export function GlobalErrorHandler() {
   useEffect(() => {
     function handleError(event: ErrorEvent) {
-      // Ignora erros de scripts de terceiros (sem stack rastreável)
-      if (!event.filename || event.filename.startsWith("chrome-extension")) return;
+      // Ignora apenas extensões do browser — erros sem filename (ex: console) são válidos
+      if (event.filename?.startsWith("chrome-extension")) return;
 
       void reportError(
         "UnhandledError",
