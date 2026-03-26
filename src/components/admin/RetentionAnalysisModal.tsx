@@ -10,7 +10,6 @@ import { X, ArrowLeft, Loader2, FlaskConical, History, Clock, Users } from "luci
 
 interface DauProfile {
   id: string;
-  [key: string]: unknown;
 }
 
 interface HealthData {
