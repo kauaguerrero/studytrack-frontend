@@ -161,6 +161,10 @@ export default function FlashcardsPage() {
     fetchDue();
   }
 
+  const handleCardReviewed = useCallback((cardId: string) => {
+    setDueCards((prev) => prev.filter((c) => c.id !== cardId));
+  }, []);
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "cards", label: "Meus Cards" },
     { id: "review", label: `Revisar${dueCards.length > 0 ? ` (${dueCards.length})` : ""}` },
@@ -375,6 +379,7 @@ export default function FlashcardsPage() {
               cards={dueCards}
               preferences={preferences}
               onDone={handleReviewDone}
+              onCardReviewed={handleCardReviewed}
             />
           ) : null}
         </div>

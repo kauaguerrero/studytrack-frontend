@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { RotateCcw, Loader2 } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 
 interface Flashcard {
   id: string;
@@ -23,25 +23,46 @@ interface Props {
   cards: Flashcard[];
   preferences: Preferences;
   onDone: () => void;
+  onCardReviewed: (cardId: string) => void;
 }
 
-export default function FlashcardReview({ apiUrl, cards, preferences, onDone }: Props) {
-  const [index, setIndex] = useState(0);
+export default function FlashcardReview({ apiUrl, cards, preferences, onDone, onCardReviewed }: Props) {
   const [revealed, setRevealed] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [reviewedCount, setReviewedCount] = useState(0);
+  // Captura o total inicial uma única vez — persiste enquanto o componente estiver montado
+  const initialTotal = useRef(cards.length);
   const supabase = createClient();
 
-  const card = cards[index];
-  const total = cards.length;
-  const progress = Math.round((index / total) * 100);
+  // Sempre mostra o primeiro card da lista; o pai remove cards[0] ao chamar onCardReviewed
+  const card = cards[0];
+  const progress = initialTotal.current > 0
+    ? Math.round((reviewedCount / initialTotal.current) * 100)
+    : 0;
 
   async function handleDifficulty(difficulty: "easy" | "medium" | "hard") {
-    setLoading(true);
+    if (!card) return;
+
+    const cardId = card.id;
+    const isLast = cards.length === 1;
+
+    // ── Update otimista ────────────────────────────────────────────────────────
+    // Chama antes do POST para que o pai remova o card da lista imediatamente,
+    // atualizando o contador na aba sem esperar a rede.
+    if (isLast) {
+      toast.success("Revisão concluída!");
+      onDone();
+    }
+    onCardReviewed(cardId);
+    setReviewedCount((prev) => prev + 1);
+    setRevealed(false);
+
+    // ── POST em background ─────────────────────────────────────────────────────
+    // Falha não reverte o contador — a próxima sessão corrigirá automaticamente.
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Sessão expirada");
 
-      const res = await fetch(`${apiUrl}/api/student/flashcards/${card.id}/review`, {
+      const res = await fetch(`${apiUrl}/api/student/flashcards/${cardId}/review`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -54,19 +75,8 @@ export default function FlashcardReview({ apiUrl, cards, preferences, onDone }: 
         const json = await res.json();
         throw new Error(json.error || "Erro ao registrar revisão");
       }
-
-      const next = index + 1;
-      if (next >= total) {
-        toast.success("Revisão concluída!");
-        onDone();
-      } else {
-        setIndex(next);
-        setRevealed(false);
-      }
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Erro inesperado");
-    } finally {
-      setLoading(false);
+      toast.error(err instanceof Error ? err.message : "Erro ao registrar revisão");
     }
   }
 
@@ -76,7 +86,7 @@ export default function FlashcardReview({ apiUrl, cards, preferences, onDone }: 
     <div className="flex flex-col gap-6">
       {/* Progress */}
       <div className="flex items-center justify-between text-xs text-slate-500">
-        <span>{index + 1} / {total}</span>
+        <span>{reviewedCount + 1} / {initialTotal.current}</span>
         <span>{card.subject ?? "Sem matéria"}</span>
       </div>
       <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -118,31 +128,28 @@ export default function FlashcardReview({ apiUrl, cards, preferences, onDone }: 
         <div className="grid grid-cols-3 gap-3">
           <button
             type="button"
-            disabled={loading}
             onClick={() => handleDifficulty("hard")}
-            className="flex flex-col items-center gap-1 rounded-xl bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 py-3 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex flex-col items-center gap-1 rounded-xl bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 py-3 text-sm font-semibold transition-colors"
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Difícil"}
+            Difícil
             <span className="text-xs font-normal opacity-70">{preferences.hard_days} dias</span>
           </button>
 
           <button
             type="button"
-            disabled={loading}
             onClick={() => handleDifficulty("medium")}
-            className="flex flex-col items-center gap-1 rounded-xl bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400 py-3 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex flex-col items-center gap-1 rounded-xl bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400 py-3 text-sm font-semibold transition-colors"
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Médio"}
+            Médio
             <span className="text-xs font-normal opacity-70">{preferences.medium_days} dias</span>
           </button>
 
           <button
             type="button"
-            disabled={loading}
             onClick={() => handleDifficulty("easy")}
-            className="flex flex-col items-center gap-1 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 py-3 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex flex-col items-center gap-1 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 py-3 text-sm font-semibold transition-colors"
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Fácil"}
+            Fácil
             <span className="text-xs font-normal opacity-70">{preferences.easy_days} dias</span>
           </button>
         </div>
