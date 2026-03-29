@@ -88,6 +88,10 @@ export default function OnboardingTelefone() {
       const token = session.access_token;
       const cleanPhone = phone.replace(/\D/g, ""); // Remove formatação para enviar apenas números
 
+      if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+        throw new Error("Número inválido. Digite um celular com DDD, ex: (11) 99999-9999");
+      }
+
       // Lógica para obter o nome do usuário (Metadata ou Fallback)
       const nomeUsuario = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || "Estudante";
 
