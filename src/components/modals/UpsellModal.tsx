@@ -28,6 +28,9 @@ export function UpsellModal({ isOpen, onClose, reason, userName = "Estudante", c
 
     if (!isOpen) return null;
 
+    // Alunos B2B não passam pelo fluxo de upsell — o plano é gerenciado pelo founder
+    if (currentPlanTier?.startsWith('b2b_')) return null;
+
     const normalizedTier = currentPlanTier?.toLowerCase();
     const isCurrentPlan = (plan: PlanType) => normalizedTier === plan;
 
