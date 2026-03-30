@@ -39,8 +39,10 @@ export default async function PartnerStudentLayout({ children, params }: Student
     redirect(`/auth/login?next=/partners/${slug}/student/dashboard`);
   }
 
-  // 2. Busca perfil
-  const { data: profile } = await supabase
+  const adminClient = createAdminClient();
+
+  // 2. Busca perfil via adminClient para garantir leitura de organization_id sem bloqueio de RLS
+  const { data: profile } = await adminClient
     .from('profiles')
     .select('role, organization_id, full_name, avatar_url')
     .eq('id', user.id)
@@ -55,7 +57,6 @@ export default async function PartnerStudentLayout({ children, params }: Student
     id: string; name: string; logo_url: string | null;
     brand_primary: string | null; brand_secondary: string | null; brand_accent: string | null;
   };
-  const adminClient = createAdminClient();
   const orgRes = await adminClient
     .from('organizations')
     .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent')
@@ -72,7 +73,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
     redirect(`/partners/${slug}/register`);
   }
   if (!['student', 'founder', 'admin'].includes(role)) {
-    redirect('/portal');
+    redirect(`/auth/login?next=/partners/${slug}/student/dashboard`);
   }
 
   const brandPrimary   = org.brand_primary   ?? '#6366f1';

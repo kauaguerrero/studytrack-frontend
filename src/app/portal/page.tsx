@@ -11,8 +11,9 @@ export default async function PortalRedirect() {
     redirect('/auth/login');
   }
 
-  // Consulta role direto do Supabase (RLS agora funciona!)
-  const { data: profile } = await supabase
+  // Usa adminClient para garantir leitura de organization_id sem bloqueio de RLS
+  const adminClient = createAdminClient();
+  const { data: profile } = await adminClient
     .from('profiles')
     .select('role, organization_id')
     .eq('id', user.id)
@@ -24,7 +25,6 @@ export default async function PortalRedirect() {
   // Founder: redireciona para o portal do parceiro
   if (roleStr === 'founder') {
     if (profile?.organization_id) {
-      const adminClient = createAdminClient();
       const orgRes = await adminClient
         .from('organizations')
         .select('slug')
@@ -39,7 +39,6 @@ export default async function PortalRedirect() {
 
   // Aluno B2B com org vinculada → redireciona para o portal do parceiro
   if (roleStr === 'student' && profile?.organization_id) {
-    const adminClient = createAdminClient();
     const orgRes = await adminClient
       .from('organizations')
       .select('slug')

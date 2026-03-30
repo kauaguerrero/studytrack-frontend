@@ -221,13 +221,13 @@ export function DashboardClient({
       <motion.div variants={itemVariant}>
         <div className="rounded-xl border border-dashed border-slate-200 p-3 text-center">
           <p className="text-xs text-slate-400 mb-1.5">
-            Acesse o portal completo com todas as funcionalidades
+            Pratique com o banco completo de questões
           </p>
           <Link
-            href={`/partners/${slug}/upsell`}
+            href={`/partners/${slug}/student/banco-de-questoes`}
             className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors"
           >
-            Abrir portal StudyTrack completo
+            Ver banco de questões
             <ArrowRight className="h-3 w-3" />
           </Link>
         </div>

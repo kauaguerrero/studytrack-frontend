@@ -562,7 +562,7 @@ export default function SimuladoPage() {
                 </div>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
-                <Link href="/portal/student/simulado/historico"
+                <Link href={`/partners/${slug}/student/simulado/historico`}
                   className="flex items-center justify-center gap-2 border border-slate-200 bg-white text-slate-700 font-bold px-4 py-3 rounded-xl hover:bg-slate-50 transition-all flex-1 sm:flex-none">
                   <History size={16} /> Histórico
                 </Link>
@@ -700,7 +700,7 @@ export default function SimuladoPage() {
                     <History size={17} className="text-slate-400" />
                     <h2 className="font-bold text-slate-900 text-sm">Últimos Simulados</h2>
                   </div>
-                  <Link href="/portal/student/simulado/historico" className="text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors">Ver todos →</Link>
+                  <Link href={`/partners/${slug}/student/simulado/historico`} className="text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors">Ver todos →</Link>
                 </div>
                 <div className="space-y-3">
                   {sessions.slice(0, 5).map(session => {
@@ -720,7 +720,7 @@ export default function SimuladoPage() {
                             <span className={`text-sm font-black shrink-0 ${scoreColor(pct)}`}>{pct}%</span>
                           </div>
                         </div>
-                        <Link href={`/portal/student/simulado/${session.id}/revisao`}
+                        <Link href={`/partners/${slug}/student/simulado/${session.id}/revisao`}
                           className="shrink-0 flex items-center gap-1.5 text-xs font-bold px-4 py-3 sm:px-3 sm:py-2 rounded-lg transition-colors min-h-[44px] sm:min-h-0 justify-center"
                           style={{ color: 'var(--brand-primary)', background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)' }}>
                           <Brain size={13} /> Revisar
@@ -739,7 +739,7 @@ export default function SimuladoPage() {
                   <Trophy size={17} className="text-yellow-500" />
                   <h2 className="font-bold text-slate-900 text-sm">Ranking do Dia</h2>
                 </div>
-                <Link href="/portal/student/simulado/ranking" className="text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors">Ver completo →</Link>
+                <Link href={`/partners/${slug}/student/simulado/ranking`} className="text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors">Ver completo →</Link>
               </div>
               <p className="text-xs text-slate-400 mb-5">Melhores resultados de hoje</p>
               {dashLoading ? (
@@ -1014,12 +1014,12 @@ export default function SimuladoPage() {
                     <RotateCcw size={18} /> Novo Simulado
                   </button>
                   {finishResult?.session_id && (
-                    <button onClick={() => router.push(`/portal/student/simulado/${finishResult.session_id}/revisao`)}
+                    <button onClick={() => router.push(`/partners/${slug}/student/simulado/${finishResult.session_id}/revisao`)}
                       className="bg-indigo-600 text-white px-5 py-3 rounded-xl font-bold flex gap-2 items-center hover:bg-indigo-700 transition-colors cursor-pointer min-h-[44px]">
                       <Brain size={18} /> Revisão com IA
                     </button>
                   )}
-                  <button onClick={() => router.push('/portal/student/simulado/historico')}
+                  <button onClick={() => router.push(`/partners/${slug}/student/simulado/historico`)}
                     className="border border-slate-200 px-5 py-3 rounded-xl font-bold flex gap-2 items-center hover:bg-slate-50 text-slate-900 transition-colors cursor-pointer min-h-[44px]">
                     <History size={18} /> Histórico
                   </button>
@@ -1064,7 +1064,7 @@ export default function SimuladoPage() {
                   <div className="text-xs text-slate-400">Veja onde você está hoje</div>
                 </div>
               </div>
-              <button onClick={() => router.push('/portal/student/simulado/ranking')}
+              <button onClick={() => router.push(`/partners/${slug}/student/simulado/ranking`)}
                 className="text-xs font-bold hover:underline cursor-pointer" style={{ color: 'var(--brand-primary)' }}>
                 Ver ranking →
               </button>
