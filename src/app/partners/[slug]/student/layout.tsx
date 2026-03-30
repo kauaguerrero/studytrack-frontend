@@ -42,11 +42,13 @@ export default async function PartnerStudentLayout({ children, params }: Student
   const adminClient = createAdminClient();
 
   // 2. Busca perfil via adminClient para garantir leitura de organization_id sem bloqueio de RLS
-  const { data: profile } = await adminClient
+  type ProfileRow = { role: string | null; organization_id: string | null; full_name: string | null; avatar_url: string | null };
+  const profileRes = await adminClient
     .from('profiles')
     .select('role, organization_id, full_name, avatar_url')
     .eq('id', user.id)
     .single();
+  const profile = profileRes.data as ProfileRow | null;
 
   if (!profile) {
     redirect(`/auth/login?next=/partners/${slug}/student/dashboard`);

@@ -13,11 +13,13 @@ export default async function PortalRedirect() {
 
   // Usa adminClient para garantir leitura de organization_id sem bloqueio de RLS
   const adminClient = createAdminClient();
-  const { data: profile } = await adminClient
+  type ProfileRow = { role: string | null; organization_id: string | null };
+  const profileRes = await adminClient
     .from('profiles')
     .select('role, organization_id')
     .eq('id', user.id)
     .single();
+  const profile = profileRes.data as ProfileRow | null;
 
   const rawRole = profile?.role || user.user_metadata?.role || 'student';
   const roleStr = String(rawRole ?? 'student').trim().toLowerCase();

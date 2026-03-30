@@ -66,11 +66,13 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
 
   // Usa adminClient para garantir leitura de organization_id sem bloqueio de RLS
   const adminClient = createAdminClient();
-  const { data: profile } = await adminClient
+  type ProfileRow = { role: string | null; organization_id: string | null; full_name: string | null; avatar_url: string | null };
+  const profileRes = await adminClient
     .from('profiles')
     .select('role, organization_id, full_name, avatar_url')
     .eq('id', user.id)
     .single();
+  const profile = profileRes.data as ProfileRow | null;
 
   // Aluno B2B com org vinculada — delega para student/layout.tsx em vez de redirecionar
   if (profile?.role === 'student' && profile?.organization_id) {
