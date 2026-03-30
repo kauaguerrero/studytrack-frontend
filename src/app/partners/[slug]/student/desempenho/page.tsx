@@ -400,66 +400,90 @@ export default function DesempenhoPage() {
           {/* Right col: ponto forte, atenção, detalhamento */}
           <div className="space-y-5">
 
-            {/* Ponto Forte */}
-            <Card className="bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-900 border border-emerald-100 dark:border-emerald-800 shadow-sm">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg">
-                    <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            {/* Ponto Forte + Atenção — suppressed when both resolve to same subject */}
+            {bestSubject && worstSubject && bestSubject.subject === worstSubject.subject ? (
+              <Card className="border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                      <Brain className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+                    </div>
+                    <span className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                      Em progresso
+                    </span>
                   </div>
-                  <span className="text-sm font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wide">
-                    Ponto Forte
-                  </span>
-                </div>
-                {bestSubject ? (
-                  <div>
-                    <h4 className="font-bold text-slate-800 dark:text-slate-50 text-lg truncate" title={bestSubject.subject}>
-                      {bestSubject.subject}
-                    </h4>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-2xl font-black text-emerald-600">{bestSubject.accuracy}%</span>
-                      <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium bg-emerald-100 dark:bg-emerald-900/50 px-2 py-0.5 rounded">
-                        de precisão
+                  <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Responda mais questões para ver seus pontos fortes e fracos.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* Ponto Forte */}
+                <Card className="bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-900 border border-emerald-100 dark:border-emerald-800 shadow-sm">
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg">
+                        <TrendingUp className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <span className="text-sm font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wide">
+                        Ponto Forte
                       </span>
                     </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Dados insuficientes.</p>
-                )}
-              </CardContent>
-            </Card>
+                    {bestSubject ? (
+                      <div>
+                        <h4 className="font-bold text-slate-800 dark:text-slate-50 text-lg truncate" title={bestSubject.subject}>
+                          {bestSubject.subject}
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          Sua melhor matéria até agora
+                        </p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-2xl font-black text-emerald-600">{bestSubject.accuracy}%</span>
+                          <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium bg-emerald-100 dark:bg-emerald-900/50 px-2 py-0.5 rounded">
+                            de precisão
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Dados insuficientes.</p>
+                    )}
+                  </CardContent>
+                </Card>
 
-            {/* Atenção */}
-            <Card className="bg-gradient-to-br from-red-50 to-white dark:from-red-900/20 dark:to-slate-900 border border-red-100 dark:border-red-800 shadow-sm">
-              <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
-                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                  </div>
-                  <span className="text-sm font-bold text-red-800 dark:text-red-300 uppercase tracking-wide">
-                    Atenção
-                  </span>
-                </div>
-                {worstSubject ? (
-                  <div>
-                    <h4 className="font-bold text-slate-800 dark:text-slate-50 text-lg truncate" title={worstSubject.subject}>
-                      {worstSubject.subject}
-                    </h4>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-2xl font-black text-red-600">{worstSubject.accuracy}%</span>
-                      <span className="text-xs text-red-700 dark:text-red-400 font-medium bg-red-100 dark:bg-red-900/50 px-2 py-0.5 rounded">
-                        de precisão
+                {/* Atenção */}
+                <Card className="bg-gradient-to-br from-red-50 to-white dark:from-red-900/20 dark:to-slate-900 border border-red-100 dark:border-red-800 shadow-sm">
+                  <CardContent className="p-5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-red-100 dark:bg-red-900/50 rounded-lg">
+                        <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                      </div>
+                      <span className="text-sm font-bold text-red-800 dark:text-red-300 uppercase tracking-wide">
+                        Atenção
                       </span>
                     </div>
-                    <div className="mt-3 text-xs flex items-center gap-1 text-red-600 dark:text-red-400 font-medium cursor-pointer hover:underline">
-                      <ArrowUpRight className="w-3 h-3" /> Praticar mais
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Dados insuficientes.</p>
-                )}
-              </CardContent>
-            </Card>
+                    {worstSubject ? (
+                      <div>
+                        <h4 className="font-bold text-slate-800 dark:text-slate-50 text-lg truncate" title={worstSubject.subject}>
+                          {worstSubject.subject}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-2xl font-black text-red-600">{worstSubject.accuracy}%</span>
+                          <span className="text-xs text-red-700 dark:text-red-400 font-medium bg-red-100 dark:bg-red-900/50 px-2 py-0.5 rounded">
+                            de precisão
+                          </span>
+                        </div>
+                        <div className="mt-3 text-xs flex items-center gap-1 text-red-600 dark:text-red-400 font-medium cursor-pointer hover:underline">
+                          <ArrowUpRight className="w-3 h-3" /> Praticar mais
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">Dados insuficientes.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
 
             {/* Detalhamento por Matéria */}
             <Card className="border-0 shadow-sm ring-1 ring-slate-200 dark:ring-slate-800 bg-white dark:bg-slate-900">

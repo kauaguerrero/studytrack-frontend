@@ -122,23 +122,38 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
+// ── Smooth color scale — anchors: red @0 %, yellow @20–60 %, green @60 % ──────
+
+const _C_RED    = '#ef4444'
+const _C_YELLOW = '#f59e0b'
+const _C_GREEN  = '#22c55e'
+
+function _lerpHex(a: string, b: string, t: number): string {
+  const p = (h: string) => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)] as const
+  const [ar,ag,ab] = p(a); const [br,bg,bb] = p(b)
+  return '#' + [ar+(br-ar)*t, ag+(bg-ag)*t, ab+(bb-ab)*t].map(v => Math.round(v).toString(16).padStart(2,'0')).join('')
+}
+
+/** Continuously interpolated hex: red → yellow (blend at ±5pp around 20%) → green (blend at ±5pp around 60%) */
+function perfColorHex(pct: number): string {
+  if (pct <= 15) return _C_RED
+  if (pct <= 25) return _lerpHex(_C_RED,    _C_YELLOW, (pct - 15) / 10)
+  if (pct <= 55) return _C_YELLOW
+  if (pct <= 65) return _lerpHex(_C_YELLOW, _C_GREEN,  (pct - 55) / 10)
+  return _C_GREEN
+}
+
+/** 5-step Tailwind text class mirroring the same anchors */
 function scoreColor(pct: number) {
-  if (pct >= 70) return 'text-green-600'
-  if (pct >= 45) return 'text-yellow-600'
-  return 'text-red-600'
+  if (pct >= 65) return 'text-green-600'
+  if (pct >= 55) return 'text-lime-600'
+  if (pct >= 25) return 'text-amber-500'
+  if (pct >= 15) return 'text-orange-500'
+  return 'text-red-500'
 }
 
-function scoreBarColor(pct: number) {
-  if (pct >= 70) return '#22c55e'
-  if (pct >= 45) return '#eab308'
-  return '#ef4444'
-}
-
-function scoreRingColor(pct: number) {
-  if (pct >= 70) return '#22c55e'
-  if (pct >= 45) return '#f97316'
-  return '#ef4444'
-}
+function scoreBarColor(pct: number)  { return perfColorHex(pct) }
+function scoreRingColor(pct: number) { return perfColorHex(pct) }
 
 function celebrationMessage(pct: number): { emoji: string; title: string; sub: string } {
   if (pct >= 80) return { emoji: '🏆', title: 'Resultado extraordinário!', sub: 'Você está no caminho certo para a aprovação.' }
@@ -170,7 +185,7 @@ function aggregateSubjectPerf(sessions: SimuladoSession[]) {
     }
   }
   return Object.entries(acc)
-    .map(([subject, { correct, total }]) => ({ subject, pct: total > 0 ? Math.round((correct / total) * 100) : 0 }))
+    .map(([subject, { correct, total }]) => ({ subject, pct: total > 0 ? Math.round((correct / total) * 100) : 0, total }))
     .sort((a, b) => b.pct - a.pct)
 }
 
@@ -344,10 +359,17 @@ export default function SimuladoPage() {
   const avgPct = totalSimulados > 0 ? Math.round(sessions.reduce((s, x) => s + (x.percentage ?? 0), 0) / totalSimulados) : 0
   const bestPct = totalSimulados > 0 ? Math.max(...sessions.map(s => s.percentage ?? 0)) : 0
   const rankingPos = rankingData?.user_position ?? null
+  const nextTarget = (() => {
+    const inc = bestPct < 50 ? 10 : bestPct <= 80 ? 5 : 3
+    return Math.min(100, bestPct + inc)
+  })()
   const heroSubtitle = totalSimulados === 0
     ? 'Faça seu primeiro simulado e descubra seu nível'
-    : bestPct >= 70 ? `Seu melhor resultado foi ${bestPct}% — continue assim!`
-    : `Sua média é ${avgPct}% — vamos melhorar juntos!`
+    : `Sua próxima meta: superar ${nextTarget}%`
+
+  const simuladoCtxHint = mode === 'enem'
+    ? (() => { const fmt = ENEM_FORMATS.find(f => f.value === enemFormat); const q = fmt?.qty ?? 45; return `~${Math.round(q * 1.5)} min · ${q} questões · TRI` })()
+    : `~${qty * 3} min · ${qty} questões · TRI`
 
   // ── Chart data ──
   const subjectOptions = ['Todas', ...Array.from(new Set(sessions.flatMap(s => Object.keys(s.results_by_subject || {}))))]
@@ -566,11 +588,14 @@ export default function SimuladoPage() {
                   className="flex items-center justify-center gap-2 border border-slate-200 bg-white text-slate-700 font-bold px-4 py-3 rounded-xl hover:bg-slate-50 transition-all flex-1 sm:flex-none">
                   <History size={16} /> Histórico
                 </Link>
-                <button onClick={() => setShowConfigModal(true)}
-                  className="flex items-center justify-center gap-2 text-white font-bold px-5 py-3 rounded-xl transition-all shadow-sm cursor-pointer flex-1 sm:flex-none"
-                  style={{ background: 'var(--brand-primary)' }}>
-                  <Plus size={18} /> Novo Simulado
-                </button>
+                <div className="flex flex-col gap-0.5 flex-1 sm:flex-none">
+                  <button onClick={() => setShowConfigModal(true)}
+                    className="flex items-center justify-center gap-2 text-white font-bold px-5 py-3 rounded-xl transition-all shadow-sm cursor-pointer w-full"
+                    style={{ background: 'var(--brand-primary)' }}>
+                    <Plus size={18} /> Novo Simulado
+                  </button>
+                  <span className="text-[10px] text-slate-400 text-center">{simuladoCtxHint}</span>
+                </div>
               </div>
             </motion.div>
 
@@ -682,7 +707,9 @@ export default function SimuladoPage() {
                         <YAxis type="category" dataKey="subject" width={100} tick={{ fontSize: 10, fill: '#94a3b8' }} />
                         <Tooltip content={<ChartTooltip />} />
                         <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
-                          {subjectPerfData.map((entry, i) => <Cell key={`cell-${i}`} fill={scoreBarColor(entry.pct)} />)}
+                          {subjectPerfData.map((entry, i) => (
+                            <Cell key={`cell-${i}`} fill={entry.total === 0 ? '#cbd5e1' : scoreBarColor(entry.pct)} />
+                          ))}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -734,12 +761,9 @@ export default function SimuladoPage() {
 
             {/* Ranking */}
             <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <Trophy size={17} className="text-yellow-500" />
-                  <h2 className="font-bold text-slate-900 text-sm">Ranking do Dia</h2>
-                </div>
-                <Link href={`/partners/${slug}/student/simulado/ranking`} className="text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors">Ver completo →</Link>
+              <div className="flex items-center gap-2 mb-1">
+                <Trophy size={17} className="text-yellow-500" />
+                <h2 className="font-bold text-slate-900 text-sm">Ranking do Dia</h2>
               </div>
               <p className="text-xs text-slate-400 mb-5">Melhores resultados de hoje</p>
               {dashLoading ? (
@@ -1055,20 +1079,6 @@ export default function SimuladoPage() {
               </motion.div>
             )}
 
-            {/* Ranking CTA */}
-            <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-yellow-50 p-2.5 rounded-xl"><Trophy size={20} className="text-yellow-500" /></div>
-                <div>
-                  <div className="font-bold text-slate-900 text-sm">Ranking do Dia</div>
-                  <div className="text-xs text-slate-400">Veja onde você está hoje</div>
-                </div>
-              </div>
-              <button onClick={() => router.push(`/partners/${slug}/student/simulado/ranking`)}
-                className="text-xs font-bold hover:underline cursor-pointer" style={{ color: 'var(--brand-primary)' }}>
-                Ver ranking →
-              </button>
-            </motion.div>
           </motion.div>
         </div>
       )}

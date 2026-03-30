@@ -217,20 +217,39 @@ export function DashboardClient({
         </Link>
       </motion.div>
 
-      {/* ── Portal Link ──────────────────────────────────────────────── */}
+      {/* ── StudyTrack CTA ───────────────────────────────────────────── */}
       <motion.div variants={itemVariant}>
-        <div className="rounded-xl border border-dashed border-slate-200 p-3 text-center">
-          <p className="text-xs text-slate-400 mb-1.5">
-            Pratique com o banco completo de questões
-          </p>
-          <Link
-            href={`/partners/${slug}/student/banco-de-questoes`}
-            className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors"
+        <Link
+          href={`/partners/${slug}/student/studytrack`}
+          className="group block rounded-xl overflow-hidden active:scale-[0.99] transition-transform duration-150"
+        >
+          <div
+            className="relative p-4 flex items-center gap-3"
+            style={{ background: 'linear-gradient(135deg, #111 0%, #1a1a1a 100%)' }}
           >
-            Ver banco de questões
-            <ArrowRight className="h-3 w-3" />
-          </Link>
-        </div>
+            <div
+              className="pointer-events-none absolute -right-4 -top-4 h-24 w-24 rounded-full blur-2xl opacity-30"
+              style={{ background: brandPrimary }}
+            />
+            <div
+              className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              style={{ background: `${brandPrimary}22` }}
+            >
+              <Trophy className="h-4 w-4" style={{ color: brandPrimary }} />
+            </div>
+            <div className="relative z-10 flex-1 min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-0.5">
+                Plataforma completa
+              </p>
+              <p className="text-sm font-extrabold text-white leading-tight truncate">
+                Acessar plataforma completa da StudyTrack
+              </p>
+            </div>
+            <ArrowRight
+              className="relative z-10 h-4 w-4 shrink-0 text-white/40 transition-transform duration-200 group-hover:translate-x-0.5"
+            />
+          </div>
+        </Link>
       </motion.div>
     </motion.div>
   );
