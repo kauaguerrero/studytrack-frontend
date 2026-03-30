@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const to    = from + limit - 1;
 
   const { data, error, count } = await auth.supabaseAdmin
-    .from('social_media_posts')
+    .from('social_media_posts' as any)
     .select(
       `
       id, admin_id, format, slide_count, mode, admin_prompt,
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { data: post, error } = await auth.supabaseAdmin
-    .from('social_media_posts')
+    .from('social_media_posts' as any)
     .insert({
       admin_id:          auth.user.id,
       format,
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       caption,
       generated_content,
       status:            'generated',
-    })
+    } as any)
     .select('id')
     .single();
 
@@ -96,5 +96,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ id: post.id }, { status: 201 });
+  return NextResponse.json({ id: (post as any).id }, { status: 201 });
 }

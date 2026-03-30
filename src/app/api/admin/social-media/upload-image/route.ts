@@ -9,14 +9,14 @@ import { requireAdmin } from '@/app/api/admin/_utils';
  * e retorna a URL pública.
  *
  * Body JSON:
- *   {
- *     post_id:      string,       // para nomear o path corretamente
- *     image_base64: string,       // dataURL "data:image/png;base64,..."
- *     asset_type:   string,       // "post_image" | "thumbnail"
- *     slide_number?: number,      // para carrosséis
- *     width:        number,
- *     height:       number,
- *   }
+ * {
+ * post_id:       string,       // para nomear o path corretamente
+ * image_base64: string,       // dataURL "data:image/png;base64,..."
+ * asset_type:    string,       // "post_image" | "thumbnail"
+ * slide_number?: number,      // para carrosséis
+ * width:         number,
+ * height:        number,
+ * }
  */
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin();
@@ -43,9 +43,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Campos post_id e image_base64 são obrigatórios' }, { status: 400 });
   }
 
-  // Verifica ownership do post
-  const { data: post, error: postError } = await auth.supabaseAdmin
-    .from('social_media_posts')
+  // Verifica ownership do post - Usando casting para ignorar erro de tipagem no banco
+  const { data: post, error: postError } = await (auth.supabaseAdmin
+    .from('social_media_posts' as any) as any)
     .select('id')
     .eq('id', post_id)
     .eq('admin_id', auth.user.id)
@@ -81,9 +81,9 @@ export async function POST(req: NextRequest) {
     .from('social-media-posts')
     .getPublicUrl(storagePath);
 
-  // Salva o asset no banco
-  const { error: assetError } = await auth.supabaseAdmin
-    .from('social_media_assets')
+  // Salva o asset no banco - Usando casting duplo para ignorar erro 'never' do upsert
+  const { error: assetError } = await (auth.supabaseAdmin
+    .from('social_media_assets' as any) as any)
     .upsert(
       {
         post_id,
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
         height,
         file_size_bytes: sizeBytes,
         slide_number:    slide_number ?? null,
-      },
+      } as any,
       { onConflict: 'post_id, storage_path' }
     );
 

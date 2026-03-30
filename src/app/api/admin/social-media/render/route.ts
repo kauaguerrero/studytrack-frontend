@@ -51,7 +51,8 @@ export async function POST(req: NextRequest) {
       clip:     { x: 0, y: 0, width, height },
     });
 
-    return new NextResponse(screenshot, {
+    // Converte Uint8Array para Buffer para satisfazer a tipagem do NextResponse
+    return new NextResponse(Buffer.from(screenshot), {
       headers: {
         'Content-Type':        'image/png',
         'Content-Disposition': 'attachment; filename="post.png"',

@@ -76,7 +76,7 @@ const ENEM_FORMATS = [
 
 const CUSTOM_SUBJECTS = [
   { value: 'Todas',             label: 'Todas as Matérias', qty: null },
-  { value: 'Matemática',        label: 'Matemática',        qty: 673  },
+  { value: 'Matemática',        label: 'Matemática',         qty: 673  },
   { value: 'Língua Portuguesa', label: 'Língua Portuguesa', qty: 664  },
   { value: 'Biologia',          label: 'Biologia',          qty: 237  },
   { value: 'Geografia',         label: 'Geografia',         qty: 226  },
@@ -399,7 +399,8 @@ export default function SimuladoPage() {
     setUserAnswers(prev => ({ ...prev, [q.id]: letter }))
   }
   const resetSimulado = (openModal = false) => {
-    setStep('setup'); setQuestions([]); setCurrentIdx(0); setUserAnswers([]); setTimeLeft(0)
+    // CORREÇÃO AQUI: userAnswers resetado com {} em vez de []
+    setStep('setup'); setQuestions([]); setCurrentIdx(0); setUserAnswers({}); setTimeLeft(0)
     setSessionId(null); setFinishResult(null); setDashVersion(v => v + 1)
     if (openModal) setShowConfigModal(true)
   }

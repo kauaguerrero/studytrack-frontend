@@ -1,9 +1,5 @@
 /**
  * Layout para alunos B2B no portal de parceiros.
- *
- * Valida que o aluno autenticado pertence à organização do slug.
- * Injeta CSS vars de branding e usa a mesma sidebar do parceiro,
- * adaptada para o aluno (módulos de estudo em vez de gestão).
  */
 
 import { ReactNode } from 'react';
@@ -12,7 +8,21 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { OrgProvider } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
-import type { OrgBranding } from '@/app/partners/[slug]/layout';
+
+// Definição local para evitar erro de importação circular ou módulos não encontrados
+export interface OrgBranding {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  brand_primary: string;
+  brand_secondary: string;
+  brand_accent: string;
+  plan_tier?: string;
+  max_students?: number;
+  invite_code?: string | null;
+  permissions?: any;
+}
 
 interface StudentLayoutProps {
   children: ReactNode;
@@ -57,8 +67,6 @@ export default async function PartnerStudentLayout({ children, params }: Student
     redirect(`/partners/${slug}/register`);
   }
 
-  // 4. Alunos só acessam a própria org; founder/admin passam livremente
-  // Garante fallback para 'student' caso profile.role seja nulo (evita redirect loop com /portal).
   const role = (profile.role as string) || 'student';
   if (role === 'student' && profile.organization_id !== org.id) {
     redirect(`/partners/${slug}/register`);
@@ -72,17 +80,17 @@ export default async function PartnerStudentLayout({ children, params }: Student
   const brandAccent    = org.brand_accent    ?? '#f59e0b';
 
   const branding: OrgBranding = {
-    id:              org.id,
-    name:            org.name,
+    id:               org.id,
+    name:             org.name,
     slug,
-    logo_url:        org.logo_url,
-    brand_primary:   brandPrimary,
-    brand_secondary: brandSecondary,
-    brand_accent:    brandAccent,
-    plan_tier:       'b2b_student',
-    max_students:    0,
-    invite_code:     null,
-    permissions:     {},
+    logo_url:         org.logo_url,
+    brand_primary:    brandPrimary,
+    brand_secondary:  brandSecondary,
+    brand_accent:     brandAccent,
+    plan_tier:        'b2b_student',
+    max_students:     0,
+    invite_code:      null,
+    permissions:      {},
   };
 
   return (
@@ -94,7 +102,6 @@ export default async function PartnerStudentLayout({ children, params }: Student
         role,
       }}
     >
-      {/* CSS vars de branding injetadas server-side — sem flash */}
       <style>{`
         :root {
           --brand-primary: ${brandPrimary};
