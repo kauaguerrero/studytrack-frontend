@@ -1,4 +1,4 @@
-export type UserRole = 'student' | 'teacher' | 'manager' | 'admin' | 'secretariat';
+export type UserRole = 'student' | 'teacher' | 'manager' | 'admin' | 'secretariat' | 'founder';
 
 export interface UserMetadata {
   role: UserRole;
@@ -14,5 +14,6 @@ export const ROLE_PERMISSIONS = {
   teacher: ['view_classes', 'create_assignment', 'grade_exam', 'view_question_bank'],
   manager: ['view_school_stats', 'manage_users', 'view_financial', 'manage_curriculum'],
   secretariat: ['manage_adaptations', 'view_students', 'upload_exam'],
-  admin: ['all']
+  admin: ['all'],
+  founder: ['view_org_dashboard', 'manage_students', 'manage_org_settings'],
 } as const;

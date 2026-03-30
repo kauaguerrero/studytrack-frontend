@@ -172,11 +172,6 @@ export default function TeacherSchoolValidation() {
                 </>
             )}
         </button>
-        
-        <div className="mt-4 text-center">
-            <p className="text-[10px] text-slate-300">Dev Hint: Use o código <strong>PROF-2025</strong> para testar.</p>
-        </div>
-
       </div>
     </div>
   );

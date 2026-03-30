@@ -39,7 +39,12 @@ export default async function Dashboard() {
       .single();
 
     if (profileError && profileError.code !== 'PGRST116') throw profileError;
-    if (!profile?.whatsapp_phone) redirect('/portal/onboarding/objetivo');
+    if (!profile) redirect('/portal/onboarding/objetivo');
+
+    // Alunos B2B (plan_tier começa com 'b2b_') não passam pelo onboarding WhatsApp.
+    const isB2bStudent = profile.plan_tier?.startsWith('b2b_');
+
+    if (!isB2bStudent && !profile.whatsapp_phone) redirect('/portal/onboarding/objetivo');
 
     const firstName = profile.full_name?.split(' ')[0] || "Estudante";
     const fullName = profile.full_name || "Estudante";
@@ -51,8 +56,9 @@ export default async function Dashboard() {
     //    onboarding primeiro — o aviso de pagamento vem NO FIM do onboarding,
     //    enviado pelo próprio bot via WhatsApp.
     // 2. Só após o onboarding completo o SubscriptionLock faz sentido aparecer.
+    // 3. Alunos B2B pulam todo esse fluxo.
     // =========================================================================
-    if (!profile?.handshake_completed) {
+    if (!isB2bStudent && !profile.handshake_completed) {
       redirect('/portal/onboarding/handshake');
     }
 

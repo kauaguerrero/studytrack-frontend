@@ -3,28 +3,30 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { UserRole } from '@/types/roles';
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
   const path = request.nextUrl.pathname;
 
   const normalizeRole = (role: unknown): UserRole | null => {
     if (!role) return null;
     const s = String(role).trim().toLowerCase();
-    const allowed: UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat'];
+    const allowed: UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat', 'founder'];
     return allowed.includes(s as UserRole) ? (s as UserRole) : null;
   };
 
   // 1. OTIMIZAÇÃO CRÍTICA: ignorar estáticos imediatamente (evita deadlock).
-  // /auth/callback NÃO entra aqui: o bypass antigo devolvia NextResponse.next()
-  // antes do createServerClient + getUser(), e os cookies da sessão OAuth não
-  // eram propagados. O matcher já exclui assets; em /auth/* o bloco público
-  // abaixo retorna supabaseResponse já atualizado por setAll durante getUser().
   if (
     path.startsWith('/_next') ||
     path.startsWith('/static') ||
     path.includes('.')
   ) {
-    return supabaseResponse;
+    return NextResponse.next({ request });
   }
+
+  // Injeta x-pathname nos request headers para que server components possam ler
+  // via headers() — usado pelo [slug]/layout.tsx para detectar rotas públicas.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-pathname', path);
+
+  let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } });
 
   // 2. Instancia Supabase e valida sessão (inclui /auth/callback)
   const supabase = createServerClient(
@@ -37,7 +39,13 @@ export async function updateSession(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          supabaseResponse = NextResponse.next({ request });
+          // Reconstrói requestHeaders com cookies atualizados para manter x-pathname
+          const updatedHeaders = new Headers(requestHeaders);
+          updatedHeaders.set(
+            'cookie',
+            request.cookies.getAll().map((c) => `${c.name}=${c.value}`).join('; ')
+          );
+          supabaseResponse = NextResponse.next({ request: { headers: updatedHeaders } });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );
@@ -63,7 +71,20 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // 5. Proteção do Portal (RBAC)
+  // 5a. Proteção do Portal de Parceiros (/partners/*)
+  // Rotas públicas: /partners/[slug] (landing) e /partners/[slug]/register
+  // Restante exige autenticação; validação de role/org fica no layout server component.
+  if (path.startsWith('/partners')) {
+    const isPublicPartnerRoute = /^\/partners\/[^/]+(\/register)?$/.test(path);
+    if (!isPublicPartnerRoute && !user) {
+      const redirectUrl = new URL('/auth/login', request.url);
+      redirectUrl.searchParams.set('next', path);
+      return NextResponse.redirect(redirectUrl);
+    }
+    return supabaseResponse;
+  }
+
+  // 5b. Proteção do Portal (RBAC)
   if (path.startsWith('/portal')) {
     if (!user) {
       const redirectUrl = new URL('/auth/login', request.url);

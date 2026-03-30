@@ -12,6 +12,7 @@ const ROLE_TO_DASHBOARD: Record<UserRole, string> = {
   manager: '/portal/manager',
   admin: '/portal/admin',
   secretariat: '/portal/secretariat',
+  founder: '/portal',  // /portal redireciona founder para /partners/<slug>/dashboard
 }
 
 /** Aplica cookies capturados na resposta de redirect (evita perder sessão no OAuth). */
