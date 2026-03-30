@@ -18,7 +18,6 @@ import {
   BookOpen,
   FileText,
   BarChart3,
-  Target,
   Home,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -38,11 +37,12 @@ function NavItem({ href, icon: Icon, label, collapsed }: NavItemProps) {
   return (
     <Link
       href={href}
+      style={isActive ? { backgroundColor: 'var(--brand-primary)' } : undefined}
       className={cn(
         'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
         isActive
-          ? 'bg-[var(--brand-primary)] text-white'
-          : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+          ? 'text-white'
+          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100',
         collapsed && 'justify-center px-2'
       )}
       title={collapsed ? label : undefined}
@@ -71,9 +71,10 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   ];
 
   const studentNavItems = [
-    { href: `/partners/${org.slug}/student/dashboard`,          icon: Home,      label: 'Início' },
-    { href: `/partners/${org.slug}/student/banco-de-questoes`,  icon: BookOpen,  label: 'Questões' },
-    { href: `/partners/${org.slug}/student/simulado`,           icon: FileText,  label: 'Simulados' },
+    { href: `/partners/${org.slug}/student/dashboard`,         icon: Home,      label: 'Início' },
+    { href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,  label: 'Questões' },
+    { href: `/partners/${org.slug}/student/simulado`,          icon: FileText,  label: 'Simulados' },
+    { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3, label: 'Meu Desempenho' },
   ];
 
   const navItems = variant === 'student' ? studentNavItems : founderNavItems;
@@ -94,7 +95,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
       {/* Logo + org name */}
-      <div className="flex items-center gap-3 border-b px-4 py-4">
+      <div className="flex items-center gap-3 border-b dark:border-slate-800 px-4 py-4">
         {org.logo_url ? (
           <Image
             src={org.logo_url}
@@ -129,7 +130,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
       </nav>
 
       {/* User footer */}
-      <div className="border-t px-3 py-3">
+      <div className="border-t dark:border-slate-800 px-3 py-3">
         <div className="flex items-center gap-3 rounded-lg bg-slate-50 dark:bg-slate-800 px-3 py-2">
           <div
             className="h-8 w-8 shrink-0 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white"
@@ -151,7 +152,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 shrink-0 text-slate-400 hover:text-slate-600"
+            className="h-7 w-7 shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             onClick={handleSignOut}
             title="Sair"
           >
@@ -165,7 +166,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 border-r bg-white dark:bg-slate-900 md:flex md:flex-col">
+      <aside className="hidden w-64 shrink-0 border-r dark:border-slate-800 bg-white dark:bg-slate-900 md:flex md:flex-col">
         <SidebarContent />
       </aside>
 
@@ -182,7 +183,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Mobile header */}
-        <header className="flex items-center gap-3 border-b bg-white dark:bg-slate-900 px-4 py-3 md:hidden">
+        <header className="flex items-center gap-3 border-b dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 md:hidden">
           <Button
             variant="ghost"
             size="icon"

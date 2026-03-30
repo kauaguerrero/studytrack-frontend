@@ -124,7 +124,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   };
 
   return (
-    <OrgProvider org={branding} userProfile={{ fullName: profile.full_name ?? 'Usuário', avatarUrl: profile.avatar_url ?? null, role: profile.role }}>
+    <OrgProvider org={branding} userProfile={{ fullName: profile.full_name ?? 'Usuário', avatarUrl: profile.avatar_url ?? null, role: profile.role ?? 'founder' }}>
       {/* CSS variables de branding injetadas via style tag server-side */}
       <style>{`
         :root {
