@@ -5,15 +5,14 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
+import { useOrg } from '@/contexts/OrgContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Target, Trophy, Brain, TrendingUp,
   AlertCircle, BarChart3, Activity, Flame, ArrowUpRight, ArrowLeft, FileText,
 } from 'lucide-react';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-} from 'recharts';
+import { EvolutionChart, type DayData } from './EvolutionChart';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,6 +42,7 @@ interface AnalyticsData {
 
 export default function DesempenhoPage() {
   const { slug } = useParams<{ slug: string }>();
+  const { org } = useOrg();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
@@ -120,14 +120,15 @@ export default function DesempenhoPage() {
     .slice(0, 3);
 
   // Formatação de data sem offset de timezone
-  const chartData = activity_history.map((item) => {
+  const chartData: DayData[] = activity_history.map((item) => {
     const parts = item.usage_date.split('-');
     const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
     return {
       date: dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-      questoes: item.questions_count,
+      fullDate: dateObj.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }),
+      questions: item.questions_count,
       simulados: item.simulations_count,
-      acertos: item.correct_count,
+      correct: item.correct_count,
     };
   });
 
@@ -284,80 +285,7 @@ export default function DesempenhoPage() {
 
           {/* Left col: chart + top matérias por volume */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Ritmo de Estudos — linha de questões, simulados e acertos */}
-            <Card className="border-0 shadow-sm ring-1 ring-slate-200 dark:ring-slate-800 bg-white dark:bg-slate-900">
-              <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
-                <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-800 dark:text-slate-50">
-                  <Activity className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
-                  Ritmo de Estudos
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4">
-                {chartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={260}>
-                    <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 11, fill: '#94a3b8' }}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 11, fill: '#94a3b8' }}
-                        tickLine={false}
-                        axisLine={false}
-                        allowDecimals={false}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'white',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '8px',
-                          fontSize: 12,
-                        }}
-                      />
-                      <Legend
-                        iconType="circle"
-                        iconSize={8}
-                        wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="questoes"
-                        name="Questões"
-                        stroke="var(--brand-primary)"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="simulados"
-                        name="Simulados"
-                        stroke="var(--brand-secondary)"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="acertos"
-                        name="Acertos"
-                        stroke="var(--brand-accent)"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-[260px] flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">
-                    Nenhuma atividade nos últimos 30 dias.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <EvolutionChart data={chartData} brandPrimary={org.brand_primary} />
 
             {/* Questões por Matéria — top 3 por volume */}
             <Card className="border-0 shadow-sm ring-1 ring-slate-200 dark:ring-slate-800 bg-white dark:bg-slate-900">
