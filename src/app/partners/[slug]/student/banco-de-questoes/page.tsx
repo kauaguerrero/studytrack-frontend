@@ -156,48 +156,60 @@ export default function BancoDeQuestoes() {
     init();
   }, []);
 
-  // ── Total de questões ────────────────────────────────────────────────────────
+  // ── Total de questões — direto no Supabase (sem CORS) ───────────────────────
   useEffect(() => {
-    const token = authTokenRef.current;
-    if (!token) return;
+    if (!userId) return;
 
     const fetchTotal = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-        const res = await fetch(`${apiUrl}/api/questions/total`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.total) setTotalQuestions(data.total);
-        }
+        const supabase = createClient();
+        const { count } = await supabase
+          .from('questions')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_verified', true);
+        if (count) setTotalQuestions(count);
       } catch (err) {
-        console.error('Erro ao buscar total:', err);
-        void reportError('QuestionBankTotalFetchError', String(err));
+        // não-crítico: totalQuestions tem fallback de 2700
       }
     };
     fetchTotal();
   }, [userId]);
 
-  // ── 2. Topics ────────────────────────────────────────────────────────────────
+  // ── 2. Topics — direto no Supabase (sem CORS) ────────────────────────────────
   useEffect(() => {
-    const token = authTokenRef.current;
-    if (!token) return;
+    if (!userId) return;
 
     async function loadTopics() {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+        const supabase = createClient();
+        const query = supabase
+          .from('questions')
+          .select('discipline, metadata')
+          .eq('is_verified', true)
+          .limit(2000);
+
         const subjectQuery = !filterSubject || filterSubject === 'Todas' ? '' : filterSubject;
-        const res = await fetch(
-          `${apiUrl}/api/questions/topics?subject=${encodeURIComponent(subjectQuery)}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        const data = await res.json();
-        setAvailableTopics(data);
+        const { data } = await (subjectQuery
+          ? query.ilike('subject', `%${subjectQuery}%`)
+          : query);
+
+        const counter: Record<string, number> = {};
+        for (const row of data || []) {
+          const t: string | null =
+            row.discipline?.trim() ||
+            (row.metadata as any)?.ai_topic?.trim() ||
+            null;
+          if (t && t.length > 2) counter[t] = (counter[t] || 0) + 1;
+        }
+
+        const sorted = Object.entries(counter)
+          .sort(([, a], [, b]) => b - a)
+          .map(([name, count]) => ({ name, count }));
+
+        setAvailableTopics(sorted);
         setFilterTopic('Todos');
       } catch (err) {
-        console.error(err);
-        void reportError('QuestionBankError', String(err));
+        void reportError('QuestionBankTopicsError', String(err));
       }
     }
     loadTopics();
@@ -235,7 +247,6 @@ export default function BancoDeQuestoes() {
       }
 
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
         const params = new URLSearchParams({ page: targetPage.toString(), limit: '20' });
         if (filterSubject && filterSubject !== 'Todas') params.append('subject', filterSubject);
         if (filterTopic && filterTopic !== 'Todos') params.append('topic', filterTopic);
@@ -243,7 +254,7 @@ export default function BancoDeQuestoes() {
         if (filterDifficulty && filterDifficulty !== 'Todas') params.append('difficulty', filterDifficulty);
         params.append('tab', activeTab);
 
-        const res = await fetch(`${apiUrl}/api/questions/?${params.toString()}`, {
+        const res = await fetch(`/api/proxy/questions/?${params.toString()}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.status === 401) throw new Error('Unauthorized');
@@ -348,7 +359,7 @@ export default function BancoDeQuestoes() {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-dvh bg-[#F5F5F7] flex flex-col relative overscroll-none">
+    <div className="bg-[#F5F5F7] flex flex-col relative -mx-4 -mt-4 md:-mx-8 md:-mt-8 min-h-full">
 
       {/* Modals — logic unchanged */}
       <UpsellModal
@@ -373,7 +384,7 @@ export default function BancoDeQuestoes() {
         }}
       />
 
-      {/* ── Sticky Filter Header ─────────────────────────────────────────────── */}
+      {/* ── Filter Header ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {isMenuOpen && (
           <motion.div
@@ -382,7 +393,7 @@ export default function BancoDeQuestoes() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="sticky top-0 z-40 bg-white/95 backdrop-blur-xl border-b border-slate-100 shadow-sm"
+            className="bg-white/95 backdrop-blur-xl border-b border-slate-100 shadow-sm shrink-0"
           >
             <div className="max-w-4xl mx-auto px-4 py-3 space-y-3">
 
@@ -595,27 +606,27 @@ export default function BancoDeQuestoes() {
               </AnimatePresence>
 
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-      {/* Show-filters pill (when header is collapsed) */}
-      <AnimatePresence>
-        {!isMenuOpen && (
-          <motion.button
-            key="show-filters-pill"
-            initial={shouldReduce ? false : { opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.18 }}
-            onClick={() => setIsMenuOpen(true)}
-            title="Mostrar filtros"
-            className="fixed top-4 right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/90 backdrop-blur border border-slate-200 shadow-md text-xs font-bold text-slate-600 hover:text-slate-800 transition-colors"
-          >
-            <Eye size={14} />
-            Filtros
-          </motion.button>
-        )}
+          {/* ── Show-filters pill ──────────────────────────────────────────── */}
+          <AnimatePresence>
+            {!isMenuOpen && (
+              <motion.button
+                key="show-filters-pill"
+                initial={shouldReduce ? false : { opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.18 }}
+                onClick={() => setIsMenuOpen(true)}
+                title="Mostrar filtros"
+                className="fixed top-4 right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/90 backdrop-blur border border-slate-200 shadow-md text-xs font-bold text-slate-600 hover:text-slate-800 transition-colors"
+              >
+                <Eye size={14} />
+                Filtros
+              </motion.button>
+            )}
       </AnimatePresence>
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
@@ -664,7 +675,7 @@ export default function BancoDeQuestoes() {
         ) : currentQ ? (
 
           /* Question view */
-          <motion.div initial={fadeSlideInitial} animate={fadeSlideAnimate} transition={fadeSlideTransition} className="pb-32">
+          <motion.div initial={fadeSlideInitial} animate={fadeSlideAnimate} transition={fadeSlideTransition}>
 
             {/* Counter bar — visible on ALL screens */}
             <div className="flex items-center justify-between mb-4 px-0.5">
@@ -806,14 +817,14 @@ export default function BancoDeQuestoes() {
       {/* ── Navigation Bar ───────────────────────────────────────────────────── */}
       <AnimatePresence>
         {currentQ && userId && !loading && (
-          <motion.div
-            key="nav-bar"
-            initial={shouldReduce ? false : { opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed bottom-0 left-0 right-0 z-30 px-4 pb-6 pt-3 bg-gradient-to-t from-[#F5F5F7] via-[#F5F5F7]/90 to-transparent"
-          >
+        <motion.div
+          key="nav-bar"
+          initial={shouldReduce ? false : { opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 16 }}
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full px-4 pb-6 pt-3"
+        >
             <div className="max-w-xl mx-auto">
               <div className="bg-white border border-slate-100 shadow-xl shadow-slate-900/8 rounded-2xl p-2 flex items-center gap-2">
 
@@ -861,7 +872,7 @@ export default function BancoDeQuestoes() {
 
               </div>
             </div>
-          </motion.div>
+        </motion.div>
         )}
       </AnimatePresence>
 
