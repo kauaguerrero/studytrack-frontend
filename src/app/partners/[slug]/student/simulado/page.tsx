@@ -409,8 +409,14 @@ export default function SimuladoPage() {
       const timeTaken = Math.floor((Date.now() - startTimeRef.current) / 1000)
       const res = await fetch(`${apiUrl}/api/simulado/${sessionId}/finish`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify({ answers, time_taken_secs: timeTaken }) })
       const data = await res.json()
-      if (res.ok) setFinishResult({ ...data, session_id: sessionId })
-    } catch { /* result screen shows local fallback */ }
+      if (res.ok) {
+        setFinishResult({ ...data, session_id: sessionId })
+      } else {
+        toast.warning('Resultado calculado localmente', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
+      }
+    } catch {
+      toast.warning('Resultado calculado localmente', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
+    }
     finally { setSubmitting(false); setStep('result') }
   }
 
@@ -609,7 +615,7 @@ export default function SimuladoPage() {
                     { icon: <BookOpen size={15} style={{ color: 'var(--brand-primary)' }} />, bg: 'bg-[var(--brand-primary)]/10', label: 'Realizados', value: totalSimulados, sub: 'simulados no total', valueClass: 'text-slate-900' },
                     { icon: <TrendingUp size={15} className="text-green-600" />, bg: 'bg-green-50', label: 'Média Geral', value: totalSimulados > 0 ? `${avgPct}%` : '—', sub: 'de acertos', valueClass: totalSimulados > 0 ? scoreColor(avgPct) : 'text-slate-300' },
                     { icon: <Trophy size={15} className="text-yellow-500" />, bg: 'bg-yellow-50', label: 'Melhor', value: totalSimulados > 0 ? `${bestPct}%` : '—', sub: 'melhor resultado', valueClass: totalSimulados > 0 ? scoreColor(bestPct) : 'text-slate-300' },
-                    { icon: <Medal size={15} className="text-purple-600" />, bg: 'bg-purple-50', label: 'Ranking', value: rankingPos != null ? `#${rankingPos}` : '—', sub: 'ranking hoje', valueClass: 'text-slate-900' },
+                    { icon: <Medal size={15} className="text-purple-600" />, bg: 'bg-purple-50', label: 'Ranking', value: rankingPos != null ? `#${rankingPos}` : '—', sub: 'posição geral', valueClass: 'text-slate-900' },
                   ].map((card) => (
                     <div key={card.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
                       <div className="flex items-center gap-2 mb-3">
@@ -763,16 +769,16 @@ export default function SimuladoPage() {
             <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
               <div className="flex items-center gap-2 mb-1">
                 <Trophy size={17} className="text-yellow-500" />
-                <h2 className="font-bold text-slate-900 text-sm">Ranking do Dia</h2>
+                <h2 className="font-bold text-slate-900 text-sm">Ranking Geral</h2>
               </div>
-              <p className="text-xs text-slate-400 mb-5">Melhores resultados de hoje</p>
+              <p className="text-xs text-slate-400 mb-5">Melhores resultados de todos os tempos</p>
               {dashLoading ? (
                 <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}</div>
               ) : !rankingData?.ranking?.length ? (
                 <div className="text-center py-8">
                   <Trophy size={28} className="text-slate-200 mx-auto mb-2" />
-                  <p className="text-sm font-semibold text-slate-400">Nenhum simulado hoje ainda</p>
-                  <p className="text-xs text-slate-300 mt-1">Seja o primeiro do dia!</p>
+                  <p className="text-sm font-semibold text-slate-400">Nenhum simulado realizado ainda</p>
+                  <p className="text-xs text-slate-300 mt-1">Seja o primeiro a entrar no ranking!</p>
                 </div>
               ) : (
                 <>

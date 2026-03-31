@@ -396,9 +396,13 @@ export default function SimuladoPage() {
                 body: JSON.stringify({ answers, time_taken_secs: timeTaken }),
             })
             const data = await res.json()
-            if (res.ok) setFinishResult({ ...data, session_id: sessionId })
+            if (res.ok) {
+                setFinishResult({ ...data, session_id: sessionId })
+            } else {
+                toast.warning('Resultado calculado localmente', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
+            }
         } catch {
-            // result screen shows local fallback
+            toast.warning('Resultado calculado localmente', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
         } finally {
             setSubmitting(false)
             setStep('result')
@@ -686,7 +690,7 @@ export default function SimuladoPage() {
                                         <div className="text-3xl font-black text-slate-900 dark:text-slate-50">
                                             {rankingPos != null ? `#${rankingPos}` : '—'}
                                         </div>
-                                        <div className="text-xs text-slate-400 mt-0.5">ranking hoje</div>
+                                        <div className="text-xs text-slate-400 mt-0.5">posição geral</div>
                                     </div>
                                 </>
                             )}
@@ -878,7 +882,7 @@ export default function SimuladoPage() {
                             <div className="flex items-center justify-between mb-1">
                                 <div className="flex items-center gap-2">
                                     <Trophy size={17} className="text-yellow-500" />
-                                    <h2 className="font-bold text-slate-900 dark:text-slate-50 text-sm">Ranking do Dia</h2>
+                                    <h2 className="font-bold text-slate-900 dark:text-slate-50 text-sm">Ranking Geral</h2>
                                 </div>
                                 <Link
                                     href="/portal/student/simulado/ranking"
@@ -898,8 +902,8 @@ export default function SimuladoPage() {
                             ) : !rankingData?.ranking?.length ? (
                                 <div className="text-center py-8">
                                     <Trophy size={28} className="text-slate-200 dark:text-slate-700 mx-auto mb-2" />
-                                    <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">Nenhum simulado hoje ainda</p>
-                                    <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">Seja o primeiro do dia!</p>
+                                    <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">Nenhum simulado realizado ainda</p>
+                                    <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">Seja o primeiro a entrar no ranking!</p>
                                 </div>
                             ) : (
                                 <>
@@ -1159,8 +1163,8 @@ export default function SimuladoPage() {
                                     <Trophy size={20} className="text-yellow-500" />
                                 </div>
                                 <div>
-                                    <div className="font-bold text-slate-900 dark:text-slate-50 text-sm">Ranking do Dia</div>
-                                    <div className="text-xs text-slate-400">Veja onde você está hoje</div>
+                                    <div className="font-bold text-slate-900 dark:text-slate-50 text-sm">Ranking Geral</div>
+                                    <div className="text-xs text-slate-400">Veja sua posição no ranking</div>
                                 </div>
                             </div>
                             <button
