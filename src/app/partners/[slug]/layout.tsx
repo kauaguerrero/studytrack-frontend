@@ -44,13 +44,17 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   // Rotas públicas — não requerem auth
   const isPublicRoute =
     pathname === `/partners/${slug}` ||
-    pathname === `/partners/${slug}/register` ||
-    pathname === ''; // fallback se header não chegar
+    pathname === `/partners/${slug}/register`;
+  // Nota: pathname === '' foi removido — quando o header x-pathname não chegar,
+  // o layout cai no fluxo normal de autenticação e injeta OrgProvider corretamente.
 
   // Rotas de aluno B2B — auth e validação delegadas ao student/layout.tsx
+  // Só pula quando pathname é conhecido; se vier vazio, trata como rota de parceiro.
   const isStudentRoute =
-    pathname.startsWith(`/partners/${slug}/student`) ||
-    pathname.includes('/student/'); // fallback robusto se x-pathname vier incompleto
+    pathname !== '' && (
+      pathname.startsWith(`/partners/${slug}/student`) ||
+      pathname.includes('/student/')
+    );
 
   if (isPublicRoute || isStudentRoute) {
     return <>{children}</>;
