@@ -19,6 +19,7 @@ import {
   FileText,
   BarChart3,
   Home,
+  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -75,6 +76,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,  label: 'Questões' },
     { href: `/partners/${org.slug}/student/simulado`,          icon: FileText,  label: 'Simulados' },
     { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3, label: 'Meu Desempenho' },
+    { href: `/partners/${org.slug}/student/perfil`,            icon: User,      label: 'Perfil' },
   ];
 
   const navItems = variant === 'student' ? studentNavItems : founderNavItems;

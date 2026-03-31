@@ -7,7 +7,8 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { OrgProvider } from '@/contexts/OrgContext';
-import { PartnerLayout } from '@/components/partners/PartnerLayout';
+import { StudentThemeProvider, type StudentTheme } from '@/contexts/StudentThemeContext';
+import { StudentThemeShell } from '@/components/partners/StudentThemeShell';
 
 // Definição local para evitar erro de importação circular ou módulos não encontrados
 export interface OrgBranding {
@@ -42,10 +43,10 @@ export default async function PartnerStudentLayout({ children, params }: Student
   const adminClient = createAdminClient();
 
   // 2. Busca perfil via adminClient para garantir leitura de organization_id sem bloqueio de RLS
-  type ProfileRow = { role: string | null; organization_id: string | null; full_name: string | null; avatar_url: string | null };
+  type ProfileRow = { role: string | null; organization_id: string | null; full_name: string | null; avatar_url: string | null; theme_preference: string | null };
   const profileRes = await adminClient
     .from('profiles')
-    .select('role, organization_id, full_name, avatar_url')
+    .select('role, organization_id, full_name, avatar_url, theme_preference')
     .eq('id', user.id)
     .single();
   const profile = profileRes.data as ProfileRow | null;
@@ -82,6 +83,12 @@ export default async function PartnerStudentLayout({ children, params }: Student
   const brandSecondary = org.brand_secondary ?? '#8b5cf6';
   const brandAccent    = org.brand_accent    ?? '#f59e0b';
 
+  const validThemes = ['light', 'dark', 'system'] as const;
+  const rawTheme = profile.theme_preference ?? 'system';
+  const initialTheme: StudentTheme = (validThemes as readonly string[]).includes(rawTheme)
+    ? (rawTheme as StudentTheme)
+    : 'system';
+
   const branding: OrgBranding = {
     id:               org.id,
     name:             org.name,
@@ -113,9 +120,11 @@ export default async function PartnerStudentLayout({ children, params }: Student
         }
       `}</style>
 
-      <PartnerLayout variant="student">
-        {children}
-      </PartnerLayout>
+      <StudentThemeProvider slug={slug} initialTheme={initialTheme}>
+        <StudentThemeShell>
+          {children}
+        </StudentThemeShell>
+      </StudentThemeProvider>
     </OrgProvider>
   );
 }

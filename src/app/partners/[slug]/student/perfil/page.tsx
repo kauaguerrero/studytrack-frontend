@@ -1,0 +1,1260 @@
+'use client'
+
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import { useStudentTheme } from '@/contexts/StudentThemeContext'
+import useSWR from 'swr'
+import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  User,
+  Shield,
+  Settings,
+  Loader2,
+  AlertTriangle,
+  GraduationCap,
+  Camera,
+  Clock,
+  Laptop,
+  Download,
+  Trash2,
+  Palette,
+  CheckCircle2,
+} from 'lucide-react'
+
+/** Modelo 1:1 com a tabela profiles e resposta GET /api/account/profile */
+interface ProfileData {
+  id: string
+  full_name: string | null
+  email: string | null
+  cpf: string | null
+  whatsapp_phone: string | null
+  phone: string | null
+  avatar_url: string | null
+  role: string
+  plan_tier: string
+  subscription_status: string
+  subscription_plan: string
+  subscription_id: string | null
+  trial_start_date: string | null
+  focus_area: string | null
+  study_pace: string | null
+  study_period: string | null
+  days_per_week: number | null
+  hours_per_day: number | null
+  free_hours: string | null
+  birth_date: string | null
+  target_course: string | null
+  target_university: string | null
+  school_year: string | null
+  onboarding_completed: boolean
+  created_at: string | null
+  updated_at: string | null
+  email_notifications: boolean
+  theme_preference?: string | null
+  username: string | null
+  bio: string | null
+  pronouns: string | null
+  public_profile: boolean
+  accessibility_needs: string | null
+}
+
+interface UserData {
+  id: string
+  email: string
+  email_confirmed_at: string | null
+  last_sign_in_at: string | null
+}
+
+interface UserSession {
+  id: string
+  user_id: string
+  device_info: string | null
+  ip_address: string | null
+  location: string | null
+  last_active_at: string | null
+  is_active: boolean
+}
+
+type TabKey = 'personal' | 'journey' | 'routine' | 'security' | 'preferences'
+
+// Laranja Edificar
+const BRAND = '#FF8C00'
+
+export default function PerfilPage() {
+  const router = useRouter()
+  const { slug } = useParams<{ slug: string }>()
+  const { setTheme: setStudentTheme } = useStudentTheme()
+  const [profileState, setProfileState] = useState<ProfileData | null>(null)
+  const [userState, setUserState] = useState<UserData | null>(null)
+  const [activeTab, setActiveTab] = useState<TabKey>('personal')
+
+  // States - Identidade
+  const [fullName, setFullName] = useState('')
+  const [whatsappPhone, setWhatsappPhone] = useState('')
+  const [birthDate, setBirthDate] = useState('')
+  const [username, setUsername] = useState('')
+  const [bio, setBio] = useState('')
+  const [pronouns, setPronouns] = useState('')
+  const [publicProfile, setPublicProfile] = useState(false)
+  const [accessibilityNeeds, setAccessibilityNeeds] = useState('')
+  const [savingPersonal, setSavingPersonal] = useState(false)
+
+  // States - Jornada Acadêmica
+  const [targetCourse, setTargetCourse] = useState('')
+  const [targetUniversity, setTargetUniversity] = useState('')
+  const [schoolYear, setSchoolYear] = useState('')
+  const [focusArea, setFocusArea] = useState('')
+  const [savingJourney, setSavingJourney] = useState(false)
+
+  // States - Rotina
+  const [studyPace, setStudyPace] = useState('')
+  const [studyPeriod, setStudyPeriod] = useState('')
+  const [daysPerWeek, setDaysPerWeek] = useState<number>(5)
+  const [hoursPerDay, setHoursPerDay] = useState<number>(2)
+  const [freeHoursStart, setFreeHoursStart] = useState('19:00')
+  const [freeHoursEnd, setFreeHoursEnd] = useState('21:00')
+  const [savingRoutine, setSavingRoutine] = useState(false)
+
+  // States - Segurança
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [savingPassword, setSavingPassword] = useState(false)
+  const [activeSessions, setActiveSessions] = useState<UserSession[]>([])
+  const [loadingSessions, setLoadingSessions] = useState(false)
+
+  // States - Preferências
+  const [themePref, setThemePref] = useState('system')
+
+  // States - Encerrar Conta
+  const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false)
+  const [deleteAccountReason, setDeleteAccountReason] = useState('')
+  const [deleteAccountEmailConfirm, setDeleteAccountEmailConfirm] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
+  const [exportingData, setExportingData] = useState(false)
+
+  // Avatar
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [avatarCropOpen, setAvatarCropOpen] = useState(false)
+  const [avatarViewOpen, setAvatarViewOpen] = useState(false)
+  const [avatarCropUrl, setAvatarCropUrl] = useState<string | null>(null)
+  const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null)
+  const [avatarCropPosition, setAvatarCropPosition] = useState({ x: 0, y: 0 })
+  const [avatarCropScale, setAvatarCropScale] = useState(1)
+  const [avatarCropImageSize, setAvatarCropImageSize] = useState<{ w: number; h: number } | null>(null)
+  const [avatarCropDragging, setAvatarCropDragging] = useState(false)
+  const cropDragStart = useRef({ x: 0, y: 0, posX: 0, posY: 0 })
+  const cropContainerRef = useRef<HTMLDivElement>(null)
+  const cropImageRef = useRef<HTMLImageElement>(null)
+
+  const supabase = createClient()
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000'
+
+  const [token, setToken] = useState<string | null>(null)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const t = session?.access_token ?? null
+      setToken(t)
+      if (!t) toast.error('Sessão inválida. Redirecionando para login.')
+    })
+  }, [supabase.auth])
+
+  const profileFetcher = useCallback(
+    ([url, t]: [string, string]) =>
+      fetch(url, { headers: { Authorization: `Bearer ${t}` } }).then((r) => {
+        if (!r.ok) throw new Error('Falha ao carregar perfil.')
+        return r.json()
+      }),
+    []
+  )
+
+  const {
+    data: profileResponse,
+    error: profileError,
+    isLoading: profileLoading,
+    mutate: mutateProfile,
+  } = useSWR<{ profile: ProfileData; user: UserData }>(
+    token ? [`${apiUrl}/api/account/profile`, token] : null,
+    profileFetcher,
+    { revalidateOnFocus: false }
+  )
+
+  const profile = profileResponse?.profile ?? profileState
+  const user = profileResponse?.user ?? userState
+
+  useEffect(() => {
+    const p = profileResponse?.profile
+    const u = profileResponse?.user
+    if (!p) return
+    setProfileState(p)
+    setUserState(u ?? null)
+    setFullName(p.full_name ?? '')
+    setWhatsappPhone(p.whatsapp_phone ?? p.phone ?? '')
+    setBirthDate(p.birth_date ?? '')
+    setUsername(p.username ?? '')
+    setBio(p.bio ?? '')
+    setPronouns(p.pronouns ?? '')
+    setPublicProfile(p.public_profile ?? false)
+    setAccessibilityNeeds(p.accessibility_needs ?? '')
+    setTargetCourse(p.target_course ?? '')
+    setTargetUniversity(p.target_university ?? '')
+    setSchoolYear(p.school_year ?? '')
+    setFocusArea(p.focus_area ?? 'enem_geral')
+    setStudyPace(p.study_pace ?? 'moderate')
+    setStudyPeriod(p.study_period ?? '')
+    setDaysPerWeek(typeof p.days_per_week === 'number' ? Math.min(7, Math.max(1, p.days_per_week)) : 5)
+    setHoursPerDay(typeof p.hours_per_day === 'number' ? Math.min(12, Math.max(1, p.hours_per_day)) : 2)
+    if (p.free_hours) {
+      const firstWindow = p.free_hours.split(',')[0].trim()
+      const parts = firstWindow.split('-')
+      if (parts.length === 2) {
+        setFreeHoursStart(parts[0].trim())
+        setFreeHoursEnd(parts[1].trim())
+      }
+    }
+    setThemePref((p as ProfileData & { theme_preference?: string })?.theme_preference ?? 'system')
+  }, [profileResponse])
+
+  useEffect(() => {
+    if (profileError) toast.error(profileError instanceof Error ? profileError.message : 'Erro ao carregar perfil.')
+  }, [profileError])
+
+  const fetchSessions = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) return
+    setLoadingSessions(true)
+    try {
+      const res = await fetch(`${apiUrl}/api/account/sessions`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (!res.ok) throw new Error('Falha ao carregar sessões.')
+      const data = await res.json()
+      setActiveSessions(data.sessions ?? [])
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao carregar sessões.')
+      setActiveSessions([])
+    } finally {
+      setLoadingSessions(false)
+    }
+  }, [apiUrl, supabase.auth])
+
+  useEffect(() => {
+    if (activeTab === 'security') fetchSessions()
+  }, [activeTab, fetchSessions])
+
+  const formatLastActive = (iso: string | null): string => {
+    if (!iso) return '—'
+    const d = new Date(iso)
+    const now = new Date()
+    const diffMs = now.getTime() - d.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+    if (diffMins < 1) return 'Agora'
+    if (diffMins < 60) return `Há ${diffMins} min`
+    if (diffHours < 24) return `Há ${diffHours}h`
+    if (diffDays === 1) return 'Ontem'
+    if (diffDays < 7) return `Há ${diffDays} dias`
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+  }
+
+  const handleRevokeSession = async (sessionId: string) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) return
+    try {
+      const res = await fetch(`${apiUrl}/api/account/sessions/${sessionId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error ?? 'Falha ao revogar.')
+      }
+      setActiveSessions((prev) => prev.filter((s) => s.id !== sessionId))
+      toast.success('Sessão revogada.')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao revogar sessão.')
+    }
+  }
+
+  const handleUpdateProfile = async (payload: Partial<ProfileData>, loaderSetter: (val: boolean) => void) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) return
+    loaderSetter(true)
+    try {
+      const res = await fetch(`${apiUrl}/api/account/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error('Falha ao salvar alterações.')
+      toast.success('Perfil atualizado com sucesso.')
+      mutateProfile()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao salvar.')
+    } finally {
+      loaderSetter(false)
+    }
+  }
+
+  const handleSavePersonal = () => handleUpdateProfile({
+    full_name: fullName || null,
+    whatsapp_phone: whatsappPhone || null,
+    birth_date: birthDate || null,
+    username: username || null,
+    bio: bio || null,
+    pronouns: pronouns || null,
+    public_profile: publicProfile,
+    accessibility_needs: accessibilityNeeds || null,
+  }, setSavingPersonal)
+
+  const AVATAR_BUCKET = 'avatars'
+  const MAX_AVATAR_BYTES = 2 * 1024 * 1024
+  const CROP_SIZE = 240
+
+  function getAvatarPathFromPublicUrl(url: string): string | null {
+    const match = url.match(/\/avatars\/(.+)$/)
+    return match ? match[1] : null
+  }
+
+  const openCropModal = (file: File) => {
+    if (avatarCropUrl) URL.revokeObjectURL(avatarCropUrl)
+    const url = URL.createObjectURL(file)
+    setAvatarCropUrl(url)
+    setAvatarCropFile(file)
+    setAvatarCropPosition({ x: 0, y: 0 })
+    setAvatarCropScale(1)
+    setAvatarCropImageSize(null)
+    setAvatarCropOpen(true)
+  }
+
+  const closeCropModal = () => {
+    if (avatarCropUrl) URL.revokeObjectURL(avatarCropUrl)
+    setAvatarCropUrl(null)
+    setAvatarCropFile(null)
+    setAvatarCropOpen(false)
+  }
+
+  const onCropImageLoad = () => {
+    const img = cropImageRef.current
+    if (img && img.naturalWidth) setAvatarCropImageSize({ w: img.naturalWidth, h: img.naturalHeight })
+  }
+
+  const handleCropPointerDown = (e: React.PointerEvent) => {
+    e.preventDefault()
+    cropDragStart.current = { x: e.clientX, y: e.clientY, posX: avatarCropPosition.x, posY: avatarCropPosition.y }
+    setAvatarCropDragging(true)
+    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+  }
+
+  const handleCropPointerMove = (e: React.PointerEvent) => {
+    if (!avatarCropDragging) return
+    const dx = e.clientX - cropDragStart.current.x
+    const dy = e.clientY - cropDragStart.current.y
+    setAvatarCropPosition({ x: cropDragStart.current.posX + dx, y: cropDragStart.current.posY + dy })
+  }
+
+  const handleCropPointerUp = (e: React.PointerEvent) => {
+    setAvatarCropDragging(false)
+    ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
+  }
+
+  const getCroppedAvatarBlob = (): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = cropImageRef.current
+      const w = avatarCropImageSize?.w ?? img?.naturalWidth ?? 0
+      const h = avatarCropImageSize?.h ?? img?.naturalHeight ?? 0
+      if (!img || !w || !h) { reject(new Error('Imagem não carregada')); return }
+      const scale = avatarCropScale
+      const min = Math.min(w, h)
+      const visibleSide = min / scale
+      const centerX = w / 2 - (avatarCropPosition.x * min) / (240 * scale)
+      const centerY = h / 2 - (avatarCropPosition.y * min) / (240 * scale)
+      const sx = Math.max(0, Math.min(w - visibleSide, centerX - visibleSide / 2))
+      const sy = Math.max(0, Math.min(h - visibleSide, centerY - visibleSide / 2))
+      const sw = Math.min(visibleSide, w - sx)
+      const sh = Math.min(visibleSide, h - sy)
+      const canvas = document.createElement('canvas')
+      canvas.width = CROP_SIZE
+      canvas.height = CROP_SIZE
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { reject(new Error('Canvas não disponível')); return }
+      ctx.beginPath()
+      ctx.arc(CROP_SIZE / 2, CROP_SIZE / 2, CROP_SIZE / 2, 0, Math.PI * 2)
+      ctx.closePath()
+      ctx.clip()
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, CROP_SIZE, CROP_SIZE)
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Falha ao gerar imagem'))), 'image/jpeg', 0.92)
+    })
+  }
+
+  const handleAvatarFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file || !user?.id) return
+    if (file.size > MAX_AVATAR_BYTES) {
+      toast.error('A imagem deve ter no máximo 2MB.')
+      return
+    }
+    openCropModal(file)
+  }
+
+  const handleAvatarCropConfirm = async () => {
+    if (!avatarCropFile || !user?.id) return
+    setAvatarCropOpen(false)
+    setAvatarUploading(true)
+    try {
+      const blob = await getCroppedAvatarBlob()
+      const ext = avatarCropFile.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext) ? ext : 'jpg'
+      const path = `${user.id}_${Date.now()}.${safeExt}`
+
+      if (profile?.avatar_url) {
+        const oldPath = getAvatarPathFromPublicUrl(profile.avatar_url)
+        if (oldPath) await supabase.storage.from(AVATAR_BUCKET).remove([oldPath])
+      }
+
+      const { error: uploadError } = await supabase.storage
+        .from(AVATAR_BUCKET)
+        .upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path)
+
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('Sessão inválida.')
+
+      const res = await fetch(`${apiUrl}/api/account/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ avatar_url: publicUrl }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Falha ao salvar avatar no perfil.')
+      }
+
+      setProfileState((prev) => (prev ? { ...prev, avatar_url: publicUrl } : null))
+      mutateProfile()
+      router.refresh()
+      toast.success('Foto de perfil atualizada.')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha no upload.')
+    } finally {
+      if (avatarCropUrl) URL.revokeObjectURL(avatarCropUrl)
+      setAvatarCropUrl(null)
+      setAvatarCropFile(null)
+      setAvatarUploading(false)
+    }
+  }
+
+  const handleSaveJourney = () => handleUpdateProfile({
+    target_course: targetCourse || null,
+    target_university: targetUniversity || null,
+    school_year: schoolYear || null,
+    focus_area: focusArea || 'enem_geral',
+  }, setSavingJourney)
+
+  const handleSaveRoutine = () => {
+    const freeHours = freeHoursStart && freeHoursEnd ? `${freeHoursStart}-${freeHoursEnd}` : null
+    handleUpdateProfile({
+      study_pace: studyPace || 'moderate',
+      study_period: studyPeriod || null,
+      days_per_week: daysPerWeek,
+      hours_per_day: hoursPerDay,
+      free_hours: freeHours,
+    }, setSavingRoutine)
+  }
+
+  const handleSaveTheme = (val: string) => {
+    setThemePref(val)
+    setStudentTheme(val as 'light' | 'dark' | 'system')
+    handleUpdateProfile({ theme_preference: val }, () => {})
+  }
+
+  const handleSavePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem.')
+      return
+    }
+    if (newPassword.length < 8) {
+      toast.error('A nova senha precisa ter no mínimo 8 caracteres.')
+      return
+    }
+    if (!user?.email) return
+
+    setSavingPassword(true)
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      })
+      if (signInError) {
+        toast.error('Senha atual incorreta.')
+        return
+      }
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) throw error
+      toast.success('Senha atualizada com sucesso.')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao atualizar senha.')
+    } finally {
+      setSavingPassword(false)
+    }
+  }
+
+  const handleRequestExport = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) { toast.error('Sessão inválida.'); return }
+    setExportingData(true)
+    try {
+      const res = await fetch(`${apiUrl}/api/account/export`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error ?? 'Falha ao exportar.')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'studytrack_data_export.json'
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Arquivo exportado com sucesso.')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao exportar dados.')
+    } finally {
+      setExportingData(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (!deleteAccountReason) { toast.error('Selecione o motivo da saída.'); return }
+    if (deleteAccountEmailConfirm !== user?.email) {
+      toast.error('E-mail de confirmação incorreto.')
+      return
+    }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) { toast.error('Sessão inválida.'); return }
+
+    setDeletingAccount(true)
+    try {
+      const res = await fetch(`${apiUrl}/api/account/delete-account`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ reason: deleteAccountReason }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error ?? 'Falha ao excluir conta.')
+      toast.success('Conta excluída.')
+      setDeleteAccountModalOpen(false)
+      await supabase.auth.signOut()
+      window.location.href = '/'
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha na exclusão.')
+    } finally {
+      setDeletingAccount(false)
+    }
+  }
+
+  const navItems = [
+    { id: 'personal' as const,     label: 'Identidade',          icon: User          },
+    { id: 'journey' as const,      label: 'Jornada Acadêmica',   icon: GraduationCap },
+    { id: 'routine' as const,      label: 'Rotina de Estudos',   icon: Clock         },
+    { id: 'security' as const,     label: 'Acesso e Segurança',  icon: Shield        },
+    { id: 'preferences' as const,  label: 'Preferências',        icon: Settings      },
+  ]
+
+  const PersonalTabSkeleton = () => (
+    <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden">
+      <CardHeader className="border-b border-slate-100 pb-6 pt-8 px-8">
+        <Skeleton className="h-7 w-48" />
+        <Skeleton className="h-4 w-96 mt-2" />
+      </CardHeader>
+      <CardContent className="space-y-8 pt-8 px-8">
+        <div className="flex items-center gap-6">
+          <Skeleton className="h-24 w-24 rounded-full shrink-0" />
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-8 w-28 mt-2" />
+          </div>
+        </div>
+        <div className="grid gap-6 sm:grid-cols-2">
+          <Skeleton className="h-10 w-full sm:col-span-2" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </CardContent>
+      <CardFooter className="border-t border-slate-100 px-8 py-5">
+        <Skeleton className="h-10 w-40" />
+      </CardFooter>
+    </Card>
+  )
+
+  // Estilos reutilizáveis com a cor brand
+  const primaryBtnStyle = { backgroundColor: BRAND, color: '#fff' }
+  const focusRingStyle = '[&:focus-visible]:ring-[#FF8C00]'
+
+  return (
+    <div className="min-h-screen bg-slate-50/30">
+      <div className="mx-auto max-w-[1200px] px-4 py-8 md:py-12 lg:px-8">
+
+        {/* Header */}
+        <div className="mb-10">
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+            Meu Perfil
+          </h1>
+          <p className="text-base text-slate-500 mt-2 max-w-2xl">
+            Gerencie suas informações pessoais e preferências
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-8 md:flex-row md:items-start">
+
+          {/* Navegação lateral */}
+          <nav className="flex md:w-56 flex-shrink-0 flex-row gap-1 overflow-x-auto md:flex-col md:overflow-visible pb-4 md:pb-0">
+            {navItems.map((item) => {
+              const Icon = item.icon
+              const isActive = activeTab === item.id
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  style={isActive ? { backgroundColor: BRAND, color: '#fff' } : undefined}
+                  className={`group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
+                    isActive
+                      ? 'shadow-md'
+                      : 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm'
+                  }`}
+                >
+                  <Icon
+                    size={17}
+                    style={isActive ? { color: 'rgba(255,255,255,0.85)' } : undefined}
+                    className={!isActive ? 'text-slate-400 group-hover:text-slate-600 transition-colors' : ''}
+                  />
+                  {item.label}
+                </button>
+              )
+            })}
+          </nav>
+
+          {/* Conteúdo */}
+          <div className="flex-1 min-w-0">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+              {/* ── TAB: IDENTIDADE ─────────────────────────────────────── */}
+              {activeTab === 'personal' && (
+                profileLoading ? <PersonalTabSkeleton /> : (
+                  <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden bg-white">
+                    <CardHeader className="border-b border-slate-100 pb-6 pt-8 px-8">
+                      <CardTitle className="text-xl font-bold tracking-tight">Identidade Pessoal</CardTitle>
+                      <CardDescription className="text-sm mt-1">
+                        Informações básicas da sua conta. Visíveis na plataforma conforme suas configurações de privacidade.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-8 pt-8 px-8">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        aria-hidden
+                        onChange={handleAvatarFileSelect}
+                      />
+                      {/* Avatar */}
+                      <div className="flex items-center gap-6">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={avatarUploading}
+                          className="group relative flex h-24 w-24 shrink-0 cursor-pointer items-center justify-center rounded-full text-3xl font-bold text-white shadow-xl ring-4 ring-white transition-all duration-300 hover:scale-105 hover:shadow-2xl disabled:pointer-events-none disabled:opacity-70"
+                          style={{ background: `linear-gradient(135deg, ${BRAND}, #d97706)` }}
+                        >
+                          {avatarUploading ? (
+                            <Loader2 className="h-8 w-8 animate-spin text-white" />
+                          ) : profile?.avatar_url ? (
+                            <img src={profile.avatar_url} alt="Avatar" className="h-full w-full rounded-full object-cover" />
+                          ) : (
+                            fullName.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || '?'
+                          )}
+                          {!avatarUploading && (
+                            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 backdrop-blur-sm transition-all duration-300 group-hover:opacity-100">
+                              <Camera className="h-6 w-6 text-white" />
+                            </div>
+                          )}
+                        </button>
+                        <div className="space-y-1.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-bold text-slate-900 text-lg truncate">{fullName || 'Aluno'}</h3>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 text-white" style={{ backgroundColor: BRAND }}>
+                              Aluno
+                            </span>
+                          </div>
+                          <p className="text-sm text-slate-500 break-all">{user?.email ?? ''}</p>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {profile?.avatar_url && (
+                              <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 text-xs font-semibold" onClick={() => setAvatarViewOpen(true)} disabled={avatarUploading}>
+                                Ver foto
+                              </Button>
+                            )}
+                            <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 text-xs font-semibold" onClick={() => fileInputRef.current?.click()} disabled={avatarUploading}>
+                              {avatarUploading ? 'Enviando…' : 'Alterar Avatar'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Campos */}
+                      <div className="grid gap-6 sm:grid-cols-2">
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label htmlFor="fullName" className="text-slate-700 font-bold">Nome Completo</Label>
+                          <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="username" className="text-slate-700 font-bold">Nome de Utilizador</Label>
+                          <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="@seunome" className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="pronouns" className="text-slate-700 font-bold">Pronome</Label>
+                          <Input id="pronouns" value={pronouns} onChange={(e) => setPronouns(e.target.value)} placeholder="Ex: ele/dele, ela/dela" className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="birthDate" className="text-slate-700 font-bold">Data de Nascimento</Label>
+                          <Input id="birthDate" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="whatsapp_phone" className="text-slate-700 font-bold">WhatsApp / Telefone</Label>
+                          <Input id="whatsapp_phone" value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} placeholder="(11) 99999-9999" className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label htmlFor="bio" className="text-slate-700 font-bold">Biografia</Label>
+                          <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Conte um pouco sobre você..." maxLength={500} className={`rounded-xl bg-slate-50/50 resize-none min-h-[90px] ${focusRingStyle}`} />
+                          <p className="text-xs text-slate-400 text-right">{bio.length}/500</p>
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label htmlFor="accessibilityNeeds" className="text-slate-700 font-bold">Necessidade de Acessibilidade</Label>
+                          <Textarea id="accessibilityNeeds" value={accessibilityNeeds} onChange={(e) => setAccessibilityNeeds(e.target.value)} placeholder="Ex: dislexia, daltonismo, baixa visão..." maxLength={500} className={`rounded-xl bg-slate-50/50 resize-none min-h-[72px] ${focusRingStyle}`} />
+                        </div>
+                        <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 px-5 py-4 sm:col-span-2">
+                          <div className="space-y-0.5">
+                            <Label className="text-slate-700 font-bold">Perfil Público</Label>
+                            <p className="text-xs text-slate-500">Permite que outros alunos vejam seu perfil e estatísticas.</p>
+                          </div>
+                          <Switch checked={publicProfile} onCheckedChange={setPublicProfile} aria-label="Perfil público" style={{ ['--switch-checked' as string]: BRAND }} />
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="border-t border-slate-100 bg-slate-50/80 px-8 py-5 flex justify-end">
+                      <Button onClick={handleSavePersonal} disabled={savingPersonal} style={primaryBtnStyle} className="rounded-xl px-8 font-semibold shadow-md transition-all hover:opacity-90">
+                        {savingPersonal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                        Salvar Identidade
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                )
+              )}
+
+              {/* ── TAB: JORNADA ACADÊMICA ──────────────────────────────── */}
+              {activeTab === 'journey' && (
+                <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden bg-white">
+                  <CardHeader className="border-b border-slate-100 pb-6 pt-8 px-8">
+                    <CardTitle className="text-xl font-bold tracking-tight">Jornada Acadêmica</CardTitle>
+                    <CardDescription className="text-sm mt-1">
+                      Configure seu objetivo, curso alvo e fase de estudo. A IA utiliza esses dados para personalizar seu aprendizado.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-8 pt-8 px-8">
+                    <div className="grid gap-6 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label className="text-slate-700 font-bold">Curso Alvo</Label>
+                        <Input placeholder="Ex: Ciência da Computação" value={targetCourse} onChange={(e) => setTargetCourse(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-slate-700 font-bold">Instituição Alvo</Label>
+                        <Input placeholder="Ex: UNICAMP, USP" value={targetUniversity} onChange={(e) => setTargetUniversity(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-slate-700 font-bold">Fase Acadêmica</Label>
+                        <Select value={schoolYear} onValueChange={setSchoolYear}>
+                          <SelectTrigger className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`}>
+                            <SelectValue placeholder="Selecione o estágio atual" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="ef_6">6º Ano (Ensino Fundamental)</SelectItem>
+                            <SelectItem value="ef_7">7º Ano (Ensino Fundamental)</SelectItem>
+                            <SelectItem value="ef_8">8º Ano (Ensino Fundamental)</SelectItem>
+                            <SelectItem value="ef_9">9º Ano (Ensino Fundamental)</SelectItem>
+                            <SelectItem value="em_1">1º Ano do Ensino Médio</SelectItem>
+                            <SelectItem value="em_2">2º Ano do Ensino Médio</SelectItem>
+                            <SelectItem value="em_3">3º Ano do Ensino Médio (Terceirão)</SelectItem>
+                            <SelectItem value="cursinho">Cursinho Pré-Vestibular</SelectItem>
+                            <SelectItem value="superior">Ensino Superior</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label className="text-slate-700 font-bold">Área de Foco</Label>
+                        <Select value={focusArea || 'enem_geral'} onValueChange={setFocusArea}>
+                          <SelectTrigger className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`}>
+                            <SelectValue placeholder="Selecione sua área" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="enem_geral">ENEM Geral</SelectItem>
+                            <SelectItem value="enem_exatas">Matemática e suas Tecnologias</SelectItem>
+                            <SelectItem value="enem_humanas">Linguagens, Códigos e suas Tecnologias</SelectItem>
+                            <SelectItem value="enem_saude">Ciências da Natureza e suas Tecnologias</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="border-t border-slate-100 bg-slate-50/80 px-8 py-5 flex justify-end">
+                    <Button onClick={handleSaveJourney} disabled={savingJourney} style={primaryBtnStyle} className="rounded-xl px-8 font-semibold shadow-md hover:opacity-90">
+                      {savingJourney && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Salvar alterações
+                    </Button>
+                  </CardFooter>
+                </Card>
+              )}
+
+              {/* ── TAB: ROTINA DE ESTUDOS ──────────────────────────────── */}
+              {activeTab === 'routine' && (
+                <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden bg-white">
+                  <CardHeader className="border-b border-slate-100 pb-6 pt-8 px-8">
+                    <CardTitle className="text-xl font-bold tracking-tight">Rotina de Estudos</CardTitle>
+                    <CardDescription className="text-sm mt-1">
+                      Alinhe ritmo, dias e horas ao seu planejamento. Usados pela IA para sugerir cronogramas personalizados.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-8 pt-8 px-8">
+                    <div className="space-y-2">
+                      <Label className="text-slate-700 font-bold">Ritmo de Estudo</Label>
+                      <Select value={studyPace || 'moderate'} onValueChange={setStudyPace}>
+                        <SelectTrigger className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`}>
+                          <SelectValue placeholder="Selecione o ritmo" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          <SelectItem value="slow">🐢 Leve — poucas tarefas por dia</SelectItem>
+                          <SelectItem value="moderate">⚡ Médio — ritmo equilibrado</SelectItem>
+                          <SelectItem value="intense">🔥 Intenso — máximo aproveitamento</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-6 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label className="text-slate-700 font-bold">Período preferido</Label>
+                        <Select value={studyPeriod || ''} onValueChange={setStudyPeriod}>
+                          <SelectTrigger className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`}>
+                            <SelectValue placeholder="Quando prefere estudar?" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="morning">🌅 Manhã</SelectItem>
+                            <SelectItem value="afternoon">☀️ Tarde</SelectItem>
+                            <SelectItem value="evening">🌙 Noite</SelectItem>
+                            <SelectItem value="flexible">🔄 Flexível</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-slate-700 font-bold">Dias por semana</Label>
+                        <Select value={String(daysPerWeek)} onValueChange={(v) => setDaysPerWeek(parseInt(v, 10))}>
+                          <SelectTrigger className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                              <SelectItem key={n} value={String(n)}>{n} {n === 1 ? 'dia' : 'dias'}/semana</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-700 font-bold">Horas por dia</Label>
+                      <Select value={String(hoursPerDay)} onValueChange={(v) => setHoursPerDay(parseInt(v, 10))}>
+                        <SelectTrigger className={`rounded-xl bg-slate-50/50 max-w-xs ${focusRingStyle}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
+                            <SelectItem key={n} value={String(n)}>{n} h/dia</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-slate-700 font-bold flex items-center gap-2">
+                          <Clock className="h-4 w-4" style={{ color: BRAND }} />
+                          Horário livre para estudar
+                        </Label>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Defina a janela de horário disponível. Os lembretes de WhatsApp serão enviados nesse período.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-xs text-slate-500 font-medium">Das</Label>
+                          <input
+                            type="time"
+                            value={freeHoursStart}
+                            onChange={(e) => setFreeHoursStart(e.target.value)}
+                            className="flex h-10 w-full rounded-xl border border-input bg-slate-50/50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                            style={{ ['--tw-ring-color' as string]: BRAND } as React.CSSProperties}
+                          />
+                        </div>
+                        <div className="pt-5 text-slate-500 font-medium text-sm select-none">até</div>
+                        <div className="flex-1 space-y-1">
+                          <Label className="text-xs text-slate-500 font-medium">Às</Label>
+                          <input
+                            type="time"
+                            value={freeHoursEnd}
+                            onChange={(e) => setFreeHoursEnd(e.target.value)}
+                            className="flex h-10 w-full rounded-xl border border-input bg-slate-50/50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                            style={{ ['--tw-ring-color' as string]: BRAND } as React.CSSProperties}
+                          />
+                        </div>
+                      </div>
+                      {freeHoursStart && freeHoursEnd && (
+                        <p className="text-xs font-medium" style={{ color: BRAND }}>
+                          ⏰ Lembretes ativados: {freeHoursStart} às {freeHoursEnd}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                  <CardFooter className="border-t border-slate-100 bg-slate-50/80 px-8 py-5 flex justify-end">
+                    <Button onClick={handleSaveRoutine} disabled={savingRoutine} style={primaryBtnStyle} className="rounded-xl px-8 font-semibold shadow-md hover:opacity-90">
+                      {savingRoutine ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                      Salvar Rotina
+                    </Button>
+                  </CardFooter>
+                </Card>
+              )}
+
+              {/* ── TAB: ACESSO & SEGURANÇA ─────────────────────────────── */}
+              {activeTab === 'security' && (
+                <div className="space-y-6">
+                  {/* Credenciais */}
+                  <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden bg-white">
+                    <CardHeader className="border-b border-slate-100 pb-6 pt-8 px-8">
+                      <CardTitle className="text-xl font-bold tracking-tight">Credenciais de Acesso</CardTitle>
+                      <CardDescription className="text-sm mt-1">
+                        E-mail associado: <span className="font-mono text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{user?.email}</span>
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6 pt-8 px-8 max-w-xl">
+                      <div className="space-y-2">
+                        <Label className="text-slate-700 font-bold">Senha Atual</Label>
+                        <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 font-bold">Nova Senha</Label>
+                          <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-slate-700 font-bold">Confirmação</Label>
+                          <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="border-t border-slate-100 bg-slate-50/80 px-8 py-5">
+                      <Button onClick={handleSavePassword} disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword} style={primaryBtnStyle} className="rounded-xl font-semibold px-8 shadow-md hover:opacity-90">
+                        {savingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Atualizar Senha
+                      </Button>
+                    </CardFooter>
+                  </Card>
+
+                  {/* Sessões Ativas */}
+                  <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden bg-white">
+                    <CardHeader className="border-b border-slate-100 pb-5 pt-6 px-8">
+                      <CardTitle className="text-lg font-bold">Sessões Ativas</CardTitle>
+                      <CardDescription className="text-xs mt-1">Dispositivos logados na sua conta.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6 px-8">
+                      {loadingSessions ? (
+                        <div className="space-y-4 py-2">
+                          <Skeleton className="h-16 w-full rounded-xl" />
+                          <Skeleton className="h-16 w-full rounded-xl" />
+                        </div>
+                      ) : activeSessions.length === 0 ? (
+                        <p className="text-sm text-slate-500 py-4">Nenhuma sessão registrada.</p>
+                      ) : (
+                        <div className="space-y-4">
+                          {activeSessions.map((s, idx) => {
+                            const isCurrent = idx === 0
+                            return (
+                              <div key={s.id} className="flex items-center justify-between border-b border-slate-100 pb-4 last:border-0 last:pb-0">
+                                <div className="flex items-center gap-4">
+                                  <div className={`p-2.5 rounded-full ${isCurrent ? 'text-white' : 'bg-slate-100 text-slate-500'}`} style={isCurrent ? { backgroundColor: `${BRAND}20`, color: BRAND } : undefined}>
+                                    <Laptop size={18} />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-slate-900">{s.device_info ?? 'Dispositivo'}</p>
+                                    <p className="text-xs text-slate-500">
+                                      {s.location ? `${s.location} • ` : ''}{formatLastActive(s.last_active_at)}
+                                    </p>
+                                  </div>
+                                </div>
+                                {isCurrent ? (
+                                  <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-full">Atual</span>
+                                ) : (
+                                  <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50 text-xs font-semibold" onClick={() => handleRevokeSession(s.id)}>
+                                    Revogar
+                                  </Button>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* ── TAB: PREFERÊNCIAS ───────────────────────────────────── */}
+              {activeTab === 'preferences' && (
+                <div className="space-y-6">
+                  <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden bg-white">
+                    <CardHeader className="border-b border-slate-100 pb-6 pt-8 px-8">
+                      <CardTitle className="text-xl font-bold tracking-tight">Preferências de Interface</CardTitle>
+                      <CardDescription className="text-sm mt-1">Personalize a aparência e notificações.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-8 px-8 space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <p className="font-bold text-slate-900 flex items-center gap-2">
+                            <Palette size={18} style={{ color: BRAND }} />
+                            Tema da Aplicação
+                          </p>
+                          <p className="text-sm text-slate-500">Substitui o padrão do sistema operacional.</p>
+                        </div>
+                        <Select value={themePref} onValueChange={handleSaveTheme}>
+                          <SelectTrigger className="w-[140px] rounded-xl font-semibold bg-slate-50">
+                            <SelectValue placeholder="Tema" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            <SelectItem value="light">Claro</SelectItem>
+                            <SelectItem value="dark">Escuro</SelectItem>
+                            <SelectItem value="system">Sistema</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                    </CardContent>
+                  </Card>
+
+                  {/* Zona de Risco (LGPD + Encerrar Conta) */}
+                  <Card className="border-red-200/50 shadow-sm rounded-2xl overflow-hidden bg-red-50/20">
+                    <CardHeader className="border-b border-red-100/50 pb-5 pt-6 px-8">
+                      <CardTitle className="text-lg font-bold text-red-700">Zona de Risco</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-6 px-8 space-y-4">
+                      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between border border-red-100 bg-white p-5 rounded-xl">
+                        <div>
+                          <p className="font-bold text-slate-900">Exportar Dados (LGPD)</p>
+                          <p className="text-xs text-slate-500 mt-1 max-w-sm">Faça o download de todos os seus dados em JSON.</p>
+                        </div>
+                        <Button variant="outline" className="rounded-xl font-semibold text-slate-700 border-slate-200 hover:bg-slate-50 shrink-0" onClick={handleRequestExport} disabled={exportingData}>
+                          {exportingData ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Download size={16} className="mr-2" />}
+                          Exportar Arquivo
+                        </Button>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between border border-red-200 bg-white p-5 rounded-xl">
+                        <div>
+                          <p className="font-bold text-red-600">Encerrar Conta Permanentemente</p>
+                          <p className="text-xs text-slate-500 mt-1 max-w-sm">Esta ação é irreversível. Todos os dados serão apagados.</p>
+                        </div>
+                        <Button variant="destructive" className="rounded-xl font-semibold bg-red-600 hover:bg-red-700 shrink-0" onClick={() => setDeleteAccountModalOpen(true)}>
+                          <Trash2 size={16} className="mr-2" /> Deletar Conta
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Modal: Visualizar foto ───────────────────────────────────────── */}
+      <Dialog open={avatarViewOpen} onOpenChange={setAvatarViewOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl p-0 overflow-hidden border border-slate-200">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle className="text-lg font-bold">Sua foto de perfil</DialogTitle>
+            <DialogDescription className="text-sm text-slate-500">Visualização em tamanho maior.</DialogDescription>
+          </DialogHeader>
+          <div className="px-6 pb-6 flex justify-center">
+            {profile?.avatar_url && (
+              <img src={profile.avatar_url} alt="Foto de perfil" className="w-48 h-48 rounded-full object-cover" />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal: Crop avatar ──────────────────────────────────────────── */}
+      <Dialog open={avatarCropOpen} onOpenChange={(open) => !open && closeCropModal()}>
+        <DialogContent className="sm:max-w-md rounded-2xl p-0 overflow-hidden border border-slate-200">
+          <DialogHeader className="p-6 pb-2">
+            <DialogTitle className="text-lg font-bold">Ajustar foto de perfil</DialogTitle>
+            <DialogDescription className="text-sm text-slate-500">
+              Arraste para posicionar e use o zoom. O que estiver dentro do círculo será sua foto.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="px-6 pb-4">
+            <div
+              ref={cropContainerRef}
+              className="mx-auto rounded-full overflow-hidden bg-slate-200 flex items-center justify-center select-none touch-none"
+              style={{ width: CROP_SIZE, height: CROP_SIZE }}
+            >
+              <div
+                className="relative w-full h-full cursor-grab active:cursor-grabbing"
+                onPointerDown={handleCropPointerDown}
+                onPointerMove={handleCropPointerMove}
+                onPointerUp={handleCropPointerUp}
+                onPointerLeave={() => setAvatarCropDragging(false)}
+                style={{ touchAction: 'none' }}
+              >
+                {avatarCropUrl && (
+                  <img
+                    ref={cropImageRef}
+                    src={avatarCropUrl}
+                    alt="Preview"
+                    onLoad={onCropImageLoad}
+                    className="absolute left-1/2 top-1/2 max-w-none"
+                    style={{
+                      width: avatarCropImageSize ? CROP_SIZE * Math.max(1, avatarCropImageSize.w / avatarCropImageSize.h) : CROP_SIZE,
+                      height: avatarCropImageSize ? CROP_SIZE * Math.max(1, avatarCropImageSize.h / avatarCropImageSize.w) : CROP_SIZE,
+                      transform: `translate(-50%, -50%) translate(${avatarCropPosition.x}px, ${avatarCropPosition.y}px) scale(${avatarCropScale})`,
+                      transformOrigin: 'center center',
+                    }}
+                    draggable={false}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-600 shrink-0">Zoom</span>
+              <input
+                type="range" min={0.5} max={2.5} step={0.05}
+                value={avatarCropScale}
+                onChange={(e) => setAvatarCropScale(Number(e.target.value))}
+                className="flex-1 h-2 rounded-full appearance-none bg-slate-200"
+                style={{ accentColor: BRAND }}
+              />
+              <span className="text-xs text-slate-500 w-8">{Math.round(avatarCropScale * 100)}%</span>
+            </div>
+          </div>
+          <DialogFooter className="p-6 pt-2 border-t border-slate-100 flex gap-2">
+            <Button type="button" variant="outline" onClick={closeCropModal} className="rounded-xl">Cancelar</Button>
+            <Button type="button" onClick={handleAvatarCropConfirm} style={primaryBtnStyle} className="rounded-xl hover:opacity-90">
+              Usar esta foto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal: Encerrar Conta ────────────────────────────────────────── */}
+      <Dialog open={deleteAccountModalOpen} onOpenChange={setDeleteAccountModalOpen}>
+        <DialogContent className="sm:max-w-lg rounded-3xl p-0 overflow-hidden border-0 shadow-2xl">
+          <div className="bg-gradient-to-r from-red-700 to-red-600 p-8 text-white relative">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <AlertTriangle size={100} />
+            </div>
+            <DialogTitle className="flex items-center gap-3 text-2xl font-black tracking-tight text-white relative z-10">
+              <Trash2 size={28} />
+              Encerrar Conta Permanentemente
+            </DialogTitle>
+            <DialogDescription className="text-red-50 mt-3 text-sm leading-relaxed relative z-10">
+              Esta ação é irreversível. Todos os seus dados e histórico serão apagados permanentemente.
+            </DialogDescription>
+          </div>
+          <div className="p-8 space-y-6 bg-white">
+            <div className="space-y-3">
+              <Label htmlFor="deleteReason" className="font-bold text-slate-700">
+                Por que está saindo? <span className="text-red-600">*</span>
+              </Label>
+              <Select value={deleteAccountReason} onValueChange={setDeleteAccountReason} required>
+                <SelectTrigger id="deleteReason" className="rounded-xl bg-slate-50 border-slate-200">
+                  <SelectValue placeholder="Selecione o motivo" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="atingi_objetivo">Atingi meu objetivo / Fui aprovado</SelectItem>
+                  <SelectItem value="plataforma_complexa">Achei a plataforma complexa</SelectItem>
+                  <SelectItem value="falta_tempo">Falta de tempo</SelectItem>
+                  <SelectItem value="outros">Outros</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-3 p-5 bg-red-50/50 rounded-2xl border border-red-100">
+              <Label htmlFor="deleteEmailConfirm" className="text-slate-800 font-bold block">
+                Confirmação de segurança
+                <span className="block mt-1 text-sm font-normal text-slate-500">
+                  Digite <span className="text-red-600 font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-red-100">{user?.email}</span> para confirmar.
+                </span>
+              </Label>
+              <Input
+                id="deleteEmailConfirm"
+                type="email"
+                value={deleteAccountEmailConfirm}
+                onChange={(e) => setDeleteAccountEmailConfirm(e.target.value)}
+                className="bg-white rounded-xl border-red-200"
+                placeholder="Digite seu e-mail"
+              />
+            </div>
+          </div>
+          <DialogFooter className="bg-slate-50/80 p-6 border-t border-slate-100 flex gap-3 sm:justify-end">
+            <Button variant="ghost" onClick={() => setDeleteAccountModalOpen(false)} className="rounded-xl font-bold text-slate-600 hover:text-slate-900">
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={deletingAccount || !deleteAccountReason || deleteAccountEmailConfirm !== user?.email}
+              className="rounded-xl font-bold bg-red-600 hover:bg-red-700 px-6 shadow-md"
+            >
+              {deletingAccount && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Encerrar Conta
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
