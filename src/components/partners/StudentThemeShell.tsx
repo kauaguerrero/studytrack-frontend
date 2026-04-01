@@ -1,8 +1,9 @@
 'use client'
 
-import { ReactNode } from 'react'
+import { useState, ReactNode } from 'react'
 import { useStudentTheme } from '@/contexts/StudentThemeContext'
 import { PartnerLayout } from './PartnerLayout'
+import { ForcePasswordChangeModal } from './ForcePasswordChangeModal'
 
 /**
  * Aplica a classe `dark` em um contêiner isolado para as rotas de aluno.
@@ -11,9 +12,18 @@ import { PartnerLayout } from './PartnerLayout'
  * para TODOS os descendentes, incluindo componentes shadcn/ui, textos,
  * botões e ícones — sem afetar nenhuma outra rota da aplicação.
  */
-export function StudentThemeShell({ children }: { children: ReactNode }) {
+export function StudentThemeShell({
+  children,
+  mustChangePassword = false,
+}: {
+  children: ReactNode
+  mustChangePassword?: boolean
+}) {
   const { resolvedTheme } = useStudentTheme()
   const isDark = resolvedTheme === 'dark'
+
+  // Controlado localmente: some após troca bem-sucedida sem precisar de reload
+  const [showPasswordModal, setShowPasswordModal] = useState(mustChangePassword)
 
   return (
     <div
@@ -23,6 +33,10 @@ export function StudentThemeShell({ children }: { children: ReactNode }) {
       <PartnerLayout variant="student">
         {children}
       </PartnerLayout>
+
+      {showPasswordModal && (
+        <ForcePasswordChangeModal onSuccess={() => setShowPasswordModal(false)} />
+      )}
     </div>
   )
 }

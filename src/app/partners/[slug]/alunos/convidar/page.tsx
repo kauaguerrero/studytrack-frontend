@@ -11,7 +11,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Upload, Copy, Check, AlertCircle, FileSpreadsheet, RefreshCw } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import {
+  ArrowLeft, Upload, Copy, Check, AlertCircle, FileSpreadsheet,
+  RefreshCw, Eye, EyeOff,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ImportResult {
@@ -36,6 +40,8 @@ export default function ConvidarAlunosPage() {
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [refreshingCode, setRefreshingCode] = useState(false);
   const [inviteCode, setInviteCode] = useState(org.invite_code ?? '');
+  const [defaultPassword, setDefaultPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const inviteUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/partners/${org.slug}/register?code=${inviteCode}`;
 
@@ -98,6 +104,12 @@ export default function ConvidarAlunosPage() {
 
   async function handleImport() {
     if (!fileInputRef.current?.files?.[0]) return;
+
+    if (!defaultPassword || defaultPassword.length < 8) {
+      toast.error('Defina uma senha padrão de pelo menos 8 caracteres.');
+      return;
+    }
+
     setImporting(true);
     setResult(null);
 
@@ -107,6 +119,7 @@ export default function ConvidarAlunosPage() {
 
     const formData = new FormData();
     formData.append('file', fileInputRef.current.files[0]);
+    formData.append('default_password', defaultPassword);
 
     const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
     try {
@@ -118,6 +131,10 @@ export default function ConvidarAlunosPage() {
       const data = await res.json();
       if (res.ok) {
         setResult(data);
+        // Limpa apenas o arquivo — mantém defaultPassword para exibir credenciais
+        setCsvRows([]);
+        setFileName('');
+        if (fileInputRef.current) fileInputRef.current.value = '';
         const total = data.imported + data.linked;
         if (total > 0) {
           toast.success(`${total} aluno${total !== 1 ? 's' : ''} importado${total !== 1 ? 's' : ''} com sucesso!`);
@@ -303,6 +320,34 @@ export default function ConvidarAlunosPage() {
               </div>
             )}
 
+            {/* Senha padrão */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">
+                Senha padrão para os alunos
+              </Label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Mínimo 8 caracteres"
+                  value={defaultPassword}
+                  onChange={e => setDefaultPassword(e.target.value)}
+                  className="pr-10 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2
+                             text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+              <p className="text-xs text-slate-400">
+                Todos os alunos importados receberão essa senha.
+                Eles serão solicitados a trocar no primeiro acesso.
+              </p>
+            </div>
+
             <Button
               className="w-full gap-2 text-white"
               style={{ backgroundColor: 'var(--brand-primary)' }}
@@ -315,13 +360,49 @@ export default function ConvidarAlunosPage() {
                 : `Importar ${validRows.length} aluno${validRows.length !== 1 ? 's' : ''}`}
             </Button>
 
-            {/* Resultado da importação */}
-            {result && (
+            {/* Credenciais após importação bem-sucedida */}
+            {result && result.imported > 0 && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+                <p className="text-sm font-semibold text-emerald-800">
+                  ✅ {result.imported} alunos importados com sucesso
+                </p>
+                <div className="bg-white rounded-lg border border-emerald-100 p-3 space-y-2">
+                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+                    Credenciais para repassar aos alunos:
+                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="space-y-1 text-xs text-slate-700">
+                      <p>🌐 <span className="font-mono">{inviteUrl}</span></p>
+                      <p>🔑 Senha: <span className="font-mono font-bold">{defaultPassword}</span></p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          `Link: ${inviteUrl}\nSenha: ${defaultPassword}`
+                        );
+                        toast.success('Copiado!');
+                      }}
+                      className="shrink-0 p-2 rounded-lg bg-emerald-100
+                                 hover:bg-emerald-200 transition-colors"
+                    >
+                      <Copy size={14} className="text-emerald-700" />
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Os alunos serão solicitados a trocar a senha no primeiro acesso.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Resultado completo (erros e vinculados) */}
+            {result && (result.linked > 0 || result.errors.length > 0) && (
               <div className="rounded-lg border p-4 space-y-2">
-                <p className="text-sm font-semibold text-slate-700 dark:text-white">Resultado da importação</p>
+                <p className="text-sm font-semibold text-slate-700 dark:text-white">Detalhes da importação</p>
                 <div className="flex gap-4 text-sm">
-                  <span className="text-emerald-600 font-medium">✓ {result.imported} novos convites enviados</span>
-                  <span className="text-blue-600 font-medium">⟳ {result.linked} contas vinculadas</span>
+                  {result.linked > 0 && (
+                    <span className="text-blue-600 font-medium">⟳ {result.linked} contas vinculadas</span>
+                  )}
                 </div>
                 {result.errors.length > 0 && (
                   <div>

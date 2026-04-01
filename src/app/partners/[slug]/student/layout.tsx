@@ -43,10 +43,10 @@ export default async function PartnerStudentLayout({ children, params }: Student
   const adminClient = createAdminClient();
 
   // 2. Busca perfil via adminClient para garantir leitura de organization_id sem bloqueio de RLS
-  type ProfileRow = { role: string | null; organization_id: string | null; full_name: string | null; avatar_url: string | null; theme_preference: string | null };
+  type ProfileRow = { role: string | null; organization_id: string | null; full_name: string | null; avatar_url: string | null; theme_preference: string | null; must_change_password: boolean | null };
   const profileRes = await adminClient
     .from('profiles')
-    .select('role, organization_id, full_name, avatar_url, theme_preference')
+    .select('role, organization_id, full_name, avatar_url, theme_preference, must_change_password')
     .eq('id', user.id)
     .single();
   const profile = profileRes.data as ProfileRow | null;
@@ -121,7 +121,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
       `}</style>
 
       <StudentThemeProvider slug={slug} initialTheme={initialTheme}>
-        <StudentThemeShell>
+        <StudentThemeShell mustChangePassword={profile.must_change_password === true}>
           {children}
         </StudentThemeShell>
       </StudentThemeProvider>

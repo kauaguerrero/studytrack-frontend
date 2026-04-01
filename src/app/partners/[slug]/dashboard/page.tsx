@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
@@ -32,6 +33,7 @@ interface Student {
   id: string;
   full_name: string;
   email: string;
+  avatar_url: string | null;
   plan_tier: string;
   last_activity_date: string | null;
   questions_today: number;
@@ -434,16 +436,26 @@ export default function FounderDashboard() {
                             )}
                           </div>
 
-                          {/* Avatar inicial + indicador online */}
+                          {/* Avatar + indicador online */}
                           <div className="relative shrink-0">
-                            <div
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white"
-                              style={{
-                                background: `color-mix(in srgb, var(--brand-primary) ${Math.max(6, 30 - idx * 4)}%, #1e293b)`,
-                              }}
-                            >
-                              {(student.full_name || '?')[0].toUpperCase()}
-                            </div>
+                            {student.avatar_url ? (
+                              <Image
+                                src={student.avatar_url}
+                                alt={student.full_name}
+                                width={32}
+                                height={32}
+                                className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10"
+                              />
+                            ) : (
+                              <div
+                                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white"
+                                style={{
+                                  background: `color-mix(in srgb, var(--brand-primary) ${Math.max(6, 30 - idx * 4)}%, #1e293b)`,
+                                }}
+                              >
+                                {(student.full_name || '?')[0].toUpperCase()}
+                              </div>
+                            )}
                             {isOnline && (
                               <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
