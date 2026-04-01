@@ -100,7 +100,7 @@ export function DashboardClient({
             </div>
 
             {/* Greeting */}
-            <h1 className="text-3xl font-extrabold tracking-tight leading-none">
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none">
               Olá, {firstName}!
             </h1>
             <p className="mt-1.5 text-sm text-white/45">

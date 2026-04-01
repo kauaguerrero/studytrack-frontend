@@ -187,7 +187,7 @@ export default function ConvidarAlunosPage() {
 
   return (
     <PartnerLayout>
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-6 max-w-2xl w-full">
         <Button variant="ghost" size="sm" asChild className="gap-1.5 -ml-2">
           <Link href={`/partners/${org.slug}/alunos`}>
             <ArrowLeft className="h-4 w-4" /> Voltar para Alunos

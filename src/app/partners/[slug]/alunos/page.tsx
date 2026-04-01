@@ -425,15 +425,15 @@ export default function AlunosPage() {
                     {s.last_activity_date ?? 'Nunca'}
                   </div>
 
-                  {/* Ações */}
-                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Ações — sempre visíveis em touch, surgem no hover em desktop */}
+                  <div className="flex items-center gap-1 shrink-0 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity">
                     {/* Mudar plano */}
                     <Select
                       value={s.plan_tier}
                       onValueChange={(v) => handlePlanChange(s.id, v)}
                       disabled={updatingPlan === s.id}
                     >
-                      <SelectTrigger className="h-7 w-20 text-[11px] border-slate-200 dark:border-slate-700">
+                      <SelectTrigger className="h-9 w-20 text-[11px] border-slate-200 dark:border-slate-700">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -442,21 +442,21 @@ export default function AlunosPage() {
                       </SelectContent>
                     </Select>
 
-                    <Button variant="ghost" size="icon" className="h-7 w-7" asChild title="Ver perfil">
+                    <Button variant="ghost" size="icon" className="h-9 w-9" asChild title="Ver perfil">
                       <Link href={`/partners/${org.slug}/alunos/${s.id}`}>
-                        <ExternalLink className="h-3.5 w-3.5" />
+                        <ExternalLink className="h-4 w-4" />
                       </Link>
                     </Button>
 
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                      className="h-9 w-9 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                       disabled={removing === s.id}
                       onClick={() => handleRemove(s.id, s.full_name)}
                       title="Remover da organização"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>

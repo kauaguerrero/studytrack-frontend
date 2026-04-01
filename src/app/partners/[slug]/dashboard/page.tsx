@@ -547,16 +547,16 @@ export default function FounderDashboard() {
                 </Link>
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="overflow-x-auto -mx-1">
+                <table className="w-full text-sm min-w-[520px]">
                   <thead>
                     <tr className="border-b border-white/10 text-left text-[10px] text-white/30 uppercase tracking-widest">
-                      <th className="pb-3 font-medium">Aluno</th>
-                      <th className="pb-3 font-medium text-center">Plano</th>
-                      <th className="pb-3 font-medium text-center">Q/semana</th>
-                      <th className="pb-3 font-medium text-center">Simulados</th>
+                      <th className="pb-3 font-medium pl-1">Aluno</th>
+                      <th className="pb-3 font-medium text-center hidden sm:table-cell">Plano</th>
+                      <th className="pb-3 font-medium text-center">Q/sem</th>
+                      <th className="pb-3 font-medium text-center hidden sm:table-cell">Simulados</th>
                       <th className="pb-3 font-medium text-center">Acertos%</th>
-                      <th className="pb-3 font-medium text-center">Últ. atividade</th>
+                      <th className="pb-3 font-medium text-center hidden md:table-cell">Últ. atividade</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -565,16 +565,16 @@ export default function FounderDashboard() {
                         key={s.id}
                         className="border-b border-white/5 hover:bg-white/5 transition-colors"
                       >
-                        <td className="py-3">
+                        <td className="py-3 pl-1">
                           <Link
                             href={`/partners/${org.slug}/alunos/${s.id}`}
                             className="font-semibold text-white hover:underline"
                           >
                             {s.full_name || '—'}
                           </Link>
-                          <p className="text-xs text-white/30">{s.email}</p>
+                          <p className="text-xs text-white/30 hidden xs:block">{s.email}</p>
                         </td>
-                        <td className="py-3 text-center">
+                        <td className="py-3 text-center hidden sm:table-cell">
                           <Badge className="text-[10px] border-white/10 bg-white/5 text-white/60">
                             {PLAN_LABELS[s.plan_tier] ?? s.plan_tier}
                           </Badge>
@@ -582,7 +582,7 @@ export default function FounderDashboard() {
                         <td className="py-3 text-center font-medium text-white/70">
                           {s.questions_week}
                         </td>
-                        <td className="py-3 text-center text-white/50">
+                        <td className="py-3 text-center text-white/50 hidden sm:table-cell">
                           {s.simulados_month}
                         </td>
                         <td className="py-3 text-center">
@@ -601,7 +601,7 @@ export default function FounderDashboard() {
                             <span className="text-white/30">—</span>
                           )}
                         </td>
-                        <td className="py-3 text-center text-xs text-white/30">
+                        <td className="py-3 text-center text-xs text-white/30 hidden md:table-cell">
                           {s.last_activity_date ?? 'Nunca'}
                         </td>
                       </tr>

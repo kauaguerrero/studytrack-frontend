@@ -186,20 +186,20 @@ export default function StudentProfilePage() {
         </Card>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {[
             { label: 'Questões hoje', value: metrics?.questions_today, icon: BookOpen },
-            { label: 'Questões semana', value: metrics?.questions_week, icon: BookOpen },
-            { label: 'Questões mês', value: metrics?.questions_month, icon: BookOpen },
-            { label: 'Simulados mês', value: metrics?.simulados_month, icon: FileText },
+            { label: 'Semana', value: metrics?.questions_week, icon: BookOpen },
+            { label: 'Mês', value: metrics?.questions_month, icon: BookOpen },
+            { label: 'Simulados', value: metrics?.simulados_month, icon: FileText },
             { label: 'Acertos%', value: metrics?.accuracy_pct != null ? `${metrics.accuracy_pct}%` : '—', icon: Target },
           ].map(({ label, value, icon: Icon }) => (
             <Card key={label}>
-              <CardHeader className="flex flex-row items-center justify-between pb-1">
-                <CardTitle className="text-xs text-slate-500">{label}</CardTitle>
-                <Icon className="h-3.5 w-3.5 text-slate-400" />
+              <CardHeader className="flex flex-row items-center justify-between pb-1 pt-4 px-4">
+                <CardTitle className="text-xs text-slate-500 leading-tight">{label}</CardTitle>
+                <Icon className="h-3.5 w-3.5 text-slate-400 shrink-0" />
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 pb-4">
                 {loading ? (
                   <Skeleton className="h-6 w-12" />
                 ) : (
@@ -273,36 +273,29 @@ export default function StudentProfilePage() {
             ) : (data?.recent_answers?.length ?? 0) === 0 ? (
               <p className="text-center text-sm text-slate-400 py-6">Nenhuma resposta registrada</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-xs text-slate-500">
-                      <th className="pb-2 text-left font-medium">Matéria</th>
-                      <th className="pb-2 text-center font-medium">Resposta</th>
-                      <th className="pb-2 text-center font-medium">Resultado</th>
-                      <th className="pb-2 text-center font-medium">Data</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {data!.recent_answers.map((a) => (
-                      <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                        <td className="py-2 text-xs">{a.subject || '—'}</td>
-                        <td className="py-2 text-center font-medium">{a.selected_option}</td>
-                        <td className="py-2 text-center">
-                          <Badge
-                            variant="outline"
-                            className={`text-xs ${a.is_correct ? 'border-emerald-300 text-emerald-600' : 'border-rose-300 text-rose-500'}`}
-                          >
-                            {a.is_correct ? 'Acerto' : 'Erro'}
-                          </Badge>
-                        </td>
-                        <td className="py-2 text-center text-xs text-slate-400">
-                          {a.created_at.slice(0, 10)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-1.5">
+                {data!.recent_answers.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                  >
+                    <span className="text-xs text-slate-600 dark:text-slate-400 flex-1 truncate">
+                      {a.subject || '—'}
+                    </span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                      {a.selected_option}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] shrink-0 ${a.is_correct ? 'border-emerald-300 text-emerald-600' : 'border-rose-300 text-rose-500'}`}
+                    >
+                      {a.is_correct ? 'Acerto' : 'Erro'}
+                    </Badge>
+                    <span className="text-[10px] text-slate-400 shrink-0 hidden sm:inline">
+                      {a.created_at.slice(0, 10)}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
@@ -315,33 +308,41 @@ export default function StudentProfilePage() {
               <CardTitle className="text-sm">Últimos Simulados</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-xs text-slate-500">
-                      <th className="pb-2 text-left font-medium">Formato</th>
-                      <th className="pb-2 text-center font-medium">Score</th>
-                      <th className="pb-2 text-center font-medium">%</th>
-                      <th className="pb-2 text-center font-medium">TRI</th>
-                      <th className="pb-2 text-center font-medium">Data</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {data!.recent_simulados.map((s) => (
-                      <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                        <td className="py-2 text-xs capitalize">{(s.config as any)?.format ?? 'custom'}</td>
-                        <td className="py-2 text-center font-medium">{s.score}/{s.total_questions}</td>
-                        <td className="py-2 text-center">
-                          {Math.round((s.score / s.total_questions) * 100)}%
-                        </td>
-                        <td className="py-2 text-center text-xs">{s.tri_score ?? '—'}</td>
-                        <td className="py-2 text-center text-xs text-slate-400">
-                          {s.completed_at?.slice(0, 10) ?? '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-2">
+                {data!.recent_simulados.map((s) => {
+                  const pct = Math.round((s.score / s.total_questions) * 100);
+                  return (
+                    <div
+                      key={s.id}
+                      className="flex items-center gap-3 rounded-xl border dark:border-slate-800 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-white capitalize">
+                          {(s.config as any)?.format ?? 'Simulado'}
+                        </p>
+                        <p className="text-xs text-slate-400">{s.completed_at?.slice(0, 10) ?? '—'}</p>
+                      </div>
+                      <div className="text-center shrink-0">
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                          {s.score}/{s.total_questions}
+                        </p>
+                        <p className="text-[10px] text-slate-400">questões</p>
+                      </div>
+                      <div
+                        className="text-lg font-black shrink-0 w-14 text-right"
+                        style={{ color: pct >= 60 ? 'var(--brand-primary)' : '#f43f5e' }}
+                      >
+                        {pct}%
+                      </div>
+                      {s.tri_score != null && (
+                        <div className="text-center shrink-0 hidden sm:block">
+                          <p className="text-sm font-bold text-slate-600 dark:text-slate-400">{s.tri_score}</p>
+                          <p className="text-[10px] text-slate-400">TRI</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
