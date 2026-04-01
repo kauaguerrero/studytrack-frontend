@@ -596,8 +596,8 @@ export default function PerfilPage() {
   ]
 
   const PersonalTabSkeleton = () => (
-    <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden">
-      <CardHeader className="border-b border-slate-100 pb-6 pt-8 px-8">
+    <Card className="border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-2xl overflow-hidden">
+      <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-6 pt-8 px-8">
         <Skeleton className="h-7 w-48" />
         <Skeleton className="h-4 w-96 mt-2" />
       </CardHeader>
@@ -616,7 +616,7 @@ export default function PerfilPage() {
           <Skeleton className="h-10 w-full" />
         </div>
       </CardContent>
-      <CardFooter className="border-t border-slate-100 px-8 py-5">
+      <CardFooter className="border-t border-slate-100 dark:border-slate-800 px-8 py-5">
         <Skeleton className="h-10 w-40" />
       </CardFooter>
     </Card>
@@ -627,23 +627,30 @@ export default function PerfilPage() {
   const focusRingStyle = '[&:focus-visible]:ring-[#FF8C00]'
 
   return (
-    <div className="min-h-screen bg-slate-50/30">
-      <div className="mx-auto max-w-[1200px] px-4 py-8 md:py-12 lg:px-8">
+    <div className="min-h-screen bg-slate-50/30 dark:bg-slate-950/50">
+      <div className="mx-auto max-w-[1400px] px-4 py-8 md:py-12 lg:px-8">
 
         {/* Header */}
-        <div className="mb-10">
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
-            Meu Perfil
-          </h1>
-          <p className="text-base text-slate-500 mt-2 max-w-2xl">
-            Gerencie suas informações pessoais e preferências
-          </p>
+        <div className="mb-10 flex items-end justify-between">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl">
+              Meu Perfil
+            </h1>
+            <p className="text-base text-slate-500 dark:text-slate-400 mt-2 max-w-2xl">
+              Gerencie suas informações pessoais e preferências
+            </p>
+          </div>
+          {user?.email && (
+            <div className="hidden lg:flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-2 rounded-xl">
+              <span className="font-mono">{user.email}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-8 md:flex-row md:items-start">
 
           {/* Navegação lateral */}
-          <nav className="flex md:w-56 flex-shrink-0 flex-row gap-1 overflow-x-auto md:flex-col md:overflow-visible pb-4 md:pb-0">
+          <nav className="flex md:w-60 flex-shrink-0 flex-row gap-1 overflow-x-auto md:flex-col md:overflow-visible pb-4 md:pb-0">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = activeTab === item.id
@@ -655,13 +662,13 @@ export default function PerfilPage() {
                   className={`group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
                     isActive
                       ? 'shadow-md'
-                      : 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-50 hover:shadow-sm'
                   }`}
                 >
                   <Icon
                     size={17}
                     style={isActive ? { color: 'rgba(255,255,255,0.85)' } : undefined}
-                    className={!isActive ? 'text-slate-400 group-hover:text-slate-600 transition-colors' : ''}
+                    className={!isActive ? 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 transition-colors' : ''}
                   />
                   {item.label}
                 </button>
@@ -676,14 +683,14 @@ export default function PerfilPage() {
               {/* ── TAB: IDENTIDADE ─────────────────────────────────────── */}
               {activeTab === 'personal' && (
                 profileLoading ? <PersonalTabSkeleton /> : (
-                  <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden bg-white">
-                    <CardHeader className="border-b border-slate-100 pb-6 pt-8 px-8">
-                      <CardTitle className="text-xl font-bold tracking-tight">Identidade Pessoal</CardTitle>
-                      <CardDescription className="text-sm mt-1">
+                  <Card className="border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                    <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-6 pt-8 px-8">
+                      <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Identidade Pessoal</CardTitle>
+                      <CardDescription className="text-sm mt-1 dark:text-slate-400">
                         Informações básicas da sua conta. Visíveis na plataforma conforme suas configurações de privacidade.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-8 pt-8 px-8">
+                    <CardContent className="pt-8 px-8">
                       <input
                         ref={fileInputRef}
                         type="file"
@@ -692,90 +699,99 @@ export default function PerfilPage() {
                         aria-hidden
                         onChange={handleAvatarFileSelect}
                       />
-                      {/* Avatar */}
-                      <div className="flex items-center gap-6">
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={avatarUploading}
-                          className="group relative flex h-24 w-24 shrink-0 cursor-pointer items-center justify-center rounded-full text-3xl font-bold text-white shadow-xl ring-4 ring-white transition-all duration-300 hover:scale-105 hover:shadow-2xl disabled:pointer-events-none disabled:opacity-70"
-                          style={{ background: `linear-gradient(135deg, ${BRAND}, #d97706)` }}
-                        >
-                          {avatarUploading ? (
-                            <Loader2 className="h-8 w-8 animate-spin text-white" />
-                          ) : profile?.avatar_url ? (
-                            <img src={profile.avatar_url} alt="Avatar" className="h-full w-full rounded-full object-cover" />
-                          ) : (
-                            fullName.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || '?'
-                          )}
-                          {!avatarUploading && (
-                            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 backdrop-blur-sm transition-all duration-300 group-hover:opacity-100">
-                              <Camera className="h-6 w-6 text-white" />
+                      <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-x-10 gap-y-8">
+                        {/* Coluna esquerda */}
+                        <div className="space-y-6">
+                          {/* Avatar */}
+                          <div className="flex items-center gap-6">
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={avatarUploading}
+                              className="group relative flex h-24 w-24 shrink-0 cursor-pointer items-center justify-center rounded-full text-3xl font-bold text-white shadow-xl ring-4 ring-white transition-all duration-300 hover:scale-105 hover:shadow-2xl disabled:pointer-events-none disabled:opacity-70"
+                              style={{ background: `linear-gradient(135deg, ${BRAND}, #d97706)` }}
+                            >
+                              {avatarUploading ? (
+                                <Loader2 className="h-8 w-8 animate-spin text-white" />
+                              ) : profile?.avatar_url ? (
+                                <img src={profile.avatar_url} alt="Avatar" className="h-full w-full rounded-full object-cover" />
+                              ) : (
+                                fullName.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || '?'
+                              )}
+                              {!avatarUploading && (
+                                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 backdrop-blur-sm transition-all duration-300 group-hover:opacity-100">
+                                  <Camera className="h-6 w-6 text-white" />
+                                </div>
+                              )}
+                            </button>
+                            <div className="space-y-1.5 min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg truncate">{fullName || 'Aluno'}</h3>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 text-white" style={{ backgroundColor: BRAND }}>
+                                  Aluno
+                                </span>
+                              </div>
+                              <p className="text-sm text-slate-500 dark:text-slate-400 break-all">{user?.email ?? ''}</p>
+                              <div className="flex flex-wrap gap-2 mt-1">
+                                {profile?.avatar_url && (
+                                  <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 text-xs font-semibold" onClick={() => setAvatarViewOpen(true)} disabled={avatarUploading}>
+                                    Ver foto
+                                  </Button>
+                                )}
+                                <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 text-xs font-semibold" onClick={() => fileInputRef.current?.click()} disabled={avatarUploading}>
+                                  {avatarUploading ? 'Enviando…' : 'Alterar Avatar'}
+                                </Button>
+                              </div>
                             </div>
-                          )}
-                        </button>
-                        <div className="space-y-1.5 min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-bold text-slate-900 text-lg truncate">{fullName || 'Aluno'}</h3>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 text-white" style={{ backgroundColor: BRAND }}>
-                              Aluno
-                            </span>
                           </div>
-                          <p className="text-sm text-slate-500 break-all">{user?.email ?? ''}</p>
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {profile?.avatar_url && (
-                              <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 text-xs font-semibold" onClick={() => setAvatarViewOpen(true)} disabled={avatarUploading}>
-                                Ver foto
-                              </Button>
-                            )}
-                            <Button type="button" variant="outline" size="sm" className="rounded-lg h-8 text-xs font-semibold" onClick={() => fileInputRef.current?.click()} disabled={avatarUploading}>
-                              {avatarUploading ? 'Enviando…' : 'Alterar Avatar'}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
 
-                      {/* Campos */}
-                      <div className="grid gap-6 sm:grid-cols-2">
-                        <div className="space-y-2 sm:col-span-2">
-                          <Label htmlFor="fullName" className="text-slate-700 font-bold">Nome Completo</Label>
-                          <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="username" className="text-slate-700 font-bold">Nome de Utilizador</Label>
-                          <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="@seunome" className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="pronouns" className="text-slate-700 font-bold">Pronome</Label>
-                          <Input id="pronouns" value={pronouns} onChange={(e) => setPronouns(e.target.value)} placeholder="Ex: ele/dele, ela/dela" className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="birthDate" className="text-slate-700 font-bold">Data de Nascimento</Label>
-                          <Input id="birthDate" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="whatsapp_phone" className="text-slate-700 font-bold">WhatsApp / Telefone</Label>
-                          <Input id="whatsapp_phone" value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} placeholder="(11) 99999-9999" className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
-                        </div>
-                        <div className="space-y-2 sm:col-span-2">
-                          <Label htmlFor="bio" className="text-slate-700 font-bold">Biografia</Label>
-                          <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Conte um pouco sobre você..." maxLength={500} className={`rounded-xl bg-slate-50/50 resize-none min-h-[90px] ${focusRingStyle}`} />
-                          <p className="text-xs text-slate-400 text-right">{bio.length}/500</p>
-                        </div>
-                        <div className="space-y-2 sm:col-span-2">
-                          <Label htmlFor="accessibilityNeeds" className="text-slate-700 font-bold">Necessidade de Acessibilidade</Label>
-                          <Textarea id="accessibilityNeeds" value={accessibilityNeeds} onChange={(e) => setAccessibilityNeeds(e.target.value)} placeholder="Ex: dislexia, daltonismo, baixa visão..." maxLength={500} className={`rounded-xl bg-slate-50/50 resize-none min-h-[72px] ${focusRingStyle}`} />
-                        </div>
-                        <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 px-5 py-4 sm:col-span-2">
-                          <div className="space-y-0.5">
-                            <Label className="text-slate-700 font-bold">Perfil Público</Label>
-                            <p className="text-xs text-slate-500">Permite que outros alunos vejam seu perfil e estatísticas.</p>
+                          {/* Campos primários */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2 col-span-2">
+                              <Label htmlFor="fullName" className="text-slate-700 dark:text-slate-200 font-bold">Nome Completo</Label>
+                              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="username" className="text-slate-700 dark:text-slate-200 font-bold">Nome de Utilizador</Label>
+                              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="@seunome" className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="pronouns" className="text-slate-700 dark:text-slate-200 font-bold">Pronome</Label>
+                              <Input id="pronouns" value={pronouns} onChange={(e) => setPronouns(e.target.value)} placeholder="Ex: ele/dele, ela/dela" className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="birthDate" className="text-slate-700 dark:text-slate-200 font-bold">Data de Nascimento</Label>
+                              <Input id="birthDate" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="whatsapp_phone" className="text-slate-700 dark:text-slate-200 font-bold">WhatsApp / Telefone</Label>
+                              <Input id="whatsapp_phone" value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} placeholder="(11) 99999-9999" className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`} />
+                            </div>
                           </div>
-                          <Switch checked={publicProfile} onCheckedChange={setPublicProfile} aria-label="Perfil público" style={{ ['--switch-checked' as string]: BRAND }} />
+                        </div>
+
+                        {/* Coluna direita */}
+                        <div className="space-y-6">
+                          <div className="space-y-2">
+                            <Label htmlFor="bio" className="text-slate-700 dark:text-slate-200 font-bold">Biografia</Label>
+                            <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Conte um pouco sobre você..." maxLength={500} className={`rounded-xl bg-slate-50/50 resize-none min-h-[90px] ${focusRingStyle}`} />
+                            <p className="text-xs text-slate-400 text-right">{bio.length}/500</p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="accessibilityNeeds" className="text-slate-700 dark:text-slate-200 font-bold">Necessidade de Acessibilidade</Label>
+                            <Textarea id="accessibilityNeeds" value={accessibilityNeeds} onChange={(e) => setAccessibilityNeeds(e.target.value)} placeholder="Ex: dislexia, daltonismo, baixa visão..." maxLength={500} className={`rounded-xl bg-slate-50/50 resize-none min-h-[72px] ${focusRingStyle}`} />
+                          </div>
+                          <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-5 py-4">
+                            <div className="space-y-0.5">
+                              <Label className="text-slate-700 dark:text-slate-200 font-bold">Perfil Público</Label>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">Permite que outros alunos vejam seu perfil e estatísticas.</p>
+                            </div>
+                            <Switch checked={publicProfile} onCheckedChange={setPublicProfile} aria-label="Perfil público" style={{ ['--switch-checked' as string]: BRAND }} />
+                          </div>
                         </div>
                       </div>
                     </CardContent>
-                    <CardFooter className="border-t border-slate-100 bg-slate-50/80 px-8 py-5 flex justify-end">
+                    <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-8 py-5 flex justify-end">
                       <Button onClick={handleSavePersonal} disabled={savingPersonal} style={primaryBtnStyle} className="rounded-xl px-8 font-semibold shadow-md transition-all hover:opacity-90">
                         {savingPersonal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                         Salvar Identidade
@@ -787,27 +803,27 @@ export default function PerfilPage() {
 
               {/* ── TAB: JORNADA ACADÊMICA ──────────────────────────────── */}
               {activeTab === 'journey' && (
-                <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden bg-white">
-                  <CardHeader className="border-b border-slate-100 pb-6 pt-8 px-8">
-                    <CardTitle className="text-xl font-bold tracking-tight">Jornada Acadêmica</CardTitle>
-                    <CardDescription className="text-sm mt-1">
+                <Card className="border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                  <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-6 pt-8 px-8">
+                    <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Jornada Acadêmica</CardTitle>
+                    <CardDescription className="text-sm mt-1 dark:text-slate-400">
                       Configure seu objetivo, curso alvo e fase de estudo. A IA utiliza esses dados para personalizar seu aprendizado.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8 pt-8 px-8">
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label className="text-slate-700 font-bold">Curso Alvo</Label>
-                        <Input placeholder="Ex: Ciência da Computação" value={targetCourse} onChange={(e) => setTargetCourse(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                        <Label className="text-slate-700 dark:text-slate-200 font-bold">Curso Alvo</Label>
+                        <Input placeholder="Ex: Ciência da Computação" value={targetCourse} onChange={(e) => setTargetCourse(e.target.value)} className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`} />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-slate-700 font-bold">Instituição Alvo</Label>
-                        <Input placeholder="Ex: UNICAMP, USP" value={targetUniversity} onChange={(e) => setTargetUniversity(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                        <Label className="text-slate-700 dark:text-slate-200 font-bold">Instituição Alvo</Label>
+                        <Input placeholder="Ex: UNICAMP, USP" value={targetUniversity} onChange={(e) => setTargetUniversity(e.target.value)} className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`} />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-slate-700 font-bold">Fase Acadêmica</Label>
+                        <Label className="text-slate-700 dark:text-slate-200 font-bold">Fase Acadêmica</Label>
                         <Select value={schoolYear} onValueChange={setSchoolYear}>
-                          <SelectTrigger className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`}>
+                          <SelectTrigger className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`}>
                             <SelectValue placeholder="Selecione o estágio atual" />
                           </SelectTrigger>
                           <SelectContent className="rounded-xl">
@@ -824,9 +840,9 @@ export default function PerfilPage() {
                         </Select>
                       </div>
                       <div className="space-y-2 sm:col-span-2">
-                        <Label className="text-slate-700 font-bold">Área de Foco</Label>
+                        <Label className="text-slate-700 dark:text-slate-200 font-bold">Área de Foco</Label>
                         <Select value={focusArea || 'enem_geral'} onValueChange={setFocusArea}>
-                          <SelectTrigger className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`}>
+                          <SelectTrigger className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`}>
                             <SelectValue placeholder="Selecione sua área" />
                           </SelectTrigger>
                           <SelectContent className="rounded-xl">
@@ -839,7 +855,7 @@ export default function PerfilPage() {
                       </div>
                     </div>
                   </CardContent>
-                  <CardFooter className="border-t border-slate-100 bg-slate-50/80 px-8 py-5 flex justify-end">
+                  <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-8 py-5 flex justify-end">
                     <Button onClick={handleSaveJourney} disabled={savingJourney} style={primaryBtnStyle} className="rounded-xl px-8 font-semibold shadow-md hover:opacity-90">
                       {savingJourney && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Salvar alterações
@@ -850,18 +866,18 @@ export default function PerfilPage() {
 
               {/* ── TAB: ROTINA DE ESTUDOS ──────────────────────────────── */}
               {activeTab === 'routine' && (
-                <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden bg-white">
-                  <CardHeader className="border-b border-slate-100 pb-6 pt-8 px-8">
-                    <CardTitle className="text-xl font-bold tracking-tight">Rotina de Estudos</CardTitle>
-                    <CardDescription className="text-sm mt-1">
+                <Card className="border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                  <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-6 pt-8 px-8">
+                    <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Rotina de Estudos</CardTitle>
+                    <CardDescription className="text-sm mt-1 dark:text-slate-400">
                       Alinhe ritmo, dias e horas ao seu planejamento. Usados pela IA para sugerir cronogramas personalizados.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8 pt-8 px-8">
                     <div className="space-y-2">
-                      <Label className="text-slate-700 font-bold">Ritmo de Estudo</Label>
+                      <Label className="text-slate-700 dark:text-slate-200 font-bold">Ritmo de Estudo</Label>
                       <Select value={studyPace || 'moderate'} onValueChange={setStudyPace}>
-                        <SelectTrigger className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`}>
+                        <SelectTrigger className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`}>
                           <SelectValue placeholder="Selecione o ritmo" />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl">
@@ -873,9 +889,9 @@ export default function PerfilPage() {
                     </div>
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2">
-                        <Label className="text-slate-700 font-bold">Período preferido</Label>
+                        <Label className="text-slate-700 dark:text-slate-200 font-bold">Período preferido</Label>
                         <Select value={studyPeriod || ''} onValueChange={setStudyPeriod}>
-                          <SelectTrigger className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`}>
+                          <SelectTrigger className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`}>
                             <SelectValue placeholder="Quando prefere estudar?" />
                           </SelectTrigger>
                           <SelectContent className="rounded-xl">
@@ -887,9 +903,9 @@ export default function PerfilPage() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-slate-700 font-bold">Dias por semana</Label>
+                        <Label className="text-slate-700 dark:text-slate-200 font-bold">Dias por semana</Label>
                         <Select value={String(daysPerWeek)} onValueChange={(v) => setDaysPerWeek(parseInt(v, 10))}>
-                          <SelectTrigger className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`}>
+                          <SelectTrigger className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="rounded-xl">
@@ -901,7 +917,7 @@ export default function PerfilPage() {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-slate-700 font-bold">Horas por dia</Label>
+                      <Label className="text-slate-700 dark:text-slate-200 font-bold">Horas por dia</Label>
                       <Select value={String(hoursPerDay)} onValueChange={(v) => setHoursPerDay(parseInt(v, 10))}>
                         <SelectTrigger className={`rounded-xl bg-slate-50/50 max-w-xs ${focusRingStyle}`}>
                           <SelectValue />
@@ -915,33 +931,33 @@ export default function PerfilPage() {
                     </div>
                     <div className="space-y-3">
                       <div>
-                        <Label className="text-slate-700 font-bold flex items-center gap-2">
+                        <Label className="text-slate-700 dark:text-slate-200 font-bold flex items-center gap-2">
                           <Clock className="h-4 w-4" style={{ color: BRAND }} />
                           Horário livre para estudar
                         </Label>
-                        <p className="text-xs text-slate-500 mt-1">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           Defina a janela de horário disponível. Os lembretes de WhatsApp serão enviados nesse período.
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex-1 space-y-1">
-                          <Label className="text-xs text-slate-500 font-medium">Das</Label>
+                          <Label className="text-xs text-slate-500 dark:text-slate-400 font-medium">Das</Label>
                           <input
                             type="time"
                             value={freeHoursStart}
                             onChange={(e) => setFreeHoursStart(e.target.value)}
-                            className="flex h-10 w-full rounded-xl border border-input bg-slate-50/50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                            className="flex h-10 w-full rounded-xl border border-input bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                             style={{ ['--tw-ring-color' as string]: BRAND } as React.CSSProperties}
                           />
                         </div>
                         <div className="pt-5 text-slate-500 font-medium text-sm select-none">até</div>
                         <div className="flex-1 space-y-1">
-                          <Label className="text-xs text-slate-500 font-medium">Às</Label>
+                          <Label className="text-xs text-slate-500 dark:text-slate-400 font-medium">Às</Label>
                           <input
                             type="time"
                             value={freeHoursEnd}
                             onChange={(e) => setFreeHoursEnd(e.target.value)}
-                            className="flex h-10 w-full rounded-xl border border-input bg-slate-50/50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                            className="flex h-10 w-full rounded-xl border border-input bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                             style={{ ['--tw-ring-color' as string]: BRAND } as React.CSSProperties}
                           />
                         </div>
@@ -953,7 +969,7 @@ export default function PerfilPage() {
                       )}
                     </div>
                   </CardContent>
-                  <CardFooter className="border-t border-slate-100 bg-slate-50/80 px-8 py-5 flex justify-end">
+                  <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-8 py-5 flex justify-end">
                     <Button onClick={handleSaveRoutine} disabled={savingRoutine} style={primaryBtnStyle} className="rounded-xl px-8 font-semibold shadow-md hover:opacity-90">
                       {savingRoutine ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                       Salvar Rotina
@@ -966,30 +982,30 @@ export default function PerfilPage() {
               {activeTab === 'security' && (
                 <div className="space-y-6">
                   {/* Credenciais */}
-                  <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden bg-white">
-                    <CardHeader className="border-b border-slate-100 pb-6 pt-8 px-8">
-                      <CardTitle className="text-xl font-bold tracking-tight">Credenciais de Acesso</CardTitle>
-                      <CardDescription className="text-sm mt-1">
-                        E-mail associado: <span className="font-mono text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{user?.email}</span>
+                  <Card className="border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                    <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-6 pt-8 px-8">
+                      <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Credenciais de Acesso</CardTitle>
+                      <CardDescription className="text-sm mt-1 dark:text-slate-400">
+                        E-mail associado: <span className="font-mono text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{user?.email}</span>
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6 pt-8 px-8 max-w-xl">
                       <div className="space-y-2">
-                        <Label className="text-slate-700 font-bold">Senha Atual</Label>
-                        <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                        <Label className="text-slate-700 dark:text-slate-200 font-bold">Senha Atual</Label>
+                        <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`} />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label className="text-slate-700 font-bold">Nova Senha</Label>
-                          <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                          <Label className="text-slate-700 dark:text-slate-200 font-bold">Nova Senha</Label>
+                          <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`} />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-slate-700 font-bold">Confirmação</Label>
-                          <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={`rounded-xl bg-slate-50/50 ${focusRingStyle}`} />
+                          <Label className="text-slate-700 dark:text-slate-200 font-bold">Confirmação</Label>
+                          <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`} />
                         </div>
                       </div>
                     </CardContent>
-                    <CardFooter className="border-t border-slate-100 bg-slate-50/80 px-8 py-5">
+                    <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-8 py-5">
                       <Button onClick={handleSavePassword} disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword} style={primaryBtnStyle} className="rounded-xl font-semibold px-8 shadow-md hover:opacity-90">
                         {savingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Atualizar Senha
@@ -998,10 +1014,10 @@ export default function PerfilPage() {
                   </Card>
 
                   {/* Sessões Ativas */}
-                  <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden bg-white">
-                    <CardHeader className="border-b border-slate-100 pb-5 pt-6 px-8">
-                      <CardTitle className="text-lg font-bold">Sessões Ativas</CardTitle>
-                      <CardDescription className="text-xs mt-1">Dispositivos logados na sua conta.</CardDescription>
+                  <Card className="border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                    <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-5 pt-6 px-8">
+                      <CardTitle className="text-lg font-bold dark:text-slate-50">Sessões Ativas</CardTitle>
+                      <CardDescription className="text-xs mt-1 dark:text-slate-400">Dispositivos logados na sua conta.</CardDescription>
                     </CardHeader>
                     <CardContent className="pt-6 px-8">
                       {loadingSessions ? (
@@ -1016,14 +1032,14 @@ export default function PerfilPage() {
                           {activeSessions.map((s, idx) => {
                             const isCurrent = idx === 0
                             return (
-                              <div key={s.id} className="flex items-center justify-between border-b border-slate-100 pb-4 last:border-0 last:pb-0">
+                              <div key={s.id} className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4 last:border-0 last:pb-0">
                                 <div className="flex items-center gap-4">
-                                  <div className={`p-2.5 rounded-full ${isCurrent ? 'text-white' : 'bg-slate-100 text-slate-500'}`} style={isCurrent ? { backgroundColor: `${BRAND}20`, color: BRAND } : undefined}>
+                                  <div className={`p-2.5 rounded-full ${isCurrent ? 'text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`} style={isCurrent ? { backgroundColor: `${BRAND}20`, color: BRAND } : undefined}>
                                     <Laptop size={18} />
                                   </div>
                                   <div>
-                                    <p className="text-sm font-bold text-slate-900">{s.device_info ?? 'Dispositivo'}</p>
-                                    <p className="text-xs text-slate-500">
+                                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{s.device_info ?? 'Dispositivo'}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
                                       {s.location ? `${s.location} • ` : ''}{formatLastActive(s.last_active_at)}
                                     </p>
                                   </div>
@@ -1048,22 +1064,22 @@ export default function PerfilPage() {
               {/* ── TAB: PREFERÊNCIAS ───────────────────────────────────── */}
               {activeTab === 'preferences' && (
                 <div className="space-y-6">
-                  <Card className="border-slate-200/60 shadow-sm rounded-2xl overflow-hidden bg-white">
-                    <CardHeader className="border-b border-slate-100 pb-6 pt-8 px-8">
-                      <CardTitle className="text-xl font-bold tracking-tight">Preferências de Interface</CardTitle>
-                      <CardDescription className="text-sm mt-1">Personalize a aparência e notificações.</CardDescription>
+                  <Card className="border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                    <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-6 pt-8 px-8">
+                      <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Preferências de Interface</CardTitle>
+                      <CardDescription className="text-sm mt-1 dark:text-slate-400">Personalize a aparência e notificações.</CardDescription>
                     </CardHeader>
                     <CardContent className="pt-8 px-8 space-y-6">
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">
-                          <p className="font-bold text-slate-900 flex items-center gap-2">
+                          <p className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                             <Palette size={18} style={{ color: BRAND }} />
                             Tema da Aplicação
                           </p>
-                          <p className="text-sm text-slate-500">Substitui o padrão do sistema operacional.</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">Substitui o padrão do sistema operacional.</p>
                         </div>
                         <Select value={themePref} onValueChange={handleSaveTheme}>
-                          <SelectTrigger className="w-[140px] rounded-xl font-semibold bg-slate-50">
+                          <SelectTrigger className="w-[140px] rounded-xl font-semibold bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
                             <SelectValue placeholder="Tema" />
                           </SelectTrigger>
                           <SelectContent className="rounded-xl">
@@ -1078,26 +1094,26 @@ export default function PerfilPage() {
                   </Card>
 
                   {/* Zona de Risco (LGPD + Encerrar Conta) */}
-                  <Card className="border-red-200/50 shadow-sm rounded-2xl overflow-hidden bg-red-50/20">
-                    <CardHeader className="border-b border-red-100/50 pb-5 pt-6 px-8">
-                      <CardTitle className="text-lg font-bold text-red-700">Zona de Risco</CardTitle>
+                  <Card className="border-red-200/50 dark:border-red-900/50 shadow-sm rounded-2xl overflow-hidden bg-red-50/20 dark:bg-red-950/20">
+                    <CardHeader className="border-b border-red-100/50 dark:border-red-900/50 pb-5 pt-6 px-8">
+                      <CardTitle className="text-lg font-bold text-red-700 dark:text-red-400">Zona de Risco</CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6 px-8 space-y-4">
-                      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between border border-red-100 bg-white p-5 rounded-xl">
+                      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between border border-red-100 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-5 rounded-xl">
                         <div>
-                          <p className="font-bold text-slate-900">Exportar Dados (LGPD)</p>
-                          <p className="text-xs text-slate-500 mt-1 max-w-sm">Faça o download de todos os seus dados em JSON.</p>
+                          <p className="font-bold text-slate-900 dark:text-slate-100">Exportar Dados (LGPD)</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">Faça o download de todos os seus dados em JSON.</p>
                         </div>
-                        <Button variant="outline" className="rounded-xl font-semibold text-slate-700 border-slate-200 hover:bg-slate-50 shrink-0" onClick={handleRequestExport} disabled={exportingData}>
+                        <Button variant="outline" className="rounded-xl font-semibold text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 shrink-0" onClick={handleRequestExport} disabled={exportingData}>
                           {exportingData ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Download size={16} className="mr-2" />}
                           Exportar Arquivo
                         </Button>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between border border-red-200 bg-white p-5 rounded-xl">
+                      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between border border-red-200 dark:border-red-900/50 bg-white dark:bg-slate-800/50 p-5 rounded-xl">
                         <div>
-                          <p className="font-bold text-red-600">Encerrar Conta Permanentemente</p>
-                          <p className="text-xs text-slate-500 mt-1 max-w-sm">Esta ação é irreversível. Todos os dados serão apagados.</p>
+                          <p className="font-bold text-red-600 dark:text-red-400">Encerrar Conta Permanentemente</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">Esta ação é irreversível. Todos os dados serão apagados.</p>
                         </div>
                         <Button variant="destructive" className="rounded-xl font-semibold bg-red-600 hover:bg-red-700 shrink-0" onClick={() => setDeleteAccountModalOpen(true)}>
                           <Trash2 size={16} className="mr-2" /> Deletar Conta
@@ -1115,10 +1131,10 @@ export default function PerfilPage() {
 
       {/* ── Modal: Visualizar foto ───────────────────────────────────────── */}
       <Dialog open={avatarViewOpen} onOpenChange={setAvatarViewOpen}>
-        <DialogContent className="sm:max-w-md rounded-2xl p-0 overflow-hidden border border-slate-200">
+        <DialogContent className="sm:max-w-md rounded-2xl p-0 overflow-hidden border border-slate-200 dark:border-slate-700">
           <DialogHeader className="p-6 pb-2">
-            <DialogTitle className="text-lg font-bold">Sua foto de perfil</DialogTitle>
-            <DialogDescription className="text-sm text-slate-500">Visualização em tamanho maior.</DialogDescription>
+            <DialogTitle className="text-lg font-bold dark:text-slate-100">Sua foto de perfil</DialogTitle>
+            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">Visualização em tamanho maior.</DialogDescription>
           </DialogHeader>
           <div className="px-6 pb-6 flex justify-center">
             {profile?.avatar_url && (
@@ -1130,17 +1146,17 @@ export default function PerfilPage() {
 
       {/* ── Modal: Crop avatar ──────────────────────────────────────────── */}
       <Dialog open={avatarCropOpen} onOpenChange={(open) => !open && closeCropModal()}>
-        <DialogContent className="sm:max-w-md rounded-2xl p-0 overflow-hidden border border-slate-200">
+        <DialogContent className="sm:max-w-md rounded-2xl p-0 overflow-hidden border border-slate-200 dark:border-slate-700">
           <DialogHeader className="p-6 pb-2">
-            <DialogTitle className="text-lg font-bold">Ajustar foto de perfil</DialogTitle>
-            <DialogDescription className="text-sm text-slate-500">
+            <DialogTitle className="text-lg font-bold dark:text-slate-100">Ajustar foto de perfil</DialogTitle>
+            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
               Arraste para posicionar e use o zoom. O que estiver dentro do círculo será sua foto.
             </DialogDescription>
           </DialogHeader>
           <div className="px-6 pb-4">
             <div
               ref={cropContainerRef}
-              className="mx-auto rounded-full overflow-hidden bg-slate-200 flex items-center justify-center select-none touch-none"
+              className="mx-auto rounded-full overflow-hidden bg-slate-200 dark:bg-slate-700 flex items-center justify-center select-none touch-none"
               style={{ width: CROP_SIZE, height: CROP_SIZE }}
             >
               <div
@@ -1170,19 +1186,19 @@ export default function PerfilPage() {
               </div>
             </div>
             <div className="mt-4 flex items-center gap-3">
-              <span className="text-sm font-medium text-slate-600 shrink-0">Zoom</span>
+              <span className="text-sm font-medium text-slate-600 dark:text-slate-300 shrink-0">Zoom</span>
               <input
                 type="range" min={0.5} max={2.5} step={0.05}
                 value={avatarCropScale}
                 onChange={(e) => setAvatarCropScale(Number(e.target.value))}
-                className="flex-1 h-2 rounded-full appearance-none bg-slate-200"
+                className="flex-1 h-2 rounded-full appearance-none bg-slate-200 dark:bg-slate-700"
                 style={{ accentColor: BRAND }}
               />
-              <span className="text-xs text-slate-500 w-8">{Math.round(avatarCropScale * 100)}%</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 w-8">{Math.round(avatarCropScale * 100)}%</span>
             </div>
           </div>
-          <DialogFooter className="p-6 pt-2 border-t border-slate-100 flex gap-2">
-            <Button type="button" variant="outline" onClick={closeCropModal} className="rounded-xl">Cancelar</Button>
+          <DialogFooter className="p-6 pt-2 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+            <Button type="button" variant="outline" onClick={closeCropModal} className="rounded-xl dark:border-slate-600 dark:text-slate-200">Cancelar</Button>
             <Button type="button" onClick={handleAvatarCropConfirm} style={primaryBtnStyle} className="rounded-xl hover:opacity-90">
               Usar esta foto
             </Button>
@@ -1205,13 +1221,13 @@ export default function PerfilPage() {
               Esta ação é irreversível. Todos os seus dados e histórico serão apagados permanentemente.
             </DialogDescription>
           </div>
-          <div className="p-8 space-y-6 bg-white">
+          <div className="p-8 space-y-6 bg-white dark:bg-slate-900">
             <div className="space-y-3">
-              <Label htmlFor="deleteReason" className="font-bold text-slate-700">
+              <Label htmlFor="deleteReason" className="font-bold text-slate-700 dark:text-slate-200">
                 Por que está saindo? <span className="text-red-600">*</span>
               </Label>
               <Select value={deleteAccountReason} onValueChange={setDeleteAccountReason} required>
-                <SelectTrigger id="deleteReason" className="rounded-xl bg-slate-50 border-slate-200">
+                <SelectTrigger id="deleteReason" className="rounded-xl bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 dark:text-slate-100">
                   <SelectValue placeholder="Selecione o motivo" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -1222,11 +1238,11 @@ export default function PerfilPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-3 p-5 bg-red-50/50 rounded-2xl border border-red-100">
-              <Label htmlFor="deleteEmailConfirm" className="text-slate-800 font-bold block">
+            <div className="space-y-3 p-5 bg-red-50/50 dark:bg-red-950/30 rounded-2xl border border-red-100 dark:border-red-900/50">
+              <Label htmlFor="deleteEmailConfirm" className="text-slate-800 dark:text-slate-200 font-bold block">
                 Confirmação de segurança
-                <span className="block mt-1 text-sm font-normal text-slate-500">
-                  Digite <span className="text-red-600 font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-red-100">{user?.email}</span> para confirmar.
+                <span className="block mt-1 text-sm font-normal text-slate-500 dark:text-slate-400">
+                  Digite <span className="text-red-600 font-mono font-bold bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/50">{user?.email}</span> para confirmar.
                 </span>
               </Label>
               <Input
@@ -1234,17 +1250,17 @@ export default function PerfilPage() {
                 type="email"
                 value={deleteAccountEmailConfirm}
                 onChange={(e) => setDeleteAccountEmailConfirm(e.target.value)}
-                className="bg-white rounded-xl border-red-200"
+                className="bg-white dark:bg-slate-800 dark:border-red-900 dark:text-slate-100 rounded-xl border-red-200"
                 placeholder="Digite seu e-mail"
               />
             </div>
           </div>
-          <DialogFooter className="bg-slate-50/80 p-6 border-t border-slate-100 flex gap-3 sm:justify-end">
-            <Button variant="ghost" onClick={() => setDeleteAccountModalOpen(false)} className="rounded-xl font-bold text-slate-600 hover:text-slate-900">
+          <DialogFooter className="bg-slate-50/80 dark:bg-slate-900/50 p-6 border-t border-slate-100 dark:border-slate-800 flex gap-3 sm:justify-end">
+            <Button variant="ghost" onClick={() => setDeleteAccountModalOpen(false)} className="rounded-xl font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900">
               Cancelar
             </Button>
             <Button
-              variant="destructive"
+              variant="destructive" 
               onClick={handleDeleteAccount}
               disabled={deletingAccount || !deleteAccountReason || deleteAccountEmailConfirm !== user?.email}
               className="rounded-xl font-bold bg-red-600 hover:bg-red-700 px-6 shadow-md"

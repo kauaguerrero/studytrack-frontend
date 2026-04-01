@@ -72,10 +72,10 @@ function useCounter(target: number, duration = 1500, skip = false) {
 
 function StatSkeleton() {
   return (
-    <div className="bg-white rounded-2xl p-5 flex flex-col gap-3 animate-pulse min-h-[130px]">
-      <div className="w-9 h-9 rounded-xl bg-slate-100" />
-      <div className="w-14 h-8 rounded-lg bg-slate-100" />
-      <div className="w-24 h-3 rounded-full bg-slate-100" />
+    <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 flex flex-col gap-3 animate-pulse min-h-[130px] border border-slate-100 dark:border-slate-800">
+      <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800" />
+      <div className="w-14 h-8 rounded-lg bg-slate-100 dark:bg-slate-800" />
+      <div className="w-24 h-3 rounded-full bg-slate-100 dark:bg-slate-800" />
     </div>
   )
 }
@@ -108,21 +108,21 @@ function StatCard({
     >
       <div
         className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-        style={{ background: `${accentColor}22` }}
+        style={{ background: `color-mix(in srgb, ${accentColor} 15%, transparent)` }}
       >
         <Icon size={18} style={{ color: accentColor }} aria-hidden />
       </div>
       <div className="mt-0.5">
-        <div className="text-[2.25rem] font-black text-slate-900 leading-none tabular-nums">
+        <div className="text-[2.25rem] font-black text-slate-900 dark:text-slate-100 leading-none tabular-nums">
           {count.toLocaleString('pt-BR')}{suffix}
         </div>
         {sublabel && (
-          <div className="text-[10px] text-slate-400 font-semibold mt-0.5">{sublabel}</div>
+          <div className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold mt-0.5">{sublabel}</div>
         )}
       </div>
-      <span className="text-xs font-medium text-slate-500 leading-tight">{label}</span>
+      <span className="text-xs font-medium text-slate-500 dark:text-slate-400 leading-tight">{label}</span>
       {progress !== undefined && (
-        <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden mt-1">
+        <div className="w-full h-1 bg-slate-200/50 dark:bg-slate-800 rounded-full overflow-hidden mt-1">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${Math.round(progress * 100)}%` }}
@@ -145,23 +145,24 @@ function AccuracyRingCard({ value, delay, reducedMotion }: { value: number; dela
       initial={{ opacity: 0, y: 14, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ delay, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="bg-orange-50 rounded-2xl p-5 flex flex-col items-center gap-2 shadow-sm border-l-4 border-[#FF8C00]"
+      className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl p-5 flex flex-col items-center gap-2 shadow-sm border-l-4"
+      style={{ borderLeftColor: 'var(--brand-primary)' }}
     >
       <div className="relative">
         <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }} aria-hidden>
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" className="stroke-slate-100" strokeWidth={sw} />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" className="stroke-slate-200 dark:stroke-slate-800" strokeWidth={sw} />
           <circle
             cx={size / 2} cy={size / 2} r={r} fill="none"
-            stroke="#FF8C00" strokeWidth={sw}
+            stroke="var(--brand-primary)" strokeWidth={sw}
             strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
             style={{ transition: reducedMotion ? 'none' : 'stroke-dashoffset 1.5s cubic-bezier(0.22,1,0.36,1)' }}
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-base font-black text-slate-900 tabular-nums">{count}%</span>
+          <span className="text-base font-black text-slate-900 dark:text-slate-100 tabular-nums">{count}%</span>
         </div>
       </div>
-      <span className="text-xs font-medium text-slate-500 text-center leading-tight">de precisão</span>
+      <span className="text-xs font-medium text-slate-500 dark:text-slate-400 text-center leading-tight">de precisão</span>
     </motion.div>
   )
 }
@@ -176,7 +177,7 @@ function Sparkline({ data }: { data: number[] }) {
           className="flex-1 rounded-t-sm transition-all"
           style={{
             height: `${Math.max(v > 0 ? (v / max) * 100 : 4, 4)}%`,
-            backgroundColor: '#FF8C00',
+            backgroundColor: 'var(--brand-primary)',
             opacity: v > 0 ? 0.3 + (v / max) * 0.7 : 0.1,
           }}
         />
@@ -318,25 +319,25 @@ export default function StudyTrackPage() {
   type StatDef = StatCardProps & { key: string }
   const statCards: StatDef[] = ([
     ov?.current_streak && ov.current_streak > 0
-      ? { key: 'streak', icon: Flame, value: ov.current_streak, label: 'dias seguidos', delay: 0, accentColor: '#FF8C00', bgTint: 'bg-orange-50' }
+      ? { key: 'streak', icon: Flame, value: ov.current_streak, label: 'dias seguidos', delay: 0, accentColor: 'var(--brand-primary)', bgTint: 'bg-orange-50 dark:bg-orange-900/20' }
       : null,
     ov?.total_questions && ov.total_questions > 0
-      ? { key: 'questions', icon: BookOpen, value: ov.total_questions, label: 'questões respondidas', delay: 0.06, accentColor: '#6366f1', bgTint: 'bg-indigo-50' }
+      ? { key: 'questions', icon: BookOpen, value: ov.total_questions, label: 'questões respondidas', delay: 0.06, accentColor: '#6366f1', bgTint: 'bg-indigo-50 dark:bg-indigo-900/20' }
       : null,
     ov?.total_xp && ov.total_xp > 0
-      ? { key: 'xp', icon: Zap, value: ov.total_xp, label: 'XP acumulados', sublabel: `Nível ${level}`, delay: 0.12, accentColor: '#8b5cf6', bgTint: 'bg-violet-50', progress: levelProgress }
+      ? { key: 'xp', icon: Zap, value: ov.total_xp, label: 'XP acumulados', sublabel: `Nível ${level}`, delay: 0.12, accentColor: '#8b5cf6', bgTint: 'bg-violet-50 dark:bg-violet-900/20', progress: levelProgress }
       : null,
     ov?.total_simulados && ov.total_simulados > 0
-      ? { key: 'simulados', icon: Brain, value: ov.total_simulados, label: 'simulados feitos', delay: 0.18, accentColor: '#0ea5e9', bgTint: 'bg-sky-50' }
+      ? { key: 'simulados', icon: Brain, value: ov.total_simulados, label: 'simulados feitos', delay: 0.18, accentColor: '#0ea5e9', bgTint: 'bg-sky-50 dark:bg-sky-900/20' }
       : null,
     rankingPos
-      ? { key: 'ranking', icon: Trophy, value: rankingPos, label: 'no ranking de hoje', suffix: 'º', delay: 0.24, accentColor: '#f59e0b', bgTint: 'bg-yellow-50' }
+      ? { key: 'ranking', icon: Trophy, value: rankingPos, label: 'no ranking de hoje', suffix: 'º', delay: 0.24, accentColor: '#f59e0b', bgTint: 'bg-yellow-50 dark:bg-yellow-900/20' }
       : null,
   ] as (StatDef | null)[]).filter(Boolean) as StatDef[]
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-dvh bg-[#F5F5F7] pb-16">
+    <div className="min-h-dvh bg-[#F5F5F7] dark:bg-slate-950/50 pb-16">
       <div className="max-w-lg mx-auto">
 
         {/* ═══════════════════ SEÇÃO 1 — HERO ══════════════════════════════ */}
@@ -357,12 +358,12 @@ export default function StudyTrackPage() {
           <div
             className="absolute -top-10 right-0 w-72 h-72 rounded-full blur-3xl pointer-events-none"
             aria-hidden
-            style={{ background: 'rgba(255,140,0,0.18)' }}
+            style={{ background: 'color-mix(in srgb, var(--brand-primary) 18%, transparent)' }}
           />
           <div
             className="absolute bottom-0 -left-10 w-48 h-48 rounded-full blur-3xl pointer-events-none"
             aria-hidden
-            style={{ background: 'rgba(255,140,0,0.08)' }}
+            style={{ background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)' }}
           />
 
           <div className="relative z-10 px-6 pt-10 pb-12 text-center">
@@ -373,13 +374,13 @@ export default function StudyTrackPage() {
               transition={{ duration: 0.4 }}
               className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 mb-6 border"
               style={{
-                background: 'rgba(255,140,0,0.12)',
-                borderColor: 'rgba(255,140,0,0.3)',
+                background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--brand-primary) 30%, transparent)',
               }}
             >
               <span
                 className="text-[10px] font-bold uppercase tracking-widest"
-                style={{ color: '#FF8C00' }}
+                style={{ color: 'var(--brand-primary)' }}
               >
                 Edificar
               </span>
@@ -419,7 +420,7 @@ export default function StudyTrackPage() {
 
           {/* ═══════════════════ SEÇÃO 2 — MÉTRICAS ═════════════════════════ */}
           <section>
-            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3 px-0.5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3 px-0.5">
               Seu progresso
             </p>
             {isLoading ? (
@@ -427,7 +428,7 @@ export default function StudyTrackPage() {
                 {[...Array(4)].map((_, i) => <StatSkeleton key={i} />)}
               </div>
             ) : statCards.length === 0 ? (
-              <div className="bg-white rounded-2xl p-6 text-center text-slate-400 text-sm shadow-sm">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 text-center text-slate-400 dark:text-slate-500 text-sm shadow-sm border border-slate-100 dark:border-slate-800">
                 Nenhuma atividade registrada ainda.
               </div>
             ) : (
@@ -449,65 +450,65 @@ export default function StudyTrackPage() {
           {/* ═══════════════════ SEÇÃO 3 — MATÉRIAS ════════════════════════ */}
           {!isLoading && qualifiedSubjects.length > 0 && (
             <motion.section {...(reducedMotion ? {} : FADE_UP)}>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3 px-0.5">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3 px-0.5">
                 Análise por matéria
               </p>
               {sameSubject ? (
-                <div className="bg-white rounded-2xl p-5 text-center shadow-sm">
-                  <p className="text-sm text-slate-500">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 text-center shadow-sm border border-slate-100 dark:border-slate-800">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     Responda mais questões para ver seus pontos fortes e fracos.
                   </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-3">
                   {bestSubject && (
-                    <div className="bg-orange-50 rounded-2xl p-5 border-l-4 border-[#FF8C00] shadow-sm">
+                    <div className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl p-5 border-l-4 shadow-sm" style={{ borderLeftColor: 'var(--brand-primary)' }}>
                       <div className="flex items-center gap-2 mb-2">
-                        <TrendingUp size={14} style={{ color: '#FF8C00' }} />
+                        <TrendingUp size={14} style={{ color: 'var(--brand-primary)' }} />
                         <span
                           className="text-[10px] font-bold uppercase tracking-widest"
-                          style={{ color: '#FF8C00' }}
+                          style={{ color: 'var(--brand-primary)' }}
                         >
                           Ponto Forte
                         </span>
                       </div>
-                      <p className="font-bold text-slate-800 truncate">{bestSubject.subject}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">Sua melhor matéria até agora</p>
-                      <div className="mt-3 h-1.5 bg-orange-100 rounded-full overflow-hidden">
+                      <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{bestSubject.subject}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Sua melhor matéria até agora</p>
+                      <div className="mt-3 h-1.5 bg-orange-100 dark:bg-orange-900/40 rounded-full overflow-hidden">
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${bestSubject.accuracy}%` }}
                           transition={{ delay: 0.4, duration: 1, ease: [0.22, 1, 0.36, 1] }}
                           className="h-full rounded-full"
-                          style={{ backgroundColor: '#FF8C00' }}
+                          style={{ backgroundColor: 'var(--brand-primary)' }}
                         />
                       </div>
                       <p
                         className="text-xs font-bold mt-1.5"
-                        style={{ color: '#FF8C00' }}
+                        style={{ color: 'var(--brand-primary)' }}
                       >
                         {bestSubject.accuracy}% de precisão
                       </p>
                     </div>
                   )}
                   {worstSubject && (
-                    <div className="bg-red-50 rounded-2xl p-5 border-l-4 border-red-400 shadow-sm">
+                    <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl p-5 border-l-4 border-red-400 dark:border-red-500 shadow-sm">
                       <div className="flex items-center gap-2 mb-2">
-                        <AlertCircle size={14} className="text-red-500" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-red-600">
+                        <AlertCircle size={14} className="text-red-500 dark:text-red-400" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400">
                           Atenção
                         </span>
                       </div>
-                      <p className="font-bold text-slate-800 truncate">{worstSubject.subject}</p>
-                      <div className="mt-3 h-1.5 bg-red-100 rounded-full overflow-hidden">
+                      <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{worstSubject.subject}</p>
+                      <div className="mt-3 h-1.5 bg-red-100 dark:bg-red-900/40 rounded-full overflow-hidden">
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${worstSubject.accuracy}%` }}
                           transition={{ delay: 0.5, duration: 1, ease: [0.22, 1, 0.36, 1] }}
-                          className="h-full bg-red-400 rounded-full"
+                          className="h-full bg-red-400 dark:bg-red-500 rounded-full"
                         />
                       </div>
-                      <p className="text-xs font-bold text-red-600 mt-1.5">
+                      <p className="text-xs font-bold text-red-600 dark:text-red-400 mt-1.5">
                         {worstSubject.accuracy}% de precisão
                       </p>
                     </div>
@@ -520,10 +521,10 @@ export default function StudyTrackPage() {
           {/* ═══════════════════ SEÇÃO 4 — ATIVIDADE ════════════════════════ */}
           {!isLoading && hasActivity && (
             <motion.section {...(reducedMotion ? {} : FADE_UP)}>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3 px-0.5">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3 px-0.5">
                 Sua atividade nos últimos 30 dias
               </p>
-              <div className="bg-white rounded-2xl p-5 shadow-sm">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-sm border border-slate-100 dark:border-slate-800">
                 <Sparkline data={activityLast30} />
               </div>
             </motion.section>
@@ -540,37 +541,37 @@ export default function StudyTrackPage() {
             </p>
             <div
               className="mt-4 mx-auto w-12 h-0.5 rounded-full"
-              style={{ backgroundColor: '#FF8C00' }}
+              style={{ backgroundColor: 'var(--brand-primary)' }}
             />
           </motion.section>
 
           {/* ═══════════════════ SEÇÃO 6 — FEATURES ════════════════════════ */}
           <motion.section {...(reducedMotion ? {} : FADE_UP)}>
-            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3 px-0.5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-3 px-0.5">
               O que a StudyTrack oferece além
             </p>
             <div className="grid grid-cols-2 gap-3">
               {FEATURES.map(({ icon: Icon, title, desc, badge }) => (
                 <div
                   key={title}
-                  className="bg-white rounded-2xl p-4 shadow-sm flex flex-col gap-2 relative"
+                  className="bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm flex flex-col gap-2 relative border border-slate-100 dark:border-slate-800"
                 >
                   {badge && (
                     <span
                       className="absolute top-3 right-3 text-[9px] font-bold uppercase tracking-wider rounded-full px-1.5 py-0.5"
-                      style={{ background: 'rgba(255,140,0,0.12)', color: '#FF8C00' }}
+                      style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)', color: 'var(--brand-primary)' }}
                     >
                       {badge}
                     </span>
                   )}
                   <div
                     className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: 'rgba(255,140,0,0.1)' }}
+                    style={{ background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)' }}
                   >
-                    <Icon size={15} style={{ color: '#FF8C00' }} />
+                    <Icon size={15} style={{ color: 'var(--brand-primary)' }} />
                   </div>
-                  <p className="text-xs font-bold text-slate-800 leading-snug pr-6">{title}</p>
-                  <p className="text-[10px] text-slate-400 leading-snug">{desc}</p>
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-snug pr-6">{title}</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-snug">{desc}</p>
                 </div>
               ))}
             </div>
@@ -587,18 +588,18 @@ export default function StudyTrackPage() {
               rel="noopener noreferrer"
               className="w-full flex items-center justify-center gap-2 rounded-2xl py-4 px-6 font-black text-white text-base shadow-lg active:scale-[0.98] transition-transform duration-150"
               style={{
-                background: 'linear-gradient(135deg, #FF8C00 0%, #e07800 100%)',
-                boxShadow: '0 8px 32px rgba(255,140,0,0.35)',
+                background: 'linear-gradient(135deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 85%, black) 100%)',
+                boxShadow: '0 8px 32px color-mix(in srgb, var(--brand-primary) 35%, transparent)',
               }}
             >
               Quero acesso completo à StudyTrack
               <ArrowRight size={18} />
             </a>
-            <p className="mt-3 text-xs text-slate-400">
+            <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
               Sem fidelidade · Cancele quando quiser
             </p>
-            <div className="mt-3 inline-flex items-center gap-1.5 text-xs text-slate-400">
-              <ShieldCheck size={13} className="text-slate-300" />
+            <div className="mt-3 inline-flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+              <ShieldCheck size={13} className="text-slate-300 dark:text-slate-600" />
               Ambiente seguro
             </div>
           </motion.section>
@@ -608,4 +609,3 @@ export default function StudyTrackPage() {
     </div>
   )
 }
-

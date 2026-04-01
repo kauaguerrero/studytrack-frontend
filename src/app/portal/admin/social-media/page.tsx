@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { ArrowLeft, Sparkles } from 'lucide-react';
+import { ArrowLeft, Sparkles, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
@@ -21,6 +21,9 @@ import type {
 } from '@/types/social-media';
 
 const FLASK_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:5000').replace(/\/$/, '');
+
+// Feature flag: usa pipeline HTML + Puppeteer em vez de DALL-E
+const USE_HTML_PIPELINE = true;
 
 const INITIAL_STATE: CreationState = {
   step:             'select-format',
@@ -44,9 +47,17 @@ const LOADING_MESSAGES: Record<string, string> = {
   variation:  'Gerando variação visual...',
 };
 
+interface HtmlPipelineResult {
+  slides:  Array<{ slide_number: number; public_url: string; storage_path: string }>;
+  caption: string;
+  title:   string;
+  theme:   string;
+}
+
 export default function SocialMediaPage() {
   const [state, setState] = useState<CreationState>(INITIAL_STATE);
   const [uploading, setUploading] = useState(false);
+  const [htmlResult, setHtmlResult] = useState<HtmlPipelineResult | null>(null);
   const supabase = createClient();
 
   function set(patch: Partial<CreationState>) {
@@ -113,6 +124,31 @@ export default function SocialMediaPage() {
     const msg         = opts?.isVariation ? LOADING_MESSAGES.variation : LOADING_MESSAGES.post;
 
     set({ step: 'generating', loading_message: msg, selected_idea: idea ?? null });
+
+    if (USE_HTML_PIPELINE) {
+      try {
+        const res  = await fetch('/api/admin/social-media/generate-html-post', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            prompt:       adminPrompt || idea?.concept || '',
+            format:       state.format,
+            slide_count:  state.slide_count,
+            logo_urls:    materials,
+            partner_name: undefined,
+          }),
+        });
+        const data = await res.json() as HtmlPipelineResult & { error?: string };
+        if (!res.ok) throw new Error(data.error ?? 'Erro ao gerar post');
+
+        setHtmlResult(data);
+        set({ step: 'preview' });
+      } catch (e) {
+        toast.error(String(e));
+        set({ step: state.mode === 'directed' ? 'input' : 'ideas' });
+      }
+      return;
+    }
 
     try {
       const res  = await fetch('/api/admin/social-media/generate-post', {
@@ -361,8 +397,17 @@ export default function SocialMediaPage() {
         </div>
       )}
 
-      {/* Step: preview */}
-      {step === 'preview' && generated && format && (
+      {/* Step: preview — HTML pipeline */}
+      {step === 'preview' && USE_HTML_PIPELINE && htmlResult && (
+        <HtmlPipelinePreview
+          result={htmlResult}
+          onRestart={() => { setState(INITIAL_STATE); setHtmlResult(null); }}
+          onVariation={() => void generatePost({ isVariation: true })}
+        />
+      )}
+
+      {/* Step: preview — DALL-E pipeline (legado) */}
+      {step === 'preview' && !USE_HTML_PIPELINE && generated && format && (
         <div className="space-y-4">
           <button
             onClick={() => goTo(mode === 'directed' ? 'input' : 'ideas')}
@@ -384,6 +429,139 @@ export default function SocialMediaPage() {
           />
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Preview simples para o pipeline HTML (imagens já renderizadas)
+// ---------------------------------------------------------------------------
+
+function HtmlPipelinePreview({
+  result,
+  onRestart,
+  onVariation,
+}: {
+  result:      HtmlPipelineResult;
+  onRestart:   () => void;
+  onVariation: () => void;
+}) {
+  const [active, setActive]       = useState(0);
+  const [downloading, setDownloading] = useState(false);
+  const total = result.slides.length;
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      if (total === 1) {
+        const a = document.createElement('a');
+        a.href     = result.slides[0].public_url;
+        a.download = 'studytrack-slide01.png';
+        a.target   = '_blank';
+        a.click();
+      } else {
+        const JSZip = (await import('jszip')).default;
+        const zip   = new JSZip();
+        await Promise.all(
+          result.slides.map(async (slide, idx) => {
+            const res = await fetch(slide.public_url);
+            const buf = await res.arrayBuffer();
+            zip.file(`studytrack-slide${String(idx + 1).padStart(2, '0')}.png`, buf);
+          }),
+        );
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url; a.download = 'studytrack-carrossel.zip'; a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (e) {
+      console.error('[HtmlPipelinePreview] download error:', e);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Slide viewer */}
+      <div className="flex flex-col items-center gap-4">
+        <div className="rounded-xl overflow-hidden shadow-lg ring-1 ring-black/10 dark:ring-white/10 w-full max-w-xs">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={result.slides[active]?.public_url}
+            alt={`Slide ${active + 1}`}
+            className="w-full h-auto block"
+            style={{ aspectRatio: '1080/1350' }}
+          />
+        </div>
+
+        {total > 1 && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setActive((s) => Math.max(0, s - 1))}
+              disabled={active === 0}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div className="flex gap-1.5">
+              {result.slides.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActive(idx)}
+                  className={[
+                    'h-2 rounded-full transition-all',
+                    idx === active ? 'bg-blue-600 w-4' : 'bg-slate-300 dark:bg-slate-600 w-2 hover:bg-slate-400',
+                  ].join(' ')}
+                />
+              ))}
+            </div>
+            <button
+              onClick={() => setActive((s) => Math.min(total - 1, s + 1))}
+              disabled={active === total - 1}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 disabled:opacity-30 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <span className="text-xs text-slate-400">{active + 1} / {total}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Caption */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          Legenda sugerida
+        </p>
+        <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-4 text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed border border-slate-200 dark:border-slate-700">
+          {result.caption}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="grid grid-cols-3 gap-2">
+        <button
+          onClick={() => void handleDownload()}
+          disabled={downloading}
+          className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm"
+        >
+          <Download size={15} />
+          {downloading ? 'Baixando...' : total > 1 ? 'Baixar ZIP' : 'Baixar PNG'}
+        </button>
+        <button
+          onClick={onVariation}
+          className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+        >
+          Variação
+        </button>
+        <button
+          onClick={onRestart}
+          className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+        >
+          Recomeçar
+        </button>
+      </div>
     </div>
   );
 }
