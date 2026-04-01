@@ -18,6 +18,7 @@ import {
   BarChart3,
   Home,
   User,
+  Trophy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -122,12 +123,22 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/configuracoes`,   icon: Settings,        label: 'Configurações',    shortLabel: 'Config' },
   ];
 
+<<<<<<< Updated upstream
   const studentNavItems: NavItemDef[] = [
     { href: `/partners/${org.slug}/student/dashboard`,         icon: Home,      label: 'Início',          shortLabel: 'Início' },
     { href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,  label: 'Questões',        shortLabel: 'Questões' },
     { href: `/partners/${org.slug}/student/simulado`,          icon: FileText,  label: 'Simulados',       shortLabel: 'Simulados' },
     { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3, label: 'Meu Desempenho',  shortLabel: 'Desempenho' },
     { href: `/partners/${org.slug}/student/perfil`,            icon: User,      label: 'Perfil',          shortLabel: 'Perfil' },
+=======
+  const studentNavItems = [
+    { href: `/partners/${org.slug}/student/dashboard`,         icon: Home,      label: 'Início' },
+    { href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,  label: 'Questões' },
+    { href: `/partners/${org.slug}/student/simulado`,          icon: FileText,  label: 'Simulados' },
+    { href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,    label: 'Ranking' },
+    { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3, label: 'Meu Desempenho' },
+    { href: `/partners/${org.slug}/student/perfil`,            icon: User,      label: 'Perfil' },
+>>>>>>> Stashed changes
   ];
 
   const navItems = variant === 'student' ? studentNavItems : founderNavItems;
