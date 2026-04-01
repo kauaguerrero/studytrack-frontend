@@ -104,187 +104,24 @@ export function DashboardClient({
   }, [popupState, ranking, refreshRanking]);
 
   // ── Monthly prize progress ─────────────────────────────────────────────────
-  const monthlyPts    = summary?.monthly_points ?? 0;
-  const ptsToTop3     = summary?.points_to_top3 ?? 0;
-  const totalNeeded   = monthlyPts + ptsToTop3;
-  const monthlyPct    = totalNeeded > 0 ? Math.min(100, Math.round((monthlyPts / totalNeeded) * 100)) : 0;
-  const monthLabel    = summary?.month_label ?? '';
+  const monthlyPts = summary?.monthly_points ?? 0;
+  const ptsToTop3 = summary?.points_to_top3 ?? 0;
+  const totalNeeded = monthlyPts + ptsToTop3;
+  const monthlyPct = totalNeeded > 0 ? Math.min(100, Math.round((monthlyPts / totalNeeded) * 100)) : 0;
+  const monthLabel = summary?.month_label ?? '';
 
   return (
     <>
+      {/* ── Container Principal (O vilão do fechamento estava aqui) ── */}
       <motion.div
         className="space-y-5"
         variants={containerVariant}
         initial="hidden"
         animate="show"
       >
-        {/* ── Hero Banner ───────────────────────────────────────────────── */}
+        {/* ── 1. Hero Banner ───────────────────────────────────────────────── */}
         <motion.div variants={itemVariant}>
-          <div
-<<<<<<< Updated upstream
-            className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full blur-3xl opacity-25"
-            style={{ background: 'var(--brand-primary)' }}
-          />
-          <div
-            className="pointer-events-none absolute right-10 bottom-0 h-20 w-20 rounded-full blur-2xl opacity-10"
-            style={{ background: 'var(--brand-primary)' }}
-          />
-
-          <div className="relative z-10">
-            {/* Org tag */}
-            <div className="mb-4 flex items-center gap-2">
-              {orgLogoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={orgLogoUrl}
-                  alt={orgName}
-                  className="h-6 w-6 rounded object-contain bg-white/10 p-0.5"
-                />
-              ) : (
-                <GraduationCap className="h-5 w-5 opacity-40 text-slate-100" />
-              )}
-              <span className="text-[11px] font-semibold uppercase tracking-widest text-white/50">
-                {orgName}
-              </span>
-            </div>
-
-            {/* Greeting */}
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none text-white">
-              Olá, {firstName}!
-            </h1>
-            <p className="mt-1.5 text-sm text-white/50">
-              Cada questão te aproxima da aprovação.
-            </p>
-
-            {/* Stats badges */}
-            <div className="mt-5 flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/10 text-white">
-                <Flame className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                {currentStreak} {currentStreak === 1 ? 'dia' : 'dias'} de sequência
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/10 text-white">
-                <Trophy className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                {totalPoints.toLocaleString('pt-BR')} pontos
-              </span>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* ── Progresso da Sequência ────────────────────────────────────── */}
-      <motion.div variants={itemVariant}>
-        <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-          <div className="mb-2.5 flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-              Progresso da sequência
-            </span>
-            <span className="text-[11px] font-bold" style={{ color: 'var(--brand-primary)' }}>
-              Meta: {nextMilestone} dias
-            </span>
-          </div>
-
-          {/* Progress bar */}
-          <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-            <motion.div
-              className="h-full rounded-full"
-              style={{
-                background: `linear-gradient(90deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 70%, transparent))`,
-              }}
-              initial={{ width: 0 }}
-              animate={{ width: `${shouldReduce ? streakPct : streakPct}%` }}
-              transition={
-                shouldReduce
-                  ? { duration: 0 }
-                  : { duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: 0.35 }
-              }
-            />
-          </div>
-
-          <p className="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">
-            {currentStreak} de {nextMilestone} dias · {streakPct}% concluído
-          </p>
-        </div>
-      </motion.div>
-
-      {/* ── Action Cards ─────────────────────────────────────────────── */}
-      <motion.div variants={itemVariant} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
-        {/* Primary CTA — Simulados */}
-        <Link href={`/partners/${slug}/student/simulado`} className="block group cursor-pointer h-full">
-          <div
-            className="relative overflow-hidden rounded-xl p-5 text-white transition-transform duration-200 active:scale-[0.98] hover:brightness-105 h-full"
-            style={{ background: `linear-gradient(135deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 80%, black) 100%)` }}
-          >
-            <div className="pointer-events-none absolute -right-4 -bottom-4 h-28 w-28 rounded-full bg-black/10 dark:bg-black/20" />
-            <div className="relative z-10 flex flex-col h-full justify-between">
-              <div>
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
-                  <FileText className="h-5 w-5 text-white" />
-                </div>
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-white/70">
-                  Destaque
-                </p>
-                <h2 className="text-[18px] font-extrabold leading-tight text-white">Simulados</h2>
-                <p className="mt-1 text-xs text-white/80">
-                  Faça simulados completos com TRI
-                </p>
-              </div>
-              <div className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-white">
-                Começar agora
-                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-              </div>
-            </div>
-          </div>
-        </Link>
-
-        {/* Secondary — Banco de Questões */}
-        <Link href={`/partners/${slug}/student/banco-de-questoes`} className="block group cursor-pointer h-full">
-          <div className="relative overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition-all duration-200 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-md active:scale-[0.98] h-full">
-            <div className="relative z-10 flex flex-col h-full justify-between">
-              <div>
-                <div
-                  className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl"
-                  style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}
-                >
-                  <BookOpen className="h-5 w-5" style={{ color: 'var(--brand-primary)' }} />
-                </div>
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                  Praticar
-                </p>
-                <h2 className="text-[18px] font-extrabold text-slate-800 dark:text-slate-100 leading-tight">
-                  Banco de Questões
-                </h2>
-                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                  Pratique com +2.700 questões do ENEM
-                </p>
-              </div>
-              <div
-                className="mt-4 inline-flex items-center gap-1 text-xs font-bold"
-                style={{ color: 'var(--brand-primary)' }}
-              >
-                Explorar questões
-                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-              </div>
-            </div>
-          </div>
-        </Link>
-      </motion.div>
-
-      {/* ── StudyTrack CTA ───────────────────────────────────────────── */}
-      <motion.div variants={itemVariant}>
-        <Link
-          href={`/partners/${slug}/student/studytrack`}
-          className="group block rounded-xl overflow-hidden active:scale-[0.99] transition-transform duration-150"
-        >
-          <div
-            className="relative p-4 flex items-center gap-3"
-            style={{ background: 'linear-gradient(135deg, #111 0%, #1a1a1a 100%)' }}
-=======
-            className="relative overflow-hidden rounded-2xl p-6 text-white select-none"
-            style={{ background: 'linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 100%)' }}
->>>>>>> Stashed changes
-          >
-            {/* Brand ambient glow */}
+          <div className="relative overflow-hidden rounded-2xl bg-slate-950 p-6 sm:p-8 shadow-xl border border-white/5">
             <div
               className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full blur-3xl opacity-25"
               style={{ background: 'var(--brand-primary)' }}
@@ -295,7 +132,6 @@ export function DashboardClient({
             />
 
             <div className="relative z-10">
-              {/* Org tag */}
               <div className="mb-4 flex items-center gap-2">
                 {orgLogoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -312,15 +148,13 @@ export function DashboardClient({
                 </span>
               </div>
 
-              {/* Greeting */}
-              <h1 className="text-3xl font-extrabold tracking-tight leading-none text-white">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none text-white">
                 Olá, {firstName}!
               </h1>
               <p className="mt-1.5 text-sm text-white/50">
                 Cada questão te aproxima da aprovação.
               </p>
 
-              {/* Stats badges */}
               <div className="mt-5 flex flex-wrap gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/10 text-white">
                   <Flame className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
@@ -335,7 +169,7 @@ export function DashboardClient({
           </div>
         </motion.div>
 
-        {/* ── Corrida para o prêmio (replaces streak milestone bar) ──────── */}
+        {/* ── 2. Corrida para o prêmio (Substitui o Progresso da Sequência) ── */}
         <motion.div variants={itemVariant}>
           <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
             <div className="mb-2.5 flex items-center justify-between">
@@ -347,7 +181,6 @@ export function DashboardClient({
               </span>
             </div>
 
-            {/* Progress bar */}
             <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
               <motion.div
                 className="h-full rounded-full"
@@ -372,10 +205,9 @@ export function DashboardClient({
           </div>
         </motion.div>
 
-        {/* ── Action Cards ─────────────────────────────────────────────── */}
+        {/* ── 3. Action Cards ─────────────────────────────────────────────── */}
         <motion.div variants={itemVariant} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
-          {/* Primary CTA — Simulados */}
+          {/* Simulados */}
           <Link href={`/partners/${slug}/student/simulado`} className="block group cursor-pointer h-full">
             <div
               className="relative overflow-hidden rounded-xl p-5 text-white transition-transform duration-200 active:scale-[0.98] hover:brightness-105 h-full"
@@ -403,7 +235,7 @@ export function DashboardClient({
             </div>
           </Link>
 
-          {/* Secondary — Banco de Questões */}
+          {/* Banco de Questões */}
           <Link href={`/partners/${slug}/student/banco-de-questoes`} className="block group cursor-pointer h-full">
             <div className="relative overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition-all duration-200 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-md active:scale-[0.98] h-full">
               <div className="relative z-10 flex flex-col h-full justify-between">
@@ -436,7 +268,7 @@ export function DashboardClient({
           </Link>
         </motion.div>
 
-        {/* ── StudyTrack CTA ───────────────────────────────────────────── */}
+        {/* ── 4. StudyTrack CTA ───────────────────────────────────────────── */}
         <motion.div variants={itemVariant}>
           <Link
             href={`/partners/${slug}/student/studytrack`}
@@ -470,11 +302,10 @@ export function DashboardClient({
             </div>
           </Link>
         </motion.div>
-      </motion.div>
+      </motion.div> {/* <--- AQUI ESTAVA O SEU ERRO PRINCIPAL: FECHAMENTO DA RAIZ DA ANIMAÇÃO */}
 
-      {/* ── Popups (outside the stagger container) ───────────────────────── */}
+      {/* ── Popups (Fora do container principal de staggering) ──────────── */}
       <AnimatePresence>
-        {/* Onboarding diagnostic — blocks all interaction */}
         {popupState?.type === 'onboarding' && (
           <OnboardingDiagnosticModal
             firstName={firstName}
@@ -484,7 +315,6 @@ export function DashboardClient({
           />
         )}
 
-        {/* Ranking popup — after onboarding or delayed on entry */}
         {showRankingPopup && ranking && (
           <RankingPopup
             ranking={ranking}
@@ -492,7 +322,6 @@ export function DashboardClient({
           />
         )}
 
-        {/* Streak celebration */}
         {popupState?.type === 'streak' && (
           <StreakPopup
             streak={popupState.streak ?? currentStreak}
@@ -500,7 +329,6 @@ export function DashboardClient({
           />
         )}
 
-        {/* Urgency / motivation card */}
         {(popupState?.type === 'urgency' || popupState?.type === 'motivation') && (
           <ContextualPopup
             popupState={popupState}
@@ -508,7 +336,6 @@ export function DashboardClient({
           />
         )}
 
-        {/* Month-end / new-month celebration */}
         {(popupState?.type === 'month_end' || popupState?.month_reset_pending) && (
           <MonthEndScreen
             winners={(ranking?.ranking ?? []).slice(0, 3).map((e) => ({
