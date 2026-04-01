@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -22,6 +22,7 @@ import {
   User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 interface NavItemProps {
@@ -35,7 +36,7 @@ function NavItem({ href, icon: Icon, label, collapsed }: NavItemProps) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname.startsWith(href + '/');
 
-  return (
+  const linkEl = (
     <Link
       href={href}
       style={isActive ? { backgroundColor: 'var(--brand-primary)' } : undefined}
@@ -46,12 +47,21 @@ function NavItem({ href, icon: Icon, label, collapsed }: NavItemProps) {
           : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100',
         collapsed && 'justify-center px-2'
       )}
-      title={collapsed ? label : undefined}
     >
       <Icon className="h-4 w-4 shrink-0" />
       {!collapsed && <span>{label}</span>}
     </Link>
   );
+
+  if (collapsed) {
+    return (
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>{linkEl}</TooltipTrigger>
+        <TooltipContent side="right" sideOffset={8}>{label}</TooltipContent>
+      </Tooltip>
+    );
+  }
+  return linkEl;
 }
 
 interface PartnerLayoutProps {
@@ -63,6 +73,8 @@ interface PartnerLayoutProps {
 export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutProps) {
   const { org, userProfile } = useOrg();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const founderNavItems = [
     { href: `/partners/${org.slug}/dashboard`,      icon: LayoutDashboard, label: 'Dashboard' },
@@ -87,79 +99,99 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     window.location.href = '/auth/login';
   }
 
-  const initials = userProfile.fullName
-    .split(' ')
-    .slice(0, 2)
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase();
+  const handleMouseEnter = () => {
+    hoverTimer.current = setTimeout(() => setIsHovered(true), 150);
+  };
 
-  const SidebarContent = () => (
+  const handleMouseLeave = () => {
+    if (hoverTimer.current) {
+      clearTimeout(hoverTimer.current);
+      hoverTimer.current = null;
+    }
+    setIsHovered(false);
+  };
+
+  const collapsed = !isHovered;
+
+  const SidebarContent = ({ collapsed: c = false }: { collapsed?: boolean }) => (
     <div className="flex h-full flex-col">
       {/* Logo + org name */}
-      <div className="flex items-center gap-3 border-b dark:border-slate-800 px-4 py-4">
+      <div className={cn('flex items-center gap-3 border-b dark:border-slate-800 px-4 py-4', c && 'justify-center px-2')}>
         {org.logo_url ? (
           <Image
             src={org.logo_url}
             alt={org.name}
             width={32}
             height={32}
-            className="rounded-md object-contain"
+            className="rounded-md object-contain shrink-0"
           />
         ) : (
           <div
-            className="flex h-8 w-8 items-center justify-center rounded-md text-white text-xs font-bold"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white text-xs font-bold"
             style={{ backgroundColor: 'var(--brand-primary)' }}
           >
             <GraduationCap className="h-4 w-4" />
           </div>
         )}
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
-            {org.name}
-          </p>
-          <p className="text-xs text-slate-500">
-            {variant === 'student' ? 'Portal do Aluno' : 'Portal Parceiro'}
-          </p>
-        </div>
+        {!c && (
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+              {org.name}
+            </p>
+            <p className="text-xs text-slate-500">
+              {variant === 'student' ? 'Portal do Aluno' : 'Portal Parceiro'}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className={cn('flex-1 space-y-1 py-4', c ? 'px-2' : 'px-3')}>
         {navItems.map((item) => (
-          <NavItem key={item.href} {...item} />
+          <NavItem key={item.href} {...item} collapsed={c} />
         ))}
       </nav>
 
       {/* User footer */}
-      <div className="border-t dark:border-slate-800 px-3 py-3">
-        <div className="flex items-center gap-3 rounded-lg bg-slate-50 dark:bg-slate-800 px-3 py-2">
+      <div className={cn('border-t dark:border-slate-800 py-3', c ? 'px-2' : 'px-3')}>
+        <div className={cn('flex items-center gap-3 rounded-lg bg-slate-50 dark:bg-slate-800 px-3 py-2', c && 'justify-center px-2')}>
           <div
-            className="h-8 w-8 shrink-0 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white"
+            className="w-9 h-9 shrink-0 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white"
             style={{ backgroundColor: 'var(--brand-primary)' }}
           >
-            {userProfile.avatarUrl
-              // eslint-disable-next-line @next/next/no-img-element
-              ? <img src={userProfile.avatarUrl} alt="" className="h-full w-full object-cover" />
-              : initials}
+            {userProfile.avatarUrl ? (
+              <Image
+                src={userProfile.avatarUrl}
+                alt="Avatar"
+                width={36}
+                height={36}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              userProfile.fullName.charAt(0).toUpperCase()
+            )}
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
-              {userProfile.fullName}
-            </p>
-            <p className="text-xs text-slate-500">
-              {variant === 'student' ? 'Aluno' : 'Founder'}
-            </p>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-            onClick={handleSignOut}
-            title="Sair"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-          </Button>
+          {!c && (
+            <>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
+                  {userProfile.fullName}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {variant === 'student' ? 'Aluno' : 'Founder'}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                onClick={handleSignOut}
+                title="Sair"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -168,8 +200,15 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 border-r dark:border-slate-800 bg-white dark:bg-slate-900 md:flex md:flex-col">
-        <SidebarContent />
+      <aside
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={cn(
+          'hidden md:flex md:flex-col shrink-0 border-r dark:border-slate-800 bg-white dark:bg-slate-900 transition-[width] duration-300 ease-in-out overflow-hidden',
+          collapsed ? 'w-20' : 'w-64'
+        )}
+      >
+        <SidebarContent collapsed={collapsed} />
       </aside>
 
       {/* Mobile sidebar overlay */}

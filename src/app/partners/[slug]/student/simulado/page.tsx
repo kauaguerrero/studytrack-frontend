@@ -3,7 +3,7 @@
 /**
  * Simulados — versão visual Edificar Student.
  * Lógica de negócio 100% idêntica ao portal padrão.
- * UI elevado: brand colors, animações Framer Motion, resultado celebrativo.
+ * UI elevado: brand colors, animações Framer Motion, resultado celebrativo, suporte a Dark Mode.
  */
 
 import { useState, useEffect, useRef } from 'react'
@@ -76,7 +76,7 @@ const ENEM_FORMATS = [
 
 const CUSTOM_SUBJECTS = [
   { value: 'Todas',             label: 'Todas as Matérias', qty: null },
-  { value: 'Matemática',        label: 'Matemática',         qty: 673  },
+  { value: 'Matemática',        label: 'Matemática',        qty: 673  },
   { value: 'Língua Portuguesa', label: 'Língua Portuguesa', qty: 664  },
   { value: 'Biologia',          label: 'Biologia',          qty: 237  },
   { value: 'Geografia',         label: 'Geografia',         qty: 226  },
@@ -134,7 +134,6 @@ function _lerpHex(a: string, b: string, t: number): string {
   return '#' + [ar+(br-ar)*t, ag+(bg-ag)*t, ab+(bb-ab)*t].map(v => Math.round(v).toString(16).padStart(2,'0')).join('')
 }
 
-/** Continuously interpolated hex: red → yellow (blend at ±5pp around 20%) → green (blend at ±5pp around 60%) */
 function perfColorHex(pct: number): string {
   if (pct <= 15) return _C_RED
   if (pct <= 25) return _lerpHex(_C_RED,    _C_YELLOW, (pct - 15) / 10)
@@ -143,13 +142,12 @@ function perfColorHex(pct: number): string {
   return _C_GREEN
 }
 
-/** 5-step Tailwind text class mirroring the same anchors */
 function scoreColor(pct: number) {
-  if (pct >= 65) return 'text-green-600'
-  if (pct >= 55) return 'text-lime-600'
-  if (pct >= 25) return 'text-amber-500'
-  if (pct >= 15) return 'text-orange-500'
-  return 'text-red-500'
+  if (pct >= 65) return 'text-green-600 dark:text-green-400'
+  if (pct >= 55) return 'text-lime-600 dark:text-lime-400'
+  if (pct >= 25) return 'text-amber-500 dark:text-amber-400'
+  if (pct >= 15) return 'text-orange-500 dark:text-orange-400'
+  return 'text-red-500 dark:text-red-400'
 }
 
 function scoreBarColor(pct: number)  { return perfColorHex(pct) }
@@ -193,7 +191,7 @@ function aggregateSubjectPerf(sessions: SimuladoSession[]) {
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-slate-900 text-white px-3 py-2 rounded-lg text-sm shadow-lg border border-slate-700">
+    <div className="bg-slate-900 dark:bg-slate-800 text-white px-3 py-2 rounded-lg text-sm shadow-lg border border-slate-700">
       <p className="text-slate-400 text-xs mb-0.5">{label}</p>
       <p className="font-bold text-green-400">{payload[0].value}%</p>
     </div>
@@ -427,7 +425,6 @@ export default function SimuladoPage() {
     setUserAnswers(prev => ({ ...prev, [q.id]: letter }))
   }
   const resetSimulado = (openModal = false) => {
-    // CORREÇÃO AQUI: userAnswers resetado com {} em vez de []
     setStep('setup'); setQuestions([]); setCurrentIdx(0); setUserAnswers({}); setTimeLeft(0)
     setSessionId(null); setFinishResult(null); setDashVersion(v => v + 1)
     if (openModal) setShowConfigModal(true)
@@ -448,17 +445,17 @@ export default function SimuladoPage() {
 
       {/* ── Finish dialog ── */}
       <Dialog open={finishDialogOpen} onOpenChange={setFinishDialogOpen}>
-        <DialogContent>
+        <DialogContent className="dark:bg-slate-900 dark:border-slate-800">
           <DialogHeader>
-            <DialogTitle>Finalizar simulado?</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="dark:text-slate-100">Finalizar simulado?</DialogTitle>
+            <DialogDescription className="dark:text-slate-400">
               {questions.length - Object.keys(userAnswers).length > 0
                 ? `Você tem ${questions.length - Object.keys(userAnswers).length} questão(ões) sem resposta. Ao finalizar, não será possível voltar.`
                 : 'Todas as questões foram respondidas. Deseja entregar?'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <button onClick={() => setFinishDialogOpen(false)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold hover:bg-slate-50 text-slate-700 cursor-pointer">
+            <button onClick={() => setFinishDialogOpen(false)} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer">
               Continuar respondendo
             </button>
             <button onClick={confirmFinish} disabled={submitting}
@@ -472,20 +469,20 @@ export default function SimuladoPage() {
 
       {/* ── Config modal ── */}
       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
-        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto">
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto dark:bg-slate-900 dark:border-slate-800">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 dark:text-slate-100">
               <Timer className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
               Configurar Simulado
             </DialogTitle>
-            <DialogDescription>Escolha o formato e as opções do seu simulado.</DialogDescription>
+            <DialogDescription className="dark:text-slate-400">Escolha o formato e as opções do seu simulado.</DialogDescription>
           </DialogHeader>
 
           {/* Mode toggle */}
-          <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
+          <div className="flex gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
             {(['custom', 'enem'] as const).map(m => (
               <button key={m} onClick={() => setMode(m)}
-                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${mode === m ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
+                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${mode === m ? 'bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                 {m === 'custom' ? 'Personalizado' : 'Bloco ENEM'}
               </button>
             ))}
@@ -495,9 +492,9 @@ export default function SimuladoPage() {
             {mode === 'custom' ? (
               <>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Matéria</label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Matéria</label>
                   <div className="relative">
-                    <select className="w-full p-3.5 border border-slate-200 rounded-xl bg-slate-50/50 focus:ring-2 font-semibold text-slate-700 appearance-none pr-10 cursor-pointer outline-none"
+                    <select className="w-full p-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800 focus:ring-2 font-semibold text-slate-700 dark:text-slate-200 appearance-none pr-10 cursor-pointer outline-none"
                       style={{ ['--tw-ring-color' as string]: 'var(--brand-primary)' }}
                       value={subject} onChange={e => setSubject(e.target.value)}>
                       {CUSTOM_SUBJECTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -507,16 +504,16 @@ export default function SimuladoPage() {
                   {(() => {
                     const sel = CUSTOM_SUBJECTS.find(s => s.value === subject)
                     if (!sel || sel.qty === null || sel.qty >= qty) return null
-                    return <p className="mt-1.5 text-xs text-amber-600 flex items-start gap-1"><span className="shrink-0">⚠️</span><span>Essa matéria tem apenas {sel.qty} questões. Reduza a quantidade ou mude para &quot;Misto&quot;.</span></p>
+                    return <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-500 flex items-start gap-1"><span className="shrink-0">⚠️</span><span>Essa matéria tem apenas {sel.qty} questões. Reduza a quantidade ou mude para &quot;Misto&quot;.</span></p>
                   })()}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Quantidade</label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Quantidade</label>
                   <div className="grid grid-cols-4 gap-2">
                     {[5, 10, 15, 30, 45, 90, 180].map(val => (
                       <button key={val} onClick={() => setQty(val)}
-                        className={`p-2.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${qty === val ? 'text-white border-transparent' : 'bg-white text-slate-600 hover:border-slate-300 border-slate-200'}`}
+                        className={`p-2.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${qty === val ? 'text-white border-transparent' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 border-slate-200 dark:border-slate-700'}`}
                         style={qty === val ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)' } : {}}>
                         {val}
                       </button>
@@ -526,11 +523,11 @@ export default function SimuladoPage() {
               </>
             ) : (
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Área de Conhecimento</label>
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Área de Conhecimento</label>
                 <div className="space-y-2">
                   {ENEM_FORMATS.map(f => (
                     <button key={f.value} onClick={() => setEnemFormat(f.value)}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl border-2 text-sm font-semibold transition-all cursor-pointer ${enemFormat === f.value ? 'text-white' : 'border-slate-200 text-slate-700 hover:border-slate-300'}`}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl border-2 text-sm font-semibold transition-all cursor-pointer ${enemFormat === f.value ? 'text-white' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
                       style={enemFormat === f.value ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)' } : {}}>
                       <span>{f.emoji} {f.label}</span>
                       <span className={`text-xs font-normal ${enemFormat === f.value ? 'text-white/70' : 'text-slate-400'}`}>{f.qty}q</span>
@@ -541,11 +538,11 @@ export default function SimuladoPage() {
             )}
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Dificuldade</label>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Dificuldade</label>
               <div className="grid grid-cols-4 gap-2">
                 {DIFFICULTIES.map(d => (
                   <button key={d.value} onClick={() => setDifficulty(d.value)}
-                    className={`p-2.5 rounded-xl border-2 font-bold text-xs transition-all cursor-pointer ${difficulty === d.value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200'}`}>
+                    className={`p-2.5 rounded-xl border-2 font-bold text-xs transition-all cursor-pointer ${difficulty === d.value ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-900 dark:border-slate-100' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'}`}>
                     {d.label}
                   </button>
                 ))}
@@ -555,7 +552,7 @@ export default function SimuladoPage() {
 
           <DialogFooter className="gap-2 pt-2">
             <button onClick={() => setShowConfigModal(false)}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bold hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer">
+              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer">
               Cancelar
             </button>
             <button onClick={startSimulado} disabled={loading || !accessToken}
@@ -569,7 +566,7 @@ export default function SimuladoPage() {
 
       {/* ══════════════════════════ SETUP ════════════════════════════════════ */}
       {step === 'setup' && (
-        <div className="min-h-dvh bg-[#F5F5F7]">
+        <div className="min-h-dvh bg-[#F5F5F7] dark:bg-slate-950/50">
           <motion.div
             className="max-w-6xl mx-auto px-4 py-6 md:py-8 space-y-5"
             variants={shouldReduce ? {} : CONTAINER_VARIANTS}
@@ -580,18 +577,18 @@ export default function SimuladoPage() {
             <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <Link href={`/partners/${slug}/student/dashboard`} className="text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-1">
+                  <Link href={`/partners/${slug}/student/dashboard`} className="text-xs font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors flex items-center gap-1">
                     <ChevronLeft size={14} /> Dashboard
                   </Link>
                 </div>
-                <h1 className="text-3xl font-black text-slate-900 tracking-tight">Simulados</h1>
-                <div className="text-slate-500 mt-1 text-sm">
+                <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Simulados</h1>
+                <div className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
                   {dashLoading ? <Skeleton className="h-4 w-64" /> : heroSubtitle}
                 </div>
               </div>
               <div className="flex gap-2 w-full sm:w-auto">
                 <Link href={`/partners/${slug}/student/simulado/historico`}
-                  className="flex items-center justify-center gap-2 border border-slate-200 bg-white text-slate-700 font-bold px-4 py-3 rounded-xl hover:bg-slate-50 transition-all flex-1 sm:flex-none">
+                  className="flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-bold px-4 py-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex-1 sm:flex-none">
                   <History size={16} /> Histórico
                 </Link>
                 <div className="flex flex-col gap-0.5 flex-1 sm:flex-none">
@@ -600,7 +597,7 @@ export default function SimuladoPage() {
                     style={{ background: 'var(--brand-primary)' }}>
                     <Plus size={18} /> Novo Simulado
                   </button>
-                  <span className="text-[10px] text-slate-400 text-center">{simuladoCtxHint}</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 text-center">{simuladoCtxHint}</span>
                 </div>
               </div>
             </motion.div>
@@ -612,12 +609,12 @@ export default function SimuladoPage() {
               ) : (
                 <>
                   {[
-                    { icon: <BookOpen size={15} style={{ color: 'var(--brand-primary)' }} />, bg: 'bg-[var(--brand-primary)]/10', label: 'Realizados', value: totalSimulados, sub: 'simulados no total', valueClass: 'text-slate-900' },
-                    { icon: <TrendingUp size={15} className="text-green-600" />, bg: 'bg-green-50', label: 'Média Geral', value: totalSimulados > 0 ? `${avgPct}%` : '—', sub: 'de acertos', valueClass: totalSimulados > 0 ? scoreColor(avgPct) : 'text-slate-300' },
-                    { icon: <Trophy size={15} className="text-yellow-500" />, bg: 'bg-yellow-50', label: 'Melhor', value: totalSimulados > 0 ? `${bestPct}%` : '—', sub: 'melhor resultado', valueClass: totalSimulados > 0 ? scoreColor(bestPct) : 'text-slate-300' },
-                    { icon: <Medal size={15} className="text-purple-600" />, bg: 'bg-purple-50', label: 'Ranking', value: rankingPos != null ? `#${rankingPos}` : '—', sub: 'posição geral', valueClass: 'text-slate-900' },
+                    { icon: <BookOpen size={15} style={{ color: 'var(--brand-primary)' }} />, bg: 'bg-[var(--brand-primary)]/10', label: 'Realizados', value: totalSimulados, sub: 'simulados no total', valueClass: 'text-slate-900 dark:text-slate-100' },
+                    { icon: <TrendingUp size={15} className="text-green-600 dark:text-green-400" />, bg: 'bg-green-50 dark:bg-green-900/30', label: 'Média Geral', value: totalSimulados > 0 ? `${avgPct}%` : '—', sub: 'de acertos', valueClass: totalSimulados > 0 ? scoreColor(avgPct) : 'text-slate-300 dark:text-slate-700' },
+                    { icon: <Trophy size={15} className="text-yellow-500" />, bg: 'bg-yellow-50 dark:bg-yellow-900/30', label: 'Melhor', value: totalSimulados > 0 ? `${bestPct}%` : '—', sub: 'melhor resultado', valueClass: totalSimulados > 0 ? scoreColor(bestPct) : 'text-slate-300 dark:text-slate-700' },
+                    { icon: <Medal size={15} className="text-purple-600 dark:text-purple-400" />, bg: 'bg-purple-50 dark:bg-purple-900/30', label: 'Ranking', value: rankingPos != null ? `#${rankingPos}` : '—', sub: 'posição geral', valueClass: 'text-slate-900 dark:text-slate-100' },
                   ].map((card) => (
-                    <div key={card.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                    <div key={card.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-5">
                       <div className="flex items-center gap-2 mb-3">
                         <div className={`${card.bg} p-1.5 rounded-lg`}>{card.icon}</div>
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">{card.label}</span>
@@ -632,12 +629,12 @@ export default function SimuladoPage() {
 
             {/* First-time welcome */}
             {!dashLoading && totalSimulados === 0 && (
-              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 sm:p-10 text-center">
+              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-8 sm:p-10 text-center">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5" style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}>
                   <Trophy size={32} style={{ color: 'var(--brand-primary)' }} />
                 </div>
-                <h2 className="text-xl font-black text-slate-900 mb-2">Bem-vindo aos Simulados!</h2>
-                <p className="text-slate-500 max-w-md mx-auto mb-6 text-sm leading-relaxed">
+                <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mb-2">Bem-vindo aos Simulados!</h2>
+                <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6 text-sm leading-relaxed">
                   Teste seus conhecimentos com questões reais do ENEM. Acompanhe sua evolução e mire na nota dos seus sonhos.
                 </p>
                 <button onClick={() => setShowConfigModal(true)}
@@ -660,16 +657,16 @@ export default function SimuladoPage() {
             {!dashLoading && totalSimulados > 0 && (
               <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Evolution */}
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
                   <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
                     <div className="flex items-center gap-2">
                       <TrendingUp size={17} className="text-slate-400" />
-                      <h2 className="font-bold text-slate-900 text-sm">Evolução de Desempenho</h2>
+                      <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Evolução de Desempenho</h2>
                     </div>
                     {subjectOptions.length > 1 && (
                       <div className="relative">
                         <select value={evolutionSubject} onChange={e => setEvolutionSubject(e.target.value)}
-                          className="text-xs font-semibold border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 appearance-none pr-6 cursor-pointer outline-none">
+                          className="text-xs font-semibold border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 appearance-none pr-6 cursor-pointer outline-none">
                           {subjectOptions.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                         <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -678,13 +675,13 @@ export default function SimuladoPage() {
                   </div>
                   {evolutionData.length < 2 ? (
                     <div className="h-48 flex flex-col items-center justify-center gap-2 text-center">
-                      <BarChart3 size={28} className="text-slate-200" />
+                      <BarChart3 size={28} className="text-slate-200 dark:text-slate-700" />
                       <p className="text-sm text-slate-400 max-w-[200px]">Faça pelo menos 2 simulados para ver sua evolução</p>
                     </div>
                   ) : (
                     <ResponsiveContainer width="100%" height={200}>
                       <LineChart data={evolutionData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-800" />
                         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={v => `${v}%`} />
                         <Tooltip content={<ChartTooltip />} />
@@ -696,10 +693,10 @@ export default function SimuladoPage() {
                 </div>
 
                 {/* Subject performance */}
-                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
                   <div className="flex items-center gap-2 mb-5">
                     <BarChart3 size={17} className="text-slate-400" />
-                    <h2 className="font-bold text-slate-900 text-sm">Desempenho por Matéria</h2>
+                    <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Desempenho por Matéria</h2>
                   </div>
                   {subjectPerfData.length === 0 ? (
                     <div className="h-48 flex items-center justify-center">
@@ -708,7 +705,7 @@ export default function SimuladoPage() {
                   ) : (
                     <ResponsiveContainer width="100%" height={Math.max(200, subjectPerfData.length * 42)}>
                       <BarChart layout="vertical" data={subjectPerfData} margin={{ top: 0, right: 24, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-800" horizontal={false} />
                         <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={v => `${v}%`} />
                         <YAxis type="category" dataKey="subject" width={100} tick={{ fontSize: 10, fill: '#94a3b8' }} />
                         <Tooltip content={<ChartTooltip />} />
@@ -727,34 +724,34 @@ export default function SimuladoPage() {
             {/* Recent simulados */}
             {dashLoading && <Skeleton className="h-72 w-full rounded-2xl" />}
             {!dashLoading && totalSimulados > 0 && (
-              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-2">
                     <History size={17} className="text-slate-400" />
-                    <h2 className="font-bold text-slate-900 text-sm">Últimos Simulados</h2>
+                    <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Últimos Simulados</h2>
                   </div>
-                  <Link href={`/partners/${slug}/student/simulado/historico`} className="text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors">Ver todos →</Link>
+                  <Link href={`/partners/${slug}/student/simulado/historico`} className="text-xs font-bold text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">Ver todos →</Link>
                 </div>
                 <div className="space-y-3">
                   {sessions.slice(0, 5).map(session => {
                     const pct = session.percentage ?? 0
                     return (
-                      <div key={session.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                      <div key={session.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
-                            <span className="text-sm font-bold text-slate-900 truncate">{getConfigLabel(session)}</span>
+                            <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{getConfigLabel(session)}</span>
                             <span className="text-xs text-slate-400 flex items-center gap-1 shrink-0"><Clock size={11} />{formatDate(session.started_at)}</span>
                             {session.time_taken_secs > 0 && <span className="text-xs text-slate-400 flex items-center gap-1 shrink-0"><Zap size={11} />{formatDuration(session.time_taken_secs)}</span>}
                           </div>
                           <div className="flex items-center gap-3">
-                            <div className="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                            <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
                               <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: scoreBarColor(pct) }} />
                             </div>
                             <span className={`text-sm font-black shrink-0 ${scoreColor(pct)}`}>{pct}%</span>
                           </div>
                         </div>
                         <Link href={`/partners/${slug}/student/simulado/${session.id}/revisao`}
-                          className="shrink-0 flex items-center gap-1.5 text-xs font-bold px-4 py-3 sm:px-3 sm:py-2 rounded-lg transition-colors min-h-[44px] sm:min-h-0 justify-center"
+                          className="shrink-0 flex items-center gap-1.5 text-xs font-bold px-4 py-3 sm:px-3 sm:py-2 rounded-lg transition-colors min-h-[44px] sm:min-h-0 justify-center hover:opacity-80"
                           style={{ color: 'var(--brand-primary)', background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)' }}>
                           <Brain size={13} /> Revisar
                         </Link>
@@ -766,19 +763,19 @@ export default function SimuladoPage() {
             )}
 
             {/* Ranking */}
-            <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+            <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
               <div className="flex items-center gap-2 mb-1">
                 <Trophy size={17} className="text-yellow-500" />
-                <h2 className="font-bold text-slate-900 text-sm">Ranking Geral</h2>
+                <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Ranking Geral</h2>
               </div>
               <p className="text-xs text-slate-400 mb-5">Melhores resultados de todos os tempos</p>
               {dashLoading ? (
                 <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}</div>
               ) : !rankingData?.ranking?.length ? (
                 <div className="text-center py-8">
-                  <Trophy size={28} className="text-slate-200 mx-auto mb-2" />
-                  <p className="text-sm font-semibold text-slate-400">Nenhum simulado realizado ainda</p>
-                  <p className="text-xs text-slate-300 mt-1">Seja o primeiro a entrar no ranking!</p>
+                  <Trophy size={28} className="text-slate-200 dark:text-slate-700 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">Nenhum simulado realizado ainda</p>
+                  <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">Seja o primeiro a entrar no ranking!</p>
                 </div>
               ) : (
                 <>
@@ -787,19 +784,19 @@ export default function SimuladoPage() {
                       const isMe = entry.user_id === currentUserId
                       const medals = ['🥇', '🥈', '🥉']
                       return (
-                        <div key={entry.user_id} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${isMe ? 'border' : 'bg-slate-50'}`}
+                        <div key={entry.user_id} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${isMe ? 'border' : 'bg-slate-50 dark:bg-slate-800/50'}`}
                           style={isMe ? { background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)', borderColor: 'color-mix(in srgb, var(--brand-primary) 30%, transparent)' } : {}}>
                           <span className="text-lg w-7 text-center" role="img" aria-label={`${entry.position}º lugar`}>{medals[entry.position - 1] ?? `#${entry.position}`}</span>
-                          <span className={`flex-1 text-sm font-semibold truncate ${isMe ? '' : 'text-slate-700'}`} style={isMe ? { color: 'var(--brand-primary)' } : {}}>{isMe ? 'Você' : (entry.full_name || `Usuário ${entry.user_id.slice(0, 6)}`)}</span>
+                          <span className={`flex-1 text-sm font-semibold truncate ${isMe ? '' : 'text-slate-700 dark:text-slate-300'}`} style={isMe ? { color: 'var(--brand-primary)' } : {}}>{isMe ? 'Você' : (entry.full_name || `Usuário ${entry.user_id.slice(0, 6)}`)}</span>
                           <span className={`text-sm font-black ${scoreColor(entry.percentage)}`}>{entry.percentage}%</span>
                         </div>
                       )
                     })}
                   </div>
                   {rankingData.user_position && rankingData.user_position > 3 && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-3 px-4 py-3 rounded-xl border"
+                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-3 px-4 py-3 rounded-xl border"
                       style={{ background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)', borderColor: 'color-mix(in srgb, var(--brand-primary) 30%, transparent)' }}>
-                      <span className="text-sm font-bold text-slate-500 w-7 text-center">#{rankingData.user_position}</span>
+                      <span className="text-sm font-bold text-slate-500 dark:text-slate-400 w-7 text-center">#{rankingData.user_position}</span>
                       <span className="flex-1 text-sm font-semibold" style={{ color: 'var(--brand-primary)' }}>Você</span>
                       <span className={`text-sm font-black ${scoreColor(rankingData.user_best?.percentage ?? 0)}`}>{rankingData.user_best?.percentage ?? 0}%</span>
                     </div>
@@ -813,22 +810,22 @@ export default function SimuladoPage() {
 
       {/* ══════════════════════════ QUIZ ═════════════════════════════════════ */}
       {step === 'quiz' && (
-        <div className="min-h-dvh bg-[#F5F5F7] flex flex-col">
+        <div className="min-h-dvh bg-[#F5F5F7] dark:bg-slate-950/50 flex flex-col">
 
           {/* Sticky header */}
-          <div className="bg-white border-b border-slate-100 px-4 py-3 sticky top-0 z-10 shadow-sm flex justify-between items-center gap-2">
+          <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 py-3 sticky top-0 z-10 shadow-sm flex justify-between items-center gap-2">
             {/* Progress counter */}
-            <div className="text-xs sm:text-sm font-extrabold text-slate-500 shrink-0 tabular-nums">
+            <div className="text-xs sm:text-sm font-extrabold text-slate-500 dark:text-slate-400 shrink-0 tabular-nums">
               {currentIdx + 1}
-              <span className="text-slate-300"> / {questions.length}</span>
+              <span className="text-slate-300 dark:text-slate-600"> / {questions.length}</span>
             </div>
 
             {/* Timer — shakes when entering critical zone */}
             <motion.div animate={timerShakeControls}>
               <div className={`font-mono font-black tabular-nums px-3 py-1.5 rounded-xl border-2 transition-all text-base sm:text-lg ${
                 isTimeCritical
-                  ? 'bg-red-50 text-red-600 border-red-400 animate-pulse scale-110'
-                  : 'bg-slate-50 text-slate-700 border-slate-200'
+                  ? 'bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-400 border-red-400 dark:border-red-800 animate-pulse scale-110'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
               }`}>
                 {isTimeCritical && <span className="mr-1 text-sm">⏰</span>}
                 {formatTime(timeLeft)}
@@ -837,13 +834,13 @@ export default function SimuladoPage() {
 
             {/* Finish button */}
             <button onClick={() => setFinishDialogOpen(true)}
-              className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer shrink-0 min-h-[36px] transition-colors text-red-500 hover:bg-red-50">
+              className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer shrink-0 min-h-[36px] transition-colors text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40">
               Finalizar
             </button>
           </div>
 
           {/* Progress bar */}
-          <div className="h-1 bg-slate-200 shrink-0">
+          <div className="h-1 bg-slate-200 dark:bg-slate-800 shrink-0">
             <motion.div className="h-1"
               style={{ background: 'var(--brand-primary)' }}
               animate={{ width: `${((currentIdx + 1) / questions.length) * 100}%` }}
@@ -853,14 +850,14 @@ export default function SimuladoPage() {
 
           {/* Question */}
           <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-6 pb-40">
-            <div ref={questionTopRef} className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
+            <div ref={questionTopRef} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
               {/* Tags */}
               <div className="flex flex-wrap gap-2 mb-5">
                 <span className="text-xs font-bold px-3 py-1 rounded-full text-white" style={{ background: 'var(--brand-primary)' }}>
                   {questions[currentIdx].subject}
                 </span>
                 {questions[currentIdx].topic && (
-                  <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">
+                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
                     {questions[currentIdx].topic}
                   </span>
                 )}
@@ -868,13 +865,13 @@ export default function SimuladoPage() {
 
               {/* Context */}
               {questions[currentIdx].context && (
-                <div className="prose prose-slate max-w-none mb-5 text-slate-600 border-l-4 pl-4 text-sm leading-relaxed" style={{ borderColor: 'var(--brand-primary)' }}>
+                <div className="prose prose-slate dark:prose-invert max-w-none mb-5 text-slate-600 dark:text-slate-300 border-l-4 pl-4 text-sm leading-relaxed" style={{ borderColor: 'var(--brand-primary)' }}>
                   <ReactMarkdown>{questions[currentIdx].context}</ReactMarkdown>
                 </div>
               )}
 
               {/* Statement */}
-              <div className="text-base md:text-lg text-slate-900 font-medium mb-7 leading-relaxed">
+              <div className="text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed">
                 {questions[currentIdx].statement}
               </div>
 
@@ -884,16 +881,16 @@ export default function SimuladoPage() {
                   const isSelected = userAnswers[questions[currentIdx].id] === alt.letter
                   return (
                     <button key={alt.letter} onClick={() => handleSelectOption(alt.letter)}
-                      className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start cursor-pointer active:scale-[0.99] ${isSelected ? 'shadow-sm' : 'bg-white hover:bg-slate-50 border-slate-200'}`}
+                      className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start cursor-pointer active:scale-[0.99] ${isSelected ? 'shadow-sm' : 'bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
                       style={isSelected ? {
-                        background: 'color-mix(in srgb, var(--brand-primary) 8%, white)',
+                        background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)', // transparent on dark mode mixes better
                         borderColor: 'var(--brand-primary)',
                       } : {}}>
-                      <span className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-extrabold shrink-0 transition-colors ${isSelected ? 'text-white' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
-                        style={isSelected ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)' } : {}}>
+                      <span className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-extrabold shrink-0 transition-colors ${isSelected ? 'text-white border-transparent' : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-200 border-slate-200 dark:border-slate-600'}`}
+                        style={isSelected ? { background: 'var(--brand-primary)' } : {}}>
                         {alt.letter}
                       </span>
-                      <span className={`text-sm leading-snug pt-1 ${isSelected ? 'font-medium' : 'text-slate-700'}`}
+                      <span className={`text-sm leading-snug pt-1 ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
                         style={isSelected ? { color: 'var(--brand-primary)' } : {}}>
                         {alt.text}
                       </span>
@@ -908,7 +905,7 @@ export default function SimuladoPage() {
               {questions.map((q, i) => (
                 <button key={q.id} onClick={() => setCurrentIdx(i)}
                   className={`w-8 h-8 rounded-full text-xs font-extrabold transition-all cursor-pointer ${
-                    i === currentIdx ? 'text-white scale-110 shadow-sm' : userAnswers[q.id] ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-600'
+                    i === currentIdx ? 'text-white scale-110 shadow-sm' : userAnswers[q.id] ? 'bg-green-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
                   }`}
                   style={i === currentIdx ? { background: 'var(--brand-primary)' } : {}}>
                   {i + 1}
@@ -918,11 +915,11 @@ export default function SimuladoPage() {
           </main>
 
           {/* Nav bar */}
-          <div className="bg-white/90 backdrop-blur-md border-t border-slate-100 p-4 fixed bottom-0 left-0 right-0 z-20"
+          <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 p-4 fixed bottom-0 left-0 right-0 z-20"
             style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
             <div className="max-w-3xl mx-auto w-full flex justify-between items-center gap-4">
               <button onClick={() => setCurrentIdx(prev => Math.max(0, prev - 1))} disabled={currentIdx === 0}
-                className="px-4 py-3 text-slate-500 disabled:opacity-30 font-bold flex items-center gap-2 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer min-h-[44px]">
+                className="px-4 py-3 text-slate-500 dark:text-slate-400 disabled:opacity-30 font-bold flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer min-h-[44px]">
                 <ArrowLeft size={16} /> <span className="hidden sm:inline">Anterior</span>
               </button>
 
@@ -945,7 +942,7 @@ export default function SimuladoPage() {
 
       {/* ══════════════════════════ RESULT ═══════════════════════════════════ */}
       {step === 'result' && (
-        <div className="min-h-dvh bg-[#F5F5F7] p-4 md:p-8">
+        <div className="min-h-dvh bg-[#F5F5F7] dark:bg-slate-950/50 p-4 md:p-8">
           <motion.div
             className="max-w-3xl mx-auto space-y-5 pb-20"
             variants={shouldReduce ? {} : CONTAINER_VARIANTS}
@@ -955,7 +952,7 @@ export default function SimuladoPage() {
             {/* ── Hero result card ── */}
             <motion.div
               variants={shouldReduce ? {} : { hidden: { opacity: 0, scale: 0.92 }, show: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } } }}
-              className="bg-white rounded-[2rem] shadow-xl overflow-hidden border border-slate-100 relative"
+              className="bg-white dark:bg-slate-900 rounded-[2rem] shadow-xl overflow-hidden border border-slate-100 dark:border-slate-800 relative"
             >
               {/* Colored top stripe */}
               <div className="h-1.5 w-full" style={{ background: `linear-gradient(90deg, var(--brand-primary), ${scoreRingColor(displayPct)})` }} />
@@ -967,8 +964,8 @@ export default function SimuladoPage() {
                   className="mb-6"
                 >
                   <span className="text-3xl" role="img" aria-label="resultado">{celebration.emoji}</span>
-                  <h2 className="text-xl font-extrabold text-slate-900 mt-2">{celebration.title}</h2>
-                  <p className="text-sm text-slate-500 mt-1">{celebration.sub}</p>
+                  <h2 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 mt-2">{celebration.title}</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{celebration.sub}</p>
                 </motion.div>
 
                 {/* Score ring */}
@@ -988,7 +985,7 @@ export default function SimuladoPage() {
 
                   <svg width="180" height="180" viewBox="0 0 200 200" className="overflow-visible">
                     {/* Track */}
-                    <circle cx="100" cy="100" r="80" fill="none" stroke="#e2e8f0" strokeWidth="10" />
+                    <circle cx="100" cy="100" r="80" fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="10" />
                     {/* Animated ring */}
                     <motion.circle
                       cx="100" cy="100" r="80"
@@ -1009,7 +1006,7 @@ export default function SimuladoPage() {
                     <span className="text-5xl font-black tabular-nums" style={{ color: scoreRingColor(displayPct) }}>
                       {animatedScore}
                     </span>
-                    <span className="text-xs text-slate-400 font-semibold mt-0.5">de {displayTotal}</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-0.5">de {displayTotal}</span>
                   </div>
                 </div>
 
@@ -1017,29 +1014,29 @@ export default function SimuladoPage() {
                 <div className="flex flex-wrap items-center justify-center gap-6 mb-8">
                   <div className="text-center">
                     <div className={`text-2xl font-black ${scoreColor(displayPct)}`}>{displayPct}%</div>
-                    <div className="text-xs text-slate-400 font-semibold mt-1">Acertos</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-1">Acertos</div>
                   </div>
                   {finishResult?.tri_score != null && (
                     <div className="text-center">
-                      <div className="text-2xl font-black text-indigo-600">{finishResult.tri_score.toFixed(1)}</div>
-                      <div className="text-xs text-slate-400 font-semibold mt-1">Nota TRI</div>
+                      <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{finishResult.tri_score.toFixed(1)}</div>
+                      <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-1">Nota TRI</div>
                     </div>
                   )}
                   {finishResult?.time_taken_secs != null && (
                     <div className="text-center">
-                      <div className="text-2xl font-black text-slate-700">{formatDuration(finishResult.time_taken_secs)}</div>
-                      <div className="text-xs text-slate-400 font-semibold mt-1">Tempo</div>
+                      <div className="text-2xl font-black text-slate-700 dark:text-slate-300">{formatDuration(finishResult.time_taken_secs)}</div>
+                      <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-1">Tempo</div>
                     </div>
                   )}
                 </div>
 
                 {/* Action buttons */}
                 <div className="flex flex-wrap justify-center gap-3">
-                  <button onClick={() => resetSimulado(false)} className="border border-slate-200 px-5 py-3 rounded-xl font-bold flex gap-2 items-center hover:bg-slate-50 text-slate-900 transition-colors cursor-pointer min-h-[44px]">
+                  <button onClick={() => resetSimulado(false)} className="border border-slate-200 dark:border-slate-700 px-5 py-3 rounded-xl font-bold flex gap-2 items-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 transition-colors cursor-pointer min-h-[44px]">
                     <ChevronLeft size={18} /> Dashboard
                   </button>
                   <button onClick={() => resetSimulado(true)}
-                    className="text-white px-5 py-3 rounded-xl font-bold flex gap-2 items-center transition-colors cursor-pointer min-h-[44px]"
+                    className="text-white px-5 py-3 rounded-xl font-bold flex gap-2 items-center transition-colors cursor-pointer min-h-[44px] hover:opacity-90"
                     style={{ background: 'var(--brand-primary)' }}>
                     <RotateCcw size={18} /> Novo Simulado
                   </button>
@@ -1050,7 +1047,7 @@ export default function SimuladoPage() {
                     </button>
                   )}
                   <button onClick={() => router.push(`/partners/${slug}/student/simulado/historico`)}
-                    className="border border-slate-200 px-5 py-3 rounded-xl font-bold flex gap-2 items-center hover:bg-slate-50 text-slate-900 transition-colors cursor-pointer min-h-[44px]">
+                    className="border border-slate-200 dark:border-slate-700 px-5 py-3 rounded-xl font-bold flex gap-2 items-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 transition-colors cursor-pointer min-h-[44px]">
                     <History size={18} /> Histórico
                   </button>
                 </div>
@@ -1059,19 +1056,19 @@ export default function SimuladoPage() {
 
             {/* Subject breakdown */}
             {finishResult?.results_by_subject && Object.keys(finishResult.results_by_subject).length > 0 && (
-              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2 mb-5">
-                  <BookOpen size={18} className="text-slate-400" />
-                  <h3 className="font-bold text-slate-900">Desempenho por Matéria</h3>
+                  <BookOpen size={18} className="text-slate-400 dark:text-slate-500" />
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100">Desempenho por Matéria</h3>
                 </div>
                 <div className="space-y-4">
                   {Object.entries(finishResult.results_by_subject).map(([subj, res]) => (
                     <div key={subj}>
                       <div className="flex justify-between text-sm mb-1.5">
-                        <span className="font-semibold text-slate-700">{subj}</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">{subj}</span>
                         <span className={`font-bold ${scoreColor(res.percentage)}`}>{res.correct}/{res.total} ({res.percentage}%)</span>
                       </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                         <motion.div className="h-2 rounded-full"
                           style={{ backgroundColor: scoreBarColor(res.percentage) }}
                           initial={{ width: 0 }}

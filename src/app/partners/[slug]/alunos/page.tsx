@@ -247,7 +247,7 @@ export default function AlunosPage() {
                   <div
                     className="h-full rounded-full transition-all duration-700"
                     style={{
-                      width: `${Math.min(100, Math.round((total / org.max_students) * 100))}%`,
+                      width: `${Math.min(100, Math.round((total / (org.max_students ?? 1)) * 100))}%`,
                       background: 'var(--brand-primary)',
                     }}
                   />

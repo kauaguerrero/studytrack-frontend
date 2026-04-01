@@ -40,13 +40,13 @@ export default async function PartnerStudentDashboard({ params }: Props) {
   const org = orgRes.data as OrgRow | null;
 
   const firstName = (profile?.full_name ?? 'Aluno').split(' ')[0];
-  const brandPrimary = org?.brand_primary ?? '#f97316';
+  const brandPrimary = org?.brand_primary ?? 'var(--brand-primary)'; // Fallback para a variável CSS
 
   return (
     <DashboardClient
       firstName={firstName}
       brandPrimary={brandPrimary}
-      orgName={org?.name ?? 'Edificar'}
+      orgName={org?.name ?? 'StudyTrack'}
       orgLogoUrl={org?.logo_url ?? null}
       slug={slug}
       currentStreak={profile?.current_streak ?? 0}

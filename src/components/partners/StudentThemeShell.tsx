@@ -29,6 +29,7 @@ export function StudentThemeShell({
     <div
       className={isDark ? 'dark' : ''}
       style={{ colorScheme: isDark ? 'dark' : 'light' }}
+      suppressHydrationWarning
     >
       <PartnerLayout variant="student">
         {children}

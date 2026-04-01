@@ -112,6 +112,13 @@ export default async function PartnerStudentLayout({ children, params }: Student
         role,
       }}
     >
+      {/* Inline script: resolve o tema a partir do localStorage antes do primeiro paint do React,
+          eliminando o flash quando localStorage difere do valor do banco (SSR). */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `(function(){try{var k='partner-student-theme-${slug}';var s=localStorage.getItem(k);var r=s==='dark'?'dark':s==='light'?'light':(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');window.__pst=window.__pst||{};window.__pst['${slug}']=r;}catch(e){}})()`,
+        }}
+      />
       <style>{`
         :root {
           --brand-primary: ${brandPrimary};

@@ -3,7 +3,7 @@
 /**
  * Banco de Questões — versão visual Edificar Student.
  * Toda a lógica de negócio e chamadas de API são idênticas ao portal padrão.
- * Apenas o layout/UI foi elevado: brand colors, mobile-first, Framer Motion.
+ * Apenas o layout/UI foi elevado: brand colors, mobile-first, Framer Motion, Dark Mode.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -44,20 +44,20 @@ const DIFFICULTIES = ['Fácil', 'Médio', 'Difícil'];
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 const QuestionCardSkeleton = () => (
-  <div className="w-full bg-white rounded-2xl border border-slate-100 shadow-sm p-6 animate-pulse">
+  <div className="w-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6 animate-pulse">
     <div className="flex justify-between items-start mb-6">
-      <div className="h-5 w-28 bg-slate-100 rounded-lg" />
-      <div className="h-5 w-20 bg-slate-100 rounded-lg" />
+      <div className="h-5 w-28 bg-slate-100 dark:bg-slate-800 rounded-lg" />
+      <div className="h-5 w-20 bg-slate-100 dark:bg-slate-800 rounded-lg" />
     </div>
     <div className="space-y-3 mb-8">
-      <div className="h-4 w-full bg-slate-100 rounded" />
-      <div className="h-4 w-11/12 bg-slate-100 rounded" />
-      <div className="h-4 w-4/5 bg-slate-100 rounded" />
-      <div className="h-4 w-full bg-slate-100 rounded" />
+      <div className="h-4 w-full bg-slate-100 dark:bg-slate-800 rounded" />
+      <div className="h-4 w-11/12 bg-slate-100 dark:bg-slate-800 rounded" />
+      <div className="h-4 w-4/5 bg-slate-100 dark:bg-slate-800 rounded" />
+      <div className="h-4 w-full bg-slate-100 dark:bg-slate-800 rounded" />
     </div>
     <div className="space-y-3">
       {[1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="h-14 w-full bg-slate-100 rounded-xl border border-slate-100" />
+        <div key={i} className="h-14 w-full bg-slate-100 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800/50" />
       ))}
     </div>
   </div>
@@ -66,10 +66,10 @@ const QuestionCardSkeleton = () => (
 // ─── Shared select style ──────────────────────────────────────────────────────
 
 const selectClass =
-  'w-full bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-xl ' +
+  'w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl ' +
   'pl-3 pr-8 py-3 outline-none appearance-none transition-all cursor-pointer shadow-sm ' +
-  'hover:border-slate-300 focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] ' +
-  'disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-50';
+  'hover:border-slate-300 dark:hover:border-slate-600 focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] ' +
+  'disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-50 dark:disabled:bg-slate-800/50';
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -359,7 +359,7 @@ export default function BancoDeQuestoes() {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="bg-[#F5F5F7] flex flex-col relative -mx-4 -mt-4 md:-mx-8 md:-mt-8 min-h-full">
+    <div className="min-h-dvh bg-[#F5F5F7] dark:bg-slate-950/50 flex flex-col relative overscroll-none">
 
       {/* Modals — logic unchanged */}
       <UpsellModal
@@ -393,7 +393,7 @@ export default function BancoDeQuestoes() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="bg-white/95 backdrop-blur-xl border-b border-slate-100 shadow-sm shrink-0"
+            className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800 shadow-sm"
           >
             <div className="max-w-4xl mx-auto px-4 py-3 space-y-3">
 
@@ -401,21 +401,20 @@ export default function BancoDeQuestoes() {
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 shrink-0">
                   <Brain size={18} style={{ color: 'var(--brand-primary)' }} />
-                  <h1 className="text-base font-extrabold text-slate-800 leading-none">
+                  <h1 className="text-base font-extrabold text-slate-800 dark:text-slate-100 leading-none">
                     Banco de Questões
                   </h1>
                 </div>
 
                 <div className="flex items-center gap-2 min-w-0">
                   {/* Tabs */}
-                  <div className="flex p-1 bg-slate-100 rounded-xl border border-slate-200 shrink-0">
+                  <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
                     <button
                       onClick={() => setActiveTab('todo')}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        isTabTodo
-                          ? 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200'
-                          : 'text-slate-500 hover:text-slate-700'
-                      }`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isTabTodo
+                        ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                        }`}
                     >
                       <Circle
                         size={10}
@@ -425,15 +424,14 @@ export default function BancoDeQuestoes() {
                     </button>
                     <button
                       onClick={() => setActiveTab('done')}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                        !isTabTodo
-                          ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-slate-200'
-                          : 'text-slate-500 hover:text-slate-700'
-                      }`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!isTabTodo
+                        ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                        }`}
                     >
                       <CheckCircle2
                         size={12}
-                        className={!isTabTodo ? 'text-emerald-600' : ''}
+                        className={!isTabTodo ? 'text-emerald-600 dark:text-emerald-400' : ''}
                       />
                       <span className="hidden xs:inline">Respondidas</span>
                     </button>
@@ -443,7 +441,7 @@ export default function BancoDeQuestoes() {
                   <button
                     onClick={() => setIsMenuOpen(false)}
                     title="Focar na questão"
-                    className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors shrink-0"
+                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors shrink-0"
                   >
                     <EyeOff size={16} />
                   </button>
@@ -471,11 +469,11 @@ export default function BancoDeQuestoes() {
                 {/* "Filtros" button — mobile: visible, sm+: hidden (secondary always visible) */}
                 <button
                   onClick={() => setShowSecondaryFilters((v) => !v)}
-                  className={`sm:hidden flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-colors shrink-0 ${
-                    activeSecondaryCount > 0
-                      ? 'border-[var(--brand-primary)] text-[var(--brand-primary)] bg-[var(--brand-primary)]/5'
-                      : 'border-slate-200 text-slate-500 bg-white hover:bg-slate-50'
-                  }`}
+                  className={`sm:hidden flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-colors shrink-0 ${activeSecondaryCount > 0
+                    ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
+                    : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700'
+                    }`}
+                  style={activeSecondaryCount > 0 ? { background: 'color-mix(in srgb, var(--brand-primary) 5%, transparent)' } : {}}
                 >
                   <SlidersHorizontal size={14} />
                   Filtros
@@ -610,23 +608,23 @@ export default function BancoDeQuestoes() {
             )}
           </AnimatePresence>
 
-          {/* ── Show-filters pill ──────────────────────────────────────────── */}
-          <AnimatePresence>
-            {!isMenuOpen && (
-              <motion.button
-                key="show-filters-pill"
-                initial={shouldReduce ? false : { opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.18 }}
-                onClick={() => setIsMenuOpen(true)}
-                title="Mostrar filtros"
-                className="fixed top-4 right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/90 backdrop-blur border border-slate-200 shadow-md text-xs font-bold text-slate-600 hover:text-slate-800 transition-colors"
-              >
-                <Eye size={14} />
-                Filtros
-              </motion.button>
-            )}
+      {/* Show-filters pill (when header is collapsed) */}
+      <AnimatePresence>
+        {!isMenuOpen && (
+          <motion.button
+            key="show-filters-pill"
+            initial={shouldReduce ? false : { opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.18 }}
+            onClick={() => setIsMenuOpen(true)}
+            title="Mostrar filtros"
+            className="fixed top-4 right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-800 shadow-md text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 transition-colors"
+          >
+            <Eye size={14} />
+            Filtros
+          </motion.button>
+        )}
       </AnimatePresence>
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
@@ -637,8 +635,8 @@ export default function BancoDeQuestoes() {
           /* Skeleton */
           <motion.div initial={fadeSlideInitial} animate={fadeSlideAnimate} transition={fadeSlideTransition}>
             <div className="flex justify-between items-center mb-5">
-              <div className="h-5 w-32 bg-slate-200 rounded-lg animate-pulse" />
-              <div className="h-5 w-24 bg-slate-200 rounded-lg animate-pulse" />
+              <div className="h-5 w-32 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" />
+              <div className="h-5 w-24 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" />
             </div>
             <QuestionCardSkeleton />
           </motion.div>
@@ -647,25 +645,28 @@ export default function BancoDeQuestoes() {
 
           /* Welcome State */
           <motion.div initial={fadeSlideInitial} animate={fadeSlideAnimate} transition={fadeSlideTransition}>
-            <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-slate-100 shadow-sm mt-4 text-center px-6">
+            <div className="flex flex-col items-center justify-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mt-4 text-center px-6">
               <div
                 className="w-20 h-20 rounded-full flex items-center justify-center mb-5 ring-8"
-                style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}
+                style={{
+                  background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)',
+                  ['--tw-ring-color' as string]: 'color-mix(in srgb, var(--brand-primary) 5%, transparent)'
+                } as React.CSSProperties}
               >
                 <Sparkles size={34} style={{ color: 'var(--brand-primary)' }} />
               </div>
-              <h2 className="text-2xl font-extrabold text-slate-800 mb-3">
+              <h2 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 mb-3">
                 Banco de Questões StudyTrack
               </h2>
-              <p className="text-slate-500 max-w-sm text-sm leading-relaxed">
+              <p className="text-slate-500 dark:text-slate-400 max-w-sm text-sm leading-relaxed">
                 Mais de{' '}
-                <span className="font-bold text-slate-800">
+                <span className="font-bold text-slate-800 dark:text-slate-100">
                   {totalQuestions.toLocaleString('pt-BR')} questões
                 </span>{' '}
                 do ENEM disponíveis.{' '}
                 <span className="font-semibold">Selecione a matéria</span> acima para começar.
               </p>
-              <div className="mt-6 flex items-center gap-2 text-xs text-slate-400 bg-slate-50 rounded-xl px-4 py-2.5 border border-slate-100">
+              <div className="mt-6 flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded-xl px-4 py-2.5 border border-slate-100 dark:border-slate-700/50">
                 <SlidersHorizontal size={13} />
                 Use os filtros para refinar por tópico, ano ou dificuldade
               </div>
@@ -681,11 +682,11 @@ export default function BancoDeQuestoes() {
             <div className="flex items-center justify-between mb-4 px-0.5">
               <div className="flex items-center gap-2 flex-wrap">
                 <span
-                  className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${
-                    isTabTodo
-                      ? 'text-[var(--brand-primary)] bg-[var(--brand-primary)]/8 border-[var(--brand-primary)]/20'
-                      : 'text-emerald-700 bg-emerald-50 border-emerald-100'
-                  }`}
+                  className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${isTabTodo
+                    ? 'border-[var(--brand-primary)]/20'
+                    : 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800'
+                    }`}
+                  style={isTabTodo ? { color: 'var(--brand-primary)', background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)' } : {}}
                 >
                   {isTabTodo
                     ? <Circle size={9} fill="currentColor" />
@@ -695,14 +696,14 @@ export default function BancoDeQuestoes() {
                 </span>
 
                 {isLockedByQuota && (
-                  <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100 inline-flex items-center gap-1">
+                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1 rounded-lg border border-amber-100 dark:border-amber-800 inline-flex items-center gap-1">
                     <Lock size={10} /> Limite atingido
                   </span>
                 )}
               </div>
 
-              {/* Total — visible on ALL screens (fix: was hidden on mobile) */}
-              <span className="text-xs font-bold text-slate-500 bg-white px-3 py-1 rounded-lg border border-slate-100 shadow-sm">
+              {/* Total — visible on ALL screens */}
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 px-3 py-1 rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm">
                 {totalQuestionsFound > 0
                   ? `${totalQuestionsFound} questões`
                   : activeTab === 'todo'
@@ -713,7 +714,7 @@ export default function BancoDeQuestoes() {
 
             {/* Progress bar: position in loaded questions */}
             {questions.length > 1 && (
-              <div className="mb-5 h-1 w-full rounded-full bg-slate-200 overflow-hidden">
+              <div className="mb-5 h-1 w-full rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                 <motion.div
                   className="h-full rounded-full"
                   style={{ background: 'var(--brand-primary)' }}
@@ -726,16 +727,15 @@ export default function BancoDeQuestoes() {
             {/* Question card */}
             <div className="relative group">
               <div
-                className={`absolute -inset-1 rounded-2xl blur opacity-0 group-hover:opacity-15 transition duration-500 ${
-                  isTabTodo
-                    ? 'bg-[var(--brand-primary)]'
-                    : 'bg-gradient-to-r from-emerald-400 to-teal-300'
-                }`}
+                className={`absolute -inset-1 rounded-2xl blur opacity-0 group-hover:opacity-15 transition duration-500 ${isTabTodo
+                  ? ''
+                  : 'bg-gradient-to-r from-emerald-400 dark:from-emerald-600 to-teal-300 dark:to-teal-600'
+                  }`}
+                style={isTabTodo ? { background: 'var(--brand-primary)' } : {}}
               />
               <div
-                className={`relative bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden ${
-                  isLockedByQuota ? 'blur-[2px] pointer-events-none select-none' : ''
-                }`}
+                className={`relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden ${isLockedByQuota ? 'blur-[2px] pointer-events-none select-none' : ''
+                  }`}
               >
                 <QuestionCard
                   key={currentQ.id}
@@ -767,14 +767,14 @@ export default function BancoDeQuestoes() {
                 <div className="absolute inset-0 flex items-center justify-center z-20">
                   <button
                     onClick={() => setIsUpsellOpen(true)}
-                    className="bg-white/95 backdrop-blur-md p-6 rounded-2xl shadow-2xl border border-slate-100 flex flex-col items-center gap-3 hover:scale-105 transition-transform cursor-pointer"
+                    className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-6 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center gap-3 hover:scale-105 transition-transform cursor-pointer"
                   >
-                    <div className="bg-amber-50 p-3 rounded-full text-amber-500">
+                    <div className="bg-amber-50 dark:bg-amber-900/30 p-3 rounded-full text-amber-500">
                       <Lock size={28} />
                     </div>
                     <div className="text-center">
-                      <h3 className="font-extrabold text-slate-800 text-sm">Conteúdo Exclusivo</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">Toque para desbloquear</p>
+                      <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">Conteúdo Exclusivo</h3>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Toque para desbloquear</p>
                     </div>
                   </button>
                 </div>
@@ -787,23 +787,22 @@ export default function BancoDeQuestoes() {
 
           /* Empty State */
           <motion.div initial={fadeSlideInitial} animate={fadeSlideAnimate} transition={fadeSlideTransition}>
-            <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-dashed border-slate-200 shadow-sm mt-4 text-center px-6">
+            <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 shadow-sm mt-4 text-center px-6">
               <div
-                className={`w-20 h-20 rounded-full flex items-center justify-center mb-5 ring-8 ${
-                  isTabTodo
-                    ? 'bg-[var(--brand-primary)]/8 ring-[var(--brand-primary)]/5'
-                    : 'bg-emerald-50 ring-emerald-50/50'
-                }`}
+                className={`w-20 h-20 rounded-full flex items-center justify-center mb-5 ring-8 ${isTabTodo
+                    ? ''
+                    : 'bg-emerald-50 dark:bg-emerald-900/20 ring-emerald-50/50 dark:ring-emerald-900/20'
+                  }`}
+                style={isTabTodo ? {
+                  background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)',
+                  ['--tw-ring-color' as string]: 'color-mix(in srgb, var(--brand-primary) 5%, transparent)'
+                } as React.CSSProperties : {}}
               >
-                {isTabTodo
-                  ? <Sparkles size={34} style={{ color: 'var(--brand-primary)' }} />
-                  : <CheckCircle2 size={34} className="text-emerald-500" />
-                }
               </div>
-              <h3 className="text-xl font-extrabold text-slate-800 mb-2">
+              <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 mb-2">
                 {isTabTodo ? 'Nenhuma questão encontrada' : 'Histórico vazio'}
               </h3>
-              <p className="text-slate-500 text-sm max-w-xs leading-relaxed">
+              <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xs leading-relaxed">
                 {isTabTodo
                   ? 'Tente ajustar os filtros de ano ou dificuldade para encontrar mais questões.'
                   : 'As questões que você responder aparecerão aqui para revisão.'}
@@ -817,31 +816,31 @@ export default function BancoDeQuestoes() {
       {/* ── Navigation Bar ───────────────────────────────────────────────────── */}
       <AnimatePresence>
         {currentQ && userId && !loading && (
-        <motion.div
-          key="nav-bar"
-          initial={shouldReduce ? false : { opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 16 }}
-          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full px-4 pb-6 pt-3"
-        >
+          <motion.div
+            key="nav-bar"
+            initial={shouldReduce ? false : { opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed bottom-0 left-0 right-0 z-30 px-4 pb-6 pt-3 bg-gradient-to-t from-[#F5F5F7] via-[#F5F5F7]/90 to-transparent dark:from-slate-950 dark:via-slate-950/90"
+          >
             <div className="max-w-xl mx-auto">
-              <div className="bg-white border border-slate-100 shadow-xl shadow-slate-900/8 rounded-2xl p-2 flex items-center gap-2">
+              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-900/8 dark:shadow-black/40 rounded-2xl p-2 flex items-center gap-2">
 
                 {/* Prev */}
                 <button
                   onClick={handlePrev}
                   disabled={currentIdx === 0}
-                  className="flex-1 flex justify-center items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-bold py-3.5 rounded-xl disabled:opacity-35 disabled:hover:bg-slate-50 transition-all active:scale-[0.97] group"
+                  className="flex-1 flex justify-center items-center gap-2 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold py-3.5 rounded-xl disabled:opacity-35 disabled:hover:bg-slate-50 dark:disabled:hover:bg-slate-800/80 transition-all active:scale-[0.97] group"
                 >
                   <ArrowLeft
                     size={17}
-                    className="group-hover:-translate-x-0.5 transition-transform text-slate-400"
+                    className="group-hover:-translate-x-0.5 transition-transform text-slate-400 dark:text-slate-500"
                   />
                   <span className="hidden sm:inline text-sm">Anterior</span>
                 </button>
 
-                <div className="h-7 w-px bg-slate-100 shrink-0" />
+                <div className="h-7 w-px bg-slate-100 dark:bg-slate-800 shrink-0" />
 
                 {/* Next */}
                 <button
@@ -850,13 +849,13 @@ export default function BancoDeQuestoes() {
                     (isNextDisabled && !hasMore && !isLockedByQuota) ||
                     (loadingMore && currentIdx === questions.length - 1)
                   }
-                  className={`flex-[2] text-white font-bold py-3.5 rounded-xl shadow-sm transition-all flex justify-center items-center gap-2 group active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed ${
-                    isLockedByQuota
-                      ? 'bg-amber-500 hover:bg-amber-600'
-                      : isTabTodo
-                        ? 'bg-[var(--brand-primary)] hover:brightness-105'
-                        : 'bg-emerald-600 hover:bg-emerald-700'
-                  }`}
+                  className={`flex-[2] text-white font-bold py-3.5 rounded-xl shadow-sm transition-all flex justify-center items-center gap-2 group active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed ${isLockedByQuota
+                    ? 'bg-amber-500 hover:bg-amber-600'
+                    : isTabTodo
+                      ? 'hover:brightness-105'
+                      : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
+                  style={isTabTodo && !isLockedByQuota ? { background: 'var(--brand-primary)' } : {}}
                 >
                   {isLockedByQuota ? (
                     <><Lock size={16} /> <span className="text-sm">Destrancar</span></>

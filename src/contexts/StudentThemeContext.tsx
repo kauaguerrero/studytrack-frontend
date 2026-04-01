@@ -34,18 +34,22 @@ interface Props {
 }
 
 export function StudentThemeProvider({ children, slug, initialTheme = 'system' }: Props) {
-  // Servidor: usa initialTheme. Evita hydration mismatch.
-  const [theme, setThemeState] = useState<StudentTheme>(initialTheme)
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolve(initialTheme))
-
-  // Após montar no client, prioriza localStorage sobre o valor do banco.
-  useEffect(() => {
-    const stored = localStorage.getItem(storageKey(slug))
-    if (stored === 'light' || stored === 'dark' || stored === 'system') {
-      setThemeState(stored)
-      setResolvedTheme(resolve(stored))
+  // Inicializa a partir do localStorage (client) ou initialTheme (SSR).
+  // Evita flash ao priorizar o valor persistido antes do primeiro paint do React.
+  const [theme, setThemeState] = useState<StudentTheme>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(storageKey(slug))
+      if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
     }
-  }, [slug])
+    return initialTheme
+  })
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(storageKey(slug))
+      if (stored === 'light' || stored === 'dark' || stored === 'system') return resolve(stored)
+    }
+    return resolve(initialTheme)
+  })
 
   // Atualiza o resolved quando theme muda.
   useEffect(() => {
