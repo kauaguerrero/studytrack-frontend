@@ -112,6 +112,7 @@ export default function AlunosPage() {
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [planFilter, setPlanFilter] = useState('all');
+  const [activityFilter, setActivityFilter] = useState('all');
   const [sort, setSort] = useState<SortField>('last_activity_date');
   const [removing, setRemoving] = useState<string | null>(null);
   const [updatingPlan, setUpdatingPlan] = useState<string | null>(null);
@@ -216,6 +217,14 @@ export default function AlunosPage() {
   const activeWeek  = students.filter(s => s.last_activity_date && s.last_activity_date >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)).length;
   const totalPages  = Math.ceil(total / PAGE_SIZE);
 
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const filteredStudents = students.filter((s) => {
+    if (activityFilter === 'today') return s.last_activity_date === today;
+    if (activityFilter === 'week') return s.last_activity_date != null && s.last_activity_date >= weekAgo;
+    if (activityFilter === 'inactive') return s.last_activity_date == null || s.last_activity_date < weekAgo;
+    return true;
+  });
+
   return (
     <PartnerLayout>
       <div className="space-y-5">
@@ -259,17 +268,17 @@ export default function AlunosPage() {
             <div className="flex gap-3">
               <div className="text-center">
                 <p className="text-2xl font-black text-white tabular-nums">{loading ? '—' : activeToday}</p>
-                <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wide">Hoje</p>
+                <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wide">Ativos hoje</p>
               </div>
               <div className="w-px bg-white/10" />
               <div className="text-center">
                 <p className="text-2xl font-black text-white tabular-nums">{loading ? '—' : activeWeek}</p>
-                <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wide">Semana</p>
+                <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wide">Ativos na semana</p>
               </div>
               <div className="w-px bg-white/10" />
               <div className="text-center">
                 <p className="text-2xl font-black text-white tabular-nums">{loading ? '—' : total}</p>
-                <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wide">Total</p>
+                <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wide">Total de alunos</p>
               </div>
             </div>
           </div>
@@ -296,6 +305,17 @@ export default function AlunosPage() {
               <SelectItem value="all">Todos os planos</SelectItem>
               <SelectItem value="b2b_student">Básico</SelectItem>
               <SelectItem value="b2b_pro">Pro</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={activityFilter} onValueChange={(v) => { setActivityFilter(v); setPage(1); }}>
+            <SelectTrigger className="w-44 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+              <SelectValue placeholder="Atividade" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Qualquer atividade</SelectItem>
+              <SelectItem value="today">Ativos hoje</SelectItem>
+              <SelectItem value="week">Ativos esta semana</SelectItem>
+              <SelectItem value="inactive">Inativos há +7 dias</SelectItem>
             </SelectContent>
           </Select>
           <Select value={sort} onValueChange={(v) => { setSort(v as SortField); setPage(1); }}>
@@ -329,7 +349,7 @@ export default function AlunosPage() {
                 className="h-20 rounded-2xl bg-slate-100 dark:bg-slate-800/50 animate-pulse"
               />
             ))
-          ) : students.length === 0 ? (
+          ) : filteredStudents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Users className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
               <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
@@ -344,7 +364,7 @@ export default function AlunosPage() {
               )}
             </div>
           ) : (
-            students.map((s) => {
+            filteredStudents.map((s) => {
               const isOnline = s.last_activity_date === today;
               const accuracyGood = s.accuracy_pct != null && s.accuracy_pct >= 60;
 
@@ -397,9 +417,9 @@ export default function AlunosPage() {
 
                   {/* Métricas — ocultas em mobile */}
                   <div className="hidden md:flex items-center gap-1.5 flex-wrap">
-                    <MetricChip icon={BookOpen} value={s.questions_today} label="hoje" highlight />
-                    <MetricChip icon={TrendingUp} value={s.questions_week} label="sem" highlight={s.questions_week > 0} />
-                    <MetricChip icon={FileText} value={s.simulados_month} label="sim" />
+                    <MetricChip icon={BookOpen} value={s.questions_today} label="questões hoje" highlight />
+                    <MetricChip icon={TrendingUp} value={s.questions_week} label="questões esta semana" highlight={s.questions_week > 0} />
+                    <MetricChip icon={FileText} value={s.simulados_month} label="simulados no mês" />
                   </div>
 
                   {/* Acertos */}
