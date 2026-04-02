@@ -10,6 +10,12 @@ import { Label } from '@/components/ui/label';
 import { GraduationCap, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+function sanitizeCssHexColor(value: string | null | undefined, fallback: string): string {
+  if (!value || typeof value !== 'string') return fallback;
+  return HEX_COLOR_RE.test(value) ? value : fallback;
+}
+
 interface OrgPublicInfo {
   name: string;
   logo_url: string | null;
@@ -117,8 +123,8 @@ export default function PartnerRegisterPage() {
     }
   }
 
-  const primary = org?.brand_primary ?? '#6366f1';
-  const secondary = org?.brand_secondary ?? '#8b5cf6';
+  const primary = sanitizeCssHexColor(org?.brand_primary, '#6366f1');
+  const secondary = sanitizeCssHexColor(org?.brand_secondary, '#8b5cf6');
 
   return (
     <div
