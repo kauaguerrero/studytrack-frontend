@@ -18,6 +18,7 @@ import {
   BarChart3,
   Home,
   User,
+  Trophy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -116,8 +117,8 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const founderNavItems: NavItemDef[] = [
-    { href: `/partners/${org.slug}/dashboard`,      icon: LayoutDashboard, label: 'Dashboard',       shortLabel: 'Dashboard' },
-    { href: `/partners/${org.slug}/alunos`,          icon: Users,           label: 'Alunos',           shortLabel: 'Alunos' },
+    { href: `/partners/${org.slug}/dashboard`,      icon: LayoutDashboard, label: 'Dashboard',        shortLabel: 'Dashboard' },
+    { href: `/partners/${org.slug}/alunos`,          icon: Users,           label: 'Alunos',            shortLabel: 'Alunos' },
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
     { href: `/partners/${org.slug}/configuracoes`,   icon: Settings,        label: 'Configurações',    shortLabel: 'Config' },
   ];
@@ -126,6 +127,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/student/dashboard`,         icon: Home,      label: 'Início',          shortLabel: 'Início' },
     { href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,  label: 'Questões',        shortLabel: 'Questões' },
     { href: `/partners/${org.slug}/student/simulado`,          icon: FileText,  label: 'Simulados',       shortLabel: 'Simulados' },
+    { href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,    label: 'Ranking',         shortLabel: 'Ranking' },
     { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3, label: 'Meu Desempenho',  shortLabel: 'Desempenho' },
     { href: `/partners/${org.slug}/student/perfil`,            icon: User,      label: 'Perfil',          shortLabel: 'Perfil' },
   ];
