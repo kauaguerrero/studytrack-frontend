@@ -229,9 +229,15 @@ export default function BancoDeQuestoes() {
   // ── 3. Core fetch ─────────────────────────────────────────────────────────────
   const fetchQuestions = useCallback(
     async (targetPage = 1, append = false, retryCount = 0) => {
-      const token = authTokenRef.current;
-      if (!token || !userId) return;
+      if (!userId) return;
       if (!filterSubject) return;
+
+      // Always fetch a fresh session so expired tokens are refreshed automatically.
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+      authTokenRef.current = token;
       if (isLoadingRef.current && retryCount === 0) return;
       if (retryCount > 10) {
         setLoading(false);
@@ -359,7 +365,7 @@ export default function BancoDeQuestoes() {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-dvh bg-[#F5F5F7] dark:bg-slate-950/50 flex flex-col relative overscroll-none">
+    <div className="bg-[#F5F5F7] dark:bg-slate-950/50 overscroll-none">
 
       {/* Modals — logic unchanged */}
       <UpsellModal
@@ -389,11 +395,11 @@ export default function BancoDeQuestoes() {
         {isMenuOpen && (
           <motion.div
             key="filter-header"
-            initial={shouldReduce ? false : { opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
+            initial={shouldReduce ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800 shadow-sm"
+            className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 rounded-xl shadow-sm mb-2"
           >
             <div className="max-w-4xl mx-auto px-4 py-3 space-y-3">
 
@@ -628,7 +634,7 @@ export default function BancoDeQuestoes() {
       </AnimatePresence>
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
-      <main className="max-w-4xl mx-auto px-4 py-5 flex-1 w-full">
+      <main className="max-w-4xl mx-auto px-4 py-5 w-full">
 
         {loading && page === 1 ? (
 
@@ -822,7 +828,7 @@ export default function BancoDeQuestoes() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed bottom-0 left-0 right-0 z-30 px-4 pb-6 pt-3 bg-gradient-to-t from-[#F5F5F7] via-[#F5F5F7]/90 to-transparent dark:from-slate-950 dark:via-slate-950/90"
+            className="px-4 pt-4 pb-4"
           >
             <div className="max-w-xl mx-auto">
               <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-900/8 dark:shadow-black/40 rounded-2xl p-2 flex items-center gap-2">
