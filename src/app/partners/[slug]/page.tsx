@@ -15,6 +15,12 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { GraduationCap, BookOpen, ArrowRight, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+function sanitizeCssHexColor(value: string | null | undefined, fallback: string): string {
+  if (!value || typeof value !== 'string') return fallback;
+  return HEX_COLOR_RE.test(value) ? value : fallback;
+}
+
 interface OrgLandingProps {
   params: Promise<{ slug: string }>;
 }
@@ -59,8 +65,8 @@ export default async function OrgLandingPage({ params }: OrgLandingProps) {
     }
   }
 
-  const primary = org.brand_primary ?? '#6366f1';
-  const secondary = org.brand_secondary ?? '#8b5cf6';
+  const primary = sanitizeCssHexColor(org.brand_primary, '#6366f1');
+  const secondary = sanitizeCssHexColor(org.brand_secondary, '#8b5cf6');
 
   return (
     <div

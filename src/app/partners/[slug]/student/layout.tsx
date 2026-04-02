@@ -10,6 +10,12 @@ import { OrgProvider } from '@/contexts/OrgContext';
 import { StudentThemeProvider, type StudentTheme } from '@/contexts/StudentThemeContext';
 import { StudentThemeShell } from '@/components/partners/StudentThemeShell';
 
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+function sanitizeCssHexColor(value: string | null | undefined, fallback: string): string {
+  if (!value || typeof value !== 'string') return fallback;
+  return HEX_COLOR_RE.test(value) ? value : fallback;
+}
+
 // Definição local para evitar erro de importação circular ou módulos não encontrados
 export interface OrgBranding {
   id: string;
@@ -22,7 +28,7 @@ export interface OrgBranding {
   plan_tier?: string;
   max_students?: number;
   invite_code?: string | null;
-  permissions?: any;
+  permissions?: Record<string, boolean>;
 }
 
 interface StudentLayoutProps {
@@ -79,9 +85,9 @@ export default async function PartnerStudentLayout({ children, params }: Student
     redirect(`/auth/login?next=/partners/${slug}/student/dashboard`);
   }
 
-  const brandPrimary   = org.brand_primary   ?? '#6366f1';
-  const brandSecondary = org.brand_secondary ?? '#8b5cf6';
-  const brandAccent    = org.brand_accent    ?? '#f59e0b';
+  const brandPrimary = sanitizeCssHexColor(org.brand_primary, '#6366f1');
+  const brandSecondary = sanitizeCssHexColor(org.brand_secondary, '#8b5cf6');
+  const brandAccent = sanitizeCssHexColor(org.brand_accent, '#f59e0b');
 
   const validThemes = ['light', 'dark', 'system'] as const;
   const rawTheme = profile.theme_preference ?? 'system';
@@ -102,6 +108,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
     invite_code:      null,
     permissions:      {},
   };
+  const safeSlugJson = JSON.stringify(slug);
 
   return (
     <OrgProvider
@@ -116,7 +123,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
           eliminando o flash quando localStorage difere do valor do banco (SSR). */}
       <script
         dangerouslySetInnerHTML={{
-          __html: `(function(){try{var k='partner-student-theme-${slug}';var s=localStorage.getItem(k);var r=s==='dark'?'dark':s==='light'?'light':(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');window.__pst=window.__pst||{};window.__pst['${slug}']=r;}catch(e){}})()`,
+          __html: `(function(){try{var slug=${safeSlugJson};var k='partner-student-theme-'+slug;var s=localStorage.getItem(k);var r=s==='dark'?'dark':s==='light'?'light':(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');window.__pst=window.__pst||{};window.__pst[slug]=r;}catch(e){}})()`,
         }}
       />
       <style>{`

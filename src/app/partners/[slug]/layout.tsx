@@ -16,6 +16,12 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { OrgProvider } from '@/contexts/OrgContext';
 
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+function sanitizeCssHexColor(value: string | null | undefined, fallback: string): string {
+  if (!value || typeof value !== 'string') return fallback;
+  return HEX_COLOR_RE.test(value) ? value : fallback;
+}
+
 export interface OrgBranding {
   id: string;
   name: string;
@@ -126,15 +132,18 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     invite_code:     org.invite_code ?? null,
     permissions:     org.permissions ?? {},
   };
+  const safePrimary = sanitizeCssHexColor(branding.brand_primary, '#6366f1');
+  const safeSecondary = sanitizeCssHexColor(branding.brand_secondary, '#8b5cf6');
+  const safeAccent = sanitizeCssHexColor(branding.brand_accent, '#f59e0b');
 
   return (
     <OrgProvider org={branding} userProfile={{ fullName: profile.full_name ?? 'Usuário', avatarUrl: profile.avatar_url ?? null, role: profile.role ?? 'founder' }}>
       {/* CSS variables de branding injetadas via style tag server-side */}
       <style>{`
         :root {
-          --brand-primary: ${branding.brand_primary};
-          --brand-secondary: ${branding.brand_secondary};
-          --brand-accent: ${branding.brand_accent};
+          --brand-primary: ${safePrimary};
+          --brand-secondary: ${safeSecondary};
+          --brand-accent: ${safeAccent};
         }
       `}</style>
       {children}
