@@ -119,16 +119,20 @@ export default function DesempenhoPage() {
     .sort((a, b) => b.total - a.total)
     .slice(0, 3);
 
-  // Formatação de data sem offset de timezone
+  // Formata as datas sempre no fuso de Brasília (UTC-3), independente do ambiente.
+  // Usar Date.UTC + timeZone explícito evita que o browser/servidor desloque o dia.
   const chartData: DayData[] = activity_history.map((item) => {
-    const parts = item.usage_date.split('-');
-    const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    const [y, m, d] = item.usage_date.split('-').map(Number);
+    // Meia-noite UTC para o dia exato do backend — formatação força BRT na exibição.
+    const dateObj = new Date(Date.UTC(y, m - 1, d));
+    const fmt = (opts: Intl.DateTimeFormatOptions) =>
+      dateObj.toLocaleDateString('pt-BR', { ...opts, timeZone: 'America/Sao_Paulo' });
     return {
-      date: dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-      fullDate: dateObj.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }),
+      date:     fmt({ day: '2-digit', month: '2-digit' }),
+      fullDate: fmt({ weekday: 'long', day: 'numeric', month: 'long' }),
       questions: item.questions_count,
       simulados: item.simulations_count,
-      correct: item.correct_count,
+      correct:   item.correct_count,
     };
   });
 
