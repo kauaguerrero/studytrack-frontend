@@ -24,6 +24,9 @@ import {
   User,
   Map,
   BrainCircuit,
+  Sparkles,
+  ListChecks,
+  Flag,
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -56,7 +59,9 @@ export function SidebarContent({
           ? 'manager'
           : pathname.startsWith('/portal/student')
             ? 'student'
-            : role;
+            : pathname.startsWith('/portal/admin')
+              ? 'admin'
+              : role;
 
   if (pathname.includes('/onboarding')) {
     return null;
@@ -281,6 +286,20 @@ export function SidebarContent({
               icon={Target}
               label="Metas Criadas"
             />
+          </div>
+        )}
+
+        {resolvedRole === 'admin' && (
+          <div className="space-y-0.5">
+            <SectionTitle>Visão Geral</SectionTitle>
+            <NavItem href="/portal/admin" icon={LayoutDashboard} label="Dashboard" />
+            <NavItem href="/portal/admin/tasks" icon={ListChecks} label="Tasks" />
+            <SectionTitle>Conteúdo</SectionTitle>
+            <NavItem href="/portal/admin/social-media" icon={Sparkles} label="Social Media IA" />
+            <NavItem href="/portal/admin/questions" icon={BookOpen} label="Questões" />
+            <SectionTitle>Relatórios</SectionTitle>
+            <NavItem href="/portal/admin/reengagement" icon={Target} label="Reengajamento" />
+            <NavItem href="/portal/admin/reports" icon={Flag} label="Denúncias" />
           </div>
         )}
 

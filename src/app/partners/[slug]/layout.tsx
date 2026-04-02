@@ -38,38 +38,57 @@ interface PartnersLayoutProps {
 export default async function PartnersLayout({ children, params }: PartnersLayoutProps) {
   const { slug } = await params;
 
-  // Rotas públicas dentro de /partners/[slug]/ não passam pela validação de founder.
-  // O middleware injeta x-pathname nos request headers para detectarmos aqui.
   const h = await headers();
   const pathname = h.get('x-pathname') ?? '';
-  const isPublicRoute = pathname === `/partners/${slug}` || pathname === `/partners/${slug}/register`;
-  // Rotas de aluno B2B têm seu próprio layout (student/layout.tsx) com auth própria
-  const isStudentRoute = pathname.startsWith(`/partners/${slug}/student`);
+
+  // Rotas públicas — não requerem auth
+  const isPublicRoute =
+    pathname === `/partners/${slug}` ||
+    pathname === `/partners/${slug}/register`;
+  // Nota: pathname === '' foi removido — quando o header x-pathname não chegar,
+  // o layout cai no fluxo normal de autenticação e injeta OrgProvider corretamente.
+
+  // Rotas de aluno B2B — auth e validação delegadas ao student/layout.tsx
+  // Só pula quando pathname é conhecido; se vier vazio, trata como rota de parceiro.
+  const isStudentRoute =
+    pathname !== '' && (
+      pathname.startsWith(`/partners/${slug}/student`) ||
+      pathname.includes('/student/')
+    );
+
   if (isPublicRoute || isStudentRoute) {
     return <>{children}</>;
   }
 
+  // A partir daqui: rotas do painel do parceiro (founder/admin)
   const supabase = await createClient();
 
-  // 1. Autenticação
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     redirect(`/auth/login?next=/partners/${slug}`);
   }
 
-  // 2. Busca perfil com role e organization_id
-  const { data: profile } = await supabase
+  // Usa adminClient para garantir leitura de organization_id sem bloqueio de RLS
+  const adminClient = createAdminClient();
+  type ProfileRow = { role: string | null; organization_id: string | null; full_name: string | null; avatar_url: string | null };
+  const profileRes = await adminClient
     .from('profiles')
     .select('role, organization_id, full_name, avatar_url')
     .eq('id', user.id)
     .single();
+  const profile = profileRes.data as ProfileRow | null;
 
+  // Aluno B2B com org vinculada — delega para student/layout.tsx em vez de redirecionar
+  if (profile?.role === 'student' && profile?.organization_id) {
+    return <>{children}</>;
+  }
+
+  // Roles sem acesso ao painel de parceiros
   if (!profile || !['founder', 'admin'].includes(profile.role ?? '')) {
     redirect('/portal');
   }
 
-  // 3. Busca org pelo slug (usa admin para evitar bloqueio de RLS)
-  // Tipagem explícita necessária pois o Supabase infere 'never' sem schema gerado.
+  // Busca org pelo slug (usa adminClient para evitar bloqueio de RLS)
   type OrgRow = {
     id: string; name: string; slug: string; logo_url: string | null;
     brand_primary: string | null; brand_secondary: string | null;
@@ -77,7 +96,6 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     max_students: number | null; invite_code: string | null;
     permissions: Record<string, boolean> | null;
   };
-  const adminClient = createAdminClient();
   const orgRes = await adminClient
     .from('organizations')
     .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions')
@@ -90,7 +108,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     redirect('/portal');
   }
 
-  // 4. Founder só acessa a própria org; admin acessa qualquer uma
+  // Founder só acessa a própria org; admin acessa qualquer uma
   if (profile.role === 'founder' && profile.organization_id !== org.id) {
     redirect('/portal');
   }
@@ -110,7 +128,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   };
 
   return (
-    <OrgProvider org={branding} userProfile={{ fullName: profile.full_name ?? 'Usuário', avatarUrl: profile.avatar_url ?? null, role: profile.role }}>
+    <OrgProvider org={branding} userProfile={{ fullName: profile.full_name ?? 'Usuário', avatarUrl: profile.avatar_url ?? null, role: profile.role ?? 'founder' }}>
       {/* CSS variables de branding injetadas via style tag server-side */}
       <style>{`
         :root {

@@ -2,30 +2,31 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
-import {
-  Card, CardContent, CardHeader, CardTitle,
-} from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import {
   UserPlus, Search, ChevronLeft, ChevronRight, ExternalLink,
-  ArrowUpDown,
+  BookOpen, FileText, Target, CalendarDays, Users, TrendingUp,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Student {
   id: string;
   full_name: string;
   email: string;
+  avatar_url: string | null;
   plan_tier: string;
   last_activity_date: string | null;
   joined_organization_at: string | null;
@@ -36,6 +37,8 @@ interface Student {
   accuracy_pct: number | null;
 }
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const PLAN_LABELS: Record<string, string> = {
   b2b_student: 'Básico',
   b2b_pro: 'Pro',
@@ -44,6 +47,61 @@ const PLAN_LABELS: Record<string, string> = {
 const PAGE_SIZE = 50;
 
 type SortField = 'last_activity_date' | 'full_name' | 'joined_organization_at';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function StudentAvatar({ student, size = 'md' }: { student: Student; size?: 'sm' | 'md' }) {
+  const sz = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm';
+  const initial = (student.full_name || student.email || '?')[0].toUpperCase();
+
+  if (student.avatar_url) {
+    return (
+      <Image
+        src={student.avatar_url}
+        alt={student.full_name}
+        width={size === 'sm' ? 32 : 40}
+        height={size === 'sm' ? 32 : 40}
+        className={cn(sz, 'rounded-full object-cover shrink-0')}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        sz,
+        'rounded-full flex items-center justify-center font-black text-white shrink-0',
+      )}
+      style={{
+        background: `linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))`,
+      }}
+    >
+      {initial}
+    </div>
+  );
+}
+
+function MetricChip({ icon: Icon, value, label, highlight }: {
+  icon: React.ElementType;
+  value: number;
+  label: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div className={cn(
+      'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold',
+      highlight && value > 0
+        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+    )}>
+      <Icon className="h-3 w-3 shrink-0" />
+      <span className="tabular-nums">{value}</span>
+      <span className="text-[10px] font-medium opacity-70">{label}</span>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AlunosPage() {
   const { org } = useOrg();
@@ -57,6 +115,8 @@ export default function AlunosPage() {
   const [sort, setSort] = useState<SortField>('last_activity_date');
   const [removing, setRemoving] = useState<string | null>(null);
   const [updatingPlan, setUpdatingPlan] = useState<string | null>(null);
+
+  const today = new Date().toISOString().slice(0, 10);
 
   const fetchStudents = useCallback(async (p: number, s: string, plan: string, sortField: SortField) => {
     setLoading(true);
@@ -112,9 +172,7 @@ export default function AlunosPage() {
         body: JSON.stringify({ plan_tier: newPlan }),
       });
       if (res.ok) {
-        setStudents((prev) =>
-          prev.map((s) => s.id === studentId ? { ...s, plan_tier: newPlan } : s)
-        );
+        setStudents((prev) => prev.map((s) => s.id === studentId ? { ...s, plan_tier: newPlan } : s));
         toast.success('Plano atualizado.');
       } else {
         toast.error('Erro ao atualizar plano.');
@@ -153,201 +211,289 @@ export default function AlunosPage() {
     }
   }
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  // Derived
+  const activeToday = students.filter(s => s.last_activity_date === today).length;
+  const activeWeek  = students.filter(s => s.last_activity_date && s.last_activity_date >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)).length;
+  const totalPages  = Math.ceil(total / PAGE_SIZE);
 
   return (
     <PartnerLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Alunos</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {loading ? '...' : `${total} aluno${total !== 1 ? 's' : ''} cadastrado${total !== 1 ? 's' : ''}`}
-            </p>
+      <div className="space-y-5">
+
+        {/* ── Hero Header ───────────────────────────────────────────────────── */}
+        <div
+          className="relative overflow-hidden rounded-2xl p-5"
+          style={{
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 18%, #0f172a) 0%, #0f172a 70%)',
+          }}
+        >
+          <div
+            className="absolute -top-8 -right-8 w-36 h-36 rounded-full blur-3xl opacity-20 pointer-events-none"
+            style={{ background: 'var(--brand-primary)' }}
+          />
+          <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-0.5">
+                Gestão de Turma
+              </p>
+              <h1 className="text-2xl font-extrabold text-white">Alunos</h1>
+              <p className="text-sm text-white/50 mt-0.5">
+                {loading ? '...' : `${total} de ${org.max_students} vagas utilizadas`}
+              </p>
+
+              {/* Barra de capacidade */}
+              {!loading && (
+                <div className="mt-2 w-48 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${Math.min(100, Math.round((total / (org.max_students ?? 1)) * 100))}%`,
+                      background: 'var(--brand-primary)',
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Mini KPIs */}
+            <div className="flex gap-3">
+              <div className="text-center">
+                <p className="text-2xl font-black text-white tabular-nums">{loading ? '—' : activeToday}</p>
+                <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wide">Hoje</p>
+              </div>
+              <div className="w-px bg-white/10" />
+              <div className="text-center">
+                <p className="text-2xl font-black text-white tabular-nums">{loading ? '—' : activeWeek}</p>
+                <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wide">Semana</p>
+              </div>
+              <div className="w-px bg-white/10" />
+              <div className="text-center">
+                <p className="text-2xl font-black text-white tabular-nums">{loading ? '—' : total}</p>
+                <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wide">Total</p>
+              </div>
+            </div>
           </div>
-          <Button asChild style={{ backgroundColor: 'var(--brand-primary)' }} className="text-white gap-2">
+        </div>
+
+        {/* ── Filtros ───────────────────────────────────────────────────────── */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input
+              placeholder="Buscar por nome..."
+              className="pl-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { setSearch(searchInput); setPage(1); } }}
+              onBlur={() => { setSearch(searchInput); setPage(1); }}
+            />
+          </div>
+          <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setPage(1); }}>
+            <SelectTrigger className="w-36 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+              <SelectValue placeholder="Plano" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os planos</SelectItem>
+              <SelectItem value="b2b_student">Básico</SelectItem>
+              <SelectItem value="b2b_pro">Pro</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sort} onValueChange={(v) => { setSort(v as SortField); setPage(1); }}>
+            <SelectTrigger className="w-44 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="last_activity_date">Últ. atividade</SelectItem>
+              <SelectItem value="full_name">Nome A–Z</SelectItem>
+              <SelectItem value="joined_organization_at">Data de entrada</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            asChild
+            className="text-white gap-2 shrink-0"
+            style={{ backgroundColor: 'var(--brand-primary)' }}
+          >
             <Link href={`/partners/${org.slug}/alunos/convidar`}>
               <UserPlus className="h-4 w-4" />
-              Adicionar Alunos
+              Adicionar
             </Link>
           </Button>
         </div>
 
-        {/* Filtros */}
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Buscar por nome..."
-                  className="pl-9"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      setSearch(searchInput);
-                      setPage(1);
-                    }
-                  }}
-                  onBlur={() => {
-                    setSearch(searchInput);
-                    setPage(1);
-                  }}
-                />
-              </div>
-              <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setPage(1); }}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Filtrar plano" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os planos</SelectItem>
-                  <SelectItem value="b2b_student">Básico</SelectItem>
-                  <SelectItem value="b2b_pro">Pro</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={sort} onValueChange={(v) => { setSort(v as SortField); setPage(1); }}>
-                <SelectTrigger className="w-44">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="last_activity_date">Últ. atividade</SelectItem>
-                  <SelectItem value="full_name">Nome A–Z</SelectItem>
-                  <SelectItem value="joined_organization_at">Data de entrada</SelectItem>
-                </SelectContent>
-              </Select>
+        {/* ── Lista de Alunos ───────────────────────────────────────────────── */}
+        <div className="space-y-2">
+          {loading ? (
+            [...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className="h-20 rounded-2xl bg-slate-100 dark:bg-slate-800/50 animate-pulse"
+              />
+            ))
+          ) : students.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Users className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
+              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                {search ? `Nenhum aluno encontrado para "${search}".` : 'Nenhum aluno cadastrado ainda.'}
+              </p>
+              {!search && (
+                <Button asChild className="mt-4 text-white gap-2" style={{ backgroundColor: 'var(--brand-primary)' }}>
+                  <Link href={`/partners/${org.slug}/alunos/convidar`}>
+                    <UserPlus className="h-4 w-4" /> Importar alunos
+                  </Link>
+                </Button>
+              )}
             </div>
-          </CardContent>
-        </Card>
+          ) : (
+            students.map((s) => {
+              const isOnline = s.last_activity_date === today;
+              const accuracyGood = s.accuracy_pct != null && s.accuracy_pct >= 60;
 
-        {/* Tabela */}
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b">
-                  <tr className="text-left text-xs text-slate-500">
-                    <th className="px-4 py-3 font-medium">Aluno</th>
-                    <th className="px-4 py-3 font-medium text-center">Plano</th>
-                    <th className="px-4 py-3 font-medium text-center">Hoje</th>
-                    <th className="px-4 py-3 font-medium text-center">Semana</th>
-                    <th className="px-4 py-3 font-medium text-center">Mês</th>
-                    <th className="px-4 py-3 font-medium text-center">Simulados</th>
-                    <th className="px-4 py-3 font-medium text-center">Acertos%</th>
-                    <th className="px-4 py-3 font-medium text-center">Últ. atividade</th>
-                    <th className="px-4 py-3 font-medium text-center">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {loading ? (
-                    [...Array(8)].map((_, i) => (
-                      <tr key={i}>
-                        {[...Array(9)].map((_, j) => (
-                          <td key={j} className="px-4 py-3">
-                            <Skeleton className="h-4 w-full" />
-                          </td>
-                        ))}
-                      </tr>
-                    ))
-                  ) : students.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="px-4 py-12 text-center text-slate-400 text-sm">
-                        {search ? `Nenhum aluno encontrado para "${search}".` : 'Nenhum aluno cadastrado ainda.'}
-                      </td>
-                    </tr>
-                  ) : (
-                    students.map((s) => (
-                      <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900 dark:text-white">{s.full_name || '—'}</p>
-                          <p className="text-xs text-slate-400">{s.email}</p>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Select
-                            value={s.plan_tier}
-                            onValueChange={(v) => handlePlanChange(s.id, v)}
-                            disabled={updatingPlan === s.id}
-                          >
-                            <SelectTrigger className="h-7 w-24 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="b2b_student">Básico</SelectItem>
-                              <SelectItem value="b2b_pro">Pro</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="px-4 py-3 text-center font-medium">{s.questions_today}</td>
-                        <td className="px-4 py-3 text-center font-medium">{s.questions_week}</td>
-                        <td className="px-4 py-3 text-center">{s.questions_month}</td>
-                        <td className="px-4 py-3 text-center">{s.simulados_month}</td>
-                        <td className="px-4 py-3 text-center">
-                          {s.accuracy_pct != null ? (
-                            <span className={s.accuracy_pct >= 60 ? 'text-emerald-600 font-medium' : 'text-rose-500 font-medium'}>
-                              {s.accuracy_pct}%
-                            </span>
-                          ) : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-center text-xs text-slate-500">
-                          {s.last_activity_date ?? 'Nunca'}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                              <Link href={`/partners/${org.slug}/alunos/${s.id}`} title="Ver perfil">
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </Link>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                              disabled={removing === s.id}
-                              onClick={() => handleRemove(s.id, s.full_name)}
-                              title="Remover da org"
-                            >
-                              ×
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+              return (
+                <div
+                  key={s.id}
+                  className={cn(
+                    'group flex items-center gap-4 rounded-2xl px-4 py-3.5',
+                    'bg-white dark:bg-slate-900',
+                    'border border-slate-100 dark:border-slate-800',
+                    'shadow-sm hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700',
+                    'transition-all duration-200',
                   )}
-                </tbody>
-              </table>
-            </div>
+                >
+                  {/* Avatar + online dot */}
+                  <div className="relative shrink-0">
+                    <StudentAvatar student={s} />
+                    {isOnline && (
+                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
+                      </span>
+                    )}
+                  </div>
 
-            {/* Paginação */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t px-4 py-3">
-                <p className="text-xs text-slate-500">
-                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} de {total}
-                </p>
-                <div className="flex gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => p - 1)}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((p) => p + 1)}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
+                  {/* Nome + email */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Link
+                        href={`/partners/${org.slug}/alunos/${s.id}`}
+                        className="font-bold text-slate-900 dark:text-white hover:underline truncate"
+                        style={{ color: undefined }}
+                      >
+                        {s.full_name || '—'}
+                      </Link>
+                      {/* Plan badge */}
+                      <span
+                        className={cn(
+                          'text-[10px] font-bold px-1.5 py-0.5 rounded-md border',
+                          s.plan_tier === 'b2b_pro'
+                            ? 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-700'
+                            : 'border-slate-200 bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
+                        )}
+                      >
+                        {PLAN_LABELS[s.plan_tier] ?? s.plan_tier}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 truncate mt-0.5">{s.email}</p>
+                  </div>
+
+                  {/* Métricas — ocultas em mobile */}
+                  <div className="hidden md:flex items-center gap-1.5 flex-wrap">
+                    <MetricChip icon={BookOpen} value={s.questions_today} label="hoje" highlight />
+                    <MetricChip icon={TrendingUp} value={s.questions_week} label="sem" highlight={s.questions_week > 0} />
+                    <MetricChip icon={FileText} value={s.simulados_month} label="sim" />
+                  </div>
+
+                  {/* Acertos */}
+                  <div className="hidden lg:block w-14 text-center shrink-0">
+                    {s.accuracy_pct != null ? (
+                      <span
+                        className={cn(
+                          'text-sm font-black tabular-nums',
+                          accuracyGood ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500',
+                        )}
+                      >
+                        {s.accuracy_pct}%
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-300 dark:text-slate-600">—</span>
+                    )}
+                    <p className="text-[9px] text-slate-400 font-medium uppercase tracking-wide">acertos</p>
+                  </div>
+
+                  {/* Última atividade */}
+                  <div className="hidden xl:flex items-center gap-1.5 shrink-0 text-xs text-slate-400">
+                    <CalendarDays className="h-3 w-3" />
+                    {s.last_activity_date ?? 'Nunca'}
+                  </div>
+
+                  {/* Ações — sempre visíveis em touch, surgem no hover em desktop */}
+                  <div className="flex items-center gap-1 shrink-0 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity">
+                    {/* Mudar plano */}
+                    <Select
+                      value={s.plan_tier}
+                      onValueChange={(v) => handlePlanChange(s.id, v)}
+                      disabled={updatingPlan === s.id}
+                    >
+                      <SelectTrigger className="h-9 w-20 text-[11px] border-slate-200 dark:border-slate-700">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="b2b_student">Básico</SelectItem>
+                        <SelectItem value="b2b_pro">Pro</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Button variant="ghost" size="icon" className="h-9 w-9" asChild title="Ver perfil">
+                      <Link href={`/partners/${org.slug}/alunos/${s.id}`}>
+                        <ExternalLink className="h-4 w-4" />
+                      </Link>
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                      disabled={removing === s.id}
+                      onClick={() => handleRemove(s.id, s.full_name)}
+                      title="Remover da organização"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              );
+            })
+          )}
+        </div>
+
+        {/* ── Paginação ─────────────────────────────────────────────────────── */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-1">
+            <p className="text-xs text-slate-500">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} de {total}
+            </p>
+            <div className="flex gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
       </div>
     </PartnerLayout>
   );

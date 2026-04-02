@@ -65,7 +65,7 @@ export default async function Dashboard() {
     const plan = profile.plan_tier || 'free';
     const status = profile.subscription_status || 'inactive';
 
-    if (plan !== 'free' && plan !== 'b2b_student' && status !== 'active') {
+    if (plan !== 'free' && !plan.startsWith('b2b_') && status !== 'active') {
         return (
             <SubscriptionLock planTier={plan} userName={firstName} />
         );

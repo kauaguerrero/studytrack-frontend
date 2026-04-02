@@ -27,11 +27,11 @@ interface QuestionCardProps {
   question: Question;
   userId: string;
   onQuotaReached?: (reason: string) => void;
-  onAnswer?: () => void;
+  onAnswer?: (result: { gamification?: { points_awarded: number } }) => void;
   onReportError?: () => void;
 }
 
-export function QuestionCard({ question, userId, onQuotaReached, onReportError }: QuestionCardProps) {
+export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onReportError }: QuestionCardProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,7 +43,9 @@ export function QuestionCard({ question, userId, onQuotaReached, onReportError }
   const confirmAnswer = async () => {
     if (!selected || isSubmitting) return;
     setIsSubmitting(true);
-    
+
+    let answerResult: { gamification?: { points_awarded: number } } = {};
+
     try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
         const res = await fetch(`${apiUrl}/api/questions/answer`, {
@@ -51,7 +53,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onReportError }
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: userId, question_id: question.id, option: selected })
         });
-        
+
         const data = await res.json();
 
         // --- TRATAMENTO DE ERRO DE COTA ---
@@ -60,16 +62,19 @@ export function QuestionCard({ question, userId, onQuotaReached, onReportError }
             setIsSubmitting(false); // Libera para tentar de novo se comprar
             return;
         }
-        
+
         // Verifica Trigger de Sucesso (Ex: respondeu 15ª questão)
         if (data.quota_status === "limit_reached" && onQuotaReached) {
             onQuotaReached("DAILY_QUOTA_REACHED");
         }
 
+        answerResult = { gamification: data.gamification };
+
     } catch(e) { console.error(e); void reportError("QuestionCardError", String(e)); }
 
     setShowAnswer(true);
     setIsSubmitting(false);
+    if (onAnswer) onAnswer(answerResult);
   };
 
   return (

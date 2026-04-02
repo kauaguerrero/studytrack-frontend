@@ -66,9 +66,9 @@ function LoginForm() {
         manager: '/portal/manager',
         admin: '/portal/admin',
         secretariat: '/portal/secretariat',
-        student: '/portal/student/dashboard',
+        // 'student' omitted intentionally: /portal handles B2B routing via organization_id
       };
-      
+
       const target = role && roleToPath[role] ? roleToPath[role] : '/portal';
       
       // Atualiza o cache do roteador do Next.js para que o Middleware leia os novos cookies
