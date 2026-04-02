@@ -18,6 +18,7 @@ export interface PartnerRankingEntry {
   full_name: string;
   monthly_points: number;
   gamification_title: GamificationTitle;
+  avatar_url?: string | null;
 }
 
 export interface UserRankingContext {
@@ -33,14 +34,16 @@ export interface PartnerRankingResponse {
   prize_cutoff: number;
 }
 
-export type PopupType = 'onboarding' | 'streak' | 'urgency' | 'motivation' | 'month_end' | 'none';
+export type PopupType = 'onboarding' | 'streak' | 'streak_broken' | 'urgency' | 'motivation' | 'month_end' | 'top3_entered' | 'none';
 
 export interface PopupState {
   type: PopupType;
   streak?: number;
+  streak_lost?: number;
   position?: number;
   rival_name?: string;
   points_diff?: number;
+  points_lost?: number;
   points_to_top3?: number;
   /** For month_end: user's final rank for that month */
   winner_rank?: number;
@@ -56,6 +59,9 @@ export interface MonthlySummary {
   points_to_top3: number;
   prize_cutoff: number;
   month_label: string;
+  monthly_goal: number;
+  goal_reached: boolean;
+  goal_progress_pct: number;
 }
 
 export interface DiagnosticResult {

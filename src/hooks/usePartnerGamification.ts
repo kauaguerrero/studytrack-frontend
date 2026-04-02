@@ -10,6 +10,11 @@ import type {
   PopupState,
 } from '@/types/gamification';
 
+export interface ShieldResult {
+  shield_used: boolean;
+  streak_preserved?: number;
+}
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
@@ -29,6 +34,7 @@ export function usePartnerGamification() {
   const [summary, setSummary] = useState<MonthlySummary | null>(null);
   const [popupState, setPopupState] = useState<PopupState | null>(null);
   const [ranking, setRanking] = useState<PartnerRankingResponse | null>(null);
+  const [shieldResult, setShieldResult] = useState<ShieldResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +62,24 @@ export function usePartnerGamification() {
     setPopupState(data);
   }, []);
 
-  // ── Mount: get token → fetch summary + popup in parallel ──────────────────
+  // ── Shield: consume available shield on dashboard load ────────────────────
+
+  const useShield = useCallback(async (): Promise<ShieldResult | null> => {
+    const token = tokenRef.current;
+    if (!token) return null;
+    try {
+      const result = await apiFetcher<ShieldResult>(
+        `${API_BASE}/api/partner/gamification/shield/use`,
+        { method: 'POST', headers: buildHeaders(token) },
+      );
+      setShieldResult(result);
+      return result;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // ── Mount: get token → fetch summary + popup + shield in parallel ──────────
 
   useEffect(() => {
     let cancelled = false;
@@ -77,7 +100,15 @@ export function usePartnerGamification() {
 
         tokenRef.current = token;
 
-        await Promise.all([fetchSummary(token), fetchPopupState(token)]);
+        const [, , shield] = await Promise.all([
+          fetchSummary(token),
+          fetchPopupState(token),
+          apiFetcher<ShieldResult>(
+            `${API_BASE}/api/partner/gamification/shield/use`,
+            { method: 'POST', headers: buildHeaders(token) },
+          ).catch(() => null),
+        ]);
+        if (!cancelled && shield) setShieldResult(shield);
       } catch (e) {
         if (!cancelled) {
           setError(
@@ -150,10 +181,12 @@ export function usePartnerGamification() {
     summary,
     popupState,
     ranking,
+    shieldResult,
     isLoading,
     error,
     submitDiagnostic,
     refreshRanking,
     dismissPopup,
+    useShield,
   };
 }

@@ -19,6 +19,19 @@ const MEDALS = ['🥇', '🥈', '🥉'] as const;
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
+function Avatar({ entry, size = 'sm' }: { entry: PartnerRankingEntry; size?: 'sm' | 'xs' }) {
+  const cls = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-6 h-6 text-[10px]';
+  if (entry.avatar_url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={entry.avatar_url} className={`${cls} rounded-full object-cover shrink-0`} alt="" />;
+  }
+  return (
+    <div className={`${cls} rounded-full bg-slate-700 flex items-center justify-center font-bold text-white shrink-0`}>
+      {entry.full_name.charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
 function RankRow({
   entry,
   medal,
@@ -46,6 +59,9 @@ function RankRow({
       >
         {medal ?? `#${entry.rank}`}
       </span>
+
+      {/* Avatar */}
+      <Avatar entry={entry} />
 
       {/* Name */}
       <span

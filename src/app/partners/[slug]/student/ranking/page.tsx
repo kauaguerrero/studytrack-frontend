@@ -64,18 +64,27 @@ function PodiumEntry({ entry, isSelf }: PodiumEntryProps) {
       </p>
 
       {/* Avatar circle */}
-      <div
-        className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white ring-2"
-        style={{
-          background: isSelf
-            ? 'var(--brand-primary)'
-            : isFirst
-            ? 'linear-gradient(135deg, #f59e0b, #d97706)'
-            : 'linear-gradient(135deg, #475569, #334155)',
-        }}
-      >
-        {entry.full_name.charAt(0).toUpperCase()}
-      </div>
+      {entry.avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={entry.avatar_url}
+          alt=""
+          className="h-10 w-10 rounded-full object-cover ring-2 ring-white/20"
+        />
+      ) : (
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white ring-2"
+          style={{
+            background: isSelf
+              ? 'var(--brand-primary)'
+              : isFirst
+              ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+              : 'linear-gradient(135deg, #475569, #334155)',
+          }}
+        >
+          {entry.full_name.charAt(0).toUpperCase()}
+        </div>
+      )}
 
       {/* Pedestal */}
       <div
@@ -130,16 +139,25 @@ function RankRow({ entry, isSelf, isPrize }: RowProps) {
       </div>
 
       {/* Avatar */}
-      <div
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-        style={{
-          background: isSelf
-            ? 'var(--brand-primary)'
-            : 'linear-gradient(135deg, #475569, #334155)',
-        }}
-      >
-        {entry.full_name.charAt(0).toUpperCase()}
-      </div>
+      {entry.avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={entry.avatar_url}
+          alt=""
+          className="h-8 w-8 shrink-0 rounded-full object-cover"
+        />
+      ) : (
+        <div
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+          style={{
+            background: isSelf
+              ? 'var(--brand-primary)'
+              : 'linear-gradient(135deg, #475569, #334155)',
+          }}
+        >
+          {entry.full_name.charAt(0).toUpperCase()}
+        </div>
+      )}
 
       {/* Name + title */}
       <div className="flex-1 min-w-0">

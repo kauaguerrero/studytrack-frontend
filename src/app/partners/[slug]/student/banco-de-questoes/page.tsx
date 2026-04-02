@@ -18,6 +18,7 @@ import {
 import { QuestionCard } from '@/components/questions/QuestionCard';
 import { ReportDialog } from '@/components/questions/ReportDialog';
 import { UpsellModal } from '@/components/modals/UpsellModal';
+import { ShieldEarnedPopup } from '@/components/partners/gamification/ShieldEarnedPopup';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -116,6 +117,11 @@ export default function BancoDeQuestoes() {
   const isLoadingRef = useRef(false);
   const authTokenRef = useRef<string | null>(null);
 
+  // ── Session points (gamification B2B) ────────────────────────────────────────
+  const sessionPointsRef = useRef(0);
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showShieldEarned, setShowShieldEarned] = useState(false);
+
   // ── Accessibility ─────────────────────────────────────────────────────────
   const shouldReduce = useReducedMotion();
 
@@ -154,6 +160,19 @@ export default function BancoDeQuestoes() {
       }
     };
     init();
+  }, []);
+
+  // ── Session points: salvar no localStorage ao desmontar ─────────────────────
+  useEffect(() => {
+    return () => {
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+      if (sessionPointsRef.current > 0) {
+        localStorage.setItem(
+          'pending_question_points',
+          JSON.stringify({ points: sessionPointsRef.current, timestamp: Date.now() }),
+        );
+      }
+    };
   }, []);
 
   // ── Total de questões — direto no Supabase (sem CORS) ───────────────────────
@@ -334,6 +353,30 @@ export default function BancoDeQuestoes() {
     setAnsweredIds((prev) => new Set(prev).add(qId));
   };
 
+  const handleAnswerResult = useCallback(
+    (qId: string, result: { gamification?: { points_awarded: number; shield_awarded?: boolean } }) => {
+      handleLocalAnswer(qId);
+      const pts = result.gamification?.points_awarded ?? 0;
+      if (pts > 0) {
+        sessionPointsRef.current += pts;
+        // Reset 30s inactivity timer
+        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = setTimeout(() => {
+          if (sessionPointsRef.current > 0) {
+            localStorage.setItem(
+              'pending_question_points',
+              JSON.stringify({ points: sessionPointsRef.current, timestamp: Date.now() }),
+            );
+          }
+        }, 30000);
+      }
+      if (result.gamification?.shield_awarded) {
+        setShowShieldEarned(true);
+      }
+    },
+    [],
+  );
+
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────
   const currentQ = questions[currentIdx];
   const isNextDisabled = currentIdx === questions.length - 1;
@@ -368,6 +411,12 @@ export default function BancoDeQuestoes() {
         reason={upsellReason}
         userName={userProfile?.full_name}
       />
+
+      <AnimatePresence>
+        {showShieldEarned && (
+          <ShieldEarnedPopup onDismiss={() => setShowShieldEarned(false)} />
+        )}
+      </AnimatePresence>
       <ReportDialog
         open={reportDialogOpen}
         onOpenChange={setReportDialogOpen}
@@ -754,7 +803,7 @@ export default function BancoDeQuestoes() {
                     images: currentQ.images,
                   }}
                   onQuotaReached={handleQuotaLimitReached}
-                  onAnswer={() => handleLocalAnswer(currentQ.id)}
+                  onAnswer={(result) => handleAnswerResult(currentQ.id, result)}
                   onReportError={() => {
                     setReportQuestionId(currentQ.id);
                     setReportDialogOpen(true);

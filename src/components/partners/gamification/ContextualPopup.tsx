@@ -63,6 +63,12 @@ export function ContextualPopup({ popupState, onDismiss }: Props) {
             ? `Você está ${popupState.points_diff ?? 0} pontos atrás. Estude agora para recuperar.`
             : `Faltam ${popupState.points_to_top3 ?? 0} pontos para o top 3.`}
         </p>
+
+        {isUrgency && (popupState.points_lost ?? 0) > 0 && (
+          <p className="mt-2 pl-8 text-xs leading-relaxed" style={{ color: 'rgba(248,113,113,0.75)' }}>
+            Você perdeu {popupState.points_lost} {popupState.points_lost === 1 ? 'ponto' : 'pontos'} ontem por inatividade. Volte hoje e recupere!
+          </p>
+        )}
       </div>
     </motion.div>
   );
