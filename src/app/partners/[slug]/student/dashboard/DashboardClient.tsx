@@ -49,7 +49,8 @@ interface Props {
   orgLogoUrl: string | null;
   slug: string;
   currentStreak: number;
-  totalPoints: number;
+  questionsCount: number;
+  simuladosCount: number;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -61,7 +62,8 @@ export function DashboardClient({
   orgLogoUrl,
   slug,
   currentStreak,
-  totalPoints,
+  questionsCount,
+  simuladosCount,
 }: Props) {
   const shouldReduce = useReducedMotion();
   const itemVariant = shouldReduce ? ITEM_REDUCED : ITEM;
@@ -86,23 +88,6 @@ export function DashboardClient({
   const [showRankingPopup, setShowRankingPopup] = useState(false);
   const [shieldPopupDismissed, setShieldPopupDismissed] = useState(false);
 
-  // ── Pending question session points (from banco-de-questoes) ──────────────
-  const [pendingQuestionPoints, setPendingQuestionPoints] = useState<number | null>(null);
-
-  useEffect(() => {
-    const PENDING_KEY = 'pending_question_points';
-    const raw = localStorage.getItem(PENDING_KEY);
-    if (!raw) return;
-    try {
-      const { points, timestamp } = JSON.parse(raw) as { points: number; timestamp: number };
-      if (Date.now() - timestamp < 5 * 60 * 1000 && points > 0) {
-        setPendingQuestionPoints(points);
-      }
-    } catch { /* ignore */ } finally {
-      localStorage.removeItem(PENDING_KEY);
-    }
-  }, []);
-
   // ── Streak popup: show at most once per day ────────────────────────────────
   const STREAK_POPUP_KEY = 'streak_popup_last_shown';
   const todayStr = new Date().toISOString().split('T')[0];
@@ -119,11 +104,8 @@ export function DashboardClient({
     async (result: DiagnosticResult) => {
       void result;
       dismissPopup();
-      // Wait 2s then load ranking and show popup
-      setTimeout(async () => {
-        await refreshRanking();
-        setShowRankingPopup(true);
-      }, 2000);
+      await refreshRanking();
+      setShowRankingPopup(true);
     },
     [dismissPopup, refreshRanking],
   );
@@ -225,8 +207,12 @@ export function DashboardClient({
                     {currentStreak} {currentStreak === 1 ? 'dia' : 'dias'} de sequência
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
-                    <Trophy className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                    {totalPoints.toLocaleString('pt-BR')} pontos
+                    <BookOpen className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
+                    {questionsCount.toLocaleString('pt-BR')} {questionsCount === 1 ? 'questão' : 'questões'}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
+                    <FileText className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
+                    {simuladosCount} {simuladosCount === 1 ? 'simulado' : 'simulados'}
                   </span>
                 </div>
               </div>
@@ -303,8 +289,8 @@ export function DashboardClient({
                 <p className="mt-3 text-[11px] font-medium text-slate-400 dark:text-white/30">
                   {summary
                     ? goalReached
-                      ? '🏆 Zona do prêmio atingida!'
-                      : `Faltam ${(monthlyGoal - monthlyPts).toLocaleString('pt-BR')} pts`
+                      ? '🏆 Você está na disputa pelo prêmio!'
+                      : `Faltam ${(monthlyGoal - monthlyPts).toLocaleString('pt-BR')} pts para entrar na disputa`
                     : 'Carregando…'}
                 </p>
               </div>
@@ -459,35 +445,6 @@ export function DashboardClient({
             streakLost={popupState.streak_lost ?? 1}
             onDismiss={dismissPopup}
           />
-        )}
-
-        {pendingQuestionPoints !== null && (
-          <motion.div
-            className="fixed bottom-6 left-1/2 z-[7000] w-full max-w-sm -translate-x-1/2 px-4"
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
-            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-5 shadow-2xl border border-white/10">
-              <button
-                onClick={() => setPendingQuestionPoints(null)}
-                className="absolute right-3 top-3 p-1.5 text-slate-500 hover:text-white transition-colors text-sm"
-                aria-label="Fechar"
-              >
-                ✕
-              </button>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-white/40 mb-1">
-                Sessão encerrada 📚
-              </p>
-              <p className="text-3xl font-black" style={{ color: 'var(--brand-primary)' }}>
-                +{pendingQuestionPoints} pts mensais
-              </p>
-              <p className="mt-1 text-xs text-slate-400">
-                da sua última sessão no banco de questões
-              </p>
-            </div>
-          </motion.div>
         )}
 
         {(popupState?.type === 'month_end' || popupState?.month_reset_pending) && (

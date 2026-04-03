@@ -142,7 +142,7 @@ const PARTICLE_DATA = Array.from({ length: 6 }, (_, i) => ({
 
 function FloatingParticles() {
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div className="dark:block hidden pointer-events-none absolute inset-0 overflow-hidden">
       {PARTICLE_DATA.map((p, i) => (
         <motion.div
           key={i}
@@ -209,10 +209,8 @@ function PodiumEntry({ entry, isSelf }: PodiumEntryProps) {
 
       {/* Name */}
       <p
-        className="text-center text-[11px] font-bold leading-tight max-w-[80px] truncate"
-        style={{
-          color: isSelf ? 'var(--brand-primary)' : 'rgba(255,255,255,0.85)',
-        }}
+        className="text-center text-[11px] font-bold leading-tight max-w-[80px] truncate text-slate-800 dark:text-white/85"
+        style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
         title={entry.full_name}
       >
         {isSelf ? 'Você' : entry.full_name.split(' ')[0]}
@@ -321,7 +319,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
 
   return (
     <motion.div
-      className="group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 hover:bg-white/[0.03]"
+      className="group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 hover:bg-slate-50 dark:hover:bg-white/[0.03]"
       style={selfHighlight}
       variants={ROW_VARIANTS}
       custom={index}
@@ -345,12 +343,8 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
           </div>
         ) : (
           <span
-            className="text-xs font-bold tabular-nums"
-            style={{
-              color: isPrize
-                ? 'var(--brand-primary)'
-                : 'rgba(148, 163, 184, 0.6)',
-            }}
+            className={`text-xs font-bold tabular-nums ${isPrize ? '' : 'text-slate-400 dark:text-slate-500/60'}`}
+            style={isPrize ? { color: 'var(--brand-primary)' } : undefined}
           >
             {entry.rank}
           </span>
@@ -375,7 +369,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
           />
         ) : (
           <div
-            className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white dark:text-white"
             style={{
               background: isSelf
                 ? 'var(--brand-primary)'
@@ -396,10 +390,9 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
         {/* Online-style indicator for self */}
         {isSelf && (
           <motion.div
-            className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2"
+            className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-[#0D0D0D]"
             style={{
               background: 'var(--brand-primary)',
-              borderColor: '#0D0D0D',
             }}
             animate={{ scale: [1, 1.2, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
@@ -410,12 +403,8 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
       {/* Name + title */}
       <div className="flex-1 min-w-0">
         <p
-          className="truncate text-sm font-semibold"
-          style={{
-            color: isSelf
-              ? 'var(--brand-primary)'
-              : 'rgba(255, 255, 255, 0.9)',
-          }}
+          className="truncate text-sm font-semibold text-slate-800 dark:text-white/90"
+          style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
         >
           {isSelf ? `${entry.full_name} (você)` : entry.full_name}
         </p>
@@ -443,12 +432,8 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
             />
           )}
           <span
-            className="text-sm font-extrabold tabular-nums"
-            style={{
-              color: isTop3 && theme
-                ? theme.textColor
-                : 'rgba(255, 255, 255, 0.9)',
-            }}
+            className="text-sm font-extrabold tabular-nums text-slate-800 dark:text-white/90"
+            style={isTop3 && theme ? { color: theme.textColor } : undefined}
           >
             {formatPoints(entry.monthly_points)}
           </span>
@@ -465,7 +450,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
             prêmio
           </span>
         ) : (
-          <span className="text-[10px] font-medium text-white/30">pts</span>
+          <span className="text-[10px] font-medium text-slate-400 dark:text-white/30">pts</span>
         )}
       </div>
     </motion.div>
@@ -480,7 +465,7 @@ function PrizeZoneDivider({ cutoff }: { cutoff: number }) {
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
       <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-500/50">
         <Gift className="h-2.5 w-2.5" />
-        zona de prêmio — top {cutoff}
+        mais perto do prêmio — top {cutoff}
       </span>
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
     </div>
@@ -498,13 +483,7 @@ function GlassCard({
 }) {
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl ${className}`}
-      style={{
-        background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)',
-        border: '1px solid rgba(255,255,255,0.06)',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.1)',
-        backdropFilter: 'blur(12px)',
-      }}
+      className={`relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-sm dark:bg-[rgba(255,255,255,0.04)] dark:border-[rgba(255,255,255,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.2),0_1px_2px_rgba(0,0,0,0.1)] dark:backdrop-blur-xl ${className}`}
     >
       {children}
     </div>
@@ -526,36 +505,24 @@ function StatPill({
 }) {
   return (
     <div
-      className="flex-1 rounded-xl px-3 py-2.5 relative overflow-hidden"
-      style={{
-        background: highlight
-          ? 'color-mix(in srgb, var(--brand-primary) 10%, rgba(255,255,255,0.03))'
-          : 'rgba(255,255,255,0.03)',
-        border: highlight
-          ? '1px solid color-mix(in srgb, var(--brand-primary) 20%, transparent)'
-          : '1px solid rgba(255,255,255,0.05)',
-      }}
+      className="flex-1 rounded-xl px-3 py-2.5 relative overflow-hidden border bg-slate-50 border-slate-200 dark:bg-[rgba(255,255,255,0.03)] dark:border-[rgba(255,255,255,0.05)]"
+      style={highlight ? {
+        background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)',
+        borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
+      } : undefined}
     >
       <div className="flex items-center gap-1.5 mb-1">
         <Icon
-          className="h-3 w-3"
-          style={{
-            color: highlight
-              ? 'var(--brand-primary)'
-              : 'rgba(255,255,255,0.3)',
-          }}
+          className="h-3 w-3 text-slate-400 dark:text-white/30"
+          style={highlight ? { color: 'var(--brand-primary)' } : undefined}
         />
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-white/30">
           {label}
         </p>
       </div>
       <p
-        className="text-xl font-black"
-        style={{
-          color: highlight
-            ? 'var(--brand-primary)'
-            : 'rgba(255,255,255,0.9)',
-        }}
+        className="text-xl font-black text-slate-800 dark:text-white/90"
+        style={highlight ? { color: 'var(--brand-primary)' } : undefined}
       >
         {value}
       </p>
@@ -600,10 +567,15 @@ export default function RankingPage() {
   const hasPrizeDivider = fullList.length > prizeCutoff;
 
   return (
-    <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 overflow-hidden" style={{ background: 'radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in srgb, var(--brand-primary) 12%, transparent) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 80% 80%, color-mix(in srgb, var(--brand-primary) 6%, transparent) 0%, transparent 60%), #080808' }}>
+    <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 overflow-hidden bg-slate-50 dark:bg-[#080808]">
+      {/* Dark mode gradient overlay */}
+      <div
+        className="hidden dark:block pointer-events-none absolute inset-0"
+        style={{ background: 'radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in srgb, var(--brand-primary) 12%, transparent) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 80% 80%, color-mix(in srgb, var(--brand-primary) 6%, transparent) 0%, transparent 60%)' }}
+      />
 
       {/* ── Particles ─────────────────────────────────────────────────────── */}
-      <svg aria-hidden="true" className="pointer-events-none absolute inset-0 w-full h-full opacity-[0.35]" xmlns="http://www.w3.org/2000/svg">
+      <svg aria-hidden="true" className="hidden dark:block pointer-events-none absolute inset-0 w-full h-full opacity-[0.35]" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <radialGradient id="pg" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="var(--brand-primary)" stopOpacity="1" />
@@ -726,12 +698,15 @@ export default function RankingPage() {
         {/* ── Hero header ───────────────────────────────────────────────── */}
         <motion.div variants={shouldReduce ? undefined : ITEM}>
           <div
-            className="relative overflow-hidden rounded-2xl p-5 text-white"
-            style={{
-              background: 'linear-gradient(145deg, #0A0A0A 0%, #111111 40%, #0D0D0D 100%)',
-              border: '1px solid rgba(255,255,255,0.06)',
-            }}
+            className="relative overflow-hidden rounded-2xl p-5 bg-white border border-slate-200 shadow-sm dark:border-[rgba(255,255,255,0.06)] dark:shadow-none"
           >
+            {/* Dark mode gradient background */}
+            <div
+              className="hidden dark:block pointer-events-none absolute inset-0"
+              style={{
+                background: 'linear-gradient(145deg, #0A0A0A 0%, #111111 40%, #0D0D0D 100%)',
+              }}
+            />
             {/* Ambient glow effects */}
             <div
               className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full blur-[80px] opacity-20"
@@ -759,11 +734,11 @@ export default function RankingPage() {
                         style={{ color: 'var(--brand-primary)' }}
                       />
                     </div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/35">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-white/35">
                       Ranking mensal
                     </p>
                   </div>
-                  <h1 className="text-2xl font-black tracking-tight text-white">
+                  <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                     {monthLabel}
                   </h1>
                 </div>
@@ -819,7 +794,7 @@ export default function RankingPage() {
                   className="h-3.5 w-3.5"
                   style={{ color: '#F59E0B' }}
                 />
-                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/35">
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">
                   Pódio
                 </p>
               </div>
@@ -856,14 +831,14 @@ export default function RankingPage() {
         {/* ── Full ranking list ─────────────────────────────────────────── */}
         <motion.div variants={shouldReduce ? undefined : ITEM}>
           <GlassCard>
-            <div className="px-4 py-3 flex items-center justify-between border-b border-white/5">
+            <div className="px-4 py-3 flex items-center justify-between border-b border-slate-200 dark:border-white/5">
               <div className="flex items-center gap-2">
                 <Flame className="h-3.5 w-3.5 text-orange-500/60" />
-                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/35">
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">
                   Classificação completa
                 </p>
               </div>
-              <span className="text-[10px] font-semibold text-white/20 tabular-nums">
+              <span className="text-[10px] font-semibold text-slate-400 dark:text-white/20 tabular-nums">
                 {fullList.length} alunos
               </span>
             </div>
@@ -892,10 +867,10 @@ export default function RankingPage() {
                   >
                     <Trophy className="h-7 w-7 text-white/15" />
                   </div>
-                  <p className="text-sm font-semibold text-white/40">
+                  <p className="text-sm font-semibold text-slate-500 dark:text-white/40">
                     Nenhuma entrada ainda
                   </p>
-                  <p className="mt-1 text-xs text-white/20">
+                  <p className="mt-1 text-xs text-slate-400 dark:text-white/20">
                     Complete atividades para aparecer no ranking!
                   </p>
                 </div>
@@ -922,7 +897,7 @@ export default function RankingPage() {
                       <>
                         <div className="relative my-3 flex items-center gap-3 px-3">
                           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                          <span className="text-[10px] font-bold text-white/20">
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-white/20">
                             sua posição
                           </span>
                           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
@@ -946,9 +921,9 @@ export default function RankingPage() {
           <motion.div variants={shouldReduce ? undefined : ITEM}>
             <div className="flex items-center justify-center gap-2 py-1">
               <div className="h-px w-8 bg-gradient-to-r from-transparent to-white/10" />
-              <p className="text-[10px] font-semibold text-white/25 flex items-center gap-1">
+              <p className="text-[10px] font-semibold text-slate-400 dark:text-white/25 flex items-center gap-1">
                 <Gift className="h-2.5 w-2.5" />
-                Top {prizeCutoff} ganham prêmio ao final do mês
+                Top {prizeCutoff} mais perto do prêmio — mas qualquer um pode chegar lá
               </p>
               <div className="h-px w-8 bg-gradient-to-l from-transparent to-white/10" />
             </div>

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { createClient } from '@/lib/supabase/client';
+import { Target, Zap, Trophy, CheckCircle2, XCircle } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { DiagnosticResult, GamificationTitle } from '@/types/gamification';
 
 // ─── Confetti (CSS keyframes, no external dependency) ─────────────────────────
@@ -58,16 +59,16 @@ function ConfettiLayer() {
 
 // ─── Title metadata ────────────────────────────────────────────────────────────
 
-const TITLE_META: Record<GamificationTitle, { icon: string; desc: string }> = {
-  Iniciante: { icon: '🎯', desc: 'Começa a trilha'    },
-  Veterano:  { icon: '⚡', desc: 'Sabe o caminho'     },
-  Expert:    { icon: '🏆', desc: 'Domina o conteúdo' },
+const TITLE_META: Record<GamificationTitle, { Icon: LucideIcon; desc: string }> = {
+  Iniciante: { Icon: Target, desc: 'Começa a trilha'    },
+  Veterano:  { Icon: Zap,    desc: 'Sabe o caminho'     },
+  Expert:    { Icon: Trophy, desc: 'Domina o conteúdo' },
 };
 
 function resolveLocal(score: number): { title: GamificationTitle; points: number } {
-  if (score >= 4) return { title: 'Expert',   points: 247 };
-  if (score >= 2) return { title: 'Veterano', points: 150 };
-  return               { title: 'Iniciante', points: 50  };
+  if (score === 5) return { title: 'Expert',   points: 247 };
+  if (score >= 3)  return { title: 'Veterano', points: 150 };
+  return                  { title: 'Iniciante', points: 50  };
 }
 
 // ─── Animated points counter ───────────────────────────────────────────────────
@@ -101,6 +102,66 @@ interface QuizQuestion {
   correct_option: string;
 }
 
+// ─── Questões fixas de onboarding ─────────────────────────────────────────────
+
+const ONBOARDING_QUESTIONS: QuizQuestion[] = [
+  {
+    id: 'onboarding_q1',
+    statement: 'Qual é o maior planeta do Sistema Solar?',
+    alternatives: [
+      { letter: 'A', text: 'Saturno' },
+      { letter: 'B', text: 'Júpiter' },
+      { letter: 'C', text: 'Urano' },
+      { letter: 'D', text: 'Netuno' },
+    ],
+    correct_option: 'B',
+  },
+  {
+    id: 'onboarding_q2',
+    statement: 'Em que ano o Brasil proclamou sua independência de Portugal?',
+    alternatives: [
+      { letter: 'A', text: '1808' },
+      { letter: 'B', text: '1815' },
+      { letter: 'C', text: '1822' },
+      { letter: 'D', text: '1889' },
+    ],
+    correct_option: 'C',
+  },
+  {
+    id: 'onboarding_q3',
+    statement: 'Qual elemento químico possui o símbolo "Fe" na tabela periódica?',
+    alternatives: [
+      { letter: 'A', text: 'Flúor' },
+      { letter: 'B', text: 'Fósforo' },
+      { letter: 'C', text: 'Ferro' },
+      { letter: 'D', text: 'Frâncio' },
+    ],
+    correct_option: 'C',
+  },
+  {
+    id: 'onboarding_q4',
+    statement: 'Quantos ossos tem o corpo humano adulto?',
+    alternatives: [
+      { letter: 'A', text: '186' },
+      { letter: 'B', text: '206' },
+      { letter: 'C', text: '226' },
+      { letter: 'D', text: '246' },
+    ],
+    correct_option: 'B',
+  },
+  {
+    id: 'onboarding_q5',
+    statement: 'Em que ano exatamente foi fundada a cidade de Tenochtitlan, capital do Império Asteca — que hoje corresponde à Cidade do México?',
+    alternatives: [
+      { letter: 'A', text: '1235' },
+      { letter: 'B', text: '1325' },
+      { letter: 'C', text: '1410' },
+      { letter: 'D', text: '1487' },
+    ],
+    correct_option: 'B',
+  },
+];
+
 // ─── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -126,56 +187,17 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
   const [qIndex, setQIndex]           = useState(0);
   const [score, setScore]             = useState(0);
   const [questionIds, setQuestionIds] = useState<string[]>([]);
-  const [feedback, setFeedback]       = useState<'correct' | 'wrong' | null>(null);
-  const [quizLoading, setQuizLoading] = useState(false);
-  const [quizError, setQuizError]     = useState<string | null>(null);
+  const [feedback, setFeedback]           = useState<'correct' | 'wrong' | null>(null);
+  const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
 
   // ── Celebration state
   const [result, setResult] = useState<DiagnosticResult | null>(null);
 
-  const tokenRef = useRef<string | null>(null);
-
-  // Fetch token once on mount
+  // Load static questions on mount
   useEffect(() => {
-    createClient().auth.getSession().then(({ data: { session } }) => {
-      tokenRef.current = session?.access_token ?? null;
-    });
+    setQuestions(ONBOARDING_QUESTIONS);
+    setQuestionIds(ONBOARDING_QUESTIONS.map((q) => q.id));
   }, []);
-
-  // Fetch questions when quiz phase starts
-  useEffect(() => {
-    if (phase !== 'quiz') return;
-    let cancelled = false;
-
-    setQuizLoading(true);
-    setQuizError(null);
-
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...(tokenRef.current ? { Authorization: `Bearer ${tokenRef.current}` } : {}),
-    };
-
-    fetch('/api/proxy/questions/?limit=5&difficulty=medio', { headers })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json() as Promise<unknown>;
-      })
-      .then((data) => {
-        if (cancelled) return;
-        const list: QuizQuestion[] = Array.isArray(data)
-          ? (data as QuizQuestion[])
-          : ((data as { questions?: QuizQuestion[] })?.questions ?? []);
-        const sliced = list.slice(0, 5);
-        setQuestions(sliced);
-        setQuestionIds(sliced.map((q) => q.id));
-      })
-      .catch(() => {
-        if (!cancelled) setQuizError('Não foi possível carregar as questões. Tente novamente.');
-      })
-      .finally(() => { if (!cancelled) setQuizLoading(false); });
-
-    return () => { cancelled = true; };
-  }, [phase]);
 
   // Handle answer selection
   const handleAnswer = useCallback(
@@ -186,11 +208,13 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
       const isCorrect = letter === currentQ.correct_option;
       const newScore = isCorrect ? score + 1 : score;
 
+      setSelectedLetter(letter);
       setFeedback(isCorrect ? 'correct' : 'wrong');
       if (isCorrect) setScore(newScore);
 
       await new Promise<void>((r) => setTimeout(r, 900));
       setFeedback(null);
+      setSelectedLetter(null);
 
       const isLast = qIndex === questions.length - 1;
       if (isLast) {
@@ -256,7 +280,7 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
                     key={title}
                     className="flex flex-col items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2 py-3"
                   >
-                    <span className="text-2xl" role="img" aria-label={title}>{info.icon}</span>
+                    <info.Icon className="h-6 w-6" style={{ color: 'var(--brand-primary)' }} aria-label={title} />
                     <span className="text-[11px] font-bold text-white">{title}</span>
                     <span className="text-[10px] text-white/40 text-center leading-tight">{info.desc}</span>
                   </div>
@@ -297,31 +321,8 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
               </div>
             </div>
 
-            {/* Loading skeleton */}
-            {quizLoading && (
-              <div className="flex flex-col gap-3">
-                <div className="h-24 animate-pulse rounded-xl bg-white/5" />
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="h-11 animate-pulse rounded-xl bg-white/5" />
-                ))}
-              </div>
-            )}
-
-            {/* Error state */}
-            {quizError && !quizLoading && (
-              <div className="rounded-xl border border-red-800/40 bg-red-950/40 p-5 text-center">
-                <p className="mb-3 text-sm text-red-300">{quizError}</p>
-                <button
-                  onClick={() => { setPhase('welcome'); setTimeout(() => setPhase('quiz'), 50); }}
-                  className="text-xs font-bold text-red-300 underline underline-offset-2"
-                >
-                  Tentar novamente
-                </button>
-              </div>
-            )}
-
             {/* Question card */}
-            {!quizLoading && !quizError && currentQ && (
+            {currentQ && (
               <AnimatePresence mode="wait">
                 <motion.div key={`q-${qIndex}`} {...slideIn}>
                   {/* Statement */}
@@ -333,13 +334,17 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
                   <div className="flex flex-col gap-2.5">
                     {currentQ.alternatives.map((alt) => {
                       const isCorrectAlt = alt.letter === currentQ.correct_option;
+                      const isSelected   = alt.letter === selectedLetter;
                       let borderColor = 'border-white/10';
-                      let bgColor = 'bg-white/5';
+                      let bgColor     = 'bg-white/5';
 
                       if (feedback !== null) {
                         if (isCorrectAlt) {
                           borderColor = 'border-emerald-500/50';
-                          bgColor = 'bg-emerald-500/15';
+                          bgColor     = 'bg-emerald-500/15';
+                        } else if (isSelected) {
+                          borderColor = 'border-red-500/50';
+                          bgColor     = 'bg-red-500/15';
                         }
                       }
 
@@ -355,7 +360,10 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
                           </span>
                           <span className="flex-1 leading-relaxed text-white/80">{alt.text}</span>
                           {feedback !== null && isCorrectAlt && (
-                            <span className="shrink-0 text-base" aria-label="Resposta correta">✅</span>
+                            <CheckCircle2 className="shrink-0 h-4 w-4 text-emerald-400" aria-label="Resposta correta" />
+                          )}
+                          {feedback !== null && isSelected && !isCorrectAlt && (
+                            <XCircle className="shrink-0 h-4 w-4 text-red-400" aria-label="Resposta errada" />
                           )}
                         </button>
                       );
@@ -383,8 +391,8 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
             </p>
 
             {/* Title badge */}
-            <div className="relative z-20 mb-1 flex h-24 w-24 items-center justify-center rounded-full border-2 border-white/15 bg-white/5 text-5xl">
-              <span role="img" aria-label={result.title}>{titleInfo.icon}</span>
+            <div className="relative z-20 mb-1 flex h-24 w-24 items-center justify-center rounded-full border-2 border-white/15 bg-white/5">
+              <titleInfo.Icon className="h-12 w-12 text-white" aria-label={result.title} />
             </div>
             <h2 className="relative z-20 mt-3 text-2xl font-extrabold text-white">{result.title}</h2>
             <p className="relative z-20 mt-1 text-sm text-white/40">Título conquistado</p>

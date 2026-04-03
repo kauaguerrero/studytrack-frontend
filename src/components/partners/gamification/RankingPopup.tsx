@@ -186,7 +186,7 @@ export function RankingPopup({ ranking, onClose }: Props) {
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div className="border-t border-slate-800 px-4 py-3">
           <p className="text-center text-xs text-slate-500">
-            Top {prize_cutoff} ganham a pulseira exclusiva Edificar 🏆
+            Top {prize_cutoff} estão mais perto do prêmio — quem atingir 1.500 pts no mês vence 🏆
           </p>
         </div>
       </motion.div>

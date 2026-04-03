@@ -16,6 +16,7 @@ import {
   BarChart, Eye, EyeOff, SlidersHorizontal,
 } from 'lucide-react';
 import { QuestionCard } from '@/components/questions/QuestionCard';
+import { useQuestionSession } from '@/components/partners/gamification/QuestionSessionContext';
 import { ReportDialog } from '@/components/questions/ReportDialog';
 import { UpsellModal } from '@/components/modals/UpsellModal';
 import { ShieldEarnedPopup } from '@/components/partners/gamification/ShieldEarnedPopup';
@@ -119,7 +120,7 @@ export default function BancoDeQuestoes() {
 
   // ── Session points (gamification B2B) ────────────────────────────────────────
   const sessionPointsRef = useRef(0);
-  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { addPoints: addSessionPoints, resetPoints: resetSessionPoints } = useQuestionSession();
   const [showShieldEarned, setShowShieldEarned] = useState(false);
 
   // ── Accessibility ─────────────────────────────────────────────────────────
@@ -162,18 +163,10 @@ export default function BancoDeQuestoes() {
     init();
   }, []);
 
-  // ── Session points: salvar no localStorage ao desmontar ─────────────────────
+  // ── Session points: resetar ao montar (nova sessão) ─────────────────────────
   useEffect(() => {
-    return () => {
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-      if (sessionPointsRef.current > 0) {
-        localStorage.setItem(
-          'pending_question_points',
-          JSON.stringify({ points: sessionPointsRef.current, timestamp: Date.now() }),
-        );
-      }
-    };
-  }, []);
+    resetSessionPoints();
+  }, [resetSessionPoints]);
 
   // ── Total de questões — direto no Supabase (sem CORS) ───────────────────────
   useEffect(() => {
@@ -360,21 +353,14 @@ export default function BancoDeQuestoes() {
   };
 
   const handleAnswerResult = useCallback(
-    (qId: string, result: { gamification?: { points_awarded: number; shield_awarded?: boolean } }) => {
+    (qId: string, result: { is_correct?: boolean; gamification?: { points_awarded: number; shield_awarded?: boolean } }) => {
       handleLocalAnswer(qId);
-      const pts = result.gamification?.points_awarded ?? 0;
+      // Usa os pontos da API quando disponíveis; fallback: +2 por acerto (mesmo
+      // valor do backend) para quando o usuário não tem org_id ou a API falha.
+      const pts = result.gamification?.points_awarded ?? (result.is_correct ? 2 : 0);
       if (pts > 0) {
         sessionPointsRef.current += pts;
-        // Reset 30s inactivity timer
-        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-        inactivityTimerRef.current = setTimeout(() => {
-          if (sessionPointsRef.current > 0) {
-            localStorage.setItem(
-              'pending_question_points',
-              JSON.stringify({ points: sessionPointsRef.current, timestamp: Date.now() }),
-            );
-          }
-        }, 30000);
+        addSessionPoints(pts);
       }
       if (result.gamification?.shield_awarded) {
         setShowShieldEarned(true);

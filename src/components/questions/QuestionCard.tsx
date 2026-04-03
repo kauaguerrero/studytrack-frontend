@@ -27,7 +27,7 @@ interface QuestionCardProps {
   question: Question;
   userId: string;
   onQuotaReached?: (reason: string) => void;
-  onAnswer?: (result: { gamification?: { points_awarded: number } }) => void;
+  onAnswer?: (result: { is_correct?: boolean; gamification?: { points_awarded: number } }) => void;
   onReportError?: () => void;
 }
 
@@ -44,7 +44,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
     if (!selected || isSubmitting) return;
     setIsSubmitting(true);
 
-    let answerResult: { gamification?: { points_awarded: number } } = {};
+    let answerResult: { is_correct?: boolean; gamification?: { points_awarded: number } } = {};
 
     try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
@@ -68,7 +68,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
             onQuotaReached("DAILY_QUOTA_REACHED");
         }
 
-        answerResult = { gamification: data.gamification };
+        answerResult = { is_correct: data.is_correct, gamification: data.gamification };
 
     } catch(e) { console.error(e); void reportError("QuestionCardError", String(e)); }
 

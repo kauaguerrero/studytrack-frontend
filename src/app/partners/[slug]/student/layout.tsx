@@ -9,6 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { OrgProvider } from '@/contexts/OrgContext';
 import { StudentThemeProvider, type StudentTheme } from '@/contexts/StudentThemeContext';
 import { StudentThemeShell } from '@/components/partners/StudentThemeShell';
+import { QuestionRewardListener } from '@/components/partners/gamification/QuestionRewardListener';
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 function sanitizeCssHexColor(value: string | null | undefined, fallback: string): string {
@@ -137,6 +138,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
       <StudentThemeProvider slug={slug} initialTheme={initialTheme}>
         <StudentThemeShell mustChangePassword={profile.must_change_password === true}>
           {children}
+          <QuestionRewardListener />
         </StudentThemeShell>
       </StudentThemeProvider>
     </OrgProvider>

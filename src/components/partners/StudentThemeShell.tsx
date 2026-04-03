@@ -4,6 +4,7 @@ import { useState, ReactNode } from 'react'
 import { useStudentTheme } from '@/contexts/StudentThemeContext'
 import { PartnerLayout } from './PartnerLayout'
 import { ForcePasswordChangeModal } from './ForcePasswordChangeModal'
+import { QuestionSessionProvider } from './gamification/QuestionSessionContext'
 
 /**
  * Aplica a classe `dark` em um contêiner isolado para as rotas de aluno.
@@ -32,7 +33,9 @@ export function StudentThemeShell({
       suppressHydrationWarning
     >
       <PartnerLayout variant="student">
-        {children}
+        <QuestionSessionProvider>
+          {children}
+        </QuestionSessionProvider>
       </PartnerLayout>
 
       {showPasswordModal && (
