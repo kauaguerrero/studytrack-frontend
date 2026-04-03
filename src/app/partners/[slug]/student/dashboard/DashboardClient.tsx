@@ -12,8 +12,9 @@ import { ShieldPopup } from '@/components/partners/gamification/ShieldPopup';
 import { ContextualPopup } from '@/components/partners/gamification/ContextualPopup';
 import { Top3Popup } from '@/components/partners/gamification/Top3Popup';
 import { StreakBrokenPopup } from '@/components/partners/gamification/StreakBrokenPopup';
+import { StreakPointsLostPopup } from '@/components/partners/gamification/StreakPointsLostPopup';
 import { MonthEndScreen } from '@/components/partners/gamification/MonthEndScreen';
-import type { DiagnosticResult } from '@/types/gamification';
+import type { DiagnosticResult, StreakDecayResult } from '@/types/gamification';
 
 // ─── Animation config ───────────────────────────────────────────────────────
 
@@ -68,9 +69,10 @@ export function DashboardClient({
   const shouldReduce = useReducedMotion();
   const itemVariant = shouldReduce ? ITEM_REDUCED : ITEM;
   const containerVariant = shouldReduce ? { hidden: {}, show: {} } : CONTAINER;
+  const [effectiveCurrentStreak, setEffectiveCurrentStreak] = useState(currentStreak);
 
   // Streak milestone progress (kept intact for hero badge)
-  const { next: nextMilestone, pct: streakPct } = getStreakProgress(currentStreak);
+  const { next: nextMilestone, pct: streakPct } = getStreakProgress(effectiveCurrentStreak);
   void nextMilestone; void streakPct; // retained for potential future use
 
   // ── Gamification hook ──────────────────────────────────────────────────────
@@ -82,12 +84,39 @@ export function DashboardClient({
     submitDiagnostic,
     refreshRanking,
     dismissPopup,
+    useShield,
+    applyStreakDecay,
+    refreshSummary,
   } = usePartnerGamification();
 
   // ── Popup orchestration state ──────────────────────────────────────────────
   const [showRankingPopup, setShowRankingPopup] = useState(false);
   const [shieldPopupDismissed, setShieldPopupDismissed] = useState(false);
+  const [streakDecayResult, setStreakDecayResult] = useState<StreakDecayResult | null>(null);
 
+  useEffect(() => {
+    setEffectiveCurrentStreak(currentStreak);
+  }, [currentStreak]);
+
+  // Caminho sem escudo: aplica decay e enfileira StreakPointsLostPopup
+  const handleStreakBrokenDismiss = useCallback(async (): Promise<void> => {
+    dismissPopup();
+    const result = await applyStreakDecay();
+    setEffectiveCurrentStreak(0);
+    if (result && result.points_deducted > 0) {
+      await refreshSummary();
+      setTimeout(() => setStreakDecayResult(result), 300);
+    }
+  }, [dismissPopup, applyStreakDecay, refreshSummary]);
+
+  // Caminho com escudo: preserva streak, sem decay
+  const handleUseShield = useCallback(async (): Promise<void> => {
+    const result = await useShield();
+    if (result?.shield_used) {
+      setEffectiveCurrentStreak(result.streak_preserved ?? currentStreak);
+    }
+    dismissPopup();
+  }, [useShield, dismissPopup, currentStreak]);
   // ── Streak popup: show at most once per day ────────────────────────────────
   const STREAK_POPUP_KEY = 'streak_popup_last_shown';
   const todayStr = new Date().toISOString().split('T')[0];
@@ -204,7 +233,7 @@ export function DashboardClient({
                 <div className="mt-5 flex flex-wrap gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
                     <Flame className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                    {currentStreak} {currentStreak === 1 ? 'dia' : 'dias'} de sequência
+                    {effectiveCurrentStreak} {effectiveCurrentStreak === 1 ? 'dia' : 'dias'} de sequência
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
                     <BookOpen className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
@@ -413,15 +442,16 @@ export function DashboardClient({
         )}
 
         {shouldShowStreak && (
-          <StreakPopup
-            streak={popupState!.streak ?? currentStreak}
+            <StreakPopup
+            streak={popupState!.streak ?? effectiveCurrentStreak}
             onDismiss={handleStreakDismiss}
           />
         )}
 
         {shieldResult?.shield_used && !shieldPopupDismissed && (
           <ShieldPopup
-            streakPreserved={shieldResult.streak_preserved ?? currentStreak}
+            streakPreserved={shieldResult.streak_preserved ?? effectiveCurrentStreak}
+            slug={slug}
             onDismiss={() => setShieldPopupDismissed(true)}
           />
         )}
@@ -443,7 +473,19 @@ export function DashboardClient({
         {popupState?.type === 'streak_broken' && (
           <StreakBrokenPopup
             streakLost={popupState.streak_lost ?? 1}
-            onDismiss={dismissPopup}
+            shieldCount={summary?.shield_count ?? 0}
+            onDismiss={handleStreakBrokenDismiss}
+            onUseShield={handleUseShield}
+          />
+        )}
+
+        {streakDecayResult && (
+          <StreakPointsLostPopup
+            pointsLost={streakDecayResult.points_deducted}
+            rankDropped={streakDecayResult.rank_dropped}
+            rivalName={streakDecayResult.rival_name}
+            currentRank={streakDecayResult.current_rank}
+            onDismiss={() => setStreakDecayResult(null)}
           />
         )}
 

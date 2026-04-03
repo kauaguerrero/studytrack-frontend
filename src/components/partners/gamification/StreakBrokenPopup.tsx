@@ -1,79 +1,119 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { useRouter, useParams } from 'next/navigation';
-import { X } from 'lucide-react';
 
 interface Props {
   streakLost: number;
-  onDismiss: () => void;
+  shieldCount: number;
+  onDismiss: () => Promise<void>;
+  onUseShield: () => Promise<void>;
 }
 
-const AUTO_DISMISS_MS = 4000;
-
-export function StreakBrokenPopup({ streakLost, onDismiss }: Props) {
+export function StreakBrokenPopup({ streakLost, shieldCount, onDismiss, onUseShield }: Props) {
   const shouldReduce = useReducedMotion();
-  const router = useRouter();
-  const params = useParams<{ slug: string }>();
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const t = setTimeout(onDismiss, AUTO_DISMISS_MS);
-    return () => clearTimeout(t);
-  }, [onDismiss]);
+  const hasShield = shieldCount > 0;
 
-  const handleStudy = () => {
-    onDismiss();
-    router.push(`/partners/${params.slug}/student/banco-de-questoes`);
+  const handleDashboard = async () => {
+    setLoading(true);
+    await onDismiss();
+    // Não navega: o componente já está no dashboard. O estado é mantido para a próxima animação.
+  };
+
+  const handleShield = async () => {
+    setLoading(true);
+    await onUseShield();
   };
 
   return (
     <motion.div
-      className="fixed bottom-4 left-1/2 z-[7000] w-80 -translate-x-1/2 overflow-hidden rounded-2xl shadow-2xl"
-      initial={shouldReduce ? {} : { y: 80, opacity: 0 }}
-      animate={shouldReduce ? {} : { y: 0, opacity: 1 }}
-      exit={shouldReduce ? {} : { y: 80, opacity: 0 }}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      role="status"
+      className="fixed inset-0 z-[9500] flex flex-col items-center justify-center select-none px-6"
+      style={{ background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(8px)' }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
       aria-live="polite"
+      aria-label={`Sequência de ${streakLost} dias perdida`}
     >
-      <div
-        className="relative p-4"
-        style={{
-          background: 'linear-gradient(135deg, #0d0d0d 0%, #1c1c1c 100%)',
-          border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 'inherit',
-        }}
+      {/* Broken flame */}
+      <motion.div
+        className="mb-6 text-7xl"
+        role="img"
+        aria-hidden
+        animate={shouldReduce ? {} : { rotate: [-4, 4, -3, 3, 0], scale: [1, 1.06, 1] }}
+        transition={shouldReduce ? {} : { duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
       >
+        🥶
+      </motion.div>
+
+      {/* Streak number */}
+      <motion.p
+        className="text-8xl font-extrabold leading-none tabular-nums"
+        style={{ color: '#60A5FA' }}
+        initial={shouldReduce ? {} : { scale: 0.55, opacity: 0 }}
+        animate={shouldReduce ? {} : { scale: 1, opacity: 1 }}
+        transition={shouldReduce ? {} : { duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      >
+        {streakLost}
+      </motion.p>
+
+      <motion.p
+        className="mt-3 text-lg font-extrabold uppercase tracking-[0.18em] text-white"
+        initial={shouldReduce ? {} : { opacity: 0, y: 8 }}
+        animate={shouldReduce ? {} : { opacity: 1, y: 0 }}
+        transition={shouldReduce ? {} : { delay: 0.2 }}
+      >
+        {streakLost === 1 ? 'DIA' : 'DIAS'} DE SEQUÊNCIA PERDIDOS
+      </motion.p>
+
+      <motion.p
+        className="mt-2 text-sm text-white/40 text-center max-w-xs"
+        initial={shouldReduce ? {} : { opacity: 0 }}
+        animate={shouldReduce ? {} : { opacity: 1 }}
+        transition={shouldReduce ? {} : { delay: 0.35 }}
+      >
+        {hasShield
+          ? 'Use um escudo para recuperar sua sequência agora.'
+          : 'Continue estudando para começar uma nova sequência.'}
+      </motion.p>
+
+      {/* Buttons */}
+      <motion.div
+        className="mt-10 flex flex-col gap-3 w-full max-w-xs"
+        initial={shouldReduce ? {} : { opacity: 0, y: 10 }}
+        animate={shouldReduce ? {} : { opacity: 1, y: 0 }}
+        transition={shouldReduce ? {} : { delay: 0.45 }}
+      >
+        {/* Usar escudo */}
         <button
-          onClick={onDismiss}
-          className="absolute right-3 top-3 rounded-md p-0.5 text-white/25 transition-colors hover:text-white/60"
-          aria-label="Fechar"
+          onClick={hasShield ? handleShield : undefined}
+          disabled={!hasShield || loading}
+          className="w-full rounded-2xl py-3.5 text-sm font-extrabold text-white transition-opacity"
+          style={
+            hasShield
+              ? { background: 'var(--brand-primary)', opacity: loading ? 0.6 : 1 }
+              : { background: '#374151', opacity: 0.4, cursor: 'not-allowed' }
+          }
+          aria-label={
+            hasShield
+              ? `Usar escudo — ${shieldCount} disponível`
+              : 'Sem escudos disponíveis'
+          }
         >
-          <X className="h-3.5 w-3.5" />
+          🛡️ Usar escudo{hasShield ? ` (${shieldCount} disponível)` : ' — nenhum disponível'}
         </button>
 
-        <div className="mb-2 flex items-start gap-2.5">
-          <span className="mt-0.5 shrink-0 text-lg" aria-hidden>❄️</span>
-          <p className="pr-4 text-sm font-extrabold leading-snug text-white">
-            Sequência de {streakLost} {streakLost === 1 ? 'dia' : 'dias'} perdida.
-          </p>
-        </div>
-
-        <p className="pl-8 text-xs leading-relaxed text-white/45 mb-3">
-          Estude hoje para começar uma nova sequência.
-        </p>
-
-        <div className="pl-8">
-          <button
-            onClick={handleStudy}
-            className="rounded-lg px-3 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-80"
-            style={{ background: 'var(--brand-primary)' }}
-          >
-            Estudar agora
-          </button>
-        </div>
-      </div>
+        <button
+          onClick={handleDashboard}
+          disabled={loading}
+          className="w-full rounded-2xl py-3 text-sm font-bold text-white/50 border border-white/10 transition-colors hover:text-white/80 hover:border-white/20 disabled:opacity-50"
+        >
+          {loading ? 'Aguarde...' : 'Voltar ao dashboard'}
+        </button>
+      </motion.div>
     </motion.div>
   );
 }

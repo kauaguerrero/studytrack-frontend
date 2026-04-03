@@ -16,10 +16,8 @@ import {
   BarChart, Eye, EyeOff, SlidersHorizontal,
 } from 'lucide-react';
 import { QuestionCard } from '@/components/questions/QuestionCard';
-import { useQuestionSession } from '@/components/partners/gamification/QuestionSessionContext';
 import { ReportDialog } from '@/components/questions/ReportDialog';
 import { UpsellModal } from '@/components/modals/UpsellModal';
-import { ShieldEarnedPopup } from '@/components/partners/gamification/ShieldEarnedPopup';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,9 +117,8 @@ export default function BancoDeQuestoes() {
   const authTokenRef = useRef<string | null>(null);
 
   // ── Session points (gamification B2B) ────────────────────────────────────────
+  const SESSION_KEY = 'qsr_pending_points';
   const sessionPointsRef = useRef(0);
-  const { addPoints: addSessionPoints, resetPoints: resetSessionPoints } = useQuestionSession();
-  const [showShieldEarned, setShowShieldEarned] = useState(false);
 
   // ── Accessibility ─────────────────────────────────────────────────────────
   const shouldReduce = useReducedMotion();
@@ -165,8 +162,9 @@ export default function BancoDeQuestoes() {
 
   // ── Session points: resetar ao montar (nova sessão) ─────────────────────────
   useEffect(() => {
-    resetSessionPoints();
-  }, [resetSessionPoints]);
+    sessionStorage.removeItem('qsr_pending_points');
+    sessionStorage.removeItem('qsr_shield_earned');
+  }, []);
 
   // ── Total de questões — direto no Supabase (sem CORS) ───────────────────────
   useEffect(() => {
@@ -355,18 +353,31 @@ export default function BancoDeQuestoes() {
   const handleAnswerResult = useCallback(
     (qId: string, result: { is_correct?: boolean; gamification?: { points_awarded: number; shield_awarded?: boolean } }) => {
       handleLocalAnswer(qId);
-      // Usa os pontos da API quando disponíveis; fallback: +2 por acerto (mesmo
-      // valor do backend) para quando o usuário não tem org_id ou a API falha.
-      const pts = result.gamification?.points_awarded ?? (result.is_correct ? 2 : 0);
+      // Usa os pontos da API quando disponíveis (usuários com org_id — backend já
+      // persiste monthly_points). Para usuários sem org_id, fallback via RPC direto.
+      const hasBackendGamification = result.gamification !== undefined;
+      const pts = hasBackendGamification
+        ? (result.gamification!.points_awarded ?? 0)
+        : (result.is_correct ? 2 : 0);
       if (pts > 0) {
         sessionPointsRef.current += pts;
-        addSessionPoints(pts);
+        const current = parseInt(sessionStorage.getItem(SESSION_KEY) || '0', 10);
+        sessionStorage.setItem(SESSION_KEY, String(current + pts));
+
+        // RPC só para usuários sem org_id: o backend não atualizou monthly_points
+        if (!hasBackendGamification && userId) {
+          const supabase = createClient();
+          supabase.rpc('increment_monthly_points', { user_id: userId, points: 2 })
+            .then(({ error }) => {
+              if (error) reportError('MonthlyPointsUpdateError', String(error), { user_id: userId });
+            });
+        }
       }
       if (result.gamification?.shield_awarded) {
-        setShowShieldEarned(true);
+        sessionStorage.setItem('qsr_shield_earned', '1');
       }
     },
-    [],
+    [SESSION_KEY, userId],
   );
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────
@@ -404,11 +415,6 @@ export default function BancoDeQuestoes() {
         userName={userProfile?.full_name}
       />
 
-      <AnimatePresence>
-        {showShieldEarned && (
-          <ShieldEarnedPopup onDismiss={() => setShowShieldEarned(false)} />
-        )}
-      </AnimatePresence>
       <ReportDialog
         open={reportDialogOpen}
         onOpenChange={setReportDialogOpen}

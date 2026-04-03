@@ -8,6 +8,7 @@ import type {
   MonthlySummary,
   PartnerRankingResponse,
   PopupState,
+  StreakDecayResult,
 } from '@/types/gamification';
 
 export interface ShieldResult {
@@ -59,7 +60,13 @@ export function usePartnerGamification() {
       `${API_BASE}/api/partner/gamification/popup-state`,
       { headers: buildHeaders(token) },
     );
-    setPopupState(data);
+    // Não deixa um segundo fetch (Strict Mode) sobrescrever um popup real com 'none'.
+    // O backend marca last_popup_seen_at na primeira chamada; a segunda retorna 'none',
+    // mas o popup já estava visível — não deve sumir sem ação do usuário.
+    setPopupState((prev) => {
+      if (prev && prev.type !== 'none' && data.type === 'none') return prev;
+      return data;
+    });
   }, []);
 
   // ── Shield: consume available shield on dashboard load ────────────────────
@@ -100,15 +107,10 @@ export function usePartnerGamification() {
 
         tokenRef.current = token;
 
-        const [, , shield] = await Promise.all([
+        await Promise.all([
           fetchSummary(token),
           fetchPopupState(token),
-          apiFetcher<ShieldResult>(
-            `${API_BASE}/api/partner/gamification/shield/use`,
-            { method: 'POST', headers: buildHeaders(token) },
-          ).catch(() => null),
         ]);
-        if (!cancelled && shield) setShieldResult(shield);
       } catch (e) {
         if (!cancelled) {
           setError(
@@ -125,6 +127,14 @@ export function usePartnerGamification() {
     init();
     return () => { cancelled = true; };
   }, [fetchSummary, fetchPopupState]);
+
+  // ── Refresh summary (após mutações que alteram pontos) ────────────────────
+
+  const refreshSummary = useCallback(async () => {
+    const token = tokenRef.current;
+    if (!token) return;
+    await fetchSummary(token);
+  }, [fetchSummary]);
 
   // ── Lazy: fetch ranking ────────────────────────────────────────────────────
 
@@ -169,6 +179,27 @@ export function usePartnerGamification() {
     [fetchSummary],
   );
 
+  // ── Mutation: apply streak broken decay ───────────────────────────────────
+
+  const applyStreakDecay = useCallback(async (): Promise<StreakDecayResult | null> => {
+    const token = tokenRef.current;
+    if (!token) {
+      console.error('[applyStreakDecay] token ausente');
+      return null;
+    }
+    try {
+      const result = await apiFetcher<StreakDecayResult>(
+        `${API_BASE}/api/partner/gamification/streak/broken`,
+        { method: 'POST', headers: buildHeaders(token) },
+      );
+      console.log('[applyStreakDecay] resultado:', result);
+      return result;
+    } catch (e) {
+      console.error('[applyStreakDecay] erro:', e);
+      return null;
+    }
+  }, []);
+
   // ── Local: dismiss popup ───────────────────────────────────────────────────
 
   const dismissPopup = useCallback(() => {
@@ -185,8 +216,10 @@ export function usePartnerGamification() {
     isLoading,
     error,
     submitDiagnostic,
+    refreshSummary,
     refreshRanking,
     dismissPopup,
     useShield,
+    applyStreakDecay,
   };
 }

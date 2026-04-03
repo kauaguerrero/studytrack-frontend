@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, useReducedMotion } from 'framer-motion';
 
 interface Props {
   points: number;
   onContinue: () => void;
+  slug: string;
 }
 
 // ── Confetti: mesmas partículas do SimuladoRewardPopup ────────────────────────
@@ -33,8 +35,9 @@ const confettiKeyframes = PARTICLES.map((p) => {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function QuestionSessionRewardPopup({ points, onContinue }: Props) {
+export function QuestionSessionRewardPopup({ points, onContinue, slug }: Props) {
   const shouldReduce = useReducedMotion();
+  const router = useRouter();
   const [displayPoints, setDisplayPoints] = useState(0);
 
   // Counter: 0 → points em 1.5 s (ease-out cubic)
@@ -139,11 +142,11 @@ export function QuestionSessionRewardPopup({ points, onContinue }: Props) {
 
           {/* CTA */}
           <button
-            onClick={onContinue}
+            onClick={() => { onContinue(); router.push(`/partners/${slug}/student/ranking`); }}
             className="w-full rounded-2xl bg-white py-3.5 text-sm font-bold transition-opacity hover:opacity-90 active:scale-[0.98]"
             style={{ color: 'var(--brand-primary)' }}
           >
-            Ver meu dashboard →
+            Ver ranking →
           </button>
         </div>
       </motion.div>
