@@ -94,9 +94,20 @@ export function DashboardClient({
     const raw = localStorage.getItem(PENDING_KEY);
     if (!raw) return;
     try {
-      const { points, timestamp } = JSON.parse(raw) as { points: number; timestamp: number };
-      if (Date.now() - timestamp < 5 * 60 * 1000 && points > 0) {
-        setPendingQuestionPoints(points);
+      const parsed = JSON.parse(raw) as unknown;
+      if (
+        typeof parsed === 'object' && parsed !== null &&
+        'points' in parsed && 'timestamp' in parsed
+      ) {
+        const { points, timestamp } = parsed as { points: unknown; timestamp: unknown };
+        // Valida tipos e bounds para evitar manipulação via DevTools
+        if (
+          typeof points === 'number' && typeof timestamp === 'number' &&
+          Number.isInteger(points) && points > 0 && points <= 5000 &&
+          Date.now() - timestamp < 5 * 60 * 1000
+        ) {
+          setPendingQuestionPoints(points);
+        }
       }
     } catch { /* ignore */ } finally {
       localStorage.removeItem(PENDING_KEY);

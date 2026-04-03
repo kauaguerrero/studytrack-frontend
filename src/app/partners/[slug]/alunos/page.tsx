@@ -45,6 +45,7 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 const PAGE_SIZE = 50;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type SortField = 'last_activity_date' | 'full_name' | 'joined_organization_at';
 
@@ -145,8 +146,8 @@ export default function AlunosPage() {
         setStudents(list);
         setTotal(data.total ?? list.length);
       }
-    } catch (err) {
-      console.error('[Alunos] erro ao buscar:', err);
+    } catch {
+      // Não loga detalhes em produção para evitar information disclosure
     } finally {
       setLoading(false);
     }
@@ -157,6 +158,7 @@ export default function AlunosPage() {
   }, [page, search, planFilter, sort, fetchStudents]);
 
   async function handlePlanChange(studentId: string, newPlan: string) {
+    if (!UUID_RE.test(studentId)) return;
     setUpdatingPlan(studentId);
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -186,6 +188,7 @@ export default function AlunosPage() {
   }
 
   async function handleRemove(studentId: string, name: string) {
+    if (!UUID_RE.test(studentId)) return;
     if (!confirm(`Remover "${name}" da organização? A conta do aluno não será deletada.`)) return;
     setRemoving(studentId);
     const supabase = createClient();

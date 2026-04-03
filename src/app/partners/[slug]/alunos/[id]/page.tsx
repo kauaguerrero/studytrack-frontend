@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, BookOpen, FileText, Target, Calendar } from 'lucide-react';
+import { ArrowLeft, BookOpen, FileText, Target } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
@@ -47,10 +47,23 @@ interface StudentDetail {
   weekly_evolution: { week_start: string; total: number; accuracy_pct: number }[];
   recent_answers: { id: string; question_id: string; selected_option: string; is_correct: boolean; subject: string; created_at: string }[];
   recent_simulados: { id: string; config: Record<string, unknown>; score: number; total_questions: number; tri_score: number | null; time_taken_secs: number; completed_at: string }[];
+  essay_stats?: {
+    delivered_count: number;
+    corrected_count: number;
+    avg_score: number | null;
+  };
+  essay_evolution?: {
+    id: string;
+    status: 'pending' | 'corrected' | 'seen';
+    submitted_at: string;
+    corrected_at: string | null;
+    total_score: number | null;
+  }[];
 }
 
-const PLAN_LABELS: Record<string, string> = { b2b_student: 'Básico', b2b_pro: 'Pro' };
 const PACE_LABELS: Record<string, string> = { slow: 'Leve', moderate: 'Moderado', intense: 'Intensivo' };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default function StudentProfilePage() {
   const { org } = useOrg();
@@ -58,22 +71,60 @@ export default function StudentProfilePage() {
   const studentId = params.id;
 
   const [data, setData] = useState<StudentDetail | null>(null);
+  const [fallbackEssayStats, setFallbackEssayStats] = useState<{ delivered: number; corrected: number }>({
+    delivered: 0,
+    corrected: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [updatingPlan, setUpdatingPlan] = useState(false);
 
   useEffect(() => {
     async function fetchProfile() {
+      // Rejeita IDs com formato inválido antes de qualquer chamada de rede
+      if (!UUID_RE.test(studentId)) {
+        toast.error('Aluno não encontrado.');
+        setLoading(false);
+        return;
+      }
+
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
       const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
       try {
-        const res = await fetch(`${api}/api/partners/${org.slug}/students/${studentId}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (res.ok) setData(await res.json());
-        else toast.error('Aluno não encontrado.');
+        const [resProfile, resEssays] = await Promise.all([
+          fetch(`${api}/api/partners/${org.slug}/students/${studentId}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }),
+          fetch(`${api}/api/partners/${org.slug}/essays?status=all&page=1&limit=500`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }),
+        ]);
+
+        if (resProfile.ok) {
+          setData(await resProfile.json());
+        } else {
+          toast.error('Aluno não encontrado.');
+        }
+
+        if (resEssays.ok) {
+          const payload = await resEssays.json();
+          const items = (payload?.items || []) as Array<{
+            student?: { id?: string } | Array<{ id?: string }>;
+            student_id?: string;
+            total_score?: number | null;
+          }>;
+          const fromStudent = items.filter((e) => {
+            const studentFromJoin = Array.isArray(e.student) ? e.student[0]?.id : e.student?.id;
+            const candidateId = studentFromJoin || e.student_id;
+            return candidateId === studentId;
+          });
+          setFallbackEssayStats({
+            delivered: fromStudent.length,
+            corrected: fromStudent.filter((e) => e.total_score !== null && e.total_score !== undefined).length,
+          });
+        }
       } catch {
         toast.error('Erro ao buscar perfil.');
       } finally {
@@ -85,6 +136,7 @@ export default function StudentProfilePage() {
 
   async function handlePlanChange(newPlan: string) {
     if (!data) return;
+    if (!UUID_RE.test(studentId)) return;
     setUpdatingPlan(true);
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -112,7 +164,20 @@ export default function StudentProfilePage() {
 
   const profile = data?.profile;
   const metrics = data?.metrics;
+  const essayStats = data?.essay_stats;
   const initials = (profile?.full_name ?? '?').split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase();
+  const focusAndPaceLabel = [
+    profile?.focus_area || 'geral',
+    profile?.study_pace ? (PACE_LABELS[profile.study_pace] ?? profile.study_pace) : null,
+  ].filter(Boolean).join(' ');
+  const essayEvolution = data?.essay_evolution || [];
+  const correctedEssayEvolution = essayEvolution.filter((e) => e.total_score !== null && e.total_score !== undefined);
+  const essayEvolutionChart = correctedEssayEvolution.map((e) => ({
+    date: e.submitted_at?.slice(5, 10) || '—',
+    score: e.total_score as number,
+  }));
+  const deliveredCount = Math.max(essayStats?.delivered_count ?? 0, fallbackEssayStats.delivered, essayEvolution.length);
+  const correctedCount = Math.max(essayStats?.corrected_count ?? 0, fallbackEssayStats.corrected);
 
   return (
     <PartnerLayout>
@@ -152,13 +217,8 @@ export default function StudentProfilePage() {
                     <p className="text-sm text-slate-500">{profile?.email}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge variant="outline" className="text-xs">
-                        {profile?.focus_area ?? 'Geral'}
+                        {focusAndPaceLabel}
                       </Badge>
-                      {profile?.study_pace && (
-                        <Badge variant="outline" className="text-xs">
-                          {PACE_LABELS[profile.study_pace] ?? profile.study_pace}
-                        </Badge>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -209,6 +269,78 @@ export default function StudentProfilePage() {
             </Card>
           ))}
         </div>
+
+        {/* Redações */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Redações</CardTitle>
+            {!loading && (
+              <div className="rounded-xl border p-2.5" style={{ borderColor: 'color-mix(in srgb, var(--brand-primary) 28%, transparent)' }}>
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                  <span
+                    className="inline-flex items-center rounded-md px-2.5 py-1 text-white"
+                    style={{ backgroundColor: 'var(--brand-primary)' }}
+                  >
+                    {deliveredCount} entregues
+                  </span>
+                  <span className="text-slate-400">•</span>
+                  <span
+                    className="inline-flex items-center rounded-md px-2.5 py-1 text-white"
+                    style={{ backgroundColor: 'var(--brand-secondary)' }}
+                  >
+                    {correctedCount} corrigidas
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-44 w-full" />
+            ) : deliveredCount === 0 ? (
+              <p className="text-center text-sm text-slate-400 py-8">Aluno ainda não entregou redações.</p>
+            ) : correctedEssayEvolution.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-5 text-center">
+                <p className="text-sm text-slate-500">Há redações enviadas, mas ainda sem notas corrigidas.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="rounded-lg border dark:border-slate-800 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Entregues</p>
+                    <p className="text-xl font-bold text-slate-900 dark:text-white">{deliveredCount}</p>
+                  </div>
+                  <div className="rounded-lg border dark:border-slate-800 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Corrigidas</p>
+                    <p className="text-xl font-bold text-slate-900 dark:text-white">{correctedCount}</p>
+                  </div>
+                  <div className="rounded-lg border dark:border-slate-800 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Média</p>
+                    <p className="text-xl font-bold text-slate-900 dark:text-white">
+                      {essayStats?.avg_score != null ? `${essayStats.avg_score} / 1000` : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={essayEvolutionChart}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis domain={[0, 1000]} tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={(v) => [`${v} / 1000`, 'Nota']} />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="var(--brand-primary)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Evolução semanal + Acertos por matéria */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -318,7 +450,9 @@ export default function StudentProfilePage() {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-800 dark:text-white capitalize">
-                          {(s.config as any)?.format ?? 'Simulado'}
+                          {typeof (s.config as { format?: unknown })?.format === 'string'
+                            ? (s.config as { format?: string }).format
+                            : 'Simulado'}
                         </p>
                         <p className="text-xs text-slate-400">{s.completed_at?.slice(0, 10) ?? '—'}</p>
                       </div>

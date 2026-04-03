@@ -8,6 +8,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
   Users, Activity, BookOpen, FileText, TrendingUp, ArrowUpRight,
@@ -24,8 +25,16 @@ interface OrgStats {
   total_students: number;
   active_today: number;
   active_week: number;
+  active_month: number;
+  active_total: number;
+  questions_today: number;
   questions_week: number;
+  questions_month: number;
+  questions_total: number;
+  simulados_today: number;
+  simulados_week: number;
   simulados_month: number;
+  simulados_total: number;
   plan_distribution: Record<string, number>;
 }
 
@@ -39,9 +48,20 @@ interface Student {
   questions_today: number;
   questions_week: number;
   questions_month: number;
+  questions_total: number;
+  simulados_today: number;
+  simulados_week: number;
   simulados_month: number;
+  simulados_total: number;
   accuracy_pct: number | null;
 }
+
+interface EssayListItem {
+  id: string;
+  submitted_at: string;
+}
+
+type MetricWindow = 'today' | 'week' | 'month' | 'total';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -170,6 +190,9 @@ export default function FounderDashboard() {
   const { org } = useOrg();
   const [stats, setStats] = useState<OrgStats | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
+  const [rankingStudents, setRankingStudents] = useState<Student[]>([]);
+  const [essays, setEssays] = useState<EssayListItem[]>([]);
+  const [metricWindow, setMetricWindow] = useState<MetricWindow>('week');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -182,18 +205,58 @@ export default function FounderDashboard() {
       const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
 
       try {
-        const [resStats, resStudents] = await Promise.all([
+        const [resStats, resEssays, resRankingFirstPage] = await Promise.all([
           fetch(`${api}/api/partners/${org.slug}/stats`, { headers }),
-          fetch(`${api}/api/partners/${org.slug}/students?limit=10&sort=last_activity_date`, { headers }),
+          fetch(`${api}/api/partners/${org.slug}/essays?status=all&page=1&limit=1000`, { headers }),
+          fetch(`${api}/api/partners/${org.slug}/students?limit=100&page=1&sort=full_name&order=asc`, { headers }),
         ]);
 
         if (resStats.ok) setStats(await resStats.json());
-        if (resStudents.ok) {
-          const data = await resStudents.json();
-          setStudents(data.students ?? []);
+        if (resRankingFirstPage.ok) {
+          const firstPayload = await resRankingFirstPage.json();
+          const firstStudents = Array.isArray(firstPayload?.students) ? firstPayload.students : [];
+          const total = Number(firstPayload?.total || 0);
+          const pageSize = Number(firstPayload?.limit || 100);
+          const totalPages = Math.max(1, Math.ceil(total / Math.max(pageSize, 1)));
+
+          if (totalPages <= 1) {
+            setRankingStudents(firstStudents);
+            setStudents(firstStudents);
+          } else {
+            const pageFetches: Promise<Response>[] = [];
+            for (let page = 2; page <= totalPages; page += 1) {
+              pageFetches.push(
+                fetch(`${api}/api/partners/${org.slug}/students?limit=100&page=${page}&sort=full_name&order=asc`, { headers }),
+              );
+            }
+            const pageResponses = await Promise.all(pageFetches);
+            const extraStudents: Student[] = [];
+            for (const response of pageResponses) {
+              if (!response.ok) continue;
+              const payload = await response.json();
+              if (Array.isArray(payload?.students)) {
+                extraStudents.push(...payload.students);
+              }
+            }
+            const allStudents = [...firstStudents, ...extraStudents];
+            setRankingStudents(allStudents);
+            setStudents(allStudents);
+          }
         }
-      } catch (err) {
-        console.error('[PartnerDashboard] erro ao buscar dados:', err);
+        if (resEssays.ok) {
+          const data = await resEssays.json();
+          const items = Array.isArray(data?.items) ? data.items : [];
+          setEssays(
+            items
+              .map((e: { id?: string; submitted_at?: string }) => ({
+                id: e.id ?? '',
+                submitted_at: e.submitted_at ?? '',
+              }))
+              .filter((e: EssayListItem) => Boolean(e.id && e.submitted_at)),
+          );
+        }
+      } catch {
+        // Não loga detalhes em produção para evitar information disclosure
       } finally {
         setLoading(false);
       }
@@ -210,13 +273,75 @@ export default function FounderDashboard() {
       }))
     : [];
 
-  const topStudents = [...students]
-    .sort((a, b) => b.questions_week - a.questions_week)
-    .slice(0, 5);
+  const metricLabel = {
+    today: 'Hoje',
+    week: 'Esta semana',
+    month: 'Este mês',
+    total: 'Total',
+  }[metricWindow];
 
-  const activeRate = stats
-    ? Math.round((stats.active_week / Math.max(stats.total_students, 1)) * 100)
+  const getQuestionsByWindow = (s: Student) => (
+    metricWindow === 'today' ? s.questions_today
+      : metricWindow === 'week' ? s.questions_week
+        : metricWindow === 'month' ? s.questions_month
+          : s.questions_total
+  );
+  const getSimuladosByWindow = (s: Student) => (
+    metricWindow === 'today' ? s.simulados_today
+      : metricWindow === 'week' ? s.simulados_week
+        : metricWindow === 'month' ? s.simulados_month
+          : s.simulados_total
+  );
+
+  const rankingPool = rankingStudents.length > 0 ? rankingStudents : students;
+  const sortedByActivity = [...rankingPool].sort((a, b) => (
+    getQuestionsByWindow(b) - getQuestionsByWindow(a)
+    || getSimuladosByWindow(b) - getSimuladosByWindow(a)
+    || (b.last_activity_date || '').localeCompare(a.last_activity_date || '')
+  ));
+  const topStudents = sortedByActivity.slice(0, 5);
+  const rankingBaseCount = rankingPool.length;
+  const studentsForTable = sortedByActivity.slice(0, 10);
+
+  const activeValue = stats
+    ? (metricWindow === 'today' ? stats.active_today
+      : metricWindow === 'week' ? stats.active_week
+        : metricWindow === 'month' ? stats.active_month
+          : stats.active_total)
     : 0;
+  const questionsValue = stats
+    ? (metricWindow === 'today' ? stats.questions_today
+      : metricWindow === 'week' ? stats.questions_week
+        : metricWindow === 'month' ? stats.questions_month
+          : stats.questions_total)
+    : 0;
+  const simuladosValue = stats
+    ? (metricWindow === 'today' ? stats.simulados_today
+      : metricWindow === 'week' ? stats.simulados_week
+        : metricWindow === 'month' ? stats.simulados_month
+          : stats.simulados_total)
+    : 0;
+  const activeRate = stats
+    ? Math.round((activeValue / Math.max(stats.total_students, 1)) * 100)
+    : 0;
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfWeek = new Date(startOfToday);
+  const jsDay = startOfWeek.getDay();
+  const daysSinceMonday = (jsDay + 6) % 7;
+  startOfWeek.setDate(startOfWeek.getDate() - daysSinceMonday);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const deliveredEssaysCount = essays.filter((essay) => {
+    if (!essay.submitted_at) return false;
+    if (metricWindow === 'total') return true;
+    const submitted = new Date(essay.submitted_at);
+    if (Number.isNaN(submitted.getTime())) return false;
+    if (metricWindow === 'today') return submitted >= startOfToday;
+    if (metricWindow === 'week') return submitted >= startOfWeek;
+    return submitted >= startOfMonth;
+  }).length;
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -244,13 +369,50 @@ export default function FounderDashboard() {
               <h1 className="text-3xl font-extrabold text-white">Dashboard</h1>
               <p className="text-sm text-white/50 mt-1">Visão geral de {org.name}</p>
             </div>
-            <Badge className="text-xs border-white/20 bg-white/10 text-white backdrop-blur shrink-0">
-              {org.plan_tier === 'b2b_pro' ? '⚡ Plano Pro' : 'Plano Básico'}
-            </Badge>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                href={`/partners/${org.slug}/redacoes`}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/25"
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Redações
+              </Link>
+              <Badge className="text-xs border-white/20 bg-white/10 text-white backdrop-blur">
+                {org.plan_tier === 'b2b_pro' ? '⚡ Plano Pro' : 'Plano Básico'}
+              </Badge>
+            </div>
           </div>
         </div>
 
         {/* ── KPI Cards ─────────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-end">
+          <div
+            className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1"
+            style={{
+              background: 'color-mix(in srgb, var(--brand-primary) 24%, #0f172a)',
+              borderColor: 'color-mix(in srgb, var(--brand-primary) 42%, transparent)',
+              boxShadow: '0 0 0 1px color-mix(in srgb, var(--brand-primary) 12%, transparent) inset',
+            }}
+          >
+            <span
+              className="text-[10px] font-bold uppercase tracking-wider"
+              style={{ color: 'var(--brand-primary)' }}
+            >
+              Período
+            </span>
+            <Select value={metricWindow} onValueChange={(value) => setMetricWindow(value as MetricWindow)}>
+              <SelectTrigger className="h-8 w-[150px] border-white/25 bg-slate-900 text-xs font-semibold text-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Hoje</SelectItem>
+                <SelectItem value="week">Esta semana</SelectItem>
+                <SelectItem value="month">Este mês</SelectItem>
+                <SelectItem value="total">Total</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <KpiCard
             title="Alunos Cadastrados"
@@ -262,30 +424,47 @@ export default function FounderDashboard() {
             accentColor="var(--brand-primary)"
           />
           <KpiCard
-            title="Ativos na Semana"
-            value={stats?.active_week ?? '—'}
+            title={`Ativos • ${metricLabel}`}
+            value={activeValue ?? '—'}
             subtitle={`${activeRate}% do total`}
             icon={Activity}
             loading={loading}
             accentColor="var(--brand-secondary)"
           />
           <KpiCard
-            title="Questões esta Semana"
-            value={stats?.questions_week ?? '—'}
+            title={`Questões • ${metricLabel}`}
+            value={questionsValue ?? '—'}
             subtitle="respondidas pela turma"
             icon={BookOpen}
             loading={loading}
             accentColor="var(--brand-accent)"
           />
           <KpiCard
-            title="Simulados este Mês"
-            value={stats?.simulados_month ?? '—'}
+            title={`Simulados • ${metricLabel}`}
+            value={simuladosValue ?? '—'}
             subtitle="realizados pela turma"
             icon={FileText}
             loading={loading}
             accentColor="#8b5cf6"
           />
         </div>
+
+        <TintedCard accentColor="var(--brand-primary)" accentStrength={9}>
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <CardTitle className="text-sm text-white/80 font-bold">Redações entregues</CardTitle>
+            <span className="text-xs text-white/45">Período: {metricLabel}</span>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="h-10 w-24 bg-white/10 rounded-lg animate-pulse" />
+            ) : (
+              <div className="flex items-end justify-between gap-3">
+                <p className="text-4xl font-black text-white tracking-tight">{deliveredEssaysCount}</p>
+                <p className="text-xs text-white/45">redações no período selecionado</p>
+              </div>
+            )}
+          </CardContent>
+        </TintedCard>
 
         {/* ── Charts ────────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -355,30 +534,47 @@ export default function FounderDashboard() {
             </CardContent>
           </TintedCard>
 
-          {/* Ranking da Semana — tinta primary */}
+          {/* Ranking por período — tinta primary */}
           <TintedCard accentColor="var(--brand-primary)" accentStrength={6} className="lg:col-span-2">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-sm text-white/80 font-bold">
-                    Ranking da Semana
+                    Ranking • {metricLabel}
                   </CardTitle>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full
-                                   bg-white/5 text-white/30 border border-white/10">
+                  <span
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+                    style={{
+                      background: 'color-mix(in srgb, var(--brand-primary) 18%, transparent)',
+                      color: 'var(--brand-primary)',
+                      borderColor: 'color-mix(in srgb, var(--brand-primary) 42%, transparent)',
+                    }}
+                  >
                     TOP 5
                   </span>
                 </div>
                 <p className="text-xs text-white/35">
-                  Questões respondidas esta semana
+                  Ordenado por questões e simulados no período
                 </p>
               </div>
-              <Link
-                href={`/partners/${org.slug}/alunos`}
-                className="text-xs font-medium flex items-center gap-1 shrink-0"
-                style={{ color: 'var(--brand-primary)' }}
-              >
-                Ver todos <ArrowUpRight className="h-3 w-3" />
-              </Link>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="text-[10px] text-white/35 whitespace-nowrap">
+                  Baseado em {rankingBaseCount} aluno{rankingBaseCount === 1 ? '' : 's'}
+                </span>
+                <span
+                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/20 text-[10px] font-bold text-white/60"
+                  title={`Critério: Questões (${metricLabel}) desc, depois Simulados (${metricLabel}) desc e última atividade mais recente.`}
+                >
+                  i
+                </span>
+                <Link
+                  href={`/partners/${org.slug}/alunos`}
+                  className="text-xs font-medium flex items-center gap-1 shrink-0"
+                  style={{ color: 'var(--brand-primary)' }}
+                >
+                  Ver todos <ArrowUpRight className="h-3 w-3" />
+                </Link>
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -392,8 +588,8 @@ export default function FounderDashboard() {
               ) : (
                 <div className="space-y-2">
                   {topStudents.map((student, idx) => {
-                    const max = topStudents[0].questions_week || 1;
-                    const pct = Math.round((student.questions_week / max) * 100);
+                    const max = getQuestionsByWindow(topStudents[0]) || 1;
+                    const pct = Math.round((getQuestionsByWindow(student) / max) * 100);
                     const barOpacity = Math.max(0.3, 1 - idx * 0.15);
 
                     const today = new Date().toISOString().slice(0, 10);
@@ -475,13 +671,13 @@ export default function FounderDashboard() {
                                   className="text-xs font-black tabular-nums"
                                   style={{ color: 'var(--brand-primary)', opacity: barOpacity }}
                                 >
-                                  {student.questions_week} Questões
+                                  {getQuestionsByWindow(student)} Questões
                                 </span>
                                 <span className="text-white/15 text-xs">·</span>
                                 <span
                                   className="text-xs font-bold tabular-nums text-white/35"
                                 >
-                                  {student.simulados_month} Simulados
+                                  {getSimuladosByWindow(student)} Simulados
                                 </span>
                               </div>
                             </div>
@@ -514,19 +710,30 @@ export default function FounderDashboard() {
         <TintedCard accentColor="var(--brand-accent)" accentStrength={5}>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-sm text-white/80 font-bold flex items-center gap-2">
+              <CardTitle
+                className="text-sm font-bold flex items-center gap-2"
+                style={{ color: 'var(--brand-primary)' }}
+              >
                 <TrendingUp className="h-4 w-4" style={{ color: 'var(--brand-accent)' }} />
-                Atividade Recente
+                Ranking de Atividade
               </CardTitle>
-              <p className="text-xs text-white/35">Últimos alunos ativos</p>
+              <p className="text-xs text-white/45">Alunos mais ativos em {metricLabel.toLowerCase()}</p>
             </div>
-            <Link
-              href={`/partners/${org.slug}/alunos`}
-              className="text-xs font-medium flex items-center gap-1 shrink-0"
-              style={{ color: 'var(--brand-primary)' }}
-            >
-              Ver tabela completa <ArrowUpRight className="h-3 w-3" />
-            </Link>
+            <div className="flex items-center gap-3">
+              <span
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/20 text-[10px] font-bold text-white/60"
+                title={`Tabela ordenada por Questões (${metricLabel}) desc, Simulados (${metricLabel}) desc e última atividade.`}
+              >
+                i
+              </span>
+              <Link
+                href={`/partners/${org.slug}/alunos`}
+                className="text-xs font-medium flex items-center gap-1 shrink-0"
+                style={{ color: 'var(--brand-primary)' }}
+              >
+                Ver tabela completa <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -550,17 +757,21 @@ export default function FounderDashboard() {
               <div className="overflow-x-auto -mx-1">
                 <table className="w-full text-sm min-w-[520px]">
                   <thead>
-                    <tr className="border-b border-white/10 text-left text-[10px] text-white/30 uppercase tracking-widest">
-                      <th className="pb-3 font-medium pl-1">Aluno</th>
-                      <th className="pb-3 font-medium text-center hidden sm:table-cell">Plano</th>
-                      <th className="pb-3 font-medium text-center">Q/sem</th>
-                      <th className="pb-3 font-medium text-center hidden sm:table-cell">Simulados</th>
-                      <th className="pb-3 font-medium text-center">Acertos%</th>
-                      <th className="pb-3 font-medium text-center hidden md:table-cell">Últ. atividade</th>
+                    <tr className="border-b border-white/10 text-left text-[10px] uppercase tracking-widest">
+                      <th className="pb-3 font-semibold pl-1" style={{ color: 'var(--brand-primary)' }}>Aluno</th>
+                      <th className="pb-3 font-semibold text-center hidden sm:table-cell" style={{ color: 'var(--brand-primary)' }}>Plano</th>
+                      <th className="pb-3 font-semibold text-center" style={{ color: 'var(--brand-primary)' }}>
+                        {`Questões (${metricLabel.toLowerCase()})`}
+                      </th>
+                      <th className="pb-3 font-semibold text-center hidden sm:table-cell" style={{ color: 'var(--brand-primary)' }}>
+                        {`Simulados (${metricLabel.toLowerCase()})`}
+                      </th>
+                      <th className="pb-3 font-semibold text-center" style={{ color: 'var(--brand-primary)' }}>Taxa de acerto</th>
+                      <th className="pb-3 font-semibold text-center hidden md:table-cell" style={{ color: 'var(--brand-primary)' }}>Última atividade</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {students.map((s) => (
+                    {studentsForTable.map((s) => (
                       <tr
                         key={s.id}
                         className="border-b border-white/5 hover:bg-white/5 transition-colors"
@@ -572,7 +783,7 @@ export default function FounderDashboard() {
                           >
                             {s.full_name || '—'}
                           </Link>
-                          <p className="text-xs text-white/30 hidden xs:block">{s.email}</p>
+                          <p className="text-xs text-white/35 hidden xs:block">{s.email}</p>
                         </td>
                         <td className="py-3 text-center hidden sm:table-cell">
                           <Badge className="text-[10px] border-white/10 bg-white/5 text-white/60">
@@ -580,10 +791,10 @@ export default function FounderDashboard() {
                           </Badge>
                         </td>
                         <td className="py-3 text-center font-medium text-white/70">
-                          {s.questions_week}
+                          {getQuestionsByWindow(s)}
                         </td>
                         <td className="py-3 text-center text-white/50 hidden sm:table-cell">
-                          {s.simulados_month}
+                          {getSimuladosByWindow(s)}
                         </td>
                         <td className="py-3 text-center">
                           {s.accuracy_pct != null ? (

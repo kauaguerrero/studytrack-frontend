@@ -155,7 +155,6 @@ export default function BancoDeQuestoes() {
           }
         }
       } catch (error) {
-        console.error('Critical Init Error:', error);
         await reportError('QuestionBankInitError', String(error), { flow: 'question_bank_init' });
       }
     };
@@ -318,7 +317,6 @@ export default function BancoDeQuestoes() {
           setHasMore(rawQuestions.length >= 20);
         }
       } catch (err) {
-        console.error(err);
         void reportError('QuestionBankError', String(err));
       } finally {
         if (retryCount === 0) {

@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable react-hooks/static-components */
 
 import { ReactNode, useState, useRef } from 'react';
 import Link from 'next/link';
@@ -6,6 +7,7 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
+import { useEssayNotification } from '@/contexts/EssayNotificationContext';
 import {
   LayoutDashboard,
   Users,
@@ -35,7 +37,13 @@ interface NavItemDef {
 
 // ─── Sidebar nav item (desktop) ───────────────────────────────────────────────
 
-function SidebarNavItem({ href, icon: Icon, label, collapsed }: NavItemDef & { collapsed?: boolean }) {
+function SidebarNavItem({
+  href,
+  icon: Icon,
+  label,
+  collapsed,
+  showNotification,
+}: NavItemDef & { collapsed?: boolean; showNotification?: boolean }) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname.startsWith(href + '/');
 
@@ -44,14 +52,22 @@ function SidebarNavItem({ href, icon: Icon, label, collapsed }: NavItemDef & { c
       href={href}
       style={isActive ? { backgroundColor: 'var(--brand-primary)' } : undefined}
       className={cn(
-        'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+        'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors relative',
         collapsed && 'justify-center px-2',
         isActive
           ? 'text-white'
           : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100',
       )}
     >
-      <Icon className="h-4 w-4 shrink-0" />
+      <span className="relative inline-flex shrink-0">
+        <Icon className="h-4 w-4" />
+        {showNotification && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+          </span>
+        )}
+      </span>
       {!collapsed && <span>{label}</span>}
     </Link>
   );
@@ -69,7 +85,7 @@ function SidebarNavItem({ href, icon: Icon, label, collapsed }: NavItemDef & { c
 
 // ─── Bottom tab item (mobile) ─────────────────────────────────────────────────
 
-function BottomTabItem({ href, icon: Icon, shortLabel }: NavItemDef) {
+function BottomTabItem({ href, icon: Icon, shortLabel, showNotification }: NavItemDef & { showNotification?: boolean }) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname.startsWith(href + '/');
 
@@ -85,12 +101,20 @@ function BottomTabItem({ href, icon: Icon, shortLabel }: NavItemDef) {
           : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300',
       )}
     >
-      <Icon
-        className={cn(
-          'h-5 w-5 transition-transform',
-          isActive && 'scale-110',
+      <span className="relative inline-flex">
+        <Icon
+          className={cn(
+            'h-5 w-5 transition-transform',
+            isActive && 'scale-110',
+          )}
+        />
+        {showNotification && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+          </span>
         )}
-      />
+      </span>
       <span>{shortLabel}</span>
       {/* Active indicator dot */}
       {isActive && (
@@ -113,12 +137,14 @@ interface PartnerLayoutProps {
 
 export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutProps) {
   const { org, userProfile } = useOrg();
+  const { hasPendingCorrection } = useEssayNotification();
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const founderNavItems: NavItemDef[] = [
     { href: `/partners/${org.slug}/dashboard`,      icon: LayoutDashboard, label: 'Dashboard',        shortLabel: 'Dashboard' },
     { href: `/partners/${org.slug}/alunos`,          icon: Users,           label: 'Alunos',            shortLabel: 'Alunos' },
+    { href: `/partners/${org.slug}/redacoes`,        icon: FileText,        label: 'Redações',          shortLabel: 'Redações' },
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
     { href: `/partners/${org.slug}/configuracoes`,   icon: Settings,        label: 'Configurações',    shortLabel: 'Config' },
   ];
@@ -129,6 +155,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/student/simulado`,          icon: FileText,  label: 'Simulados',       shortLabel: 'Simulados' },
     { href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,    label: 'Ranking',         shortLabel: 'Ranking' },
     { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3, label: 'Meu Desempenho',  shortLabel: 'Desempenho' },
+    { href: `/partners/${org.slug}/student/redacoes`,          icon: FileText,  label: 'Redações',        shortLabel: 'Redações' },
     { href: `/partners/${org.slug}/student/perfil`,            icon: User,      label: 'Perfil',          shortLabel: 'Perfil' },
   ];
 
@@ -196,7 +223,16 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
       {/* Navigation */}
       <nav className={cn('flex-1 space-y-1 py-4', c ? 'px-2' : 'px-3')}>
         {navItems.map((item) => (
-          <SidebarNavItem key={item.href} {...item} collapsed={c} />
+          <SidebarNavItem
+            key={item.href}
+            {...item}
+            collapsed={c}
+            showNotification={
+              variant === 'student'
+                && item.href === `/partners/${org.slug}/student/redacoes`
+                && hasPendingCorrection
+            }
+          />
         ))}
       </nav>
 
@@ -318,7 +354,15 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
       >
         <div className="relative flex items-stretch">
           {navItems.map((item) => (
-            <BottomTabItem key={item.href} {...item} />
+            <BottomTabItem
+              key={item.href}
+              {...item}
+              showNotification={
+                variant === 'student'
+                && item.href === `/partners/${org.slug}/student/redacoes`
+                && hasPendingCorrection
+              }
+            />
           ))}
         </div>
       </nav>
