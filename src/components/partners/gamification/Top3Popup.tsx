@@ -35,8 +35,8 @@ export function Top3Popup({ position, onDismiss }: Props) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-[8000] flex flex-col items-center justify-center select-none"
-      style={{ background: 'rgba(0,0,0,0.88)' }}
+      className="fixed inset-0 z-[9500] flex flex-col items-center justify-center select-none"
+      style={{ background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(8px)' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -44,6 +44,14 @@ export function Top3Popup({ position, onDismiss }: Props) {
       aria-live="polite"
       aria-label={`Você entrou no top ${position}!`}
     >
+      <button
+        onClick={onDismiss}
+        className="absolute right-4 top-4 z-10 rounded-full p-1.5 text-white/40 transition-colors hover:text-white hover:bg-white/10"
+        aria-label="Fechar"
+      >
+        ✕
+      </button>
+
       {/* Confetti burst */}
       <div className="relative mb-4 flex items-center justify-center">
         <AnimatePresence>

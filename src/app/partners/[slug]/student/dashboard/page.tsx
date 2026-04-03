@@ -30,6 +30,18 @@ export default async function PartnerStudentDashboard({ params }: Props) {
     .eq('id', user.id)
     .single();
 
+  const [{ count: questionsCount }, { count: simuladosCount }] = await Promise.all([
+    supabase
+      .from('user_answers')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id),
+    supabase
+      .from('simulado_sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'completed'),
+  ]);
+
   const adminClient = createAdminClient();
   type OrgRow = { name: string; logo_url: string | null; brand_primary: string | null };
   const orgRes = await adminClient
@@ -50,7 +62,8 @@ export default async function PartnerStudentDashboard({ params }: Props) {
       orgLogoUrl={org?.logo_url ?? null}
       slug={slug}
       currentStreak={profile?.current_streak ?? 0}
-      totalPoints={profile?.total_points ?? 0}
+      questionsCount={questionsCount ?? 0}
+      simuladosCount={simuladosCount ?? 0}
     />
   );
 }

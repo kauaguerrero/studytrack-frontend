@@ -18,7 +18,6 @@ import {
 import { QuestionCard } from '@/components/questions/QuestionCard';
 import { ReportDialog } from '@/components/questions/ReportDialog';
 import { UpsellModal } from '@/components/modals/UpsellModal';
-import { ShieldEarnedPopup } from '@/components/partners/gamification/ShieldEarnedPopup';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -118,9 +117,8 @@ export default function BancoDeQuestoes() {
   const authTokenRef = useRef<string | null>(null);
 
   // ── Session points (gamification B2B) ────────────────────────────────────────
+  const SESSION_KEY = 'qsr_pending_points';
   const sessionPointsRef = useRef(0);
-  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [showShieldEarned, setShowShieldEarned] = useState(false);
 
   // ── Accessibility ─────────────────────────────────────────────────────────
   const shouldReduce = useReducedMotion();
@@ -161,17 +159,10 @@ export default function BancoDeQuestoes() {
     init();
   }, []);
 
-  // ── Session points: salvar no localStorage ao desmontar ─────────────────────
+  // ── Session points: resetar ao montar (nova sessão) ─────────────────────────
   useEffect(() => {
-    return () => {
-      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-      if (sessionPointsRef.current > 0) {
-        localStorage.setItem(
-          'pending_question_points',
-          JSON.stringify({ points: sessionPointsRef.current, timestamp: Date.now() }),
-        );
-      }
-    };
+    sessionStorage.removeItem('qsr_pending_points');
+    sessionStorage.removeItem('qsr_shield_earned');
   }, []);
 
   // ── Total de questões — direto no Supabase (sem CORS) ───────────────────────
@@ -358,27 +349,33 @@ export default function BancoDeQuestoes() {
   };
 
   const handleAnswerResult = useCallback(
-    (qId: string, result: { gamification?: { points_awarded: number; shield_awarded?: boolean } }) => {
+    (qId: string, result: { is_correct?: boolean; gamification?: { points_awarded: number; shield_awarded?: boolean } }) => {
       handleLocalAnswer(qId);
-      const pts = result.gamification?.points_awarded ?? 0;
+      // Usa os pontos da API quando disponíveis (usuários com org_id — backend já
+      // persiste monthly_points). Para usuários sem org_id, fallback via RPC direto.
+      const hasBackendGamification = result.gamification !== undefined;
+      const pts = hasBackendGamification
+        ? (result.gamification!.points_awarded ?? 0)
+        : (result.is_correct ? 2 : 0);
       if (pts > 0) {
         sessionPointsRef.current += pts;
-        // Reset 30s inactivity timer
-        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
-        inactivityTimerRef.current = setTimeout(() => {
-          if (sessionPointsRef.current > 0) {
-            localStorage.setItem(
-              'pending_question_points',
-              JSON.stringify({ points: sessionPointsRef.current, timestamp: Date.now() }),
-            );
-          }
-        }, 30000);
+        const current = parseInt(sessionStorage.getItem(SESSION_KEY) || '0', 10);
+        sessionStorage.setItem(SESSION_KEY, String(current + pts));
+
+        // RPC só para usuários sem org_id: o backend não atualizou monthly_points
+        if (!hasBackendGamification && userId) {
+          const supabase = createClient();
+          supabase.rpc('increment_monthly_points', { user_id: userId, points: 2 })
+            .then(({ error }) => {
+              if (error) reportError('MonthlyPointsUpdateError', String(error), { user_id: userId });
+            });
+        }
       }
       if (result.gamification?.shield_awarded) {
-        setShowShieldEarned(true);
+        sessionStorage.setItem('qsr_shield_earned', '1');
       }
     },
-    [],
+    [SESSION_KEY, userId],
   );
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────
@@ -416,11 +413,6 @@ export default function BancoDeQuestoes() {
         userName={userProfile?.full_name}
       />
 
-      <AnimatePresence>
-        {showShieldEarned && (
-          <ShieldEarnedPopup onDismiss={() => setShowShieldEarned(false)} />
-        )}
-      </AnimatePresence>
       <ReportDialog
         open={reportDialogOpen}
         onOpenChange={setReportDialogOpen}

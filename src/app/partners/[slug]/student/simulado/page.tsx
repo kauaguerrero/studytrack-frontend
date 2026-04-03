@@ -22,6 +22,7 @@ import {
 } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
 import { UpsellModal } from '@/components/modals/UpsellModal'
+import { SimuladoRewardPopup } from '@/components/partners/gamification/SimuladoRewardPopup'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
@@ -376,12 +377,7 @@ export default function SimuladoPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showGamificationCard])
 
-  // ── Points card: auto-dismiss after 4s ──
-  useEffect(() => {
-    if (!showGamificationCard) return
-    const t = setTimeout(() => setShowGamificationCard(false), 4000)
-    return () => clearTimeout(t)
-  }, [showGamificationCard])
+  // Intencionalmente sem auto-dismiss: o aluno fecha manualmente no popup.
 
   // ── Derived KPIs ──
   const totalSimulados = sessions.length
@@ -440,6 +436,7 @@ export default function SimuladoPage() {
       const data = await res.json()
       if (res.ok) {
         setFinishResult({ ...data, session_id: sessionId })
+        console.log('finish response:', data)
         if (data.gamification?.points_awarded > 0) {
           setGamificationReward(data.gamification)
           setShowGamificationCard(true)
@@ -1131,45 +1128,20 @@ export default function SimuladoPage() {
         </div>
       )}
 
-      {/* ── Gamification reward card (overlay, auto-dismiss 4s) ────────────── */}
-      <AnimatePresence>
-        {showGamificationCard && gamificationReward && (
-          <motion.div
-            className="fixed bottom-6 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 px-4"
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
-            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] as const }}
-          >
-            <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-5 shadow-2xl border border-white/10">
-              <button
-                onClick={() => setShowGamificationCard(false)}
-                className="absolute right-3 top-3 p-1.5 text-slate-500 hover:text-white transition-colors"
-                aria-label="Fechar"
-              >
-                ✕
-              </button>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-white/40 mb-1">
-                Simulado concluído 🎯
-              </p>
-              <p
-                className="text-4xl font-black tabular-nums"
-                style={{ color: 'var(--brand-primary)' }}
-              >
-                +{animatedPoints} pts mensais
-              </p>
-              {gamificationSummary && (
-                <p className="mt-2 text-xs text-slate-400">
-                  Você está em #{gamificationSummary.rank_position} no ranking
-                  {gamificationSummary.points_to_top3 > 0
-                    ? ` — faltam ${gamificationSummary.points_to_top3.toLocaleString('pt-BR')} pts para o top 3`
-                    : ' — você está no top 3! 🏆'}
-                </p>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* ── Gamification reward popup (fullscreen) ───────────────────────────── */}
+      {showGamificationCard && gamificationReward && (
+        <SimuladoRewardPopup
+          pointsAwarded={gamificationReward.points_awarded}
+          newMonthlyPoints={gamificationReward.new_monthly_points}
+          rankPosition={gamificationSummary?.rank_position ?? null}
+          pointsToTop3={gamificationSummary?.points_to_top3 ?? null}
+          onContinue={() => {
+            setShowGamificationCard(false)
+            setGamificationReward(null)
+            router.push(`/partners/${slug}/student/ranking`)
+          }}
+        />
+      )}
     </>
   )
 }

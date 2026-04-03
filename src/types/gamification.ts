@@ -62,6 +62,7 @@ export interface MonthlySummary {
   monthly_goal: number;
   goal_reached: boolean;
   goal_progress_pct: number;
+  shield_count: number;
 }
 
 export interface DiagnosticResult {
@@ -69,4 +70,12 @@ export interface DiagnosticResult {
   points_awarded: number;
   current_monthly_points: number;
   already_completed?: boolean;
+}
+
+export interface StreakDecayResult {
+  points_deducted: number;
+  previous_rank: number;
+  current_rank: number;
+  rank_dropped: boolean;
+  rival_name: string | null;
 }
