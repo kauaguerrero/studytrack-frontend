@@ -3,7 +3,7 @@
  *
  * Responsabilidades:
  * 1. Valida que o usuário está autenticado (redirect se não)
- * 2. Valida que o usuário tem role `founder` ou `admin`
+ * 2. Valida que o usuário tem role `founder`, `admin` ou `teacher` (associado técnico)
  * 3. Valida que o founder pertence à organização do slug (anti cross-org)
  * 4. Injeta CSS variables de branding da org no layout
  * 5. Fornece o OrgContext para todos os filhos
@@ -39,6 +39,10 @@ export interface OrgBranding {
 interface PartnersLayoutProps {
   children: ReactNode;
   params: Promise<{ slug: string }>;
+}
+
+function isAssociateRole(role: string | null | undefined): boolean {
+  return role === 'associate' || role === 'teacher';
 }
 
 export default async function PartnersLayout({ children, params }: PartnersLayoutProps) {
@@ -79,10 +83,11 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     full_name: string | null;
     avatar_url: string | null;
     theme_preference: string | null;
+    must_change_password: boolean | null;
   };
   const profileRes = await adminClient
     .from('profiles')
-    .select('role, organization_id, full_name, avatar_url, theme_preference')
+    .select('role, organization_id, full_name, avatar_url, theme_preference, must_change_password')
     .eq('id', user.id)
     .single();
   const profile = profileRes.data as ProfileRow | null;
@@ -101,7 +106,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   }
 
   // Roles sem acesso ao painel de parceiros
-  if (!profile || !['founder', 'admin'].includes(profile.role ?? '')) {
+  if (!profile || !['founder', 'admin', 'associate', 'teacher'].includes(profile.role ?? '')) {
     redirect('/portal');
   }
 
@@ -125,9 +130,15 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     redirect('/portal');
   }
 
-  // Founder só acessa a própria org; admin acessa qualquer uma
-  if (profile.role === 'founder' && profile.organization_id !== org.id) {
+  // Founder e associado técnico (teacher) só acessam a própria org; admin acessa qualquer uma
+  if ((profile.role === 'founder' || isAssociateRole(profile.role)) && profile.organization_id !== org.id) {
     redirect('/portal');
+  }
+
+  // Associate só pode acessar páginas de redações (lista e detalhe de correção).
+  // Com pathname vazio (dev/turbopack), delega para o client-side sem bloquear aqui.
+  if (isAssociateRole(profile.role) && pathname !== '' && !/^\/partners\/[^/]+\/redacoes(\/[^/]+)?$/.test(pathname)) {
+    redirect(`/partners/${slug}/redacoes`);
   }
 
   const branding: OrgBranding = {
@@ -166,6 +177,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
         avatarUrl: profile.avatar_url ?? null,
         role: profile.role ?? 'founder',
         themePreference: safeThemePreference,
+        mustChangePassword: profile.must_change_password === true,
       }}
     >
       <script

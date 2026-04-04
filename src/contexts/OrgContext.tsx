@@ -22,6 +22,7 @@ interface UserProfile {
   avatarUrl: string | null;
   role: string;
   themePreference?: 'light' | 'dark' | 'system' | null;
+  mustChangePassword?: boolean;
 }
 
 interface OrgContextValue {

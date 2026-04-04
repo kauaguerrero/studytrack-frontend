@@ -37,6 +37,7 @@ interface OrgStats {
   simulados_month: number;
   simulados_total: number;
   plan_distribution: Record<string, number>;
+  associates_count?: number;
 }
 
 interface Student {
@@ -320,7 +321,7 @@ function KpiCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function FounderDashboard() {
-  const { org } = useOrg();
+  const { org, userProfile } = useOrg();
   const [stats, setStats] = useState<OrgStats | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [rankingStudents, setRankingStudents] = useState<Student[]>([]);
@@ -328,6 +329,7 @@ export default function FounderDashboard() {
   const [metricWindow, setMetricWindow] = useState<MetricWindow>('week');
   const [activePlanIndex, setActivePlanIndex] = useState<number | null>(null);
   const [showRevenueValue, setShowRevenueValue] = useState(false);
+  const [associatesCount, setAssociatesCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -346,7 +348,13 @@ export default function FounderDashboard() {
           fetch(`${api}/api/partners/${org.slug}/students?limit=100&page=1&sort=full_name&order=asc`, { headers }),
         ]);
 
-        if (resStats.ok) setStats(await resStats.json());
+        if (resStats.ok) {
+          const statsData = await resStats.json() as OrgStats;
+          setStats(statsData);
+          if (typeof statsData.associates_count === 'number') {
+            setAssociatesCount(statsData.associates_count);
+          }
+        }
         if (resRankingFirstPage.ok) {
           const firstPayload = await resRankingFirstPage.json();
           const firstStudents = Array.isArray(firstPayload?.students) ? firstPayload.students : [];
@@ -390,6 +398,20 @@ export default function FounderDashboard() {
               .filter((e: EssayListItem) => Boolean(e.id && e.submitted_at)),
           );
         }
+        if (userProfile.role === 'founder' || userProfile.role === 'admin') {
+          const resAssociates = await fetch(`/api/partners/${org.slug}/associates`);
+          if (resAssociates.ok) {
+            const associatesData = await resAssociates.json() as {
+              total?: number;
+              associates?: unknown[];
+            };
+            if (typeof associatesData.total === 'number') {
+              setAssociatesCount(associatesData.total);
+            } else if (Array.isArray(associatesData.associates)) {
+              setAssociatesCount(associatesData.associates.length);
+            }
+          }
+        }
       } catch {
         // Não loga detalhes em produção para evitar information disclosure
       } finally {
@@ -397,7 +419,7 @@ export default function FounderDashboard() {
       }
     }
     fetchData();
-  }, [org.slug]);
+  }, [org.slug, userProfile.role]);
 
   // ── Derived ─────────────────────────────────────────────────────────────────
 
@@ -647,7 +669,16 @@ export default function FounderDashboard() {
                 <span className="relative z-10">Redações</span>
               </Link>
             </div>
-            <span className="text-xs text-slate-500 dark:text-white/45">Período: {metricLabel}</span>
+            <div className="flex items-center gap-2">
+              {(userProfile.role === 'founder' || userProfile.role === 'admin') && (
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                  <Users className="h-3.5 w-3.5 text-[var(--brand-secondary)]" />
+                  <span>Número de Associados:</span>
+                  <span className="font-black text-slate-900 dark:text-white">{loading ? '—' : (associatesCount ?? 0)}</span>
+                </div>
+              )}
+              <span className="text-xs text-slate-500 dark:text-white/45">Período: {metricLabel}</span>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (

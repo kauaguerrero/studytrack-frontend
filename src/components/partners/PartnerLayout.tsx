@@ -28,6 +28,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { ForcePasswordChangeModal } from '@/components/partners/ForcePasswordChangeModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,7 +143,10 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const { org, userProfile } = useOrg();
   const { hasPendingCorrection } = useEssayNotification();
   const [isHovered, setIsHovered] = useState(false);
+  const [passwordModalDismissed, setPasswordModalDismissed] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
+  const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
 
   const founderNavItems: NavItemDef[] = [
     { href: `/partners/${org.slug}/dashboard`,      icon: LayoutDashboard, label: 'Dashboard',        shortLabel: 'Dashboard' },
@@ -163,7 +167,13 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/student/perfil`,            icon: User,      label: 'Perfil',          shortLabel: 'Perfil' },
   ];
 
-  const navItems = variant === 'student' ? studentNavItems : founderNavItems;
+  const associateNavItems: NavItemDef[] = [
+    { href: `/partners/${org.slug}/redacoes`, icon: FileText, label: 'Redações', shortLabel: 'Redações' },
+  ];
+
+  const navItems = variant === 'student'
+    ? studentNavItems
+    : (isAssociate ? associateNavItems : founderNavItems);
 
   const initials = userProfile.fullName
     .split(' ')
@@ -218,7 +228,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
               {org.name}
             </p>
             <p className="text-xs text-slate-500">
-              {variant === 'student' ? 'Portal do Aluno' : 'Portal Parceiro'}
+              {variant === 'student' ? 'Portal do Aluno' : isAssociate ? 'Portal Associado' : 'Portal Parceiro'}
             </p>
           </div>
         )}
@@ -266,7 +276,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
                   {userProfile.fullName}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {variant === 'student' ? 'Aluno' : 'Founder'}
+                  {variant === 'student' ? 'Aluno' : isAssociate ? 'Associado' : 'Founder'}
                 </p>
               </div>
               <Button
@@ -370,6 +380,10 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
           ))}
         </div>
       </nav>
+
+      {showPasswordModal && (
+        <ForcePasswordChangeModal onSuccess={() => setPasswordModalDismissed(true)} />
+      )}
 
     </div>
   );

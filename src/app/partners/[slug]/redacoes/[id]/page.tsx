@@ -4,7 +4,6 @@ import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import FloatingActionMenu from '@/components/ui/floating-action-menu';
 import { cn } from '@/lib/utils';
@@ -222,20 +221,14 @@ export default function CorrecaoRedacaoPage() {
       setError(null);
 
       try {
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          if (mounted) setError('Sessão expirada. Faça login novamente.');
-          return;
-        }
-
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-        const res = await fetch(`${apiUrl}/api/partners/${slug}/essays/${id}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
+        const res = await fetch(`/api/partners/${slug}/essays/${id}`, {
           cache: 'no-store',
         });
 
-        if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error || `Erro HTTP ${res.status}`);
+        }
         const data = await res.json() as EssayDetail & Record<string, unknown>;
         if (!mounted) return;
 
@@ -395,14 +388,6 @@ export default function CorrecaoRedacaoPage() {
 
     setSubmitting(true);
     try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast.error('Sessão expirada. Faça login novamente.');
-        return;
-      }
-
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
       const payload = {
         competency_scores: scores.map((s) => ({
           competency: s.competency,
@@ -413,11 +398,10 @@ export default function CorrecaoRedacaoPage() {
         general_comment: generalComment.trim(),
       };
 
-      const res = await fetch(`${apiUrl}/api/partners/${slug}/essays/${essay.id}/correct`, {
+      const res = await fetch(`/api/partners/${slug}/essays/${essay.id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -426,8 +410,12 @@ export default function CorrecaoRedacaoPage() {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error || 'Não foi possível enviar a correção.');
       }
+      const responseData = await res.json().catch(() => null) as { warning?: string | null; details?: string } | null;
 
       toast.success('Correção enviada! O aluno será notificado.');
+      if (responseData?.warning) {
+        toast.warning(responseData.warning);
+      }
       router.push(`/partners/${slug}/redacoes`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Falha ao enviar correção.';

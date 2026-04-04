@@ -201,6 +201,7 @@ const DASHBOARD_URL_BY_ROLE: Record<UserRole, string> = {
   admin: '/portal/admin',
   secretariat: '/portal/secretariat',
   founder: '/portal',
+  associate: '/portal',
 };
 
 export default function AjudaESuportePage() {
@@ -285,6 +286,7 @@ export default function AjudaESuportePage() {
     student: { icon: BrainCircuit, title: 'Portal do Aluno', color: 'text-emerald-100', bgBadge: 'bg-emerald-800' },
     admin: { icon: Settings, title: 'Administração', color: 'text-slate-100', bgBadge: 'bg-slate-800' },
     founder: { icon: Settings, title: 'Portal Parceiro', color: 'text-indigo-100', bgBadge: 'bg-indigo-800' },
+    associate: { icon: GraduationCap, title: 'Portal Associado', color: 'text-cyan-100', bgBadge: 'bg-cyan-800' },
   };
   const ActiveRoleIcon = roleConfig[currentRole]?.icon ?? roleConfig.student.icon;
 

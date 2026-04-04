@@ -4,7 +4,6 @@ import { Fragment, ReactNode, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, CalendarDays, MessageSquare, PenLine } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -80,75 +79,135 @@ function pickEssayTheme(raw: Record<string, unknown>): string | null {
   return null;
 }
 
+type TextSegment = {
+  key: string;
+  text: string;
+  annotation: EssayAnnotation | null;
+};
+
+function prepareAnnotations(text: string, annotations: EssayAnnotation[]): EssayAnnotation[] {
+  const usedRanges = new Set<string>();
+
+  return annotations
+    .map((annotation) => {
+      let start = Number(annotation.start_offset);
+      let end = Number(annotation.end_offset);
+
+      const validOffsetRange = Number.isInteger(start)
+        && Number.isInteger(end)
+        && start >= 0
+        && end > start
+        && start < text.length;
+
+      if (!validOffsetRange) {
+        const needle = (annotation.original_text || '').trim();
+        if (needle.length >= 2) {
+          const idx = text.indexOf(needle);
+          if (idx >= 0) {
+            start = idx;
+            end = idx + needle.length;
+          }
+        }
+      }
+
+      if (!(start >= 0 && end > start && start < text.length)) return null;
+      const safeEnd = Math.min(end, text.length);
+      const rangeKey = `${start}:${safeEnd}:${annotation.type}`;
+      if (usedRanges.has(rangeKey)) return null;
+      usedRanges.add(rangeKey);
+
+      return {
+        ...annotation,
+        start_offset: start,
+        end_offset: safeEnd,
+      };
+    })
+    .filter((a): a is EssayAnnotation => Boolean(a))
+    .sort((a, b) => a.start_offset - b.start_offset);
+}
+
+function buildSegments(text: string, annotations: EssayAnnotation[]): TextSegment[] {
+  if (!text.length) return [];
+  const owner: Array<EssayAnnotation | null> = new Array(text.length).fill(null);
+
+  annotations.forEach((ann) => {
+    const start = Math.max(0, Math.min(text.length, ann.start_offset));
+    const end = Math.max(start, Math.min(text.length, ann.end_offset));
+    for (let i = start; i < end; i += 1) owner[i] = ann;
+  });
+
+  const segments: TextSegment[] = [];
+  let start = 0;
+  let current = owner[0];
+  for (let i = 1; i < text.length; i += 1) {
+    if (owner[i] !== current) {
+      segments.push({
+        key: `${start}-${i}-${current?.id || 'plain'}`,
+        text: text.slice(start, i),
+        annotation: current,
+      });
+      start = i;
+      current = owner[i];
+    }
+  }
+  segments.push({
+    key: `${start}-${text.length}-${current?.id || 'plain'}`,
+    text: text.slice(start),
+    annotation: current,
+  });
+  return segments;
+}
+
 function renderAnnotatedText(
   text: string,
   annotations: EssayAnnotation[],
   onCommentClick: (payload: { id: string; comment: string; excerpt: string }) => void,
 ): ReactNode {
   if (!annotations.length) {
-    return <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-100">{text}</p>;
+    return <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-relaxed text-slate-700 dark:text-slate-100">{text}</p>;
   }
 
-  const clean = annotations
-    .filter((a) => Number.isInteger(a.start_offset) && Number.isInteger(a.end_offset))
-    .filter((a) => a.start_offset >= 0 && a.end_offset > a.start_offset && a.start_offset < text.length)
-    .sort((a, b) => a.start_offset - b.start_offset);
+  const clean = prepareAnnotations(text, annotations);
 
   if (!clean.length) {
-    return <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-100">{text}</p>;
+    return <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-relaxed text-slate-700 dark:text-slate-100">{text}</p>;
   }
 
-  const nodes: ReactNode[] = [];
-  let cursor = 0;
-
-  clean.forEach((annotation, idx) => {
-    const start = Math.max(cursor, annotation.start_offset);
-    const end = Math.min(text.length, annotation.end_offset);
-    if (start >= end) return;
-
-    if (start > cursor) {
-      nodes.push(
-        <Fragment key={`plain-${idx}-${cursor}`}>
-          {text.slice(cursor, start)}
-        </Fragment>,
-      );
+  const nodes: ReactNode[] = buildSegments(text, clean).map((segment) => {
+    if (!segment.annotation) {
+      return <Fragment key={segment.key}>{segment.text}</Fragment>;
     }
 
-    const coveredText = text.slice(start, end);
+    const annotation = segment.annotation;
+    const coveredText = segment.text;
     if (annotation.type === 'comment') {
       const commentText = annotation.comment_text || 'Comentário do professor';
-      nodes.push(
+      return (
         <button
-          key={`comment-${annotation.id}`}
+          key={segment.key}
           type="button"
           onClick={() => onCommentClick({ id: annotation.id, comment: commentText, excerpt: coveredText })}
           className="inline rounded-sm border-b border-dashed border-amber-400 bg-amber-400/10 px-0.5 text-left text-amber-700 underline decoration-amber-500/70 underline-offset-2 dark:text-amber-100 dark:decoration-amber-400/70"
         >
           {coveredText}
-        </button>,
-      );
-    } else {
-      const original = annotation.original_text || coveredText;
-      const corrected = annotation.corrected_text || '';
-      nodes.push(
-        <span
-          key={`correction-${annotation.id}`}
-          className="inline-flex flex-wrap items-center gap-1 rounded-md bg-slate-200 px-1 py-0.5 align-baseline dark:bg-slate-800/70"
-        >
-          <span className="text-red-600 dark:text-red-400 line-through">{original}</span>
-          {corrected && <span className="text-emerald-600 dark:text-emerald-400">{corrected}</span>}
-        </span>,
+        </button>
       );
     }
 
-    cursor = end;
+    const original = annotation.original_text || coveredText;
+    const corrected = annotation.corrected_text || '';
+    return (
+      <span
+        key={segment.key}
+        className="inline-flex flex-wrap items-center gap-1 rounded-md bg-slate-200 px-1 py-0.5 align-baseline dark:bg-slate-800/70"
+      >
+        <span className="text-red-600 dark:text-red-400 line-through">{original}</span>
+        {corrected && <span className="text-emerald-600 dark:text-emerald-400">{corrected}</span>}
+      </span>
+    );
   });
 
-  if (cursor < text.length) {
-    nodes.push(<Fragment key="plain-tail">{text.slice(cursor)}</Fragment>);
-  }
-
-  return <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-100">{nodes}</p>;
+  return <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-relaxed text-slate-700 dark:text-slate-100">{nodes}</p>;
 }
 
 export default function RedacaoDetailPage() {
@@ -169,17 +228,7 @@ export default function RedacaoDetailPage() {
       setError(null);
 
       try {
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          if (mounted) setError('Sessão expirada. Faça login novamente.');
-          return;
-        }
-
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-
-        const res = await fetch(`${apiUrl}/api/partners/${slug}/essays/${id}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
+        const res = await fetch(`/api/partners/${slug}/essays/${id}`, {
           cache: 'no-store',
         });
 
@@ -196,9 +245,8 @@ export default function RedacaoDetailPage() {
 
         // Requisito: ao abrir redação corrigida, marca como vista automaticamente.
         if (data.status === 'corrected') {
-          void fetch(`${apiUrl}/api/partners/${slug}/essays/${id}/seen`, {
+          void fetch(`/api/partners/${slug}/essays/${id}/seen`, {
             method: 'PATCH',
-            headers: { Authorization: `Bearer ${session.access_token}` },
           }).then(() => {
             if (!mounted) return;
             setEssay((prev) => (prev ? { ...prev, status: 'seen' } : prev));

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { cn } from '@/lib/utils';
@@ -186,6 +185,7 @@ function EssayQueueCard({
   onDelete,
   archiving,
   deleting,
+  allowManageActions,
 }: {
   slug: string;
   item: EssayListItem;
@@ -194,6 +194,7 @@ function EssayQueueCard({
   onDelete: (essay: EssayListItem) => void;
   archiving: boolean;
   deleting: boolean;
+  allowManageActions: boolean;
 }) {
   const preview = item.text?.length > 100 ? `${item.text.slice(0, 100)}...` : (item.text || '');
   const essayTheme = pickEssayTheme(item);
@@ -226,7 +227,7 @@ function EssayQueueCard({
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Enviada {relativeTimeFromNow(item.submitted_at)}
           </p>
-          <p className="text-sm text-slate-600 dark:text-slate-300">
+          <p className="text-sm text-slate-600 break-words [overflow-wrap:anywhere] dark:text-slate-300">
             <span className="font-semibold">Tema:</span> {essayTheme || 'Não informado'}
           </p>
           {credit && (
@@ -238,7 +239,7 @@ function EssayQueueCard({
               }
             </p>
           )}
-          <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">{preview}</p>
+          <p className="text-sm leading-relaxed text-slate-600 break-words [overflow-wrap:anywhere] dark:text-slate-300">{preview}</p>
         </div>
 
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
@@ -258,25 +259,29 @@ function EssayQueueCard({
           >
             {mode === 'pending' ? 'Corrigir' : 'Visualizar correção'}
           </Link>
-          <button
-            type="button"
-            disabled={archiving || mode === 'pending'}
-            onClick={() => onArchive(item)}
-            className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
-            title={mode === 'pending' ? 'Somente redações corrigidas podem ser arquivadas' : 'Arquivar redação'}
-          >
-            <Archive className="h-3.5 w-3.5" />
-            Arquivar
-          </button>
-          <button
-            type="button"
-            disabled={deleting}
-            onClick={() => onDelete(item)}
-            className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl border border-rose-300 bg-rose-50 px-2.5 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Excluir
-          </button>
+          {allowManageActions && (
+            <>
+              <button
+                type="button"
+                disabled={archiving || mode === 'pending'}
+                onClick={() => onArchive(item)}
+                className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
+                title={mode === 'pending' ? 'Somente redações corrigidas podem ser arquivadas' : 'Arquivar redação'}
+              >
+                <Archive className="h-3.5 w-3.5" />
+                Arquivar
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => onDelete(item)}
+                className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl border border-rose-300 bg-rose-50 px-2.5 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Excluir
+              </button>
+            </>
+          )}
         </div>
       </div>
     </article>
@@ -284,7 +289,8 @@ function EssayQueueCard({
 }
 
 export default function PartnerRedacoesPage() {
-  const { org } = useOrg();
+  const { org, userProfile } = useOrg();
+  const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
 
   const [metrics, setMetrics] = useState<EssaysMetrics>(DEFAULT_METRICS);
   const [pendingEssays, setPendingEssays] = useState<EssayListItem[]>([]);
@@ -305,65 +311,35 @@ export default function PartnerRedacoesPage() {
   // Evita sobrescrever manual toggle após primeira sincronização com pending_count.
   const [queueInitDone, setQueueInitDone] = useState(false);
 
-  async function getAccessToken(): Promise<string | null> {
-    const supabase = createClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token || null;
-  }
+  type EssaysOverviewPayload = {
+    metrics: EssaysMetrics;
+    pending_items: EssayListItem[];
+    all_items: EssayListItem[];
+  };
 
-  const fetchMetrics = useCallback(async (token?: string) => {
-    const accessToken = token || await getAccessToken();
-    if (!accessToken) return;
+  const loadOverview = useCallback(async () => {
     setMetricsLoading(true);
-    const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
-    try {
-      const res = await fetch(`${api}/api/partners/${org.slug}/essays/metrics`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!res.ok) throw new Error();
-      const data: EssaysMetrics = await res.json();
-      setMetrics(data);
-    } catch {
-      toast.error('Não foi possível carregar as métricas de redações.');
-    } finally {
-      setMetricsLoading(false);
-    }
-  }, [org.slug]);
-
-  const fetchQueue = useCallback(async (token?: string) => {
-    const accessToken = token || await getAccessToken();
-    if (!accessToken) return;
     setQueueLoading(true);
-    const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
     try {
-      const [pendingRes, allRes] = await Promise.all([
-        fetch(`${api}/api/partners/${org.slug}/essays?status=pending&page=1&limit=200`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }),
-        fetch(`${api}/api/partners/${org.slug}/essays?status=all&page=1&limit=300`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }),
-      ]);
-
-      const pendingPayload = pendingRes.ok ? await pendingRes.json() : { items: [] };
-      const allPayload = allRes.ok ? await allRes.json() : { items: [] };
-
-      const pendingItems: EssayListItem[] = (pendingPayload.items || [])
-        .sort((a: EssayListItem, b: EssayListItem) => {
-          return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
-        });
-
-      const doneItems: EssayListItem[] = (allPayload.items || [])
-        .filter((item: EssayListItem) => item.status === 'corrected' || item.status === 'seen')
-        .sort((a: EssayListItem, b: EssayListItem) => {
+      const res = await fetch(`/api/partners/${org.slug}/essays/overview`, { cache: 'no-store' });
+      if (!res.ok) throw new Error();
+      const data: EssaysOverviewPayload = await res.json();
+      setMetrics(data.metrics || DEFAULT_METRICS);
+      const pendingItems = (data.pending_items || [])
+        .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
+      const doneItems = (data.all_items || [])
+        .filter((item) => item.status === 'corrected' || item.status === 'seen')
+        .sort((a, b) => {
           const aTs = new Date(a.corrected_at || a.submitted_at).getTime();
           const bTs = new Date(b.corrected_at || b.submitted_at).getTime();
           return bTs - aTs;
         });
-
       setPendingEssays(pendingItems);
       setCorrectedEssays(doneItems);
+    } catch {
+      toast.error('Não foi possível carregar as métricas de redações.');
     } finally {
+      setMetricsLoading(false);
       setQueueLoading(false);
     }
   }, [org.slug]);
@@ -371,14 +347,13 @@ export default function PartnerRedacoesPage() {
   useEffect(() => {
     let mounted = true;
     void (async () => {
-      const token = await getAccessToken();
-      if (!token || !mounted) return;
-      await Promise.all([fetchMetrics(token), fetchQueue(token)]);
+      if (!mounted) return;
+      await loadOverview();
     })();
     return () => {
       mounted = false;
     };
-  }, [org.slug, fetchMetrics, fetchQueue]);
+  }, [org.slug, loadOverview]);
 
   useEffect(() => {
     if (queueInitDone) return;
@@ -430,19 +405,15 @@ export default function PartnerRedacoesPage() {
     if (item.status === 'pending') return;
     setArchivingId(item.id);
     try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) return;
-      const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
-      const res = await fetch(`${api}/api/partners/${org.slug}/essays/${item.id}/archive`, {
+      const res = await fetch(`/api/partners/${org.slug}/essays/${item.id}/archive`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
         throw new Error(payload?.error || 'Falha ao arquivar redação.');
       }
       toast.success('Redação arquivada com sucesso.');
-      await Promise.all([fetchMetrics(accessToken), fetchQueue(accessToken)]);
+      await loadOverview();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao arquivar redação.';
       toast.error(message);
@@ -457,19 +428,15 @@ export default function PartnerRedacoesPage() {
 
     setDeletingId(item.id);
     try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) return;
-      const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
-      const res = await fetch(`${api}/api/partners/${org.slug}/essays/${item.id}`, {
+      const res = await fetch(`/api/partners/${org.slug}/essays/${item.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
         throw new Error(payload?.error || 'Falha ao excluir redação.');
       }
       toast.success('Redação excluída.');
-      await Promise.all([fetchMetrics(accessToken), fetchQueue(accessToken)]);
+      await loadOverview();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao excluir redação.';
       toast.error(message);
@@ -774,6 +741,7 @@ export default function PartnerRedacoesPage() {
                       onDelete={handleDelete}
                       archiving={archivingId === item.id}
                       deleting={deletingId === item.id}
+                      allowManageActions={!isAssociate}
                     />
                   ))}
                 </div>
@@ -814,6 +782,7 @@ export default function PartnerRedacoesPage() {
                       onDelete={handleDelete}
                       archiving={archivingId === item.id}
                       deleting={deletingId === item.id}
+                      allowManageActions={!isAssociate}
                     />
                   ))}
                 </div>
