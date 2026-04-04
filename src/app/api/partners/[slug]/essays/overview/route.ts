@@ -104,11 +104,10 @@ export async function GET(
 
   let studentsMap = new Map<string, StudentRow>();
   if (studentIds.length > 0) {
-    const { data: students } = await admin
-      .from('profiles')
+    const { data: students } = await (admin.from('profiles') as any)
       .select('id, full_name, email, avatar_url')
       .in('id', studentIds);
-    studentsMap = new Map((students || []).map((s) => [s.id, s as StudentRow]));
+    studentsMap = new Map(((students || []) as StudentRow[]).map((s) => [s.id, s]));
   }
 
   const pendingItems = list

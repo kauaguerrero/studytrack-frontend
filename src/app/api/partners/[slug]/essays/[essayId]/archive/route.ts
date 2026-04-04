@@ -38,6 +38,7 @@ export async function PATCH(
   }
 
   const admin = createAdminClient();
+  const essaysTable = admin.from('essays') as any;
   const [{ data: org }, { data: requester }] = await Promise.all([
     admin.from('organizations').select('id').eq('slug', slug).maybeSingle<{ id: string }>(),
     admin.from('profiles').select('role, organization_id').eq('id', user.id).maybeSingle<ProfileRow>(),
@@ -56,19 +57,17 @@ export async function PATCH(
     return NextResponse.json({ error: 'Acesso negado à organização.' }, { status: 403 });
   }
 
-  const { data: essay } = await admin
-    .from('essays')
+  const { data: essay } = await essaysTable
     .select('id, status')
     .eq('id', essayId)
     .eq('org_id', org.id)
-    .maybeSingle<{ id: string; status: string | null }>();
+    .maybeSingle() as { data: { id: string; status: string | null } | null };
   if (!essay) return NextResponse.json({ error: 'Redação não encontrada.' }, { status: 404 });
   if (essay.status === 'pending') {
     return NextResponse.json({ error: 'Somente redações corrigidas podem ser arquivadas.' }, { status: 400 });
   }
 
-  const { error } = await admin
-    .from('essays')
+  const { error } = await essaysTable
     .update({ status: 'seen', seen_at: new Date().toISOString() })
     .eq('id', essayId)
     .eq('org_id', org.id);

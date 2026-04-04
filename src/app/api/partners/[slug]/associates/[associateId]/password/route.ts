@@ -5,6 +5,23 @@ import { createAdminClient } from '@/lib/supabase/admin';
 const ASSOCIATE_DB_ROLE = 'associate';
 const LEGACY_ASSOCIATE_ROLE = 'teacher';
 
+type RequesterRow = {
+  role: string | null;
+  organization_id: string | null;
+};
+
+type OrganizationRow = {
+  id: string;
+};
+
+type AssociateRow = {
+  id: string;
+  role: string | null;
+  organization_id: string | null;
+  full_name: string | null;
+  email: string | null;
+};
+
 function generateTemporaryPassword(length = 12): string {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lower = 'abcdefghijkmnopqrstuvwxyz';
@@ -46,18 +63,19 @@ export async function POST(
     return NextResponse.json({ error: details }, { status: 500 });
   }
 
+  const profilesTable = adminClient.from('profiles') as any;
+  const organizationsTable = adminClient.from('organizations') as any;
+
   const [{ data: requester }, { data: org }] = await Promise.all([
-    adminClient
-      .from('profiles')
+    profilesTable
       .select('role, organization_id')
       .eq('id', user.id)
       .maybeSingle(),
-    adminClient
-      .from('organizations')
+    organizationsTable
       .select('id')
       .eq('slug', slug)
       .maybeSingle(),
-  ]);
+  ]) as [{ data: RequesterRow | null }, { data: OrganizationRow | null }];
 
   if (!org?.id) {
     return NextResponse.json({ error: 'Organização não encontrada.' }, { status: 404 });
@@ -73,11 +91,10 @@ export async function POST(
     return NextResponse.json({ error: 'Acesso negado à organização.' }, { status: 403 });
   }
 
-  const { data: associate } = await adminClient
-    .from('profiles')
+  const { data: associate } = await profilesTable
     .select('id, role, organization_id, full_name, email')
     .eq('id', associateId)
-    .maybeSingle();
+    .maybeSingle() as { data: AssociateRow | null };
 
   if (!associate) {
     return NextResponse.json({ error: 'Associado não encontrado.' }, { status: 404 });
@@ -97,8 +114,7 @@ export async function POST(
     return NextResponse.json({ error: 'Não foi possível atualizar a senha.' }, { status: 500 });
   }
 
-  const { error: updateProfileError } = await adminClient
-    .from('profiles')
+  const { error: updateProfileError } = await profilesTable
     .update({ must_change_password: true, updated_at: new Date().toISOString() })
     .eq('id', associateId);
   if (updateProfileError) {

@@ -25,18 +25,19 @@ async function authorize(slug: string) {
     return { ok: false as const, response: NextResponse.json({ error: details }, { status: 500 }) };
   }
 
+  const profilesTable = adminClient.from('profiles') as any;
+  const organizationsTable = adminClient.from('organizations') as any;
+
   const [{ data: requester }, { data: org }] = await Promise.all([
-    adminClient
-      .from('profiles')
+    profilesTable
       .select('role, organization_id')
       .eq('id', user.id)
-      .maybeSingle<RequesterRow>(),
-    adminClient
-      .from('organizations')
+      .maybeSingle(),
+    organizationsTable
       .select('id, slug')
       .eq('slug', slug)
-      .maybeSingle<{ id: string; slug: string }>(),
-  ]);
+      .maybeSingle(),
+  ]) as [{ data: RequesterRow | null }, { data: { id: string; slug: string } | null }];
 
   if (!org?.id) {
     return { ok: false as const, response: NextResponse.json({ error: 'Organização não encontrada.' }, { status: 404 }) };
@@ -63,11 +64,11 @@ export async function PATCH(
   const auth = await authorize(slug);
   if (!auth.ok) return auth.response;
 
-  const { data: associate } = await auth.adminClient
-    .from('profiles')
+  const profilesTable = auth.adminClient.from('profiles') as any;
+  const { data: associate } = await profilesTable
     .select('id, role, organization_id')
     .eq('id', associateId)
-    .maybeSingle<{ id: string; role: string | null; organization_id: string | null }>();
+    .maybeSingle() as { data: { id: string; role: string | null; organization_id: string | null } | null };
 
   if (!associate || ![ASSOCIATE_DB_ROLE, LEGACY_ASSOCIATE_ROLE].includes(associate.role || '') || associate.organization_id !== auth.orgId) {
     return NextResponse.json({ error: 'Associado não encontrado nesta organização.' }, { status: 404 });
@@ -78,8 +79,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Campo "active" inválido.' }, { status: 400 });
   }
 
-  const { error } = await auth.adminClient
-    .from('profiles')
+  const { error } = await profilesTable
     .update({
       organization_id: body.active ? auth.orgId : null,
       role: associate.role || ASSOCIATE_DB_ROLE,
@@ -102,18 +102,17 @@ export async function DELETE(
   const auth = await authorize(slug);
   if (!auth.ok) return auth.response;
 
-  const { data: associate } = await auth.adminClient
-    .from('profiles')
+  const profilesTable = auth.adminClient.from('profiles') as any;
+  const { data: associate } = await profilesTable
     .select('id, role, organization_id')
     .eq('id', associateId)
-    .maybeSingle<{ id: string; role: string | null; organization_id: string | null }>();
+    .maybeSingle() as { data: { id: string; role: string | null; organization_id: string | null } | null };
 
   if (!associate || ![ASSOCIATE_DB_ROLE, LEGACY_ASSOCIATE_ROLE].includes(associate.role || '') || associate.organization_id !== auth.orgId) {
     return NextResponse.json({ error: 'Associado não encontrado nesta organização.' }, { status: 404 });
   }
 
-  const { error } = await auth.adminClient
-    .from('profiles')
+  const { error } = await profilesTable
     .update({
       organization_id: null,
       role: associate.role || ASSOCIATE_DB_ROLE,

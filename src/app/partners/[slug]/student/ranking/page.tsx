@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   Trophy,
@@ -934,7 +934,7 @@ export default function RankingPage() {
                 </p>
               </div>
               <div className="space-y-2">
-                {monthlyHistory.map((item) => (
+                {monthlyHistory.map((item: { month_reference: string; points: number; podium_position?: number | null }) => (
                   <HistoryRow
                     key={item.month_reference}
                     item={item}

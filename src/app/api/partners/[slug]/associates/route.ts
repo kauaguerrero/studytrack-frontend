@@ -10,6 +10,14 @@ type RequesterRow = {
   organization_id: string | null;
 };
 
+type AssociateListRow = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  avatar_url: string | null;
+  organization_id: string | null;
+};
+
 async function authorize(slug: string) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -25,18 +33,19 @@ async function authorize(slug: string) {
     return { ok: false as const, response: NextResponse.json({ error: details }, { status: 500 }) };
   }
 
+  const profilesTable = adminClient.from('profiles') as any;
+  const organizationsTable = adminClient.from('organizations') as any;
+
   const [{ data: requester }, { data: org }] = await Promise.all([
-    adminClient
-      .from('profiles')
+    profilesTable
       .select('role, organization_id')
       .eq('id', user.id)
-      .maybeSingle<RequesterRow>(),
-    adminClient
-      .from('organizations')
+      .maybeSingle(),
+    organizationsTable
       .select('id, slug')
       .eq('slug', slug)
-      .maybeSingle<{ id: string; slug: string }>(),
-  ]);
+      .maybeSingle(),
+  ]) as [{ data: RequesterRow | null }, { data: { id: string; slug: string } | null }];
 
   if (!org?.id) {
     return { ok: false as const, response: NextResponse.json({ error: 'Organização não encontrada.' }, { status: 404 }) };
@@ -82,8 +91,8 @@ export async function GET(
   const auth = await authorize(slug);
   if (!auth.ok) return auth.response;
 
-  const { data, error } = await auth.adminClient
-    .from('profiles')
+  const profilesTable = auth.adminClient.from('profiles') as any;
+  const { data, error } = await profilesTable
     .select('id, full_name, email, avatar_url, organization_id')
     .eq('organization_id', auth.orgId)
     .in('role', [ASSOCIATE_DB_ROLE, LEGACY_ASSOCIATE_ROLE])
@@ -93,7 +102,7 @@ export async function GET(
     return NextResponse.json({ error: 'Não foi possível listar associados.' }, { status: 500 });
   }
 
-  const associates = (data || []).map((item) => ({
+  const associates = ((data || []) as AssociateListRow[]).map((item) => ({
     id: item.id,
     full_name: item.full_name,
     email: item.email,
@@ -157,8 +166,8 @@ export async function POST(
   };
 
   // 1) Tenta atualizar perfil existente (caso trigger já tenha criado).
-  const { error: updateProfileError } = await auth.adminClient
-    .from('profiles')
+  const profilesTable = auth.adminClient.from('profiles') as any;
+  const { error: updateProfileError } = await profilesTable
     .update(baseProfilePayload)
     .eq('id', associateId);
 
@@ -178,11 +187,10 @@ export async function POST(
   }
 
   // 2) Se não existir perfil, cria explicitamente.
-  const { data: profileExists, error: checkProfileError } = await auth.adminClient
-    .from('profiles')
+  const { data: profileExists, error: checkProfileError } = await profilesTable
     .select('id')
     .eq('id', associateId)
-    .maybeSingle<{ id: string }>();
+    .maybeSingle() as { data: { id: string } | null; error: { message?: string } | null };
 
   if (checkProfileError) {
     await auth.adminClient.auth.admin.deleteUser(associateId);
@@ -193,8 +201,7 @@ export async function POST(
   }
 
   if (!profileExists?.id) {
-    const { error: insertProfileError } = await auth.adminClient
-      .from('profiles')
+    const { error: insertProfileError } = await profilesTable
       .insert({
         id: associateId,
         ...baseProfilePayload,
