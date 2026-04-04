@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap } from 'lucide-react';
+import { Typewriter } from '@/components/ui/typewriter';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { OnboardingDiagnosticModal } from '@/components/partners/gamification/OnboardingDiagnosticModal';
 import { RankingPopup } from '@/components/partners/gamification/RankingPopup';
@@ -269,6 +270,19 @@ export function DashboardClient({
                     <FileText className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
                     {simuladosCount} {simuladosCount === 1 ? 'simulado' : 'simulados'}
                   </span>
+                </div>
+              </div>
+              <div className="absolute bottom-4 right-4 z-20 hidden md:block">
+                <div className="inline-flex items-center rounded-full border border-slate-300 dark:border-white/12 bg-white dark:bg-white/5 px-4 py-2 text-sm sm:text-base text-slate-700 dark:text-white/85">
+                  <span className="mr-2">📚 Nós nascemos para</span>
+                  <Typewriter
+                    text={['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                    speed={80}
+                    deleteSpeed={42}
+                    waitTime={2200}
+                    className="font-extrabold text-[var(--brand-primary)]"
+                    cursorClassName="ml-1 text-[var(--brand-primary)]"
+                  />
                 </div>
               </div>
             </div>

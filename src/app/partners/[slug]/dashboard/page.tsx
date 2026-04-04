@@ -8,6 +8,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Typewriter } from '@/components/ui/typewriter';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
@@ -535,9 +536,17 @@ export default function FounderDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Badge className="text-xs border-slate-300 dark:border-white/20 bg-white dark:bg-white/10 text-slate-700 dark:text-white backdrop-blur">
-                {org.plan_tier === 'b2b_pro' ? '⚡ Plano Pro' : 'Plano Básico'}
-              </Badge>
+              <div className="rounded-full border border-slate-300/80 dark:border-white/15 bg-white/90 dark:bg-slate-900/70 px-4 py-2.5 text-base font-semibold text-slate-700 dark:text-white/85">
+                <span className="mr-2">📚 Nós nascemos para</span>
+                <Typewriter
+                  text={['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                  speed={80}
+                  deleteSpeed={42}
+                  waitTime={2200}
+                  className="font-black text-[var(--brand-primary)]"
+                  cursorClassName="ml-1 text-[var(--brand-primary)]"
+                />
+              </div>
             </div>
           </div>
         </div>
