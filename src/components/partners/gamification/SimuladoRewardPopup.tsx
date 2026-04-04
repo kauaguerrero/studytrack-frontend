@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { usePopupTheme } from './popupTheme';
 
 interface Props {
   pointsAwarded: number;
   newMonthlyPoints: number;
   rankPosition: number | null;
   pointsToTop3: number | null;
-  onContinue: () => void;
+  onDismiss: () => void;
+  onViewRanking: () => void;
 }
 
 const MONTHLY_GOAL = 1500;
@@ -43,18 +45,17 @@ export function SimuladoRewardPopup({
   newMonthlyPoints,
   rankPosition,
   pointsToTop3,
-  onContinue,
+  onDismiss,
+  onViewRanking,
 }: Props) {
   const shouldReduce = useReducedMotion();
   const [displayPoints, setDisplayPoints] = useState(0);
+  const theme = usePopupTheme('celebration');
 
   // ── Counter animation: 0 → pointsAwarded over 1.5 s (ease-out cubic) ───────
 
   useEffect(() => {
-    if (shouldReduce) {
-      setDisplayPoints(pointsAwarded);
-      return;
-    }
+    if (shouldReduce) return;
     const DURATION = 1500;
     const startedAt = performance.now();
     let raf: number;
@@ -70,11 +71,18 @@ export function SimuladoRewardPopup({
   }, [pointsAwarded, shouldReduce]);
 
   const monthlyBarPct = Math.min((newMonthlyPoints / MONTHLY_GOAL) * 100, 100);
+  const renderedPoints = shouldReduce ? pointsAwarded : displayPoints;
 
   return (
     <div
       className="fixed inset-0 z-[9500] flex items-center justify-center px-4"
-      style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
+      style={{
+        ...theme.overlayStyle,
+        paddingTop: 'max(env(safe-area-inset-top), 1rem)',
+        paddingRight: 'max(env(safe-area-inset-right), 1rem)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)',
+        paddingLeft: 'max(env(safe-area-inset-left), 1rem)',
+      }}
       aria-live="polite"
       aria-label="Recompensa por concluir o simulado"
     >
@@ -106,10 +114,7 @@ export function SimuladoRewardPopup({
       {/* Card */}
       <motion.div
         className="relative w-full max-w-sm overflow-hidden rounded-3xl shadow-2xl"
-        style={{
-          background:
-            'linear-gradient(145deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 55%, #000 45%))',
-        }}
+        style={{ ...theme.cardStyle, maxHeight: 'min(92dvh, 760px)' }}
         initial={shouldReduce ? {} : { scale: 0.8, opacity: 0 }}
         animate={shouldReduce ? {} : { scale: 1, opacity: 1 }}
         transition={
@@ -118,18 +123,27 @@ export function SimuladoRewardPopup({
       >
         {/* Botão X */}
         <button
-          onClick={onContinue}
-          className="absolute right-3 top-3 z-10 rounded-full p-1.5 text-white/40 transition-colors hover:text-white hover:bg-white/10"
+          onClick={onDismiss}
+          className={`absolute right-3 top-3 z-10 rounded-full p-1.5 transition-colors ${theme.closeButtonClass}`}
           aria-label="Fechar"
         >
           ✕
         </button>
 
-        <div className="px-6 pt-8 pb-6 space-y-5">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-28"
+          style={{
+            background: theme.isDark
+              ? 'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 28%, transparent), transparent)'
+              : 'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 18%, white), transparent)',
+          }}
+        />
+
+        <div className="overflow-y-auto px-5 pt-7 pb-5 space-y-5 sm:px-6 sm:pt-8 sm:pb-6">
           {/* ── Seção 1: Header ───────────────────────────────────────────── */}
           <div className="text-center">
             <motion.div
-              className="text-6xl mb-3 select-none"
+              className="mb-3 select-none text-5xl sm:text-6xl"
               role="img"
               aria-label="Alvo"
               animate={shouldReduce ? {} : { scale: [1, 1.18, 1] }}
@@ -141,10 +155,10 @@ export function SimuladoRewardPopup({
             >
               🎯
             </motion.div>
-            <p className="text-xl font-extrabold uppercase tracking-widest text-white leading-tight">
+            <p className={`text-xl font-extrabold uppercase tracking-widest leading-tight ${theme.titleClass}`}>
               SIMULADO CONCLUÍDO!
             </p>
-            <p className="mt-1 text-sm text-white/65">
+            <p className={`mt-1 text-sm ${theme.bodyClass}`}>
               Você ganhou pontos no ranking!
             </p>
           </div>
@@ -152,17 +166,17 @@ export function SimuladoRewardPopup({
           {/* ── Seção 2: Contador de pontos ───────────────────────────────── */}
           <div className="text-center">
             <p
-              className="text-6xl font-black tabular-nums leading-none"
+              className="text-5xl font-black tabular-nums leading-none sm:text-6xl"
               style={{ color: '#F59E0B' }}
             >
-              +{displayPoints}
+              +{renderedPoints}
               <span className="text-3xl font-extrabold ml-1 align-baseline">
                 pts
               </span>
             </p>
-            <p className="mt-2 text-sm text-white/60">
+            <p className={`mt-2 text-sm ${theme.bodyClass}`}>
               Total este mês:{' '}
-              <span className="font-bold text-white">
+              <span className={`font-bold ${theme.titleClass}`}>
                 {newMonthlyPoints.toLocaleString('pt-BR')} pts
               </span>
             </p>
@@ -172,14 +186,14 @@ export function SimuladoRewardPopup({
           {rankPosition !== null && (
             <div
               className="rounded-2xl p-4 space-y-1.5"
-              style={{ background: 'rgba(255,255,255,0.12)' }}
+              style={theme.accentPanelStyle}
             >
-              <p className="text-sm font-semibold text-white">
+              <p className={`text-sm font-semibold ${theme.titleClass}`}>
                 📊 Você está em{' '}
                 <span className="font-black">#{rankPosition}</span> no ranking
               </p>
               {pointsToTop3 !== null && (
-                <p className="text-xs text-white/70">
+                <p className={`text-xs ${theme.bodyClass}`}>
                   {pointsToTop3 > 0
                     ? `Faltam ${pointsToTop3.toLocaleString('pt-BR')} pts para o top 3 🏆`
                     : '🏆 Você está no top 3! Defenda sua posição!'}
@@ -191,14 +205,14 @@ export function SimuladoRewardPopup({
           {/* ── Seção 4: Barra de progresso mensal ───────────────────────── */}
           <div>
             <div className="flex justify-between items-baseline mb-2">
-              <p className="text-xs text-white/60">Progresso para a zona do prêmio</p>
-              <p className="text-xs font-semibold text-white">
+              <p className={`text-xs ${theme.mutedClass}`}>Progresso para a zona do prêmio</p>
+              <p className={`text-xs font-semibold ${theme.titleClass}`}>
                 {newMonthlyPoints.toLocaleString('pt-BR')} / 1.500 pts
               </p>
             </div>
             <div
               className="h-2.5 rounded-full overflow-hidden"
-              style={{ background: 'rgba(255,255,255,0.2)' }}
+              style={theme.panelStyle}
             >
               <motion.div
                 className="h-full rounded-full"
@@ -214,9 +228,9 @@ export function SimuladoRewardPopup({
 
           {/* ── Seção 5: Botão ────────────────────────────────────────────── */}
           <button
-            onClick={onContinue}
-            className="w-full rounded-2xl bg-white py-3.5 text-sm font-bold transition-opacity hover:opacity-90 active:scale-[0.98]"
-            style={{ color: 'var(--brand-primary)' }}
+            onClick={onViewRanking}
+            className={`w-full rounded-2xl py-3.5 text-sm font-bold transition-opacity hover:opacity-90 active:scale-[0.98] ${theme.primaryButtonClass}`}
+            style={theme.primaryButtonStyle}
           >
             Ver meu ranking →
           </button>

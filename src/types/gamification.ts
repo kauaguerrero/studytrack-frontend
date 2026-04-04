@@ -12,6 +12,17 @@ export type LeaderboardScope = 'weekly' | 'all_time';
 
 export type GamificationTitle = 'Iniciante' | 'Veterano' | 'Expert';
 
+export interface PodiumAchievement {
+  position: number;
+  month_reference: string;
+}
+
+export interface MonthlyHistoryEntry {
+  month_reference: string;
+  points: number;
+  podium_position?: number | null;
+}
+
 export interface PartnerRankingEntry {
   rank: number;
   user_id: string;
@@ -19,6 +30,7 @@ export interface PartnerRankingEntry {
   monthly_points: number;
   gamification_title: GamificationTitle;
   avatar_url?: string | null;
+  podium_history?: PodiumAchievement[];
 }
 
 export interface UserRankingContext {
@@ -32,6 +44,7 @@ export interface PartnerRankingResponse {
   ranking: PartnerRankingEntry[];
   user_context: UserRankingContext | null;
   prize_cutoff: number;
+  monthly_history: MonthlyHistoryEntry[];
 }
 
 export type PopupType = 'onboarding' | 'streak' | 'streak_broken' | 'urgency' | 'motivation' | 'month_end' | 'top3_entered' | 'none';
@@ -41,10 +54,16 @@ export interface PopupState {
   streak?: number;
   streak_lost?: number;
   position?: number;
+  month_reference?: string;
   rival_name?: string;
   points_diff?: number;
   points_lost?: number;
   points_to_top3?: number;
+  winners?: Array<{
+    position: 1 | 2 | 3;
+    full_name: string;
+    monthly_points: number;
+  }>;
   /** For month_end: user's final rank for that month */
   winner_rank?: number;
   /** For month_end: total participants */

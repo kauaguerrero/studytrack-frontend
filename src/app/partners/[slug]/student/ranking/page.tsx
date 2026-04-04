@@ -19,7 +19,10 @@ import {
 } from 'lucide-react';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { PartnerRankingEntry } from '@/types/gamification';
+import type {
+  MonthlyHistoryEntry,
+  PartnerRankingEntry,
+} from '@/types/gamification';
 
 // ─── Animation config ────────────────────────────────────────────────────────
 
@@ -116,6 +119,41 @@ function getInitials(name: string): string {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
   return name.charAt(0).toUpperCase();
+}
+
+function formatMonthLabel(monthRef: string): string {
+  const date = new Date(`${monthRef}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return monthRef;
+  return new Intl.DateTimeFormat('pt-BR', {
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+function getPodiumLabel(position: number): string {
+  return `Top ${position}`;
+}
+
+function getPodiumBadgeStyle(position: number): { background: string; color: string; border: string } {
+  if (position === 1) {
+    return {
+      background: 'rgba(245, 158, 11, 0.14)',
+      color: '#B45309',
+      border: '1px solid rgba(245, 158, 11, 0.28)',
+    };
+  }
+  if (position === 2) {
+    return {
+      background: 'rgba(148, 163, 184, 0.14)',
+      color: '#475569',
+      border: '1px solid rgba(148, 163, 184, 0.24)',
+    };
+  }
+  return {
+    background: 'rgba(180, 83, 9, 0.14)',
+    color: '#9A3412',
+    border: '1px solid rgba(180, 83, 9, 0.24)',
+  };
 }
 
 // ─── Animated background particles ───────────────────────────────────────────
@@ -305,6 +343,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
   const theme = isTop3 ? RANK_THEMES[entry.rank as 1 | 2 | 3] : null;
   const titleCfg = TITLE_CONFIG[entry.gamification_title] ?? TITLE_CONFIG.Iniciante;
   const TitleIcon = titleCfg.icon;
+  const recentAchievements = (entry.podium_history ?? []).slice(0, 2);
 
   // Find the max points to compute relative bar width (first entry = 100%)
   const selfHighlight = isSelf
@@ -417,6 +456,19 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
             {entry.gamification_title}
           </p>
         </div>
+        {recentAchievements.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {recentAchievements.map((achievement) => (
+              <span
+                key={`${achievement.month_reference}-${achievement.position}`}
+                className="rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+                style={getPodiumBadgeStyle(achievement.position)}
+              >
+                {getPodiumLabel(achievement.position)} • {formatMonthLabel(achievement.month_reference)}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Points + prize */}
@@ -527,13 +579,53 @@ function StatPill({
   );
 }
 
+function HistoryRow({ item }: { item: MonthlyHistoryEntry }) {
+  const badgeStyle = item.podium_position
+    ? getPodiumBadgeStyle(item.podium_position)
+    : null;
+
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/5 dark:bg-white/[0.03]">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-slate-800 dark:text-white/90">
+          {formatMonthLabel(item.month_reference)}
+        </p>
+        <div className="mt-1 flex items-center gap-2">
+          {item.podium_position ? (
+            <span
+              className="rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+              style={badgeStyle ?? undefined}
+            >
+              {getPodiumLabel(item.podium_position)}
+            </span>
+          ) : (
+            <span className="text-[10px] font-medium text-slate-400 dark:text-white/25">
+              sem pódio
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="text-right">
+        <p className="text-lg font-black text-slate-900 dark:text-white">
+          {formatPoints(item.points)}
+        </p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-white/25">
+          pontos
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function RankingPage() {
   const shouldReduce = useReducedMotion();
   const TOP_LIMIT = 10;
 
-  const { summary, ranking, isLoading, refreshRanking } = usePartnerGamification();
+  const { summary, ranking, isLoading, refreshRanking } = usePartnerGamification({
+    fetchPopupStateOnMount: false,
+  });
 
   useEffect(() => {
     if (!isLoading) {
@@ -546,6 +638,10 @@ export default function RankingPage() {
   const myPosition = summary?.rank_position ?? null;
   const myPoints = summary?.monthly_points ?? 0;
   const prizeCutoff = ranking?.prize_cutoff ?? summary?.prize_cutoff ?? 3;
+  const monthlyHistory = useMemo(
+    () => ranking?.monthly_history ?? [],
+    [ranking?.monthly_history],
+  );
 
   const fullList = ranking?.ranking ?? [];
   const selfEntry = ranking?.user_context?.self ?? null;
@@ -821,6 +917,30 @@ export default function RankingPage() {
                   ))}
                 </div>
               )}
+            </GlassCard>
+          </motion.div>
+        )}
+
+        {!isLoading && monthlyHistory.length > 0 && (
+          <motion.div variants={shouldReduce ? undefined : ITEM}>
+            <GlassCard className="p-4">
+              <div className="mb-4 flex items-center gap-2">
+                <TrendingUp
+                  className="h-3.5 w-3.5"
+                  style={{ color: 'var(--brand-primary)' }}
+                />
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">
+                  Seu histórico mensal
+                </p>
+              </div>
+              <div className="space-y-2">
+                {monthlyHistory.map((item) => (
+                  <HistoryRow
+                    key={item.month_reference}
+                    item={item}
+                  />
+                ))}
+              </div>
             </GlassCard>
           </motion.div>
         )}

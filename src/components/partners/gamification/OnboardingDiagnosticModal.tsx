@@ -255,12 +255,20 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
 
   return (
     // Intentionally no pointer events on the backdrop — modal is blocking
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 overflow-y-auto py-6">
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 overflow-y-auto py-6"
+      style={{
+        paddingTop: 'max(env(safe-area-inset-top), 1rem)',
+        paddingRight: 'max(env(safe-area-inset-right), 1rem)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)',
+        paddingLeft: 'max(env(safe-area-inset-left), 1rem)',
+      }}
+    >
       <AnimatePresence mode="wait">
 
         {/* ── Phase 1: Welcome ────────────────────────────────────────────── */}
         {phase === 'welcome' && (
-          <motion.div key="welcome" className="flex flex-col items-center px-6 max-w-sm w-full text-center" {...fadeIn}>
+          <motion.div key="welcome" className="flex w-full max-w-sm flex-col items-center px-4 text-center sm:px-6" {...fadeIn}>
             <p className="mb-8 text-[11px] font-bold uppercase tracking-[0.25em] text-white/30">
               {organizationName}
             </p>
@@ -303,7 +311,7 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
 
         {/* ── Phase 2: Quiz ───────────────────────────────────────────────── */}
         {phase === 'quiz' && (
-          <motion.div key="quiz" className="flex flex-col w-full max-w-lg px-4" {...fadeIn}>
+          <motion.div key="quiz" className="flex w-full max-w-lg flex-col px-2 sm:px-4" {...fadeIn}>
             {/* Progress */}
             <div className="mb-5 px-1">
               <div className="mb-1.5 flex items-center justify-between">
@@ -326,7 +334,7 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
               <AnimatePresence mode="wait">
                 <motion.div key={`q-${qIndex}`} {...slideIn}>
                   {/* Statement */}
-                  <div className="mb-4 max-h-40 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="mb-4 max-h-[min(26dvh,10rem)] overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-4">
                     <p className="text-sm leading-relaxed text-white/85">{currentQ.statement}</p>
                   </div>
 
@@ -379,7 +387,7 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
         {phase === 'celebration' && result && titleInfo && (
           <motion.div
             key="celebration"
-            className="relative flex flex-col items-center px-6 max-w-sm w-full text-center"
+            className="relative flex w-full max-w-sm flex-col items-center px-4 text-center sm:px-6"
             {...(shouldReduce
               ? {}
               : { initial: { opacity: 0, scale: 0.94 }, animate: { opacity: 1, scale: 1 }, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } })}

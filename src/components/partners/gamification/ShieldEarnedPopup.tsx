@@ -1,6 +1,7 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
+import { usePopupTheme } from './popupTheme';
 
 interface Props {
   onDismiss: () => void;
@@ -31,11 +32,18 @@ const confettiKeyframes = PARTICLES.map((p) => {
 
 export function ShieldEarnedPopup({ onDismiss }: Props) {
   const shouldReduce = useReducedMotion();
+  const theme = usePopupTheme('shield');
 
   return (
     <div
       className="fixed inset-0 z-[9500] flex items-center justify-center px-4"
-      style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
+      style={{
+        ...theme.overlayStyle,
+        paddingTop: 'max(env(safe-area-inset-top), 1rem)',
+        paddingRight: 'max(env(safe-area-inset-right), 1rem)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)',
+        paddingLeft: 'max(env(safe-area-inset-left), 1rem)',
+      }}
       aria-live="polite"
       aria-label="Escudo conquistado"
     >
@@ -64,26 +72,32 @@ export function ShieldEarnedPopup({ onDismiss }: Props) {
 
       <motion.div
         className="relative w-full max-w-sm overflow-hidden rounded-3xl shadow-2xl"
-        style={{
-          background:
-            'linear-gradient(145deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 55%, #000 45%))',
-        }}
+        style={{ ...theme.cardStyle, maxHeight: 'min(92dvh, 760px)' }}
         initial={shouldReduce ? {} : { scale: 0.8, opacity: 0 }}
         animate={shouldReduce ? {} : { scale: 1, opacity: 1 }}
         transition={shouldReduce ? {} : { type: 'spring', stiffness: 260, damping: 22 }}
       >
         <button
           onClick={onDismiss}
-          className="absolute right-3 top-3 z-10 rounded-full p-1.5 text-white/40 transition-colors hover:text-white hover:bg-white/10"
+          className={`absolute right-3 top-3 z-10 rounded-full p-1.5 transition-colors ${theme.closeButtonClass}`}
           aria-label="Fechar"
         >
           ✕
         </button>
 
-        <div className="px-6 pt-8 pb-6 space-y-5">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-28"
+          style={{
+            background: theme.isDark
+              ? 'linear-gradient(180deg, rgba(96,165,250,0.24), transparent)'
+              : 'linear-gradient(180deg, rgba(96,165,250,0.16), transparent)',
+          }}
+        />
+
+        <div className="overflow-y-auto px-5 pt-7 pb-5 space-y-5 sm:px-6 sm:pt-8 sm:pb-6">
           <div className="text-center">
             <motion.div
-              className="text-6xl mb-3 select-none"
+              className="mb-3 select-none text-5xl sm:text-6xl"
               role="img"
               aria-hidden
               animate={shouldReduce ? {} : { scale: [1, 1.18, 1] }}
@@ -91,18 +105,27 @@ export function ShieldEarnedPopup({ onDismiss }: Props) {
             >
               🛡️
             </motion.div>
-            <p className="text-xl font-extrabold tracking-widest text-white leading-tight">
+            <p className={`text-xl font-extrabold tracking-widest leading-tight ${theme.titleClass}`}>
               🛡️ Escudo conquistado!
             </p>
-            <p className="mt-1 text-sm text-white/65">
+            <p className={`mt-1 text-sm ${theme.bodyClass}`}>
               Sua sequência está protegida por 1 semana
+            </p>
+          </div>
+
+          <div className="rounded-2xl px-4 py-3 text-center" style={theme.accentPanelStyle}>
+            <p className={`text-xs font-bold uppercase tracking-[0.18em] ${theme.mutedClass}`}>
+              Defesa ativa
+            </p>
+            <p className={`mt-1 text-sm ${theme.bodyClass}`}>
+              Se você falhar um dia nesta semana, o escudo preserva sua streak.
             </p>
           </div>
 
           <button
             onClick={onDismiss}
-            className="w-full rounded-2xl bg-white py-3.5 text-sm font-bold transition-opacity hover:opacity-90 active:scale-[0.98]"
-            style={{ color: 'var(--brand-primary)' }}
+            className={`w-full rounded-2xl py-3.5 text-sm font-bold transition-opacity hover:opacity-90 active:scale-[0.98] ${theme.primaryButtonClass}`}
+            style={theme.primaryButtonStyle}
           >
             Continuar →
           </button>

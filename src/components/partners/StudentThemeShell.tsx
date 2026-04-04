@@ -8,6 +8,7 @@ import { PartnerLayout } from './PartnerLayout'
 import { ForcePasswordChangeModal } from './ForcePasswordChangeModal'
 import { ShieldEarnedPopup } from './gamification/ShieldEarnedPopup'
 import { QuestionSessionRewardPopup } from './gamification/QuestionSessionRewardPopup'
+import { PopupQueueProvider, usePopupQueue } from './gamification/PopupQueueContext'
 
 /**
  * Aplica a classe `dark` em um contêiner isolado para as rotas de aluno.
@@ -16,7 +17,7 @@ import { QuestionSessionRewardPopup } from './gamification/QuestionSessionReward
  * para TODOS os descendentes, incluindo componentes shadcn/ui, textos,
  * botões e ícones — sem afetar nenhuma outra rota da aplicação.
  */
-export function StudentThemeShell({
+function StudentThemeShellContent({
   children,
   mustChangePassword = false,
 }: {
@@ -28,18 +29,19 @@ export function StudentThemeShell({
   const { org: { slug } } = useOrg()
   const pathname = usePathname()
   const prevPathRef = useRef(pathname)
+  const { currentPopup, enqueuePopup, dismissCurrentPopup, holdQueueUntilRouteChange } = usePopupQueue()
 
   // Controlado localmente: some após troca bem-sucedida sem precisar de reload
   const [showPasswordModal, setShowPasswordModal] = useState(mustChangePassword)
-  // Fila de popups pós-sessão: escudo primeiro, pontos depois
-  const [showShieldEarned, setShowShieldEarned] = useState(false)
-  const [qsrPoints, setQsrPoints] = useState<number | null>(null)
-  const pendingPointsRef = useRef<number | null>(null)
 
   // Ao sair do banco de questões lê os dois sinais e enfileira os popups
   useEffect(() => {
     const prev = prevPathRef.current
     prevPathRef.current = pathname
+
+    window.dispatchEvent(new CustomEvent('student-route-changed', {
+      detail: { pathname, previousPathname: prev ?? null },
+    }))
 
     if (prev?.includes('banco-de-questoes') && !pathname?.includes('banco-de-questoes')) {
       const rawPts = sessionStorage.getItem('qsr_pending_points')
@@ -50,21 +52,24 @@ export function StudentThemeShell({
       if (shieldEarned) sessionStorage.removeItem('qsr_shield_earned')
 
       if (shieldEarned) {
-        // Escudo primeiro; pontos ficam pendentes para depois que o escudo fechar
-        pendingPointsRef.current = pts > 0 ? pts : null
-        setTimeout(() => setShowShieldEarned(true), 300)
-      } else if (pts > 0) {
-        setTimeout(() => setQsrPoints(pts), 300)
+        enqueuePopup({
+          kind: 'shield_earned',
+          routeScope: 'dashboard',
+          dedupeKey: 'shield-earned-current-session',
+        })
+      }
+
+      if (pts > 0) {
+        enqueuePopup({
+          kind: 'question_session_reward',
+          routeScope: 'dashboard',
+          points: pts,
+          slug,
+          dedupeKey: `question-session-reward:${pts}:${Date.now()}`,
+        })
       }
     }
-  }, [pathname])
-
-  const handleShieldDismiss = () => {
-    setShowShieldEarned(false)
-    const pending = pendingPointsRef.current
-    pendingPointsRef.current = null
-    if (pending !== null) setTimeout(() => setQsrPoints(pending), 400)
-  }
+  }, [enqueuePopup, pathname, slug])
 
   return (
     <div
@@ -80,17 +85,37 @@ export function StudentThemeShell({
         <ForcePasswordChangeModal onSuccess={() => setShowPasswordModal(false)} />
       )}
 
-      {showShieldEarned && (
-        <ShieldEarnedPopup onDismiss={handleShieldDismiss} />
+      {currentPopup?.kind === 'shield_earned' && (
+        <ShieldEarnedPopup onDismiss={dismissCurrentPopup} />
       )}
 
-      {qsrPoints !== null && (
+      {currentPopup?.kind === 'question_session_reward' && (
         <QuestionSessionRewardPopup
-          points={qsrPoints}
-          slug={slug}
-          onContinue={() => setQsrPoints(null)}
+          points={currentPopup.points}
+          slug={currentPopup.slug}
+          onDismiss={dismissCurrentPopup}
+          onViewRanking={() => {
+            holdQueueUntilRouteChange()
+            dismissCurrentPopup()
+          }}
         />
       )}
     </div>
+  )
+}
+
+export function StudentThemeShell({
+  children,
+  mustChangePassword = false,
+}: {
+  children: ReactNode
+  mustChangePassword?: boolean
+}) {
+  return (
+    <PopupQueueProvider>
+      <StudentThemeShellContent mustChangePassword={mustChangePassword}>
+        {children}
+      </StudentThemeShellContent>
+    </PopupQueueProvider>
   )
 }

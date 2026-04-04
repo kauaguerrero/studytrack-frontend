@@ -31,7 +31,14 @@ function buildHeaders(token: string): HeadersInit {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function usePartnerGamification() {
+interface UsePartnerGamificationOptions {
+  fetchPopupStateOnMount?: boolean;
+}
+
+export function usePartnerGamification(
+  options: UsePartnerGamificationOptions = {},
+) {
+  const { fetchPopupStateOnMount = true } = options;
   const [summary, setSummary] = useState<MonthlySummary | null>(null);
   const [popupState, setPopupState] = useState<PopupState | null>(null);
   const [ranking, setRanking] = useState<PartnerRankingResponse | null>(null);
@@ -107,10 +114,13 @@ export function usePartnerGamification() {
 
         tokenRef.current = token;
 
-        await Promise.all([
-          fetchSummary(token),
-          fetchPopupState(token),
-        ]);
+        const tasks: Promise<unknown>[] = [fetchSummary(token)];
+
+        if (fetchPopupStateOnMount) {
+          tasks.push(fetchPopupState(token));
+        }
+
+        await Promise.all(tasks);
       } catch (e) {
         if (!cancelled) {
           setError(
@@ -126,7 +136,7 @@ export function usePartnerGamification() {
 
     init();
     return () => { cancelled = true; };
-  }, [fetchSummary, fetchPopupState]);
+  }, [fetchPopupStateOnMount, fetchSummary, fetchPopupState]);
 
   // ── Refresh summary (após mutações que alteram pontos) ────────────────────
 
@@ -138,9 +148,9 @@ export function usePartnerGamification() {
 
   // ── Lazy: fetch ranking ────────────────────────────────────────────────────
 
-  const refreshRanking = useCallback(async (limit = 50) => {
+  const refreshRanking = useCallback(async (limit = 50): Promise<PartnerRankingResponse | null> => {
     const token = tokenRef.current;
-    if (!token) return;
+    if (!token) return null;
 
     try {
       const data = await apiFetcher<PartnerRankingResponse>(
@@ -148,10 +158,12 @@ export function usePartnerGamification() {
         { headers: buildHeaders(token) },
       );
       setRanking(data);
+      return data;
     } catch (e) {
       setError(
         e instanceof Error ? e.message : 'Erro ao carregar ranking.',
       );
+      return null;
     }
   }, []);
 
