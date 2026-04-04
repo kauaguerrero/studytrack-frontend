@@ -7,7 +7,6 @@ import { ArrowLeft, CalendarDays, MessageSquare, PenLine } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
 import { Progress } from '@/components/ui/progress';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 type EssayStatus = 'pending' | 'corrected' | 'seen';
@@ -31,6 +30,7 @@ interface CompetencyScore {
 interface EssayDetail {
   id: string;
   status: EssayStatus;
+  theme?: string | null;
   text: string;
   submitted_at: string;
   corrected_at: string | null;
@@ -69,12 +69,24 @@ function progressColor(score: number): string {
   return 'bg-red-500';
 }
 
+function pickEssayTheme(raw: Record<string, unknown>): string | null {
+  const candidateKeys = ['theme', 'essay_theme', 'tema', 'proposal', 'prompt', 'topic', 'title'];
+  for (const key of candidateKeys) {
+    const value = raw[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
 function renderAnnotatedText(
   text: string,
   annotations: EssayAnnotation[],
+  onCommentClick: (payload: { id: string; comment: string; excerpt: string }) => void,
 ): ReactNode {
   if (!annotations.length) {
-    return <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-100">{text}</p>;
+    return <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-100">{text}</p>;
   }
 
   const clean = annotations
@@ -83,7 +95,7 @@ function renderAnnotatedText(
     .sort((a, b) => a.start_offset - b.start_offset);
 
   if (!clean.length) {
-    return <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-100">{text}</p>;
+    return <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-100">{text}</p>;
   }
 
   const nodes: ReactNode[] = [];
@@ -104,22 +116,16 @@ function renderAnnotatedText(
 
     const coveredText = text.slice(start, end);
     if (annotation.type === 'comment') {
-      const tooltipText = annotation.comment_text || 'Comentário do professor';
+      const commentText = annotation.comment_text || 'Comentário do professor';
       nodes.push(
-        <Tooltip key={`comment-${annotation.id}`}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className="inline rounded-sm border-b border-dashed border-amber-400 bg-amber-400/10 px-0.5 text-left text-amber-100 underline decoration-amber-400/70 underline-offset-2"
-              title={tooltipText}
-            >
-              {coveredText}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs text-xs leading-relaxed">
-            {tooltipText}
-          </TooltipContent>
-        </Tooltip>,
+        <button
+          key={`comment-${annotation.id}`}
+          type="button"
+          onClick={() => onCommentClick({ id: annotation.id, comment: commentText, excerpt: coveredText })}
+          className="inline rounded-sm border-b border-dashed border-amber-400 bg-amber-400/10 px-0.5 text-left text-amber-700 underline decoration-amber-500/70 underline-offset-2 dark:text-amber-100 dark:decoration-amber-400/70"
+        >
+          {coveredText}
+        </button>,
       );
     } else {
       const original = annotation.original_text || coveredText;
@@ -127,10 +133,10 @@ function renderAnnotatedText(
       nodes.push(
         <span
           key={`correction-${annotation.id}`}
-          className="inline-flex flex-wrap items-center gap-1 rounded-md bg-slate-800/70 px-1 py-0.5 align-baseline"
+          className="inline-flex flex-wrap items-center gap-1 rounded-md bg-slate-200 px-1 py-0.5 align-baseline dark:bg-slate-800/70"
         >
-          <span className="text-red-400 line-through">{original}</span>
-          {corrected && <span className="text-emerald-400">{corrected}</span>}
+          <span className="text-red-600 dark:text-red-400 line-through">{original}</span>
+          {corrected && <span className="text-emerald-600 dark:text-emerald-400">{corrected}</span>}
         </span>,
       );
     }
@@ -142,7 +148,7 @@ function renderAnnotatedText(
     nodes.push(<Fragment key="plain-tail">{text.slice(cursor)}</Fragment>);
   }
 
-  return <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-100">{nodes}</p>;
+  return <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-100">{nodes}</p>;
 }
 
 export default function RedacaoDetailPage() {
@@ -153,6 +159,7 @@ export default function RedacaoDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedCompetencies, setExpandedCompetencies] = useState<Record<number, boolean>>({});
+  const [activeComment, setActiveComment] = useState<{ id: string; comment: string; excerpt: string } | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -180,9 +187,12 @@ export default function RedacaoDetailPage() {
           throw new Error(`Erro HTTP ${res.status}`);
         }
 
-        const data: EssayDetail = await res.json();
+        const data = await res.json() as EssayDetail & Record<string, unknown>;
         if (!mounted) return;
-        setEssay(data);
+        setEssay({
+          ...data,
+          theme: pickEssayTheme(data),
+        });
 
         // Requisito: ao abrir redação corrigida, marca como vista automaticamente.
         if (data.status === 'corrected') {
@@ -225,11 +235,11 @@ export default function RedacaoDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+      <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         <div className="mx-auto w-full max-w-5xl space-y-4 px-4 py-6 md:px-6 md:py-8">
-          <div className="h-10 animate-pulse rounded-xl bg-slate-800/80" />
-          <div className="h-52 animate-pulse rounded-2xl bg-slate-800/70" />
-          <div className="h-72 animate-pulse rounded-2xl bg-slate-800/70" />
+          <div className="h-10 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800/80" />
+          <div className="h-52 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800/70" />
+          <div className="h-72 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800/70" />
         </div>
       </div>
     );
@@ -237,9 +247,9 @@ export default function RedacaoDetailPage() {
 
   if (error || !essay) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+      <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         <div className="mx-auto w-full max-w-5xl px-4 py-8 md:px-6">
-          <div className="rounded-2xl border border-red-500/40 bg-red-950/30 p-6 text-sm text-red-200">
+          <div className="rounded-2xl border border-red-300 bg-red-50 p-6 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-950/30 dark:text-red-200">
             {error || 'Redação não encontrada.'}
           </div>
         </div>
@@ -251,25 +261,28 @@ export default function RedacaoDetailPage() {
   const showCorrectionPanels = essay.status === 'corrected' || essay.status === 'seen';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 md:px-6 md:py-8">
         <header className="space-y-3">
           <Link
             href={`/partners/${slug}/student/redacoes`}
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 transition hover:text-slate-200"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200"
           >
             <ArrowLeft className="h-4 w-4" />
             Voltar para redações
           </Link>
 
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900">
             <div>
               <h1 className="text-xl font-bold md:text-2xl">
                 Redação - {formatDateBR(essay.submitted_at)}
               </h1>
-              <p className="mt-1 inline-flex items-center gap-2 text-sm text-slate-400">
+              <p className="mt-1 inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                 <CalendarDays className="h-4 w-4" />
                 Enviada em {formatDateBR(essay.submitted_at)}
+              </p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                <span className="font-semibold">Tema:</span> {essay.theme || 'Não informado'}
               </p>
             </div>
 
@@ -277,16 +290,16 @@ export default function RedacaoDetailPage() {
               <span
                 className={cn(
                   'rounded-full px-3 py-1 text-xs font-semibold',
-                  essay.status === 'pending' && 'bg-amber-500/20 text-amber-300',
-                  essay.status === 'corrected' && 'bg-emerald-500/20 text-emerald-300',
-                  essay.status === 'seen' && 'bg-slate-500/20 text-slate-300',
+                  essay.status === 'pending' && 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+                  essay.status === 'corrected' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+                  essay.status === 'seen' && 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
                 )}
               >
                 {getStatusLabel(essay.status)}
               </span>
 
               {showCorrectionPanels && (
-                <p className="text-lg font-extrabold text-emerald-300">
+                <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-300">
                   {essay.total_score ?? scoreSum} / 1000
                 </p>
               )}
@@ -295,10 +308,10 @@ export default function RedacaoDetailPage() {
         </header>
 
         {showCorrectionPanels && orderedScores.length > 0 && (
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 md:p-5">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5 dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-slate-100">Notas por competência</h2>
-              <p className="text-xs text-slate-400">Soma: {scoreSum} / 1000</p>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Notas por competência</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Soma: {scoreSum} / 1000</p>
             </div>
 
             <div className="space-y-4">
@@ -309,22 +322,22 @@ export default function RedacaoDetailPage() {
                 const visibleComment = isLong && !expanded ? `${fullComment.slice(0, 80)}...` : fullComment;
 
                 return (
-                  <div key={item.competency} className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                  <div key={item.competency} className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-sm font-semibold text-slate-100">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                         Competência {item.competency} — {COMPETENCY_LABELS[item.competency - 1]}
                       </p>
-                      <p className="text-sm font-bold text-slate-200">{item.score} / 200</p>
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{item.score} / 200</p>
                     </div>
 
                     <Progress
                       value={(item.score / 200) * 100}
-                      className="h-2.5 bg-slate-800"
+                      className="h-2.5 bg-slate-200 dark:bg-slate-800"
                       indicatorClassName={progressColor(item.score)}
                     />
 
                     {fullComment && (
-                      <div className="rounded-lg bg-slate-900/70 px-3 py-2 text-sm text-slate-300">
+                      <div className="rounded-lg bg-white px-3 py-2 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-300">
                         {visibleComment}
                         {isLong && (
                           <button
@@ -335,7 +348,7 @@ export default function RedacaoDetailPage() {
                                 [item.competency]: !prev[item.competency],
                               }));
                             }}
-                            className="ml-1 font-semibold text-emerald-300 hover:text-emerald-200"
+                            className="ml-1 font-semibold text-emerald-600 hover:text-emerald-500 dark:text-emerald-300 dark:hover:text-emerald-200"
                           >
                             {expanded ? 'ver menos' : 'ver mais'}
                           </button>
@@ -349,40 +362,56 @@ export default function RedacaoDetailPage() {
           </section>
         )}
 
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 md:p-5">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
             <PenLine className="h-4 w-4" />
-            Texto da redação
+            <span className="text-slate-700 dark:text-slate-200">Texto da redação</span>
           </div>
 
           {isPending ? (
             <div className="space-y-3">
-              <span className="inline-flex rounded-full bg-amber-500/20 px-3 py-1 text-xs font-semibold text-amber-300">
+              <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
                 Aguardando correção pelo professor
               </span>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-100">{essay.text}</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-100">{essay.text}</p>
             </div>
           ) : (
-            <div>{renderAnnotatedText(essay.text, essay.annotations || [])}</div>
+            <div className="space-y-3">
+              <div>{renderAnnotatedText(essay.text, essay.annotations || [], setActiveComment)}</div>
+              {activeComment && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">Comentário do professor</p>
+                  <p className="mt-1 text-xs opacity-80">&quot;{activeComment.excerpt}&quot;</p>
+                  <p className="mt-2 leading-relaxed">{activeComment.comment}</p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveComment(null)}
+                    className="mt-2 inline-flex min-h-9 items-center rounded-md border border-amber-400/60 px-2 py-1 text-xs font-semibold hover:bg-amber-100 dark:hover:bg-amber-500/20"
+                  >
+                    Fechar comentário
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </section>
 
         {showCorrectionPanels && essay.general_comment && (
-          <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 md:p-5">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-200">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5 dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
               <MessageSquare className="h-4 w-4" />
               Comentário geral do professor
             </div>
 
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-700 text-xs font-bold text-slate-100">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-100">
                 {(essay.corrector_name || 'Professor').slice(0, 1).toUpperCase()}
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-100">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {essay.corrector_name || 'Professor'}
                 </p>
-                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-slate-600 dark:text-slate-300">
                   {essay.general_comment}
                 </p>
               </div>

@@ -15,6 +15,7 @@ interface Essay {
   corrected_at: string | null;
   total_score: number | null;
   text_preview: string;
+  theme: string | null;
 }
 
 type Filter = 'all' | 'pending' | 'corrected' | 'seen';
@@ -29,10 +30,22 @@ interface RawEssay {
   total_score: number | null;
   text?: string;
   text_preview?: string;
+  theme?: string | null;
+  essay_theme?: string | null;
+  tema?: string | null;
+  topic?: string | null;
+  title?: string | null;
 }
 
 interface EssaysApiResponse {
   items?: RawEssay[];
+  credits?: {
+    plan_name?: string | null;
+    limit?: number | null;
+    period?: 'week' | 'month' | null;
+    used?: number | null;
+    remaining?: number | null;
+  } | null;
 }
 
 function formatDateBR(value: string | null | undefined): string {
@@ -44,9 +57,15 @@ function formatDateBR(value: string | null | undefined): string {
 
 function getScoreColorClass(score: number | null): string {
   if (score === null) return 'text-slate-400';
-  if (score >= 700) return 'text-emerald-400';
-  if (score >= 500) return 'text-amber-400';
-  return 'text-red-400';
+  if (score >= 700) return 'text-emerald-600 dark:text-emerald-400';
+  if (score >= 500) return 'text-amber-600 dark:text-amber-400';
+  return 'text-red-600 dark:text-red-400';
+}
+
+function pickEssayTheme(row: RawEssay): string | null {
+  const candidates = [row.theme, row.essay_theme, row.tema, row.topic, row.title];
+  const found = candidates.find((value) => typeof value === 'string' && value.trim().length > 0);
+  return found ? found.trim() : null;
 }
 
 export default function StudentRedacoesPage() {
@@ -60,6 +79,7 @@ export default function StudentRedacoesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pulsingIds, setPulsingIds] = useState<string[]>([]);
+  const [credits, setCredits] = useState<EssaysApiResponse['credits']>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -94,6 +114,7 @@ export default function StudentRedacoesPage() {
 
         const payload: RawEssay[] | EssaysApiResponse = await res.json();
         const items = Array.isArray(payload) ? payload : (payload.items || []);
+        const creditsPayload = Array.isArray(payload) ? null : (payload.credits || null);
 
         const mapped: Essay[] = items.map((row) => {
           const rawText = String(row.text || row.text_preview || '');
@@ -105,12 +126,14 @@ export default function StudentRedacoesPage() {
             corrected_at: row.corrected_at ? String(row.corrected_at) : null,
             total_score: typeof row.total_score === 'number' ? row.total_score : null,
             text_preview: preview,
+            theme: pickEssayTheme(row),
           };
         });
 
         if (!mounted) return;
 
         setEssays(mapped);
+        setCredits(creditsPayload);
 
         const correctedIds = mapped.filter((e) => e.status === 'corrected').map((e) => e.id);
         setPulsingIds(correctedIds);
@@ -170,17 +193,17 @@ export default function StudentRedacoesPage() {
   }, [essays, filter, sortBy, sortOption]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 md:px-6 md:py-8">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Minhas Redações</h1>
-            <p className="mt-1 text-sm text-slate-400">Acompanhe envios, correções e notas em um só lugar.</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Acompanhe envios, correções e notas em um só lugar.</p>
           </div>
 
           <Link
             href={`/partners/${slug}/student/redacoes/nova`}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-transform hover:scale-[1.02]"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:brightness-105"
             style={{ backgroundColor: org.brand_primary || 'var(--brand-primary)' }}
           >
             <Plus className="h-4 w-4" />
@@ -188,13 +211,23 @@ export default function StudentRedacoesPage() {
           </Link>
         </header>
 
-        <section className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:grid-cols-2">
+        {credits && (
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+            <p>
+              Plano: <span className="font-semibold text-slate-900 dark:text-slate-100">{credits.plan_name || 'Customizado'}</span> •
+              Créditos: <span className="font-semibold text-slate-900 dark:text-slate-100"> {credits.remaining ?? '∞'} / {credits.limit ?? '∞'}</span>
+              {' '}{credits.period === 'week' ? 'na semana' : 'no mês'}
+            </p>
+          </section>
+        )}
+
+        <section className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2">
           <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">Filtro</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Filtro</span>
             <select
               value={filter}
               onChange={(e) => setFilter(e.target.value as Filter)}
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-[var(--brand-primary)]"
+              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="all">Todas</option>
               <option value="pending">Pendente</option>
@@ -204,11 +237,11 @@ export default function StudentRedacoesPage() {
           </label>
 
           <label className="space-y-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">Ordenação</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Ordenação</span>
             <select
               value={sortOption}
               onChange={(e) => setSortOption(e.target.value as SortOption)}
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none transition focus:border-[var(--brand-primary)]"
+              className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             >
               <option value="date">Mais recente</option>
               <option value="score_best">Melhor nota</option>
@@ -220,21 +253,21 @@ export default function StudentRedacoesPage() {
         {loading ? (
           <div className="grid gap-4">
             {[1, 2, 3].map((k) => (
-              <div key={k} className="h-40 animate-pulse rounded-2xl border border-slate-800 bg-slate-900/70" />
+              <div key={k} className="h-40 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" />
             ))}
           </div>
         ) : error ? (
-          <div className="rounded-2xl border border-red-500/40 bg-red-950/30 p-6 text-sm text-red-200">{error}</div>
+          <div className="rounded-2xl border border-red-300 bg-red-50 p-6 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-950/30 dark:text-red-200">{error}</div>
         ) : filteredAndSorted.length === 0 ? (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-8 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-800">
-              <FileText className="h-6 w-6 text-slate-300" />
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+              <FileText className="h-6 w-6 text-slate-600 dark:text-slate-300" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-100">Nenhuma redação encontrada</h2>
-            <p className="mt-2 text-sm text-slate-400">Envie sua primeira redação para começar a receber correções.</p>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Nenhuma redação encontrada</h2>
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Envie sua primeira redação para começar a receber correções.</p>
             <Link
               href={`/partners/${slug}/student/redacoes/nova`}
-              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-slate-200"
+              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <Plus className="h-4 w-4" />
               Enviar primeira redação
@@ -252,12 +285,12 @@ export default function StudentRedacoesPage() {
                 <article
                   key={essay.id}
                   className={cn(
-                    'rounded-2xl border bg-slate-900/70 p-5 shadow-sm transition',
+                    'rounded-2xl border bg-white p-5 shadow-sm transition dark:bg-slate-900',
                     isCorrected
                       ? pulsingIds.includes(essay.id)
-                        ? 'ring-2 ring-emerald-500 animate-pulse border-emerald-500/50'
-                        : 'ring-2 ring-emerald-500/40 border-emerald-500/40'
-                      : 'border-slate-800',
+                        ? 'animate-pulse border-emerald-500/60 ring-2 ring-emerald-500/45'
+                        : 'border-emerald-500/45 ring-2 ring-emerald-500/35'
+                      : 'border-slate-200 dark:border-slate-800',
                   )}
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -265,9 +298,9 @@ export default function StudentRedacoesPage() {
                       <span
                         className={cn(
                           'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold',
-                          essay.status === 'pending' && 'bg-amber-500/15 text-amber-300',
-                          essay.status === 'corrected' && 'bg-emerald-500/15 text-emerald-300',
-                          essay.status === 'seen' && 'bg-slate-500/20 text-slate-300',
+                          essay.status === 'pending' && 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+                          essay.status === 'corrected' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+                          essay.status === 'seen' && 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
                         )}
                       >
                         {essay.status === 'pending' && 'Aguardando correção'}
@@ -275,9 +308,12 @@ export default function StudentRedacoesPage() {
                         {essay.status === 'seen' && 'Vista'}
                       </span>
 
-                      <p className="flex items-center gap-2 text-sm text-slate-400">
+                      <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                         <CalendarDays className="h-4 w-4" />
                         Enviada em {formatDateBR(essay.submitted_at)}
+                      </p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300">
+                        <span className="font-semibold">Tema:</span> {essay.theme || 'Não informado'}
                       </p>
 
                       {showScore && (
@@ -285,16 +321,16 @@ export default function StudentRedacoesPage() {
                           <p className={cn('text-3xl font-extrabold tracking-tight', scoreClass)}>
                             {essay.total_score ?? '-'} / 1000
                           </p>
-                          <p className="text-sm text-slate-400">Corrigida em {formatDateBR(essay.corrected_at)}</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">Corrigida em {formatDateBR(essay.corrected_at)}</p>
                         </>
                       )}
                     </div>
 
                     <div className="flex flex-col items-start gap-3 sm:items-end">
-                      <p className="max-w-xl text-sm leading-relaxed text-slate-300">{essay.text_preview}</p>
+                      <p className="max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">{essay.text_preview}</p>
                       <Link
                         href={`/partners/${slug}/student/redacoes/${essay.id}`}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-[var(--brand-primary)] hover:text-white"
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-[var(--brand-primary)] hover:text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:text-white sm:w-auto"
                       >
                         <Eye className="h-4 w-4" />
                         {showScore ? 'Ver correção' : 'Ver redação'}

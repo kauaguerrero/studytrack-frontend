@@ -6,7 +6,6 @@ import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -15,7 +14,7 @@ import {
 import { cn } from '@/lib/utils';
 import {
   UserPlus, Search, ChevronLeft, ChevronRight, ExternalLink,
-  BookOpen, FileText, Target, CalendarDays, Users, TrendingUp,
+  BookOpen, FileText, CalendarDays, Users, TrendingUp,
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,6 +27,14 @@ interface Student {
   email: string;
   avatar_url: string | null;
   plan_tier: string;
+  plan_id?: string | null;
+  plan_name?: string | null;
+  plan_assignment_status?: 'active' | 'inactive' | null;
+  plan_last_payment_at?: string | null;
+  essay_credits_limit?: number | null;
+  essay_credits_period?: 'week' | 'month' | null;
+  essay_credits_used?: number | null;
+  essay_credits_remaining?: number | null;
   last_activity_date: string | null;
   joined_organization_at: string | null;
   questions_today: number;
@@ -39,15 +46,16 @@ interface Student {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PLAN_LABELS: Record<string, string> = {
-  b2b_student: 'Básico',
-  b2b_pro: 'Pro',
-};
-
 const PAGE_SIZE = 50;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type SortField = 'last_activity_date' | 'full_name' | 'joined_organization_at';
+
+interface PlanOption {
+  id: string;
+  name: string;
+  is_active: boolean;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -117,6 +125,7 @@ export default function AlunosPage() {
   const [sort, setSort] = useState<SortField>('last_activity_date');
   const [removing, setRemoving] = useState<string | null>(null);
   const [updatingPlan, setUpdatingPlan] = useState<string | null>(null);
+  const [customPlans, setCustomPlans] = useState<PlanOption[]>([]);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -142,7 +151,14 @@ export default function AlunosPage() {
       if (res.ok) {
         const data = await res.json();
         let list: Student[] = data.students ?? [];
-        if (plan !== 'all') list = list.filter((s) => s.plan_tier === plan);
+        if (plan !== 'all') {
+          if (plan === 'none') {
+            list = list.filter((s) => !s.plan_id);
+          } else if (plan.startsWith('custom:')) {
+            const customId = plan.replace('custom:', '');
+            list = list.filter((s) => s.plan_id === customId);
+          }
+        }
         setStudents(list);
         setTotal(data.total ?? list.length);
       }
@@ -153,11 +169,34 @@ export default function AlunosPage() {
     }
   }, [org.slug]);
 
+  const fetchPlans = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
+    try {
+      const res = await fetch(`${api}/api/partners/${org.slug}/plans?include_inactive=false`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setCustomPlans(Array.isArray(data?.items) ? data.items : []);
+    } catch {
+      // silêncio
+    }
+  }, [org.slug]);
+
   useEffect(() => {
     fetchStudents(page, search, planFilter, sort);
   }, [page, search, planFilter, sort, fetchStudents]);
 
-  async function handlePlanChange(studentId: string, newPlan: string) {
+  useEffect(() => {
+    fetchPlans();
+  }, [fetchPlans]);
+
+  async function handlePlanChange(student: Student, newPlanValue: string) {
+    const studentId = student.id;
     if (!UUID_RE.test(studentId)) return;
     setUpdatingPlan(studentId);
     const supabase = createClient();
@@ -166,16 +205,34 @@ export default function AlunosPage() {
 
     const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
     try {
+      const payload = newPlanValue.startsWith('custom:')
+        ? {
+            plan_id: newPlanValue.replace('custom:', ''),
+            plan_assignment_status: 'active',
+            plan_last_payment_at: student.plan_last_payment_at || new Date().toISOString().slice(0, 10),
+          }
+        : { plan_id: null };
       const res = await fetch(`${api}/api/partners/${org.slug}/students/${studentId}`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ plan_tier: newPlan }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
-        setStudents((prev) => prev.map((s) => s.id === studentId ? { ...s, plan_tier: newPlan } : s));
+        setStudents((prev) => prev.map((s) => {
+          if (s.id !== studentId) return s;
+          if (newPlanValue.startsWith('custom:')) {
+            const customId = newPlanValue.replace('custom:', '');
+            const selected = customPlans.find((plan) => plan.id === customId);
+            return { ...s, plan_id: customId, plan_name: selected?.name || 'Plano customizado', plan_assignment_status: 'active' };
+          }
+          if (newPlanValue === 'none') {
+            return { ...s, plan_id: null, plan_name: null };
+          }
+          return { ...s, plan_id: null, plan_name: null };
+        }));
         toast.success('Plano atualizado.');
       } else {
         toast.error('Erro ao atualizar plano.');
@@ -306,8 +363,10 @@ export default function AlunosPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos os planos</SelectItem>
-              <SelectItem value="b2b_student">Básico</SelectItem>
-              <SelectItem value="b2b_pro">Pro</SelectItem>
+              <SelectItem value="none">Sem plano vinculado</SelectItem>
+              {customPlans.map((plan) => (
+                <SelectItem key={plan.id} value={`custom:${plan.id}`}>{plan.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={activityFilter} onValueChange={(v) => { setActivityFilter(v); setPage(1); }}>
@@ -407,15 +466,20 @@ export default function AlunosPage() {
                       <span
                         className={cn(
                           'text-[10px] font-bold px-1.5 py-0.5 rounded-md border',
-                          s.plan_tier === 'b2b_pro'
+                          s.plan_id || s.plan_tier === 'b2b_pro'
                             ? 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-700'
                             : 'border-slate-200 bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
                         )}
                       >
-                        {PLAN_LABELS[s.plan_tier] ?? s.plan_tier}
+                        {s.plan_name || 'Sem plano vinculado'}
                       </span>
                     </div>
                     <p className="text-xs text-slate-400 truncate mt-0.5">{s.email}</p>
+                    {s.essay_credits_limit != null && (
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Créditos: {s.essay_credits_remaining ?? '∞'} / {s.essay_credits_limit} {s.essay_credits_period === 'week' ? 'semana' : 'mês'}
+                      </p>
+                    )}
                   </div>
 
                   {/* Métricas — ocultas em mobile */}
@@ -451,19 +515,26 @@ export default function AlunosPage() {
                   {/* Ações — sempre visíveis em touch, surgem no hover em desktop */}
                   <div className="flex items-center gap-1 shrink-0 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity">
                     {/* Mudar plano */}
+                    {(() => {
+                      const selectedPlanValue = s.plan_id ? `custom:${s.plan_id}` : 'none';
+                      return (
                     <Select
-                      value={s.plan_tier}
-                      onValueChange={(v) => handlePlanChange(s.id, v)}
+                      value={selectedPlanValue}
+                      onValueChange={(v) => handlePlanChange(s, v)}
                       disabled={updatingPlan === s.id}
                     >
-                      <SelectTrigger className="h-9 w-20 text-[11px] border-slate-200 dark:border-slate-700">
+                      <SelectTrigger className="h-9 w-36 text-[11px] border-slate-200 dark:border-slate-700">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="b2b_student">Básico</SelectItem>
-                        <SelectItem value="b2b_pro">Pro</SelectItem>
+                        <SelectItem value="none">Sem plano vinculado</SelectItem>
+                        {customPlans.map((plan) => (
+                          <SelectItem key={plan.id} value={`custom:${plan.id}`}>{plan.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
+                      );
+                    })()}
 
                     <Button variant="ghost" size="icon" className="h-9 w-9" asChild title="Ver perfil">
                       <Link href={`/partners/${org.slug}/alunos/${s.id}`}>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Save, Palette, Upload, Camera, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -79,7 +80,7 @@ function ColorPicker({
 }
 
 export default function ConfiguracoesPage() {
-  const { org } = useOrg();
+  const { org, userProfile } = useOrg();
 
   const [logoUrl, setLogoUrl] = useState(org.logo_url ?? '');
   const [logoUploading, setLogoUploading] = useState(false);
@@ -87,8 +88,53 @@ export default function ConfiguracoesPage() {
   const [secondary, setSecondary] = useState(org.brand_secondary);
   const [accent, setAccent] = useState(org.brand_accent);
   const [contactEmail, setContactEmail] = useState('');
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>(
+    userProfile.themePreference === 'dark' ? 'dark' : 'light',
+  );
+  const [themeSaving, setThemeSaving] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fromProfile = userProfile.themePreference === 'dark' ? 'dark' : 'light';
+    const stored = localStorage.getItem(`partner-founder-theme-${org.slug}`);
+    if (stored === 'dark' || stored === 'light') {
+      // Perfil do banco é fonte de verdade; localStorage apenas fallback visual.
+      setThemeMode(fromProfile);
+      return;
+    }
+    setThemeMode(fromProfile);
+  }, [org.slug, userProfile.themePreference]);
+
+  function applyFounderTheme(next: 'light' | 'dark') {
+    const root = document.documentElement;
+    if (next === 'dark') root.classList.add('dark');
+    else root.classList.remove('dark');
+    root.style.colorScheme = next;
+    root.dataset.partnerTheme = next;
+    localStorage.setItem(`partner-founder-theme-${org.slug}`, next);
+  }
+
+  async function persistThemePreference(next: 'light' | 'dark') {
+    setThemeSaving(true);
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) throw new Error('Sessão inválida.');
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ theme_preference: next })
+        .eq('id', session.user.id);
+
+      if (error) throw error;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Não foi possível salvar o tema.';
+      toast.error(message);
+    } finally {
+      setThemeSaving(false);
+    }
+  }
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -133,7 +179,11 @@ export default function ConfiguracoesPage() {
     setSaving(true);
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) {
+      setSaving(false);
+      toast.error('Sessão expirada. Faça login novamente.');
+      return;
+    }
 
     const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
     try {
@@ -156,10 +206,10 @@ export default function ConfiguracoesPage() {
       });
 
       if (res.ok) {
-        toast.success('Configurações salvas! Recarregue para ver as cores atualizadas.');
+        toast.success('Configurações salvas!');
       } else {
-        const data = await res.json();
-        toast.error(data.error ?? 'Erro ao salvar.');
+        const data = await res.json().catch(() => ({} as { error?: string }));
+        toast.error(data.error || 'Erro ao salvar.');
       }
     } catch {
       toast.error('Erro de conexão.');
@@ -193,6 +243,34 @@ export default function ConfiguracoesPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="space-y-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                Modo de visualização do Founder
+              </Label>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  {themeMode === 'dark' ? 'Modo escuro' : 'Modo claro'}
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">Claro</span>
+                  <Switch
+                    checked={themeMode === 'dark'}
+                    disabled={themeSaving}
+                    onCheckedChange={async (checked) => {
+                      const next = checked ? 'dark' : 'light';
+                      setThemeMode(next);
+                      applyFounderTheme(next);
+                      await persistThemePreference(next);
+                    }}
+                    aria-label="Alternar modo claro/escuro"
+                  />
+                  <span className="text-xs text-slate-500">Escuro</span>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400">
+                A preferência é salva no banco de dados e aplicada no portal de parceiros.
+              </p>
+            </div>
 
             {/* Upload de logo */}
             <div className="space-y-3">

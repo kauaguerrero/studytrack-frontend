@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Send, X } from 'lucide-react';
+import { ArrowLeft, PenLine, Send, X } from 'lucide-react';
 
 type Annotation = {
   id: string;
@@ -28,6 +28,7 @@ type CompetencyScore = {
 type EssayDetail = {
   id: string;
   status: 'pending' | 'corrected' | 'seen';
+  theme?: string | null;
   text: string;
   submitted_at: string;
   corrected_at: string | null;
@@ -166,6 +167,27 @@ function buildSegments(text: string, annotations: Annotation[]): Segment[] {
   return segments;
 }
 
+function pickEssayTheme(raw: Record<string, unknown>): string | null {
+  const candidateKeys = [
+    'theme',
+    'essay_theme',
+    'tema',
+    'proposal',
+    'prompt',
+    'topic',
+    'title',
+  ];
+
+  for (const key of candidateKeys) {
+    const value = raw[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
 export default function CorrecaoRedacaoPage() {
   const { slug, id } = useParams<{ slug: string; id: string }>();
   const router = useRouter();
@@ -211,10 +233,13 @@ export default function CorrecaoRedacaoPage() {
         });
 
         if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
-        const data: EssayDetail = await res.json();
+        const data = await res.json() as EssayDetail & Record<string, unknown>;
         if (!mounted) return;
 
-        setEssay(data);
+        setEssay({
+          ...data,
+          theme: pickEssayTheme(data),
+        });
         setAnnotations(
           (data.annotations || []).map((a) => ({
             id: a.id || crypto.randomUUID(),
@@ -257,10 +282,9 @@ export default function CorrecaoRedacaoPage() {
   );
 
   const canSubmit = useMemo(() => {
-    const allSelected = scores.every((s) => s.score > 0);
     const hasGeneral = generalComment.trim().length >= 20;
-    return allSelected && hasGeneral && !submitting;
-  }, [scores, generalComment, submitting]);
+    return hasGeneral && !submitting;
+  }, [generalComment, submitting]);
 
   const segments = useMemo(
     () => buildSegments(essay?.text || '', annotations),
@@ -407,7 +431,7 @@ export default function CorrecaoRedacaoPage() {
           <span
             key={segment.key}
             data-annotation-id={segment.annotation.id}
-            className="rounded bg-amber-400/10 px-0.5 text-amber-100 underline decoration-amber-300/80 underline-offset-2 cursor-pointer"
+            className="cursor-pointer rounded bg-amber-400/10 px-0.5 text-amber-700 underline decoration-amber-500/80 underline-offset-2 dark:text-amber-100 dark:decoration-amber-300/80"
             title={segment.annotation.comment_text || ''}
           >
             {segment.text}
@@ -421,10 +445,10 @@ export default function CorrecaoRedacaoPage() {
         <span
           key={segment.key}
           data-annotation-id={segment.annotation.id}
-          className="inline-flex items-center gap-1 rounded bg-slate-800/70 px-1 py-0.5"
+          className="inline-flex items-center gap-1 rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-800/70"
         >
-          <span className="line-through text-rose-500">{original}</span>{' '}
-          <span className="font-semibold text-emerald-500" data-ignore-offset="true">
+          <span className="line-through text-rose-600 dark:text-rose-400">{original}</span>{' '}
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400" data-ignore-offset="true">
             {corrected}
           </span>
         </span>
@@ -437,7 +461,7 @@ export default function CorrecaoRedacaoPage() {
       <PartnerLayout>
         <div className="space-y-4">
           <div className="h-10 animate-pulse rounded-xl bg-slate-800/80" />
-          <div className="h-[520px] animate-pulse rounded-2xl bg-slate-800/70" />
+          <div className="h-[520px] animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800/70" />
         </div>
       </PartnerLayout>
     );
@@ -455,24 +479,33 @@ export default function CorrecaoRedacaoPage() {
 
   return (
     <PartnerLayout>
-      <div className="space-y-5">
+      <div className="space-y-5 pb-24 lg:pb-0">
         <header className="space-y-2">
           <Link
             href={`/partners/${slug}/redacoes`}
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 transition hover:text-slate-200"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200"
           >
             <ArrowLeft className="h-4 w-4" />
             Voltar para fila
           </Link>
-          <h1 className="text-2xl font-extrabold text-white">
+          <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">
             Correção da Redação - {formatDateBR(essay.submitted_at)}
           </h1>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <p className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <PenLine className="h-3.5 w-3.5" />
+              Tema da redação
+            </p>
+            <p className="text-sm leading-relaxed text-slate-900 dark:text-slate-100">
+              {essay.theme || 'Tema não informado pelo aluno.'}
+            </p>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          <section className="relative rounded-2xl border border-slate-800 bg-slate-900/60 p-4 lg:col-span-3">
+          <section className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-3 dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-200">Texto do aluno</h2>
+              <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Texto do aluno</h2>
               <span
                 className={cn(
                   'rounded-full px-2.5 py-1 text-xs font-semibold',
@@ -487,20 +520,20 @@ export default function CorrecaoRedacaoPage() {
             <div
               ref={textContainerRef}
               onMouseUp={handleTextMouseUp}
-              className="max-h-[540px] overflow-auto rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-sm leading-relaxed text-slate-100 whitespace-pre-wrap"
+              className="max-h-[540px] overflow-auto rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
             >
               {renderAnnotatedText()}
             </div>
 
             {annotationPopup && selectedText && (
               <div
-                className="fixed z-50 w-72 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-2xl"
+                className="fixed z-50 w-72 rounded-xl border border-slate-300 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
                 style={{ top: annotationPopup.y, left: annotationPopup.x, transform: 'translateX(-50%)' }}
               >
                 <div className="mb-2 flex items-start justify-between gap-2">
-                  <p className="text-xs text-slate-300">
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
                     Trecho selecionado:{' '}
-                    <span className="font-semibold text-slate-100">
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">
                       &quot;{selectedText.text.slice(0, 40)}
                       {selectedText.text.length > 40 ? '...' : ''}
                       &quot;
@@ -509,7 +542,7 @@ export default function CorrecaoRedacaoPage() {
                   <button
                     type="button"
                     onClick={closePopup}
-                    className="rounded p-1 text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
+                    className="rounded p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -538,7 +571,7 @@ export default function CorrecaoRedacaoPage() {
                       value={popupValue}
                       onChange={(e) => setPopupValue(e.target.value)}
                       placeholder={popupMode === 'comment' ? 'Digite o comentário...' : 'Digite a correção...'}
-                      className="min-h-[88px] w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-100 outline-none focus:border-[var(--brand-primary)]"
+                      className="min-h-[88px] w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                     <div className="flex justify-end gap-2">
                       <button
@@ -547,7 +580,7 @@ export default function CorrecaoRedacaoPage() {
                           setPopupMode(null);
                           setPopupValue('');
                         }}
-                        className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300"
+                        className="rounded-md border border-slate-300 dark:border-slate-700 px-2 py-1 text-xs text-slate-600 dark:text-slate-300"
                       >
                         Voltar
                       </button>
@@ -564,23 +597,23 @@ export default function CorrecaoRedacaoPage() {
               </div>
             )}
 
-            <div className="mt-4 space-y-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <div className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Anotações adicionadas ({annotations.length})
               </h3>
               {annotations.length === 0 ? (
-                <p className="text-xs text-slate-500">Nenhuma anotação adicionada ainda.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Nenhuma anotação adicionada ainda.</p>
               ) : (
                 <div className="space-y-2">
                   {annotations.map((ann) => (
                     <div
                       key={ann.id}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-2.5 py-2"
+                      className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2 dark:border-slate-800 dark:bg-slate-900"
                     >
                       <button
                         type="button"
                         onClick={() => scrollToAnnotation(ann.id)}
-                        className="min-w-0 text-left text-xs text-slate-200 hover:text-white"
+                        className="min-w-0 text-left text-xs text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white"
                       >
                         <span className="font-semibold">{ann.type === 'comment' ? 'Comentário' : 'Correção'}</span>
                         {' · '}
@@ -601,15 +634,15 @@ export default function CorrecaoRedacaoPage() {
             </div>
           </section>
 
-          <aside className="h-fit rounded-2xl border border-slate-800 bg-slate-900/60 p-4 lg:sticky lg:top-4 lg:col-span-2">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-300">
+          <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:col-span-2 dark:border-slate-800 dark:bg-slate-900">
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Notas por Competência
             </h2>
 
             <div className="space-y-4">
               {scores.map((item, idx) => (
-                <div key={item.competency} className="rounded-xl border border-slate-800 bg-slate-950/50 p-3">
-                  <p className="mb-2 text-xs font-semibold text-slate-200">
+                <div key={item.competency} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+                  <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
                     Competência {item.competency} — {COMPETENCY_NAMES[idx]}
                   </p>
 
@@ -630,8 +663,8 @@ export default function CorrecaoRedacaoPage() {
                         className={cn(
                           'rounded-md border px-2 py-1 text-xs font-semibold transition',
                           item.score === option
-                            ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/20 text-white'
-                            : 'border-slate-700 text-slate-300 hover:border-slate-500',
+                            ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] dark:text-white'
+                            : 'border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-500',
                         )}
                       >
                         {option}
@@ -639,8 +672,8 @@ export default function CorrecaoRedacaoPage() {
                     ))}
                   </div>
 
-                  <p className="mb-2 text-xs font-semibold text-slate-300">
-                    Nota selecionada: <span className="text-white">{item.score} / 200</span>
+                  <p className="mb-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    Nota selecionada: <span className="text-slate-900 dark:text-white">{item.score} / 200</span>
                   </p>
 
                   <textarea
@@ -656,28 +689,28 @@ export default function CorrecaoRedacaoPage() {
                       );
                     }}
                     placeholder="Comentário da competência (opcional)"
-                    className="min-h-[64px] w-full rounded-lg border border-slate-700 bg-slate-900 p-2 text-xs text-slate-100 outline-none focus:border-[var(--brand-primary)]"
+                    className="min-h-[64px] w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   />
                 </div>
               ))}
             </div>
 
-            <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4 text-center">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Total</p>
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-800 dark:bg-slate-950">
+              <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Total</p>
               <p className={cn('text-3xl font-extrabold', getTotalColorClass(totalScore))}>
                 {totalScore} / 1000
               </p>
             </div>
 
             <div className="mt-4 space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Comentário Geral
               </label>
               <textarea
                 value={generalComment}
                 onChange={(e) => setGeneralComment(e.target.value)}
                 placeholder="Escreva um comentário geral da redação (mín. 20 caracteres)"
-                className="min-h-[110px] w-full rounded-lg border border-slate-700 bg-slate-950 p-2.5 text-sm text-slate-100 outline-none focus:border-[var(--brand-primary)]"
+                className="min-h-[110px] w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
             </div>
 
@@ -685,7 +718,7 @@ export default function CorrecaoRedacaoPage() {
               type="button"
               onClick={submitCorrection}
               disabled={!canSubmit}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-4 hidden min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 lg:inline-flex"
             >
               <Send className="h-4 w-4" />
               {submitting ? 'Enviando...' : 'Enviar Correção'}
@@ -693,8 +726,26 @@ export default function CorrecaoRedacaoPage() {
           </aside>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3 text-xs text-slate-400">
-          A correção exige nota nas 5 competências (acima de 0) e comentário geral com no mínimo 20 caracteres.
+        <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+          A correção exige nota nas 5 competências (incluindo 0) e comentário geral com no mínimo 20 caracteres.
+        </div>
+
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950 lg:hidden">
+          <div className="mx-auto flex w-full max-w-5xl items-center gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Total</p>
+              <p className={cn('text-lg font-extrabold', getTotalColorClass(totalScore))}>{totalScore} / 1000</p>
+            </div>
+            <button
+              type="button"
+              onClick={submitCorrection}
+              disabled={!canSubmit}
+              className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" />
+              {submitting ? 'Enviando...' : 'Enviar Correção'}
+            </button>
+          </div>
         </div>
       </div>
     </PartnerLayout>

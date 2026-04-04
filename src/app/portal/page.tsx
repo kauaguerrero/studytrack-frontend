@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
 import { UserRole } from '@/types/roles';
 
-export default async function PortalRedirect() {
+export default async function Page() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -50,7 +50,8 @@ export default async function PortalRedirect() {
     if (org?.slug) redirect(`/partners/${org.slug}/student/dashboard`);
   }
 
-  const role: UserRole = (['student', 'teacher', 'manager', 'admin', 'secretariat'] as const).includes(roleStr as any)
+  const validRoles: readonly UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat'];
+  const role: UserRole = validRoles.includes(roleStr as UserRole)
     ? (roleStr as UserRole)
     : 'student';
 
