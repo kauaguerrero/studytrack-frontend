@@ -43,21 +43,19 @@ export default async function PartnerStudentDashboard({ params }: Props) {
   ]);
 
   const adminClient = createAdminClient();
-  type OrgRow = { name: string; logo_url: string | null; brand_primary: string | null };
+  type OrgRow = { name: string; logo_url: string | null };
   const orgRes = await adminClient
     .from('organizations')
-    .select('name, logo_url, brand_primary')
+    .select('name, logo_url')
     .eq('slug', slug)
     .single();
   const org = orgRes.data as OrgRow | null;
 
   const firstName = (profile?.full_name ?? 'Aluno').split(' ')[0];
-  const brandPrimary = org?.brand_primary ?? 'var(--brand-primary)'; // Fallback para a variável CSS
 
   return (
     <DashboardClient
       firstName={firstName}
-      brandPrimary={brandPrimary}
       orgName={org?.name ?? 'StudyTrack'}
       orgLogoUrl={org?.logo_url ?? null}
       slug={slug}

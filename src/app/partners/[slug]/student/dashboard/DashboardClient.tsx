@@ -46,7 +46,6 @@ function getStreakProgress(streak: number): { next: number; pct: number } {
 
 interface Props {
   firstName: string;
-  brandPrimary: string;
   orgName: string;
   orgLogoUrl: string | null;
   slug: string;
@@ -59,7 +58,6 @@ interface Props {
 
 export function DashboardClient({
   firstName,
-  brandPrimary,
   orgName,
   orgLogoUrl,
   slug,
@@ -271,16 +269,30 @@ export function DashboardClient({
                     {simuladosCount} {simuladosCount === 1 ? 'simulado' : 'simulados'}
                   </span>
                 </div>
+
+                <div className="mt-4 md:hidden">
+                  <div className="inline-flex w-full items-center rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-white/12 dark:bg-white/5 dark:text-white/85">
+                    <span className="mr-[0.25em]">📚 Nós nascemos para</span>
+                    <Typewriter
+                      text={['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                      speed={95}
+                      deleteSpeed={52}
+                      waitTime={2600}
+                      className="font-extrabold text-[var(--brand-primary)] max-w-full"
+                      cursorClassName="ml-1 text-[var(--brand-primary)]"
+                    />
+                  </div>
+                </div>
               </div>
               <div className="absolute bottom-4 right-4 z-20 hidden md:block">
                 <div className="inline-flex items-center rounded-full border border-slate-300 dark:border-white/12 bg-white dark:bg-white/5 px-4 py-2 text-sm sm:text-base text-slate-700 dark:text-white/85">
-                  <span className="mr-2">📚 Nós nascemos para</span>
+                  <span className="mr-[0.25em]">📚 Nós nascemos para</span>
                   <Typewriter
                     text={['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
                     speed={95}
                     deleteSpeed={52}
                     waitTime={2600}
-                    className="font-extrabold text-[var(--brand-primary)]"
+                    className="font-extrabold text-[var(--brand-primary)] max-w-full"
                     cursorClassName="ml-1 text-[var(--brand-primary)]"
                   />
                 </div>

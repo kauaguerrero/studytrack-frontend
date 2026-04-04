@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
@@ -81,9 +82,19 @@ function ColorPicker({
 
 export default function ConfiguracoesPage() {
   const { org, userProfile } = useOrg();
+  const router = useRouter();
 
   const [logoUrl, setLogoUrl] = useState(org.logo_url ?? '');
   const [logoUploading, setLogoUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(userProfile.avatarUrl ?? '');
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarCropOpen, setAvatarCropOpen] = useState(false);
+  const [avatarCropUrl, setAvatarCropUrl] = useState<string | null>(null);
+  const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null);
+  const [avatarCropScale, setAvatarCropScale] = useState(1);
+  const [avatarCropPosition, setAvatarCropPosition] = useState({ x: 0, y: 0 });
+  const [avatarCropDragging, setAvatarCropDragging] = useState(false);
+  const [avatarCropImageSize, setAvatarCropImageSize] = useState<{ w: number; h: number } | null>(null);
   const [primary, setPrimary] = useState(org.brand_primary);
   const [secondary, setSecondary] = useState(org.brand_secondary);
   const [accent, setAccent] = useState(org.brand_accent);
@@ -94,17 +105,26 @@ export default function ConfiguracoesPage() {
   const [themeSaving, setThemeSaving] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const avatarCropImageRef = useRef<HTMLImageElement>(null);
+  const avatarCropDragStart = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
+  const CROP_SIZE = 240;
 
   useEffect(() => {
     const fromProfile = userProfile.themePreference === 'dark' ? 'dark' : 'light';
     const stored = localStorage.getItem(`partner-founder-theme-${org.slug}`);
     if (stored === 'dark' || stored === 'light') {
-      // Perfil do banco é fonte de verdade; localStorage apenas fallback visual.
-      setThemeMode(fromProfile);
+      setThemeMode(stored);
       return;
     }
     setThemeMode(fromProfile);
   }, [org.slug, userProfile.themePreference]);
+
+  useEffect(() => {
+    return () => {
+      if (avatarCropUrl) URL.revokeObjectURL(avatarCropUrl);
+    };
+  }, [avatarCropUrl]);
 
   function applyFounderTheme(next: 'light' | 'dark') {
     const root = document.documentElement;
@@ -115,22 +135,50 @@ export default function ConfiguracoesPage() {
     localStorage.setItem(`partner-founder-theme-${org.slug}`, next);
   }
 
-  async function persistThemePreference(next: 'light' | 'dark') {
+  async function persistThemePreference(next: 'light' | 'dark'): Promise<boolean> {
     setThemeSaving(true);
     try {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) throw new Error('Sessão inválida.');
+      if (!session?.user?.id || !session.access_token) throw new Error('Sessão inválida.');
+      const userId = session.user.id;
 
-      const { error } = await supabase
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
+      const apiRes = await fetch(`${api}/api/account/profile`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ theme_preference: next }),
+      });
+
+      if (!apiRes.ok) {
+        // Fallback direto no Supabase caso API externa esteja indisponível.
+        const { error } = await supabase
+          .from('profiles')
+          .update({ theme_preference: next })
+          .eq('id', userId);
+
+        if (error) throw error;
+      }
+
+      // Verifica persistência real para evitar falso positivo de sucesso.
+      const { data: profileCheck, error: profileCheckError } = await supabase
         .from('profiles')
-        .update({ theme_preference: next })
-        .eq('id', session.user.id);
+        .select('theme_preference')
+        .eq('id', userId)
+        .single();
 
-      if (error) throw error;
+      if (profileCheckError) throw profileCheckError;
+      if (profileCheck?.theme_preference !== next) {
+        throw new Error('Não foi possível persistir o tema no banco de dados.');
+      }
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Não foi possível salvar o tema.';
       toast.error(message);
+      return false;
     } finally {
       setThemeSaving(false);
     }
@@ -172,6 +220,178 @@ export default function ConfiguracoesPage() {
       toast.error(e instanceof Error ? e.message : 'Erro no upload.');
     } finally {
       setLogoUploading(false);
+    }
+  }
+
+  function getAvatarPathFromPublicUrl(url: string): string | null {
+    const match = url.match(/\/avatars\/(.+)$/);
+    return match ? match[1] : null;
+  }
+
+  function openAvatarCropModal(file: File) {
+    if (avatarCropUrl) URL.revokeObjectURL(avatarCropUrl);
+    const url = URL.createObjectURL(file);
+    setAvatarCropUrl(url);
+    setAvatarCropFile(file);
+    setAvatarCropScale(1);
+    setAvatarCropPosition({ x: 0, y: 0 });
+    setAvatarCropImageSize(null);
+    setAvatarCropOpen(true);
+  }
+
+  function closeAvatarCropModal() {
+    if (avatarCropUrl) URL.revokeObjectURL(avatarCropUrl);
+    setAvatarCropUrl(null);
+    setAvatarCropFile(null);
+    setAvatarCropOpen(false);
+    setAvatarCropDragging(false);
+  }
+
+  function onAvatarCropImageLoad() {
+    const img = avatarCropImageRef.current;
+    if (img?.naturalWidth) {
+      setAvatarCropImageSize({ w: img.naturalWidth, h: img.naturalHeight });
+    }
+  }
+
+  function handleAvatarCropPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    avatarCropDragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      posX: avatarCropPosition.x,
+      posY: avatarCropPosition.y,
+    };
+    setAvatarCropDragging(true);
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  }
+
+  function handleAvatarCropPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!avatarCropDragging) return;
+    const dx = e.clientX - avatarCropDragStart.current.x;
+    const dy = e.clientY - avatarCropDragStart.current.y;
+    setAvatarCropPosition({
+      x: avatarCropDragStart.current.posX + dx,
+      y: avatarCropDragStart.current.posY + dy,
+    });
+  }
+
+  function handleAvatarCropPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    setAvatarCropDragging(false);
+    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+  }
+
+  function getCroppedAvatarBlob(): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const img = avatarCropImageRef.current;
+      const w = avatarCropImageSize?.w ?? img?.naturalWidth ?? 0;
+      const h = avatarCropImageSize?.h ?? img?.naturalHeight ?? 0;
+      if (!img || !w || !h) {
+        reject(new Error('Imagem não carregada'));
+        return;
+      }
+
+      const scale = avatarCropScale;
+      const min = Math.min(w, h);
+      const visibleSide = min / scale;
+      const centerX = w / 2 - (avatarCropPosition.x * min) / (CROP_SIZE * scale);
+      const centerY = h / 2 - (avatarCropPosition.y * min) / (CROP_SIZE * scale);
+      const sx = Math.max(0, Math.min(w - visibleSide, centerX - visibleSide / 2));
+      const sy = Math.max(0, Math.min(h - visibleSide, centerY - visibleSide / 2));
+      const sw = Math.min(visibleSide, w - sx);
+      const sh = Math.min(visibleSide, h - sy);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = CROP_SIZE;
+      canvas.height = CROP_SIZE;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas não disponível'));
+        return;
+      }
+
+      ctx.beginPath();
+      ctx.arc(CROP_SIZE / 2, CROP_SIZE / 2, CROP_SIZE / 2, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, CROP_SIZE, CROP_SIZE);
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('Falha ao gerar imagem'));
+      }, 'image/jpeg', 0.92);
+    });
+  }
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    const allowed = ['image/png', 'image/svg+xml', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      toast.error('Formato inválido. Use PNG, SVG, JPG ou WEBP.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('A imagem deve ter no máximo 2MB.');
+      return;
+    }
+
+    openAvatarCropModal(file);
+  }
+
+  async function handleAvatarCropConfirm() {
+    if (!avatarCropFile) return;
+    setAvatarUploading(true);
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id || !session.access_token) throw new Error('Sessão inválida.');
+
+      const blob = await getCroppedAvatarBlob();
+      const ext = avatarCropFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const safeExt = ['png', 'svg', 'jpg', 'jpeg', 'webp'].includes(ext) ? ext : 'jpg';
+      const path = `${session.user.id}_${Date.now()}.${safeExt}`;
+
+      const oldPath = avatarUrl ? getAvatarPathFromPublicUrl(avatarUrl) : null;
+      if (oldPath) {
+        await supabase.storage.from('avatars').remove([oldPath]);
+      }
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path);
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
+
+      const apiRes = await fetch(`${api}/api/account/profile`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ avatar_url: publicUrl }),
+      });
+
+      if (!apiRes.ok) {
+        const { error: fallbackError } = await supabase
+          .from('profiles')
+          .update({ avatar_url: publicUrl })
+          .eq('id', session.user.id);
+        if (fallbackError) throw fallbackError;
+      }
+
+      setAvatarUrl(publicUrl);
+      closeAvatarCropModal();
+      toast.success('Foto de perfil atualizada.');
+      router.refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Não foi possível atualizar a foto.';
+      toast.error(message);
+    } finally {
+      setAvatarUploading(false);
     }
   }
 
@@ -220,7 +440,7 @@ export default function ConfiguracoesPage() {
 
   return (
     <PartnerLayout>
-      <div className="space-y-6 max-w-xl">
+      <div className="mx-auto w-full max-w-xl space-y-6">
         <Button variant="ghost" size="sm" asChild className="gap-1.5 -ml-2">
           <Link href={`/partners/${org.slug}/dashboard`}>
             <ArrowLeft className="h-4 w-4" /> Voltar
@@ -257,10 +477,17 @@ export default function ConfiguracoesPage() {
                     checked={themeMode === 'dark'}
                     disabled={themeSaving}
                     onCheckedChange={async (checked) => {
+                      const prev = themeMode;
                       const next = checked ? 'dark' : 'light';
                       setThemeMode(next);
                       applyFounderTheme(next);
-                      await persistThemePreference(next);
+                      const ok = await persistThemePreference(next);
+                      if (!ok) {
+                        setThemeMode(prev);
+                        applyFounderTheme(prev);
+                        return;
+                      }
+                      router.refresh();
                     }}
                     aria-label="Alternar modo claro/escuro"
                   />
@@ -270,6 +497,52 @@ export default function ConfiguracoesPage() {
               <p className="text-xs text-slate-400">
                 A preferência é salva no banco de dados e aplicada no portal de parceiros.
               </p>
+            </div>
+
+            <div className="space-y-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                Foto de perfil do Founder
+              </Label>
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={avatarUploading}
+                  className="group relative h-16 w-16 shrink-0 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 transition hover:brightness-95 disabled:opacity-70"
+                >
+                  {avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatarUrl} alt="Foto do founder" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-sm font-bold text-slate-600 dark:text-slate-300">
+                      {(userProfile.fullName || 'F').slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="absolute inset-0 hidden items-center justify-center bg-black/30 text-white group-hover:flex">
+                    <Camera className="h-4 w-4" />
+                  </div>
+                  {avatarUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                    </div>
+                  )}
+                </button>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                    {avatarUploading ? 'Enviando foto...' : 'Clique para alterar sua foto'}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    PNG, SVG, JPG ou WEBP • Máximo 2MB
+                  </p>
+                </div>
+              </div>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/png,image/svg+xml,image/jpeg,image/webp"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
             </div>
 
             {/* Upload de logo */}
@@ -389,12 +662,76 @@ export default function ConfiguracoesPage() {
           className="w-full gap-2 text-white"
           style={{ backgroundColor: 'var(--brand-primary)' }}
           onClick={handleSave}
-          disabled={saving || logoUploading}
+          disabled={saving || logoUploading || avatarUploading}
         >
           <Save className="h-4 w-4" />
           {saving ? 'Salvando...' : 'Salvar Configurações'}
         </Button>
       </div>
+      {avatarCropOpen && avatarCropUrl && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div className="mb-3">
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Ajustar foto de perfil</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Arraste para reposicionar e use o zoom.</p>
+            </div>
+
+            <div className="relative mb-3 flex justify-center">
+              <div
+                className="relative h-[240px] w-[240px] overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800 touch-none cursor-grab active:cursor-grabbing"
+                onPointerDown={handleAvatarCropPointerDown}
+                onPointerMove={handleAvatarCropPointerMove}
+                onPointerUp={handleAvatarCropPointerUp}
+                onPointerCancel={handleAvatarCropPointerUp}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  ref={avatarCropImageRef}
+                  src={avatarCropUrl}
+                  alt="Prévia para corte"
+                  onLoad={onAvatarCropImageLoad}
+                  draggable={false}
+                  className="pointer-events-none absolute left-1/2 top-1/2 max-w-none select-none"
+                  style={{
+                    transform: `translate(calc(-50% + ${avatarCropPosition.x}px), calc(-50% + ${avatarCropPosition.y}px)) scale(${avatarCropScale})`,
+                    transformOrigin: 'center center',
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="mb-4 space-y-1">
+              <Label htmlFor="avatar-zoom" className="text-xs text-slate-500">Zoom</Label>
+              <input
+                id="avatar-zoom"
+                type="range"
+                min={1}
+                max={3}
+                step={0.01}
+                value={avatarCropScale}
+                onChange={(e) => setAvatarCropScale(Number(e.target.value))}
+                className="w-full"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={closeAvatarCropModal} disabled={avatarUploading}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={handleAvatarCropConfirm}
+                disabled={avatarUploading}
+                className="text-white"
+                style={{ backgroundColor: 'var(--brand-primary)' }}
+              >
+                {avatarUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Confirmar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </PartnerLayout>
   );
 }

@@ -526,7 +526,7 @@ export default function FounderDashboard() {
             className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-20"
             style={{ background: 'var(--brand-primary)' }}
           />
-          <div className="relative z-10 flex items-center justify-between gap-4">
+          <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40 mb-1">
                 Central de Inteligência
@@ -564,15 +564,15 @@ export default function FounderDashboard() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="rounded-full border border-slate-300/80 dark:border-white/15 bg-white/90 dark:bg-slate-900/70 px-4 py-2.5 text-base font-semibold text-slate-700 dark:text-white/85">
-                <span className="mr-2">📚 Nós nascemos para</span>
+            <div className="w-full lg:w-auto">
+              <div className="inline-flex w-full items-center rounded-2xl border border-slate-300/80 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-white/15 dark:bg-slate-900/70 dark:text-white/85 sm:w-auto sm:rounded-full sm:px-4 sm:py-2.5 sm:text-base">
+                <span className="mr-[0.25em]">📚 Nós nascemos para</span>
                 <Typewriter
                   text={['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
                   speed={95}
                   deleteSpeed={52}
                   waitTime={2600}
-                  className="font-black text-[var(--brand-primary)]"
+                  className="font-black text-[var(--brand-primary)] max-w-full"
                   cursorClassName="ml-1 text-[var(--brand-primary)]"
                 />
               </div>
@@ -629,7 +629,21 @@ export default function FounderDashboard() {
                   text-slate-800 dark:text-white hover:brightness-105"
               >
                 <BrandLiquidGlass accentColor="var(--brand-secondary)" intensity={14} />
-                <FileText className="relative z-10 h-3.5 w-3.5" />
+                <span
+                  className="relative z-10 flex h-6 w-6 items-center justify-center rounded-lg border border-slate-300 dark:border-white/20"
+                  style={{
+                    background: 'color-mix(in srgb, var(--brand-secondary) 16%, white)',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 8px color-mix(in srgb, var(--brand-secondary) 22%, transparent)',
+                  }}
+                >
+                  <FileText
+                    className="h-3.5 w-3.5"
+                    style={{
+                      color: 'var(--brand-secondary)',
+                      filter: 'drop-shadow(0 0 4px color-mix(in srgb, var(--brand-secondary) 35%, transparent))',
+                    }}
+                  />
+                </span>
                 <span className="relative z-10">Redações</span>
               </Link>
             </div>

@@ -57,10 +57,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   // Rotas de aluno B2B — auth e validação delegadas ao student/layout.tsx
   // Só pula quando pathname é conhecido; se vier vazio, trata como rota de parceiro.
   const isStudentRoute =
-    pathname !== '' && (
-      pathname.startsWith(`/partners/${slug}/student`) ||
-      pathname.includes('/student/')
-    );
+    pathname !== '' && pathname.startsWith(`/partners/${slug}/student`);
 
   if (isPublicRoute || isStudentRoute) {
     return <>{children}</>;
@@ -92,7 +89,15 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
 
   // Aluno B2B com org vinculada — delega para student/layout.tsx em vez de redirecionar
   if (profile?.role === 'student' && profile?.organization_id) {
-    return <>{children}</>;
+    // Em algumas requests (Turbopack/dev), x-pathname pode vir vazio.
+    // Nesses casos, evita redirect em loop e delega para o layout aninhado.
+    if (pathname === '') {
+      return <>{children}</>;
+    }
+    if (isStudentRoute) {
+      return <>{children}</>;
+    }
+    redirect(`/partners/${slug}/student/dashboard`);
   }
 
   // Roles sem acesso ao painel de parceiros
@@ -165,7 +170,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     >
       <script
         dangerouslySetInnerHTML={{
-          __html: `(function(){try{var slug=${safeSlugJson};var pref=${safeThemeJson};var key='partner-founder-theme-'+slug;var stored=localStorage.getItem(key);var prefFixed=(pref==='light'||pref==='dark')?pref:null;var base=prefFixed||((stored==='light'||stored==='dark')?stored:'system');var resolved=base==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):base;var root=document.documentElement;if(resolved==='dark'){root.classList.add('dark');}else{root.classList.remove('dark');}root.style.colorScheme=resolved;root.dataset.partnerTheme=resolved;localStorage.setItem(key,resolved);}catch(e){}})();`,
+          __html: `(function(){try{var slug=${safeSlugJson};var pref=${safeThemeJson};var key='partner-founder-theme-'+slug;var stored=localStorage.getItem(key);var storedFixed=(stored==='light'||stored==='dark')?stored:null;var prefFixed=(pref==='light'||pref==='dark')?pref:null;var base=storedFixed||prefFixed||'system';var resolved=base==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):base;var root=document.documentElement;if(resolved==='dark'){root.classList.add('dark');}else{root.classList.remove('dark');}root.style.colorScheme=resolved;root.dataset.partnerTheme=resolved;if(!storedFixed){localStorage.setItem(key,resolved);}}catch(e){}})();`,
         }}
       />
       {/* CSS variables de branding injetadas via style tag server-side */}

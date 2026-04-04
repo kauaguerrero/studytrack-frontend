@@ -17,6 +17,8 @@ import {
   GraduationCap,
   BookOpen,
   FileText,
+  ClipboardCheck,
+  PenLine,
   BarChart3,
   Home,
   User,
@@ -154,10 +156,10 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const studentNavItems: NavItemDef[] = [
     { href: `/partners/${org.slug}/student/dashboard`,         icon: Home,      label: 'Início',          shortLabel: 'Início' },
     { href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,  label: 'Questões',        shortLabel: 'Questões' },
-    { href: `/partners/${org.slug}/student/simulado`,          icon: FileText,  label: 'Simulados',       shortLabel: 'Simulados' },
+    { href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck,  label: 'Simulados',       shortLabel: 'Simulados' },
     { href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,    label: 'Ranking',         shortLabel: 'Ranking' },
     { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3, label: 'Meu Desempenho',  shortLabel: 'Desempenho' },
-    { href: `/partners/${org.slug}/student/redacoes`,          icon: FileText,  label: 'Redações',        shortLabel: 'Redações' },
+    { href: `/partners/${org.slug}/student/redacoes`,          icon: PenLine,  label: 'Redações',        shortLabel: 'Redações' },
     { href: `/partners/${org.slug}/student/perfil`,            icon: User,      label: 'Perfil',          shortLabel: 'Perfil' },
   ];
 
@@ -284,7 +286,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
+    <div className="flex h-dvh min-h-dvh overflow-hidden overscroll-none bg-slate-50 dark:bg-slate-950">
       {/* Desktop sidebar */}
       <aside
         onMouseEnter={handleMouseEnter}
@@ -344,7 +346,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
         </header>
 
         {/* Page content — extra bottom padding on mobile for bottom tab bar */}
-        <main className="flex-1 overflow-y-auto p-4 pb-24 md:p-8 md:pb-8">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 pb-24 md:p-8 md:pb-8">
           {children}
         </main>
       </div>

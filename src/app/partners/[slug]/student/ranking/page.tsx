@@ -1,15 +1,12 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
-import { useParams } from 'next/navigation';
-import { motion, useReducedMotion, AnimatePresence } from 'framer-motion';
+import { useEffect } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   Trophy,
   Medal,
   Crown,
   ChevronUp,
-  ChevronDown,
-  Minus,
   Flame,
   Star,
   Zap,
@@ -533,15 +530,14 @@ function StatPill({
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function RankingPage() {
-  const params = useParams<{ slug: string }>();
-  const slug = params.slug;
   const shouldReduce = useReducedMotion();
+  const TOP_LIMIT = 10;
 
   const { summary, ranking, isLoading, refreshRanking } = usePartnerGamification();
 
   useEffect(() => {
     if (!isLoading) {
-      refreshRanking(100);
+      refreshRanking(TOP_LIMIT);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading]);
@@ -553,9 +549,10 @@ export default function RankingPage() {
 
   const fullList = ranking?.ranking ?? [];
   const selfEntry = ranking?.user_context?.self ?? null;
+  const visibleList = fullList.slice(0, TOP_LIMIT);
 
   // Podium: [2nd, 1st, 3rd] for visual balance
-  const top3 = fullList.slice(0, 3);
+  const top3 = visibleList.slice(0, 3);
   const podiumOrder =
     top3.length === 3
       ? [top3[1], top3[0], top3[2]]
@@ -564,7 +561,7 @@ export default function RankingPage() {
         : top3;
 
   // Determine if the first entry after prize cutoff needs a divider
-  const hasPrizeDivider = fullList.length > prizeCutoff;
+  const hasPrizeDivider = visibleList.length > prizeCutoff;
 
   return (
     <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 overflow-hidden bg-slate-50 dark:bg-[#080808]">
@@ -835,11 +832,11 @@ export default function RankingPage() {
               <div className="flex items-center gap-2">
                 <Flame className="h-3.5 w-3.5 text-orange-500/60" />
                 <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">
-                  Classificação completa
+                  Top 10
                 </p>
               </div>
               <span className="text-[10px] font-semibold text-slate-400 dark:text-white/20 tabular-nums">
-                {fullList.length} alunos
+                {visibleList.length} alunos
               </span>
             </div>
 
@@ -856,7 +853,7 @@ export default function RankingPage() {
                     <Skeleton className="h-4 w-14 rounded" />
                   </div>
                 ))
-              ) : fullList.length === 0 ? (
+              ) : visibleList.length === 0 ? (
                 <div className="py-12 text-center">
                   <div
                     className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl"
@@ -876,7 +873,7 @@ export default function RankingPage() {
                 </div>
               ) : (
                 <>
-                  {fullList.map((entry, i) => (
+                  {visibleList.map((entry, i) => (
                     <div key={entry.user_id}>
                       {/* Insert prize divider after the cutoff */}
                       {hasPrizeDivider && i === prizeCutoff && (
@@ -890,26 +887,6 @@ export default function RankingPage() {
                       />
                     </div>
                   ))}
-
-                  {/* Self entry if outside visible window */}
-                  {selfEntry &&
-                    !fullList.some((e) => e.user_id === selfEntry.user_id) && (
-                      <>
-                        <div className="relative my-3 flex items-center gap-3 px-3">
-                          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                          <span className="text-[10px] font-bold text-slate-400 dark:text-white/20">
-                            sua posição
-                          </span>
-                          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                        </div>
-                        <RankRow
-                          entry={selfEntry}
-                          isSelf
-                          isPrize={selfEntry.rank <= prizeCutoff}
-                          index={0}
-                        />
-                      </>
-                    )}
                 </>
               )}
             </div>
@@ -917,7 +894,7 @@ export default function RankingPage() {
         </motion.div>
 
         {/* ── Footer ────────────────────────────────────────────────────── */}
-        {!isLoading && fullList.length > 0 && (
+        {!isLoading && visibleList.length > 0 && (
           <motion.div variants={shouldReduce ? undefined : ITEM}>
             <div className="flex items-center justify-center gap-2 py-1">
               <div className="h-px w-8 bg-gradient-to-r from-transparent to-white/10" />

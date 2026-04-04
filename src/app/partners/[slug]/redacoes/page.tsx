@@ -102,6 +102,14 @@ function pickEssayTheme(item: EssayListItem): string | null {
   return found ? found.trim() : null;
 }
 
+function normalizePlanLabel(raw?: string | null): string {
+  const value = String(raw || '').trim().toLowerCase();
+  if (!value || value === 'legado' || value === 'legacy' || value === 'b2b_student' || value === 'b2b_pro' || value === 'free' || value === 'none' || value === 'null') {
+    return 'Sem plano vinculado';
+  }
+  return String(raw).trim();
+}
+
 function StudentAvatar({
   name,
   avatarUrl,
@@ -196,11 +204,21 @@ function EssayQueueCard({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-3">
-            <StudentAvatar name={item.student.full_name} avatarUrl={item.student.avatar_url} />
+            <Link
+              href={`/partners/${slug}/alunos/${item.student.id}`}
+              className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
+              title="Abrir perfil do aluno"
+            >
+              <StudentAvatar name={item.student.full_name} avatarUrl={item.student.avatar_url} />
+            </Link>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <Link
+                href={`/partners/${slug}/alunos/${item.student.id}`}
+                className="truncate text-sm font-semibold text-slate-900 underline-offset-2 transition hover:text-[var(--brand-primary)] hover:underline dark:text-slate-100"
+                title="Abrir perfil do aluno"
+              >
                 {item.student.full_name || 'Aluno'}
-              </p>
+              </Link>
               <p className="truncate text-xs text-slate-500 dark:text-slate-400">{item.student.email || '-'}</p>
             </div>
           </div>
@@ -213,7 +231,7 @@ function EssayQueueCard({
           </p>
           {credit && (
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Plano: {credit.plan_name || 'Customizado'} • {
+              Plano: {normalizePlanLabel(credit.plan_name)} • {
                 credit.limit && credit.limit > 0
                   ? `Créditos: ${credit.remaining ?? 0} disponíveis de ${credit.limit} por ${credit.period === 'week' ? 'semana' : 'mês'}${typeof credit.used === 'number' ? ` (${credit.used} usados)` : ''}`
                   : 'Créditos: ilimitados'
@@ -504,7 +522,7 @@ export default function PartnerRedacoesPage() {
                   Filtro por status
                 </span>
               </span>
-              <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+              <div className="flex snap-x snap-mandatory gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 md:flex-wrap md:overflow-visible dark:border-slate-800 dark:bg-slate-950">
                 {[
                   { value: 'all', label: 'Todas' },
                   { value: 'pending', label: 'Pendentes' },
@@ -516,7 +534,7 @@ export default function PartnerRedacoesPage() {
                     type="button"
                     onClick={() => setStatusFilter(opt.value as 'all' | 'pending' | 'corrected' | 'seen')}
                     className={cn(
-                      'min-h-11 shrink-0 snap-start rounded-lg px-3 py-1.5 text-xs font-semibold transition',
+                      'min-h-9 shrink-0 snap-start rounded-lg px-2.5 py-1 text-[11px] font-semibold transition',
                       statusFilter === opt.value
                         ? 'bg-[var(--brand-primary)] text-white shadow-sm'
                         : 'bg-white text-slate-600 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800',
@@ -598,8 +616,20 @@ export default function PartnerRedacoesPage() {
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-slate-500 dark:text-slate-400">#{idx + 1}</span>
-                            <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
-                            <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{row.full_name || 'Aluno'}</span>
+                            <Link
+                              href={`/partners/${org.slug}/alunos/${row.student_id}`}
+                              className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
+                              title="Abrir perfil do aluno"
+                            >
+                              <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
+                            </Link>
+                            <Link
+                              href={`/partners/${org.slug}/alunos/${row.student_id}`}
+                              className="text-sm font-medium text-slate-900 underline-offset-2 transition hover:text-[var(--brand-primary)] hover:underline dark:text-slate-100"
+                              title="Abrir perfil do aluno"
+                            >
+                              {row.full_name || 'Aluno'}
+                            </Link>
                           </div>
                           <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{Math.round(row.avg_score)} / 1000</span>
                         </div>
@@ -645,8 +675,20 @@ export default function PartnerRedacoesPage() {
                           <td className="py-2 pr-2 font-semibold text-slate-600 dark:text-slate-300">{idx + 1}</td>
                           <td className="py-2 pr-2">
                             <div className="flex items-center gap-2">
-                              <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
-                              <span className="font-medium">{row.full_name || 'Aluno'}</span>
+                              <Link
+                                href={`/partners/${org.slug}/alunos/${row.student_id}`}
+                                className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
+                                title="Abrir perfil do aluno"
+                              >
+                                <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
+                              </Link>
+                              <Link
+                                href={`/partners/${org.slug}/alunos/${row.student_id}`}
+                                className="font-medium underline-offset-2 transition hover:text-[var(--brand-primary)] hover:underline"
+                                title="Abrir perfil do aluno"
+                              >
+                                {row.full_name || 'Aluno'}
+                              </Link>
                             </div>
                           </td>
                           <td className="py-2 pr-2 font-semibold">{Math.round(row.avg_score)} / 1000</td>
