@@ -105,6 +105,27 @@ function parseIsoDate(value?: string | null): Date | null {
   return dt;
 }
 
+function toBrtDateKey(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function keyToUtcDate(key: string): Date {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+}
+
+function utcDateToKey(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 const TOOLTIP_STYLE = {
   backgroundColor: 'rgb(255 255 255 / 0.98)',
   border: '1px solid rgb(226 232 240)',
@@ -186,22 +207,26 @@ function TintedCard({
   accentColor?: string;
   accentStrength?: number;
 }) {
-  const bg = accentColor
-    ? `color-mix(in srgb, ${accentColor} ${accentStrength}%, var(--partner-surface-base))`
-    : 'rgb(255 255 255)';
   const border = accentColor
-    ? `color-mix(in srgb, ${accentColor} 22%, var(--partner-surface-base))`
-    : 'rgb(255 255 255 / 0.10)';
+    ? `color-mix(in srgb, ${accentColor} 30%, #e2e8f0)`
+    : 'rgb(226 232 240)';
 
   return (
     <Card
       className={cn(
         'relative overflow-hidden transition-all duration-300',
-        'hover:shadow-md hover:-translate-y-[1px] dark:hover:shadow-none',
+        'bg-white dark:bg-slate-900',
+        'hover:shadow-md hover:-translate-y-[1px]',
         className,
       )}
-      style={{ background: bg, borderColor: border }}
+      style={{ borderColor: border }}
     >
+      {accentColor && (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
+          style={{ background: `linear-gradient(90deg, ${accentColor}, color-mix(in srgb, ${accentColor} 40%, white))` }}
+        />
+      )}
       <BrandLiquidGlass accentColor={accentColor || 'var(--brand-primary)'} intensity={12 + accentStrength} />
       <div className="relative z-10">{children}</div>
     </Card>
@@ -225,22 +250,25 @@ function KpiCard({
   loading?: boolean;
   accentColor: string;
 }) {
-  const bg      = `color-mix(in srgb, ${accentColor} 13%, var(--partner-surface-base))`;
-  const border  = `color-mix(in srgb, ${accentColor} 28%, var(--partner-surface-base))`;
-  const iconBg  = `color-mix(in srgb, ${accentColor} 34%, var(--partner-surface-base))`;
+  const border  = `color-mix(in srgb, ${accentColor} 34%, #e2e8f0)`;
+  const iconBg  = `color-mix(in srgb, ${accentColor} 16%, white)`;
   const glowBg  = `radial-gradient(circle at top right, color-mix(in srgb, ${accentColor} 14%, transparent), transparent 70%)`;
 
   const content = (
     <div
       className={cn(
         'relative overflow-hidden rounded-2xl p-5',
-        'border',
-        'hover:brightness-105 hover:shadow-md dark:hover:shadow-none',
+        'border bg-white dark:bg-slate-900',
+        'hover:shadow-md',
         'transition-all duration-300 group',
         href && 'cursor-pointer'
       )}
-      style={{ background: bg, borderColor: border }}
+      style={{ borderColor: border }}
     >
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
+        style={{ background: `linear-gradient(90deg, ${accentColor}, color-mix(in srgb, ${accentColor} 40%, white))` }}
+      />
       <BrandLiquidGlass accentColor={accentColor} intensity={18} />
 
       {/* Hover glow */}
@@ -255,7 +283,7 @@ function KpiCard({
             className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 dark:border-white/20"
             style={{
               background: iconBg,
-              boxShadow: `inset 0 1px 0 rgba(255,255,255,0.25), 0 4px 14px color-mix(in srgb, ${accentColor} 24%, transparent)`,
+              boxShadow: `inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 8px color-mix(in srgb, ${accentColor} 22%, transparent)`,
             }}
           >
             <div
@@ -264,7 +292,7 @@ function KpiCard({
             />
             <Icon
               className="relative z-10 h-5 w-5"
-              style={{ color: accentColor, filter: `drop-shadow(0 0 6px color-mix(in srgb, ${accentColor} 42%, transparent))` }}
+              style={{ color: accentColor, filter: `drop-shadow(0 0 4px color-mix(in srgb, ${accentColor} 35%, transparent))` }}
             />
           </div>
           {href && (
@@ -464,22 +492,23 @@ export default function FounderDashboard() {
     ? Math.round((activeValue / Math.max(stats.total_students, 1)) * 100)
     : 0;
 
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfWeek = new Date(startOfToday);
-  const jsDay = startOfWeek.getDay();
-  const daysSinceMonday = (jsDay + 6) % 7;
-  startOfWeek.setDate(startOfWeek.getDate() - daysSinceMonday);
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const todayBrtKey = toBrtDateKey(new Date());
+  const todayBrtUtc = keyToUtcDate(todayBrtKey);
+  const weekStartBrtUtc = new Date(todayBrtUtc);
+  const weekDay = (weekStartBrtUtc.getUTCDay() + 6) % 7;
+  weekStartBrtUtc.setUTCDate(weekStartBrtUtc.getUTCDate() - weekDay);
+  const weekStartBrtKey = utcDateToKey(weekStartBrtUtc);
+  const monthStartBrtKey = `${todayBrtKey.slice(0, 8)}01`;
 
   const deliveredEssaysCount = essays.filter((essay) => {
     if (!essay.submitted_at) return false;
     if (metricWindow === 'total') return true;
     const submitted = new Date(essay.submitted_at);
     if (Number.isNaN(submitted.getTime())) return false;
-    if (metricWindow === 'today') return submitted >= startOfToday;
-    if (metricWindow === 'week') return submitted >= startOfWeek;
-    return submitted >= startOfMonth;
+    const submittedBrtKey = toBrtDateKey(submitted);
+    if (metricWindow === 'today') return submittedBrtKey >= todayBrtKey;
+    if (metricWindow === 'week') return submittedBrtKey >= weekStartBrtKey;
+    return submittedBrtKey >= monthStartBrtKey;
   }).length;
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -540,9 +569,9 @@ export default function FounderDashboard() {
                 <span className="mr-2">📚 Nós nascemos para</span>
                 <Typewriter
                   text={['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
-                  speed={80}
-                  deleteSpeed={42}
-                  waitTime={2200}
+                  speed={95}
+                  deleteSpeed={52}
+                  waitTime={2600}
                   className="font-black text-[var(--brand-primary)]"
                   cursorClassName="ml-1 text-[var(--brand-primary)]"
                 />
@@ -816,8 +845,7 @@ export default function FounderDashboard() {
                     const pct = Math.round((getQuestionsByWindow(student) / max) * 100);
                     const barOpacity = Math.max(0.3, 1 - idx * 0.15);
 
-                    const today = new Date().toISOString().slice(0, 10);
-                    const isOnline = student.last_activity_date === today;
+                    const isOnline = student.last_activity_date === todayBrtKey;
 
                     const RankIcon =
                       idx === 0 ? Trophy :

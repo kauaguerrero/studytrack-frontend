@@ -6,8 +6,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
+import FloatingActionMenu from '@/components/ui/floating-action-menu';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, PenLine, Send, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Info, MessageCircle, PenLine, PencilLine, Send, X } from 'lucide-react';
 
 type Annotation = {
   id: string;
@@ -207,7 +208,9 @@ export default function CorrecaoRedacaoPage() {
   const [selectedText, setSelectedText] = useState<SelectedTextState | null>(null);
   const [annotationPopup, setAnnotationPopup] = useState<PopupState | null>(null);
   const [popupMode, setPopupMode] = useState<PopupMode>(null);
+  const [queuedMode, setQueuedMode] = useState<PopupMode>(null);
   const [popupValue, setPopupValue] = useState('');
+  const [showCompetencyPanel, setShowCompetencyPanel] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -335,8 +338,22 @@ export default function CorrecaoRedacaoPage() {
       x: rect.left + rect.width / 2,
       y: rect.bottom + 8,
     });
-    setPopupMode(null);
+    setPopupMode(queuedMode);
+    setQueuedMode(null);
     setPopupValue('');
+  }
+
+  function requestAnnotationMode(mode: Exclude<PopupMode, null>) {
+    if (selectedText && annotationPopup) {
+      setPopupMode(mode);
+      return;
+    }
+    setQueuedMode(mode);
+    toast.message(
+      mode === 'comment'
+        ? 'Selecione um trecho para adicionar o comentário.'
+        : 'Selecione um trecho para adicionar a correção.',
+    );
   }
 
   function addAnnotation() {
@@ -456,6 +473,95 @@ export default function CorrecaoRedacaoPage() {
     });
   }
 
+  const competencyPanelContent = (
+    <>
+      <div className="space-y-4">
+        {scores.map((item, idx) => (
+          <div key={item.competency} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
+            <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+              Competência {item.competency} — {COMPETENCY_NAMES[idx]}
+            </p>
+
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {SCORE_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    setScores((prev) =>
+                      prev.map((s) => (
+                        s.competency === item.competency
+                          ? { ...s, score: option }
+                          : s
+                      )),
+                    );
+                  }}
+                  className={cn(
+                    'rounded-md border px-2 py-1 text-xs font-semibold transition',
+                    item.score === option
+                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] dark:text-white'
+                      : 'border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-500',
+                  )}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+
+            <p className="mb-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+              Nota selecionada: <span className="text-slate-900 dark:text-white">{item.score} / 200</span>
+            </p>
+
+            <textarea
+              value={item.comment}
+              onChange={(e) => {
+                const nextComment = e.target.value;
+                setScores((prev) =>
+                  prev.map((s) => (
+                    s.competency === item.competency
+                      ? { ...s, comment: nextComment }
+                      : s
+                  )),
+                );
+              }}
+              placeholder="Comentário da competência (opcional)"
+              className="min-h-[64px] w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-800 dark:bg-slate-950">
+        <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Total</p>
+        <p className={cn('text-3xl font-extrabold', getTotalColorClass(totalScore))}>
+          {totalScore} / 1000
+        </p>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Comentário Geral
+        </label>
+        <textarea
+          value={generalComment}
+          onChange={(e) => setGeneralComment(e.target.value)}
+          placeholder="Escreva um comentário geral da redação (mín. 20 caracteres)"
+          className="min-h-[110px] w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={submitCorrection}
+        disabled={!canSubmit}
+        className="mt-4 hidden min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 lg:inline-flex"
+      >
+        <Send className="h-4 w-4" />
+        {submitting ? 'Enviando...' : 'Enviar Correção'}
+      </button>
+    </>
+  );
+
   if (loading) {
     return (
       <PartnerLayout>
@@ -492,7 +598,7 @@ export default function CorrecaoRedacaoPage() {
             Correção da Redação - {formatDateBR(essay.submitted_at)}
           </h1>
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <p className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <p className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-primary)]">
               <PenLine className="h-3.5 w-3.5" />
               Tema da redação
             </p>
@@ -500,21 +606,72 @@ export default function CorrecaoRedacaoPage() {
               {essay.theme || 'Tema não informado pelo aluno.'}
             </p>
           </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-primary)]">
+                  <Info className="h-3.5 w-3.5" />
+                  Como corrigir rapidamente
+                </p>
+                <p className="text-sm text-slate-700 dark:text-slate-200">
+                  Selecione um trecho do texto para adicionar comentário ou correção.
+                  {queuedMode && (
+                    <span className="ml-1 font-semibold text-[var(--brand-primary)]">
+                      Ação escolhida: {queuedMode === 'comment' ? 'Comentário' : 'Correção'}.
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="self-end sm:self-auto">
+                <FloatingActionMenu
+                  className="!static !bottom-auto !right-auto"
+                  inline
+                  options={[
+                    {
+                      label: 'Adicionar comentário',
+                      Icon: <MessageCircle className="h-4 w-4" />,
+                      onClick: () => requestAnnotationMode('comment'),
+                    },
+                    {
+                      label: 'Adicionar correção',
+                      Icon: <PencilLine className="h-4 w-4" />,
+                      onClick: () => requestAnnotationMode('correction'),
+                    },
+                  ]}
+                />
+              </div>
+            </div>
+          </div>
         </header>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          <section className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-3 dark:border-slate-800 dark:bg-slate-900">
+        <div className={cn('grid grid-cols-1 gap-4', showCompetencyPanel ? 'lg:grid-cols-5' : 'lg:grid-cols-1')}>
+          <section className={cn(
+            'relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900',
+            showCompetencyPanel ? 'lg:col-span-3' : 'lg:col-span-1',
+          )}>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Texto do aluno</h2>
-              <span
-                className={cn(
-                  'rounded-full px-2.5 py-1 text-xs font-semibold',
-                  essay.status === 'pending' && 'bg-amber-500/20 text-amber-300',
-                  essay.status !== 'pending' && 'bg-emerald-500/20 text-emerald-300',
+              <div className="flex items-center gap-2">
+                {!showCompetencyPanel && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCompetencyPanel(true)}
+                    className="hidden lg:inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    Mostrar lateral
+                  </button>
                 )}
-              >
-                {essay.status === 'pending' ? 'Pendente' : 'Já corrigida'}
-              </span>
+                <span
+                  className={cn(
+                    'rounded-full px-2.5 py-1 text-xs font-semibold',
+                    essay.status === 'pending' && 'border border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-300',
+                    essay.status !== 'pending' && 'border border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300',
+                  )}
+                >
+                  {essay.status === 'pending' ? 'Pendente' : 'Já corrigida'}
+                </span>
+              </div>
             </div>
 
             <div
@@ -553,14 +710,14 @@ export default function CorrecaoRedacaoPage() {
                     <button
                       type="button"
                       onClick={() => setPopupMode('comment')}
-                      className="flex-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs font-semibold text-amber-200"
+                      className="flex-1 rounded-lg border border-amber-400/60 bg-amber-100 px-2 py-1.5 text-xs font-semibold text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
                     >
                       💬 Comentar
                     </button>
                     <button
                       type="button"
                       onClick={() => setPopupMode('correction')}
-                      className="flex-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1.5 text-xs font-semibold text-emerald-200"
+                      className="flex-1 rounded-lg border border-emerald-400/60 bg-emerald-100 px-2 py-1.5 text-xs font-semibold text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200"
                     >
                       ✏️ Corrigir
                     </button>
@@ -634,97 +791,44 @@ export default function CorrecaoRedacaoPage() {
             </div>
           </section>
 
-          <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:col-span-2 dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              Notas por Competência
-            </h2>
-
-            <div className="space-y-4">
-              {scores.map((item, idx) => (
-                <div key={item.competency} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
-                  <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                    Competência {item.competency} — {COMPETENCY_NAMES[idx]}
-                  </p>
-
-                  <div className="mb-2 flex flex-wrap gap-1.5">
-                    {SCORE_OPTIONS.map((option) => (
-                      <button
-                        key={option}
-                        type="button"
-                        onClick={() => {
-                          setScores((prev) =>
-                            prev.map((s) => (
-                              s.competency === item.competency
-                                ? { ...s, score: option }
-                                : s
-                            )),
-                          );
-                        }}
-                        className={cn(
-                          'rounded-md border px-2 py-1 text-xs font-semibold transition',
-                          item.score === option
-                            ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] dark:text-white'
-                            : 'border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-500',
-                        )}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-
-                  <p className="mb-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                    Nota selecionada: <span className="text-slate-900 dark:text-white">{item.score} / 200</span>
-                  </p>
-
-                  <textarea
-                    value={item.comment}
-                    onChange={(e) => {
-                      const nextComment = e.target.value;
-                      setScores((prev) =>
-                        prev.map((s) => (
-                          s.competency === item.competency
-                            ? { ...s, comment: nextComment }
-                            : s
-                        )),
-                      );
-                    }}
-                    placeholder="Comentário da competência (opcional)"
-                    className="min-h-[64px] w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                  />
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-800 dark:bg-slate-950">
-              <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Total</p>
-              <p className={cn('text-3xl font-extrabold', getTotalColorClass(totalScore))}>
-                {totalScore} / 1000
-              </p>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Comentário Geral
-              </label>
-              <textarea
-                value={generalComment}
-                onChange={(e) => setGeneralComment(e.target.value)}
-                placeholder="Escreva um comentário geral da redação (mín. 20 caracteres)"
-                className="min-h-[110px] w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={submitCorrection}
-              disabled={!canSubmit}
-              className="mt-4 hidden min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 lg:inline-flex"
-            >
-              <Send className="h-4 w-4" />
-              {submitting ? 'Enviando...' : 'Enviar Correção'}
-            </button>
-          </aside>
+          {showCompetencyPanel && (
+            <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:col-span-2 dark:border-slate-800 dark:bg-slate-900">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--brand-primary)]">
+                  Notas por Competência
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowCompetencyPanel(false)}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                  Ocultar lateral
+                </button>
+              </div>
+              {competencyPanelContent}
+            </aside>
+          )}
         </div>
+
+        {!showCompetencyPanel && (
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--brand-primary)]">
+                Notas por Competência (abaixo)
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowCompetencyPanel(true)}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Mostrar na lateral
+              </button>
+            </div>
+            {competencyPanelContent}
+          </section>
+        )}
 
         <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
           A correção exige nota nas 5 competências (incluindo 0) e comentário geral com no mínimo 20 caracteres.

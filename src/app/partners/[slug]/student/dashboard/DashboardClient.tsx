@@ -277,9 +277,9 @@ export function DashboardClient({
                   <span className="mr-2">📚 Nós nascemos para</span>
                   <Typewriter
                     text={['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
-                    speed={80}
-                    deleteSpeed={42}
-                    waitTime={2200}
+                    speed={95}
+                    deleteSpeed={52}
+                    waitTime={2600}
                     className="font-extrabold text-[var(--brand-primary)]"
                     cursorClassName="ml-1 text-[var(--brand-primary)]"
                   />
