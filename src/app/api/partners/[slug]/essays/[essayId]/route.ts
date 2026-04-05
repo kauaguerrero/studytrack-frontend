@@ -140,7 +140,7 @@ async function insertEssayAnnotationsCompat(
 
   let lastErrorMessage = 'Formato de anotações incompatível com o schema.';
   for (const rows of attempts) {
-    const { error } = await admin.from('essay_annotations').insert(rows);
+    const { error } = await admin.from('essay_annotations').insert((rows as never));
     if (!error) return { ok: true as const };
     lastErrorMessage = error.message || lastErrorMessage;
   }
@@ -301,7 +301,7 @@ export async function POST(
     return NextResponse.json({ error: 'Envie as 5 competências para correção.' }, { status: 400 });
   }
 
-  const competencyScores = rawScores.map((item, idx) => {
+  const competencyScores: Array<{ competency: number; score: number; comment: string; expected: number }> = rawScores.map((item: { competency: number; score: number; comment?: string }, idx: number) => {
     const competency = Number(item?.competency);
     const score = Number(item?.score);
     const comment = typeof item?.comment === 'string' ? item.comment.trim().slice(0, MAX_COMP_COMMENT_LEN) : '';
@@ -332,6 +332,9 @@ export async function POST(
   if (fetchError || !essay) {
     return NextResponse.json({ error: 'Redação não encontrada.' }, { status: 404 });
   }
+  if (String(essay.status || '').toLowerCase() !== 'pending') {
+    return NextResponse.json({ error: 'A redação não está pendente para correção.' }, { status: 400 });
+  }
 
   const updatePayload: Record<string, unknown> = {
     status: 'corrected',
@@ -346,9 +349,9 @@ export async function POST(
   if (Object.prototype.hasOwnProperty.call(essay, 'updated_at')) {
     updatePayload.updated_at = new Date().toISOString();
   }
-  const incomingAnnotations = Array.isArray(payload.annotations) ? payload.annotations.slice(0, MAX_ANNOTATIONS) : [];
+  const incomingAnnotations: unknown[] = Array.isArray(payload.annotations) ? payload.annotations.slice(0, MAX_ANNOTATIONS) : [];
   const sanitizedAnnotations = incomingAnnotations
-    .map((item) => {
+    .map((item: unknown) => {
       const row = item as Record<string, unknown>;
       return {
         start_offset: Number(row.start_offset),
@@ -374,8 +377,9 @@ export async function POST(
 
   const { error: updateError } = await auth.admin
     .from('essays')
-    .update(updatePayload)
-    .eq('id', essayId);
+    .update((updatePayload as never))
+    .eq('id', essayId)
+    .eq('org_id', auth.orgId);
 
   if (updateError) {
     return NextResponse.json(
@@ -412,7 +416,7 @@ export async function POST(
 
     const { error: insertScoresError } = await auth.admin
       .from('essay_competency_scores')
-      .insert(scoreRows);
+      .insert((scoreRows as never));
     if (insertScoresError) {
       return NextResponse.json(
         {

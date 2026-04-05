@@ -108,7 +108,7 @@ export async function GET(
       .from('profiles')
       .select('id, full_name, email, avatar_url')
       .in('id', studentIds);
-    studentsMap = new Map((students || []).map((s) => [s.id, s as StudentRow]));
+    studentsMap = new Map((((students || []) as StudentRow[]).map((s) => [s.id, s])));
   }
 
   const pendingItems = list

@@ -1,9 +1,33 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { randomInt } from 'node:crypto';
 
 const ASSOCIATE_DB_ROLE = 'associate';
 const LEGACY_ASSOCIATE_ROLE = 'teacher';
+const CSRF_HEADER = 'x-studytrack-csrf';
+
+function ensureSameOrigin(request: Request): NextResponse | null {
+  const origin = request.headers.get('origin');
+  const host = request.headers.get('host');
+  if (!origin || !host) return null;
+  try {
+    const originHost = new URL(origin).host;
+    if (originHost !== host) {
+      return NextResponse.json({ error: 'Origem inválida.' }, { status: 403 });
+    }
+  } catch {
+    return NextResponse.json({ error: 'Origem inválida.' }, { status: 403 });
+  }
+  return null;
+}
+
+function ensureCsrfHeader(request: Request): NextResponse | null {
+  if (request.headers.get(CSRF_HEADER) !== '1') {
+    return NextResponse.json({ error: 'Requisição inválida.' }, { status: 403 });
+  }
+  return null;
+}
 
 function generateTemporaryPassword(length = 12): string {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -12,13 +36,13 @@ function generateTemporaryPassword(length = 12): string {
   const symbols = '!@#$%&*?';
   const all = upper + lower + nums + symbols;
 
-  const pick = (source: string) => source[Math.floor(Math.random() * source.length)];
+  const pick = (source: string) => source[randomInt(0, source.length)];
   const seed = [pick(upper), pick(lower), pick(nums), pick(symbols)];
   while (seed.length < length) seed.push(pick(all));
 
   // Fisher-Yates para não vazar padrão da seed
   for (let i = seed.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomInt(0, i + 1);
     const tmp = seed[i];
     seed[i] = seed[j];
     seed[j] = tmp;
@@ -27,9 +51,14 @@ function generateTemporaryPassword(length = 12): string {
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ slug: string; associateId: string }> },
 ) {
+  const originError = ensureSameOrigin(request);
+  if (originError) return originError;
+  const csrfError = ensureCsrfHeader(request);
+  if (csrfError) return csrfError;
+
   const { slug, associateId } = await context.params;
 
   const supabase = await createClient();
@@ -51,12 +80,12 @@ export async function POST(
       .from('profiles')
       .select('role, organization_id')
       .eq('id', user.id)
-      .maybeSingle(),
+      .maybeSingle<{ role: string | null; organization_id: string | null }>(),
     adminClient
       .from('organizations')
       .select('id')
       .eq('slug', slug)
-      .maybeSingle(),
+      .maybeSingle<{ id: string }>(),
   ]);
 
   if (!org?.id) {
@@ -77,7 +106,7 @@ export async function POST(
     .from('profiles')
     .select('id, role, organization_id, full_name, email')
     .eq('id', associateId)
-    .maybeSingle();
+    .maybeSingle<{ id: string; role: string | null; organization_id: string | null; full_name: string | null; email: string | null }>();
 
   if (!associate) {
     return NextResponse.json({ error: 'Associado não encontrado.' }, { status: 404 });
@@ -99,19 +128,22 @@ export async function POST(
 
   const { error: updateProfileError } = await adminClient
     .from('profiles')
-    .update({ must_change_password: true, updated_at: new Date().toISOString() })
+    .update(({ must_change_password: true, updated_at: new Date().toISOString() } as never))
     .eq('id', associateId);
   if (updateProfileError) {
     return NextResponse.json({ error: 'Senha definida, mas não foi possível marcar troca obrigatória.' }, { status: 500 });
   }
 
-  return NextResponse.json({
-    ok: true,
-    temporary_password: temporaryPassword,
-    associate: {
-      id: associate.id,
-      full_name: associate.full_name,
-      email: associate.email,
+  return NextResponse.json(
+    {
+      ok: true,
+      temporary_password: temporaryPassword,
+      associate: {
+        id: associate.id,
+        full_name: associate.full_name,
+        email: associate.email,
+      },
     },
-  });
+    { headers: { 'Cache-Control': 'no-store' } },
+  );
 }

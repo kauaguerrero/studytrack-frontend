@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { randomInt } from 'node:crypto';
 
 const ASSOCIATE_DB_ROLE = 'associate';
 const LEGACY_ASSOCIATE_ROLE = 'teacher';
+const CSRF_HEADER = 'x-studytrack-csrf';
 
 type RequesterRow = {
   role: string | null;
@@ -55,6 +57,28 @@ async function authorize(slug: string) {
   return { ok: true as const, adminClient, orgId: org.id };
 }
 
+function ensureSameOrigin(request: Request): NextResponse | null {
+  const origin = request.headers.get('origin');
+  const host = request.headers.get('host');
+  if (!origin || !host) return null;
+  try {
+    const originHost = new URL(origin).host;
+    if (originHost !== host) {
+      return NextResponse.json({ error: 'Origem inválida.' }, { status: 403 });
+    }
+  } catch {
+    return NextResponse.json({ error: 'Origem inválida.' }, { status: 403 });
+  }
+  return null;
+}
+
+function ensureCsrfHeader(request: Request): NextResponse | null {
+  if (request.headers.get(CSRF_HEADER) !== '1') {
+    return NextResponse.json({ error: 'Requisição inválida.' }, { status: 403 });
+  }
+  return null;
+}
+
 function generateTemporaryPassword(length = 12): string {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
   const lower = 'abcdefghijkmnopqrstuvwxyz';
@@ -62,11 +86,11 @@ function generateTemporaryPassword(length = 12): string {
   const symbols = '!@#$%&*?';
   const all = upper + lower + nums + symbols;
 
-  const pick = (source: string) => source[Math.floor(Math.random() * source.length)];
+  const pick = (source: string) => source[randomInt(0, source.length)];
   const seed = [pick(upper), pick(lower), pick(nums), pick(symbols)];
   while (seed.length < length) seed.push(pick(all));
   for (let i = seed.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomInt(0, i + 1);
     const tmp = seed[i];
     seed[i] = seed[j];
     seed[j] = tmp;
@@ -93,7 +117,13 @@ export async function GET(
     return NextResponse.json({ error: 'Não foi possível listar associados.' }, { status: 500 });
   }
 
-  const associates = (data || []).map((item) => ({
+  const associates = ((data || []) as Array<{
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    avatar_url: string | null;
+    organization_id: string | null;
+  }>).map((item) => ({
     id: item.id,
     full_name: item.full_name,
     email: item.email,
@@ -111,6 +141,11 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ slug: string }> },
 ) {
+  const originError = ensureSameOrigin(request);
+  if (originError) return originError;
+  const csrfError = ensureCsrfHeader(request);
+  if (csrfError) return csrfError;
+
   const { slug } = await context.params;
   const auth = await authorize(slug);
   if (!auth.ok) return auth.response;
@@ -159,10 +194,11 @@ export async function POST(
   // 1) Tenta atualizar perfil existente (caso trigger já tenha criado).
   const { error: updateProfileError } = await auth.adminClient
     .from('profiles')
-    .update(baseProfilePayload)
+    .update((baseProfilePayload as never))
     .eq('id', associateId);
 
   if (updateProfileError) {
+    console.error('[Partners associates] updateProfileError', updateProfileError);
     await auth.adminClient.auth.admin.deleteUser(associateId);
     const raw = String(updateProfileError.message || '');
     if (raw.toLowerCase().includes('profiles_role_check')) {
@@ -172,7 +208,7 @@ export async function POST(
       );
     }
     return NextResponse.json(
-      { error: `Falha ao atualizar perfil do associado: ${updateProfileError.message}` },
+      { error: 'Falha ao atualizar perfil do associado.' },
       { status: 500 },
     );
   }
@@ -185,9 +221,10 @@ export async function POST(
     .maybeSingle<{ id: string }>();
 
   if (checkProfileError) {
+    console.error('[Partners associates] checkProfileError', checkProfileError);
     await auth.adminClient.auth.admin.deleteUser(associateId);
     return NextResponse.json(
-      { error: `Falha ao validar perfil do associado: ${checkProfileError.message}` },
+      { error: 'Falha ao validar perfil do associado.' },
       { status: 500 },
     );
   }
@@ -195,12 +232,13 @@ export async function POST(
   if (!profileExists?.id) {
     const { error: insertProfileError } = await auth.adminClient
       .from('profiles')
-      .insert({
+      .insert(({
         id: associateId,
         ...baseProfilePayload,
-      });
+      } as never));
 
     if (insertProfileError) {
+      console.error('[Partners associates] insertProfileError', insertProfileError);
       await auth.adminClient.auth.admin.deleteUser(associateId);
       const raw = String(insertProfileError.message || '');
       if (raw.toLowerCase().includes('profiles_role_check')) {
@@ -210,7 +248,7 @@ export async function POST(
         );
       }
       return NextResponse.json(
-        { error: `Falha ao criar perfil do associado: ${insertProfileError.message}` },
+        { error: 'Falha ao criar perfil do associado.' },
         { status: 500 },
       );
     }

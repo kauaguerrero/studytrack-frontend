@@ -77,7 +77,7 @@ export async function PATCH(
 
   const { error: updateError } = await admin
     .from('essays')
-    .update({ status: 'seen', seen_at: new Date().toISOString() })
+    .update(({ status: 'seen', seen_at: new Date().toISOString() } as never))
     .eq('id', essayId);
 
   if (updateError) {

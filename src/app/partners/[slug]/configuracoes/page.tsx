@@ -497,6 +497,7 @@ export default function ConfiguracoesPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-studytrack-csrf': '1',
         },
         body: JSON.stringify({
           full_name: fullName,
@@ -529,6 +530,7 @@ export default function ConfiguracoesPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'x-studytrack-csrf': '1',
         },
         body: JSON.stringify({ active: !(member.active ?? true) }),
       });
@@ -550,6 +552,9 @@ export default function ConfiguracoesPage() {
     try {
       const res = await fetch(`/api/partners/${org.slug}/associates/${member.id}`, {
         method: 'DELETE',
+        headers: {
+          'x-studytrack-csrf': '1',
+        },
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({} as { error?: string }));
@@ -569,6 +574,9 @@ export default function ConfiguracoesPage() {
     try {
       const res = await fetch(`/api/partners/${org.slug}/associates/${member.id}/password`, {
         method: 'POST',
+        headers: {
+          'x-studytrack-csrf': '1',
+        },
       });
       const data = await res.json().catch(() => ({} as { error?: string; temporary_password?: string }));
       if (!res.ok || !data.temporary_password) {

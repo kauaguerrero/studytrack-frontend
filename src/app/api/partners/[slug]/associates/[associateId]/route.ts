@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 const ASSOCIATE_DB_ROLE = 'associate';
 const LEGACY_ASSOCIATE_ROLE = 'teacher';
+const CSRF_HEADER = 'x-studytrack-csrf';
 
 type RequesterRow = {
   role: string | null;
@@ -55,10 +56,37 @@ async function authorize(slug: string) {
   return { ok: true as const, adminClient, orgId: org.id };
 }
 
+function ensureSameOrigin(request: Request): NextResponse | null {
+  const origin = request.headers.get('origin');
+  const host = request.headers.get('host');
+  if (!origin || !host) return null;
+  try {
+    const originHost = new URL(origin).host;
+    if (originHost !== host) {
+      return NextResponse.json({ error: 'Origem inválida.' }, { status: 403 });
+    }
+  } catch {
+    return NextResponse.json({ error: 'Origem inválida.' }, { status: 403 });
+  }
+  return null;
+}
+
+function ensureCsrfHeader(request: Request): NextResponse | null {
+  if (request.headers.get(CSRF_HEADER) !== '1') {
+    return NextResponse.json({ error: 'Requisição inválida.' }, { status: 403 });
+  }
+  return null;
+}
+
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ slug: string; associateId: string }> },
 ) {
+  const originError = ensureSameOrigin(request);
+  if (originError) return originError;
+  const csrfError = ensureCsrfHeader(request);
+  if (csrfError) return csrfError;
+
   const { slug, associateId } = await context.params;
   const auth = await authorize(slug);
   if (!auth.ok) return auth.response;
@@ -80,11 +108,11 @@ export async function PATCH(
 
   const { error } = await auth.adminClient
     .from('profiles')
-    .update({
+    .update(({
       organization_id: body.active ? auth.orgId : null,
       role: associate.role || ASSOCIATE_DB_ROLE,
       updated_at: new Date().toISOString(),
-    })
+    } as never))
     .eq('id', associateId);
 
   if (error) {
@@ -95,9 +123,14 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ slug: string; associateId: string }> },
 ) {
+  const originError = ensureSameOrigin(request);
+  if (originError) return originError;
+  const csrfError = ensureCsrfHeader(request);
+  if (csrfError) return csrfError;
+
   const { slug, associateId } = await context.params;
   const auth = await authorize(slug);
   if (!auth.ok) return auth.response;
@@ -114,11 +147,11 @@ export async function DELETE(
 
   const { error } = await auth.adminClient
     .from('profiles')
-    .update({
+    .update(({
       organization_id: null,
       role: associate.role || ASSOCIATE_DB_ROLE,
       updated_at: new Date().toISOString(),
-    })
+    } as never))
     .eq('id', associateId);
 
   if (error) {
