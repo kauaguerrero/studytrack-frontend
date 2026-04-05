@@ -16,6 +16,7 @@ const roleLabel: Record<UserRole, string> = {
   secretariat: 'Secretaria',
   admin: 'Admin',
   founder: 'Parceiro',
+  associate: 'Associado',
 };
 
 export function PortalHeader({

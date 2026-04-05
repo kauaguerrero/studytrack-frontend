@@ -1,67 +1,136 @@
 'use client';
 
-import { useEffect } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { X } from 'lucide-react';
+import { usePopupTheme } from './popupTheme';
 
 interface Props {
   onDismiss: () => void;
 }
 
-const AUTO_DISMISS_MS = 4000;
+// ── Confetti: mesmas partículas do SimuladoRewardPopup ────────────────────────
+
+const PARTICLES = Array.from({ length: 20 }, (_, i) => ({
+  id: i,
+  color: ['#F59E0B', '#ffffff', '#34D399', '#60A5FA', '#F472B6'][i % 5],
+  angleDeg: (i / 20) * 360,
+  distance: 90 + (i % 4) * 35,
+  size: 6 + (i % 3) * 4,
+  durationS: 0.75 + (i % 4) * 0.12,
+  isCircle: i % 3 === 0,
+}));
+
+const confettiKeyframes = PARTICLES.map((p) => {
+  const rad = (p.angleDeg * Math.PI) / 180;
+  const tx = Math.round(Math.cos(rad) * p.distance);
+  const ty = Math.round(Math.sin(rad) * p.distance);
+  return `@keyframes se-confetti-${p.id} {
+    0%   { transform: translate(0,0) scale(1); opacity: 1; }
+    75%  { opacity: 0.9; }
+    100% { transform: translate(${tx}px,${ty}px) scale(0); opacity: 0; }
+  }`;
+}).join('\n');
 
 export function ShieldEarnedPopup({ onDismiss }: Props) {
   const shouldReduce = useReducedMotion();
-
-  useEffect(() => {
-    const t = setTimeout(onDismiss, AUTO_DISMISS_MS);
-    return () => clearTimeout(t);
-  }, [onDismiss]);
+  const theme = usePopupTheme('shield');
 
   return (
-    <motion.div
-      className="fixed top-4 right-4 z-[7500] w-72 overflow-hidden rounded-2xl shadow-2xl"
-      initial={shouldReduce ? {} : { y: -60, opacity: 0 }}
-      animate={shouldReduce ? {} : { y: 0, opacity: 1 }}
-      exit={shouldReduce ? {} : { y: -60, opacity: 0 }}
-      transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-      role="status"
+    <div
+      className="fixed inset-0 z-[9500] flex items-center justify-center px-4"
+      style={{
+        ...theme.overlayStyle,
+        paddingTop: 'max(env(safe-area-inset-top), 1rem)',
+        paddingRight: 'max(env(safe-area-inset-right), 1rem)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)',
+        paddingLeft: 'max(env(safe-area-inset-left), 1rem)',
+      }}
       aria-live="polite"
+      aria-label="Escudo conquistado"
     >
-      <div
-        className="relative p-4"
-        style={{
-          background: 'linear-gradient(135deg, #0c1a2e 0%, #1a2f4a 100%)',
-          border: '1px solid rgba(99,179,237,0.25)',
-          borderRadius: 'inherit',
-        }}
+      {!shouldReduce && <style>{confettiKeyframes}</style>}
+
+      {!shouldReduce && (
+        <div
+          className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden"
+          aria-hidden
+        >
+          {PARTICLES.map((p) => (
+            <div
+              key={p.id}
+              style={{
+                position: 'absolute',
+                width: p.size,
+                height: p.size,
+                borderRadius: p.isCircle ? '50%' : '2px',
+                backgroundColor: p.color,
+                animation: `se-confetti-${p.id} ${p.durationS}s ease-out both`,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      <motion.div
+        className="relative w-full max-w-sm overflow-hidden rounded-3xl shadow-2xl"
+        style={{ ...theme.cardStyle, maxHeight: 'min(92dvh, 760px)' }}
+        initial={shouldReduce ? {} : { scale: 0.8, opacity: 0 }}
+        animate={shouldReduce ? {} : { scale: 1, opacity: 1 }}
+        transition={shouldReduce ? {} : { type: 'spring', stiffness: 260, damping: 22 }}
       >
         <button
           onClick={onDismiss}
-          className="absolute right-3 top-3 rounded-md p-0.5 text-white/25 transition-colors hover:text-white/60"
+          className={`absolute right-3 top-3 z-10 rounded-full p-1.5 transition-colors ${theme.closeButtonClass}`}
           aria-label="Fechar"
         >
-          <X className="h-3.5 w-3.5" />
+          ✕
         </button>
 
-        <div className="mb-2 flex items-start gap-2.5">
-          <motion.span
-            className="mt-0.5 shrink-0 text-lg"
-            aria-hidden
-            animate={shouldReduce ? {} : { scale: [1, 1.2, 1] }}
-            transition={shouldReduce ? {} : { duration: 0.6, repeat: 2 }}
-          >
-            🛡️
-          </motion.span>
-          <p className="pr-4 text-sm font-extrabold leading-snug text-white">
-            Escudo conquistado!
-          </p>
-        </div>
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-28"
+          style={{
+            background: theme.isDark
+              ? 'linear-gradient(180deg, rgba(96,165,250,0.24), transparent)'
+              : 'linear-gradient(180deg, rgba(96,165,250,0.16), transparent)',
+          }}
+        />
 
-        <p className="pl-8 text-xs leading-relaxed text-white/45">
-          Você completou todas as missões da semana. Sua próxima sequência está protegida.
-        </p>
-      </div>
-    </motion.div>
+        <div className="overflow-y-auto px-5 pt-7 pb-5 space-y-5 sm:px-6 sm:pt-8 sm:pb-6">
+          <div className="text-center">
+            <motion.div
+              className="mb-3 select-none text-5xl sm:text-6xl"
+              role="img"
+              aria-hidden
+              animate={shouldReduce ? {} : { scale: [1, 1.18, 1] }}
+              transition={shouldReduce ? {} : { duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              🛡️
+            </motion.div>
+            <p className={`text-xl font-extrabold tracking-widest leading-tight ${theme.titleClass}`}>
+              🛡️ Escudo conquistado!
+            </p>
+            <p className={`mt-1 text-sm ${theme.bodyClass}`}>
+              Sua sequência está protegida por 1 semana
+            </p>
+          </div>
+
+          <div className="rounded-2xl px-4 py-3 text-center" style={theme.accentPanelStyle}>
+            <p className={`text-xs font-bold uppercase tracking-[0.18em] ${theme.mutedClass}`}>
+              Defesa ativa
+            </p>
+            <p className={`mt-1 text-sm ${theme.bodyClass}`}>
+              Se você falhar um dia nesta semana, o escudo preserva sua streak.
+            </p>
+          </div>
+
+          <button
+            onClick={onDismiss}
+            className={`w-full rounded-2xl py-3.5 text-sm font-bold transition-opacity hover:opacity-90 active:scale-[0.98] ${theme.primaryButtonClass}`}
+            style={theme.primaryButtonStyle}
+          >
+            Continuar →
+          </button>
+        </div>
+      </motion.div>
+    </div>
   );
 }

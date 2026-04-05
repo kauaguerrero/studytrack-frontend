@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:essay-credits": "node scripts/test-essay-credits-logic.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
@@ -23,7 +24,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "framer-motion": "^12.23.26",
+    "framer-motion": "^12.38.0",
     "html-to-image": "^1.11.13",
     "isomorphic-dompurify": "^3.0.0-rc.2",
     "jspdf": "^4.0.0",

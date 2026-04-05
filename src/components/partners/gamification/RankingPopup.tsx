@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useReducedMotion } from 'framer-motion';
 import type { PartnerRankingEntry, PartnerRankingResponse } from '@/types/gamification';
+import { usePopupTheme } from './popupTheme';
 
 // ─── Props ─────────────────────────────────────────────────────────────────────
 
@@ -37,11 +38,13 @@ function RankRow({
   medal,
   isHighlighted = false,
   label,
+  theme,
 }: {
   entry: PartnerRankingEntry;
   medal?: string;
   isHighlighted?: boolean;
   label?: string;
+  theme: ReturnType<typeof usePopupTheme>;
 }) {
   return (
     <div
@@ -49,12 +52,12 @@ function RankRow({
       style={
         isHighlighted
           ? { background: 'color-mix(in srgb, var(--brand-primary) 14%, transparent)' }
-          : undefined
+          : theme.rankingRowStyle
       }
     >
       {/* Rank / medal */}
       <span
-        className={`w-7 shrink-0 text-center text-sm ${medal ? 'text-base' : 'font-bold text-slate-500'}`}
+        className={`w-7 shrink-0 text-center text-sm ${medal ? 'text-base' : `font-bold ${theme.softTextClass}`}`}
         aria-label={medal ? `${entry.rank}º lugar` : `#${entry.rank}`}
       >
         {medal ?? `#${entry.rank}`}
@@ -66,7 +69,7 @@ function RankRow({
       {/* Name */}
       <span
         className={`flex-1 truncate text-sm font-semibold ${
-          isHighlighted ? 'text-white' : 'text-slate-300'
+          isHighlighted ? theme.rankingRowTextClass : theme.softTextClass
         }`}
       >
         {entry.full_name}
@@ -74,7 +77,7 @@ function RankRow({
 
       {/* "← Você" label */}
       {label && (
-        <span className="shrink-0 text-[10px] font-bold text-slate-500 whitespace-nowrap">
+        <span className={`shrink-0 whitespace-nowrap text-[10px] font-bold ${theme.rankingRowSubtextClass}`}>
           {label}
         </span>
       )}
@@ -82,7 +85,7 @@ function RankRow({
       {/* Points */}
       <span
         className={`shrink-0 text-xs font-bold tabular-nums ${
-          isHighlighted ? 'text-white' : 'text-slate-400'
+          isHighlighted ? theme.rankingRowValueClass : theme.strongMutedClass
         }`}
       >
         {entry.monthly_points.toLocaleString('pt-BR')} pts
@@ -96,6 +99,7 @@ function RankRow({
 export function RankingPopup({ ranking, onClose }: Props) {
   const shouldReduce = useReducedMotion();
   const overlayRef = useRef<HTMLDivElement>(null);
+  const theme = usePopupTheme('ranking');
 
   const { ranking: topList, user_context, prize_cutoff } = ranking;
   const selfId = user_context?.self?.user_id;
@@ -118,24 +122,31 @@ export function RankingPopup({ ranking, onClose }: Props) {
     <motion.div
       ref={overlayRef}
       className="fixed inset-0 z-[9000] flex items-end justify-center p-4 sm:items-center"
-      style={{ background: 'rgba(0,0,0,0.72)' }}
+      style={{
+        ...theme.overlayStyle,
+        paddingTop: 'max(env(safe-area-inset-top), 1rem)',
+        paddingRight: 'max(env(safe-area-inset-right), 1rem)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)',
+        paddingLeft: 'max(env(safe-area-inset-left), 1rem)',
+      }}
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
       {...overlayAnim}
     >
       <motion.div
-        className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-700/50 bg-slate-900 shadow-2xl"
+        className="w-full max-w-sm overflow-hidden rounded-2xl shadow-2xl"
+        style={{ ...theme.cardStyle, maxHeight: 'min(92dvh, 760px)' }}
         {...cardAnim}
         // Prevent overlay click from bubbling through the card
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
-          <h3 className="flex items-center gap-2 text-sm font-extrabold text-white">
+        <div className={`flex items-center justify-between px-4 py-3 ${theme.isDark ? 'border-b border-white/8' : 'border-b border-slate-200/80'}`}>
+          <h3 className={`flex items-center gap-2 text-sm font-extrabold ${theme.titleClass}`}>
             <span aria-hidden>🏆</span> Ranking do Mês
           </h3>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-500 transition-colors hover:text-white"
+            className={`rounded-lg p-1.5 transition-colors ${theme.closeButtonClass}`}
             aria-label="Fechar ranking"
           >
             <X className="h-4 w-4" />
@@ -143,7 +154,7 @@ export function RankingPopup({ ranking, onClose }: Props) {
         </div>
 
         {/* ── Body ───────────────────────────────────────────────────────── */}
-        <div className="px-3 py-3 space-y-1">
+        <div className="max-h-[min(70dvh,560px)] overflow-y-auto px-3 py-3 space-y-1">
           {/* Prize zone — top N */}
           {prizeEntries.map((entry, i) => (
             <RankRow
@@ -151,42 +162,44 @@ export function RankingPopup({ ranking, onClose }: Props) {
               entry={entry}
               medal={MEDALS[i]}
               isHighlighted={entry.user_id === selfId}
+              theme={theme}
             />
           ))}
 
           {/* Separator */}
           <div className="flex items-center gap-2 py-1.5" aria-hidden>
-            <div className="flex-1 border-t border-dashed border-slate-700" />
-            <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-slate-600">
+            <div className={`flex-1 border-t border-dashed ${theme.isDark ? 'border-white/10' : 'border-slate-200'}`} />
+            <span className={`shrink-0 text-[9px] font-bold uppercase tracking-widest ${theme.rankingRowSubtextClass}`}>
               Zona do prêmio
             </span>
-            <div className="flex-1 border-t border-dashed border-slate-700" />
+            <div className={`flex-1 border-t border-dashed ${theme.isDark ? 'border-white/10' : 'border-slate-200'}`} />
           </div>
 
           {/* User context slice */}
           {user_context && (
             <>
               {user_context.above.map((entry) => (
-                <RankRow key={entry.user_id} entry={entry} />
+                <RankRow key={entry.user_id} entry={entry} theme={theme} />
               ))}
 
               <RankRow
                 entry={user_context.self}
                 isHighlighted
                 label="← Você está aqui"
+                theme={theme}
               />
 
               {user_context.below.map((entry) => (
-                <RankRow key={entry.user_id} entry={entry} />
+                <RankRow key={entry.user_id} entry={entry} theme={theme} />
               ))}
             </>
           )}
         </div>
 
         {/* ── Footer ─────────────────────────────────────────────────────── */}
-        <div className="border-t border-slate-800 px-4 py-3">
-          <p className="text-center text-xs text-slate-500">
-            Top {prize_cutoff} ganham a pulseira exclusiva Edificar 🏆
+        <div className={`${theme.isDark ? 'border-t border-white/8' : 'border-t border-slate-200/80'} px-4 py-3`}>
+          <p className={`text-center text-xs ${theme.bodyClass}`}>
+            Top {prize_cutoff} estão mais perto do prêmio — quem atingir 1.500 pts no mês vence 🏆
           </p>
         </div>
       </motion.div>

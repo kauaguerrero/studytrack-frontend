@@ -13,6 +13,7 @@ const ROLE_TO_DASHBOARD: Record<UserRole, string> = {
   admin: '/portal/admin',
   secretariat: '/portal/secretariat',
   founder: '/portal',  // /portal redireciona founder para /partners/<slug>/dashboard
+  associate: '/portal',
 }
 
 /** Aplica cookies capturados na resposta de redirect (evita perder sessão no OAuth). */
@@ -97,7 +98,7 @@ export async function GET(request: Request) {
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('whatsapp_phone, role, school_id')
+          .select('whatsapp_phone, role, school_id, organization_id')
           .eq('id', user.id)
           .single()
 
@@ -105,6 +106,21 @@ export async function GET(request: Request) {
         const metaRole = user.user_metadata?.role
         const dbRole = profile?.role
         const isTeacher = cookieRole === 'teacher' || metaRole === 'teacher' || dbRole === 'teacher'
+
+        // Teacher legado vinculado a organização parceira deve ir para correção de redações
+        if (isTeacher && profile?.organization_id) {
+          const { data: org } = await supabase
+            .from('organizations')
+            .select('slug')
+            .eq('id', profile.organization_id)
+            .maybeSingle()
+          if (org?.slug) {
+            redirectUrl = `${origin}/partners/${org.slug}/redacoes`
+            const res = NextResponse.redirect(redirectUrl)
+            applyCapturedCookies(res, capturedSets, capturedRemoves)
+            return res
+          }
+        }
 
         if (isTeacher && profile?.school_id) {
           redirectUrl = `${origin}/portal/teacher`

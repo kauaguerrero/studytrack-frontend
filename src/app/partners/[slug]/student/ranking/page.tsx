@@ -1,15 +1,12 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
-import { useParams } from 'next/navigation';
-import { motion, useReducedMotion, AnimatePresence } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import {
   Trophy,
   Medal,
   Crown,
   ChevronUp,
-  ChevronDown,
-  Minus,
   Flame,
   Star,
   Zap,
@@ -17,12 +14,14 @@ import {
   TrendingUp,
   Award,
   Sparkles,
-  Target,
-  Shield,
 } from 'lucide-react';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { PartnerRankingEntry } from '@/types/gamification';
+import { getGamificationTitleMeta, getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
+import type {
+  MonthlyHistoryEntry,
+  PartnerRankingEntry,
+} from '@/types/gamification';
 
 // ─── Animation config ────────────────────────────────────────────────────────
 
@@ -101,12 +100,6 @@ const RANK_THEMES = {
   },
 } as const;
 
-const TITLE_CONFIG: Record<string, { color: string; icon: typeof Flame }> = {
-  Expert: { color: '#F59E0B', icon: Flame },
-  Veterano: { color: '#8B5CF6', icon: Shield },
-  Iniciante: { color: '#64748B', icon: Target },
-};
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatPoints(pts: number): string {
@@ -119,6 +112,41 @@ function getInitials(name: string): string {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
   return name.charAt(0).toUpperCase();
+}
+
+function formatMonthLabel(monthRef: string): string {
+  const date = new Date(`${monthRef}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return monthRef;
+  return new Intl.DateTimeFormat('pt-BR', {
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+function getPodiumLabel(position: number): string {
+  return `Top ${position}`;
+}
+
+function getPodiumBadgeStyle(position: number): { background: string; color: string; border: string } {
+  if (position === 1) {
+    return {
+      background: 'rgba(245, 158, 11, 0.14)',
+      color: '#B45309',
+      border: '1px solid rgba(245, 158, 11, 0.28)',
+    };
+  }
+  if (position === 2) {
+    return {
+      background: 'rgba(148, 163, 184, 0.14)',
+      color: '#475569',
+      border: '1px solid rgba(148, 163, 184, 0.24)',
+    };
+  }
+  return {
+    background: 'rgba(180, 83, 9, 0.14)',
+    color: '#9A3412',
+    border: '1px solid rgba(180, 83, 9, 0.24)',
+  };
 }
 
 // ─── Animated background particles ───────────────────────────────────────────
@@ -142,7 +170,7 @@ const PARTICLE_DATA = Array.from({ length: 6 }, (_, i) => ({
 
 function FloatingParticles() {
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div className="dark:block hidden pointer-events-none absolute inset-0 overflow-hidden">
       {PARTICLE_DATA.map((p, i) => (
         <motion.div
           key={i}
@@ -209,10 +237,8 @@ function PodiumEntry({ entry, isSelf }: PodiumEntryProps) {
 
       {/* Name */}
       <p
-        className="text-center text-[11px] font-bold leading-tight max-w-[80px] truncate"
-        style={{
-          color: isSelf ? 'var(--brand-primary)' : 'rgba(255,255,255,0.85)',
-        }}
+        className="text-center text-[11px] font-bold leading-tight max-w-[80px] truncate text-slate-800 dark:text-white/85"
+        style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
         title={entry.full_name}
       >
         {isSelf ? 'Você' : entry.full_name.split(' ')[0]}
@@ -308,8 +334,10 @@ interface RowProps {
 function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
   const isTop3 = entry.rank <= 3;
   const theme = isTop3 ? RANK_THEMES[entry.rank as 1 | 2 | 3] : null;
-  const titleCfg = TITLE_CONFIG[entry.gamification_title] ?? TITLE_CONFIG.Iniciante;
-  const TitleIcon = titleCfg.icon;
+  const identityMeta = getGamificationTitleMeta(entry.gamification_title);
+  const progressMeta = getProgressTierMeta(entry.progress_tier);
+  const ProgressIcon = progressMeta.Icon;
+  const recentAchievements = (entry.podium_history ?? []).slice(0, 2);
 
   // Find the max points to compute relative bar width (first entry = 100%)
   const selfHighlight = isSelf
@@ -321,7 +349,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
 
   return (
     <motion.div
-      className="group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 hover:bg-white/[0.03]"
+      className="group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 hover:bg-slate-50 dark:hover:bg-white/[0.03]"
       style={selfHighlight}
       variants={ROW_VARIANTS}
       custom={index}
@@ -345,12 +373,8 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
           </div>
         ) : (
           <span
-            className="text-xs font-bold tabular-nums"
-            style={{
-              color: isPrize
-                ? 'var(--brand-primary)'
-                : 'rgba(148, 163, 184, 0.6)',
-            }}
+            className={`text-xs font-bold tabular-nums ${isPrize ? '' : 'text-slate-400 dark:text-slate-500/60'}`}
+            style={isPrize ? { color: 'var(--brand-primary)' } : undefined}
           >
             {entry.rank}
           </span>
@@ -375,7 +399,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
           />
         ) : (
           <div
-            className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white dark:text-white"
             style={{
               background: isSelf
                 ? 'var(--brand-primary)'
@@ -396,10 +420,9 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
         {/* Online-style indicator for self */}
         {isSelf && (
           <motion.div
-            className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2"
+            className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-[#0D0D0D]"
             style={{
               background: 'var(--brand-primary)',
-              borderColor: '#0D0D0D',
             }}
             animate={{ scale: [1, 1.2, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
@@ -410,27 +433,39 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
       {/* Name + title */}
       <div className="flex-1 min-w-0">
         <p
-          className="truncate text-sm font-semibold"
-          style={{
-            color: isSelf
-              ? 'var(--brand-primary)'
-              : 'rgba(255, 255, 255, 0.9)',
-          }}
+          className="truncate text-sm font-semibold text-slate-800 dark:text-white/90"
+          style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
         >
           {isSelf ? `${entry.full_name} (você)` : entry.full_name}
         </p>
         <div className="flex items-center gap-1 mt-0.5">
-          <TitleIcon
+          <ProgressIcon
             className="h-2.5 w-2.5"
-            style={{ color: titleCfg.color }}
+            style={{ color: progressMeta.color }}
           />
           <p
             className="text-[10px] font-semibold"
-            style={{ color: titleCfg.color }}
+            style={{ color: progressMeta.color }}
           >
-            {entry.gamification_title}
+            {progressMeta.title}
           </p>
         </div>
+        <p className="mt-0.5 text-[10px] text-slate-500 dark:text-white/45">
+          {identityMeta.title}
+        </p>
+        {recentAchievements.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {recentAchievements.map((achievement) => (
+              <span
+                key={`${achievement.month_reference}-${achievement.position}`}
+                className="rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+                style={getPodiumBadgeStyle(achievement.position)}
+              >
+                {getPodiumLabel(achievement.position)} • {formatMonthLabel(achievement.month_reference)}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Points + prize */}
@@ -443,12 +478,8 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
             />
           )}
           <span
-            className="text-sm font-extrabold tabular-nums"
-            style={{
-              color: isTop3 && theme
-                ? theme.textColor
-                : 'rgba(255, 255, 255, 0.9)',
-            }}
+            className="text-sm font-extrabold tabular-nums text-slate-800 dark:text-white/90"
+            style={isTop3 && theme ? { color: theme.textColor } : undefined}
           >
             {formatPoints(entry.monthly_points)}
           </span>
@@ -465,7 +496,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
             prêmio
           </span>
         ) : (
-          <span className="text-[10px] font-medium text-white/30">pts</span>
+          <span className="text-[10px] font-medium text-slate-400 dark:text-white/30">pts</span>
         )}
       </div>
     </motion.div>
@@ -480,7 +511,7 @@ function PrizeZoneDivider({ cutoff }: { cutoff: number }) {
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
       <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-500/50">
         <Gift className="h-2.5 w-2.5" />
-        zona de prêmio — top {cutoff}
+        mais perto do prêmio — top {cutoff}
       </span>
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
     </div>
@@ -498,13 +529,7 @@ function GlassCard({
 }) {
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl ${className}`}
-      style={{
-        background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%)',
-        border: '1px solid rgba(255,255,255,0.06)',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.1)',
-        backdropFilter: 'blur(12px)',
-      }}
+      className={`relative overflow-hidden rounded-2xl bg-white border border-slate-200 shadow-sm dark:bg-[rgba(255,255,255,0.04)] dark:border-[rgba(255,255,255,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.2),0_1px_2px_rgba(0,0,0,0.1)] dark:backdrop-blur-xl ${className}`}
     >
       {children}
     </div>
@@ -526,36 +551,24 @@ function StatPill({
 }) {
   return (
     <div
-      className="flex-1 rounded-xl px-3 py-2.5 relative overflow-hidden"
-      style={{
-        background: highlight
-          ? 'color-mix(in srgb, var(--brand-primary) 10%, rgba(255,255,255,0.03))'
-          : 'rgba(255,255,255,0.03)',
-        border: highlight
-          ? '1px solid color-mix(in srgb, var(--brand-primary) 20%, transparent)'
-          : '1px solid rgba(255,255,255,0.05)',
-      }}
+      className="flex-1 rounded-xl px-3 py-2.5 relative overflow-hidden border bg-slate-50 border-slate-200 dark:bg-[rgba(255,255,255,0.03)] dark:border-[rgba(255,255,255,0.05)]"
+      style={highlight ? {
+        background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)',
+        borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
+      } : undefined}
     >
       <div className="flex items-center gap-1.5 mb-1">
         <Icon
-          className="h-3 w-3"
-          style={{
-            color: highlight
-              ? 'var(--brand-primary)'
-              : 'rgba(255,255,255,0.3)',
-          }}
+          className="h-3 w-3 text-slate-400 dark:text-white/30"
+          style={highlight ? { color: 'var(--brand-primary)' } : undefined}
         />
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-white/30">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-white/30">
           {label}
         </p>
       </div>
       <p
-        className="text-xl font-black"
-        style={{
-          color: highlight
-            ? 'var(--brand-primary)'
-            : 'rgba(255,255,255,0.9)',
-        }}
+        className="text-xl font-black text-slate-800 dark:text-white/90"
+        style={highlight ? { color: 'var(--brand-primary)' } : undefined}
       >
         {value}
       </p>
@@ -563,18 +576,57 @@ function StatPill({
   );
 }
 
+function HistoryRow({ item }: { item: MonthlyHistoryEntry }) {
+  const badgeStyle = item.podium_position
+    ? getPodiumBadgeStyle(item.podium_position)
+    : null;
+
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/5 dark:bg-white/[0.03]">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-slate-800 dark:text-white/90">
+          {formatMonthLabel(item.month_reference)}
+        </p>
+        <div className="mt-1 flex items-center gap-2">
+          {item.podium_position ? (
+            <span
+              className="rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+              style={badgeStyle ?? undefined}
+            >
+              {getPodiumLabel(item.podium_position)}
+            </span>
+          ) : (
+            <span className="text-[10px] font-medium text-slate-400 dark:text-white/25">
+              sem pódio
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="text-right">
+        <p className="text-lg font-black text-slate-900 dark:text-white">
+          {formatPoints(item.points)}
+        </p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-white/25">
+          pontos
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function RankingPage() {
-  const params = useParams<{ slug: string }>();
-  const slug = params.slug;
   const shouldReduce = useReducedMotion();
+  const TOP_LIMIT = 10;
 
-  const { summary, ranking, isLoading, refreshRanking } = usePartnerGamification();
+  const { summary, ranking, isLoading, refreshRanking } = usePartnerGamification({
+    fetchPopupStateOnMount: false,
+  });
 
   useEffect(() => {
     if (!isLoading) {
-      refreshRanking(100);
+      refreshRanking(TOP_LIMIT);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading]);
@@ -583,12 +635,17 @@ export default function RankingPage() {
   const myPosition = summary?.rank_position ?? null;
   const myPoints = summary?.monthly_points ?? 0;
   const prizeCutoff = ranking?.prize_cutoff ?? summary?.prize_cutoff ?? 3;
+  const monthlyHistory = useMemo(
+    () => ranking?.monthly_history ?? [],
+    [ranking?.monthly_history],
+  );
 
   const fullList = ranking?.ranking ?? [];
   const selfEntry = ranking?.user_context?.self ?? null;
+  const visibleList = fullList.slice(0, TOP_LIMIT);
 
   // Podium: [2nd, 1st, 3rd] for visual balance
-  const top3 = fullList.slice(0, 3);
+  const top3 = visibleList.slice(0, 3);
   const podiumOrder =
     top3.length === 3
       ? [top3[1], top3[0], top3[2]]
@@ -597,13 +654,18 @@ export default function RankingPage() {
         : top3;
 
   // Determine if the first entry after prize cutoff needs a divider
-  const hasPrizeDivider = fullList.length > prizeCutoff;
+  const hasPrizeDivider = visibleList.length > prizeCutoff;
 
   return (
-    <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 overflow-hidden" style={{ background: 'radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in srgb, var(--brand-primary) 12%, transparent) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 80% 80%, color-mix(in srgb, var(--brand-primary) 6%, transparent) 0%, transparent 60%), #080808' }}>
+    <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 overflow-hidden bg-slate-50 dark:bg-[#080808]">
+      {/* Dark mode gradient overlay */}
+      <div
+        className="hidden dark:block pointer-events-none absolute inset-0"
+        style={{ background: 'radial-gradient(ellipse 80% 50% at 50% -10%, color-mix(in srgb, var(--brand-primary) 12%, transparent) 0%, transparent 70%), radial-gradient(ellipse 60% 40% at 80% 80%, color-mix(in srgb, var(--brand-primary) 6%, transparent) 0%, transparent 60%)' }}
+      />
 
       {/* ── Particles ─────────────────────────────────────────────────────── */}
-      <svg aria-hidden="true" className="pointer-events-none absolute inset-0 w-full h-full opacity-[0.35]" xmlns="http://www.w3.org/2000/svg">
+      <svg aria-hidden="true" className="hidden dark:block pointer-events-none absolute inset-0 w-full h-full opacity-[0.35]" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <radialGradient id="pg" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="var(--brand-primary)" stopOpacity="1" />
@@ -726,12 +788,15 @@ export default function RankingPage() {
         {/* ── Hero header ───────────────────────────────────────────────── */}
         <motion.div variants={shouldReduce ? undefined : ITEM}>
           <div
-            className="relative overflow-hidden rounded-2xl p-5 text-white"
-            style={{
-              background: 'linear-gradient(145deg, #0A0A0A 0%, #111111 40%, #0D0D0D 100%)',
-              border: '1px solid rgba(255,255,255,0.06)',
-            }}
+            className="relative overflow-hidden rounded-2xl p-5 bg-white border border-slate-200 shadow-sm dark:border-[rgba(255,255,255,0.06)] dark:shadow-none"
           >
+            {/* Dark mode gradient background */}
+            <div
+              className="hidden dark:block pointer-events-none absolute inset-0"
+              style={{
+                background: 'linear-gradient(145deg, #0A0A0A 0%, #111111 40%, #0D0D0D 100%)',
+              }}
+            />
             {/* Ambient glow effects */}
             <div
               className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full blur-[80px] opacity-20"
@@ -759,11 +824,11 @@ export default function RankingPage() {
                         style={{ color: 'var(--brand-primary)' }}
                       />
                     </div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/35">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-white/35">
                       Ranking mensal
                     </p>
                   </div>
-                  <h1 className="text-2xl font-black tracking-tight text-white">
+                  <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
                     {monthLabel}
                   </h1>
                 </div>
@@ -819,7 +884,7 @@ export default function RankingPage() {
                   className="h-3.5 w-3.5"
                   style={{ color: '#F59E0B' }}
                 />
-                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/35">
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">
                   Pódio
                 </p>
               </div>
@@ -853,18 +918,42 @@ export default function RankingPage() {
           </motion.div>
         )}
 
+        {!isLoading && monthlyHistory.length > 0 && (
+          <motion.div variants={shouldReduce ? undefined : ITEM}>
+            <GlassCard className="p-4">
+              <div className="mb-4 flex items-center gap-2">
+                <TrendingUp
+                  className="h-3.5 w-3.5"
+                  style={{ color: 'var(--brand-primary)' }}
+                />
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">
+                  Seu histórico mensal
+                </p>
+              </div>
+              <div className="space-y-2">
+                {monthlyHistory.map((item: { month_reference: string; points: number; podium_position?: number | null }) => (
+                  <HistoryRow
+                    key={item.month_reference}
+                    item={item}
+                  />
+                ))}
+              </div>
+            </GlassCard>
+          </motion.div>
+        )}
+
         {/* ── Full ranking list ─────────────────────────────────────────── */}
         <motion.div variants={shouldReduce ? undefined : ITEM}>
           <GlassCard>
-            <div className="px-4 py-3 flex items-center justify-between border-b border-white/5">
+            <div className="px-4 py-3 flex items-center justify-between border-b border-slate-200 dark:border-white/5">
               <div className="flex items-center gap-2">
                 <Flame className="h-3.5 w-3.5 text-orange-500/60" />
-                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/35">
-                  Classificação completa
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">
+                  Top 10
                 </p>
               </div>
-              <span className="text-[10px] font-semibold text-white/20 tabular-nums">
-                {fullList.length} alunos
+              <span className="text-[10px] font-semibold text-slate-400 dark:text-white/20 tabular-nums">
+                {visibleList.length} alunos
               </span>
             </div>
 
@@ -881,7 +970,7 @@ export default function RankingPage() {
                     <Skeleton className="h-4 w-14 rounded" />
                   </div>
                 ))
-              ) : fullList.length === 0 ? (
+              ) : visibleList.length === 0 ? (
                 <div className="py-12 text-center">
                   <div
                     className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl"
@@ -892,16 +981,16 @@ export default function RankingPage() {
                   >
                     <Trophy className="h-7 w-7 text-white/15" />
                   </div>
-                  <p className="text-sm font-semibold text-white/40">
+                  <p className="text-sm font-semibold text-slate-500 dark:text-white/40">
                     Nenhuma entrada ainda
                   </p>
-                  <p className="mt-1 text-xs text-white/20">
+                  <p className="mt-1 text-xs text-slate-400 dark:text-white/20">
                     Complete atividades para aparecer no ranking!
                   </p>
                 </div>
               ) : (
                 <>
-                  {fullList.map((entry, i) => (
+                  {visibleList.map((entry, i) => (
                     <div key={entry.user_id}>
                       {/* Insert prize divider after the cutoff */}
                       {hasPrizeDivider && i === prizeCutoff && (
@@ -915,26 +1004,6 @@ export default function RankingPage() {
                       />
                     </div>
                   ))}
-
-                  {/* Self entry if outside visible window */}
-                  {selfEntry &&
-                    !fullList.some((e) => e.user_id === selfEntry.user_id) && (
-                      <>
-                        <div className="relative my-3 flex items-center gap-3 px-3">
-                          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                          <span className="text-[10px] font-bold text-white/20">
-                            sua posição
-                          </span>
-                          <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                        </div>
-                        <RankRow
-                          entry={selfEntry}
-                          isSelf
-                          isPrize={selfEntry.rank <= prizeCutoff}
-                          index={0}
-                        />
-                      </>
-                    )}
                 </>
               )}
             </div>
@@ -942,13 +1011,13 @@ export default function RankingPage() {
         </motion.div>
 
         {/* ── Footer ────────────────────────────────────────────────────── */}
-        {!isLoading && fullList.length > 0 && (
+        {!isLoading && visibleList.length > 0 && (
           <motion.div variants={shouldReduce ? undefined : ITEM}>
             <div className="flex items-center justify-center gap-2 py-1">
               <div className="h-px w-8 bg-gradient-to-r from-transparent to-white/10" />
-              <p className="text-[10px] font-semibold text-white/25 flex items-center gap-1">
+              <p className="text-[10px] font-semibold text-slate-400 dark:text-white/25 flex items-center gap-1">
                 <Gift className="h-2.5 w-2.5" />
-                Top {prizeCutoff} ganham prêmio ao final do mês
+                Top {prizeCutoff} mais perto do prêmio — mas qualquer um pode chegar lá
               </p>
               <div className="h-px w-8 bg-gradient-to-l from-transparent to-white/10" />
             </div>

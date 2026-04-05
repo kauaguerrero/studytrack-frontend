@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, BookOpen, FileText, Target, Calendar } from 'lucide-react';
+import { ArrowLeft, BookOpen, FileText, Target } from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
@@ -28,6 +28,10 @@ interface StudentDetail {
     full_name: string;
     email: string;
     plan_tier: string;
+    plan_id?: string | null;
+    plan_name?: string | null;
+    plan_assignment_status?: 'active' | 'inactive' | null;
+    plan_last_payment_at?: string | null;
     last_activity_date: string | null;
     joined_organization_at: string | null;
     avatar_url: string | null;
@@ -47,10 +51,50 @@ interface StudentDetail {
   weekly_evolution: { week_start: string; total: number; accuracy_pct: number }[];
   recent_answers: { id: string; question_id: string; selected_option: string; is_correct: boolean; subject: string; created_at: string }[];
   recent_simulados: { id: string; config: Record<string, unknown>; score: number; total_questions: number; tri_score: number | null; time_taken_secs: number; completed_at: string }[];
+  essay_stats?: {
+    delivered_count: number;
+    corrected_count: number;
+    avg_score: number | null;
+  };
+  essay_evolution?: {
+    id: string;
+    status: 'pending' | 'corrected' | 'seen';
+    submitted_at: string;
+    corrected_at: string | null;
+    total_score: number | null;
+  }[];
 }
 
-const PLAN_LABELS: Record<string, string> = { b2b_student: 'Básico', b2b_pro: 'Pro' };
+interface StudentEssayListItem {
+  id: string;
+  status: 'pending' | 'corrected' | 'seen';
+  submitted_at: string;
+  corrected_at: string | null;
+  total_score: number | null;
+  theme: string | null;
+}
+
+interface OrgPlanOption {
+  id: string;
+  name: string;
+  is_active: boolean | string | number | null;
+}
+
 const PACE_LABELS: Record<string, string> = { slow: 'Leve', moderate: 'Moderado', intense: 'Intensivo' };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isPlanActive(value: OrgPlanOption['is_active']): boolean {
+  return value === true || value === 1 || value === '1' || value === 'true';
+}
+
+function normalizePlanLabel(raw?: string | null): string {
+  const value = String(raw || '').trim().toLowerCase();
+  if (!value || value === 'legado' || value === 'legacy' || value === 'b2b_student' || value === 'b2b_pro' || value === 'free' || value === 'none' || value === 'null') {
+    return 'Sem plano vinculado';
+  }
+  return String(raw).trim();
+}
 
 export default function StudentProfilePage() {
   const { org } = useOrg();
@@ -58,22 +102,99 @@ export default function StudentProfilePage() {
   const studentId = params.id;
 
   const [data, setData] = useState<StudentDetail | null>(null);
+  const [fallbackEssayStats, setFallbackEssayStats] = useState<{ delivered: number; corrected: number }>({
+    delivered: 0,
+    corrected: 0,
+  });
+  const [studentEssays, setStudentEssays] = useState<StudentEssayListItem[]>([]);
+  const [plans, setPlans] = useState<OrgPlanOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingPlan, setUpdatingPlan] = useState(false);
 
   useEffect(() => {
     async function fetchProfile() {
+      // Rejeita IDs com formato inválido antes de qualquer chamada de rede
+      if (!UUID_RE.test(studentId)) {
+        toast.error('Aluno não encontrado.');
+        setLoading(false);
+        return;
+      }
+
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
       const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
       try {
-        const res = await fetch(`${api}/api/partners/${org.slug}/students/${studentId}`, {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (res.ok) setData(await res.json());
-        else toast.error('Aluno não encontrado.');
+        const [resProfile, resEssays, resPlans] = await Promise.all([
+          fetch(`${api}/api/partners/${org.slug}/students/${studentId}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }),
+          fetch(`${api}/api/partners/${org.slug}/essays?status=all&page=1&limit=500`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }),
+          fetch(`${api}/api/partners/${org.slug}/plans?include_inactive=false`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          }),
+        ]);
+
+        if (resProfile.ok) {
+          setData(await resProfile.json());
+        } else {
+          toast.error('Aluno não encontrado.');
+        }
+
+        if (resEssays.ok) {
+          const payload = await resEssays.json();
+          const items = (payload?.items || []) as Array<{
+            id?: string;
+            status?: 'pending' | 'corrected' | 'seen';
+            student?: { id?: string } | Array<{ id?: string }>;
+            student_id?: string;
+            submitted_at?: string;
+            corrected_at?: string | null;
+            total_score?: number | null;
+            theme?: string | null;
+            essay_theme?: string | null;
+            tema?: string | null;
+            topic?: string | null;
+            title?: string | null;
+          }>;
+          const fromStudent = items.filter((e) => {
+            const studentFromJoin = Array.isArray(e.student) ? e.student[0]?.id : e.student?.id;
+            const candidateId = studentFromJoin || e.student_id;
+            return candidateId === studentId;
+          });
+
+          const normalizedEssays: StudentEssayListItem[] = fromStudent
+            .map((e) => {
+              const themeCandidates = [e.theme, e.essay_theme, e.tema, e.topic, e.title];
+              const themeFound = themeCandidates.find((value) => typeof value === 'string' && value.trim().length > 0) || null;
+              return {
+                id: String(e.id || ''),
+                status: e.status || 'pending',
+                submitted_at: String(e.submitted_at || ''),
+                corrected_at: e.corrected_at ?? null,
+                total_score: typeof e.total_score === 'number' ? e.total_score : null,
+                theme: themeFound ? themeFound.trim() : null,
+              };
+            })
+            .filter((essay) => Boolean(essay.id && essay.submitted_at))
+            .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+
+          setStudentEssays(normalizedEssays);
+
+          setFallbackEssayStats({
+            delivered: fromStudent.length,
+            corrected: fromStudent.filter((e) => e.total_score !== null && e.total_score !== undefined).length,
+          });
+        }
+
+        if (resPlans.ok) {
+          const plansPayload = await resPlans.json().catch(() => null);
+          const planItems = Array.isArray(plansPayload?.items) ? plansPayload.items : [];
+          setPlans(planItems.filter((plan: OrgPlanOption) => isPlanActive(plan.is_active)));
+        }
       } catch {
         toast.error('Erro ao buscar perfil.');
       } finally {
@@ -83,8 +204,9 @@ export default function StudentProfilePage() {
     fetchProfile();
   }, [org.slug, studentId]);
 
-  async function handlePlanChange(newPlan: string) {
+  async function handlePlanChange(newPlanId: string) {
     if (!data) return;
+    if (!UUID_RE.test(studentId)) return;
     setUpdatingPlan(true);
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -92,13 +214,28 @@ export default function StudentProfilePage() {
 
     const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
     try {
+      const selectedPlan = plans.find((plan) => plan.id === newPlanId);
+      const isNone = newPlanId === 'none';
       const res = await fetch(`${api}/api/partners/${org.slug}/students/${studentId}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan_tier: newPlan }),
+        body: JSON.stringify({
+          plan_id: isNone ? null : newPlanId,
+          plan_assignment_status: isNone ? null : 'active',
+          plan_last_payment_at: isNone ? null : new Date().toISOString().slice(0, 10),
+        }),
       });
       if (res.ok) {
-        setData((d) => d ? { ...d, profile: { ...d.profile, plan_tier: newPlan } } : d);
+        setData((d) => d ? {
+          ...d,
+          profile: {
+            ...d.profile,
+            plan_id: isNone ? null : newPlanId,
+            plan_name: isNone ? null : (selectedPlan?.name || d.profile.plan_name || null),
+            plan_assignment_status: isNone ? null : 'active',
+            plan_last_payment_at: isNone ? null : new Date().toISOString(),
+          },
+        } : d);
         toast.success('Plano atualizado.');
       } else {
         toast.error('Erro ao atualizar plano.');
@@ -112,7 +249,26 @@ export default function StudentProfilePage() {
 
   const profile = data?.profile;
   const metrics = data?.metrics;
+  const essayStats = data?.essay_stats;
   const initials = (profile?.full_name ?? '?').split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase();
+  const focusAndPaceLabel = [
+    profile?.focus_area || 'geral',
+    profile?.study_pace ? (PACE_LABELS[profile.study_pace] ?? profile.study_pace) : null,
+  ].filter(Boolean).join(' ');
+  const essayEvolution = data?.essay_evolution || [];
+  const correctedEssayEvolution = essayEvolution.filter((e) => e.total_score !== null && e.total_score !== undefined);
+  const essayEvolutionChart = correctedEssayEvolution.map((e) => ({
+    date: e.submitted_at?.slice(5, 10) || '—',
+    score: e.total_score as number,
+  }));
+  const deliveredCount = Math.max(essayStats?.delivered_count ?? 0, fallbackEssayStats.delivered, essayEvolution.length);
+  const correctedCount = Math.max(essayStats?.corrected_count ?? 0, fallbackEssayStats.corrected);
+  const selectedPlanValue = profile?.plan_id ?? 'none';
+  const currentPlanLabel = profile?.plan_name
+    ? normalizePlanLabel(profile.plan_name)
+    : (selectedPlanValue !== 'none'
+      ? (plans.find((plan) => plan.id === selectedPlanValue)?.name || 'Sem plano vinculado')
+      : 'Sem plano vinculado');
 
   return (
     <PartnerLayout>
@@ -152,31 +308,31 @@ export default function StudentProfilePage() {
                     <p className="text-sm text-slate-500">{profile?.email}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge variant="outline" className="text-xs">
-                        {profile?.focus_area ?? 'Geral'}
+                        {focusAndPaceLabel}
                       </Badge>
-                      {profile?.study_pace && (
-                        <Badge variant="outline" className="text-xs">
-                          {PACE_LABELS[profile.study_pace] ?? profile.study_pace}
-                        </Badge>
-                      )}
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right text-xs text-slate-500">
                     <p>Plano atual</p>
+                    <p className="font-semibold text-slate-700 dark:text-slate-300">{currentPlanLabel}</p>
                   </div>
                   <Select
-                    value={profile?.plan_tier ?? 'b2b_student'}
+                    value={selectedPlanValue}
                     onValueChange={handlePlanChange}
                     disabled={updatingPlan}
                   >
-                    <SelectTrigger className="w-32 h-8 text-xs">
+                    <SelectTrigger className="w-44 h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="b2b_student">Básico</SelectItem>
-                      <SelectItem value="b2b_pro">Pro</SelectItem>
+                      <SelectItem value="none">Sem plano vinculado</SelectItem>
+                      {plans.map((plan) => (
+                        <SelectItem key={plan.id} value={plan.id}>
+                          {plan.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -209,6 +365,135 @@ export default function StudentProfilePage() {
             </Card>
           ))}
         </div>
+
+        {/* Redações */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Redações</CardTitle>
+            {!loading && (
+              <div className="rounded-xl border p-2.5" style={{ borderColor: 'color-mix(in srgb, var(--brand-primary) 28%, transparent)' }}>
+                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                  <span
+                    className="inline-flex items-center rounded-md px-2.5 py-1 text-white"
+                    style={{ backgroundColor: 'var(--brand-primary)' }}
+                  >
+                    {deliveredCount} entregues
+                  </span>
+                  <span className="text-slate-400">•</span>
+                  <span
+                    className="inline-flex items-center rounded-md px-2.5 py-1 text-white"
+                    style={{ backgroundColor: 'var(--brand-secondary)' }}
+                  >
+                    {correctedCount} corrigidas
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-44 w-full" />
+            ) : deliveredCount === 0 ? (
+              <p className="text-center text-sm text-slate-400 py-8">Aluno ainda não entregou redações.</p>
+            ) : correctedEssayEvolution.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-5 text-center">
+                <p className="text-sm text-slate-500">Há redações enviadas, mas ainda sem notas corrigidas.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="rounded-lg border dark:border-slate-800 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Entregues</p>
+                    <p className="text-xl font-bold text-slate-900 dark:text-white">{deliveredCount}</p>
+                  </div>
+                  <div className="rounded-lg border dark:border-slate-800 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Corrigidas</p>
+                    <p className="text-xl font-bold text-slate-900 dark:text-white">{correctedCount}</p>
+                  </div>
+                  <div className="rounded-lg border dark:border-slate-800 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Média</p>
+                    <p className="text-xl font-bold text-slate-900 dark:text-white">
+                      {essayStats?.avg_score != null ? `${essayStats.avg_score} / 1000` : '—'}
+                    </p>
+                  </div>
+                </div>
+
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={essayEvolutionChart}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis domain={[0, 1000]} tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={(v) => [`${v} / 1000`, 'Nota']} />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="var(--brand-primary)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Histórico de redações</CardTitle>
+            <CardDescription>Todas as redações enviadas por este aluno</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((k) => (
+                  <Skeleton key={k} className="h-16 w-full rounded-xl" />
+                ))}
+              </div>
+            ) : studentEssays.length === 0 ? (
+              <p className="text-center text-sm text-slate-400 py-6">Nenhuma redação encontrada para este aluno.</p>
+            ) : (
+              <div className="space-y-2">
+                {studentEssays.map((essay) => (
+                  <Link
+                    key={essay.id}
+                    href={`/partners/${org.slug}/redacoes/${essay.id}`}
+                    className="flex min-h-14 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 transition hover:border-[var(--brand-primary)] hover:bg-white dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/60"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {essay.theme || 'Tema não informado'}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Enviada em {essay.submitted_at.slice(0, 10)}
+                        {essay.corrected_at ? ` • Corrigida em ${essay.corrected_at.slice(0, 10)}` : ''}
+                      </p>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      {essay.total_score !== null && (
+                        <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                          {essay.total_score}/1000
+                        </span>
+                      )}
+                      <span
+                        className={
+                          essay.status === 'pending'
+                            ? 'rounded-md bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+                            : essay.status === 'corrected'
+                              ? 'rounded-md bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                              : 'rounded-md bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                        }
+                      >
+                        {essay.status === 'pending' ? 'Pendente' : essay.status === 'corrected' ? 'Corrigida' : 'Arquivada'}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Evolução semanal + Acertos por matéria */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -318,7 +603,9 @@ export default function StudentProfilePage() {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-800 dark:text-white capitalize">
-                          {(s.config as any)?.format ?? 'Simulado'}
+                          {typeof (s.config as { format?: unknown })?.format === 'string'
+                            ? (s.config as { format?: string }).format
+                            : 'Simulado'}
                         </p>
                         <p className="text-xs text-slate-400">{s.completed_at?.slice(0, 10) ?? '—'}</p>
                       </div>
