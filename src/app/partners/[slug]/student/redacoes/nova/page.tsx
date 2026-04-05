@@ -3,11 +3,20 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
+import { EssayRewardPopup } from '@/components/partners/gamification/EssayRewardPopup';
 import { Input } from '@/components/ui/input';
+
+interface EssayRewardState {
+  points_awarded: number;
+  new_monthly_points: number;
+  rank_position: number | null;
+  points_to_top3: number | null;
+}
 
 export default function NovaRedacaoPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -24,6 +33,7 @@ export default function NovaRedacaoPage() {
     used?: number | null;
     remaining?: number | null;
   } | null>(null);
+  const [rewardState, setRewardState] = useState<EssayRewardState | null>(null);
 
   const charCount = text.trim().length;
   const isValidLength = charCount >= 100 && charCount <= 5000;
@@ -103,13 +113,27 @@ export default function NovaRedacaoPage() {
         }),
       });
 
+      const data = await res.json().catch(() => null);
+
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
         throw new Error(data?.error || 'Não foi possível enviar a redação.');
       }
 
-      toast.success('Redação enviada! Você será notificado quando o professor corrigir.');
-      router.push(`/partners/${slug}/student/redacoes`);
+      const nextCredits = data?.credits;
+      if (nextCredits) setCreditStatus(nextCredits);
+
+      const reward = data?.gamification;
+      if (reward?.points_awarded && reward?.new_monthly_points !== undefined) {
+        setRewardState({
+          points_awarded: reward.points_awarded,
+          new_monthly_points: reward.new_monthly_points,
+          rank_position: reward.rank_position ?? null,
+          points_to_top3: reward.points_to_top3 ?? null,
+        });
+      } else {
+        toast.success('Redação enviada! Você será notificado quando o professor corrigir.');
+        router.push(`/partners/${slug}/student/redacoes`);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao enviar redação.';
       toast.error(message);
@@ -119,8 +143,9 @@ export default function NovaRedacaoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 md:px-6 md:py-8">
+    <>
+      <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+        <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 md:px-6 md:py-8">
         <header className="space-y-2">
           <Link
             href={`/partners/${slug}/student/redacoes`}
@@ -182,7 +207,27 @@ export default function NovaRedacaoPage() {
             </button>
           </div>
         </form>
+        </div>
       </div>
-    </div>
+
+      <AnimatePresence>
+        {rewardState && (
+          <EssayRewardPopup
+            pointsAwarded={rewardState.points_awarded}
+            newMonthlyPoints={rewardState.new_monthly_points}
+            rankPosition={rewardState.rank_position}
+            pointsToTop3={rewardState.points_to_top3}
+            onDismiss={() => {
+              setRewardState(null);
+              router.push(`/partners/${slug}/student/redacoes`);
+            }}
+            onContinue={() => {
+              setRewardState(null);
+              router.push(`/partners/${slug}/student/redacoes`);
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </>
   );
 }
