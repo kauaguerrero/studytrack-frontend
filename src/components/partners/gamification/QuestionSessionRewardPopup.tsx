@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, useReducedMotion } from 'framer-motion';
+import { usePopupTheme } from './popupTheme';
 
 interface Props {
   points: number;
-  onContinue: () => void;
+  onDismiss: () => void;
+  onViewRanking: () => void;
   slug: string;
 }
 
@@ -35,14 +37,15 @@ const confettiKeyframes = PARTICLES.map((p) => {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function QuestionSessionRewardPopup({ points, onContinue, slug }: Props) {
+export function QuestionSessionRewardPopup({ points, onDismiss, onViewRanking, slug }: Props) {
   const shouldReduce = useReducedMotion();
   const router = useRouter();
   const [displayPoints, setDisplayPoints] = useState(0);
+  const theme = usePopupTheme('celebration');
 
   // Counter: 0 → points em 1.5 s (ease-out cubic)
   useEffect(() => {
-    if (shouldReduce) { setDisplayPoints(points); return; }
+    if (shouldReduce) return;
     const DURATION = 1500;
     const startedAt = performance.now();
     let raf: number;
@@ -56,10 +59,18 @@ export function QuestionSessionRewardPopup({ points, onContinue, slug }: Props) 
     return () => cancelAnimationFrame(raf);
   }, [points, shouldReduce]);
 
+  const renderedPoints = shouldReduce ? points : displayPoints;
+
   return (
     <div
       className="fixed inset-0 z-[9500] flex items-center justify-center px-4"
-      style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
+      style={{
+        ...theme.overlayStyle,
+        paddingTop: 'max(env(safe-area-inset-top), 1rem)',
+        paddingRight: 'max(env(safe-area-inset-right), 1rem)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)',
+        paddingLeft: 'max(env(safe-area-inset-left), 1rem)',
+      }}
       aria-live="polite"
       aria-label="Pontos ganhos na sessão de questões"
     >
@@ -90,28 +101,34 @@ export function QuestionSessionRewardPopup({ points, onContinue, slug }: Props) 
       {/* Card */}
       <motion.div
         className="relative w-full max-w-sm overflow-hidden rounded-3xl shadow-2xl"
-        style={{
-          background:
-            'linear-gradient(145deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 55%, #000 45%))',
-        }}
+        style={{ ...theme.cardStyle, maxHeight: 'min(92dvh, 760px)' }}
         initial={shouldReduce ? {} : { scale: 0.8, opacity: 0 }}
         animate={shouldReduce ? {} : { scale: 1, opacity: 1 }}
         transition={shouldReduce ? {} : { type: 'spring', stiffness: 260, damping: 22 }}
       >
         {/* Botão X */}
         <button
-          onClick={onContinue}
-          className="absolute right-3 top-3 z-10 rounded-full p-1.5 text-white/40 transition-colors hover:text-white hover:bg-white/10"
+          onClick={onDismiss}
+          className={`absolute right-3 top-3 z-10 rounded-full p-1.5 transition-colors ${theme.closeButtonClass}`}
           aria-label="Fechar"
         >
           ✕
         </button>
 
-        <div className="px-6 pt-8 pb-6 space-y-5">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-28"
+          style={{
+            background: theme.isDark
+              ? 'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 22%, transparent), transparent)'
+              : 'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 14%, white), transparent)',
+          }}
+        />
+
+        <div className="overflow-y-auto px-5 pt-7 pb-5 space-y-5 sm:px-6 sm:pt-8 sm:pb-6">
           {/* Header */}
           <div className="text-center">
             <motion.div
-              className="text-6xl mb-3 select-none"
+              className="mb-3 select-none text-5xl sm:text-6xl"
               role="img"
               aria-label="Livros"
               animate={shouldReduce ? {} : { scale: [1, 1.18, 1] }}
@@ -119,10 +136,10 @@ export function QuestionSessionRewardPopup({ points, onContinue, slug }: Props) 
             >
               📚
             </motion.div>
-            <p className="text-xl font-extrabold uppercase tracking-widest text-white leading-tight">
+            <p className={`text-xl font-extrabold uppercase tracking-widest leading-tight ${theme.titleClass}`}>
               SESSÃO ENCERRADA!
             </p>
-            <p className="mt-1 text-sm text-white/65">
+            <p className={`mt-1 text-sm ${theme.bodyClass}`}>
               Você ganhou pontos respondendo questões
             </p>
           </div>
@@ -130,21 +147,33 @@ export function QuestionSessionRewardPopup({ points, onContinue, slug }: Props) 
           {/* Contador */}
           <div className="text-center">
             <p
-              className="text-6xl font-black tabular-nums leading-none"
+              className="text-5xl font-black tabular-nums leading-none sm:text-6xl"
               style={{ color: '#F59E0B' }}
             >
-              +{displayPoints}
+              +{renderedPoints}
               <span className="text-3xl font-extrabold ml-1 align-baseline">
                 pts mensais
               </span>
             </p>
           </div>
 
+          <div className="rounded-2xl px-4 py-3" style={theme.accentPanelStyle}>
+            <p className={`text-xs font-bold uppercase tracking-[0.18em] ${theme.mutedClass}`}>
+              Impacto imediato
+            </p>
+            <p className={`mt-1 text-sm ${theme.bodyClass}`}>
+              Cada acerto da sessão já foi somado ao seu ranking mensal.
+            </p>
+          </div>
+
           {/* CTA */}
           <button
-            onClick={() => { onContinue(); router.push(`/partners/${slug}/student/ranking`); }}
-            className="w-full rounded-2xl bg-white py-3.5 text-sm font-bold transition-opacity hover:opacity-90 active:scale-[0.98]"
-            style={{ color: 'var(--brand-primary)' }}
+            onClick={() => {
+              onViewRanking();
+              router.push(`/partners/${slug}/student/ranking`);
+            }}
+            className={`w-full rounded-2xl py-3.5 text-sm font-bold transition-opacity hover:opacity-90 active:scale-[0.98] ${theme.primaryButtonClass}`}
+            style={theme.primaryButtonStyle}
           >
             Ver ranking →
           </button>

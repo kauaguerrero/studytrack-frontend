@@ -3,9 +3,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap } from 'lucide-react';
 import { Typewriter } from '@/components/ui/typewriter';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
+import { useOrg } from '@/contexts/OrgContext';
 import { OnboardingDiagnosticModal } from '@/components/partners/gamification/OnboardingDiagnosticModal';
 import { RankingPopup } from '@/components/partners/gamification/RankingPopup';
 import { StreakPopup } from '@/components/partners/gamification/StreakPopup';
@@ -15,7 +17,8 @@ import { Top3Popup } from '@/components/partners/gamification/Top3Popup';
 import { StreakBrokenPopup } from '@/components/partners/gamification/StreakBrokenPopup';
 import { StreakPointsLostPopup } from '@/components/partners/gamification/StreakPointsLostPopup';
 import { MonthEndScreen } from '@/components/partners/gamification/MonthEndScreen';
-import type { DiagnosticResult, StreakDecayResult } from '@/types/gamification';
+import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
+import type { MonthlyCheckInResult } from '@/types/gamification';
 
 // ─── Animation config ───────────────────────────────────────────────────────
 
@@ -42,6 +45,11 @@ function getStreakProgress(streak: number): { next: number; pct: number } {
   return { next, pct: Math.min(pct, 100) };
 }
 
+function getTop3Position(position: number | undefined): 1 | 2 | 3 {
+  if (position === 1 || position === 2 || position === 3) return position;
+  return 3;
+}
+
 // ─── Props ───────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -65,6 +73,9 @@ export function DashboardClient({
   questionsCount,
   simuladosCount,
 }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { org } = useOrg();
   const shouldReduce = useReducedMotion();
   const itemVariant = shouldReduce ? ITEM_REDUCED : ITEM;
   const containerVariant = shouldReduce ? { hidden: {}, show: {} } : CONTAINER;
@@ -79,99 +90,173 @@ export function DashboardClient({
     summary,
     popupState,
     ranking,
-    shieldResult,
-    submitDiagnostic,
+    submitMonthlyCheckIn,
     refreshRanking,
     dismissPopup,
     useShield: activateShield,
     applyStreakDecay,
     refreshSummary,
   } = usePartnerGamification();
+  const { currentPopup, enqueuePopup, dismissCurrentPopup } = usePopupQueue();
 
   // ── Popup orchestration state ──────────────────────────────────────────────
-  const [showRankingPopup, setShowRankingPopup] = useState(false);
-  const [shieldPopupDismissed, setShieldPopupDismissed] = useState(false);
-  const [streakDecayResult, setStreakDecayResult] = useState<StreakDecayResult | null>(null);
-  const [pendingQuestionPoints, setPendingQuestionPoints] = useState<number | null>(null);
+  const [isResolvingStreakBroken, setIsResolvingStreakBroken] = useState(false);
 
   useEffect(() => {
     setEffectiveCurrentStreak(currentStreak);
   }, [currentStreak]);
 
   useEffect(() => {
-    const PENDING_KEY = 'pending_question_points';
-    const raw = localStorage.getItem(PENDING_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      if (
-        typeof parsed === 'object' && parsed !== null &&
-        'points' in parsed && 'timestamp' in parsed
-      ) {
-        const { points, timestamp } = parsed as { points: unknown; timestamp: unknown };
-        // Valida tipos e bounds para evitar manipulação via DevTools
-        if (
-          typeof points === 'number' && typeof timestamp === 'number' &&
-          Number.isInteger(points) && points > 0 && points <= 5000 &&
-          Date.now() - timestamp < 5 * 60 * 1000
-        ) {
-          setPendingQuestionPoints(points);
-        }
-      }
-    } catch { /* ignore */ } finally {
-      localStorage.removeItem(PENDING_KEY);
+    if (!popupState || popupState.type === 'none') return;
+
+    if ((popupState.type === 'urgency' || popupState.type === 'motivation' || popupState.type === 'top3_entered') && !ranking) {
+      void refreshRanking(10);
+      return;
     }
-  }, []);
+
+    switch (popupState.type) {
+      case 'onboarding':
+        enqueuePopup({
+          kind: 'onboarding',
+          routeScope: 'dashboard',
+          firstName,
+          organizationName: orgName,
+          dedupeKey: 'dashboard-onboarding',
+        });
+        break;
+      case 'streak':
+        enqueuePopup({
+          kind: 'streak',
+          routeScope: 'dashboard',
+          streak: popupState.streak ?? effectiveCurrentStreak,
+          dedupeKey: `streak:${popupState.streak ?? effectiveCurrentStreak}`,
+        });
+        break;
+      case 'streak_broken':
+        enqueuePopup({
+          kind: 'streak_broken',
+          routeScope: 'dashboard',
+          streakLost: popupState.streak_lost ?? 1,
+          shieldCount: summary?.shield_count ?? 0,
+          dedupeKey: `streak-broken:${popupState.streak_lost ?? 1}`,
+        });
+        break;
+      case 'urgency':
+      case 'motivation':
+        enqueuePopup({
+          kind: 'contextual',
+          routeScope: 'dashboard',
+          popupState,
+          ranking: ranking ?? null,
+          slug,
+          dedupeKey: `${popupState.type}:${popupState.position ?? 0}:${popupState.points_diff ?? popupState.points_to_top3 ?? 0}`,
+        });
+        break;
+      case 'top3_entered':
+        enqueuePopup({
+          kind: 'top3_entered',
+          routeScope: 'dashboard',
+          position: getTop3Position(popupState.position),
+          ranking: ranking ?? null,
+          slug,
+          dedupeKey: `top3:${popupState.position ?? 3}`,
+        });
+        break;
+      case 'month_end':
+        enqueuePopup({
+          kind: 'month_end',
+          routeScope: 'dashboard',
+          winners: popupState.winners ?? [],
+          organizationName: orgName,
+          dedupeKey: `month-end:${popupState.month_reference ?? summary?.month_label ?? 'current'}`,
+        });
+        break;
+      default:
+        break;
+    }
+
+    dismissPopup();
+  }, [
+    dismissPopup,
+    effectiveCurrentStreak,
+    enqueuePopup,
+    firstName,
+    orgName,
+    popupState,
+    refreshRanking,
+    ranking,
+    slug,
+    summary?.month_label,
+    summary?.shield_count,
+  ]);
+
+  useEffect(() => {
+    const forceCheckIn = searchParams.get('forceCheckIn') === '1';
+    if (!forceCheckIn) return;
+    if (!org.permissions?.monthly_identity_titles_v1) return;
+
+    enqueuePopup({
+      kind: 'onboarding',
+      routeScope: 'dashboard',
+      firstName,
+      organizationName: orgName,
+      dedupeKey: 'dashboard-onboarding',
+    });
+  }, [enqueuePopup, firstName, org.permissions?.monthly_identity_titles_v1, orgName, searchParams]);
 
   // Caminho sem escudo: aplica decay e enfileira StreakPointsLostPopup
   const handleStreakBrokenDismiss = useCallback(async (): Promise<void> => {
-    dismissPopup();
-    const result = await applyStreakDecay();
-    setEffectiveCurrentStreak(0);
-    if (result && result.points_deducted > 0) {
-      await refreshSummary();
-      setTimeout(() => setStreakDecayResult(result), 300);
+    setIsResolvingStreakBroken(true);
+    try {
+      const result = await applyStreakDecay();
+      setEffectiveCurrentStreak(0);
+
+      if (result) {
+        await refreshSummary();
+        if (result.points_deducted > 0) {
+          enqueuePopup({
+            kind: 'streak_points_lost',
+            routeScope: 'dashboard',
+            result,
+            dedupeKey: `streak-points-lost:${result.points_deducted}:${result.current_rank}`,
+          });
+        }
+      }
+
+      dismissCurrentPopup();
+    } finally {
+      setIsResolvingStreakBroken(false);
     }
-  }, [dismissPopup, applyStreakDecay, refreshSummary]);
+  }, [applyStreakDecay, dismissCurrentPopup, enqueuePopup, refreshSummary]);
 
   // Caminho com escudo: preserva streak, sem decay
   const handleUseShield = useCallback(async (): Promise<void> => {
     const result = await activateShield();
     if (result?.shield_used) {
       setEffectiveCurrentStreak(result.streak_preserved ?? currentStreak);
+      enqueuePopup({
+        kind: 'shield_popup',
+        routeScope: 'dashboard',
+        streakPreserved: result.streak_preserved ?? currentStreak,
+        slug,
+        dedupeKey: `shield-popup:${result.streak_preserved ?? currentStreak}`,
+      });
     }
-    dismissPopup();
-  }, [activateShield, dismissPopup, currentStreak]);
-  // ── Streak popup: show at most once per day ────────────────────────────────
-  const STREAK_POPUP_KEY = 'streak_popup_last_shown';
-  const todayStr = new Date().toISOString().split('T')[0];
-  const shouldShowStreak =
-    popupState?.type === 'streak' &&
-    localStorage.getItem(STREAK_POPUP_KEY) !== todayStr;
+    dismissCurrentPopup();
+  }, [activateShield, currentStreak, dismissCurrentPopup, enqueuePopup, slug]);
 
   const handleStreakDismiss = useCallback(() => {
-    localStorage.setItem(STREAK_POPUP_KEY, new Date().toISOString().split('T')[0]);
-    dismissPopup();
-  }, [dismissPopup]);
+    dismissCurrentPopup();
+  }, [dismissCurrentPopup]);
 
   const handleDiagnosticComplete = useCallback(
-    async (result: DiagnosticResult) => {
+    async (result: MonthlyCheckInResult) => {
       void result;
-      dismissPopup();
-      await refreshRanking();
-      setShowRankingPopup(true);
+      dismissCurrentPopup();
+      router.push(`/partners/${slug}/student/titulos`);
     },
-    [dismissPopup, refreshRanking],
+    [dismissCurrentPopup, router, slug],
   );
-
-  // ── Pre-fetch ranking when month-end popup is about to show ───────────────
-  useEffect(() => {
-    const isMonthEnd =
-      popupState?.type === 'month_end' || popupState?.month_reset_pending;
-    if (isMonthEnd && !ranking) {
-      refreshRanking(10);
-    }
-  }, [popupState, ranking, refreshRanking]);
 
   // ── Monthly prize progress ─────────────────────────────────────────────────
   const monthlyPts = summary?.monthly_points ?? 0;
@@ -475,110 +560,82 @@ export function DashboardClient({
         </motion.div>
       </div>
 
-      {/* ── Popups (Fora do container principal de staggering) ──────────── */}
+      {/* ── Popups (Fila central) ───────────────────────────────────────── */}
       <AnimatePresence>
-        {popupState?.type === 'onboarding' && (
+        {currentPopup?.kind === 'onboarding' && (
           <OnboardingDiagnosticModal
             firstName={firstName}
             organizationName={orgName}
             onComplete={handleDiagnosticComplete}
-            submitDiagnostic={submitDiagnostic}
+            submitMonthlyCheckIn={submitMonthlyCheckIn}
           />
         )}
 
-        {showRankingPopup && ranking && (
+        {currentPopup?.kind === 'ranking_popup' && (
           <RankingPopup
-            ranking={ranking}
-            onClose={() => setShowRankingPopup(false)}
+            ranking={currentPopup.ranking}
+            onClose={dismissCurrentPopup}
           />
         )}
 
-        {shouldShowStreak && (
-            <StreakPopup
-            streak={popupState!.streak ?? effectiveCurrentStreak}
+        {currentPopup?.kind === 'streak' && (
+          <StreakPopup
+            streak={currentPopup.streak}
             onDismiss={handleStreakDismiss}
           />
         )}
 
-        {shieldResult?.shield_used && !shieldPopupDismissed && (
+        {currentPopup?.kind === 'shield_popup' && (
           <ShieldPopup
-            streakPreserved={shieldResult.streak_preserved ?? effectiveCurrentStreak}
-            slug={slug}
-            onDismiss={() => setShieldPopupDismissed(true)}
+            streakPreserved={currentPopup.streakPreserved}
+            slug={currentPopup.slug}
+            onDismiss={dismissCurrentPopup}
           />
         )}
 
-        {(popupState?.type === 'urgency' || popupState?.type === 'motivation') && (
+        {currentPopup?.kind === 'contextual' && (
           <ContextualPopup
-            popupState={popupState}
-            onDismiss={dismissPopup}
+            popupState={currentPopup.popupState}
+            ranking={currentPopup.ranking}
+            slug={currentPopup.slug}
+            onDismiss={dismissCurrentPopup}
           />
         )}
 
-        {popupState?.type === 'top3_entered' && (
+        {currentPopup?.kind === 'top3_entered' && (
           <Top3Popup
-            position={(popupState.position ?? 3) as 1 | 2 | 3}
-            onDismiss={dismissPopup}
+            position={currentPopup.position}
+            ranking={currentPopup.ranking}
+            slug={currentPopup.slug}
+            onDismiss={dismissCurrentPopup}
           />
         )}
 
-        {popupState?.type === 'streak_broken' && (
+        {currentPopup?.kind === 'streak_broken' && (
           <StreakBrokenPopup
-            streakLost={popupState.streak_lost ?? 1}
-            shieldCount={summary?.shield_count ?? 0}
+            streakLost={currentPopup.streakLost}
+            shieldCount={currentPopup.shieldCount}
             onDismiss={handleStreakBrokenDismiss}
             onUseShield={handleUseShield}
+            isLoading={isResolvingStreakBroken}
           />
         )}
 
-        {streakDecayResult && (
+        {currentPopup?.kind === 'streak_points_lost' && (
           <StreakPointsLostPopup
-            pointsLost={streakDecayResult.points_deducted}
-            rankDropped={streakDecayResult.rank_dropped}
-            rivalName={streakDecayResult.rival_name}
-            currentRank={streakDecayResult.current_rank}
-            onDismiss={() => setStreakDecayResult(null)}
+            pointsLost={currentPopup.result.points_deducted}
+            rankDropped={currentPopup.result.rank_dropped}
+            rivalName={currentPopup.result.rival_name}
+            currentRank={currentPopup.result.current_rank}
+            onDismiss={dismissCurrentPopup}
           />
         )}
 
-        {pendingQuestionPoints !== null && (
-          <motion.div
-            className="fixed bottom-6 left-1/2 z-[7000] w-full max-w-sm -translate-x-1/2 px-4"
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
-            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-5 shadow-2xl border border-white/10">
-              <button
-                onClick={() => setPendingQuestionPoints(null)}
-                className="absolute right-3 top-3 p-1.5 text-slate-500 hover:text-white transition-colors text-sm"
-                aria-label="Fechar"
-              >
-                ✕
-              </button>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-white/40 mb-1">
-                Sessão encerrada 📚
-              </p>
-              <p className="text-3xl font-black" style={{ color: 'var(--brand-primary)' }}>
-                +{pendingQuestionPoints} pts mensais
-              </p>
-              <p className="mt-1 text-xs text-slate-400">
-                da sua última sessão no banco de questões
-              </p>
-            </div>
-          </motion.div>
-        )}
-
-        {(popupState?.type === 'month_end' || popupState?.month_reset_pending) && (
+        {currentPopup?.kind === 'month_end' && (
           <MonthEndScreen
-            winners={(ranking?.ranking ?? []).slice(0, 3).map((e) => ({
-              position: e.rank as 1 | 2 | 3,
-              full_name: e.full_name,
-              monthly_points: e.monthly_points,
-            }))}
-            organizationName={orgName}
-            onContinue={dismissPopup}
+            winners={currentPopup.winners}
+            organizationName={currentPopup.organizationName}
+            onContinue={dismissCurrentPopup}
           />
         )}
       </AnimatePresence>

@@ -2,6 +2,7 @@
 
 import { useReducedMotion, motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Medal, Crown, ArrowRight } from 'lucide-react';
+import { usePopupTheme } from './popupTheme';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,10 +40,12 @@ function PodiumSlot({
   winner,
   delay,
   shouldReduce,
+  theme,
 }: {
   winner: Winner;
   delay: number;
   shouldReduce: boolean | null;
+  theme: ReturnType<typeof usePopupTheme>;
 }) {
   const heights: Record<number, string> = { 1: 'h-20', 2: 'h-14', 3: 'h-10' };
   const isFirst = winner.position === 1;
@@ -68,7 +71,7 @@ function PodiumSlot({
     >
       {/* Name */}
       <p
-        className="text-center text-[11px] font-semibold text-white/80 leading-tight max-w-[72px] truncate"
+        className={`max-w-[72px] truncate text-center text-[11px] font-semibold leading-tight ${theme.softTextClass}`}
         title={winner.full_name}
       >
         {winner.full_name.split(' ')[0]}
@@ -97,13 +100,15 @@ function PodiumSlot({
         style={{
           background: isFirst
             ? 'linear-gradient(180deg, #f59e0b22 0%, #f59e0b0d 100%)'
-            : 'linear-gradient(180deg, #ffffff0a 0%, #ffffff04 100%)',
-          border: isFirst ? '1px solid #f59e0b33' : '1px solid #ffffff10',
+            : theme.isDark
+              ? 'linear-gradient(180deg, #ffffff0a 0%, #ffffff04 100%)'
+              : 'linear-gradient(180deg, rgba(226,232,240,0.9) 0%, rgba(248,250,252,0.92) 100%)',
+          border: isFirst ? '1px solid #f59e0b33' : theme.isDark ? '1px solid #ffffff10' : '1px solid rgba(148,163,184,0.2)',
           borderBottom: 'none',
         }}
       >
         <span className="text-base">{emoji}</span>
-        <p className="mt-0.5 text-[10px] font-bold text-white/50">
+        <p className={`mt-0.5 text-[10px] font-bold ${theme.rankingRowSubtextClass}`}>
           {winner.monthly_points.toLocaleString('pt-BR')} pts
         </p>
       </div>
@@ -127,6 +132,7 @@ export function MonthEndScreen({
   onContinue,
 }: Props) {
   const shouldReduce = useReducedMotion();
+  const theme = usePopupTheme('ranking');
 
   // Reorder for visual podium: [2nd, 1st, 3rd]
   const sorted = [...winners].sort((a, b) => a.position - b.position);
@@ -147,14 +153,20 @@ export function MonthEndScreen({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top), 1rem)',
+          paddingRight: 'max(env(safe-area-inset-right), 1rem)',
+          paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)',
+          paddingLeft: 'max(env(safe-area-inset-left), 1rem)',
+        }}
       >
         {/* Backdrop */}
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+        <div className="absolute inset-0" style={theme.overlayStyle} />
 
         {/* Card */}
         <motion.div
           className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl"
-          style={{ background: 'linear-gradient(160deg, #0d0d0d 0%, #1a1a1a 100%)' }}
+          style={{ ...theme.cardStyle, maxHeight: 'min(92dvh, 760px)' }}
           initial={shouldReduce ? {} : { scale: 0.88, opacity: 0 }}
           animate={shouldReduce ? {} : { scale: 1, opacity: 1 }}
           exit={shouldReduce ? {} : { scale: 0.88, opacity: 0 }}
@@ -182,11 +194,11 @@ export function MonthEndScreen({
             </div>
           )}
 
-          <div className="relative z-10 p-7">
+          <div className="relative z-10 overflow-y-auto p-5 sm:p-7">
             {/* Header */}
             <div className="mb-5 text-center">
               <motion.div
-                className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full ring-2 ring-white/10"
+                className={`mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full ring-2 ${theme.isDark ? 'ring-white/10' : 'ring-slate-200'}`}
                 style={{ background: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)' }}
                 initial={shouldReduce ? {} : { scale: 0 }}
                 animate={shouldReduce ? {} : { scale: 1 }}
@@ -196,7 +208,7 @@ export function MonthEndScreen({
               </motion.div>
 
               <motion.h2
-                className="text-xl font-extrabold text-white leading-tight"
+                className={`text-xl font-extrabold leading-tight ${theme.titleClass}`}
                 initial={shouldReduce ? {} : { opacity: 0, y: 8 }}
                 animate={shouldReduce ? {} : { opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
@@ -204,7 +216,7 @@ export function MonthEndScreen({
                 🏆 {organizationName}
               </motion.h2>
               <motion.p
-                className="mt-1 text-[11px] font-bold uppercase tracking-widest text-white/40"
+                className={`mt-1 text-[11px] font-bold uppercase tracking-widest ${theme.mutedClass}`}
                 initial={shouldReduce ? {} : { opacity: 0 }}
                 animate={shouldReduce ? {} : { opacity: 1 }}
                 transition={{ delay: 0.28 }}
@@ -215,33 +227,35 @@ export function MonthEndScreen({
 
             {/* Podium */}
             {winners.length > 0 ? (
-              <div className="mb-5 flex items-end gap-2 justify-center">
+              <div className="mb-5 flex items-end justify-center gap-1.5 sm:gap-2">
                 {podium.map((w) => (
                   <PodiumSlot
                     key={w.position}
                     winner={w}
                     delay={podiumDelays[w.position] ?? 0.4}
                     shouldReduce={shouldReduce}
+                    theme={theme}
                   />
                 ))}
               </div>
             ) : (
-              <p className="mb-5 text-center text-sm text-white/40">
+              <p className={`mb-5 text-center text-sm ${theme.bodyClass}`}>
                 Nenhum vencedor registrado.
               </p>
             )}
 
             {/* Reset message */}
             <motion.div
-              className="mb-5 rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-center"
+              className={`mb-5 rounded-xl px-4 py-3 text-center ${theme.isDark ? 'ring-1 ring-white/10' : 'ring-1 ring-slate-200'}`}
+              style={theme.panelStyle}
               initial={shouldReduce ? {} : { opacity: 0, y: 8 }}
               animate={shouldReduce ? {} : { opacity: 1, y: 0 }}
               transition={{ delay: 0.7 }}
             >
-              <p className="text-sm font-semibold text-white/80">
+              <p className={`text-sm font-semibold ${theme.titleClass}`}>
                 Novo mês, novo ranking.
               </p>
-              <p className="mt-0.5 text-xs text-white/40">
+              <p className={`mt-0.5 text-xs ${theme.mutedClass}`}>
                 Todo mundo começa do zero.
               </p>
             </motion.div>
@@ -249,8 +263,8 @@ export function MonthEndScreen({
             {/* CTA */}
             <motion.button
               onClick={onContinue}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-bold text-white transition-opacity hover:opacity-90 active:scale-[0.98]"
-              style={{ background: 'var(--brand-primary)' }}
+              className={`flex w-full items-center justify-center gap-1.5 rounded-xl py-3 text-sm font-bold transition-opacity hover:opacity-90 active:scale-[0.98] ${theme.primaryButtonClass}`}
+              style={theme.primaryButtonStyle}
               initial={shouldReduce ? {} : { opacity: 0, y: 6 }}
               animate={shouldReduce ? {} : { opacity: 1, y: 0 }}
               transition={{ delay: 0.8 }}

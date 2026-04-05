@@ -18,6 +18,7 @@ import {
 import { QuestionCard } from '@/components/questions/QuestionCard';
 import { ReportDialog } from '@/components/questions/ReportDialog';
 import { UpsellModal } from '@/components/modals/UpsellModal';
+import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,7 @@ const selectClass =
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function BancoDeQuestoes() {
+  const { enqueuePopup } = usePopupQueue();
   // ── State: Data ─────────────────────────────────────────────────────────────
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -349,7 +351,7 @@ export default function BancoDeQuestoes() {
   };
 
   const handleAnswerResult = useCallback(
-    (qId: string, result: { is_correct?: boolean; gamification?: { points_awarded: number; shield_awarded?: boolean } }) => {
+    (qId: string, result: { is_correct?: boolean; new_streak?: number; streak_updated?: boolean; gamification?: { points_awarded: number; shield_awarded?: boolean } }) => {
       handleLocalAnswer(qId);
       // Usa os pontos da API quando disponíveis (usuários com org_id — backend já
       // persiste monthly_points). Para usuários sem org_id, fallback via RPC direto.
@@ -374,8 +376,17 @@ export default function BancoDeQuestoes() {
       if (result.gamification?.shield_awarded) {
         sessionStorage.setItem('qsr_shield_earned', '1');
       }
+      const nextStreak = result.new_streak ?? 0;
+      if (result.streak_updated && nextStreak >= 2) {
+        enqueuePopup({
+          kind: 'streak',
+          routeScope: 'dashboard',
+          streak: nextStreak,
+          dedupeKey: `streak:${nextStreak}`,
+        });
+      }
     },
-    [SESSION_KEY, userId],
+    [SESSION_KEY, enqueuePopup, userId],
   );
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────

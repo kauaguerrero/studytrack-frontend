@@ -23,6 +23,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { UpsellModal } from '@/components/modals/UpsellModal'
 import { SimuladoRewardPopup } from '@/components/partners/gamification/SimuladoRewardPopup'
+import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
@@ -45,6 +46,8 @@ interface SubjectResult { correct: number; total: number; percentage: number }
 interface FinishResult {
   score: number; total: number; percentage: number; tri_score: number | null
   time_taken_secs: number; results_by_subject: Record<string, SubjectResult>; session_id: string
+  new_streak?: number;
+  streak_updated?: boolean;
 }
 
 interface SessionConfig { mode?: string; format?: string; subject?: string; difficulty?: string; qty?: number }
@@ -215,6 +218,7 @@ export default function SimuladoPage() {
   const router = useRouter()
   const { slug } = useParams<{ slug: string }>()
   const shouldReduce = useReducedMotion()
+  const { currentPopup, enqueuePopup, dismissCurrentPopup, holdQueueUntilRouteChange } = usePopupQueue()
 
   const [step, setStep] = useState<'setup' | 'quiz' | 'result'>('setup')
   const [showConfigModal, setShowConfigModal] = useState(false)
@@ -258,12 +262,6 @@ export default function SimuladoPage() {
   const [animatedScore, setAnimatedScore] = useState(0)
   const [showConfetti, setShowConfetti] = useState(false)
 
-  // UI: gamification reward card (shown after finishing simulado)
-  const [gamificationReward, setGamificationReward] = useState<{ points_awarded: number; new_monthly_points: number } | null>(null)
-  const [gamificationSummary, setGamificationSummary] = useState<{ rank_position: number; points_to_top3: number } | null>(null)
-  const [showGamificationCard, setShowGamificationCard] = useState(false)
-  const [animatedPoints, setAnimatedPoints] = useState(0)
-
   // UI: timer warning animation
   const timerShakeControls = useAnimation()
   const prevTimeLeftRef = useRef<number>(Infinity)
@@ -304,7 +302,6 @@ export default function SimuladoPage() {
       }
     }
     fetchDashboard()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, apiUrl, dashVersion])
 
   // ── Timer ──
@@ -358,26 +355,6 @@ export default function SimuladoPage() {
     return () => cancelAnimationFrame(raf)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
-
-  // ── Points card: count-up animation ──
-  useEffect(() => {
-    if (!showGamificationCard || !gamificationReward) { setAnimatedPoints(0); return }
-    if (shouldReduce) { setAnimatedPoints(gamificationReward.points_awarded); return }
-    let raf: number
-    const start = performance.now()
-    const duration = 800
-    const target = gamificationReward.points_awarded
-    const tick = (now: number) => {
-      const t = Math.min((now - start) / duration, 1)
-      setAnimatedPoints(Math.round((1 - Math.pow(1 - t, 3)) * target))
-      if (t < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showGamificationCard])
-
-  // Intencionalmente sem auto-dismiss: o aluno fecha manualmente no popup.
 
   // ── Derived KPIs ──
   const totalSimulados = sessions.length
@@ -437,18 +414,37 @@ export default function SimuladoPage() {
       if (res.ok) {
         setFinishResult({ ...data, session_id: sessionId })
         console.log('finish response:', data)
+        if (data.streak_updated && (data.new_streak ?? 0) >= 2) {
+          enqueuePopup({
+            kind: 'streak',
+            routeScope: 'dashboard',
+            streak: data.new_streak,
+            dedupeKey: `streak:${data.new_streak}`,
+          })
+        }
         if (data.gamification?.points_awarded > 0) {
-          setGamificationReward(data.gamification)
-          setShowGamificationCard(true)
+          let rankPosition: number | null = null
+          let pointsToTop3: number | null = null
           try {
             const summaryRes = await fetch(`${apiUrl}/api/partner/gamification/summary`, {
               headers: { Authorization: `Bearer ${accessToken}` },
             })
             if (summaryRes.ok) {
               const summaryData = await summaryRes.json()
-              setGamificationSummary({ rank_position: summaryData.rank_position, points_to_top3: summaryData.points_to_top3 })
+              rankPosition = summaryData.rank_position
+              pointsToTop3 = summaryData.points_to_top3
             }
           } catch { /* non-critical */ }
+          enqueuePopup({
+            kind: 'simulado_reward',
+            routeScope: 'simulado',
+            pointsAwarded: data.gamification.points_awarded,
+            newMonthlyPoints: data.gamification.new_monthly_points,
+            rankPosition,
+            pointsToTop3,
+            slug,
+            dedupeKey: `simulado-reward:${sessionId}`,
+          })
         }
       } else {
         toast.warning('Resultado calculado localmente', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
@@ -468,7 +464,6 @@ export default function SimuladoPage() {
   const resetSimulado = (openModal = false) => {
     setStep('setup'); setQuestions([]); setCurrentIdx(0); setUserAnswers({}); setTimeLeft(0)
     setSessionId(null); setFinishResult(null); setDashVersion(v => v + 1)
-    setGamificationReward(null); setGamificationSummary(null); setShowGamificationCard(false)
     if (openModal) setShowConfigModal(true)
   }
 
@@ -1128,16 +1123,16 @@ export default function SimuladoPage() {
         </div>
       )}
 
-      {/* ── Gamification reward popup (fullscreen) ───────────────────────────── */}
-      {showGamificationCard && gamificationReward && (
+      {currentPopup?.kind === 'simulado_reward' && (
         <SimuladoRewardPopup
-          pointsAwarded={gamificationReward.points_awarded}
-          newMonthlyPoints={gamificationReward.new_monthly_points}
-          rankPosition={gamificationSummary?.rank_position ?? null}
-          pointsToTop3={gamificationSummary?.points_to_top3 ?? null}
-          onContinue={() => {
-            setShowGamificationCard(false)
-            setGamificationReward(null)
+          pointsAwarded={currentPopup.pointsAwarded}
+          newMonthlyPoints={currentPopup.newMonthlyPoints}
+          rankPosition={currentPopup.rankPosition}
+          pointsToTop3={currentPopup.pointsToTop3}
+          onDismiss={dismissCurrentPopup}
+          onViewRanking={() => {
+            holdQueueUntilRouteChange()
+            dismissCurrentPopup()
             router.push(`/partners/${slug}/student/ranking`)
           }}
         />

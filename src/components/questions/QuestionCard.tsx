@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { CheckCircle2, XCircle, BrainCircuit, ImageIcon, Flag } from 'lucide-react';
 import { reportError } from '@/lib/reportError';
+import { createClient } from '@/lib/supabase/client';
 
 interface Alternative {
   letter: string;
@@ -27,7 +28,12 @@ interface QuestionCardProps {
   question: Question;
   userId: string;
   onQuotaReached?: (reason: string) => void;
-  onAnswer?: (result: { is_correct?: boolean; gamification?: { points_awarded: number } }) => void;
+  onAnswer?: (result: {
+    is_correct?: boolean;
+    new_streak?: number;
+    streak_updated?: boolean;
+    gamification?: { points_awarded: number; shield_awarded?: boolean };
+  }) => void;
   onReportError?: () => void;
 }
 
@@ -45,16 +51,35 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
     setIsSubmitting(true);
 
     const localIsCorrect = String(selected).toUpperCase() === String(question.correct_option).toUpperCase();
-    let answerResult: { is_correct?: boolean; gamification?: { points_awarded: number } } = {
+    let answerResult: {
+      is_correct?: boolean;
+      new_streak?: number;
+      streak_updated?: boolean;
+      gamification?: { points_awarded: number; shield_awarded?: boolean };
+    } = {
       is_correct: localIsCorrect,
     };
 
     try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-        const res = await fetch(`${apiUrl}/api/questions/answer`, {
+        if (!userId) {
+          setShowAnswer(true);
+          setIsSubmitting(false);
+          if (onAnswer) onAnswer(answerResult);
+          return;
+        }
+
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) throw new Error('Unauthorized');
+
+        const res = await fetch('/api/proxy/questions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: userId, question_id: question.id, option: selected })
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ question_id: question.id, option: selected })
         });
 
         const data = await res.json();
@@ -71,7 +96,12 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
             onQuotaReached("DAILY_QUOTA_REACHED");
         }
 
-        answerResult = { is_correct: data.is_correct ?? localIsCorrect, gamification: data.gamification };
+        answerResult = {
+          is_correct: data.is_correct ?? localIsCorrect,
+          new_streak: data.new_streak,
+          streak_updated: data.streak_updated,
+          gamification: data.gamification,
+        };
 
     } catch(e) { console.error(e); void reportError("QuestionCardError", String(e)); }
 

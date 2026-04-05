@@ -39,7 +39,7 @@ function resolveTheme(row: Record<string, unknown>): string | null {
 function normalizeCompetencyScores(value: unknown) {
   if (!Array.isArray(value)) return [];
   return value
-    .map((item) => {
+    .map((item: unknown) => {
       const row = item as Record<string, unknown>;
       return {
         competency: Number(row.competency || 0),
@@ -53,7 +53,7 @@ function normalizeCompetencyScores(value: unknown) {
 function normalizeAnnotations(value: unknown) {
   if (!Array.isArray(value)) return [];
   return value
-    .map((item) => {
+    .map((item: unknown) => {
       const row = item as Record<string, unknown>;
       return {
         id: String(row.id || crypto.randomUUID()),
@@ -139,8 +139,9 @@ async function insertEssayAnnotationsCompat(
   ];
 
   let lastErrorMessage = 'Formato de anotações incompatível com o schema.';
+  const annotationsTable = admin.from('essay_annotations') as any;
   for (const rows of attempts) {
-    const { error } = await admin.from('essay_annotations').insert((rows as never));
+    const { error } = await annotationsTable.insert(rows);
     if (!error) return { ok: true as const };
     lastErrorMessage = error.message || lastErrorMessage;
   }
@@ -308,7 +309,7 @@ export async function POST(
     return { competency, score, comment, expected: idx + 1 };
   });
 
-  const invalidScore = competencyScores.find((item) => {
+  const invalidScore = competencyScores.find((item: { competency: number; score: number; comment: string; expected: number }) => {
     const validComp = Number.isInteger(item.competency) && item.competency === item.expected;
     const validScore = Number.isFinite(item.score) && item.score >= 0 && item.score <= 200;
     return !validComp || !validScore;
@@ -317,7 +318,7 @@ export async function POST(
     return NextResponse.json({ error: 'Notas inválidas. Use competências 1-5 e notas entre 0 e 200.' }, { status: 400 });
   }
 
-  const totalScore = competencyScores.reduce((sum, item) => sum + Number(item.score || 0), 0);
+  const totalScore = competencyScores.reduce((sum: number, item: { score: number }) => sum + Number(item.score || 0), 0);
   const safeGeneralComment = typeof payload.general_comment === 'string'
     ? payload.general_comment.trim().slice(0, MAX_GENERAL_COMMENT_LEN)
     : '';
@@ -362,7 +363,7 @@ export async function POST(
         corrected_text: typeof row.corrected_text === 'string' ? row.corrected_text.slice(0, MAX_ANNOTATION_TEXT_LEN) : null,
       };
     })
-    .filter((row) => Number.isInteger(row.start_offset)
+    .filter((row: { start_offset: number; end_offset: number }) => Number.isInteger(row.start_offset)
       && Number.isInteger(row.end_offset)
       && row.start_offset >= 0
       && row.end_offset > row.start_offset);
@@ -375,9 +376,9 @@ export async function POST(
     updatePayload.annotations = sanitizedAnnotations;
   }
 
-  const { error: updateError } = await auth.admin
-    .from('essays')
-    .update((updatePayload as never))
+  const essaysTable = auth.admin.from('essays') as any;
+  const { error: updateError } = await essaysTable
+    .update(updatePayload)
     .eq('id', essayId)
     .eq('org_id', auth.orgId);
 
@@ -407,16 +408,15 @@ export async function POST(
       );
     }
 
-    const scoreRows = competencyScores.map((item) => ({
+    const scoreRows = competencyScores.map((item: { competency: number; score: number; comment: string }) => ({
       essay_id: essayId,
       competency: Number(item.competency),
       score: Number(item.score),
       comment: typeof item.comment === 'string' ? item.comment : null,
     }));
 
-    const { error: insertScoresError } = await auth.admin
-      .from('essay_competency_scores')
-      .insert((scoreRows as never));
+    const { error: insertScoresError } = await (auth.admin.from('essay_competency_scores') as any)
+      .insert(scoreRows);
     if (insertScoresError) {
       return NextResponse.json(
         {
