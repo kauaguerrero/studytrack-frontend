@@ -3,9 +3,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap } from 'lucide-react';
 import { Typewriter } from '@/components/ui/typewriter';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
+import { useOrg } from '@/contexts/OrgContext';
 import { OnboardingDiagnosticModal } from '@/components/partners/gamification/OnboardingDiagnosticModal';
 import { RankingPopup } from '@/components/partners/gamification/RankingPopup';
 import { StreakPopup } from '@/components/partners/gamification/StreakPopup';
@@ -16,7 +18,7 @@ import { StreakBrokenPopup } from '@/components/partners/gamification/StreakBrok
 import { StreakPointsLostPopup } from '@/components/partners/gamification/StreakPointsLostPopup';
 import { MonthEndScreen } from '@/components/partners/gamification/MonthEndScreen';
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
-import type { DiagnosticResult } from '@/types/gamification';
+import type { MonthlyCheckInResult } from '@/types/gamification';
 
 // ─── Animation config ───────────────────────────────────────────────────────
 
@@ -71,6 +73,9 @@ export function DashboardClient({
   questionsCount,
   simuladosCount,
 }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { org } = useOrg();
   const shouldReduce = useReducedMotion();
   const itemVariant = shouldReduce ? ITEM_REDUCED : ITEM;
   const containerVariant = shouldReduce ? { hidden: {}, show: {} } : CONTAINER;
@@ -85,7 +90,7 @@ export function DashboardClient({
     summary,
     popupState,
     ranking,
-    submitDiagnostic,
+    submitMonthlyCheckIn,
     refreshRanking,
     dismissPopup,
     useShield: activateShield,
@@ -185,6 +190,20 @@ export function DashboardClient({
     summary?.shield_count,
   ]);
 
+  useEffect(() => {
+    const forceCheckIn = searchParams.get('forceCheckIn') === '1';
+    if (!forceCheckIn) return;
+    if (!org.permissions?.monthly_identity_titles_v1) return;
+
+    enqueuePopup({
+      kind: 'onboarding',
+      routeScope: 'dashboard',
+      firstName,
+      organizationName: orgName,
+      dedupeKey: 'dashboard-onboarding',
+    });
+  }, [enqueuePopup, firstName, org.permissions?.monthly_identity_titles_v1, orgName, searchParams]);
+
   // Caminho sem escudo: aplica decay e enfileira StreakPointsLostPopup
   const handleStreakBrokenDismiss = useCallback(async (): Promise<void> => {
     setIsResolvingStreakBroken(true);
@@ -231,20 +250,12 @@ export function DashboardClient({
   }, [dismissCurrentPopup]);
 
   const handleDiagnosticComplete = useCallback(
-    async (result: DiagnosticResult) => {
+    async (result: MonthlyCheckInResult) => {
       void result;
       dismissCurrentPopup();
-      const rankingData = await refreshRanking();
-      if (rankingData) {
-        enqueuePopup({
-          kind: 'ranking_popup',
-          routeScope: 'dashboard',
-          ranking: rankingData,
-          dedupeKey: 'onboarding-ranking-popup',
-        });
-      }
+      router.push(`/partners/${slug}/student/titulos`);
     },
-    [dismissCurrentPopup, enqueuePopup, refreshRanking],
+    [dismissCurrentPopup, router, slug],
   );
 
   // ── Monthly prize progress ─────────────────────────────────────────────────
@@ -556,7 +567,7 @@ export function DashboardClient({
             firstName={firstName}
             organizationName={orgName}
             onComplete={handleDiagnosticComplete}
-            submitDiagnostic={submitDiagnostic}
+            submitMonthlyCheckIn={submitMonthlyCheckIn}
           />
         )}
 

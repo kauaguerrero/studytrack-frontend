@@ -14,11 +14,10 @@ import {
   TrendingUp,
   Award,
   Sparkles,
-  Target,
-  Shield,
 } from 'lucide-react';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getGamificationTitleMeta, getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
 import type {
   MonthlyHistoryEntry,
   PartnerRankingEntry,
@@ -100,12 +99,6 @@ const RANK_THEMES = {
     textColor: '#D97706',
   },
 } as const;
-
-const TITLE_CONFIG: Record<string, { color: string; icon: typeof Flame }> = {
-  Expert: { color: '#F59E0B', icon: Flame },
-  Veterano: { color: '#8B5CF6', icon: Shield },
-  Iniciante: { color: '#64748B', icon: Target },
-};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -341,8 +334,9 @@ interface RowProps {
 function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
   const isTop3 = entry.rank <= 3;
   const theme = isTop3 ? RANK_THEMES[entry.rank as 1 | 2 | 3] : null;
-  const titleCfg = TITLE_CONFIG[entry.gamification_title] ?? TITLE_CONFIG.Iniciante;
-  const TitleIcon = titleCfg.icon;
+  const identityMeta = getGamificationTitleMeta(entry.gamification_title);
+  const progressMeta = getProgressTierMeta(entry.progress_tier);
+  const ProgressIcon = progressMeta.Icon;
   const recentAchievements = (entry.podium_history ?? []).slice(0, 2);
 
   // Find the max points to compute relative bar width (first entry = 100%)
@@ -445,17 +439,20 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
           {isSelf ? `${entry.full_name} (você)` : entry.full_name}
         </p>
         <div className="flex items-center gap-1 mt-0.5">
-          <TitleIcon
+          <ProgressIcon
             className="h-2.5 w-2.5"
-            style={{ color: titleCfg.color }}
+            style={{ color: progressMeta.color }}
           />
           <p
             className="text-[10px] font-semibold"
-            style={{ color: titleCfg.color }}
+            style={{ color: progressMeta.color }}
           >
-            {entry.gamification_title}
+            {progressMeta.title}
           </p>
         </div>
+        <p className="mt-0.5 text-[10px] text-slate-500 dark:text-white/45">
+          {identityMeta.title}
+        </p>
         {recentAchievements.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {recentAchievements.map((achievement) => (

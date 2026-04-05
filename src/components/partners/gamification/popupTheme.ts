@@ -78,12 +78,12 @@ export function usePopupTheme(tone: PopupTone) {
         },
     titleClass: isDark ? 'text-white' : 'text-slate-950',
     bodyClass: isDark ? 'text-white/72' : 'text-slate-700',
-    mutedClass: isDark ? 'text-white/42' : 'text-slate-500',
-    softTextClass: isDark ? 'text-white/64' : 'text-slate-600',
-    strongMutedClass: isDark ? 'text-white/52' : 'text-slate-600',
+    mutedClass: isDark ? 'text-white/56' : 'text-slate-600',
+    softTextClass: isDark ? 'text-white/74' : 'text-slate-700',
+    strongMutedClass: isDark ? 'text-white/66' : 'text-slate-700',
     closeButtonClass: isDark
-      ? 'text-white/40 hover:text-white hover:bg-white/10'
-      : 'text-slate-400 hover:text-slate-900 hover:bg-slate-900/5',
+      ? 'text-white/56 hover:text-white hover:bg-white/10'
+      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-900/5',
     primaryButtonClass: isDark
       ? 'text-slate-950 shadow-[0_10px_30px_color-mix(in_srgb,var(--brand-primary)_30%,transparent)]'
       : 'text-white shadow-[0_12px_30px_color-mix(in_srgb,var(--brand-primary)_20%,transparent)]',
@@ -98,7 +98,7 @@ export function usePopupTheme(tone: PopupTone) {
         },
     secondaryButtonClass: isDark
       ? 'border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]'
-      : 'border-slate-200 bg-white/70 text-slate-700 hover:bg-white',
+      : 'border-slate-200 bg-slate-50/90 text-slate-800 hover:bg-white',
     rankingRowStyle: isDark
       ? {
           background: 'rgba(255,255,255,0.04)',
@@ -109,8 +109,8 @@ export function usePopupTheme(tone: PopupTone) {
           borderColor: 'rgba(148,163,184,0.22)',
         },
     rankingRowTextClass: isDark ? 'text-white' : 'text-slate-900',
-    rankingRowSubtextClass: isDark ? 'text-white/40' : 'text-slate-500',
+    rankingRowSubtextClass: isDark ? 'text-white/56' : 'text-slate-600',
     rankingRowValueClass: isDark ? 'text-white' : 'text-slate-900',
-    dividerClass: isDark ? 'border-white/10 text-white/35' : 'border-slate-200 text-slate-500',
+    dividerClass: isDark ? 'border-white/10 text-white/52' : 'border-slate-200 text-slate-600',
   };
 }

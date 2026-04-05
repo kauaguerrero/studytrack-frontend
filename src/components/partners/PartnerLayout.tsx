@@ -23,6 +23,7 @@ import {
   Home,
   User,
   Trophy,
+  BadgeCheck,
   WalletCards,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -162,6 +163,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,  label: 'Questões',        shortLabel: 'Questões' },
     { href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck,  label: 'Simulados',       shortLabel: 'Simulados' },
     { href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,    label: 'Ranking',         shortLabel: 'Ranking' },
+    { href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck, label: 'Títulos',        shortLabel: 'Títulos' },
     { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3, label: 'Meu Desempenho',  shortLabel: 'Desempenho' },
     { href: `/partners/${org.slug}/student/redacoes`,          icon: PenLine,  label: 'Redações',        shortLabel: 'Redações' },
     { href: `/partners/${org.slug}/student/perfil`,            icon: User,      label: 'Perfil',          shortLabel: 'Perfil' },

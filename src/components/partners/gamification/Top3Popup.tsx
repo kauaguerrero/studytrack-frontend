@@ -1,9 +1,10 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowUpRight, Award, Crown, Flame, Gift, Shield, Sparkles, Target, Trophy, X, Zap } from 'lucide-react';
+import { ArrowUpRight, Award, Crown, Gift, Sparkles, Trophy, X, Zap } from 'lucide-react';
 import type { PartnerRankingEntry, PartnerRankingResponse } from '@/types/gamification';
 import { usePopupTheme } from './popupTheme';
+import { getGamificationTitleMeta, getProgressTierMeta } from './titleSystem';
 
 interface Props {
   position: 1 | 2 | 3;
@@ -38,12 +39,6 @@ const RANK_THEMES = {
     icon: Award,
   },
 } as const;
-
-const TITLE_CONFIG: Record<string, { color: string; icon: typeof Flame }> = {
-  Expert: { color: '#F59E0B', icon: Flame },
-  Veterano: { color: '#8B5CF6', icon: Shield },
-  Iniciante: { color: '#64748B', icon: Target },
-};
 
 const ROW_HEIGHT = 58;
 const ROW_GAP = 8;
@@ -111,8 +106,9 @@ function RankingSliceRow({
   const isTop3 = rank <= 3;
   const theme = isTop3 ? RANK_THEMES[rank as 1 | 2 | 3] : null;
   const isPrize = forcePrize ?? isTop3;
-  const titleCfg = TITLE_CONFIG[entry.gamification_title] ?? TITLE_CONFIG.Iniciante;
-  const TitleIcon = titleCfg.icon;
+  const titleMeta = getGamificationTitleMeta(entry.gamification_title);
+  const progressMeta = getProgressTierMeta(entry.progress_tier);
+  const ProgressIcon = progressMeta.Icon;
 
   return (
     <div
@@ -194,11 +190,12 @@ function RankingSliceRow({
           {isSelf ? `${entry.full_name} (você)` : entry.full_name}
         </p>
         <div className="mt-0.5 flex items-center gap-1">
-          <TitleIcon className="h-2.5 w-2.5" style={{ color: titleCfg.color }} />
-          <p className="text-[9px] font-semibold" style={{ color: titleCfg.color }}>
-            {entry.gamification_title}
+          <ProgressIcon className="h-2.5 w-2.5" style={{ color: progressMeta.color }} />
+          <p className="text-[9px] font-semibold" style={{ color: progressMeta.color }}>
+            {progressMeta.title}
           </p>
         </div>
+        <p className={`text-[9px] ${popupTheme.rankingRowSubtextClass}`}>{titleMeta.title}</p>
       </div>
 
       <div className="flex shrink-0 flex-col items-end gap-1">

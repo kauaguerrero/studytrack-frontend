@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { useStudentTheme } from '@/contexts/StudentThemeContext'
 import { useOrg } from '@/contexts/OrgContext'
 import { PartnerLayout } from './PartnerLayout'
@@ -26,13 +27,50 @@ function StudentThemeShellContent({
 }) {
   const { resolvedTheme } = useStudentTheme()
   const isDark = resolvedTheme === 'dark'
-  const { org: { slug } } = useOrg()
+  const { org } = useOrg()
+  const { slug } = org
   const pathname = usePathname()
   const prevPathRef = useRef(pathname)
   const { currentPopup, enqueuePopup, dismissCurrentPopup, holdQueueUntilRouteChange } = usePopupQueue()
 
   // Controlado localmente: some após troca bem-sucedida sem precisar de reload
   const [showPasswordModal, setShowPasswordModal] = useState(mustChangePassword)
+
+  useEffect(() => {
+    if (!org.permissions?.monthly_identity_titles_v1) return
+    if (!pathname) return
+    if (pathname.includes('/student/dashboard')) return
+
+    let cancelled = false
+
+    async function enforceMonthlyCheckIn() {
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+        if (!token || cancelled) return
+
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000'
+        const res = await fetch(`${apiBase}/api/partner/gamification/check-in/status`, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        if (!res.ok || cancelled) return
+
+        const data = await res.json() as { required?: boolean }
+        if (data.required && !cancelled) {
+          window.location.assign(`/partners/${slug}/student/dashboard?forceCheckIn=1`)
+        }
+      } catch {
+        // Falha silenciosa: não bloqueia o shell, mas o dashboard continua cobrando o check-in.
+      }
+    }
+
+    void enforceMonthlyCheckIn()
+    return () => { cancelled = true }
+  }, [org.permissions?.monthly_identity_titles_v1, pathname, slug])
 
   // Ao sair do banco de questões lê os dois sinais e enfileira os popups
   useEffect(() => {

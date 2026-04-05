@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowUpRight, Crown, Gift, Sparkles, Trophy, X, Zap } from 'lucide-react';
 import type { PartnerRankingEntry, PartnerRankingResponse, PopupState } from '@/types/gamification';
 import { usePopupTheme } from './popupTheme';
+import { getGamificationTitleMeta, getProgressTierMeta } from './titleSystem';
 
 interface Props {
   popupState: PopupState;
@@ -35,6 +36,10 @@ function PopupRankRow({
   highlight?: boolean;
   theme: ReturnType<typeof usePopupTheme>;
 }) {
+  const titleMeta = getGamificationTitleMeta(entry.gamification_title);
+  const progressMeta = getProgressTierMeta(entry.progress_tier);
+  const ProgressIcon = progressMeta.Icon;
+
   return (
     <div
       className="flex items-center gap-3 rounded-xl border px-3 py-2"
@@ -82,9 +87,13 @@ function PopupRankRow({
         >
           {isSelf ? `${entry.full_name} (você)` : entry.full_name}
         </p>
-        <p className={`text-[10px] font-semibold uppercase tracking-[0.15em] ${theme.rankingRowSubtextClass}`}>
-          {entry.gamification_title}
-        </p>
+        <div className="mt-0.5 flex items-center gap-1">
+          <ProgressIcon className="h-2.5 w-2.5" style={{ color: progressMeta.color }} />
+          <p className="text-[10px] font-semibold" style={{ color: progressMeta.color }}>
+            {progressMeta.title}
+          </p>
+        </div>
+        <p className={`text-[10px] ${theme.rankingRowSubtextClass}`}>{titleMeta.title}</p>
       </div>
 
       <div className="text-right">

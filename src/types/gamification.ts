@@ -10,7 +10,18 @@ export type LeaderboardScope = 'weekly' | 'all_time';
 
 // ─── Partner / B2B gamification ───────────────────────────────────────────────
 
-export type GamificationTitle = 'Iniciante' | 'Veterano' | 'Expert';
+export type CanonicalGamificationTitle =
+  | 'Aspirante'
+  | 'Explorador'
+  | 'Estrategista'
+  | 'Veterano'
+  | 'Elite'
+  | 'Lendário';
+
+export type LegacyGamificationTitle = 'Iniciante' | 'Veterano' | 'Expert';
+
+export type GamificationTitle = CanonicalGamificationTitle | LegacyGamificationTitle;
+export type ProgressTier = 'Explorador' | 'Estrategista' | 'Veterano' | 'Elite' | 'Lendário';
 
 export interface PodiumAchievement {
   position: number;
@@ -28,7 +39,8 @@ export interface PartnerRankingEntry {
   user_id: string;
   full_name: string;
   monthly_points: number;
-  gamification_title: GamificationTitle;
+  gamification_title: string;
+  progress_tier?: ProgressTier;
   avatar_url?: string | null;
   podium_history?: PodiumAchievement[];
 }
@@ -51,6 +63,7 @@ export type PopupType = 'onboarding' | 'streak' | 'streak_broken' | 'urgency' | 
 
 export interface PopupState {
   type: PopupType;
+  mode?: 'monthly_identity_checkin';
   streak?: number;
   streak_lost?: number;
   position?: number;
@@ -82,6 +95,9 @@ export interface MonthlySummary {
   goal_reached: boolean;
   goal_progress_pct: number;
   shield_count: number;
+  progress_tier?: ProgressTier;
+  next_tier?: ProgressTier | null;
+  points_to_next_tier?: number;
 }
 
 export interface DiagnosticResult {
@@ -89,6 +105,79 @@ export interface DiagnosticResult {
   points_awarded: number;
   current_monthly_points: number;
   already_completed?: boolean;
+}
+
+export interface MonthlyCheckInAnswerInput {
+  question_id: string;
+  answer: string;
+}
+
+export interface MonthlyCheckInProfile {
+  identity_title: string;
+  identity_title_slug: string;
+  identity_title_description: string;
+  identity_title_icon: string;
+  answers_json: Record<string, string>;
+  redo_count: number;
+  updated_at?: string;
+}
+
+export interface MonthlyCheckInStatus {
+  enabled: boolean;
+  required: boolean;
+  can_redo: boolean;
+  month_reference: string;
+  profile: MonthlyCheckInProfile | null;
+}
+
+export interface MonthlyCheckInResult {
+  month_reference: string;
+  identity_title: string;
+  identity_title_slug: string;
+  identity_title_description: string;
+  identity_title_icon: string;
+  answers: Record<string, string>;
+  redo_count: number;
+  monthly_points: number;
+  progress_tier: ProgressTier;
+  next_tier: ProgressTier | null;
+  points_to_next_tier: number;
+}
+
+export interface JourneyMilestone {
+  tier: ProgressTier;
+  min_points: number;
+  max_points: number | null;
+  unlocked: boolean;
+  is_current: boolean;
+}
+
+export interface TitlesJourneyResponse {
+  enabled: boolean;
+  month_reference: string;
+  monthly_points: number;
+  identity_profile: MonthlyCheckInProfile | null;
+  progress_tier: ProgressTier;
+  next_tier: ProgressTier | null;
+  points_to_next_tier: number;
+  milestones: JourneyMilestone[];
+}
+
+export interface TitlesHistoryEntry {
+  month_reference: string;
+  identity_title: string;
+  identity_title_slug: string;
+  identity_title_description: string;
+  identity_title_icon: string;
+  final_monthly_points: number;
+  final_progress_tier: ProgressTier;
+  final_rank_position?: number | null;
+  points_delta_vs_previous?: number | null;
+  tier_delta_vs_previous?: number | null;
+}
+
+export interface TitlesHistoryResponse {
+  history: TitlesHistoryEntry[];
 }
 
 export interface StreakDecayResult {

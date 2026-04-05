@@ -66,10 +66,11 @@ export default async function PartnerStudentLayout({ children, params }: Student
   type OrgRow = {
     id: string; name: string; logo_url: string | null;
     brand_primary: string | null; brand_secondary: string | null; brand_accent: string | null;
+    permissions: Record<string, boolean> | null;
   };
   const orgRes = await adminClient
     .from('organizations')
-    .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent')
+    .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent, permissions')
     .eq('slug', slug)
     .single();
   const org = orgRes.data as OrgRow | null;
@@ -107,7 +108,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
     plan_tier:        'b2b_student',
     max_students:     0,
     invite_code:      null,
-    permissions:      {},
+    permissions:      org.permissions ?? {},
   };
   // Escapa < > & para evitar quebra prematura da tag <script> caso o slug
   // contenha sequências como "</script>" (JSON.stringify não escapa "/" por padrão).

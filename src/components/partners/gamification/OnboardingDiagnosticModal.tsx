@@ -1,262 +1,167 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Target, Zap, Trophy, CheckCircle2, XCircle } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import type { DiagnosticResult, GamificationTitle } from '@/types/gamification';
+import { useMemo, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { CheckCircle2 } from 'lucide-react';
+import type { MonthlyCheckInAnswerInput, MonthlyCheckInResult } from '@/types/gamification';
 import { usePopupTheme } from './popupTheme';
+import { getIdentityTitleIcon, getProgressTierMeta } from './titleSystem';
 
-// ─── Confetti (CSS keyframes, no external dependency) ─────────────────────────
-
-// Pre-computed to avoid Math.random at render time (no hydration mismatch)
-const CONFETTI: { x: string; color: string; delay: number; dur: number; w: number; h: number }[] = [
-  { x: '4%',  color: '#6366f1', delay: 0,    dur: 2.6, w: 8,  h: 12 },
-  { x: '10%', color: '#f59e0b', delay: 0.15, dur: 2.9, w: 6,  h: 10 },
-  { x: '17%', color: '#10b981', delay: 0.05, dur: 2.4, w: 10, h: 8  },
-  { x: '24%', color: '#f43f5e', delay: 0.3,  dur: 3.1, w: 7,  h: 12 },
-  { x: '31%', color: '#a855f7', delay: 0.1,  dur: 2.7, w: 9,  h: 7  },
-  { x: '39%', color: '#fbbf24', delay: 0.22, dur: 2.5, w: 6,  h: 11 },
-  { x: '46%', color: '#6366f1', delay: 0.35, dur: 3.0, w: 11, h: 8  },
-  { x: '53%', color: '#10b981', delay: 0.08, dur: 2.8, w: 7,  h: 9  },
-  { x: '60%', color: '#f43f5e', delay: 0.25, dur: 2.6, w: 8,  h: 6  },
-  { x: '67%', color: '#a855f7', delay: 0.12, dur: 2.9, w: 10, h: 10 },
-  { x: '74%', color: '#6366f1', delay: 0.4,  dur: 2.4, w: 6,  h: 12 },
-  { x: '81%', color: '#f59e0b', delay: 0.18, dur: 3.2, w: 9,  h: 7  },
-  { x: '87%', color: '#10b981', delay: 0.28, dur: 2.7, w: 7,  h: 11 },
-  { x: '93%', color: '#f43f5e', delay: 0.06, dur: 2.5, w: 11, h: 8  },
-  { x: '97%', color: '#a855f7', delay: 0.22, dur: 2.8, w: 8,  h: 9  },
-];
-
-function ConfettiLayer() {
-  return (
-    <>
-      <style>{`
-        @keyframes _diagConfettiFall {
-          0%   { transform: translateY(-20px) rotate(0deg);   opacity: 1; }
-          100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
-        }
-      `}</style>
-      <div className="pointer-events-none fixed inset-0 z-10 overflow-hidden" aria-hidden>
-        {CONFETTI.map((p, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              left: p.x,
-              top: 0,
-              width: p.w,
-              height: p.h,
-              backgroundColor: p.color,
-              borderRadius: 2,
-              animation: `_diagConfettiFall ${p.dur}s ${p.delay}s ease-in infinite`,
-            }}
-          />
-        ))}
-      </div>
-    </>
-  );
+interface CheckInOption {
+  value: string;
+  label: string;
 }
 
-// ─── Title metadata ────────────────────────────────────────────────────────────
-
-const TITLE_META: Record<GamificationTitle, { Icon: LucideIcon; desc: string }> = {
-  Iniciante: { Icon: Target, desc: 'Começa a trilha'    },
-  Veterano:  { Icon: Zap,    desc: 'Sabe o caminho'     },
-  Expert:    { Icon: Trophy, desc: 'Domina o conteúdo' },
-};
-
-function resolveLocal(score: number): { title: GamificationTitle; points: number } {
-  if (score === 5) return { title: 'Expert',   points: 247 };
-  if (score >= 3)  return { title: 'Veterano', points: 150 };
-  return                  { title: 'Iniciante', points: 50  };
+interface CheckInQuestion {
+  id: MonthlyCheckInAnswerInput['question_id'];
+  eyebrow: string;
+  prompt: string;
+  options: CheckInOption[];
 }
 
-// ─── Animated points counter ───────────────────────────────────────────────────
-
-function AnimatedCounter({ target }: { target: number }) {
-  const [value, setValue] = useState(0);
-
-  useEffect(() => {
-    setValue(0);
-    let current = 0;
-    const step = Math.max(1, Math.ceil(target / 40));
-    const id = setInterval(() => {
-      current += step;
-      if (current >= target) { setValue(target); clearInterval(id); }
-      else setValue(current);
-    }, 35);
-    return () => clearInterval(id);
-  }, [target]);
-
-  return <span>+{value.toLocaleString('pt-BR')} pontos</span>;
-}
-
-// ─── Local question types ──────────────────────────────────────────────────────
-
-interface Alternative { letter: string; text: string }
-interface QuizQuestion {
-  id: string;
-  statement: string;
-  context?: string;
-  alternatives: Alternative[];
-  correct_option: string;
-}
-
-// ─── Questões fixas de onboarding ─────────────────────────────────────────────
-
-const ONBOARDING_QUESTIONS: QuizQuestion[] = [
+const QUESTIONS: CheckInQuestion[] = [
   {
-    id: 'onboarding_q1',
-    statement: 'Qual é o maior planeta do Sistema Solar?',
-    alternatives: [
-      { letter: 'A', text: 'Saturno' },
-      { letter: 'B', text: 'Júpiter' },
-      { letter: 'C', text: 'Urano' },
-      { letter: 'D', text: 'Netuno' },
+    id: 'goal_axis',
+    eyebrow: 'Momento do mês',
+    prompt: 'Qual objetivo melhor descreve seu momento neste mês?',
+    options: [
+      { value: 'approval_fast', label: 'Passar no vestibular o quanto antes' },
+      { value: 'build_base', label: 'Evoluir minha base sem me comparar tanto' },
+      { value: 'discipline', label: 'Ganhar consistência e disciplina' },
+      { value: 'competitive_level', label: 'Subir meu nível competitivo' },
+      { value: 'confidence', label: 'Recuperar confiança nos estudos' },
     ],
-    correct_option: 'B',
   },
   {
-    id: 'onboarding_q2',
-    statement: 'Em que ano o Brasil proclamou sua independência de Portugal?',
-    alternatives: [
-      { letter: 'A', text: '1808' },
-      { letter: 'B', text: '1815' },
-      { letter: 'C', text: '1822' },
-      { letter: 'D', text: '1889' },
+    id: 'focus_area',
+    eyebrow: 'Energia atual',
+    prompt: 'Qual área mais puxa sua energia hoje?',
+    options: [
+      { value: 'languages', label: 'Linguagens e redação' },
+      { value: 'humanities', label: 'Ciências humanas' },
+      { value: 'nature', label: 'Ciências da natureza' },
+      { value: 'math', label: 'Matemática' },
+      { value: 'balanced', label: 'Equilíbrio entre todas' },
     ],
-    correct_option: 'C',
   },
   {
-    id: 'onboarding_q3',
-    statement: 'Qual elemento químico possui o símbolo "Fe" na tabela periódica?',
-    alternatives: [
-      { letter: 'A', text: 'Flúor' },
-      { letter: 'B', text: 'Fósforo' },
-      { letter: 'C', text: 'Ferro' },
-      { letter: 'D', text: 'Frâncio' },
+    id: 'study_style',
+    eyebrow: 'Jeito de estudar',
+    prompt: 'Como você costuma estudar melhor?',
+    options: [
+      { value: 'routine', label: 'Com rotina fixa e planejamento' },
+      { value: 'short_goals', label: 'Com metas curtas e objetivas' },
+      { value: 'alternating', label: 'Alternando matérias para não cansar' },
+      { value: 'deep_dive', label: 'Indo fundo em um tema por vez' },
+      { value: 'flexible', label: 'No embalo da motivação, com mais flexibilidade' },
     ],
-    correct_option: 'C',
   },
   {
-    id: 'onboarding_q4',
-    statement: 'Quantos ossos tem o corpo humano adulto?',
-    alternatives: [
-      { letter: 'A', text: '186' },
-      { letter: 'B', text: '206' },
-      { letter: 'C', text: '226' },
-      { letter: 'D', text: '246' },
+    id: 'challenge_response_axis',
+    eyebrow: 'Diante da dificuldade',
+    prompt: 'Quando uma questão difícil aparece, você tende a:',
+    options: [
+      { value: 'insist', label: 'Insistir até entender' },
+      { value: 'skip_return', label: 'Pular e voltar depois com estratégia' },
+      { value: 'pattern_logic', label: 'Buscar padrão e lógica antes de responder' },
+      { value: 'intuition', label: 'Confiar na intuição e avançar' },
+      { value: 'review_theory', label: 'Rever a teoria antes de tentar de novo' },
     ],
-    correct_option: 'B',
   },
   {
-    id: 'onboarding_q5',
-    statement: 'Em que ano exatamente foi fundada a cidade de Tenochtitlan, capital do Império Asteca — que hoje corresponde à Cidade do México?',
-    alternatives: [
-      { letter: 'A', text: '1235' },
-      { letter: 'B', text: '1325' },
-      { letter: 'C', text: '1410' },
-      { letter: 'D', text: '1487' },
+    id: 'motivation_axis',
+    eyebrow: 'Motor do mês',
+    prompt: 'Que tipo de conquista mais te move agora?',
+    options: [
+      { value: 'ranking', label: 'Ver meu nome subir no ranking' },
+      { value: 'mastery', label: 'Sentir que estou dominando o conteúdo' },
+      { value: 'consistency', label: 'Manter uma rotina que eu consiga sustentar' },
+      { value: 'target_course', label: 'Me aproximar do curso que eu quero' },
+      { value: 'self_proof', label: 'Provar para mim mesmo que consigo' },
     ],
-    correct_option: 'B',
   },
 ];
-
-// ─── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   firstName: string;
   organizationName: string;
-  /** Called when the user clicks "Ver meu ranking →" in the celebration screen. */
-  onComplete: (result: DiagnosticResult) => void;
-  /** Provided by the parent (from usePartnerGamification hook). */
-  submitDiagnostic: (score: number, questionIds: string[]) => Promise<DiagnosticResult>;
+  onComplete: (result: MonthlyCheckInResult) => void;
+  submitMonthlyCheckIn: (answers: MonthlyCheckInAnswerInput[]) => Promise<MonthlyCheckInResult>;
 }
 
-// ─── Component ─────────────────────────────────────────────────────────────────
+type Phase = 'welcome' | 'form' | 'celebration';
 
-type Phase = 'welcome' | 'quiz' | 'celebration';
-
-export function OnboardingDiagnosticModal({ firstName, organizationName, onComplete, submitDiagnostic }: Props) {
+export function OnboardingDiagnosticModal({
+  firstName,
+  organizationName,
+  onComplete,
+  submitMonthlyCheckIn,
+}: Props) {
   const shouldReduce = useReducedMotion();
   const theme = usePopupTheme('celebration');
-
   const [phase, setPhase] = useState<Phase>('welcome');
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [result, setResult] = useState<MonthlyCheckInResult | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // ── Quiz state
-  const [questions, setQuestions]     = useState<QuizQuestion[]>([]);
-  const [qIndex, setQIndex]           = useState(0);
-  const [score, setScore]             = useState(0);
-  const [questionIds, setQuestionIds] = useState<string[]>([]);
-  const [feedback, setFeedback]           = useState<'correct' | 'wrong' | null>(null);
-  const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
-
-  // ── Celebration state
-  const [result, setResult] = useState<DiagnosticResult | null>(null);
-
-  // Load static questions on mount
-  useEffect(() => {
-    setQuestions(ONBOARDING_QUESTIONS);
-    setQuestionIds(ONBOARDING_QUESTIONS.map((q) => q.id));
-  }, []);
-
-  // Handle answer selection
-  const handleAnswer = useCallback(
-    async (letter: string) => {
-      if (feedback !== null) return;
-
-      const currentQ = questions[qIndex];
-      const isCorrect = letter === currentQ.correct_option;
-      const newScore = isCorrect ? score + 1 : score;
-
-      setSelectedLetter(letter);
-      setFeedback(isCorrect ? 'correct' : 'wrong');
-      if (isCorrect) setScore(newScore);
-
-      await new Promise<void>((r) => setTimeout(r, 900));
-      setFeedback(null);
-      setSelectedLetter(null);
-
-      const isLast = qIndex === questions.length - 1;
-      if (isLast) {
-        try {
-          const apiResult = await submitDiagnostic(newScore, questionIds);
-          setResult(apiResult);
-        } catch {
-          // Fallback: compute locally so celebration always shows
-          const { title, points } = resolveLocal(newScore);
-          setResult({ title, points_awarded: points } as DiagnosticResult);
-        }
-        setPhase('celebration');
-      } else {
-        setQIndex((i) => i + 1);
-      }
-    },
-    [feedback, questions, qIndex, score, questionIds, submitDiagnostic],
+  const currentQuestion = QUESTIONS[questionIndex];
+  const currentAnswer = answers[currentQuestion?.id ?? ''] ?? null;
+  const isLastQuestion = questionIndex === QUESTIONS.length - 1;
+  const answeredCount = Object.keys(answers).length;
+  const progressPct = Math.round((answeredCount / QUESTIONS.length) * 100);
+  const IdentityTitleIcon = useMemo(
+    () => getIdentityTitleIcon(result?.identity_title_icon),
+    [result?.identity_title_icon],
+  );
+  const progressMeta = useMemo(
+    () => getProgressTierMeta(result?.progress_tier),
+    [result?.progress_tier],
   );
 
-  // ── Animation helpers
-  const fadeIn  = shouldReduce ? {} : { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } };
+  const fadeIn = shouldReduce ? {} : { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } };
   const slideIn = shouldReduce
     ? {}
     : {
-        initial: { opacity: 0, x: 32 },
+        initial: { opacity: 0, x: 24 },
         animate: { opacity: 1, x: 0 },
-        exit:    { opacity: 0, x: -32 },
+        exit: { opacity: 0, x: -24 },
         transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] as const },
       };
 
-  const currentQ = questions[qIndex];
-  const titleInfo = result ? TITLE_META[result.title] : null;
+  async function handleSelect(answer: string) {
+    if (!currentQuestion || isSubmitting) return;
+    const nextAnswers = { ...answers, [currentQuestion.id]: answer };
+    setAnswers(nextAnswers);
+    setError(null);
 
-  const res = result as DiagnosticResult & { monthly_points_after?: number; current_monthly_points?: number } | null;
-  const totalNeeded = (res?.monthly_points_after ?? 0) || (res?.current_monthly_points ?? 0) + 1;
-  const earned = res?.current_monthly_points ?? 0;
-  const prizePct = totalNeeded > 0 ? Math.min(100, Math.round((earned / (earned + (result?.points_awarded ?? 1))) * 100)) : 10;
+    if (!isLastQuestion) {
+      setQuestionIndex((prev) => prev + 1);
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload = QUESTIONS.map((question) => ({
+        question_id: question.id,
+        answer: nextAnswers[question.id],
+      }));
+      const apiResult = await submitMonthlyCheckIn(payload);
+      setResult(apiResult);
+      setPhase('celebration');
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : 'Não foi possível concluir seu check-in mensal.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
-    // Intentionally no pointer events on the backdrop — modal is blocking
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto py-6"
       style={{
@@ -268,197 +173,173 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
       }}
     >
       <AnimatePresence mode="wait">
-
-        {/* ── Phase 1: Welcome ────────────────────────────────────────────── */}
         {phase === 'welcome' && (
-          <motion.div key="welcome" className="flex w-full max-w-sm flex-col items-center px-4 text-center sm:px-6" {...fadeIn}>
+          <motion.div key="welcome" className="flex w-full max-w-xl flex-col items-center px-4 text-center sm:px-6" {...fadeIn}>
             <p className={`mb-8 text-[11px] font-bold uppercase tracking-[0.25em] ${theme.mutedClass}`}>
               {organizationName}
             </p>
-
             <p className={`mb-2 text-xl font-bold leading-snug ${theme.softTextClass}`}>
-              &ldquo;Redação é o que separa quem passa de quem fica pra próxima.&rdquo;
+              Seu mês começa definindo identidade.
             </p>
-            <p className={`mb-10 text-sm ${theme.mutedClass}`}>
-              Vamos descobrir onde você está, {firstName}.
+            <p className={`mb-8 text-sm ${theme.mutedClass}`}>
+              Em menos de 1 minuto, {firstName}, vamos mapear o perfil que você quer carregar neste mês.
             </p>
 
-            {/* Title showcase */}
-            <div className="mb-10 grid grid-cols-3 gap-3 w-full">
-              {(Object.entries(TITLE_META) as [GamificationTitle, typeof TITLE_META[GamificationTitle]][]).map(
-                ([title, info]) => (
-                  <div
-                    key={title}
-                    className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-3"
-                    style={theme.panelStyle}
-                  >
-                    <info.Icon className="h-6 w-6" style={{ color: 'var(--brand-primary)' }} aria-label={title} />
-                    <span className={`text-[11px] font-bold ${theme.titleClass}`}>{title}</span>
-                    <span className={`text-center text-[10px] leading-tight ${theme.mutedClass}`}>{info.desc}</span>
-                  </div>
-                ),
-              )}
+            <div className="mb-4 w-full rounded-2xl p-4 text-left" style={theme.elevatedPanelStyle}>
+              <p className={`text-[10px] font-bold uppercase tracking-[0.18em] ${theme.mutedClass}`}>
+                Check-in do mês
+              </p>
+              <p className={`mt-2 text-sm leading-relaxed ${theme.bodyClass}`}>
+                Suas respostas definem um título de identidade mensal. Depois disso, sua trilha de progresso continua sendo conquistada por pontos até Lendário.
+              </p>
+            </div>
+
+            <div className="mb-10 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
+              {[
+                '5 perguntas rápidas',
+                'Título mensal exclusivo',
+                'Trilha de evolução por pontos',
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-2xl px-4 py-4 text-sm font-semibold"
+                  style={theme.panelStyle}
+                >
+                  {item}
+                </div>
+              ))}
             </div>
 
             <button
-              onClick={() => setPhase('quiz')}
+              onClick={() => setPhase('form')}
               className="w-full rounded-xl py-4 text-sm font-extrabold text-white transition-all active:scale-[0.98] hover:brightness-110"
               style={{
-                background:
-                  'linear-gradient(135deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 65%, black))',
+                background: 'linear-gradient(135deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 65%, black))',
               }}
             >
-              Iniciar diagnóstico — 5 questões
+              Iniciar check-in do mês
             </button>
           </motion.div>
         )}
 
-        {/* ── Phase 2: Quiz ───────────────────────────────────────────────── */}
-        {phase === 'quiz' && (
-          <motion.div key="quiz" className="flex w-full max-w-lg flex-col px-2 sm:px-4" {...fadeIn}>
-            {/* Progress */}
+        {phase === 'form' && currentQuestion && (
+          <motion.div key={`form-${questionIndex}`} className="flex w-full max-w-2xl flex-col px-2 sm:px-4" {...slideIn}>
             <div className="mb-5 px-1">
               <div className="mb-1.5 flex items-center justify-between">
-                <span className={`text-[11px] font-bold uppercase tracking-widest ${theme.mutedClass}`}>Diagnóstico</span>
-                <span className={`text-[11px] font-bold ${theme.strongMutedClass}`}>{qIndex + 1} / {questions.length || 5}</span>
+                <span className={`text-[11px] font-bold uppercase tracking-widest ${theme.mutedClass}`}>Check-in do mês</span>
+                <span className={`text-[11px] font-bold ${theme.strongMutedClass}`}>{questionIndex + 1} / {QUESTIONS.length}</span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full" style={theme.panelStyle}>
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${((qIndex + 1) / (questions.length || 5)) * 100}%`,
-                    background: 'var(--brand-primary)',
-                  }}
-                />
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progressPct}%`, background: 'var(--brand-primary)' }} />
               </div>
             </div>
 
-            {/* Question card */}
-            {currentQ && (
-              <AnimatePresence mode="wait">
-                <motion.div key={`q-${qIndex}`} {...slideIn}>
-                  {/* Statement */}
-                  <div className="mb-4 max-h-[min(26dvh,10rem)] overflow-y-auto rounded-xl p-4" style={theme.elevatedPanelStyle}>
-                    <p className={`text-sm leading-relaxed ${theme.titleClass}`}>{currentQ.statement}</p>
-                  </div>
+            <div className="mb-4 rounded-2xl p-5" style={theme.elevatedPanelStyle}>
+              <p className={`text-[10px] font-bold uppercase tracking-[0.18em] ${theme.mutedClass}`}>
+                {currentQuestion.eyebrow}
+              </p>
+              <p className={`mt-2 text-lg font-bold leading-snug ${theme.titleClass}`}>
+                {currentQuestion.prompt}
+              </p>
+            </div>
 
-                  {/* Alternatives */}
-                  <div className="flex flex-col gap-2.5">
-                    {currentQ.alternatives.map((alt) => {
-                      const isCorrectAlt = alt.letter === currentQ.correct_option;
-                      const isSelected   = alt.letter === selectedLetter;
-                      let cardStyle = theme.panelStyle;
+            <div className="flex flex-col gap-2.5">
+              {currentQuestion.options.map((option) => {
+                const isSelected = currentAnswer === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => void handleSelect(option.value)}
+                    disabled={isSubmitting}
+                    className="flex items-start gap-3 rounded-2xl p-4 text-left text-sm transition-all active:scale-[0.99] disabled:cursor-wait"
+                    style={isSelected ? { ...theme.panelStyle, boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brand-primary) 40%, transparent)' } : theme.panelStyle}
+                  >
+                    <span
+                      className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold"
+                      style={{
+                        borderColor: isSelected ? 'var(--brand-primary)' : 'rgba(148,163,184,0.28)',
+                        color: isSelected ? 'var(--brand-primary)' : undefined,
+                      }}
+                    >
+                      {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : ''}
+                    </span>
+                    <span className={`flex-1 leading-relaxed ${theme.softTextClass}`}>{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
 
-                      if (feedback !== null) {
-                        if (isCorrectAlt) {
-                          cardStyle = {
-                            background: theme.isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.12)',
-                            border: '1px solid rgba(16,185,129,0.45)',
-                          };
-                        } else if (isSelected) {
-                          cardStyle = {
-                            background: theme.isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)',
-                            border: '1px solid rgba(239,68,68,0.45)',
-                          };
-                        }
-                      }
-
-                      return (
-                        <button
-                          key={alt.letter}
-                          onClick={() => handleAnswer(alt.letter)}
-                          disabled={feedback !== null}
-                          className="flex items-start gap-3 rounded-xl p-3 text-left text-sm transition-all active:scale-[0.98] disabled:cursor-default"
-                          style={cardStyle}
-                        >
-                          <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${theme.rankingRowSubtextClass}`} style={theme.isDark ? { borderColor: 'rgba(255,255,255,0.2)' } : { borderColor: 'rgba(148,163,184,0.28)' }}>
-                            {alt.letter}
-                          </span>
-                          <span className={`flex-1 leading-relaxed ${theme.softTextClass}`}>{alt.text}</span>
-                          {feedback !== null && isCorrectAlt && (
-                            <CheckCircle2 className="shrink-0 h-4 w-4 text-emerald-400" aria-label="Resposta correta" />
-                          )}
-                          {feedback !== null && isSelected && !isCorrectAlt && (
-                            <XCircle className="shrink-0 h-4 w-4 text-red-400" aria-label="Resposta errada" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </motion.div>
-              </AnimatePresence>
+            {error && (
+              <p className="mt-4 text-sm font-medium text-rose-400">
+                {error}
+              </p>
             )}
           </motion.div>
         )}
 
-        {/* ── Phase 3: Celebration ────────────────────────────────────────── */}
-        {phase === 'celebration' && result && titleInfo && (
+        {phase === 'celebration' && result && (
           <motion.div
             key="celebration"
-            className="relative flex w-full max-w-sm flex-col items-center px-4 text-center sm:px-6"
-            {...(shouldReduce
-              ? {}
-              : { initial: { opacity: 0, scale: 0.94 }, animate: { opacity: 1, scale: 1 }, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } })}
+            className="relative flex w-full max-w-md flex-col items-center px-4 text-center sm:px-6"
+            {...(shouldReduce ? {} : { initial: { opacity: 0, scale: 0.94 }, animate: { opacity: 1, scale: 1 }, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } })}
           >
-            <ConfettiLayer />
-
             <p className={`relative z-20 mb-5 text-[11px] font-bold uppercase tracking-[0.25em] ${theme.mutedClass}`}>
               {organizationName}
             </p>
 
-            {/* Title badge */}
-            <div className="relative z-20 mb-1 flex h-24 w-24 items-center justify-center rounded-full border-2" style={theme.elevatedPanelStyle}>
-              <titleInfo.Icon className={`h-12 w-12 ${theme.titleClass}`} aria-label={result.title} />
-            </div>
-            <h2 className={`relative z-20 mt-3 text-2xl font-extrabold ${theme.titleClass}`}>{result.title}</h2>
-            <p className={`relative z-20 mt-1 text-sm ${theme.mutedClass}`}>Título conquistado</p>
-
-            {/* Animated points */}
             <div
-              className="relative z-20 my-6 text-4xl font-extrabold tabular-nums"
-              style={{ color: 'var(--brand-primary)' }}
+              className="relative z-20 mb-1 flex h-24 w-24 items-center justify-center rounded-full border-2"
+              style={{
+                ...theme.elevatedPanelStyle,
+                borderColor: 'rgba(15,118,110,0.28)',
+                boxShadow: '0 0 0 10px rgba(15,118,110,0.10)',
+              }}
             >
-              {shouldReduce
-                ? `+${result.points_awarded.toLocaleString('pt-BR')} pontos`
-                : <AnimatedCounter target={result.points_awarded} />}
+              <IdentityTitleIcon className="h-12 w-12" style={{ color: '#0F766E' }} aria-label={result.identity_title} />
             </div>
 
-            {/* Prize progress */}
-            <div className="relative z-20 mb-8 w-full rounded-xl p-4" style={theme.elevatedPanelStyle}>
-              <p className={`mb-2.5 text-[11px] font-bold uppercase tracking-widest ${theme.mutedClass}`}>
-                Progresso para o prêmio
+            <h2 className={`relative z-20 mt-3 text-2xl font-extrabold ${theme.titleClass}`}>{result.identity_title}</h2>
+            <p className={`relative z-20 mt-1 text-sm ${theme.mutedClass}`}>Identidade do mês</p>
+            <p className={`relative z-20 mt-2 max-w-[18rem] text-sm leading-relaxed ${theme.bodyClass}`}>
+              {result.identity_title_description}
+            </p>
+
+            <div className="relative z-20 my-6 w-full rounded-2xl p-4 text-left" style={theme.elevatedPanelStyle}>
+              <p className={`text-[10px] font-bold uppercase tracking-[0.18em] ${theme.mutedClass}`}>
+                Sua trilha começou em
               </p>
-              <div className="h-2 w-full overflow-hidden rounded-full" style={theme.panelStyle}>
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ background: 'var(--brand-primary)' }}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${prizePct}%` }}
-                  transition={
-                    shouldReduce
-                      ? { duration: 0 }
-                      : { duration: 1.1, delay: 0.5, ease: [0.22, 1, 0.36, 1] as const }
-                  }
-                />
+              <div className="mt-3 flex items-center gap-3">
+                <div
+                  className="flex h-11 w-11 items-center justify-center rounded-xl"
+                  style={{
+                    background: `color-mix(in srgb, ${progressMeta.color} 16%, transparent)`,
+                    border: `1px solid ${progressMeta.glow}`,
+                  }}
+                >
+                  <progressMeta.Icon className="h-5 w-5" style={{ color: progressMeta.color }} />
+                </div>
+                <div>
+                  <p className={`text-sm font-bold ${theme.titleClass}`}>{result.progress_tier}</p>
+                  <p className={`text-xs ${theme.mutedClass}`}>
+                    {result.points_to_next_tier > 0
+                      ? `Faltam ${result.points_to_next_tier.toLocaleString('pt-BR')} pts para ${result.next_tier}`
+                      : 'Você já está no topo da trilha deste mês.'}
+                  </p>
+                </div>
               </div>
-              <p className={`mt-1.5 text-[11px] ${theme.mutedClass}`}>
-                Você está no caminho para o prêmio do mês 🏆
-              </p>
             </div>
 
             <button
               onClick={() => onComplete(result)}
               className="relative z-20 flex w-full items-center justify-center gap-2 rounded-xl py-4 text-sm font-extrabold text-white transition-all active:scale-[0.98] hover:brightness-110"
               style={{
-                background:
-                  'linear-gradient(135deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 65%, black))',
+                background: 'linear-gradient(135deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 65%, black))',
               }}
             >
-              Ver meu ranking →
+              Ver minha trilha de títulos
             </button>
           </motion.div>
         )}
-
       </AnimatePresence>
     </div>
   );
