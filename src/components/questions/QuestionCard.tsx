@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { CheckCircle2, XCircle, BrainCircuit, ImageIcon, Flag } from 'lucide-react';
 import { reportError } from '@/lib/reportError';
+import { createClient } from '@/lib/supabase/client';
 
 interface Alternative {
   letter: string;
@@ -60,11 +61,25 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
     };
 
     try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-        const res = await fetch(`${apiUrl}/api/questions/answer`, {
+        if (!userId) {
+          setShowAnswer(true);
+          setIsSubmitting(false);
+          if (onAnswer) onAnswer(answerResult);
+          return;
+        }
+
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) throw new Error('Unauthorized');
+
+        const res = await fetch('/api/proxy/questions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: userId, question_id: question.id, option: selected })
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ question_id: question.id, option: selected })
         });
 
         const data = await res.json();
