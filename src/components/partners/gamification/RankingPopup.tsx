@@ -38,11 +38,13 @@ function RankRow({
   medal,
   isHighlighted = false,
   label,
+  theme,
 }: {
   entry: PartnerRankingEntry;
   medal?: string;
   isHighlighted?: boolean;
   label?: string;
+  theme: ReturnType<typeof usePopupTheme>;
 }) {
   return (
     <div
@@ -50,12 +52,12 @@ function RankRow({
       style={
         isHighlighted
           ? { background: 'color-mix(in srgb, var(--brand-primary) 14%, transparent)' }
-          : undefined
+          : theme.rankingRowStyle
       }
     >
       {/* Rank / medal */}
       <span
-        className={`w-7 shrink-0 text-center text-sm ${medal ? 'text-base' : 'font-bold text-slate-500'}`}
+        className={`w-7 shrink-0 text-center text-sm ${medal ? 'text-base' : `font-bold ${theme.softTextClass}`}`}
         aria-label={medal ? `${entry.rank}º lugar` : `#${entry.rank}`}
       >
         {medal ?? `#${entry.rank}`}
@@ -67,7 +69,7 @@ function RankRow({
       {/* Name */}
       <span
         className={`flex-1 truncate text-sm font-semibold ${
-          isHighlighted ? 'text-white' : 'text-slate-300'
+          isHighlighted ? theme.rankingRowTextClass : theme.softTextClass
         }`}
       >
         {entry.full_name}
@@ -75,7 +77,7 @@ function RankRow({
 
       {/* "← Você" label */}
       {label && (
-        <span className="shrink-0 text-[10px] font-bold text-slate-500 whitespace-nowrap">
+        <span className={`shrink-0 whitespace-nowrap text-[10px] font-bold ${theme.rankingRowSubtextClass}`}>
           {label}
         </span>
       )}
@@ -83,7 +85,7 @@ function RankRow({
       {/* Points */}
       <span
         className={`shrink-0 text-xs font-bold tabular-nums ${
-          isHighlighted ? 'text-white' : 'text-slate-400'
+          isHighlighted ? theme.rankingRowValueClass : theme.strongMutedClass
         }`}
       >
         {entry.monthly_points.toLocaleString('pt-BR')} pts
@@ -160,33 +162,35 @@ export function RankingPopup({ ranking, onClose }: Props) {
               entry={entry}
               medal={MEDALS[i]}
               isHighlighted={entry.user_id === selfId}
+              theme={theme}
             />
           ))}
 
           {/* Separator */}
           <div className="flex items-center gap-2 py-1.5" aria-hidden>
-            <div className="flex-1 border-t border-dashed border-slate-700" />
-            <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-slate-600">
+            <div className={`flex-1 border-t border-dashed ${theme.isDark ? 'border-white/10' : 'border-slate-200'}`} />
+            <span className={`shrink-0 text-[9px] font-bold uppercase tracking-widest ${theme.rankingRowSubtextClass}`}>
               Zona do prêmio
             </span>
-            <div className="flex-1 border-t border-dashed border-slate-700" />
+            <div className={`flex-1 border-t border-dashed ${theme.isDark ? 'border-white/10' : 'border-slate-200'}`} />
           </div>
 
           {/* User context slice */}
           {user_context && (
             <>
               {user_context.above.map((entry) => (
-                <RankRow key={entry.user_id} entry={entry} />
+                <RankRow key={entry.user_id} entry={entry} theme={theme} />
               ))}
 
               <RankRow
                 entry={user_context.self}
                 isHighlighted
                 label="← Você está aqui"
+                theme={theme}
               />
 
               {user_context.below.map((entry) => (
-                <RankRow key={entry.user_id} entry={entry} />
+                <RankRow key={entry.user_id} entry={entry} theme={theme} />
               ))}
             </>
           )}

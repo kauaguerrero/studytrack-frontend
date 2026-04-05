@@ -28,10 +28,12 @@ function PopupRankRow({
   entry,
   isSelf,
   highlight = false,
+  theme,
 }: {
   entry: PartnerRankingEntry;
   isSelf: boolean;
   highlight?: boolean;
+  theme: ReturnType<typeof usePopupTheme>;
 }) {
   return (
     <div
@@ -43,12 +45,11 @@ function PopupRankRow({
               borderColor: 'color-mix(in srgb, var(--brand-primary) 24%, transparent)',
             }
           : {
-              background: 'rgba(255,255,255,0.04)',
-              borderColor: 'rgba(255,255,255,0.08)',
+              ...theme.rankingRowStyle,
             }
       }
     >
-      <div className="flex w-7 shrink-0 items-center justify-center text-xs font-bold text-slate-300">
+      <div className={`flex w-7 shrink-0 items-center justify-center text-xs font-bold ${theme.softTextClass}`}>
         #{entry.rank}
       </div>
 
@@ -76,19 +77,19 @@ function PopupRankRow({
 
       <div className="min-w-0 flex-1">
         <p
-          className="truncate text-sm font-semibold text-white"
+          className={`truncate text-sm font-semibold ${theme.rankingRowTextClass}`}
           style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
         >
           {isSelf ? `${entry.full_name} (você)` : entry.full_name}
         </p>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/35">
+        <p className={`text-[10px] font-semibold uppercase tracking-[0.15em] ${theme.rankingRowSubtextClass}`}>
           {entry.gamification_title}
         </p>
       </div>
 
       <div className="text-right">
-        <p className="text-sm font-extrabold text-white">{formatPoints(entry.monthly_points)}</p>
-        <p className="text-[10px] font-medium text-white/30">pts</p>
+        <p className={`text-sm font-extrabold ${theme.rankingRowValueClass}`}>{formatPoints(entry.monthly_points)}</p>
+        <p className={`text-[10px] font-medium ${theme.rankingRowSubtextClass}`}>pts</p>
       </div>
     </div>
   );
@@ -179,27 +180,27 @@ export function ContextualPopup({ popupState, ranking, slug, onDismiss }: Props)
         <div className="relative z-10 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           {isUrgency ? (
             <div className="space-y-4">
-              <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-4">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">Diferença Atual</p>
-                <p className="mt-2 flex items-baseline gap-2 text-2xl font-black text-white sm:text-3xl">
+              <div className="rounded-2xl px-4 py-4" style={theme.elevatedPanelStyle}>
+                <p className={`text-[10px] font-bold uppercase tracking-[0.18em] ${theme.rankingRowSubtextClass}`}>Diferença Atual</p>
+                <p className={`mt-2 flex items-baseline gap-2 text-2xl font-black sm:text-3xl ${theme.titleClass}`}>
                   {popupState.points_diff ?? 0}
-                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-white/35">pts</span>
+                  <span className={`text-xs font-semibold uppercase tracking-[0.12em] ${theme.rankingRowSubtextClass}`}>pts</span>
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+              <div className="rounded-2xl p-4" style={theme.elevatedPanelStyle}>
                 <div className="mb-3 flex items-center gap-2">
                   <Trophy className="h-4 w-4 text-amber-300" />
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/40">
+                  <p className={`text-xs font-bold uppercase tracking-[0.16em] ${theme.rankingRowSubtextClass}`}>
                     Troca de posição
                   </p>
                 </div>
 
-                <div className="mb-2 flex items-center justify-end text-[10px] font-bold uppercase tracking-[0.14em] text-white/30">
+                <div className={`mb-2 flex items-center justify-end text-[10px] font-bold uppercase tracking-[0.14em] ${theme.rankingRowSubtextClass}`}>
                   <span>Agora</span>
                 </div>
 
-                <div className="relative h-[124px] overflow-hidden rounded-2xl border border-white/8 bg-slate-950/30">
+                <div className="relative h-[124px] overflow-hidden rounded-2xl" style={theme.panelStyle}>
                   {selfEntry && (
                     <motion.div
                       className="absolute inset-x-3 top-2.5 z-10"
@@ -211,6 +212,7 @@ export function ContextualPopup({ popupState, ranking, slug, onDismiss }: Props)
                         entry={{ ...selfEntry, rank: Math.max(1, selfEntry.rank - 1) }}
                         isSelf
                         highlight
+                        theme={theme}
                       />
                     </motion.div>
                   )}
@@ -226,6 +228,7 @@ export function ContextualPopup({ popupState, ranking, slug, onDismiss }: Props)
                         entry={{ ...rivalEntry, rank: popupState.position ?? rivalEntry.rank }}
                         isSelf={false}
                         highlight
+                        theme={theme}
                       />
                     </motion.div>
                   )}
@@ -234,15 +237,15 @@ export function ContextualPopup({ popupState, ranking, slug, onDismiss }: Props)
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="rounded-2xl border border-white/8 bg-white/[0.04] p-4">
+              <div className="rounded-2xl p-4" style={theme.elevatedPanelStyle}>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-amber-300" />
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/40">
+                    <p className={`text-xs font-bold uppercase tracking-[0.16em] ${theme.rankingRowSubtextClass}`}>
                       Faixa do ranking
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">
+                  <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] ${theme.rankingRowSubtextClass}`}>
                     <Gift className="h-3 w-3" />
                     top {ranking?.prize_cutoff ?? 3} mais perto dos 1.500 pts
                   </div>
@@ -260,21 +263,22 @@ export function ContextualPopup({ popupState, ranking, slug, onDismiss }: Props)
                         entry={entry}
                         isSelf={entry.user_id === selfEntry?.user_id}
                         highlight={entry.user_id === selfEntry?.user_id}
+                        theme={theme}
                       />
                     </motion.div>
                   )) : (
-                    <div className="rounded-xl border border-white/8 bg-white/[0.04] px-4 py-5 text-center">
-                      <p className="text-sm font-semibold text-white/65">Ranking indisponível no momento</p>
+                    <div className="rounded-xl px-4 py-5 text-center" style={theme.panelStyle}>
+                      <p className={`text-sm font-semibold ${theme.softTextClass}`}>Ranking indisponível no momento</p>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-4">
+              <div className="rounded-2xl px-4 py-4" style={theme.elevatedPanelStyle}>
                 <div className="flex items-start gap-2">
                   <Zap className="mt-0.5 h-4 w-4 text-amber-300" />
-                  <p className="text-sm leading-relaxed text-white/65">
-                    Faltam <span className="font-black text-white">{popupState.points_to_top3 ?? 0} pts</span> para você encostar no topo. Estar entre os primeiros acelera a corrida, mas o prêmio só vem com 1.500 pts no mês.
+                  <p className={`text-sm leading-relaxed ${theme.softTextClass}`}>
+                    Faltam <span className={`font-black ${theme.titleClass}`}>{popupState.points_to_top3 ?? 0} pts</span> para você encostar no topo. Estar entre os primeiros acelera a corrida, mas o prêmio só vem com 1.500 pts no mês.
                   </p>
                 </div>
               </div>

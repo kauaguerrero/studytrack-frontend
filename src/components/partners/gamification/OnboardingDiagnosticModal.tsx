@@ -5,6 +5,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Target, Zap, Trophy, CheckCircle2, XCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { DiagnosticResult, GamificationTitle } from '@/types/gamification';
+import { usePopupTheme } from './popupTheme';
 
 // ─── Confetti (CSS keyframes, no external dependency) ─────────────────────────
 
@@ -179,6 +180,7 @@ type Phase = 'welcome' | 'quiz' | 'celebration';
 
 export function OnboardingDiagnosticModal({ firstName, organizationName, onComplete, submitDiagnostic }: Props) {
   const shouldReduce = useReducedMotion();
+  const theme = usePopupTheme('celebration');
 
   const [phase, setPhase] = useState<Phase>('welcome');
 
@@ -256,8 +258,9 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
   return (
     // Intentionally no pointer events on the backdrop — modal is blocking
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 overflow-y-auto py-6"
+      className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto py-6"
       style={{
+        ...theme.overlayStyle,
         paddingTop: 'max(env(safe-area-inset-top), 1rem)',
         paddingRight: 'max(env(safe-area-inset-right), 1rem)',
         paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)',
@@ -269,14 +272,14 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
         {/* ── Phase 1: Welcome ────────────────────────────────────────────── */}
         {phase === 'welcome' && (
           <motion.div key="welcome" className="flex w-full max-w-sm flex-col items-center px-4 text-center sm:px-6" {...fadeIn}>
-            <p className="mb-8 text-[11px] font-bold uppercase tracking-[0.25em] text-white/30">
+            <p className={`mb-8 text-[11px] font-bold uppercase tracking-[0.25em] ${theme.mutedClass}`}>
               {organizationName}
             </p>
 
-            <p className="mb-2 text-xl font-bold leading-snug text-white/80">
+            <p className={`mb-2 text-xl font-bold leading-snug ${theme.softTextClass}`}>
               &ldquo;Redação é o que separa quem passa de quem fica pra próxima.&rdquo;
             </p>
-            <p className="mb-10 text-sm text-white/40">
+            <p className={`mb-10 text-sm ${theme.mutedClass}`}>
               Vamos descobrir onde você está, {firstName}.
             </p>
 
@@ -286,11 +289,12 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
                 ([title, info]) => (
                   <div
                     key={title}
-                    className="flex flex-col items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2 py-3"
+                    className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-3"
+                    style={theme.panelStyle}
                   >
                     <info.Icon className="h-6 w-6" style={{ color: 'var(--brand-primary)' }} aria-label={title} />
-                    <span className="text-[11px] font-bold text-white">{title}</span>
-                    <span className="text-[10px] text-white/40 text-center leading-tight">{info.desc}</span>
+                    <span className={`text-[11px] font-bold ${theme.titleClass}`}>{title}</span>
+                    <span className={`text-center text-[10px] leading-tight ${theme.mutedClass}`}>{info.desc}</span>
                   </div>
                 ),
               )}
@@ -315,10 +319,10 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
             {/* Progress */}
             <div className="mb-5 px-1">
               <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-widest text-white/30">Diagnóstico</span>
-                <span className="text-[11px] font-bold text-white/50">{qIndex + 1} / {questions.length || 5}</span>
+                <span className={`text-[11px] font-bold uppercase tracking-widest ${theme.mutedClass}`}>Diagnóstico</span>
+                <span className={`text-[11px] font-bold ${theme.strongMutedClass}`}>{qIndex + 1} / {questions.length || 5}</span>
               </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+              <div className="h-1.5 w-full overflow-hidden rounded-full" style={theme.panelStyle}>
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
@@ -334,8 +338,8 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
               <AnimatePresence mode="wait">
                 <motion.div key={`q-${qIndex}`} {...slideIn}>
                   {/* Statement */}
-                  <div className="mb-4 max-h-[min(26dvh,10rem)] overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-4">
-                    <p className="text-sm leading-relaxed text-white/85">{currentQ.statement}</p>
+                  <div className="mb-4 max-h-[min(26dvh,10rem)] overflow-y-auto rounded-xl p-4" style={theme.elevatedPanelStyle}>
+                    <p className={`text-sm leading-relaxed ${theme.titleClass}`}>{currentQ.statement}</p>
                   </div>
 
                   {/* Alternatives */}
@@ -343,16 +347,19 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
                     {currentQ.alternatives.map((alt) => {
                       const isCorrectAlt = alt.letter === currentQ.correct_option;
                       const isSelected   = alt.letter === selectedLetter;
-                      let borderColor = 'border-white/10';
-                      let bgColor     = 'bg-white/5';
+                      let cardStyle = theme.panelStyle;
 
                       if (feedback !== null) {
                         if (isCorrectAlt) {
-                          borderColor = 'border-emerald-500/50';
-                          bgColor     = 'bg-emerald-500/15';
+                          cardStyle = {
+                            background: theme.isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.12)',
+                            border: '1px solid rgba(16,185,129,0.45)',
+                          };
                         } else if (isSelected) {
-                          borderColor = 'border-red-500/50';
-                          bgColor     = 'bg-red-500/15';
+                          cardStyle = {
+                            background: theme.isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)',
+                            border: '1px solid rgba(239,68,68,0.45)',
+                          };
                         }
                       }
 
@@ -361,12 +368,13 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
                           key={alt.letter}
                           onClick={() => handleAnswer(alt.letter)}
                           disabled={feedback !== null}
-                          className={`flex items-start gap-3 rounded-xl border ${borderColor} ${bgColor} p-3 text-left text-sm transition-all active:scale-[0.98] disabled:cursor-default`}
+                          className="flex items-start gap-3 rounded-xl p-3 text-left text-sm transition-all active:scale-[0.98] disabled:cursor-default"
+                          style={cardStyle}
                         >
-                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/20 text-[10px] font-bold text-white/50">
+                          <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${theme.rankingRowSubtextClass}`} style={theme.isDark ? { borderColor: 'rgba(255,255,255,0.2)' } : { borderColor: 'rgba(148,163,184,0.28)' }}>
                             {alt.letter}
                           </span>
-                          <span className="flex-1 leading-relaxed text-white/80">{alt.text}</span>
+                          <span className={`flex-1 leading-relaxed ${theme.softTextClass}`}>{alt.text}</span>
                           {feedback !== null && isCorrectAlt && (
                             <CheckCircle2 className="shrink-0 h-4 w-4 text-emerald-400" aria-label="Resposta correta" />
                           )}
@@ -394,16 +402,16 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
           >
             <ConfettiLayer />
 
-            <p className="relative z-20 mb-5 text-[11px] font-bold uppercase tracking-[0.25em] text-white/30">
+            <p className={`relative z-20 mb-5 text-[11px] font-bold uppercase tracking-[0.25em] ${theme.mutedClass}`}>
               {organizationName}
             </p>
 
             {/* Title badge */}
-            <div className="relative z-20 mb-1 flex h-24 w-24 items-center justify-center rounded-full border-2 border-white/15 bg-white/5">
-              <titleInfo.Icon className="h-12 w-12 text-white" aria-label={result.title} />
+            <div className="relative z-20 mb-1 flex h-24 w-24 items-center justify-center rounded-full border-2" style={theme.elevatedPanelStyle}>
+              <titleInfo.Icon className={`h-12 w-12 ${theme.titleClass}`} aria-label={result.title} />
             </div>
-            <h2 className="relative z-20 mt-3 text-2xl font-extrabold text-white">{result.title}</h2>
-            <p className="relative z-20 mt-1 text-sm text-white/40">Título conquistado</p>
+            <h2 className={`relative z-20 mt-3 text-2xl font-extrabold ${theme.titleClass}`}>{result.title}</h2>
+            <p className={`relative z-20 mt-1 text-sm ${theme.mutedClass}`}>Título conquistado</p>
 
             {/* Animated points */}
             <div
@@ -416,11 +424,11 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
             </div>
 
             {/* Prize progress */}
-            <div className="relative z-20 mb-8 w-full rounded-xl border border-white/10 bg-white/5 p-4">
-              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-widest text-white/40">
+            <div className="relative z-20 mb-8 w-full rounded-xl p-4" style={theme.elevatedPanelStyle}>
+              <p className={`mb-2.5 text-[11px] font-bold uppercase tracking-widest ${theme.mutedClass}`}>
                 Progresso para o prêmio
               </p>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+              <div className="h-2 w-full overflow-hidden rounded-full" style={theme.panelStyle}>
                 <motion.div
                   className="h-full rounded-full"
                   style={{ background: 'var(--brand-primary)' }}
@@ -433,7 +441,7 @@ export function OnboardingDiagnosticModal({ firstName, organizationName, onCompl
                   }
                 />
               </div>
-              <p className="mt-1.5 text-[11px] text-white/40">
+              <p className={`mt-1.5 text-[11px] ${theme.mutedClass}`}>
                 Você está no caminho para o prêmio do mês 🏆
               </p>
             </div>

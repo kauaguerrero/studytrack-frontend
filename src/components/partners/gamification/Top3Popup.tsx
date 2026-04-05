@@ -98,12 +98,14 @@ function RankingSliceRow({
   rankOverride,
   forcePrize,
   highlight,
+  popupTheme,
 }: {
   entry: PartnerRankingEntry;
   isSelf: boolean;
   rankOverride?: number;
   forcePrize?: boolean;
   highlight?: boolean;
+  popupTheme: ReturnType<typeof usePopupTheme>;
 }) {
   const rank = rankOverride ?? entry.rank;
   const isTop3 = rank <= 3;
@@ -122,7 +124,7 @@ function RankingSliceRow({
               boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--brand-primary) 25%, transparent)',
             }
           : {
-              background: 'rgba(255,255,255,0.03)',
+              ...popupTheme.rankingRowStyle,
             }
       }
     >
@@ -135,7 +137,7 @@ function RankingSliceRow({
             <theme.icon className="h-3 w-3" style={{ color: theme.textColor }} />
           </div>
         ) : (
-          <span className="text-[11px] font-bold tabular-nums text-slate-400 dark:text-slate-500/60">{rank}</span>
+          <span className={`text-[11px] font-bold tabular-nums ${popupTheme.rankingRowSubtextClass}`}>{rank}</span>
         )}
       </div>
 
@@ -186,7 +188,7 @@ function RankingSliceRow({
 
       <div className="min-w-0 flex-1">
         <p
-          className="truncate text-[13px] font-semibold text-slate-100"
+          className={`truncate text-[13px] font-semibold ${popupTheme.rankingRowTextClass}`}
           style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
         >
           {isSelf ? `${entry.full_name} (você)` : entry.full_name}
@@ -203,7 +205,7 @@ function RankingSliceRow({
         <div className="flex items-center gap-1">
           {isPrize && <Zap className="h-3 w-3" style={{ color: 'var(--brand-primary)' }} />}
           <span
-            className="text-[13px] font-extrabold tabular-nums text-slate-100"
+            className={`text-[13px] font-extrabold tabular-nums ${popupTheme.rankingRowValueClass}`}
             style={isTop3 && theme ? { color: theme.textColor } : undefined}
           >
             {formatPoints(entry.monthly_points)}
@@ -221,7 +223,7 @@ function RankingSliceRow({
             prêmio
           </span>
         ) : (
-          <span className="text-[9px] font-medium text-white/30">pts</span>
+          <span className={`text-[9px] font-medium ${popupTheme.rankingRowSubtextClass}`}>pts</span>
         )}
       </div>
     </div>
@@ -334,27 +336,27 @@ export function Top3Popup({ position, ranking, slug, onDismiss }: Props) {
 
         <div className="relative z-10 overflow-y-auto px-4 py-4 sm:px-5">
           <div className="space-y-3">
-            <div className="rounded-[24px] border border-white/8 bg-white/[0.035] p-3.5 sm:p-4">
+            <div className="rounded-[24px] p-3.5 sm:p-4" style={theme.elevatedPanelStyle}>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <Crown className="h-4 w-4 text-amber-300" />
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/40">
+                  <p className={`text-xs font-bold uppercase tracking-[0.16em] ${theme.rankingRowSubtextClass}`}>
                     Trecho do ranking
                   </p>
                 </div>
-                <div className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] text-white/40">
+                <div className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] ${theme.rankingRowSubtextClass}`} style={theme.panelStyle}>
                   top 4 -&gt; top 3
                 </div>
               </div>
 
               {beforeRows.length > 0 ? (
-                <div className="rounded-2xl border border-white/8 bg-slate-950/40 p-2.5">
+                <div className="rounded-2xl p-2.5" style={theme.panelStyle}>
                   <div className="mb-2 flex items-center justify-between gap-3 px-1">
                     <div>
-                      <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/30">
+                      <p className={`text-[9px] font-bold uppercase tracking-[0.14em] ${theme.rankingRowSubtextClass}`}>
                         Antes da sua questão
                       </p>
-                      <p className="mt-0.5 text-[13px] font-semibold text-white/70">
+                      <p className={`mt-0.5 text-[13px] font-semibold ${theme.softTextClass}`}>
                         Você estava logo abaixo da faixa do prêmio.
                       </p>
                     </div>
@@ -410,6 +412,7 @@ export function Top3Popup({ position, ranking, slug, onDismiss }: Props) {
                               rankOverride={finalRank}
                               highlight={isSelf}
                               forcePrize={finalRank <= (ranking?.prize_cutoff ?? 3)}
+                              popupTheme={theme}
                             />
                           </motion.div>
                         );
@@ -418,17 +421,17 @@ export function Top3Popup({ position, ranking, slug, onDismiss }: Props) {
                   </div>
                 </div>
               ) : (
-                <div className="rounded-xl border border-white/8 bg-white/[0.04] px-4 py-5 text-center">
-                  <p className="text-sm font-semibold text-white/65">Ranking indisponível no momento</p>
+                <div className="rounded-xl px-4 py-5 text-center" style={theme.panelStyle}>
+                  <p className={`text-sm font-semibold ${theme.softTextClass}`}>Ranking indisponível no momento</p>
                 </div>
               )}
             </div>
 
-            <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-3">
+            <div className="rounded-2xl px-4 py-3" style={theme.elevatedPanelStyle}>
               <div className="flex items-start gap-3">
                 <Trophy className="mt-0.5 h-4 w-4 text-amber-300" />
-                <p className="text-[13px] leading-relaxed text-white/65">
-                  Agora você está visível na zona mais disputada do mês. O objetivo continua o mesmo: sustentar a posição e correr para os <span className="font-black text-white">1.500 pts</span>.
+                <p className={`text-[13px] leading-relaxed ${theme.softTextClass}`}>
+                  Agora você está visível na zona mais disputada do mês. O objetivo continua o mesmo: sustentar a posição e correr para os <span className={`font-black ${theme.titleClass}`}>1.500 pts</span>.
                 </p>
               </div>
             </div>

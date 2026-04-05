@@ -40,10 +40,12 @@ function PodiumSlot({
   winner,
   delay,
   shouldReduce,
+  theme,
 }: {
   winner: Winner;
   delay: number;
   shouldReduce: boolean | null;
+  theme: ReturnType<typeof usePopupTheme>;
 }) {
   const heights: Record<number, string> = { 1: 'h-20', 2: 'h-14', 3: 'h-10' };
   const isFirst = winner.position === 1;
@@ -69,7 +71,7 @@ function PodiumSlot({
     >
       {/* Name */}
       <p
-        className="text-center text-[11px] font-semibold text-white/80 leading-tight max-w-[72px] truncate"
+        className={`max-w-[72px] truncate text-center text-[11px] font-semibold leading-tight ${theme.softTextClass}`}
         title={winner.full_name}
       >
         {winner.full_name.split(' ')[0]}
@@ -98,13 +100,15 @@ function PodiumSlot({
         style={{
           background: isFirst
             ? 'linear-gradient(180deg, #f59e0b22 0%, #f59e0b0d 100%)'
-            : 'linear-gradient(180deg, #ffffff0a 0%, #ffffff04 100%)',
-          border: isFirst ? '1px solid #f59e0b33' : '1px solid #ffffff10',
+            : theme.isDark
+              ? 'linear-gradient(180deg, #ffffff0a 0%, #ffffff04 100%)'
+              : 'linear-gradient(180deg, rgba(226,232,240,0.9) 0%, rgba(248,250,252,0.92) 100%)',
+          border: isFirst ? '1px solid #f59e0b33' : theme.isDark ? '1px solid #ffffff10' : '1px solid rgba(148,163,184,0.2)',
           borderBottom: 'none',
         }}
       >
         <span className="text-base">{emoji}</span>
-        <p className="mt-0.5 text-[10px] font-bold text-white/50">
+        <p className={`mt-0.5 text-[10px] font-bold ${theme.rankingRowSubtextClass}`}>
           {winner.monthly_points.toLocaleString('pt-BR')} pts
         </p>
       </div>
@@ -194,7 +198,7 @@ export function MonthEndScreen({
             {/* Header */}
             <div className="mb-5 text-center">
               <motion.div
-                className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full ring-2 ring-white/10"
+                className={`mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full ring-2 ${theme.isDark ? 'ring-white/10' : 'ring-slate-200'}`}
                 style={{ background: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)' }}
                 initial={shouldReduce ? {} : { scale: 0 }}
                 animate={shouldReduce ? {} : { scale: 1 }}
@@ -230,6 +234,7 @@ export function MonthEndScreen({
                     winner={w}
                     delay={podiumDelays[w.position] ?? 0.4}
                     shouldReduce={shouldReduce}
+                    theme={theme}
                   />
                 ))}
               </div>
@@ -241,7 +246,7 @@ export function MonthEndScreen({
 
             {/* Reset message */}
             <motion.div
-              className="mb-5 rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-3 text-center"
+              className={`mb-5 rounded-xl px-4 py-3 text-center ${theme.isDark ? 'ring-1 ring-white/10' : 'ring-1 ring-slate-200'}`}
               style={theme.panelStyle}
               initial={shouldReduce ? {} : { opacity: 0, y: 8 }}
               animate={shouldReduce ? {} : { opacity: 1, y: 0 }}

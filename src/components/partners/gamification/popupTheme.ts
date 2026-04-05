@@ -55,8 +55,17 @@ export function usePopupTheme(tone: PopupTone) {
           border: '1px solid rgba(255,255,255,0.08)',
         }
       : {
-          background: 'rgba(255,255,255,0.72)',
-          border: '1px solid rgba(148,163,184,0.18)',
+          background: 'rgba(255,255,255,0.82)',
+          border: '1px solid rgba(148,163,184,0.24)',
+        },
+    elevatedPanelStyle: isDark
+      ? {
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+        }
+      : {
+          background: 'rgba(248,250,252,0.92)',
+          border: '1px solid rgba(148,163,184,0.22)',
         },
     accentPanelStyle: isDark
       ? {
@@ -68,8 +77,10 @@ export function usePopupTheme(tone: PopupTone) {
           border: '1px solid color-mix(in srgb, var(--brand-primary) 18%, rgba(148,163,184,0.16))',
         },
     titleClass: isDark ? 'text-white' : 'text-slate-950',
-    bodyClass: isDark ? 'text-white/72' : 'text-slate-600',
+    bodyClass: isDark ? 'text-white/72' : 'text-slate-700',
     mutedClass: isDark ? 'text-white/42' : 'text-slate-500',
+    softTextClass: isDark ? 'text-white/64' : 'text-slate-600',
+    strongMutedClass: isDark ? 'text-white/52' : 'text-slate-600',
     closeButtonClass: isDark
       ? 'text-white/40 hover:text-white hover:bg-white/10'
       : 'text-slate-400 hover:text-slate-900 hover:bg-slate-900/5',
@@ -88,5 +99,18 @@ export function usePopupTheme(tone: PopupTone) {
     secondaryButtonClass: isDark
       ? 'border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]'
       : 'border-slate-200 bg-white/70 text-slate-700 hover:bg-white',
+    rankingRowStyle: isDark
+      ? {
+          background: 'rgba(255,255,255,0.04)',
+          borderColor: 'rgba(255,255,255,0.08)',
+        }
+      : {
+          background: 'rgba(248,250,252,0.9)',
+          borderColor: 'rgba(148,163,184,0.22)',
+        },
+    rankingRowTextClass: isDark ? 'text-white' : 'text-slate-900',
+    rankingRowSubtextClass: isDark ? 'text-white/40' : 'text-slate-500',
+    rankingRowValueClass: isDark ? 'text-white' : 'text-slate-900',
+    dividerClass: isDark ? 'border-white/10 text-white/35' : 'border-slate-200 text-slate-500',
   };
 }
