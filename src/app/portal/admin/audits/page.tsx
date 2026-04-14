@@ -150,6 +150,21 @@ interface RunComparisonPayload {
 
 interface DashboardPayload {
   baseline_missing: boolean;
+  display_context?: {
+    mode: 'official_baseline' | 'partial_run' | 'empty';
+    run_id?: string;
+    baseline_id?: string;
+    official_run_id?: string;
+    audit_version?: string | null;
+    compatibility_key?: string | null;
+    baseline_scope?: string | null;
+    scope_metadata?: Record<string, any>;
+    official_at?: string | null;
+    started_at?: string | null;
+    completed_at?: string | null;
+    audits?: AuditType[];
+    summary?: { total_rows?: number; flagged_rows?: number; by_audit_type?: Record<string, any> };
+  };
   baseline: {
     baseline_id: string;
     audit_version: string | null;
@@ -773,6 +788,12 @@ export default function AdminAuditCenterPage() {
     });
   }
 
+  const displayContext = dashboard?.display_context || { mode: 'empty' as const };
+  const isPartialContext = displayContext.mode === 'partial_run';
+  const contextAudits = (displayContext.audits || []).filter(Boolean) as AuditType[];
+  const coverageTitle = isPartialContext ? 'Questões auditadas' : 'Cobertura oficial';
+  const coverageSubtitle = isPartialContext ? `${dashboard?.overview.coverage_percent?.toFixed(1) || '0.0'}% da base nesta execução` : `${dashboard?.overview.coverage_percent?.toFixed(1) || '0.0'}% da base`;
+
   const totalPages = Math.max(1, Math.ceil(resultsTotal / resultsPageSize));
   const plannerCommand = buildCommandPreview({
     audits: plannerAudits,
@@ -801,15 +822,14 @@ export default function AdminAuditCenterPage() {
     fill: SEVERITY_COLORS[item.severity] || '#94a3b8',
   }));
   const runComparisonCandidate = useMemo(() => {
-    if (dashboard?.baseline_missing) return null;
-    const compatibilityKey = dashboard?.baseline?.compatibility_key || null;
+    const compatibilityKey = displayContext.compatibility_key || dashboard?.baseline?.compatibility_key || null;
     const completedRuns = runs.filter(run => run.status === 'completed' && run.summary?.total_rows && (compatibilityKey === null || run.compatibility_key === compatibilityKey));
     if (completedRuns.length < 2) return null;
     const current = selectedRun && selectedRun.status === 'completed' ? selectedRun : completedRuns[0];
     const previous = completedRuns.find(run => run.run_id !== current.run_id);
     if (!previous) return null;
     return { current, previous };
-  }, [dashboard?.baseline?.compatibility_key, runs, selectedRun]);
+  }, [displayContext.compatibility_key, dashboard?.baseline?.compatibility_key, runs, selectedRun]);
 
   useEffect(() => {
     if (!runComparisonCandidate) {
@@ -837,14 +857,14 @@ export default function AdminAuditCenterPage() {
           </Button>
         </div>
 
-        {dashboard?.baseline_missing ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Ainda não existe baseline oficial resolvida para este recorte. KPIs de cobertura e resultados ficam vazios até a baseline oficial ser consolidada.</div> : null}
+        {dashboard?.baseline_missing ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{isPartialContext ? `Exibindo dados da execução parcial ${displayContext.audit_version || displayContext.run_id || ''} com ${contextAudits.length} trilha(s): ${contextAudits.map(audit => AUDIT_META[audit].label).join(', ')}. Esses números não representam baseline oficial.` : 'Ainda não existe baseline oficial resolvida para este recorte. KPIs oficiais de cobertura continuam indisponíveis até a baseline oficial ser consolidada.'}</div> : null}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {dashboardLoading || dashboard === null ? Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-28 rounded-2xl" />) : (
             <>
               <Card className="border-l-4 border-l-slate-900 shadow-sm"><CardContent className="p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium uppercase text-slate-500">Base total</p><h3 className="mt-2 text-3xl font-bold text-slate-900">{dashboard.overview.total_questions.toLocaleString('pt-BR')}</h3><p className="mt-2 text-sm text-slate-500">questões no recorte atual</p></div><div className="rounded-xl bg-slate-100 p-3"><Layers3 className="h-5 w-5 text-slate-700" /></div></div></CardContent></Card>
-              <Card className="border-l-4 border-l-blue-500 shadow-sm"><CardContent className="p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium uppercase text-slate-500">Cobertura oficial</p><h3 className="mt-2 text-3xl font-bold text-slate-900">{dashboard.overview.fully_audited_questions.toLocaleString('pt-BR')}</h3><p className="mt-2 text-sm text-slate-500">{dashboard.overview.coverage_percent.toFixed(1)}% da base</p></div><div className="rounded-xl bg-blue-50 p-3"><ShieldCheck className="h-5 w-5 text-blue-600" /></div></div></CardContent></Card>
-              <Card className="border-l-4 border-l-amber-500 shadow-sm"><CardContent className="p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium uppercase text-slate-500">Achados abertos</p><h3 className="mt-2 text-3xl font-bold text-slate-900">{dashboard.overview.open_findings.toLocaleString('pt-BR')}</h3><p className="mt-2 text-sm text-slate-500">fila operacional ativa</p></div><div className="rounded-xl bg-amber-50 p-3"><CircleAlert className="h-5 w-5 text-amber-600" /></div></div></CardContent></Card>
+              <Card className="border-l-4 border-l-blue-500 shadow-sm"><CardContent className="p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium uppercase text-slate-500">{coverageTitle}</p><h3 className="mt-2 text-3xl font-bold text-slate-900">{dashboard.overview.fully_audited_questions.toLocaleString('pt-BR')}</h3><p className="mt-2 text-sm text-slate-500">{coverageSubtitle}</p></div><div className="rounded-xl bg-blue-50 p-3"><ShieldCheck className="h-5 w-5 text-blue-600" /></div></div></CardContent></Card>
+              <Card className="border-l-4 border-l-amber-500 shadow-sm"><CardContent className="p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium uppercase text-slate-500">Achados abertos</p><h3 className="mt-2 text-3xl font-bold text-slate-900">{dashboard.overview.open_findings.toLocaleString('pt-BR')}</h3><p className="mt-2 text-sm text-slate-500">{isPartialContext ? 'achados desta execução parcial' : 'fila operacional ativa'}</p></div><div className="rounded-xl bg-amber-50 p-3"><CircleAlert className="h-5 w-5 text-amber-600" /></div></div></CardContent></Card>
               <Card className="border-l-4 border-l-rose-500 shadow-sm"><CardContent className="p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-medium uppercase text-slate-500">Risco alto</p><h3 className="mt-2 text-3xl font-bold text-slate-900">{dashboard.overview.critical_findings.toLocaleString('pt-BR')}</h3><p className="mt-2 text-sm text-slate-500">manual review: {dashboard.overview.exceptions_pending}</p></div><div className="rounded-xl bg-rose-50 p-3"><AlertTriangle className="h-5 w-5 text-rose-600" /></div></div></CardContent></Card>
             </>
           )}
@@ -855,7 +875,7 @@ export default function AdminAuditCenterPage() {
         <Card className="xl:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg"><Radar className="h-5 w-5 text-slate-700" />Cobertura por Trilha</CardTitle>
-            <CardDescription>Cobertura e achados calculados no backend.</CardDescription>
+            <CardDescription>{isPartialContext ? 'Cobertura e achados da última execução concluída para este recorte.' : 'Cobertura e achados calculados no backend.'}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {dashboardLoading || dashboard === null ? Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-16 rounded-xl" />) : dashboard.coverage_by_type.map(item => (
@@ -872,7 +892,7 @@ export default function AdminAuditCenterPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg"><Clock3 className="h-5 w-5 text-slate-700" />Runs Recentes</CardTitle>
-            <CardDescription>Recorte compatível com a baseline ativa.</CardDescription>
+            <CardDescription>{isPartialContext ? 'Recorte compatível com a execução parcial exibida.' : 'Recorte compatível com a baseline ativa.'}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {dashboardLoading || dashboard === null ? Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-16 rounded-xl" />) : (dashboard.recent_runs || []).map(run => (
@@ -909,7 +929,7 @@ export default function AdminAuditCenterPage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div><CardTitle className="flex items-center gap-2 text-lg"><Search className="h-5 w-5 text-slate-700" />Explorar Resultados</CardTitle><CardDescription>Busca, paginação e filtros server-side no backend.</CardDescription></div>
+            <div><CardTitle className="flex items-center gap-2 text-lg"><Search className="h-5 w-5 text-slate-700" />Explorar Resultados</CardTitle><CardDescription>{isPartialContext ? 'Busca e paginação da execução parcial exibida, com filtros server-side.' : 'Busca, paginação e filtros server-side no backend.'}</CardDescription></div>
             <div className="flex gap-2"><Button type="button" variant="outline" className="bg-white" onClick={() => void exportCurrentResults()}>Exportar recorte</Button><Button type="button" variant="outline" className="bg-white" onClick={() => setResultsCollapsed(resultsCollapsed === false)}>{resultsCollapsed ? 'Expandir resultados' : 'Minimizar resultados'}</Button></div>
           </div>
         </CardHeader>
