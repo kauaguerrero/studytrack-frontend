@@ -33,7 +33,7 @@ import { toast } from 'sonner'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-interface Alternative { letter: string; text: string }
+interface Alternative { letter: string; text: string; image?: string | null }
 
 interface Question {
   id: string; external_id: string; subject: string; topic?: string
@@ -908,8 +908,8 @@ export default function SimuladoPage() {
               )}
 
               {/* Statement */}
-              <div className="text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed">
-                {questions[currentIdx].statement}
+              <div className="prose prose-slate dark:prose-invert max-w-none text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed">
+                <ReactMarkdown>{questions[currentIdx].statement}</ReactMarkdown>
               </div>
 
               {/* Alternatives */}
@@ -927,10 +927,27 @@ export default function SimuladoPage() {
                         style={isSelected ? { background: 'var(--brand-primary)' } : {}}>
                         {alt.letter}
                       </span>
-                      <span className={`text-sm leading-snug pt-1 ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
-                        style={isSelected ? { color: 'var(--brand-primary)' } : {}}>
-                        {alt.text}
-                      </span>
+                      <div className="flex-1 pt-1">
+                        {alt.image && (
+                          <div className="mb-2">
+                            <img
+                              src={alt.image}
+                              alt={`Alternativa ${alt.letter}`}
+                              className="max-h-40 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white"
+                            />
+                          </div>
+                        )}
+                        {alt.text ? (
+                          <span className={`text-sm leading-snug ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
+                            style={isSelected ? { color: 'var(--brand-primary)' } : {}}>
+                            {alt.text}
+                          </span>
+                        ) : !alt.image ? (
+                          <span className="text-sm italic text-slate-400 dark:text-slate-500">
+                            Conteudo da alternativa indisponivel.
+                          </span>
+                        ) : null}
+                      </div>
                     </button>
                   )
                 })}

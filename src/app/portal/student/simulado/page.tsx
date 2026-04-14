@@ -27,6 +27,7 @@ import { toast } from 'sonner'
 interface Alternative {
     letter: string
     text: string
+    image?: string | null
 }
 
 interface Question {
@@ -993,8 +994,8 @@ export default function SimuladoPage() {
                                 </div>
                             )}
 
-                            <div className="text-lg md:text-xl text-slate-900 dark:text-slate-50 font-medium mb-8 leading-relaxed">
-                                {questions[currentIdx].statement}
+                            <div className="prose prose-slate dark:prose-invert max-w-none text-lg md:text-xl text-slate-900 dark:text-slate-50 font-medium mb-8 leading-relaxed">
+                                <ReactMarkdown>{questions[currentIdx].statement}</ReactMarkdown>
                             </div>
 
                             <div className="space-y-3">
@@ -1009,9 +1010,26 @@ export default function SimuladoPage() {
                                             <span className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-bold shrink-0 transition-colors ${isSelected ? 'bg-blue-500 text-white border-blue-500' : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-200 border-slate-200 dark:border-slate-600'}`}>
                                                 {alt.letter}
                                             </span>
-                                            <span className={`text-base leading-snug ${isSelected ? 'text-blue-900 dark:text-blue-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}>
-                                                {alt.text}
-                                            </span>
+                                            <div className="flex-1">
+                                                {alt.image && (
+                                                    <div className="mb-2">
+                                                        <img
+                                                            src={alt.image}
+                                                            alt={`Alternativa ${alt.letter}`}
+                                                            className="max-h-40 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white"
+                                                        />
+                                                    </div>
+                                                )}
+                                                {alt.text ? (
+                                                    <span className={`text-base leading-snug ${isSelected ? 'text-blue-900 dark:text-blue-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}>
+                                                        {alt.text}
+                                                    </span>
+                                                ) : !alt.image ? (
+                                                    <span className="text-sm italic text-slate-400 dark:text-slate-500">
+                                                        Conteudo da alternativa indisponivel.
+                                                    </span>
+                                                ) : null}
+                                            </div>
                                         </button>
                                     )
                                 })}

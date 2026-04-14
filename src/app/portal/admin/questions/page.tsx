@@ -61,12 +61,32 @@ interface AdminQuestion {
     thought: string;
   };
   metadata?: any;
+  is_verified?: boolean;
+  status?: string;
+}
+
+interface AuditQuestionItem {
+  id: string;
+  audit_type: string;
+  status: string;
+  severity: 'none' | 'low' | 'medium' | 'high' | 'critical';
+  issue_codes: string[];
+  latest_run_at?: string | null;
+  latest_run_version?: string | null;
+  latest_report?: any;
+  question: AdminQuestion;
 }
 
 export default function AdminQuestionApproval() {
   const [questions, setQuestions] = useState<AdminQuestion[]>([]);
+  const [auditItems, setAuditItems] = useState<AuditQuestionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [auditLoading, setAuditLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [auditProcessingId, setAuditProcessingId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'curation' | 'audit'>('curation');
+  const [auditType, setAuditType] = useState<'media' | 'data' | 'classification' | 'render'>('media');
+  const [auditSummary, setAuditSummary] = useState<{ totalAudited: number; flagged: number }>({ totalAudited: 0, flagged: 0 });
 
   // Filtros Locais
   const [filterSubject, setFilterSubject] = useState<string>('all');
@@ -77,6 +97,47 @@ export default function AdminQuestionApproval() {
   const [editForm, setEditForm] = useState<AdminQuestion | null>(null);
 
   const supabase = createClient();
+
+  const parseQuestionRow = (q: any): AdminQuestion => {
+    let parsedAlternatives = [];
+    try {
+      parsedAlternatives = typeof q.alternatives === 'string'
+        ? JSON.parse(q.alternatives)
+        : q.alternatives || [];
+    } catch (e) {
+      console.error(`Erro ao fazer parse das alternativas na questão ${q.id}`, e);
+      void reportError("AdminQuestionsParseError", String(e));
+    }
+
+    let parsedReasoning = null;
+    try {
+      if (q.ai_reasoning) {
+        parsedReasoning = typeof q.ai_reasoning === 'string'
+          ? JSON.parse(q.ai_reasoning)
+          : q.ai_reasoning;
+      }
+    } catch (e) {
+      console.error(`Erro ao fazer parse do ai_reasoning na questão ${q.id}`, e);
+      void reportError("AdminQuestionsParseError", String(e));
+    }
+
+    let parsedMetadata = null;
+    try {
+      if (q.metadata) {
+        parsedMetadata = typeof q.metadata === 'string'
+          ? JSON.parse(q.metadata)
+          : q.metadata;
+      }
+    } catch (e) {}
+
+    return {
+      ...q,
+      alternatives: parsedAlternatives,
+      ai_reasoning: parsedReasoning,
+      metadata: parsedMetadata,
+      images: q.images || [],
+    };
+  };
 
   // --- DATA FETCHING ---
   const fetchPending = async () => {
@@ -93,51 +154,7 @@ export default function AdminQuestionApproval() {
 
       if (error) throw error;
 
-      // DATA MAPPER: Higienização e Parse de Strings para JSON
-      const sanitizedData: AdminQuestion[] = (data || []).map((q: any) => {
-
-        // Parse seguro das alternativas (Evita quebra por stringify duplo ou null)
-        let parsedAlternatives = [];
-        try {
-          parsedAlternatives = typeof q.alternatives === 'string'
-            ? JSON.parse(q.alternatives)
-            : q.alternatives || [];
-        } catch (e) {
-          console.error(`Erro ao fazer parse das alternativas na questão ${q.id}`, e);
-          void reportError("AdminQuestionsParseError", String(e));
-        }
-
-        // Parse do raciocínio da IA
-        let parsedReasoning = null;
-        try {
-          if (q.ai_reasoning) {
-            parsedReasoning = typeof q.ai_reasoning === 'string'
-              ? JSON.parse(q.ai_reasoning)
-              : q.ai_reasoning;
-          }
-        } catch (e) {
-          console.error(`Erro ao fazer parse do ai_reasoning na questão ${q.id}`, e);
-          void reportError("AdminQuestionsParseError", String(e));
-        }
-
-        // Parse do metadata (opcional, mas recomendado)
-        let parsedMetadata = null;
-        try {
-          if (q.metadata) {
-            parsedMetadata = typeof q.metadata === 'string'
-              ? JSON.parse(q.metadata)
-              : q.metadata;
-          }
-        } catch (e) { }
-
-        return {
-          ...q,
-          alternatives: parsedAlternatives,
-          ai_reasoning: parsedReasoning,
-          metadata: parsedMetadata,
-          images: q.images || [], // Garante array nativo ao invés de null
-        };
-      });
+      const sanitizedData: AdminQuestion[] = (data || []).map((q: any) => parseQuestionRow(q));
 
       setQuestions(sanitizedData);
     } catch (error) {
@@ -149,9 +166,79 @@ export default function AdminQuestionApproval() {
     }
   };
 
+  const fetchAuditQueue = async () => {
+    setAuditLoading(true);
+
+    try {
+      const [{ data, error }, auditedCountRes, flaggedCountRes] = await Promise.all([
+        supabase
+          .from('question_audit_results')
+          .select(`
+            id,
+            audit_type,
+            status,
+            severity,
+            issue_codes,
+            latest_run_at,
+            latest_run_version,
+            latest_report,
+            questions (*)
+          `)
+          .eq('audit_type', auditType)
+          .neq('status', 'pass')
+          .order('updated_at', { ascending: false })
+          .limit(100),
+        supabase
+          .from('question_audit_results')
+          .select('id', { count: 'exact', head: true })
+          .eq('audit_type', auditType),
+        supabase
+          .from('question_audit_results')
+          .select('id', { count: 'exact', head: true })
+          .eq('audit_type', auditType)
+          .neq('status', 'pass'),
+      ]);
+
+      if (error) throw error;
+
+      const mapped: AuditQuestionItem[] = (data || [])
+        .filter((row: any) => row.questions)
+        .map((row: any) => ({
+          id: row.id,
+          audit_type: row.audit_type,
+          status: row.status,
+          severity: row.severity,
+          issue_codes: row.issue_codes || [],
+          latest_run_at: row.latest_run_at,
+          latest_run_version: row.latest_run_version,
+          latest_report: row.latest_report,
+          question: parseQuestionRow(row.questions),
+        }));
+
+      setAuditItems(mapped);
+      setAuditSummary({
+        totalAudited: auditedCountRes.count || 0,
+        flagged: flaggedCountRes.count || 0,
+      });
+    } catch (error) {
+      console.error("Erro audit queue:", error);
+      void reportError("AdminQuestionsAuditFetchError", String(error));
+      toast.error("Erro ao carregar achados da auditoria.");
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchPending();
+    fetchAuditQueue();
   }, []);
+
+  useEffect(() => {
+    if (mode === 'audit') {
+      fetchAuditQueue();
+    }
+  }, [auditType, mode]);
 
   // --- ACTIONS ---
   const handleDecision = async (id: string, decision: 'approve' | 'reject') => {
@@ -174,6 +261,7 @@ export default function AdminQuestionApproval() {
 
         if (error) throw error;
         toast.success("Questão removida permanentemente de todo o sistema.");
+        setAuditItems(prev => prev.filter(item => item.question.id !== id));
 
       } else {
         // UPDATE: Aprova
@@ -188,6 +276,11 @@ export default function AdminQuestionApproval() {
 
         if (error) throw error;
         toast.success("Questão aprovada e publicada!");
+        setAuditItems(prev => prev.map(item => (
+          item.question.id === id
+            ? { ...item, question: { ...item.question, is_verified: true, status: 'active' } }
+            : item
+        )));
       }
 
     } catch (err: any) {
@@ -263,32 +356,59 @@ export default function AdminQuestionApproval() {
     });
   }, [questions, filterSubject, filterDifficulty]);
 
-  const subjects = Array.from(new Set(questions.map(q => q.subject))).filter(Boolean).sort();
+  const filteredAuditItems = useMemo(() => {
+    return auditItems.filter(item => {
+      const q = item.question;
+      const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
+      const matchDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
+      return matchSubject && matchDifficulty;
+    });
+  }, [auditItems, filterSubject, filterDifficulty]);
+
+  const subjects = Array.from(
+    new Set(
+      (mode === 'audit'
+        ? auditItems.map(item => item.question.subject)
+        : questions.map(q => q.subject))
+    )
+  ).filter(Boolean).sort();
 
   // Índice para navegação por setas (seta esq/dir)
   const [currentIndex, setCurrentIndex] = useState(0);
-  const activeQuestion = filteredQuestions.length
-    ? filteredQuestions[Math.min(currentIndex, filteredQuestions.length - 1)]
+  const currentItems = mode === 'audit' ? filteredAuditItems : filteredQuestions;
+  const activeAuditItem = filteredAuditItems.length
+    ? filteredAuditItems[Math.min(currentIndex, filteredAuditItems.length - 1)]
     : undefined;
+  const activeQuestion = mode === 'audit'
+    ? activeAuditItem?.question
+    : filteredQuestions.length
+      ? filteredQuestions[Math.min(currentIndex, filteredQuestions.length - 1)]
+      : undefined;
+
+  useEffect(() => {
+    setCurrentIndex(0);
+    setIsEditing(false);
+    setEditForm(null);
+  }, [mode]);
 
   // --- KEYBOARD SHORTCUTS (UX/UI B2B Flow) ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!activeQuestion || processingId || isEditing) return;
+      if (!activeQuestion || processingId || auditProcessingId || isEditing) return;
 
       // Ignora atalhos se o usuário estiver digitando em algum input global
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       if (e.key === 'ArrowRight') {
         e.preventDefault();
-        setCurrentIndex(i => Math.min(i + 1, filteredQuestions.length - 1));
+        setCurrentIndex(i => Math.min(i + 1, currentItems.length - 1));
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
         setCurrentIndex(i => Math.max(0, i - 1));
-      } else if (e.key === 'Enter') {
+      } else if (mode === 'curation' && e.key === 'Enter') {
         e.preventDefault();
         handleDecision(activeQuestion.id, 'approve');
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      } else if (mode === 'curation' && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault();
         handleDecision(activeQuestion.id, 'reject');
       }
@@ -296,7 +416,33 @@ export default function AdminQuestionApproval() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeQuestion, processingId, isEditing, filteredQuestions.length]);
+  }, [activeQuestion, processingId, auditProcessingId, isEditing, currentItems.length, mode]);
+
+  const moveQuestionToCuration = async (questionId: string) => {
+    setAuditProcessingId(questionId);
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .update({ is_verified: false, status: 'audit_flagged' })
+        .eq('id', questionId);
+
+      if (error) throw error;
+
+      setAuditItems(prev => prev.map(item => (
+        item.question.id === questionId
+          ? { ...item, question: { ...item.question, is_verified: false, status: 'audit_flagged' } }
+          : item
+      )));
+      toast.success("Questão movida para curadoria.");
+      fetchPending();
+    } catch (err: any) {
+      console.error("Erro ao mover para curadoria:", err);
+      void reportError("AdminQuestionsMoveToCurationError", String(err));
+      toast.error(`Falha ao mover: ${err.message}`);
+    } finally {
+      setAuditProcessingId(null);
+    }
+  };
 
   // --- RENDER HELPERS ---
   const getDifficultyColor = (diff: string) => {
@@ -306,6 +452,16 @@ export default function AdminQuestionApproval() {
       case 'médio': return 'bg-amber-100 text-amber-700 border-amber-200';
       case 'difícil': return 'bg-rose-100 text-rose-700 border-rose-200';
       default: return 'bg-slate-100 text-slate-700';
+    }
+  };
+
+  const getSeverityColor = (severity: AuditQuestionItem['severity']) => {
+    switch (severity) {
+      case 'critical': return 'bg-rose-100 text-rose-700 border-rose-200';
+      case 'high': return 'bg-orange-100 text-orange-700 border-orange-200';
+      case 'medium': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'low': return 'bg-blue-100 text-blue-700 border-blue-200';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
@@ -324,23 +480,84 @@ export default function AdminQuestionApproval() {
 
             <div>
               <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
-                Curadoria
-                <Badge variant="secondary" className="text-xs px-2 py-0.5 font-medium bg-slate-100 text-slate-600">Modo Foco</Badge>
+                {mode === 'curation' ? 'Curadoria' : 'Auditoria'}
+                <Badge variant="secondary" className="text-xs px-2 py-0.5 font-medium bg-slate-100 text-slate-600">
+                  {mode === 'curation' ? 'Modo Foco' : 'Qualidade'}
+                </Badge>
               </h1>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <div className="flex gap-2 w-full md:w-auto">
+              <Button
+                variant={mode === 'curation' ? 'default' : 'outline'}
+                className={mode === 'curation' ? 'bg-slate-900 hover:bg-slate-800 text-white' : ''}
+                onClick={() => setMode('curation')}
+              >
+                Curadoria
+              </Button>
+              <Button
+                variant={mode === 'audit' ? 'default' : 'outline'}
+                className={mode === 'audit' ? 'bg-slate-900 hover:bg-slate-800 text-white' : ''}
+                onClick={() => setMode('audit')}
+              >
+                Auditoria
+              </Button>
+            </div>
+
             {/* Stats Pill: posição atual na fila */}
             <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
-              <div className={`w-2 h-2 rounded-full ${filteredQuestions.length > 0 ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`} />
+              <div className={`w-2 h-2 rounded-full ${currentItems.length > 0 ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`} />
               <span className="font-semibold text-slate-700 text-sm flex items-center gap-1">
                 <Layers size={14} className="text-slate-400" />
-                {filteredQuestions.length > 0
-                  ? `${currentIndex + 1} de ${filteredQuestions.length} na fila`
+                {currentItems.length > 0
+                  ? `${currentIndex + 1} de ${currentItems.length} na fila`
                   : '0 na fila'}
               </span>
             </div>
+
+            {mode === 'audit' && (
+              <>
+                <div className="flex gap-2 w-full md:w-auto">
+                  <Button
+                    variant={auditType === 'media' ? 'default' : 'outline'}
+                    className={auditType === 'media' ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''}
+                    onClick={() => setAuditType('media')}
+                  >
+                    Asset Audit
+                  </Button>
+                  <Button
+                    variant={auditType === 'data' ? 'default' : 'outline'}
+                    className={auditType === 'data' ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''}
+                    onClick={() => setAuditType('data')}
+                  >
+                    Data Audit
+                  </Button>
+                  <Button
+                    variant={auditType === 'classification' ? 'default' : 'outline'}
+                    className={auditType === 'classification' ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''}
+                    onClick={() => setAuditType('classification')}
+                  >
+                    Classification Audit
+                  </Button>
+                  <Button
+                    variant={auditType === 'render' ? 'default' : 'outline'}
+                    className={auditType === 'render' ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''}
+                    onClick={() => setAuditType('render')}
+                  >
+                    Render Audit
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-200">
+                  <AlertCircle size={14} className="text-amber-600" />
+                  <span className="font-semibold text-amber-800 text-sm">
+                    {auditSummary.flagged} achado(s) em {auditSummary.totalAudited} questão(ões) auditada(s)
+                  </span>
+                </div>
+              </>
+            )}
 
             {/* Filters */}
             <div className="flex gap-2 w-full md:w-auto">
@@ -372,7 +589,7 @@ export default function AdminQuestionApproval() {
 
         {/* --- CONTENT AREA: THE QUEUE --- */}
         <div className="flex-1 flex flex-col justify-center">
-          {loading ? (
+          {(mode === 'curation' ? loading : auditLoading) ? (
             <Card className="w-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden h-[600px] flex flex-col">
               <CardHeader className="border-b border-slate-100 p-6">
                 <Skeleton className="h-6 w-1/3 mb-2" />
@@ -392,16 +609,18 @@ export default function AdminQuestionApproval() {
               <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6 ring-8 ring-emerald-50/50">
                 <CheckCircle2 size={40} className="text-emerald-500" />
               </div>
-              <h3 className="text-2xl font-bold text-slate-900">Fila Limpa!</h3>
+              <h3 className="text-2xl font-bold text-slate-900">{mode === 'curation' ? 'Fila Limpa!' : 'Auditoria Limpa!'}</h3>
               <p className="text-slate-500 mt-2 max-w-sm text-center">
-                Nenhuma questão pendente para os filtros atuais. A curadoria está em dia.
+                {mode === 'curation'
+                  ? 'Nenhuma questão pendente para os filtros atuais. A curadoria está em dia.'
+                  : 'Nenhum achado aberto para os filtros atuais. A auditoria está em dia.'}
               </p>
               {(filterSubject !== 'all' || filterDifficulty !== 'all') && (
                 <Button variant="link" onClick={() => { setFilterSubject('all'); setFilterDifficulty('all'); }} className="mt-4 text-blue-600">
                   Limpar filtros e ver tudo
                 </Button>
               )}
-              <Button onClick={fetchPending} variant="outline" className="mt-6 border-slate-300 text-slate-600">
+              <Button onClick={mode === 'curation' ? fetchPending : fetchAuditQueue} variant="outline" className="mt-6 border-slate-300 text-slate-600">
                 Recarregar Base
               </Button>
             </div>
@@ -436,6 +655,16 @@ export default function AdminQuestionApproval() {
                       <Badge className="bg-purple-100 text-purple-700 border border-purple-200 gap-1.5 hover:bg-purple-200 px-2.5 py-0.5 rounded-md">
                         <Bot size={12} /> IA Gerada
                       </Badge>
+                    )}
+                    {mode === 'audit' && activeAuditItem && (
+                      <>
+                        <Badge variant="outline" className={getSeverityColor(activeAuditItem.severity)}>
+                          Auditoria {activeAuditItem.severity}
+                        </Badge>
+                        <Badge variant="outline" className="bg-white text-slate-600 border-slate-200">
+                          {activeAuditItem.issue_codes.length} achado(s)
+                        </Badge>
+                      </>
                     )}
                   </div>
                   <span className="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
@@ -593,6 +822,26 @@ export default function AdminQuestionApproval() {
               ) : (
                 <div className="overflow-y-auto flex-1 p-6 md:p-8 space-y-8 custom-scrollbar">
 
+                  {mode === 'audit' && activeAuditItem && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle size={16} className="text-amber-700" />
+                        <span className="text-sm font-bold text-amber-900 uppercase tracking-wider">Achados da Auditoria</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {activeAuditItem.issue_codes.map(code => (
+                          <Badge key={code} variant="outline" className="bg-white border-amber-200 text-amber-800">
+                            {code}
+                          </Badge>
+                        ))}
+                      </div>
+                      <p className="text-xs text-amber-900">
+                        Última execução: {activeAuditItem.latest_run_at ? new Date(activeAuditItem.latest_run_at).toLocaleString('pt-BR') : 'N/A'}
+                        {activeAuditItem.latest_run_version ? ` • versão ${activeAuditItem.latest_run_version}` : ''}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Contexto */}
                   {activeQuestion.context && (
                     <div className="relative pl-5 border-l-4 border-slate-200 py-1">
@@ -716,6 +965,34 @@ export default function AdminQuestionApproval() {
                         Salvar Alterações
                       </>
                     )}
+                  </Button>
+                </div>
+              ) : mode === 'audit' ? (
+                <div className="bg-slate-50/90 backdrop-blur-md border-t border-slate-200 p-5 shrink-0 flex flex-wrap gap-4 rounded-b-3xl relative">
+                  <Button
+                    variant="outline"
+                    className="flex-1 min-w-[180px] h-14 text-base font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900 rounded-xl transition-colors"
+                    onClick={fetchAuditQueue}
+                    disabled={!!auditProcessingId}
+                  >
+                    Recarregar Auditoria
+                  </Button>
+
+                  <Button
+                    className="flex-[2] min-w-[220px] h-14 text-base font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-lg shadow-amber-600/20 transition-all hover:translate-y-[-1px]"
+                    onClick={() => handleDecision(activeQuestion.id, 'approve')}
+                    disabled={!!auditProcessingId || activeQuestion.is_verified === true}
+                  >
+                    {activeQuestion.is_verified === true ? 'Já publicada' : 'Aprovar após Correção'}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className="flex-[2] min-w-[220px] h-14 text-base font-semibold border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800 rounded-xl transition-colors"
+                    onClick={() => moveQuestionToCuration(activeQuestion.id)}
+                    disabled={!!auditProcessingId || activeQuestion.is_verified === false}
+                  >
+                    {auditProcessingId === activeQuestion.id ? 'Movendo...' : (activeQuestion.is_verified === false ? 'Já está na Curadoria' : 'Mover para Curadoria')}
                   </Button>
                 </div>
               ) : (
