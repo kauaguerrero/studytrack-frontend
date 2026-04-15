@@ -8,7 +8,7 @@ export async function updateSession(request: NextRequest) {
   const normalizeRole = (role: unknown): UserRole | null => {
     if (!role) return null;
     const s = String(role).trim().toLowerCase();
-    const allowed: UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat', 'founder'];
+    const allowed: UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat', 'founder', 'associate', 'dev'];
     return allowed.includes(s as UserRole) ? (s as UserRole) : null;
   };
 
@@ -98,12 +98,24 @@ export async function updateSession(request: NextRequest) {
     if (path.startsWith('/portal/manager') || path.startsWith('/portal/teacher') || path.startsWith('/portal/secretariat') || path.startsWith('/portal/admin')) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, organization_id')
           .eq('id', user.id)
           .single();
         profileRoleForLog = profile?.role ?? null;
         const dbRole = normalizeRole(profile?.role);
         if (dbRole) currentRole = dbRole;
+
+        // Teacher legado vinculado a org parceira não acessa /portal/teacher
+        if (path.startsWith('/portal/teacher') && dbRole === 'teacher' && profile?.organization_id) {
+          const { data: org } = await supabase
+            .from('organizations')
+            .select('slug')
+            .eq('id', profile.organization_id)
+            .maybeSingle();
+          if (org?.slug) {
+            return NextResponse.redirect(new URL(`/partners/${org.slug}/redacoes`, request.url));
+          }
+        }
     }
 
     // Redirects baseados em Role
@@ -113,6 +125,13 @@ export async function updateSession(request: NextRequest) {
     }
 
     if (path.startsWith('/portal/admin') && currentRole !== 'admin') {
+        // Role 'dev': acesso restrito a /portal/admin/tasks
+        if (currentRole === 'dev') {
+          if (!path.startsWith('/portal/admin/tasks')) {
+            return NextResponse.redirect(new URL('/portal/admin/tasks', request.url));
+          }
+          return supabaseResponse;
+        }
         if (process.env.NODE_ENV === 'production') {
           console.log('[RBAC][ADMIN] redirect detected', {
             path,

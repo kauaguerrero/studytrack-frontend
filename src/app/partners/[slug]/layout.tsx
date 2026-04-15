@@ -3,7 +3,7 @@
  *
  * Responsabilidades:
  * 1. Valida que o usuário está autenticado (redirect se não)
- * 2. Valida que o usuário tem role `founder` ou `admin`
+ * 2. Valida que o usuário tem role `founder`, `admin` ou `teacher` (associado técnico)
  * 3. Valida que o founder pertence à organização do slug (anti cross-org)
  * 4. Injeta CSS variables de branding da org no layout
  * 5. Fornece o OrgContext para todos os filhos
@@ -41,6 +41,10 @@ interface PartnersLayoutProps {
   params: Promise<{ slug: string }>;
 }
 
+function isAssociateRole(role: string | null | undefined): boolean {
+  return role === 'associate' || role === 'teacher';
+}
+
 export default async function PartnersLayout({ children, params }: PartnersLayoutProps) {
   const { slug } = await params;
 
@@ -57,10 +61,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   // Rotas de aluno B2B — auth e validação delegadas ao student/layout.tsx
   // Só pula quando pathname é conhecido; se vier vazio, trata como rota de parceiro.
   const isStudentRoute =
-    pathname !== '' && (
-      pathname.startsWith(`/partners/${slug}/student`) ||
-      pathname.includes('/student/')
-    );
+    pathname !== '' && pathname.startsWith(`/partners/${slug}/student`);
 
   if (isPublicRoute || isStudentRoute) {
     return <>{children}</>;
@@ -76,21 +77,36 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
 
   // Usa adminClient para garantir leitura de organization_id sem bloqueio de RLS
   const adminClient = createAdminClient();
-  type ProfileRow = { role: string | null; organization_id: string | null; full_name: string | null; avatar_url: string | null };
+  type ProfileRow = {
+    role: string | null;
+    organization_id: string | null;
+    full_name: string | null;
+    avatar_url: string | null;
+    theme_preference: string | null;
+    must_change_password: boolean | null;
+  };
   const profileRes = await adminClient
     .from('profiles')
-    .select('role, organization_id, full_name, avatar_url')
+    .select('role, organization_id, full_name, avatar_url, theme_preference, must_change_password')
     .eq('id', user.id)
     .single();
   const profile = profileRes.data as ProfileRow | null;
 
   // Aluno B2B com org vinculada — delega para student/layout.tsx em vez de redirecionar
   if (profile?.role === 'student' && profile?.organization_id) {
-    return <>{children}</>;
+    // Em algumas requests (Turbopack/dev), x-pathname pode vir vazio.
+    // Nesses casos, evita redirect em loop e delega para o layout aninhado.
+    if (pathname === '') {
+      return <>{children}</>;
+    }
+    if (isStudentRoute) {
+      return <>{children}</>;
+    }
+    redirect(`/partners/${slug}/student/dashboard`);
   }
 
   // Roles sem acesso ao painel de parceiros
-  if (!profile || !['founder', 'admin'].includes(profile.role ?? '')) {
+  if (!profile || !['founder', 'admin', 'associate', 'teacher'].includes(profile.role ?? '')) {
     redirect('/portal');
   }
 
@@ -114,9 +130,15 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     redirect('/portal');
   }
 
-  // Founder só acessa a própria org; admin acessa qualquer uma
-  if (profile.role === 'founder' && profile.organization_id !== org.id) {
+  // Founder e associado técnico (teacher) só acessam a própria org; admin acessa qualquer uma
+  if ((profile.role === 'founder' || isAssociateRole(profile.role)) && profile.organization_id !== org.id) {
     redirect('/portal');
+  }
+
+  // Associate só pode acessar páginas de redações (lista e detalhe de correção).
+  // Com pathname vazio (dev/turbopack), delega para o client-side sem bloquear aqui.
+  if (isAssociateRole(profile.role) && pathname !== '' && !/^\/partners\/[^/]+\/redacoes(\/[^/]+)?$/.test(pathname)) {
+    redirect(`/partners/${slug}/redacoes`);
   }
 
   const branding: OrgBranding = {
@@ -135,9 +157,34 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   const safePrimary = sanitizeCssHexColor(branding.brand_primary, '#6366f1');
   const safeSecondary = sanitizeCssHexColor(branding.brand_secondary, '#8b5cf6');
   const safeAccent = sanitizeCssHexColor(branding.brand_accent, '#f59e0b');
+  const safeThemePreference = profile.theme_preference === 'dark' || profile.theme_preference === 'light'
+    ? profile.theme_preference
+    : 'system';
+  const safeSlugJson = JSON.stringify(slug)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+  const safeThemeJson = JSON.stringify(safeThemePreference)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
 
   return (
-    <OrgProvider org={branding} userProfile={{ fullName: profile.full_name ?? 'Usuário', avatarUrl: profile.avatar_url ?? null, role: profile.role ?? 'founder' }}>
+    <OrgProvider
+      org={branding}
+      userProfile={{
+        fullName: profile.full_name ?? 'Usuário',
+        avatarUrl: profile.avatar_url ?? null,
+        role: profile.role ?? 'founder',
+        themePreference: safeThemePreference,
+        mustChangePassword: profile.must_change_password === true,
+      }}
+    >
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `(function(){try{var slug=${safeSlugJson};var pref=${safeThemeJson};var key='partner-founder-theme-'+slug;var stored=localStorage.getItem(key);var storedFixed=(stored==='light'||stored==='dark')?stored:null;var prefFixed=(pref==='light'||pref==='dark')?pref:null;var base=storedFixed||prefFixed||'system';var resolved=base==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):base;var root=document.documentElement;if(resolved==='dark'){root.classList.add('dark');}else{root.classList.remove('dark');}root.style.colorScheme=resolved;root.dataset.partnerTheme=resolved;if(!storedFixed){localStorage.setItem(key,resolved);}}catch(e){}})();`,
+        }}
+      />
       {/* CSS variables de branding injetadas via style tag server-side */}
       <style>{`
         :root {
@@ -146,7 +193,9 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
           --brand-accent: ${safeAccent};
         }
       `}</style>
-      {children}
+      <div className="partner-founder-scope">
+        {children}
+      </div>
     </OrgProvider>
   );
 }

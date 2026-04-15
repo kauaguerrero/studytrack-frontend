@@ -96,7 +96,7 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
 
   return (
     <>
-      <div className="flex gap-3 flex-1 overflow-x-auto pb-2">
+      <div className="flex gap-3 flex-1 min-h-0 overflow-x-auto pb-2">
         {visibleColumns.map(status => (
           <KanbanColumn
             key={status}

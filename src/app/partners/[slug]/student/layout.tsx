@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { OrgProvider } from '@/contexts/OrgContext';
+import { EssayNotificationProvider } from '@/contexts/EssayNotificationContext';
 import { StudentThemeProvider, type StudentTheme } from '@/contexts/StudentThemeContext';
 import { StudentThemeShell } from '@/components/partners/StudentThemeShell';
 
@@ -65,10 +66,11 @@ export default async function PartnerStudentLayout({ children, params }: Student
   type OrgRow = {
     id: string; name: string; logo_url: string | null;
     brand_primary: string | null; brand_secondary: string | null; brand_accent: string | null;
+    permissions: Record<string, boolean> | null;
   };
   const orgRes = await adminClient
     .from('organizations')
-    .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent')
+    .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent, permissions')
     .eq('slug', slug)
     .single();
   const org = orgRes.data as OrgRow | null;
@@ -106,9 +108,14 @@ export default async function PartnerStudentLayout({ children, params }: Student
     plan_tier:        'b2b_student',
     max_students:     0,
     invite_code:      null,
-    permissions:      {},
+    permissions:      org.permissions ?? {},
   };
-  const safeSlugJson = JSON.stringify(slug);
+  // Escapa < > & para evitar quebra prematura da tag <script> caso o slug
+  // contenha sequências como "</script>" (JSON.stringify não escapa "/" por padrão).
+  const safeSlugJson = JSON.stringify(slug)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
 
   return (
     <OrgProvider
@@ -134,11 +141,13 @@ export default async function PartnerStudentLayout({ children, params }: Student
         }
       `}</style>
 
-      <StudentThemeProvider slug={slug} initialTheme={initialTheme}>
-        <StudentThemeShell mustChangePassword={profile.must_change_password === true}>
-          {children}
-        </StudentThemeShell>
-      </StudentThemeProvider>
+      <EssayNotificationProvider slug={slug}>
+        <StudentThemeProvider slug={slug} initialTheme={initialTheme}>
+          <StudentThemeShell mustChangePassword={profile.must_change_password === true}>
+            {children}
+          </StudentThemeShell>
+        </StudentThemeProvider>
+      </EssayNotificationProvider>
     </OrgProvider>
   );
 }

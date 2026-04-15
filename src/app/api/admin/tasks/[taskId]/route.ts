@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin, recordHistory, getTaskDetail } from '@/app/api/admin/_utils';
+import { requireAdminOrDev, recordHistory, getTaskDetail } from '@/app/api/admin/_utils';
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
-  const auth = await requireAdmin();
+  const auth = await requireAdminOrDev();
   if (!auth.ok) return auth.response;
 
   const { taskId } = await params;
@@ -18,7 +18,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
-  const auth = await requireAdmin();
+  const auth = await requireAdminOrDev();
   if (!auth.ok) return auth.response;
 
   const { taskId } = await params;
@@ -77,7 +77,7 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
-  const auth = await requireAdmin();
+  const auth = await requireAdminOrDev();
   if (!auth.ok) return auth.response;
 
   const { taskId } = await params;

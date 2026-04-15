@@ -14,13 +14,15 @@ export interface OrgBranding {
   plan_tier?: string;
   max_students?: number;
   invite_code?: string | null;
-  permissions?: any;
+  permissions?: Record<string, boolean>;
 }
 
 interface UserProfile {
   fullName: string;
   avatarUrl: string | null;
   role: string;
+  themePreference?: 'light' | 'dark' | 'system' | null;
+  mustChangePassword?: boolean;
 }
 
 interface OrgContextValue {

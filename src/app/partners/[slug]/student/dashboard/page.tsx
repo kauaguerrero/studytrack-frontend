@@ -30,27 +30,38 @@ export default async function PartnerStudentDashboard({ params }: Props) {
     .eq('id', user.id)
     .single();
 
+  const [{ count: questionsCount }, { count: simuladosCount }] = await Promise.all([
+    supabase
+      .from('user_answers')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id),
+    supabase
+      .from('simulado_sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('status', 'completed'),
+  ]);
+
   const adminClient = createAdminClient();
-  type OrgRow = { name: string; logo_url: string | null; brand_primary: string | null };
+  type OrgRow = { name: string; logo_url: string | null };
   const orgRes = await adminClient
     .from('organizations')
-    .select('name, logo_url, brand_primary')
+    .select('name, logo_url')
     .eq('slug', slug)
     .single();
   const org = orgRes.data as OrgRow | null;
 
   const firstName = (profile?.full_name ?? 'Aluno').split(' ')[0];
-  const brandPrimary = org?.brand_primary ?? 'var(--brand-primary)'; // Fallback para a variável CSS
 
   return (
     <DashboardClient
       firstName={firstName}
-      brandPrimary={brandPrimary}
       orgName={org?.name ?? 'StudyTrack'}
       orgLogoUrl={org?.logo_url ?? null}
       slug={slug}
       currentStreak={profile?.current_streak ?? 0}
-      totalPoints={profile?.total_points ?? 0}
+      questionsCount={questionsCount ?? 0}
+      simuladosCount={simuladosCount ?? 0}
     />
   );
 }

@@ -130,10 +130,7 @@ export default function KanbanColumn({
 
       {/* Cards list */}
       {!collapsed && (
-        <div
-          className="flex flex-col gap-2 p-3 overflow-y-auto flex-1"
-          style={{ maxHeight: 'calc(100vh - 230px)' }}
-        >
+        <div className="flex flex-col gap-2 p-3 overflow-y-auto flex-1 min-h-0">
           {tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 gap-2.5">
               <div

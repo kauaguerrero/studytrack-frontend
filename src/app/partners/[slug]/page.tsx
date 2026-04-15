@@ -60,6 +60,9 @@ export default async function OrgLandingPage({ params }: OrgLandingProps) {
     if (profile?.role === 'founder' || profile?.role === 'admin') {
       redirect(`/partners/${slug}/dashboard`);
     }
+    if (profile?.role === 'associate' || profile?.role === 'teacher') {
+      redirect(`/partners/${slug}/redacoes`);
+    }
     if (profile?.role === 'student') {
       redirect(`/partners/${slug}/student/dashboard`);
     }

@@ -6,8 +6,14 @@ import { apiFetcher } from '@/lib/api-fetcher';
 import type {
   DiagnosticResult,
   MonthlySummary,
+  MonthlyCheckInResult,
+  MonthlyCheckInStatus,
+  MonthlyCheckInAnswerInput,
   PartnerRankingResponse,
   PopupState,
+  StreakDecayResult,
+  TitlesHistoryResponse,
+  TitlesJourneyResponse,
 } from '@/types/gamification';
 
 export interface ShieldResult {
@@ -30,10 +36,20 @@ function buildHeaders(token: string): HeadersInit {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function usePartnerGamification() {
+interface UsePartnerGamificationOptions {
+  fetchPopupStateOnMount?: boolean;
+}
+
+export function usePartnerGamification(
+  options: UsePartnerGamificationOptions = {},
+) {
+  const { fetchPopupStateOnMount = true } = options;
   const [summary, setSummary] = useState<MonthlySummary | null>(null);
   const [popupState, setPopupState] = useState<PopupState | null>(null);
   const [ranking, setRanking] = useState<PartnerRankingResponse | null>(null);
+  const [checkInStatus, setCheckInStatus] = useState<MonthlyCheckInStatus | null>(null);
+  const [titlesJourney, setTitlesJourney] = useState<TitlesJourneyResponse | null>(null);
+  const [titlesHistory, setTitlesHistory] = useState<TitlesHistoryResponse | null>(null);
   const [shieldResult, setShieldResult] = useState<ShieldResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +75,40 @@ export function usePartnerGamification() {
       `${API_BASE}/api/partner/gamification/popup-state`,
       { headers: buildHeaders(token) },
     );
-    setPopupState(data);
+    // Não deixa um segundo fetch (Strict Mode) sobrescrever um popup real com 'none'.
+    // O backend marca last_popup_seen_at na primeira chamada; a segunda retorna 'none',
+    // mas o popup já estava visível — não deve sumir sem ação do usuário.
+    setPopupState((prev) => {
+      if (prev && prev.type !== 'none' && data.type === 'none') return prev;
+      return data;
+    });
+  }, []);
+
+  const fetchCheckInStatus = useCallback(async (token: string) => {
+    const data = await apiFetcher<MonthlyCheckInStatus>(
+      `${API_BASE}/api/partner/gamification/check-in/status`,
+      { headers: buildHeaders(token) },
+    );
+    setCheckInStatus(data);
+    return data;
+  }, []);
+
+  const fetchTitlesJourney = useCallback(async (token: string) => {
+    const data = await apiFetcher<TitlesJourneyResponse>(
+      `${API_BASE}/api/partner/gamification/titles/journey`,
+      { headers: buildHeaders(token) },
+    );
+    setTitlesJourney(data);
+    return data;
+  }, []);
+
+  const fetchTitlesHistory = useCallback(async (token: string) => {
+    const data = await apiFetcher<TitlesHistoryResponse>(
+      `${API_BASE}/api/partner/gamification/titles/history`,
+      { headers: buildHeaders(token) },
+    );
+    setTitlesHistory(data);
+    return data;
   }, []);
 
   // ── Shield: consume available shield on dashboard load ────────────────────
@@ -100,15 +149,13 @@ export function usePartnerGamification() {
 
         tokenRef.current = token;
 
-        const [, , shield] = await Promise.all([
-          fetchSummary(token),
-          fetchPopupState(token),
-          apiFetcher<ShieldResult>(
-            `${API_BASE}/api/partner/gamification/shield/use`,
-            { method: 'POST', headers: buildHeaders(token) },
-          ).catch(() => null),
-        ]);
-        if (!cancelled && shield) setShieldResult(shield);
+        const tasks: Promise<unknown>[] = [fetchSummary(token)];
+
+        if (fetchPopupStateOnMount) {
+          tasks.push(fetchPopupState(token));
+        }
+
+        await Promise.all(tasks);
       } catch (e) {
         if (!cancelled) {
           setError(
@@ -124,13 +171,39 @@ export function usePartnerGamification() {
 
     init();
     return () => { cancelled = true; };
-  }, [fetchSummary, fetchPopupState]);
+  }, [fetchPopupStateOnMount, fetchSummary, fetchPopupState]);
+
+  // ── Refresh summary (após mutações que alteram pontos) ────────────────────
+
+  const refreshSummary = useCallback(async () => {
+    const token = tokenRef.current;
+    if (!token) return;
+    await fetchSummary(token);
+  }, [fetchSummary]);
+
+  const refreshCheckInStatus = useCallback(async () => {
+    const token = tokenRef.current;
+    if (!token) return null;
+    return fetchCheckInStatus(token);
+  }, [fetchCheckInStatus]);
+
+  const refreshTitlesJourney = useCallback(async () => {
+    const token = tokenRef.current;
+    if (!token) return null;
+    return fetchTitlesJourney(token);
+  }, [fetchTitlesJourney]);
+
+  const refreshTitlesHistory = useCallback(async () => {
+    const token = tokenRef.current;
+    if (!token) return null;
+    return fetchTitlesHistory(token);
+  }, [fetchTitlesHistory]);
 
   // ── Lazy: fetch ranking ────────────────────────────────────────────────────
 
-  const refreshRanking = useCallback(async (limit = 50) => {
+  const refreshRanking = useCallback(async (limit = 50): Promise<PartnerRankingResponse | null> => {
     const token = tokenRef.current;
-    if (!token) return;
+    if (!token) return null;
 
     try {
       const data = await apiFetcher<PartnerRankingResponse>(
@@ -138,10 +211,12 @@ export function usePartnerGamification() {
         { headers: buildHeaders(token) },
       );
       setRanking(data);
+      return data;
     } catch (e) {
       setError(
         e instanceof Error ? e.message : 'Erro ao carregar ranking.',
       );
+      return null;
     }
   }, []);
 
@@ -169,6 +244,52 @@ export function usePartnerGamification() {
     [fetchSummary],
   );
 
+  const submitMonthlyCheckIn = useCallback(
+    async (answers: MonthlyCheckInAnswerInput[]): Promise<MonthlyCheckInResult> => {
+      const token = tokenRef.current;
+      if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+
+      const result = await apiFetcher<MonthlyCheckInResult>(
+        `${API_BASE}/api/partner/gamification/check-in/complete`,
+        {
+          method: 'POST',
+          headers: buildHeaders(token),
+          body: JSON.stringify({ answers }),
+        },
+      );
+
+      await Promise.all([
+        fetchSummary(token),
+        fetchCheckInStatus(token),
+        fetchTitlesJourney(token),
+      ]);
+
+      return result;
+    },
+    [fetchCheckInStatus, fetchSummary, fetchTitlesJourney],
+  );
+
+  // ── Mutation: apply streak broken decay ───────────────────────────────────
+
+  const applyStreakDecay = useCallback(async (): Promise<StreakDecayResult | null> => {
+    const token = tokenRef.current;
+    if (!token) {
+      console.error('[applyStreakDecay] token ausente');
+      return null;
+    }
+    try {
+      const result = await apiFetcher<StreakDecayResult>(
+        `${API_BASE}/api/partner/gamification/streak/broken`,
+        { method: 'POST', headers: buildHeaders(token) },
+      );
+      console.log('[applyStreakDecay] resultado:', result);
+      return result;
+    } catch (e) {
+      console.error('[applyStreakDecay] erro:', e);
+      return null;
+    }
+  }, []);
+
   // ── Local: dismiss popup ───────────────────────────────────────────────────
 
   const dismissPopup = useCallback(() => {
@@ -181,12 +302,21 @@ export function usePartnerGamification() {
     summary,
     popupState,
     ranking,
+    checkInStatus,
+    titlesJourney,
+    titlesHistory,
     shieldResult,
     isLoading,
     error,
     submitDiagnostic,
+    submitMonthlyCheckIn,
+    refreshSummary,
     refreshRanking,
+    refreshCheckInStatus,
+    refreshTitlesJourney,
+    refreshTitlesHistory,
     dismissPopup,
     useShield,
+    applyStreakDecay,
   };
 }

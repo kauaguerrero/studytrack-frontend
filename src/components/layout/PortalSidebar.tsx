@@ -27,6 +27,7 @@ import {
   Sparkles,
   ListChecks,
   Flag,
+  ScanSearch,
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -51,17 +52,19 @@ export function SidebarContent({
 }: PortalSidebarProps) {
   const pathname = usePathname();
   const resolvedRole: UserRole =
-    pathname.startsWith('/portal/secretariat')
-      ? 'secretariat'
-      : pathname.startsWith('/portal/teacher')
-        ? 'teacher'
-        : pathname.startsWith('/portal/manager')
-          ? 'manager'
-          : pathname.startsWith('/portal/student')
-            ? 'student'
-            : pathname.startsWith('/portal/admin')
-              ? 'admin'
-              : role;
+    role === 'dev'
+      ? 'dev'
+      : pathname.startsWith('/portal/secretariat')
+        ? 'secretariat'
+        : pathname.startsWith('/portal/teacher')
+          ? 'teacher'
+          : pathname.startsWith('/portal/manager')
+            ? 'manager'
+            : pathname.startsWith('/portal/student')
+              ? 'student'
+              : pathname.startsWith('/portal/admin')
+                ? 'admin'
+                : role;
 
   if (pathname.includes('/onboarding')) {
     return null;
@@ -289,12 +292,21 @@ export function SidebarContent({
           </div>
         )}
 
+        {resolvedRole === 'dev' && (
+          <div className="space-y-0.5">
+            <SectionTitle>Dev</SectionTitle>
+            <NavItem href="/portal/admin/tasks" icon={ListChecks} label="Tasks" />
+            <NavItem href="/portal/student/dashboard" icon={LayoutDashboard} label="Plataforma Completa" />
+          </div>
+        )}
+
         {resolvedRole === 'admin' && (
           <div className="space-y-0.5">
             <SectionTitle>Visão Geral</SectionTitle>
             <NavItem href="/portal/admin" icon={LayoutDashboard} label="Dashboard" />
             <NavItem href="/portal/admin/tasks" icon={ListChecks} label="Tasks" />
             <SectionTitle>Conteúdo</SectionTitle>
+            <NavItem href="/portal/admin/audits" icon={ScanSearch} label="Audit Center" />
             <NavItem href="/portal/admin/social-media" icon={Sparkles} label="Social Media IA" />
             <NavItem href="/portal/admin/questions" icon={BookOpen} label="Questões" />
             <SectionTitle>Relatórios</SectionTitle>

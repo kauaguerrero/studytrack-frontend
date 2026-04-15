@@ -22,6 +22,8 @@ import {
 } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
 import { UpsellModal } from '@/components/modals/UpsellModal'
+import { SimuladoRewardPopup } from '@/components/partners/gamification/SimuladoRewardPopup'
+import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
@@ -31,11 +33,11 @@ import { toast } from 'sonner'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-interface Alternative { letter: string; text: string }
+interface Alternative { letter: string; text: string; image?: string | null }
 
 interface Question {
   id: string; external_id: string; subject: string; topic?: string
-  context: string; statement: string; images: string[]; alternatives: Alternative[]
+  context: string; statement: string; images?: unknown; alternatives: Alternative[]
   correct_option: string
 }
 
@@ -44,6 +46,8 @@ interface SubjectResult { correct: number; total: number; percentage: number }
 interface FinishResult {
   score: number; total: number; percentage: number; tri_score: number | null
   time_taken_secs: number; results_by_subject: Record<string, SubjectResult>; session_id: string
+  new_streak?: number;
+  streak_updated?: boolean;
 }
 
 interface SessionConfig { mode?: string; format?: string; subject?: string; difficulty?: string; qty?: number }
@@ -120,6 +124,59 @@ function formatDuration(secs: number) {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+
+const QUESTION_MD_IMAGE_REGEX = /!\[[^\]]*]\((.*?)\)/g
+
+function normalizeImageUrl(value: string): string | null {
+  const cleaned = String(value || '').trim().replace(/^<|>$/g, '').replace(/^['"]|['"]$/g, '')
+  if (!cleaned) return null
+  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned
+  if (cleaned.startsWith('/storage/v1/object/public/')) return cleaned
+  return null
+}
+
+function extractMarkdownImageUrls(text?: string): string[] {
+  if (!text) return []
+  return Array.from(text.matchAll(QUESTION_MD_IMAGE_REGEX))
+    .map((m) => normalizeImageUrl(m[1] || ''))
+    .filter((url): url is string => Boolean(url))
+}
+
+function extractQuestionImageUrls(images: unknown, context?: string, statement?: string): string[] {
+  const fromImages = (() => {
+    if (!images) return []
+    if (Array.isArray(images)) {
+      return images
+        .map((img) => normalizeImageUrl(String(img)))
+        .filter((url): url is string => Boolean(url))
+    }
+    if (typeof images !== 'string') return []
+
+    const raw = images.trim()
+    if (!raw) return []
+    if (raw.startsWith('[') && raw.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((img) => normalizeImageUrl(String(img)))
+            .filter((url): url is string => Boolean(url))
+        }
+      } catch {
+        // fallback para markdown/url direta
+      }
+    }
+    const markdownUrls = extractMarkdownImageUrls(raw)
+    if (markdownUrls.length > 0) return markdownUrls
+    const direct = normalizeImageUrl(raw)
+    return direct ? [direct] : []
+  })()
+
+  if (fromImages.length > 0) return Array.from(new Set(fromImages))
+
+  const fromText = [...extractMarkdownImageUrls(context), ...extractMarkdownImageUrls(statement)]
+  return Array.from(new Set(fromText))
 }
 
 // ── Smooth color scale — anchors: red @0 %, yellow @20–60 %, green @60 % ──────
@@ -214,6 +271,7 @@ export default function SimuladoPage() {
   const router = useRouter()
   const { slug } = useParams<{ slug: string }>()
   const shouldReduce = useReducedMotion()
+  const { currentPopup, enqueuePopup, dismissCurrentPopup, holdQueueUntilRouteChange } = usePopupQueue()
 
   const [step, setStep] = useState<'setup' | 'quiz' | 'result'>('setup')
   const [showConfigModal, setShowConfigModal] = useState(false)
@@ -257,12 +315,6 @@ export default function SimuladoPage() {
   const [animatedScore, setAnimatedScore] = useState(0)
   const [showConfetti, setShowConfetti] = useState(false)
 
-  // UI: gamification reward card (shown after finishing simulado)
-  const [gamificationReward, setGamificationReward] = useState<{ points_awarded: number; new_monthly_points: number } | null>(null)
-  const [gamificationSummary, setGamificationSummary] = useState<{ rank_position: number; points_to_top3: number } | null>(null)
-  const [showGamificationCard, setShowGamificationCard] = useState(false)
-  const [animatedPoints, setAnimatedPoints] = useState(0)
-
   // UI: timer warning animation
   const timerShakeControls = useAnimation()
   const prevTimeLeftRef = useRef<number>(Infinity)
@@ -303,7 +355,6 @@ export default function SimuladoPage() {
       }
     }
     fetchDashboard()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken, apiUrl, dashVersion])
 
   // ── Timer ──
@@ -357,31 +408,6 @@ export default function SimuladoPage() {
     return () => cancelAnimationFrame(raf)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
-
-  // ── Points card: count-up animation ──
-  useEffect(() => {
-    if (!showGamificationCard || !gamificationReward) { setAnimatedPoints(0); return }
-    if (shouldReduce) { setAnimatedPoints(gamificationReward.points_awarded); return }
-    let raf: number
-    const start = performance.now()
-    const duration = 800
-    const target = gamificationReward.points_awarded
-    const tick = (now: number) => {
-      const t = Math.min((now - start) / duration, 1)
-      setAnimatedPoints(Math.round((1 - Math.pow(1 - t, 3)) * target))
-      if (t < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showGamificationCard])
-
-  // ── Points card: auto-dismiss after 4s ──
-  useEffect(() => {
-    if (!showGamificationCard) return
-    const t = setTimeout(() => setShowGamificationCard(false), 4000)
-    return () => clearTimeout(t)
-  }, [showGamificationCard])
 
   // ── Derived KPIs ──
   const totalSimulados = sessions.length
@@ -440,18 +466,38 @@ export default function SimuladoPage() {
       const data = await res.json()
       if (res.ok) {
         setFinishResult({ ...data, session_id: sessionId })
+        console.log('finish response:', data)
+        if (data.streak_updated && (data.new_streak ?? 0) >= 2) {
+          enqueuePopup({
+            kind: 'streak',
+            routeScope: 'dashboard',
+            streak: data.new_streak,
+            dedupeKey: `streak:${data.new_streak}`,
+          })
+        }
         if (data.gamification?.points_awarded > 0) {
-          setGamificationReward(data.gamification)
-          setShowGamificationCard(true)
+          let rankPosition: number | null = null
+          let pointsToTop3: number | null = null
           try {
             const summaryRes = await fetch(`${apiUrl}/api/partner/gamification/summary`, {
               headers: { Authorization: `Bearer ${accessToken}` },
             })
             if (summaryRes.ok) {
               const summaryData = await summaryRes.json()
-              setGamificationSummary({ rank_position: summaryData.rank_position, points_to_top3: summaryData.points_to_top3 })
+              rankPosition = summaryData.rank_position
+              pointsToTop3 = summaryData.points_to_top3
             }
           } catch { /* non-critical */ }
+          enqueuePopup({
+            kind: 'simulado_reward',
+            routeScope: 'simulado',
+            pointsAwarded: data.gamification.points_awarded,
+            newMonthlyPoints: data.gamification.new_monthly_points,
+            rankPosition,
+            pointsToTop3,
+            slug,
+            dedupeKey: `simulado-reward:${sessionId}`,
+          })
         }
       } else {
         toast.warning('Resultado calculado localmente', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
@@ -471,7 +517,6 @@ export default function SimuladoPage() {
   const resetSimulado = (openModal = false) => {
     setStep('setup'); setQuestions([]); setCurrentIdx(0); setUserAnswers({}); setTimeLeft(0)
     setSessionId(null); setFinishResult(null); setDashVersion(v => v + 1)
-    setGamificationReward(null); setGamificationSummary(null); setShowGamificationCard(false)
     if (openModal) setShowConfigModal(true)
   }
 
@@ -909,6 +954,17 @@ export default function SimuladoPage() {
               </div>
 
               {/* Context */}
+              {extractQuestionImageUrls(
+                questions[currentIdx].images,
+                questions[currentIdx].context,
+                questions[currentIdx].statement,
+              ).map((img, i) => (
+                <div key={`${questions[currentIdx].id}-img-${i}`} className="mb-5 flex justify-center bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <img src={img} alt="Imagem de apoio da questão" className="max-h-80 object-contain rounded-lg" />
+                </div>
+              ))}
+
+              {/* Context */}
               {questions[currentIdx].context && (
                 <div className="prose prose-slate dark:prose-invert max-w-none mb-5 text-slate-600 dark:text-slate-300 border-l-4 pl-4 text-sm leading-relaxed" style={{ borderColor: 'var(--brand-primary)' }}>
                   <ReactMarkdown>{questions[currentIdx].context}</ReactMarkdown>
@@ -916,8 +972,8 @@ export default function SimuladoPage() {
               )}
 
               {/* Statement */}
-              <div className="text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed">
-                {questions[currentIdx].statement}
+              <div className="prose prose-slate dark:prose-invert max-w-none text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed">
+                <ReactMarkdown>{questions[currentIdx].statement}</ReactMarkdown>
               </div>
 
               {/* Alternatives */}
@@ -935,10 +991,27 @@ export default function SimuladoPage() {
                         style={isSelected ? { background: 'var(--brand-primary)' } : {}}>
                         {alt.letter}
                       </span>
-                      <span className={`text-sm leading-snug pt-1 ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
-                        style={isSelected ? { color: 'var(--brand-primary)' } : {}}>
-                        {alt.text}
-                      </span>
+                      <div className="flex-1 pt-1">
+                        {alt.image && (
+                          <div className="mb-2">
+                            <img
+                              src={alt.image}
+                              alt={`Alternativa ${alt.letter}`}
+                              className="max-h-40 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white"
+                            />
+                          </div>
+                        )}
+                        {alt.text ? (
+                          <span className={`text-sm leading-snug ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
+                            style={isSelected ? { color: 'var(--brand-primary)' } : {}}>
+                            {alt.text}
+                          </span>
+                        ) : !alt.image ? (
+                          <span className="text-sm italic text-slate-400 dark:text-slate-500">
+                            Conteudo da alternativa indisponivel.
+                          </span>
+                        ) : null}
+                      </div>
                     </button>
                   )
                 })}
@@ -1131,45 +1204,20 @@ export default function SimuladoPage() {
         </div>
       )}
 
-      {/* ── Gamification reward card (overlay, auto-dismiss 4s) ────────────── */}
-      <AnimatePresence>
-        {showGamificationCard && gamificationReward && (
-          <motion.div
-            className="fixed bottom-6 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 px-4"
-            initial={{ y: 80, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 80, opacity: 0 }}
-            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] as const }}
-          >
-            <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-5 shadow-2xl border border-white/10">
-              <button
-                onClick={() => setShowGamificationCard(false)}
-                className="absolute right-3 top-3 p-1.5 text-slate-500 hover:text-white transition-colors"
-                aria-label="Fechar"
-              >
-                ✕
-              </button>
-              <p className="text-[11px] font-bold uppercase tracking-widest text-white/40 mb-1">
-                Simulado concluído 🎯
-              </p>
-              <p
-                className="text-4xl font-black tabular-nums"
-                style={{ color: 'var(--brand-primary)' }}
-              >
-                +{animatedPoints} pts mensais
-              </p>
-              {gamificationSummary && (
-                <p className="mt-2 text-xs text-slate-400">
-                  Você está em #{gamificationSummary.rank_position} no ranking
-                  {gamificationSummary.points_to_top3 > 0
-                    ? ` — faltam ${gamificationSummary.points_to_top3.toLocaleString('pt-BR')} pts para o top 3`
-                    : ' — você está no top 3! 🏆'}
-                </p>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {currentPopup?.kind === 'simulado_reward' && (
+        <SimuladoRewardPopup
+          pointsAwarded={currentPopup.pointsAwarded}
+          newMonthlyPoints={currentPopup.newMonthlyPoints}
+          rankPosition={currentPopup.rankPosition}
+          pointsToTop3={currentPopup.pointsToTop3}
+          onDismiss={dismissCurrentPopup}
+          onViewRanking={() => {
+            holdQueueUntilRouteChange()
+            dismissCurrentPopup()
+            router.push(`/partners/${slug}/student/ranking`)
+          }}
+        />
+      )}
     </>
   )
 }

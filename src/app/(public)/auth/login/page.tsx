@@ -9,6 +9,20 @@ import {
   Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertTriangle
 } from 'lucide-react';
 
+const EMAIL_MAX_LENGTH = 254;
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MAX_LENGTH = 128;
+
+function sanitizeEmailInput(value: string): string {
+  // Remove espaços e limita tamanho para reduzir payload abusivo.
+  return value.replace(/\s+/g, '').slice(0, EMAIL_MAX_LENGTH);
+}
+
+function isValidEmail(value: string): boolean {
+  // Validação pragmática para login (não bloqueia domínios válidos incomuns).
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= EMAIL_MAX_LENGTH;
+}
+
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24">
     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -33,8 +47,11 @@ function LoginForm() {
     if (errorMsg) {
       if (errorMsg.includes('Flow state not found')) {
         setError("A conexão expirou. Por favor, tente fazer login novamente.");
+      } else if (errorMsg.toLowerCase().includes('invalid') || errorMsg.toLowerCase().includes('credential')) {
+        setError('E-mail ou senha inválidos.');
       } else {
-        setError(decodeURIComponent(errorMsg));
+        // Não reflete texto arbitrário da URL diretamente na UI.
+        setError('Não foi possível concluir o login. Tente novamente.');
       }
     }
   }, [searchParams]);
@@ -45,9 +62,28 @@ function LoginForm() {
     setError(null);
 
     try {
+      const normalizedEmail = sanitizeEmailInput(formData.email).toLowerCase();
+      const password = formData.password;
+
+      if (!isValidEmail(normalizedEmail)) {
+        setError('Informe um e-mail válido.');
+        setIsLoading(false);
+        return;
+      }
+      if (password.length < PASSWORD_MIN_LENGTH) {
+        setError(`A senha deve ter no mínimo ${PASSWORD_MIN_LENGTH} caracteres.`);
+        setIsLoading(false);
+        return;
+      }
+      if (password.length > PASSWORD_MAX_LENGTH) {
+        setError(`A senha deve ter no máximo ${PASSWORD_MAX_LENGTH} caracteres.`);
+        setIsLoading(false);
+        return;
+      }
+
       const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
+        email: normalizedEmail,
+        password,
       });
 
       if (error) throw error;
@@ -75,8 +111,9 @@ function LoginForm() {
       router.refresh(); 
       router.push(target);
       
-    } catch (err: any) {
-      if (err.message?.includes('Invalid login credentials') || err.message?.includes('Email not confirmed')) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '';
+      if (message.includes('Invalid login credentials') || message.includes('Email not confirmed')) {
         setError("E-mail ou senha incorretos. Verifique suas credenciais e tente novamente.");
       } else {
         setError("Não foi possível fazer login. Tente novamente em alguns instantes.");
@@ -150,7 +187,10 @@ function LoginForm() {
               id="email" type="email" placeholder="aluno@studytrack.com" required
               className="w-full pl-12 pr-4 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
               value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              maxLength={EMAIL_MAX_LENGTH}
+              autoComplete="email"
+              inputMode="email"
+              onChange={(e) => setFormData({...formData, email: sanitizeEmailInput(e.target.value)})}
             />
           </div>
         </div>
@@ -168,7 +208,10 @@ function LoginForm() {
               id="password" type={showPassword ? "text" : "password"} placeholder="••••••••" required
               className="w-full pl-12 pr-14 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
               value={formData.password}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              minLength={PASSWORD_MIN_LENGTH}
+              maxLength={PASSWORD_MAX_LENGTH}
+              autoComplete="current-password"
+              onChange={(e) => setFormData({...formData, password: e.target.value.slice(0, PASSWORD_MAX_LENGTH)})}
             />
             <button 
               type="button"

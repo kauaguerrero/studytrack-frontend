@@ -44,11 +44,12 @@ export default function DesempenhoPage() {
   const { slug } = useParams<{ slug: string }>();
   const { org } = useOrg();
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [monthlyPoints, setMonthlyPoints] = useState(0);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
 
   useEffect(() => {
     async function fetchAnalytics() {
+      const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
@@ -56,11 +57,23 @@ export default function DesempenhoPage() {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
       try {
-        const res = await fetch(`${apiUrl}/api/student/analytics/dashboard`, { headers });
+        const [res, profileRes] = await Promise.all([
+          fetch(`${apiUrl}/api/student/analytics/dashboard`, { headers }),
+          supabase
+            .from('profiles')
+            .select('monthly_points')
+            .eq('id', session.user.id)
+            .single(),
+        ]);
+
         if (res.ok) {
           setData(await res.json());
         } else {
           void reportError('AnalyticsApiError', `HTTP ${res.status}`, { endpoint: 'analytics/dashboard' });
+        }
+
+        if (!profileRes.error) {
+          setMonthlyPoints(Number(profileRes.data?.monthly_points ?? 0));
         }
       } catch (error) {
         void reportError('AnalyticsFetchError', String(error), { endpoint: 'analytics/dashboard' });
@@ -240,21 +253,21 @@ export default function DesempenhoPage() {
             </CardContent>
           </Card>
 
-          {/* XP — mantém fundo neutro escuro */}
+          {/* Pontos acumulados (profiles.monthly_points) */}
           <Card className="border-0 shadow-sm ring-1 ring-slate-200 bg-gradient-to-br from-slate-900 to-slate-800 text-white hover:shadow-xl transition-all duration-300">
             <CardContent className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <div className="p-3 rounded-xl bg-white/10 text-yellow-400">
                   <Trophy className="w-6 h-6" />
                 </div>
-                <Badge className="bg-yellow-400/20 text-yellow-300 border-0 hover:bg-yellow-400/30">XP</Badge>
+                <Badge className="bg-yellow-400/20 text-yellow-300 border-0 hover:bg-yellow-400/30">PTS</Badge>
               </div>
               <div className="space-y-1">
                 <h3 className="text-3xl font-bold text-white tracking-tight">
-                  {overview.total_xp.toLocaleString()}{' '}
-                  <span className="text-lg text-slate-400 font-normal">XP</span>
+                  {monthlyPoints.toLocaleString('pt-BR')}{' '}
+                  <span className="text-lg text-slate-400 font-normal">pts</span>
                 </h3>
-                <p className="text-sm font-medium text-slate-300">Experiência Acumulada</p>
+                <p className="text-sm font-medium text-slate-300">Pontos Acumulados</p>
               </div>
             </CardContent>
           </Card>

@@ -1,79 +1,162 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { useRouter, useParams } from 'next/navigation';
-import { X } from 'lucide-react';
+import { usePopupTheme } from './popupTheme';
 
 interface Props {
   streakLost: number;
-  onDismiss: () => void;
+  shieldCount: number;
+  onDismiss: () => Promise<void>;
+  onUseShield: () => Promise<void>;
+  isLoading?: boolean;
 }
 
-const AUTO_DISMISS_MS = 4000;
-
-export function StreakBrokenPopup({ streakLost, onDismiss }: Props) {
+export function StreakBrokenPopup({
+  streakLost,
+  shieldCount,
+  onDismiss,
+  onUseShield,
+  isLoading = false,
+}: Props) {
   const shouldReduce = useReducedMotion();
-  const router = useRouter();
-  const params = useParams<{ slug: string }>();
+  const [loadingAction, setLoadingAction] = useState<'dismiss' | 'shield' | null>(null);
+  const theme = usePopupTheme('danger');
 
-  useEffect(() => {
-    const t = setTimeout(onDismiss, AUTO_DISMISS_MS);
-    return () => clearTimeout(t);
-  }, [onDismiss]);
+  const hasShield = shieldCount > 0;
+  const loading = isLoading || loadingAction !== null;
 
-  const handleStudy = () => {
-    onDismiss();
-    router.push(`/partners/${params.slug}/student/banco-de-questoes`);
+  const handleDashboard = async () => {
+    setLoadingAction('dismiss');
+    await onDismiss();
+  };
+
+  const handleShield = async () => {
+    setLoadingAction('shield');
+    await onUseShield();
   };
 
   return (
     <motion.div
-      className="fixed bottom-4 left-1/2 z-[7000] w-80 -translate-x-1/2 overflow-hidden rounded-2xl shadow-2xl"
-      initial={shouldReduce ? {} : { y: 80, opacity: 0 }}
-      animate={shouldReduce ? {} : { y: 0, opacity: 1 }}
-      exit={shouldReduce ? {} : { y: 80, opacity: 0 }}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      role="status"
+      className="fixed inset-0 z-[9500] flex flex-col items-center justify-center select-none px-6"
+      style={{
+        ...theme.overlayStyle,
+        paddingTop: 'max(env(safe-area-inset-top), 1rem)',
+        paddingRight: 'max(env(safe-area-inset-right), 1rem)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)',
+        paddingLeft: 'max(env(safe-area-inset-left), 1rem)',
+      }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
       aria-live="polite"
+      aria-label={`Sequência de ${streakLost} dias perdida`}
     >
-      <div
-        className="relative p-4"
-        style={{
-          background: 'linear-gradient(135deg, #0d0d0d 0%, #1c1c1c 100%)',
-          border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 'inherit',
-        }}
+      <motion.div
+        className="relative w-full max-w-md overflow-hidden rounded-[30px] px-5 py-7 text-center sm:px-7 sm:py-9"
+        style={{ ...theme.cardStyle, maxHeight: 'min(92dvh, 760px)' }}
+        initial={shouldReduce ? {} : { scale: 0.9, opacity: 0, y: 18 }}
+        animate={shouldReduce ? {} : { scale: 1, opacity: 1, y: 0 }}
+        transition={shouldReduce ? {} : { type: 'spring', stiffness: 240, damping: 24 }}
       >
-        <button
-          onClick={onDismiss}
-          className="absolute right-3 top-3 rounded-md p-0.5 text-white/25 transition-colors hover:text-white/60"
-          aria-label="Fechar"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-28"
+          style={{
+            background: theme.isDark
+              ? 'linear-gradient(180deg, rgba(239,68,68,0.24), transparent)'
+              : 'linear-gradient(180deg, rgba(239,68,68,0.14), transparent)',
+          }}
+        />
 
-        <div className="mb-2 flex items-start gap-2.5">
-          <span className="mt-0.5 shrink-0 text-lg" aria-hidden>❄️</span>
-          <p className="pr-4 text-sm font-extrabold leading-snug text-white">
-            Sequência de {streakLost} {streakLost === 1 ? 'dia' : 'dias'} perdida.
+        <motion.div
+          className="mb-5 text-6xl sm:mb-6 sm:text-7xl"
+          role="img"
+          aria-hidden
+          animate={shouldReduce ? {} : { rotate: [-4, 4, -3, 3, 0], scale: [1, 1.06, 1] }}
+          transition={shouldReduce ? {} : { duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          🥶
+        </motion.div>
+
+        <motion.p
+          className="text-6xl font-extrabold leading-none tabular-nums sm:text-8xl"
+          style={{ color: theme.isDark ? '#93C5FD' : '#2563EB' }}
+          initial={shouldReduce ? {} : { scale: 0.55, opacity: 0 }}
+          animate={shouldReduce ? {} : { scale: 1, opacity: 1 }}
+          transition={shouldReduce ? {} : { duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        >
+          {streakLost}
+        </motion.p>
+
+        <motion.p
+          className={`mt-3 text-base font-extrabold uppercase tracking-[0.14em] sm:text-lg sm:tracking-[0.18em] ${theme.titleClass}`}
+          initial={shouldReduce ? {} : { opacity: 0, y: 8 }}
+          animate={shouldReduce ? {} : { opacity: 1, y: 0 }}
+          transition={shouldReduce ? {} : { delay: 0.2 }}
+        >
+          {streakLost === 1 ? 'DIA' : 'DIAS'} DE SEQUÊNCIA PERDIDOS
+        </motion.p>
+
+        <motion.p
+          className={`mt-2 text-sm text-center max-w-xs mx-auto ${theme.bodyClass}`}
+          initial={shouldReduce ? {} : { opacity: 0 }}
+          animate={shouldReduce ? {} : { opacity: 1 }}
+          transition={shouldReduce ? {} : { delay: 0.35 }}
+        >
+          {hasShield
+            ? 'Use um escudo agora para preservar sua sequência antes do ajuste de pontos.'
+            : 'Sem escudo disponível. O sistema vai encerrar sua sequência e aplicar a penalidade correta.'}
+        </motion.p>
+
+        <div className="mt-5 rounded-2xl px-4 py-3 text-left" style={theme.accentPanelStyle}>
+          <p className={`text-xs font-bold uppercase tracking-[0.18em] ${theme.mutedClass}`}>
+            Decisão imediata
+          </p>
+          <p className={`mt-1 text-sm ${theme.bodyClass}`}>
+            {hasShield
+              ? 'Escudo mantém a streak e evita perda de pontos.'
+              : 'Sem escudo, a streak zera e só então o ajuste é calculado.'}
           </p>
         </div>
 
-        <p className="pl-8 text-xs leading-relaxed text-white/45 mb-3">
-          Estude hoje para começar uma nova sequência.
-        </p>
-
-        <div className="pl-8">
+        <motion.div
+          className="mt-10 flex w-full max-w-xs mx-auto flex-col gap-3"
+          initial={shouldReduce ? {} : { opacity: 0, y: 10 }}
+          animate={shouldReduce ? {} : { opacity: 1, y: 0 }}
+          transition={shouldReduce ? {} : { delay: 0.45 }}
+        >
           <button
-            onClick={handleStudy}
-            className="rounded-lg px-3 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-80"
-            style={{ background: 'var(--brand-primary)' }}
+            onClick={hasShield ? handleShield : undefined}
+            disabled={!hasShield || loading}
+            className={`w-full rounded-2xl py-3.5 text-sm font-extrabold transition-opacity ${theme.primaryButtonClass}`}
+            style={
+              hasShield
+                ? { ...theme.primaryButtonStyle, opacity: loading ? 0.6 : 1 }
+                : theme.isDark
+                  ? { background: '#334155', color: 'rgba(255,255,255,0.55)', opacity: 0.46, cursor: 'not-allowed' }
+                  : { background: '#CBD5E1', color: '#475569', opacity: 0.7, cursor: 'not-allowed' }
+            }
+            aria-label={
+              hasShield
+                ? `Usar escudo — ${shieldCount} disponível`
+                : 'Sem escudos disponíveis'
+            }
           >
-            Estudar agora
+            🛡️ Usar escudo{hasShield ? ` (${shieldCount} disponível)` : ' — nenhum disponível'}
           </button>
-        </div>
-      </div>
+
+          <button
+            onClick={handleDashboard}
+            disabled={loading}
+            className={`w-full rounded-2xl py-3 text-sm font-bold border transition-colors disabled:opacity-50 ${theme.secondaryButtonClass}`}
+          >
+            {loadingAction === 'dismiss' || (isLoading && loadingAction !== 'shield')
+              ? 'Aplicando ajuste...'
+              : 'Voltar ao dashboard'}
+          </button>
+        </motion.div>
+      </motion.div>
     </motion.div>
   );
 }

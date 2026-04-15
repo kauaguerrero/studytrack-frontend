@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/app/api/admin/_utils';
+import { requireAdminOrDev } from '@/app/api/admin/_utils';
 
 export async function POST(
   _req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
-  const auth = await requireAdmin();
+  const auth = await requireAdminOrDev();
   if (!auth.ok) return auth.response;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
