@@ -8,7 +8,7 @@ export async function updateSession(request: NextRequest) {
   const normalizeRole = (role: unknown): UserRole | null => {
     if (!role) return null;
     const s = String(role).trim().toLowerCase();
-    const allowed: UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat', 'founder', 'associate'];
+    const allowed: UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat', 'founder', 'associate', 'dev'];
     return allowed.includes(s as UserRole) ? (s as UserRole) : null;
   };
 
@@ -125,6 +125,13 @@ export async function updateSession(request: NextRequest) {
     }
 
     if (path.startsWith('/portal/admin') && currentRole !== 'admin') {
+        // Role 'dev': acesso restrito a /portal/admin/tasks
+        if (currentRole === 'dev') {
+          if (!path.startsWith('/portal/admin/tasks')) {
+            return NextResponse.redirect(new URL('/portal/admin/tasks', request.url));
+          }
+          return supabaseResponse;
+        }
         if (process.env.NODE_ENV === 'production') {
           console.log('[RBAC][ADMIN] redirect detected', {
             path,

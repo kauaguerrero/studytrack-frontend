@@ -51,17 +51,19 @@ export function SidebarContent({
 }: PortalSidebarProps) {
   const pathname = usePathname();
   const resolvedRole: UserRole =
-    pathname.startsWith('/portal/secretariat')
-      ? 'secretariat'
-      : pathname.startsWith('/portal/teacher')
-        ? 'teacher'
-        : pathname.startsWith('/portal/manager')
-          ? 'manager'
-          : pathname.startsWith('/portal/student')
-            ? 'student'
-            : pathname.startsWith('/portal/admin')
-              ? 'admin'
-              : role;
+    role === 'dev'
+      ? 'dev'
+      : pathname.startsWith('/portal/secretariat')
+        ? 'secretariat'
+        : pathname.startsWith('/portal/teacher')
+          ? 'teacher'
+          : pathname.startsWith('/portal/manager')
+            ? 'manager'
+            : pathname.startsWith('/portal/student')
+              ? 'student'
+              : pathname.startsWith('/portal/admin')
+                ? 'admin'
+                : role;
 
   if (pathname.includes('/onboarding')) {
     return null;
@@ -286,6 +288,14 @@ export function SidebarContent({
               icon={Target}
               label="Metas Criadas"
             />
+          </div>
+        )}
+
+        {resolvedRole === 'dev' && (
+          <div className="space-y-0.5">
+            <SectionTitle>Dev</SectionTitle>
+            <NavItem href="/portal/admin/tasks" icon={ListChecks} label="Tasks" />
+            <NavItem href="/portal/student/dashboard" icon={LayoutDashboard} label="Plataforma Completa" />
           </div>
         )}
 

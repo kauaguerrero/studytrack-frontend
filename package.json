@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:essay-credits": "node scripts/test-essay-credits-logic.mjs"
+    "test:essay-credits": "node scripts/test-essay-credits-logic.mjs",
+    "test:dev-role": "node scripts/test-dev-role-logic.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

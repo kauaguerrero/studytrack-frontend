@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin, recordHistory } from '@/app/api/admin/_utils';
+import { requireAdminOrDev, recordHistory } from '@/app/api/admin/_utils';
 
 export async function GET(request: Request) {
-  const auth = await requireAdmin();
+  const auth = await requireAdminOrDev();
   if (!auth.ok) return auth.response;
 
   const url = new URL(request.url);
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAdmin();
+  const auth = await requireAdminOrDev();
   if (!auth.ok) return auth.response;
 
   const body = await request.json();
