@@ -29,6 +29,34 @@ export interface Task {
   currently_doing?: string | null;
 }
 
+export interface SprintTaskLink {
+  id: string;
+  sprint_id: string;
+  task_id: string;
+  created_at: string;
+  task: Task;
+}
+
+export interface Sprint {
+  id: string;
+  goal: string;
+  start_date: string;
+  end_date: string;
+  status: 'active' | 'completed';
+  created_by: string;
+  created_at: string;
+  completed_at: string | null;
+  report_development: string | null;
+  report_positive_points: string | null;
+  report_negative_points: string | null;
+  report_final_summary_ai: string | null;
+  report_final_summary_final: string | null;
+  total_tasks: number;
+  completed_tasks: number;
+  pending_tasks: number;
+  tasks: SprintTaskLink[];
+}
+
 export interface TaskDetail extends Task {
   creator: { id: string; full_name: string; avatar_url: string | null } | null;
   progress: {
@@ -67,6 +95,8 @@ export interface AISuggestion {
 }
 
 const TASKS_KEY = '/api/admin/tasks';
+const ACTIVE_SPRINT_KEY = '/api/admin/sprints';
+const SPRINT_HISTORY_KEY = '/api/admin/sprints?history=true';
 
 export function useTasks(params?: Record<string, string>) {
   const qs = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -111,6 +141,34 @@ export function useAdminProfiles() {
     apiFetcher
   );
   return { profiles: data ?? [], isLoading, error };
+}
+
+export function useActiveSprint() {
+  const { data, error, isLoading } = useSWR<Sprint | null>(
+    ACTIVE_SPRINT_KEY,
+    apiFetcher,
+    { refreshInterval: 30_000 }
+  );
+  return {
+    sprint: data ?? null,
+    isLoading,
+    error,
+    reload: () => mutate(ACTIVE_SPRINT_KEY),
+  };
+}
+
+export function useSprintHistory() {
+  const { data, error, isLoading } = useSWR<Sprint[]>(
+    SPRINT_HISTORY_KEY,
+    apiFetcher,
+    { refreshInterval: 60_000 }
+  );
+  return {
+    sprints: data ?? [],
+    isLoading,
+    error,
+    reload: () => mutate(SPRINT_HISTORY_KEY),
+  };
 }
 
 // Mutations (fire-and-forget helpers, caller should mutate SWR after)
@@ -197,4 +255,41 @@ export async function apiGenerateSuggestions(): Promise<void> {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as { error?: string })?.error ?? `HTTP ${res.status}`);
   }
+}
+
+export async function apiCreateSprint(body: object): Promise<Sprint> {
+  const res = await fetch('/api/admin/sprints', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any)?.error ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function apiFinishSprint(sprintId: string, body: object): Promise<Sprint> {
+  const res = await fetch(`/api/admin/sprints/${sprintId}/finish`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any)?.error ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function apiGenerateSprintSummary(sprintId: string): Promise<{ summary: string }> {
+  const res = await fetch(`/api/admin/sprints/${sprintId}/ai-summary`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any)?.error ?? `HTTP ${res.status}`);
+  }
+  return res.json();
 }

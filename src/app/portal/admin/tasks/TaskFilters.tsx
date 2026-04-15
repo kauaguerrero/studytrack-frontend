@@ -30,6 +30,8 @@ export const DEFAULT_FILTERS: Filters = {
 interface Props {
   filters: Filters;
   onChange: (f: Filters) => void;
+  sprintOnly?: boolean;
+  onToggleSprintOnly?: (value: boolean) => void;
 }
 
 // ─── Option lists ──────────────────────────────────────────────────────────────
@@ -75,9 +77,15 @@ function toggle<T>(arr: T[], value: T): T[] {
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-function FilterSection({ label, children }: { label: string; children: React.ReactNode }) {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme !== 'light';
+function FilterSection({
+  label,
+  children,
+  isDark,
+}: {
+  label: string;
+  children: React.ReactNode;
+  isDark: boolean;
+}) {
   return (
     <div className="flex flex-col gap-2">
       <span
@@ -119,15 +127,20 @@ function Chip({
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
-export default function TaskFilters({ filters, onChange }: Props) {
+export default function TaskFilters({ filters, onChange, sprintOnly, onToggleSprintOnly }: Props) {
   const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme !== 'light';
+  const [mounted, setMounted] = useState(false);
+  const isDark = mounted && resolvedTheme !== 'light';
   const { profiles } = useAdminProfiles();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
   const activeCount = countActiveFilters(filters);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close on outside click
   useEffect(() => {
@@ -249,7 +262,7 @@ export default function TaskFilters({ filters, onChange }: Props) {
             {/* Sections */}
             <div className="p-4 flex flex-col gap-5 max-h-[500px] overflow-y-auto">
               {/* Status */}
-              <FilterSection label="Status">
+              <FilterSection label="Status" isDark={isDark}>
                 <div className="flex flex-wrap gap-1.5">
                   {STATUS_OPTIONS.map(opt => {
                     const active = filters.status.includes(opt.value);
@@ -271,7 +284,7 @@ export default function TaskFilters({ filters, onChange }: Props) {
               </FilterSection>
 
               {/* Priority */}
-              <FilterSection label="Prioridade">
+              <FilterSection label="Prioridade" isDark={isDark}>
                 <div className="flex flex-wrap gap-1.5">
                   {PRIORITY_OPTIONS.map(opt => {
                     const active = filters.priority.includes(opt.value);
@@ -294,7 +307,7 @@ export default function TaskFilters({ filters, onChange }: Props) {
 
               {/* Assignee */}
               {profiles.length > 0 && (
-                <FilterSection label="Responsável">
+                <FilterSection label="Responsável" isDark={isDark}>
                   <div className="flex flex-col gap-0.5">
                     {profiles.map(p => {
                       const active = filters.assignee_ids.includes(p.id);
@@ -337,7 +350,7 @@ export default function TaskFilters({ filters, onChange }: Props) {
 
               {/* Created by */}
               {profiles.length > 0 && (
-                <FilterSection label="Criado por">
+                <FilterSection label="Criado por" isDark={isDark}>
                   <div className="flex flex-col gap-0.5">
                     {profiles.map(p => {
                       const active = filters.created_by === p.id;
@@ -379,7 +392,7 @@ export default function TaskFilters({ filters, onChange }: Props) {
               )}
 
               {/* Date range */}
-              <FilterSection label="Criado em">
+              <FilterSection label="Criado em" isDark={isDark}>
                 <div className="flex flex-wrap gap-1.5">
                   {DATE_OPTIONS.map(opt => {
                     const active = filters.date_range === opt.value;
@@ -409,7 +422,7 @@ export default function TaskFilters({ filters, onChange }: Props) {
               </FilterSection>
 
               {/* Overdue */}
-              <FilterSection label="Prazo">
+              <FilterSection label="Prazo" isDark={isDark}>
                 <button
                   onClick={() => onChange({ ...filters, overdue: !filters.overdue })}
                   className="flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-lg font-medium border transition-all w-fit cursor-pointer"
@@ -432,6 +445,28 @@ export default function TaskFilters({ filters, onChange }: Props) {
           </div>
         )}
       </div>
+
+      {/* ── Sprint-only chip (quando ativo via strip) ─────────────────── */}
+      {sprintOnly && onToggleSprintOnly && (
+        <span
+          className="flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border"
+          style={{
+            background:  'rgba(20,184,166,0.12)',
+            color:       isDark ? '#2dd4bf' : '#0f766e',
+            borderColor: isDark ? 'rgba(20,184,166,0.25)' : 'rgba(20,184,166,0.30)',
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-teal-500 flex-shrink-0" />
+          Sprint ativa
+          <button
+            onClick={() => onToggleSprintOnly(false)}
+            className="hover:opacity-60 transition-opacity ml-0.5"
+            aria-label="Remover filtro de sprint"
+          >
+            <X className="w-2.5 h-2.5" />
+          </button>
+        </span>
+      )}
 
       {/* ── Active filter chips ────────────────────────────────────────── */}
       {activeCount > 0 && (
