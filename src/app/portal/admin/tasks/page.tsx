@@ -3,14 +3,18 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useTheme } from 'next-themes';
-import { Plus, Kanban, ChevronLeft } from 'lucide-react';
+import { Plus, Kanban, ChevronLeft, Target, Sparkles, History } from 'lucide-react';
 import Link from 'next/link';
-import { useTasks, useTaskDetail, type Task, type TaskStatus } from './hooks/useTasks';
+import { useTasks, useTaskDetail, useActiveSprint, useSprintHistory, useAISuggestions, type Task, type TaskStatus } from './hooks/useTasks';
 import KanbanBoard from './KanbanBoard';
 import TaskFilters, { type Filters, DEFAULT_FILTERS } from './TaskFilters';
 import TaskDetailModal from './TaskDetailModal';
 import CreateTaskModal from './CreateTaskModal';
-import AISuggestionsPanel from './AISuggestionsPanel';
+import CreateSprintModal from './CreateSprintModal';
+import ActiveSprintPanel from './ActiveSprintPanel';
+import FinishSprintModal from './FinishSprintModal';
+import AIInsightsModal from './AIInsightsModal';
+import SprintHistoryModal from './SprintHistoryModal';
 
 // ─── Client-side filter logic ─────────────────────────────────────────────────
 
@@ -54,11 +58,18 @@ export default function AdminTasksPage() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showCreateSprint, setShowCreateSprint] = useState(false);
+  const [showFinishSprint, setShowFinishSprint] = useState(false);
+  const [showInsights, setShowInsights] = useState(false);
+  const [showSprintHistory, setShowSprintHistory] = useState(false);
+  const [sprintOnly, setSprintOnly] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const supabase = createClient();
   const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme !== 'light';
+  const isDark = mounted && resolvedTheme !== 'light';
 
   useEffect(() => {
+    setMounted(true);
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) setUserId(data.user.id);
     });
@@ -72,8 +83,20 @@ export default function AdminTasksPage() {
   const { tasks: rawTasks, isLoading } = useTasks(
     Object.keys(queryParams).length ? queryParams : undefined
   );
+  const { sprint: activeSprint } = useActiveSprint();
+  const { sprints: sprintHistory } = useSprintHistory();
+  const { suggestions } = useAISuggestions();
 
-  const tasks = applyFilters(rawTasks, filters);
+  useEffect(() => {
+    if (!activeSprint) setSprintOnly(false);
+  }, [activeSprint]);
+
+  const sprintTaskIds = activeSprint?.tasks.map(item => item.task_id) ?? [];
+  const filteredTasks = applyFilters(rawTasks, filters);
+  const tasks = activeSprint && sprintOnly
+    ? filteredTasks.filter(task => sprintTaskIds.includes(task.id))
+    : filteredTasks;
+  const backlogTasks = rawTasks.filter(task => task.status === 'backlog');
   const { task: selectedTask } = useTaskDetail(selectedTaskId);
 
   // Pass single status to KanbanBoard for column visibility (backward compat)
@@ -97,8 +120,8 @@ export default function AdminTasksPage() {
             <Kanban className="w-4 h-4 text-indigo-400" />
           </div>
           <div>
-            <h1 className="text-[15px] font-bold text-zinc-100 tracking-tight">Tasks</h1>
-            <p className="text-[10px] text-zinc-600">Gerenciamento do projeto</p>
+            <h1 className="text-[15px] font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Tasks</h1>
+            <p className="text-[10px] text-zinc-500 dark:text-zinc-600">Gerenciamento do projeto</p>
           </div>
 
           {!isLoading && tasks.length > 0 && (
@@ -109,24 +132,74 @@ export default function AdminTasksPage() {
         </div>
 
         {userId && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl text-white transition-all hover:brightness-110 active:scale-95"
-            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Nova Task
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowInsights(true)}
+              className="relative flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-200 transition-all hover:border-fuchsia-500/25 hover:text-fuchsia-400"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Insights IA
+              {suggestions.length > 0 && (
+                <span className="min-w-5 h-5 px-1 rounded-full bg-fuchsia-500/12 text-fuchsia-400 border border-fuchsia-500/20 text-[10px] inline-flex items-center justify-center">
+                  {suggestions.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setShowSprintHistory(true)}
+              className="relative flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-200 transition-all hover:border-emerald-500/25 hover:text-emerald-400"
+            >
+              <History className="w-3.5 h-3.5" />
+              Histórico
+              {sprintHistory.length > 0 && (
+                <span className="min-w-5 h-5 px-1 rounded-full bg-emerald-500/12 text-emerald-400 border border-emerald-500/20 text-[10px] inline-flex items-center justify-center">
+                  {sprintHistory.length}
+                </span>
+              )}
+            </button>
+            {!activeSprint && (
+              <button
+                onClick={() => setShowCreateSprint(true)}
+                className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl text-white transition-all hover:brightness-110 active:scale-95"
+                style={{ background: 'linear-gradient(135deg, #0f766e, #14b8a6)' }}
+              >
+                <Target className="w-3.5 h-3.5" />
+                Nova Sprint
+              </button>
+            )}
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl text-white transition-all hover:brightness-110 active:scale-95"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Nova Task
+            </button>
+          </div>
         )}
       </div>
 
+      {activeSprint && (
+        <ActiveSprintPanel
+          sprint={activeSprint}
+          sprintOnly={sprintOnly}
+          onToggleSprintOnly={setSprintOnly}
+          onFinish={() => setShowFinishSprint(true)}
+        />
+      )}
+
       {/* Filters bar */}
       <div className="px-6 py-2.5 border-b border-zinc-100 dark:border-white/[0.04] flex-shrink-0 bg-zinc-50/50 dark:bg-white/[0.01]">
-        <TaskFilters filters={filters} onChange={setFilters} />
+        <TaskFilters
+          filters={filters}
+          onChange={setFilters}
+          sprintOnly={activeSprint ? sprintOnly : undefined}
+          onToggleSprintOnly={activeSprint ? setSprintOnly : undefined}
+        />
       </div>
 
-      {/* Body: Kanban + AI Panel */}
-      <div className="flex flex-1 gap-3 p-4 overflow-hidden">
+      {/* Body: Kanban */}
+      <div className="flex flex-1 min-h-0 gap-3 px-6 py-4 overflow-hidden">
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
@@ -152,8 +225,6 @@ export default function AdminTasksPage() {
             statusFilter={statusFilter}
           />
         )}
-
-        {userId && <AISuggestionsPanel userId={userId} />}
       </div>
 
       {/* Task Detail Modal */}
@@ -171,6 +242,29 @@ export default function AdminTasksPage() {
           onClose={() => setShowCreate(false)}
         />
       )}
+
+      <CreateSprintModal
+        open={showCreateSprint}
+        backlogTasks={backlogTasks}
+        onClose={() => setShowCreateSprint(false)}
+      />
+
+      <FinishSprintModal
+        sprint={activeSprint}
+        open={showFinishSprint}
+        onClose={() => setShowFinishSprint(false)}
+      />
+
+      <AIInsightsModal
+        open={showInsights}
+        onClose={() => setShowInsights(false)}
+      />
+
+      <SprintHistoryModal
+        open={showSprintHistory}
+        onClose={() => setShowSprintHistory(false)}
+        sprints={sprintHistory}
+      />
     </div>
   );
 }

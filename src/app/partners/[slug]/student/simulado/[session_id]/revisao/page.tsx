@@ -14,7 +14,7 @@ interface QuestionContent {
     topic?: string
     context: string
     statement: string
-    alternatives: { letter: string; text: string }[]
+    alternatives: { letter: string; text: string; image?: string | null }[]
     correct_option: string
 }
 
@@ -241,7 +241,9 @@ export default function RevisaoPage() {
                                         )}
 
                                         {/* Statement */}
-                                        <p className="text-slate-800 dark:text-slate-100 font-medium mb-4 leading-relaxed">{q.statement}</p>
+                                        <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-800 dark:text-slate-100 font-medium mb-4 leading-relaxed">
+                                            <ReactMarkdown>{q.statement}</ReactMarkdown>
+                                        </div>
 
                                         {/* Alternatives */}
                                         <div className="space-y-2 mb-4">
@@ -268,15 +270,32 @@ export default function RevisaoPage() {
                                                         }`}>
                                                             {alt.letter}
                                                         </span>
-                                                        <span className={`leading-snug ${
-                                                            isCorrect 
-                                                                ? 'text-green-800 dark:text-green-300 font-medium' 
-                                                                : isUserWrong 
-                                                                    ? 'text-red-800 dark:text-red-300' 
-                                                                    : 'text-slate-600 dark:text-slate-300'
-                                                        }`}>
-                                                            {alt.text}
-                                                        </span>
+                                                        <div className="flex-1">
+                                                            {alt.image && (
+                                                                <div className="mb-2">
+                                                                    <img
+                                                                        src={alt.image}
+                                                                        alt={`Alternativa ${alt.letter}`}
+                                                                        className="max-h-40 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white"
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                            {alt.text ? (
+                                                                <span className={`leading-snug ${
+                                                                    isCorrect 
+                                                                        ? 'text-green-800 dark:text-green-300 font-medium' 
+                                                                        : isUserWrong 
+                                                                            ? 'text-red-800 dark:text-red-300' 
+                                                                            : 'text-slate-600 dark:text-slate-300'
+                                                                }`}>
+                                                                    {alt.text}
+                                                                </span>
+                                                            ) : !alt.image ? (
+                                                                <span className="text-sm italic text-slate-400 dark:text-slate-500">
+                                                                    Conteudo da alternativa indisponivel.
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
                                                     </div>
                                                 )
                                             })}

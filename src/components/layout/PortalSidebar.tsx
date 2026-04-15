@@ -27,6 +27,7 @@ import {
   Sparkles,
   ListChecks,
   Flag,
+  ScanSearch,
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -305,6 +306,7 @@ export function SidebarContent({
             <NavItem href="/portal/admin" icon={LayoutDashboard} label="Dashboard" />
             <NavItem href="/portal/admin/tasks" icon={ListChecks} label="Tasks" />
             <SectionTitle>Conteúdo</SectionTitle>
+            <NavItem href="/portal/admin/audits" icon={ScanSearch} label="Audit Center" />
             <NavItem href="/portal/admin/social-media" icon={Sparkles} label="Social Media IA" />
             <NavItem href="/portal/admin/questions" icon={BookOpen} label="Questões" />
             <SectionTitle>Relatórios</SectionTitle>
