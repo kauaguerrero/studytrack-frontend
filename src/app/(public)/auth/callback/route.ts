@@ -11,6 +11,7 @@ const ROLE_TO_DASHBOARD: Record<UserRole, string> = {
   teacher: '/portal/teacher',
   manager: '/portal/manager',
   admin: '/portal/admin',
+  dev: '/portal/admin/tasks',
   secretariat: '/portal/secretariat',
   founder: '/portal',  // /portal redireciona founder para /partners/<slug>/dashboard
   associate: '/portal',
