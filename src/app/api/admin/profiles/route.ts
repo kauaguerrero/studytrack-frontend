@@ -8,7 +8,7 @@ export async function GET() {
   const { data, error } = await auth.supabaseAdmin
     .from('profiles')
     .select('id, full_name, avatar_url')
-    .eq('role', 'admin')
+    .in('role', ['admin', 'dev'])
     .order('full_name');
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
