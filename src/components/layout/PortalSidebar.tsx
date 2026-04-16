@@ -62,6 +62,8 @@ export function SidebarContent({
             ? 'student'
             : pathname.startsWith('/portal/admin')
               ? 'admin'
+              : pathname.startsWith('/portal/dev')
+                ? 'dev'
               : role;
 
   if (pathname.includes('/onboarding')) {
@@ -148,9 +150,11 @@ export function SidebarContent({
         ? '/portal/teacher'
         : resolvedRole === 'secretariat'
           ? '/portal/secretariat'
-          : resolvedRole === 'manager'
-            ? '/portal/manager'
-            : '/portal';
+      : resolvedRole === 'manager'
+        ? '/portal/manager'
+        : resolvedRole === 'dev'
+          ? '/portal/dev/tasks'
+        : '/portal';
 
   const roleLabel =
     resolvedRole === 'manager'
@@ -159,6 +163,8 @@ export function SidebarContent({
         ? 'Docente'
         : resolvedRole === 'secretariat'
           ? 'Secretaria'
+          : resolvedRole === 'dev'
+            ? 'Operação'
           : 'Área do Aluno';
 
   return (
@@ -302,6 +308,13 @@ export function SidebarContent({
             <SectionTitle>Relatórios</SectionTitle>
             <NavItem href="/portal/admin/reengagement" icon={Target} label="Reengajamento" />
             <NavItem href="/portal/admin/reports" icon={Flag} label="Denúncias" />
+          </div>
+        )}
+
+        {resolvedRole === 'dev' && (
+          <div className="space-y-0.5">
+            <SectionTitle>Operação</SectionTitle>
+            <NavItem href="/portal/dev/tasks" icon={ListChecks} label="Tasks" />
           </div>
         )}
 

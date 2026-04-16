@@ -2,30 +2,55 @@
 
 import useSWR, { mutate } from 'swr';
 import { apiFetcher } from '@/lib/api-fetcher';
+import type {
+  AIInsight,
+  CompletenessScore,
+  DashboardMetrics,
+  IntelligenceSignal,
+  TaskRecord,
+} from '@/lib/tasks/intelligence';
 
-export type TaskStatus = 'backlog' | 'in_progress' | 'review' | 'done' | 'archived';
+export type TaskStatus = 'backlog' | 'in_progress' | 'review' | 'done' | 'blocked' | 'archived';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'critical';
+export type WorkspaceRole = 'admin' | 'dev';
 
 export interface AdminProfile {
   id: string;
   full_name: string;
   avatar_url: string | null;
+  role?: 'admin' | 'dev';
 }
 
 export interface Task {
   id: string;
   title: string;
   scope: string;
+  description?: string | null;
+  acceptance_criteria?: string | null;
   status: TaskStatus;
   priority: TaskPriority;
+  assignee_ids?: string[] | null;
   assignee_id: string | null;
   assignee: { id: string; full_name: string; avatar_url: string | null } | null;
+  assignees?: { id: string; full_name: string; avatar_url: string | null }[];
   co_assignee_id: string | null;
   co_assignee: { id: string; full_name: string; avatar_url: string | null } | null;
   created_by: string;
   deadline: string | null;
+  target_date?: string | null;
   created_at: string;
   updated_at: string;
+  task_type?: string | null;
+  expected_outcome?: string | null;
+  blocked_count?: number | null;
+  reopened_count?: number | null;
+  total_blocked_time_seconds?: number | null;
+  block_reason?: string | null;
+  block_category?: string | null;
+  blocked_from_status?: TaskStatus | null;
+  last_blocked_at?: string | null;
+  last_reopened_at?: string | null;
+  last_progress_update_at?: string | null;
   currently_doing?: string | null;
 }
 
@@ -59,6 +84,7 @@ export interface Sprint {
 
 export interface TaskDetail extends Task {
   creator: { id: string; full_name: string; avatar_url: string | null } | null;
+  active_sprint?: { id: string; goal: string; status: 'active' | 'completed'; start_date: string; end_date: string } | null;
   progress: {
     task_id: string;
     already_done: string;
@@ -81,6 +107,82 @@ export interface TaskDetail extends Task {
     changed_at: string;
     changer: { full_name: string } | null;
   }[];
+  block_events?: {
+    id: string;
+    event_kind: 'blocked' | 'unblocked';
+    blocked_from_status: TaskStatus | null;
+    target_status: TaskStatus | null;
+    actor_id: string;
+    reason: string | null;
+    category: string | null;
+    expected_unblock_date: string | null;
+    resolution_note: string | null;
+    created_at: string;
+  }[];
+  reopen_events?: {
+    id: string;
+    reopened_from_status: TaskStatus;
+    reopened_to_status: TaskStatus;
+    reason: string;
+    category: string | null;
+    actor_id: string;
+    created_at: string;
+  }[];
+}
+
+export interface TaskWorkspaceSummary {
+  role: WorkspaceRole;
+  summary: {
+    throughput: { formatted: string; description: string; calculation: string; period: string };
+    block_rate: { formatted: string; description: string; calculation: string; period: string };
+    average_completeness_score: { formatted: string; description: string; calculation: string; period: string };
+    operational_risk: { formatted: string; description: string; calculation: string; period: string };
+    main_bottleneck: string;
+    weekly_focus: string;
+    alerts: IntelligenceSignal[];
+    ai: AIInsight;
+  } | null;
+}
+
+export interface TaskIntelligencePayload {
+  task_id: string;
+  completeness: {
+    creation: CompletenessScore;
+    progress: CompletenessScore;
+    closure: CompletenessScore;
+    consolidated: number;
+    consolidated_percentage: number;
+    missing_fields: string[];
+  };
+  signals: IntelligenceSignal[];
+  ai: AIInsight;
+}
+
+export interface TaskDashboardPayload {
+  generated_at: string;
+  metrics: DashboardMetrics;
+  signals: IntelligenceSignal[];
+  tasks: TaskRecord[];
+  ai_snapshot: {
+    generated_at: string;
+    generated_by: string | null;
+    source: 'deterministic' | 'ai';
+  } | null;
+  task_analyses: {
+    task_id: string;
+    title: string;
+    status: TaskStatus;
+    priority: TaskPriority;
+    assignee_name: string | null;
+    active_sprint_goal: string | null;
+    severity: IntelligenceSignal['severity'];
+    signals_count: number;
+    missing_fields: string[];
+    signals: IntelligenceSignal[];
+  }[];
+  ai: AIInsight;
+  tasks_count: number;
+  sprints_count: number;
 }
 
 export interface AISuggestion {
@@ -121,9 +223,35 @@ export function useTaskDetail(taskId: string | null) {
   return { task: data, isLoading, error };
 }
 
-export function useAISuggestions() {
+export function useTaskWorkspaceSummary() {
+  const { data, error, isLoading } = useSWR<TaskWorkspaceSummary>(
+    '/api/admin/tasks/intelligence/summary',
+    apiFetcher,
+    { refreshInterval: 60_000 }
+  );
+  return { data, isLoading, error };
+}
+
+export function useTaskIntelligence(taskId: string | null) {
+  const { data, error, isLoading } = useSWR<TaskIntelligencePayload>(
+    taskId ? `/api/admin/tasks/${taskId}/intelligence` : null,
+    apiFetcher
+  );
+  return { data, isLoading, error };
+}
+
+export function useTaskDashboard() {
+  const { data, error, isLoading } = useSWR<TaskDashboardPayload>(
+    '/api/admin/tasks/dashboard',
+    apiFetcher,
+    { refreshInterval: 60_000 }
+  );
+  return { data, isLoading, error };
+}
+
+export function useAISuggestions(enabled = true) {
   const { data, error, isLoading } = useSWR<AISuggestion[]>(
-    '/api/admin/tasks/ai/suggestions',
+    enabled ? '/api/admin/tasks/ai/suggestions' : null,
     apiFetcher,
     { refreshInterval: 60_000 }
   );
@@ -185,6 +313,45 @@ export async function apiUpdateStatus(taskId: string, body: object): Promise<Tas
   return res.json();
 }
 
+export async function apiBlockTask(taskId: string, body: object): Promise<TaskDetail> {
+  const res = await fetch(`/api/admin/tasks/${taskId}/block`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any)?.error ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function apiUnblockTask(taskId: string, body: object): Promise<TaskDetail> {
+  const res = await fetch(`/api/admin/tasks/${taskId}/unblock`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any)?.error ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function apiReopenTask(taskId: string, body: object): Promise<TaskDetail> {
+  const res = await fetch(`/api/admin/tasks/${taskId}/reopen`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as any)?.error ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function apiCreateTask(body: object): Promise<Task> {
   const res = await fetch('/api/admin/tasks', {
     method: 'POST',
@@ -224,8 +391,9 @@ export async function apiUpdateProgress(taskId: string, body: object): Promise<T
   return res.json();
 }
 
-export async function apiDeleteTask(taskId: string): Promise<void> {
-  const res = await fetch(`/api/admin/tasks/${taskId}`, { method: 'DELETE' });
+export async function apiDeleteTask(taskId: string, options?: { permanent?: boolean }): Promise<void> {
+  const qs = options?.permanent ? '?permanent=true' : '';
+  const res = await fetch(`/api/admin/tasks/${taskId}${qs}`, { method: 'DELETE' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error((err as any)?.error ?? `HTTP ${res.status}`);

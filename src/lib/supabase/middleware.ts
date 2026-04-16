@@ -8,7 +8,7 @@ export async function updateSession(request: NextRequest) {
   const normalizeRole = (role: unknown): UserRole | null => {
     if (!role) return null;
     const s = String(role).trim().toLowerCase();
-    const allowed: UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat', 'founder', 'associate'];
+    const allowed: UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat', 'founder', 'associate', 'dev'];
     return allowed.includes(s as UserRole) ? (s as UserRole) : null;
   };
 
@@ -124,7 +124,11 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(new URL(dest, request.url));
     }
 
-    if (path.startsWith('/portal/admin') && currentRole !== 'admin') {
+    const isTaskDashboardPath = path === '/portal/admin/tasks/dashboard' || path.startsWith('/portal/admin/tasks/dashboard/');
+    const isTaskWorkspacePath = !isTaskDashboardPath && (path === '/portal/admin/tasks' || path.startsWith('/portal/admin/tasks/'));
+    const canAccessTaskWorkspace = currentRole === 'admin' || currentRole === 'dev';
+
+    if (path.startsWith('/portal/admin') && !(isTaskWorkspacePath && canAccessTaskWorkspace) && currentRole !== 'admin') {
         if (process.env.NODE_ENV === 'production') {
           console.log('[RBAC][ADMIN] redirect detected', {
             path,
@@ -134,6 +138,11 @@ export async function updateSession(request: NextRequest) {
             userId: user.id,
           });
         }
+        const dest = currentRole === 'manager' ? '/portal/manager' : currentRole === 'teacher' ? '/portal/teacher' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
+        return NextResponse.redirect(new URL(dest, request.url));
+    }
+
+    if (path.startsWith('/portal/dev') && currentRole !== 'dev' && currentRole !== 'admin') {
         const dest = currentRole === 'manager' ? '/portal/manager' : currentRole === 'teacher' ? '/portal/teacher' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
         return NextResponse.redirect(new URL(dest, request.url));
     }
