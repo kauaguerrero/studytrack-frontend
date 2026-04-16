@@ -18,7 +18,7 @@ interface Props {
   onFinish: () => void;
 }
 
-type SprintHealth = 'healthy' | 'warning' | 'critical';
+type SprintHealth = 'healthy' | 'warning' | 'danger' | 'overdue';
 
 function getSprintHealth(endDate: string): { text: string; health: SprintHealth } {
   const today = new Date();
@@ -26,9 +26,9 @@ function getSprintHealth(endDate: string): { text: string; health: SprintHealth 
   const end = new Date(`${endDate}T00:00:00`);
   const diff = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (diff < 0) return { text: `${Math.abs(diff)}d em atraso`, health: 'critical' };
-  if (diff === 0) return { text: 'Termina hoje', health: 'critical' };
-  if (diff <= 3) return { text: `${diff} ${diff === 1 ? 'dia' : 'dias'} restante${diff === 1 ? '' : 's'}`, health: 'warning' };
+  if (diff < 0) return { text: `${Math.abs(diff)}d em atraso`, health: 'overdue' };
+  if (diff <= 3) return { text: diff === 0 ? 'Termina hoje' : `${diff} ${diff === 1 ? 'dia' : 'dias'} restante${diff === 1 ? '' : 's'}`, health: 'danger' };
+  if (diff <= 7) return { text: `${diff} dias restantes`, health: 'warning' };
   return { text: `${diff} dias restantes`, health: 'healthy' };
 }
 
@@ -42,13 +42,22 @@ function formatDateShort(date: string) {
 const HEALTH_DOT: Record<SprintHealth, { color: string; shadow: string; pulse: boolean }> = {
   healthy:  { color: '#14b8a6', shadow: '0 0 6px rgba(20,184,166,0.6)',  pulse: false },
   warning:  { color: '#f59e0b', shadow: '0 0 6px rgba(245,158,11,0.6)',  pulse: false },
-  critical: { color: '#ef4444', shadow: '0 0 8px rgba(239,68,68,0.65)', pulse: true  },
+  danger:   { color: '#f87171', shadow: '0 0 8px rgba(248,113,113,0.55)', pulse: false },
+  overdue:  { color: '#dc2626', shadow: '0 0 10px rgba(220,38,38,0.7)', pulse: true  },
 };
 
 const HEALTH_DAYS_CLASS: Record<SprintHealth, string> = {
   healthy:  'text-zinc-500 dark:text-zinc-400',
   warning:  'text-amber-600 dark:text-amber-400',
-  critical: 'text-red-500 dark:text-red-400',
+  danger:   'text-red-400 dark:text-red-300',
+  overdue:  'text-red-700 dark:text-red-500',
+};
+
+const HEALTH_PROGRESS_BG: Record<SprintHealth, string> = {
+  healthy: 'linear-gradient(90deg,#14b8a6,#2dd4bf)',
+  warning: 'linear-gradient(90deg,#f59e0b,#fbbf24)',
+  danger:  'linear-gradient(90deg,#f87171,#fca5a5)',
+  overdue: 'linear-gradient(90deg,#dc2626,#ef4444)',
 };
 
 // ─── Toggle switch ─────────────────────────────────────────────────────────────
@@ -90,6 +99,7 @@ export default function ActiveSprintPanel({
 
   const { text: daysText, health } = getSprintHealth(sprint.end_date);
   const dot = HEALTH_DOT[health];
+  const progressBg = HEALTH_PROGRESS_BG[health];
 
   // Close popover on outside click
   useEffect(() => {
@@ -143,8 +153,8 @@ export default function ActiveSprintPanel({
           style={{ background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)' }}
         >
           <div
-            className="h-full rounded-full bg-[linear-gradient(90deg,#14b8a6,#2dd4bf)] transition-[width] duration-500"
-            style={{ width: `${progress}%` }}
+            className="h-full rounded-full transition-[width] duration-500"
+            style={{ width: `${progress}%`, background: progressBg }}
           />
         </div>
         <span className="text-[11px] font-bold tabular-nums text-zinc-600 dark:text-zinc-400 w-8 text-right">
@@ -246,8 +256,8 @@ export default function ActiveSprintPanel({
                   style={{ background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)' }}
                 >
                   <div
-                    className="h-full rounded-full bg-[linear-gradient(90deg,#14b8a6,#2dd4bf)] transition-[width] duration-500"
-                    style={{ width: `${progress}%` }}
+                    className="h-full rounded-full transition-[width] duration-500"
+                    style={{ width: `${progress}%`, background: progressBg }}
                   />
                 </div>
                 <span className="text-[11px] font-bold tabular-nums text-zinc-600 dark:text-zinc-400 w-8 text-right flex-shrink-0">

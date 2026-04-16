@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Calendar, Plus, Target, X } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronUp, Plus, Target, X } from 'lucide-react';
 import { mutate } from 'swr';
 import { toast } from 'sonner';
 import { apiCreateSprint, Task } from './hooks/useTasks';
@@ -21,6 +21,7 @@ export default function CreateSprintModal({ open, backlogTasks, onClose }: Props
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [expandedTaskIds, setExpandedTaskIds] = useState<string[]>([]);
 
   const visibleBacklogTasks = backlogTasks.filter(task => {
     if (selectedTaskIds.includes(task.id)) return false;
@@ -74,6 +75,14 @@ export default function CreateSprintModal({ open, backlogTasks, onClose }: Props
     );
   }
 
+  function toggleExpanded(taskId: string) {
+    setExpandedTaskIds(current =>
+      current.includes(taskId)
+        ? current.filter(id => id !== taskId)
+        : [...current, taskId]
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={value => !value && resetAndClose()}>
       <DialogContent
@@ -99,7 +108,7 @@ export default function CreateSprintModal({ open, backlogTasks, onClose }: Props
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-[260px_minmax(0,1.35fr)_minmax(0,1fr)] grid-cols-1 gap-0 flex-1 min-h-0 overflow-hidden">
+        <div className="grid lg:grid-cols-[320px_minmax(0,1.35fr)_minmax(0,1fr)] grid-cols-1 gap-0 flex-1 min-h-0 overflow-hidden">
           <div className="p-5 sm:p-6 border-b lg:border-b-0 lg:border-r border-zinc-200 dark:border-zinc-800/60 space-y-4 overflow-y-auto min-h-0 min-w-0 bg-zinc-50/60 dark:bg-zinc-950">
             <div>
               <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 mb-2">
@@ -114,7 +123,7 @@ export default function CreateSprintModal({ open, backlogTasks, onClose }: Props
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div>
                 <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 mb-2">
                   <Calendar className="w-3 h-3" /> Início
@@ -123,7 +132,7 @@ export default function CreateSprintModal({ open, backlogTasks, onClose }: Props
                   type="date"
                   value={startDate}
                   onChange={event => setStartDate(event.target.value)}
-                  className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/20 transition-all [color-scheme:dark]"
+                  className="w-full min-w-0 bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/20 transition-all [color-scheme:dark]"
                 />
               </div>
               <div>
@@ -134,7 +143,7 @@ export default function CreateSprintModal({ open, backlogTasks, onClose }: Props
                   type="date"
                   value={endDate}
                   onChange={event => setEndDate(event.target.value)}
-                  className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/20 transition-all [color-scheme:dark]"
+                  className="w-full min-w-0 bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-teal-500/50 focus:ring-1 focus:ring-teal-500/20 transition-all [color-scheme:dark]"
                 />
               </div>
             </div>
@@ -172,11 +181,10 @@ export default function CreateSprintModal({ open, backlogTasks, onClose }: Props
                 </div>
               ) : visibleBacklogTasks.map(task => {
                 const priority = PRIORITY_CONFIG[task.priority ?? 'medium'];
+                const isExpanded = expandedTaskIds.includes(task.id);
                 return (
-                  <button
+                  <div
                     key={task.id}
-                    type="button"
-                    onClick={() => toggleTask(task.id)}
                     className="w-full text-left rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900 hover:border-teal-500/30 hover:bg-teal-500/[0.05] dark:hover:bg-teal-500/[0.07] transition-all px-3.5 py-3"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -190,15 +198,47 @@ export default function CreateSprintModal({ open, backlogTasks, onClose }: Props
                         <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-100 leading-snug break-words">
                           {task.title}
                         </p>
-                        <p className="text-[11px] text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed break-words line-clamp-2">
-                          {task.scope}
-                        </p>
+                        {isExpanded ? (
+                          <p className="text-[11px] text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed break-words whitespace-pre-wrap">
+                            {task.scope}
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed break-words line-clamp-2">
+                            {task.scope}
+                          </p>
+                        )}
                       </div>
-                      <span className="w-8 h-8 rounded-xl bg-teal-500/15 text-teal-400 flex items-center justify-center flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => toggleTask(task.id)}
+                        className="w-8 h-8 rounded-xl bg-teal-500/15 text-teal-400 flex items-center justify-center flex-shrink-0 hover:bg-teal-500/20 transition-all"
+                        title="Adicionar à sprint"
+                        aria-label="Adicionar à sprint"
+                      >
                         <Plus className="w-3.5 h-3.5" />
-                      </span>
+                      </button>
                     </div>
-                  </button>
+
+                    <div className="mt-2 flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(task.id)}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 transition-colors"
+                      >
+                        {isExpanded ? (
+                          <>
+                            Ocultar descrição
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </>
+                        ) : (
+                          <>
+                            Ver descrição completa
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 );
               })}
             </div>

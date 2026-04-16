@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useTheme } from 'next-themes';
-import { Plus, Kanban, ChevronLeft, Target, Sparkles, History } from 'lucide-react';
+import { Plus, Kanban, ChevronLeft, Target, Sparkles, History, Github } from 'lucide-react';
 import Link from 'next/link';
 import { useTasks, useTaskDetail, useActiveSprint, useSprintHistory, useAISuggestions, type Task, type TaskStatus } from './hooks/useTasks';
 import KanbanBoard from './KanbanBoard';
@@ -133,6 +133,13 @@ export default function AdminTasksPage() {
 
         {userId && (
           <div className="flex items-center gap-2">
+            <Link
+              href="/portal/admin/github"
+              className="relative flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-200 transition-all hover:border-emerald-500/25 hover:text-emerald-400"
+            >
+              <Github className="w-3.5 h-3.5" />
+              Atividade GitHub
+            </Link>
             <button
               onClick={() => setShowInsights(true)}
               className="relative flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 text-zinc-700 dark:text-zinc-200 transition-all hover:border-fuchsia-500/25 hover:text-fuchsia-400"
