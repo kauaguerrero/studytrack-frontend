@@ -61,7 +61,7 @@ export default async function Page() {
     if (org?.slug) redirect(`/partners/${org.slug}/redacoes`);
   }
 
-  const validRoles: readonly UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat'];
+  const validRoles: readonly UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat', 'dev'];
   const role: UserRole = validRoles.includes(roleStr as UserRole)
     ? (roleStr as UserRole)
     : 'student';
@@ -76,6 +76,9 @@ export default async function Page() {
       break;
     case 'admin':
       redirect('/portal/admin');
+      break;
+    case 'dev':
+      redirect('/portal/dev/tasks');
       break;
     case 'secretariat':
       redirect('/portal/secretariat');

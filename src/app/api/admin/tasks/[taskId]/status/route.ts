@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdminOrDev, recordHistory, getTaskDetail } from '@/app/api/admin/_utils';
+import { requireTaskAccess, recordHistory, getTaskDetail } from '@/app/api/admin/_utils';
 
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ taskId: string }> }
 ) {
   const { taskId } = await context.params;
-  const auth = await requireAdminOrDev();
+  const auth = await requireTaskAccess();
   if (!auth.ok) return auth.response;
 
   const body = await request.json();
   const newStatus = (body.status ?? '').trim();
 
-  const validStatuses = ['backlog', 'in_progress', 'review', 'done', 'archived'];
+  const validStatuses = ['backlog', 'in_progress', 'review', 'done', 'blocked', 'archived'];
   if (!validStatuses.includes(newStatus)) {
     return NextResponse.json(
       { error: `Status inválido. Valores aceitos: ${validStatuses.join(', ')}` },
@@ -38,19 +38,18 @@ export async function PATCH(
         { status: 400 }
       );
     }
-    const { data: existing } = await auth.supabaseAdmin
-      .from('admin_task_completion')
-      .select('task_id')
-      .eq('task_id', taskId)
-      .maybeSingle();
-    if (existing) {
-      return NextResponse.json({ error: 'completion_report é imutável — já existe para esta task' }, { status: 400 });
-    }
+  }
+
+  if (newStatus === 'blocked') {
+    return NextResponse.json(
+      { error: 'Use a rota específica de bloqueio para preservar o contexto operacional.' },
+      { status: 400 }
+    );
   }
 
   const { data: current, error: fetchErr } = await auth.supabaseAdmin
     .from('admin_tasks')
-    .select('status')
+    .select('status, started_at')
     .eq('id', taskId)
     .single();
 
@@ -58,9 +57,18 @@ export async function PATCH(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = auth.supabaseAdmin as any;
+  const updatePayload: Record<string, unknown> = { status: newStatus };
+  if (newStatus === 'in_progress') {
+    updatePayload.started_at = (current as { started_at?: string | null }).started_at ?? new Date().toISOString();
+    updatePayload.last_progress_update_at = new Date().toISOString();
+  }
+  if (newStatus === 'done') {
+    updatePayload.completed_at = new Date().toISOString();
+    updatePayload.completed_by = auth.user.id;
+  }
   const { error: updateErr } = await db
     .from('admin_tasks')
-    .update({ status: newStatus })
+    .update(updatePayload)
     .eq('id', taskId);
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
@@ -69,18 +77,23 @@ export async function PATCH(
 
   if (body.progress) {
     const p = body.progress;
-    await db.from('admin_task_progress').upsert({
-      task_id: taskId,
-      already_done: p.already_done,
-      currently_doing: p.currently_doing,
-      remaining: p.remaining,
-      updated_at: new Date().toISOString(),
-    });
+    await Promise.all([
+      db.from('admin_task_progress').upsert({
+        task_id: taskId,
+        already_done: p.already_done,
+        currently_doing: p.currently_doing,
+        remaining: p.remaining,
+        updated_at: new Date().toISOString(),
+      }),
+      p.next_step != null
+        ? db.from('admin_tasks').update({ next_step: p.next_step }).eq('id', taskId)
+        : Promise.resolve(),
+    ]);
   }
 
   if (body.completion_report) {
     const cr = body.completion_report;
-    await db.from('admin_task_completion').insert({
+    await db.from('admin_task_completion').upsert({
       task_id: taskId,
       files_modified_count: cr.files_modified_count,
       files_modified_list: cr.files_modified_list ?? [],

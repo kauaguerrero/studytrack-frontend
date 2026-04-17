@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { requireAdminOrDev, recordHistory, getTaskDetail } from '@/app/api/admin/_utils';
+import { requireTaskAccess, recordHistory, getTaskDetail } from '@/app/api/admin/_utils';
+import { sanitizeTaskUpdateBody } from '../_lib/server';
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
-  const auth = await requireAdminOrDev();
+  const auth = await requireTaskAccess();
   if (!auth.ok) return auth.response;
 
   const { taskId } = await params;
@@ -18,22 +19,48 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
-  const auth = await requireAdminOrDev();
+  const auth = await requireTaskAccess();
   if (!auth.ok) return auth.response;
 
   const { taskId } = await params;
   const body = await request.json();
 
-  const allowed = new Set(['title', 'scope', 'deadline', 'priority', 'assignee_id', 'co_assignee_id']);
+  const allowed = new Set([
+    'title',
+    'scope',
+    'deadline',
+    'priority',
+    'assignee_id',
+    'co_assignee_id',
+    'description',
+    'task_type',
+    'expected_outcome',
+    'target_date',
+    'progress_notes',
+    'completed_work',
+    'remaining_work',
+    'current_blockers',
+    'dependency_updates',
+    'had_rework',
+    'had_scope_deviation',
+    'had_delay',
+    'delay_reason',
+  ]);
   const validPriorities = ['low', 'medium', 'high', 'critical'];
 
-  const updates: Record<string, unknown> = {};
+  let updates: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(body)) {
     if (!allowed.has(k)) continue;
     if (k === 'priority' && !validPriorities.includes(v as string)) {
       return NextResponse.json({ error: `Prioridade inválida: ${v}` }, { status: 400 });
     }
     updates[k] = v;
+  }
+
+  try {
+    updates = sanitizeTaskUpdateBody(updates);
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'Payload inválido' }, { status: 400 });
   }
 
   if (!Object.keys(updates).length) {
@@ -74,13 +101,17 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
-  const auth = await requireAdminOrDev();
+  const auth = await requireTaskAccess();
   if (!auth.ok) return auth.response;
 
   const { taskId } = await params;
+  const url = new URL(req.url);
+  const permanent = ['true', '1', 'yes'].includes(
+    url.searchParams.get('permanent')?.toLowerCase() ?? ''
+  );
 
   const { data: current, error: fetchErr } = await auth.supabaseAdmin
     .from('admin_tasks')
@@ -89,6 +120,26 @@ export async function DELETE(
     .single();
 
   if (fetchErr || !current) return NextResponse.json({ error: 'Task não encontrada' }, { status: 404 });
+
+  if (permanent) {
+    const { error: unlinkSprintErr } = await auth.supabaseAdmin
+      .from('admin_sprint_tasks')
+      .delete()
+      .eq('task_id', taskId);
+
+    if (unlinkSprintErr) {
+      return NextResponse.json({ error: unlinkSprintErr.message }, { status: 500 });
+    }
+
+    const { error: deleteErr } = await auth.supabaseAdmin
+      .from('admin_tasks')
+      .delete()
+      .eq('id', taskId);
+
+    if (deleteErr) return NextResponse.json({ error: deleteErr.message }, { status: 500 });
+
+    return NextResponse.json({ ok: true });
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (auth.supabaseAdmin as any)

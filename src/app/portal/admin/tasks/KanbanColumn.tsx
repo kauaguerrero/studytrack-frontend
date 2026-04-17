@@ -9,7 +9,7 @@ type ColumnConfig = {
   label: string;
   accent: string;
   emptyText: string;
-  emptyIcon: string;
+  guidance: string;
 };
 
 const COLUMN_CONFIG: Record<TaskStatus, ColumnConfig> = {
@@ -17,31 +17,37 @@ const COLUMN_CONFIG: Record<TaskStatus, ColumnConfig> = {
     label: 'Backlog',
     accent: '#6366f1',
     emptyText: 'Nenhuma task no backlog',
-    emptyIcon: '📋',
+    guidance: 'Defina contexto, resultado esperado e critérios antes de executar.',
   },
   in_progress: {
     label: 'Em Andamento',
     accent: '#3b82f6',
     emptyText: 'Nada em andamento',
-    emptyIcon: '⚡',
+    guidance: 'Exija próximo passo claro e atualização operacional consistente.',
   },
   review: {
     label: 'Em Revisão (main-preview)',
     accent: '#f59e0b',
     emptyText: 'Nenhuma task em revisão',
-    emptyIcon: '🔍',
+    guidance: 'Valide entrega, pendências finais e ajustes antes de concluir.',
   },
   done: {
     label: 'Concluído (main)',
     accent: '#10b981',
     emptyText: 'Nada concluído ainda',
-    emptyIcon: '✅',
+    guidance: 'Fechamento completo com evidência, atraso e qualidade registrados.',
+  },
+  blocked: {
+    label: 'Bloqueadas',
+    accent: '#ef4444',
+    emptyText: 'Nenhuma task bloqueada',
+    guidance: 'Informe motivo, categoria e previsão realista de desbloqueio.',
   },
   archived: {
     label: 'Arquivado',
     accent: '#71717a',
     emptyText: 'Arquivo vazio',
-    emptyIcon: '📦',
+    guidance: 'Use só para histórico ou itens retirados do fluxo ativo.',
   },
 };
 
@@ -64,7 +70,7 @@ export default function KanbanColumn({
 
   return (
     <div
-      className="flex flex-col rounded-2xl transition-all duration-200 w-[265px] flex-shrink-0"
+      className="flex flex-col rounded-2xl transition-all duration-200 w-[280px] flex-shrink-0 h-[560px]"
       style={{
         background: isDragOver
           ? `linear-gradient(180deg, ${config.accent}18 0%, ${config.accent}08 100%)`
@@ -88,38 +94,51 @@ export default function KanbanColumn({
 
       {/* Header */}
       <div
-        className={`flex items-center justify-between px-4 py-3 flex-shrink-0 ${collapsible ? 'cursor-pointer' : ''}`}
+        className={`px-3.5 py-3 flex-shrink-0 ${collapsible ? 'cursor-pointer select-none' : ''}`}
+        role={collapsible ? 'button' : undefined}
+        tabIndex={collapsible ? 0 : undefined}
+        aria-expanded={collapsible ? !collapsed : undefined}
         onClick={() => collapsible && setCollapsed(!collapsed)}
+        onKeyDown={collapsible ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(c => !c); } } : undefined}
       >
-        <div className="flex items-center gap-2.5">
-          <div
-            className="w-2 h-2 rounded-full flex-shrink-0"
-            style={{
-              backgroundColor: config.accent,
-              boxShadow: `0 0 6px ${config.accent}`,
-            }}
-          />
-          <span className="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 tracking-tight">
-            {config.label}
-          </span>
-        </div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5">
+              <div
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{
+                  backgroundColor: config.accent,
+                  boxShadow: `0 0 6px ${config.accent}`,
+                }}
+              />
+              <span className="text-[13px] font-bold text-zinc-800 dark:text-zinc-200 tracking-tight">
+                {config.label}
+              </span>
+            </div>
+            {!collapsed && (
+              <p className="mt-1 pl-[18px] text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                {config.guidance}
+              </p>
+            )}
+          </div>
 
-        <div className="flex items-center gap-2">
-          <span
-            className="text-[11px] font-bold px-2 py-0.5 rounded-full"
-            style={{
-              background: `${config.accent}22`,
-              color: config.accent,
-              border: `1px solid ${config.accent}35`,
-            }}
-          >
-            {tasks.length}
-          </span>
-          {collapsible && (
-            collapsed
-              ? <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />
-              : <ChevronDown className="w-3.5 h-3.5 text-zinc-600" />
-          )}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span
+              className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+              style={{
+                background: `${config.accent}22`,
+                color: config.accent,
+                border: `1px solid ${config.accent}35`,
+              }}
+            >
+              {tasks.length}
+            </span>
+            {collapsible && (
+              collapsed
+                ? <ChevronRight className="w-3.5 h-3.5 text-zinc-600" />
+                : <ChevronDown className="w-3.5 h-3.5 text-zinc-600" />
+            )}
+          </div>
         </div>
       </div>
 
@@ -130,16 +149,16 @@ export default function KanbanColumn({
 
       {/* Cards list */}
       {!collapsed && (
-        <div className="flex flex-col gap-2 p-3 overflow-y-auto flex-1 min-h-0">
+        <div className="flex flex-col gap-2.5 p-3 flex-1 min-h-0 overflow-y-auto">
           {tasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 gap-2.5">
+            <div className="flex flex-col items-center justify-center py-10 gap-3">
               <div
-                className="w-10 h-10 rounded-2xl flex items-center justify-center text-xl"
-                style={{ background: `${config.accent}15` }}
+                className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                style={{ background: `${config.accent}12` }}
               >
-                <LayoutGrid className="w-4 h-4" style={{ color: config.accent, opacity: 0.5 }} />
+                <LayoutGrid className="w-[18px] h-[18px]" style={{ color: config.accent, opacity: 0.45 }} />
               </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-600 text-center leading-relaxed">
+              <p className="text-[11px] font-medium text-zinc-400 dark:text-zinc-600 text-center leading-relaxed px-2">
                 {config.emptyText}
               </p>
             </div>
@@ -164,7 +183,7 @@ export default function KanbanColumn({
               }}
             >
               <p className="text-xs font-semibold" style={{ color: config.accent }}>
-                Soltar aqui
+                Soltar para mover para {config.label.toLowerCase()}
               </p>
             </div>
           )}
