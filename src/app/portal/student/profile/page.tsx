@@ -184,6 +184,11 @@ export default function ProfilePage() {
   const [activeSessions, setActiveSessions] = useState<UserSession[]>([])
   const [loadingSessions, setLoadingSessions] = useState(false)
 
+  // States - Troca de E-mail
+  const [newEmailInput, setNewEmailInput] = useState('')
+  const [requestingEmailChange, setRequestingEmailChange] = useState(false)
+  const [cancelingEmail, setCancelingEmail] = useState(false)
+
   // States - Preferências (apenas email_notifications na API)
   const [emailNotifications, setEmailNotifications] = useState(true)
   const [themePref, setThemePref] = useState('system')
@@ -647,6 +652,56 @@ export default function ProfilePage() {
       toast.error(msg)
     } finally {
       setSavingPassword(false)
+    }
+  }
+
+  const handleRequestEmailChange = async () => {
+    const trimmed = newEmailInput.trim()
+    if (!trimmed) {
+      toast.error('Digite o novo e-mail.')
+      return
+    }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      toast.error('Sessão inválida.')
+      return
+    }
+    setRequestingEmailChange(true)
+    try {
+      const res = await fetch(`${apiUrl}/api/account/change-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ new_email: trimmed }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Erro ao solicitar troca de e-mail.')
+      toast.success(`Link de confirmação enviado para ${trimmed}`)
+      setNewEmailInput('')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao solicitar troca de e-mail.')
+    } finally {
+      setRequestingEmailChange(false)
+    }
+  }
+
+  const handleCancelEmailChange = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) return
+    setCancelingEmail(true)
+    try {
+      const res = await fetch(`${apiUrl}/api/account/change-email`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      if (!res.ok) throw new Error('Falha ao cancelar.')
+      toast.success('Solicitação de troca cancelada.')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao cancelar.')
+    } finally {
+      setCancelingEmail(false)
     }
   }
 
@@ -1230,6 +1285,51 @@ export default function ProfilePage() {
                     <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-8 py-5">
                       <Button onClick={handleSavePassword} disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword} className="bg-slate-900 text-white rounded-xl font-semibold px-8 shadow-md">
                         {savingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Atualizar Credencial
+                      </Button>
+                    </CardFooter>
+                  </Card>
+
+                  {/* Endereço de E-mail */}
+                  <Card className="border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-2xl overflow-hidden bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl">
+                    <CardHeader className="border-b border-slate-100/60 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 pb-6 pt-8 px-8">
+                      <CardTitle className="text-2xl font-bold tracking-tight">Endereço de E-mail</CardTitle>
+                      <CardDescription className="text-sm mt-1 text-muted-foreground">
+                        E-mail atual: <span className="font-mono text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{user?.email}</span>
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-5 pt-8 px-8 max-w-xl">
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Um link de confirmação será enviado para o novo endereço. A troca só será efetivada após a confirmação.
+                      </p>
+                      <div className="space-y-2">
+                        <Label className="text-slate-700 dark:text-slate-200 font-bold">Novo E-mail</Label>
+                        <Input
+                          type="email"
+                          placeholder="novoemail@exemplo.com"
+                          value={newEmailInput}
+                          onChange={(e) => setNewEmailInput(e.target.value)}
+                          className="rounded-xl focus-visible:ring-slate-900 bg-slate-50/50 dark:bg-slate-800/50"
+                        />
+                      </div>
+                    </CardContent>
+                    <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-8 py-5 flex items-center gap-3">
+                      <Button
+                        onClick={handleRequestEmailChange}
+                        disabled={requestingEmailChange || !newEmailInput.trim()}
+                        className="bg-slate-900 text-white rounded-xl font-semibold px-8 shadow-md"
+                      >
+                        {requestingEmailChange && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Enviar link de confirmação
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCancelEmailChange}
+                        disabled={cancelingEmail}
+                        className="text-slate-500 hover:text-red-500 hover:bg-red-50 text-xs font-semibold"
+                      >
+                        {cancelingEmail && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+                        Cancelar solicitação pendente
                       </Button>
                     </CardFooter>
                   </Card>
