@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/app/api/admin/_utils';
+import { requireAdminOrDev } from '@/app/api/admin/_utils';
 
 const BACKEND = process.env.NEXT_PUBLIC_API_URL;
 
 export async function GET(_req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireAdminOrDev();
   if (!auth.ok) return auth.response;
 
   const { data, error } = await auth.supabaseAdmin
@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest) {
 
 // POST: generate suggestions — keeps calling Flask (Gemini logic lives there)
 export async function POST(_req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireAdminOrDev();
   if (!auth.ok) return auth.response;
 
   const res = await fetch(`${BACKEND}/api/admin/tasks/ai/suggestions/generate`, {

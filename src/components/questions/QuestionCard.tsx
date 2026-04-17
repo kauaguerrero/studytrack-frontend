@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { CheckCircle2, XCircle, BrainCircuit, ImageIcon, Flag } from 'lucide-react';
 import { reportError } from '@/lib/reportError';
@@ -7,7 +7,74 @@ import { createClient } from '@/lib/supabase/client';
 interface Alternative {
   letter: string;
   text: string;
-  image?: string; 
+  image?: string | string[] | null;
+}
+
+function AlternativeImage({ src, letter }: { src: string; letter: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <span className="text-slate-400 dark:text-slate-500 italic text-sm">(Imagem indisponível)</span>;
+  return (
+    <img
+      src={src}
+      alt={`Opção ${letter}`}
+      className="max-h-32 rounded border border-slate-200"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+const markdownImageRegex = /!\[[^\]]*]\((.*?)\)/g;
+
+function normalizeUrl(raw: string): string | null {
+  const cleaned = String(raw || '')
+    .trim()
+    .replace(/^<|>$/g, '')
+    .replace(/^['"]|['"]$/g, '');
+  if (!cleaned) return null;
+  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned;
+  if (cleaned.startsWith('/storage/v1/object/public/')) return cleaned;
+  return null;
+}
+
+function extractMarkdownImageUrls(text: string): string[] {
+  if (!text) return [];
+  const matches = Array.from(text.matchAll(markdownImageRegex));
+  return matches
+    .map((m) => normalizeUrl(m[1] || ''))
+    .filter((url): url is string => Boolean(url));
+}
+
+function stripMarkdownImages(text: string): string {
+  if (!text) return '';
+  return text.replace(markdownImageRegex, '').trim();
+}
+
+function extractImageUrls(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeUrl(String(item)))
+      .filter((url): url is string => Boolean(url));
+  }
+
+  if (typeof value !== 'string') return [];
+  const raw = value.trim();
+  if (!raw) return [];
+
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(raw);
+      return extractImageUrls(parsed);
+    } catch {
+      // segue para os parsers abaixo
+    }
+  }
+
+  const mdUrls = extractMarkdownImageUrls(raw);
+  if (mdUrls.length > 0) return mdUrls;
+
+  const direct = normalizeUrl(raw);
+  return direct ? [direct] : [];
 }
 
 interface Question {
@@ -21,7 +88,7 @@ interface Question {
   alternatives: Alternative[];
   correct_option: string;
   explanation: string;
-  images: string[];
+  images?: unknown;
 }
 
 interface QuestionCardProps {
@@ -41,6 +108,17 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
   const [selected, setSelected] = useState<string | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const supportImages = useMemo(() => {
+    const fromImagesField = extractImageUrls(question.images);
+    const fromContext = extractMarkdownImageUrls(question.context || '');
+    const fromStatement = extractMarkdownImageUrls(question.statement || '');
+    const combined = fromImagesField.length > 0 ? fromImagesField : [...fromContext, ...fromStatement];
+    return Array.from(new Set(combined));
+  }, [question.images, question.context, question.statement]);
+
+  const contextText = useMemo(() => stripMarkdownImages(question.context || ''), [question.context]);
+  const statementText = useMemo(() => stripMarkdownImages(question.statement || ''), [question.statement]);
 
   const handleSelect = (letter: string) => {
     if (!showAnswer) setSelected(letter);
@@ -134,26 +212,28 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
         </div>
       </div>
 
-      {question.images?.map((img, i) => (
+      {supportImages.map((img, i) => (
           <div key={i} className="mb-6 flex justify-center bg-muted p-4 rounded-xl border border-border">
               <img src={img} alt="Material de apoio" className="max-h-80 object-contain rounded-lg" />
           </div>
       ))}
 
-      {question.context && (
+      {contextText && (
         <div className="prose prose-slate dark:prose-invert prose-sm max-w-none mb-6 text-muted-foreground border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed">
-          <ReactMarkdown>{question.context}</ReactMarkdown>
+          <ReactMarkdown>{contextText}</ReactMarkdown>
         </div>
       )}
 
       <div className="font-medium text-card-foreground text-lg mb-8 leading-relaxed">
-        <ReactMarkdown>{question.statement}</ReactMarkdown>
+        <ReactMarkdown>{statementText}</ReactMarkdown>
       </div>
 
       <div className="space-y-3">
         {question.alternatives.map((alt) => {
           const isSelected = selected === alt.letter;
           const isCorrect = String(alt.letter).toUpperCase() === String(question.correct_option).toUpperCase();
+          const alternativeImages = extractImageUrls(alt.image);
+          const alternativeText = stripMarkdownImages(alt.text || '');
           
           let style = "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-blue-200 dark:hover:border-blue-700 cursor-pointer";
           let circleStyle = "bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-600";
@@ -185,16 +265,20 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
               </span>
               
               <div className="flex-1">
-                  {alt.image && (
+                  {alternativeImages.length > 0 && (
                       <div className="mb-2">
-                          <img src={alt.image} alt={`Opção ${alt.letter}`} className="max-h-32 rounded border border-slate-200" />
+                          {alternativeImages.map((imageUrl, imageIndex) => (
+                            <div key={`${alt.letter}-img-${imageIndex}`} className={imageIndex > 0 ? 'mt-2' : ''}>
+                              <AlternativeImage src={imageUrl} letter={alt.letter} />
+                            </div>
+                          ))}
                       </div>
                   )}
-                  {alt.text ? (
+                  {alternativeText ? (
                       <span className={`text-base leading-snug ${showAnswer && isCorrect ? 'text-green-900 dark:text-green-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}>
-                          {alt.text}
+                          {alternativeText}
                       </span>
-                  ) : !alt.image && (
+                  ) : alternativeImages.length === 0 && (
                       <span className="text-slate-400 dark:text-slate-500 italic text-sm">(Imagem indisponível)</span>
                   )}
               </div>

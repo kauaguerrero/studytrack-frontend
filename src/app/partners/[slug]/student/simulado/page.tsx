@@ -37,7 +37,7 @@ interface Alternative { letter: string; text: string; image?: string | null }
 
 interface Question {
   id: string; external_id: string; subject: string; topic?: string
-  context: string; statement: string; images: string[]; alternatives: Alternative[]
+  context: string; statement: string; images?: unknown; alternatives: Alternative[]
   correct_option: string
 }
 
@@ -124,6 +124,59 @@ function formatDuration(secs: number) {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+
+const QUESTION_MD_IMAGE_REGEX = /!\[[^\]]*]\((.*?)\)/g
+
+function normalizeImageUrl(value: string): string | null {
+  const cleaned = String(value || '').trim().replace(/^<|>$/g, '').replace(/^['"]|['"]$/g, '')
+  if (!cleaned) return null
+  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned
+  if (cleaned.startsWith('/storage/v1/object/public/')) return cleaned
+  return null
+}
+
+function extractMarkdownImageUrls(text?: string): string[] {
+  if (!text) return []
+  return Array.from(text.matchAll(QUESTION_MD_IMAGE_REGEX))
+    .map((m) => normalizeImageUrl(m[1] || ''))
+    .filter((url): url is string => Boolean(url))
+}
+
+function extractQuestionImageUrls(images: unknown, context?: string, statement?: string): string[] {
+  const fromImages = (() => {
+    if (!images) return []
+    if (Array.isArray(images)) {
+      return images
+        .map((img) => normalizeImageUrl(String(img)))
+        .filter((url): url is string => Boolean(url))
+    }
+    if (typeof images !== 'string') return []
+
+    const raw = images.trim()
+    if (!raw) return []
+    if (raw.startsWith('[') && raw.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((img) => normalizeImageUrl(String(img)))
+            .filter((url): url is string => Boolean(url))
+        }
+      } catch {
+        // fallback para markdown/url direta
+      }
+    }
+    const markdownUrls = extractMarkdownImageUrls(raw)
+    if (markdownUrls.length > 0) return markdownUrls
+    const direct = normalizeImageUrl(raw)
+    return direct ? [direct] : []
+  })()
+
+  if (fromImages.length > 0) return Array.from(new Set(fromImages))
+
+  const fromText = [...extractMarkdownImageUrls(context), ...extractMarkdownImageUrls(statement)]
+  return Array.from(new Set(fromText))
 }
 
 // ── Smooth color scale — anchors: red @0 %, yellow @20–60 %, green @60 % ──────
@@ -899,6 +952,17 @@ export default function SimuladoPage() {
                   </span>
                 )}
               </div>
+
+              {/* Context */}
+              {extractQuestionImageUrls(
+                questions[currentIdx].images,
+                questions[currentIdx].context,
+                questions[currentIdx].statement,
+              ).map((img, i) => (
+                <div key={`${questions[currentIdx].id}-img-${i}`} className="mb-5 flex justify-center bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <img src={img} alt="Imagem de apoio da questão" className="max-h-80 object-contain rounded-lg" />
+                </div>
+              ))}
 
               {/* Context */}
               {questions[currentIdx].context && (

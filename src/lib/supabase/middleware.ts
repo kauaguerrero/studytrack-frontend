@@ -126,9 +126,15 @@ export async function updateSession(request: NextRequest) {
 
     const isTaskDashboardPath = path === '/portal/admin/tasks/dashboard' || path.startsWith('/portal/admin/tasks/dashboard/');
     const isTaskWorkspacePath = !isTaskDashboardPath && (path === '/portal/admin/tasks' || path.startsWith('/portal/admin/tasks/'));
-    const canAccessTaskWorkspace = currentRole === 'admin' || currentRole === 'dev';
 
-    if (path.startsWith('/portal/admin') && !(isTaskWorkspacePath && canAccessTaskWorkspace) && currentRole !== 'admin') {
+    if (path.startsWith('/portal/admin') && currentRole !== 'admin') {
+        // Role 'dev': acesso restrito ao workspace de tasks (excluindo dashboard)
+        if (currentRole === 'dev') {
+          if (!isTaskWorkspacePath) {
+            return NextResponse.redirect(new URL('/portal/admin/tasks', request.url));
+          }
+          return supabaseResponse;
+        }
         if (process.env.NODE_ENV === 'production') {
           console.log('[RBAC][ADMIN] redirect detected', {
             path,

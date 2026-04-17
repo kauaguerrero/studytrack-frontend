@@ -176,3 +176,5 @@ export async function requireTaskAccess(options?: { adminOnly?: boolean }) {
 
   return auth as typeof auth & { role: TaskAccessRole };
 }
+
+export const requireAdminOrDev = requireTaskAccess;

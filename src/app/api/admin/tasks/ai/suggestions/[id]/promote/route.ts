@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin, recordHistory } from '@/app/api/admin/_utils';
+import { requireAdminOrDev, recordHistory } from '@/app/api/admin/_utils';
 
 export async function POST(
   _req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
-  const auth = await requireAdmin();
+  const auth = await requireAdminOrDev();
   if (!auth.ok) return auth.response;
 
   const { data: suggestion, error: sugErr } = await auth.supabaseAdmin
