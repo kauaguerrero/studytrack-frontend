@@ -4,18 +4,20 @@ import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 import { mutate } from 'swr';
-import { Task, TaskStatus, apiUpdateStatus } from './hooks/useTasks';
+import { Task, TaskStatus, apiBlockTask, apiReopenTask, apiUnblockTask, apiUpdateStatus } from './hooks/useTasks';
 import KanbanColumn from './KanbanColumn';
 import MoveToProgressModal from './MoveToProgressModal';
 import CompleteTaskModal from './CompleteTaskModal';
+import TaskStatusActionModal from './TaskStatusActionModal';
 
-const COLUMNS: TaskStatus[] = ['backlog', 'in_progress', 'review', 'done', 'archived'];
+const COLUMNS: TaskStatus[] = ['backlog', 'in_progress', 'review', 'done', 'blocked', 'archived'];
 
 const VALID_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   backlog: ['in_progress', 'archived'],
-  in_progress: ['review', 'backlog', 'archived'],
-  review: ['done', 'in_progress', 'backlog', 'archived'],
-  done: ['review', 'in_progress', 'archived'],
+  in_progress: ['review', 'backlog', 'blocked', 'archived'],
+  review: ['done', 'in_progress', 'backlog', 'blocked', 'archived'],
+  done: ['review', 'in_progress', 'blocked', 'archived'],
+  blocked: ['in_progress', 'review', 'done', 'archived'],
   archived: ['backlog'],
 };
 
@@ -29,6 +31,7 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
   const [dragging, setDragging] = useState<Task | null>(null);
   const [progressModal, setProgressModal] = useState<{ task: Task } | null>(null);
   const [completeModal, setCompleteModal] = useState<{ task: Task } | null>(null);
+  const [actionModal, setActionModal] = useState<{ mode: 'block' | 'unblock' | 'reopen'; task: Task; targetStatus?: TaskStatus } | null>(null);
   const [mounted, setMounted] = useState(false);
   const { resolvedTheme } = useTheme();
   useEffect(() => setMounted(true), []);
@@ -51,7 +54,21 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
     }
     const task = dragging;
     setDragging(null);
-    if (targetStatus === 'in_progress') {
+    const missingAcceptanceCriteria =
+      targetStatus === 'in_progress' &&
+      ['high', 'critical'].includes(task.priority) &&
+      !task.acceptance_criteria?.trim();
+
+    if (missingAcceptanceCriteria) {
+      toast.warning('Essa task ainda não está pronta para execução: faltam critérios de aceite.');
+    }
+    if (task.status === 'blocked' && ['in_progress', 'review', 'done'].includes(targetStatus)) {
+      setActionModal({ mode: 'unblock', task, targetStatus });
+    } else if (task.status === 'done' && ['review', 'in_progress', 'blocked'].includes(targetStatus)) {
+      setActionModal({ mode: 'reopen', task, targetStatus });
+    } else if (targetStatus === 'blocked') {
+      setActionModal({ mode: 'block', task, targetStatus });
+    } else if (targetStatus === 'in_progress') {
       setProgressModal({ task });
     } else if (targetStatus === 'done') {
       setCompleteModal({ task });
@@ -92,11 +109,29 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
     }
   }
 
+  async function performBlock(task: Task, payload: object) {
+    await apiBlockTask(task.id, payload);
+    toast.success('Task bloqueada!');
+    mutate((key: unknown) => typeof key === 'string' && key.startsWith('/api/admin/tasks'));
+  }
+
+  async function performUnblock(task: Task, payload: object) {
+    await apiUnblockTask(task.id, payload);
+    toast.success('Task desbloqueada!');
+    mutate((key: unknown) => typeof key === 'string' && key.startsWith('/api/admin/tasks'));
+  }
+
+  async function performReopen(task: Task, payload: object) {
+    await apiReopenTask(task.id, payload);
+    toast.success('Task reaberta!');
+    mutate((key: unknown) => typeof key === 'string' && key.startsWith('/api/admin/tasks'));
+  }
+
   const visibleColumns = statusFilter ? COLUMNS.filter(c => c === statusFilter) : COLUMNS;
 
   return (
     <>
-      <div className="flex gap-3 flex-1 min-h-0 overflow-x-auto pb-2">
+      <div className="flex gap-4 items-start pb-3">
         {visibleColumns.map(status => (
           <KanbanColumn
             key={status}
@@ -115,8 +150,6 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
         <MoveToProgressModal
           open
           taskTitle={progressModal.task.title}
-          taskScope={progressModal.task.scope}
-          taskPriority={progressModal.task.priority}
           onConfirm={async (data) => {
             await performStatusUpdate(progressModal.task, 'in_progress', { progress: data });
             setProgressModal(null);
@@ -134,6 +167,30 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
             setCompleteModal(null);
           }}
           onCancel={() => setCompleteModal(null)}
+        />
+      )}
+
+      {actionModal && (
+        <TaskStatusActionModal
+          open
+          mode={actionModal.mode}
+          taskTitle={actionModal.task.title}
+          targetStatus={actionModal.targetStatus}
+          onConfirm={async (payload) => {
+            try {
+              if (actionModal.mode === 'block') {
+                await performBlock(actionModal.task, payload);
+              } else if (actionModal.mode === 'unblock') {
+                await performUnblock(actionModal.task, payload);
+              } else {
+                await performReopen(actionModal.task, payload);
+              }
+              setActionModal(null);
+            } catch (e: any) {
+              toast.error(e.message ?? 'Falha ao executar ação');
+            }
+          }}
+          onCancel={() => setActionModal(null)}
         />
       )}
     </>

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { requireAdminOrDev, recordHistory, getTaskDetail } from '@/app/api/admin/_utils';
+import { requireTaskAccess, recordHistory, getTaskDetail } from '@/app/api/admin/_utils';
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
-  const auth = await requireAdminOrDev();
+  const auth = await requireTaskAccess();
   if (!auth.ok) return auth.response;
 
   const { taskId } = await params;
@@ -51,6 +51,13 @@ export async function PATCH(
     remaining,
     updated_at: new Date().toISOString(),
   });
+
+  await (auth.supabaseAdmin as any).from('admin_tasks').update({
+    completed_work: alreadyDone,
+    progress_notes: currentlyDoing,
+    remaining_work: remaining,
+    last_progress_update_at: new Date().toISOString(),
+  }).eq('id', taskId);
 
   const old = oldProg as { currently_doing?: string; remaining?: string } | null;
   const historyPromises = [];
