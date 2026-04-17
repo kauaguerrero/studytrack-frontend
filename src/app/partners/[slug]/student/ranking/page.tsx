@@ -211,7 +211,7 @@ function PodiumEntry({ entry, isSelf }: PodiumEntryProps) {
   const isFirst = entry.rank === 1;
   const Icon = theme.icon;
 
-  const pedestalHeight = isFirst ? 112 : entry.rank === 2 ? 80 : 64;
+  const pedestalHeight = isFirst ? 104 : entry.rank === 2 ? 76 : 60;
 
   return (
     <motion.div
@@ -237,7 +237,7 @@ function PodiumEntry({ entry, isSelf }: PodiumEntryProps) {
 
       {/* Name */}
       <p
-        className="text-center text-[11px] font-bold leading-tight max-w-[80px] truncate text-slate-800 dark:text-white/85"
+        className="text-center text-[10px] sm:text-[11px] font-bold leading-tight max-w-[68px] sm:max-w-[80px] truncate text-slate-800 dark:text-white/85"
         style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
         title={entry.full_name}
       >
@@ -261,7 +261,7 @@ function PodiumEntry({ entry, isSelf }: PodiumEntryProps) {
           <img
             src={entry.avatar_url}
             alt=""
-            className="relative h-11 w-11 rounded-full object-cover"
+            className="relative h-10 w-10 sm:h-11 sm:w-11 rounded-full object-cover"
             style={{
               border: `2.5px solid ${theme.glow}`,
               boxShadow: theme.glowIntensity,
@@ -269,7 +269,7 @@ function PodiumEntry({ entry, isSelf }: PodiumEntryProps) {
           />
         ) : (
           <div
-            className="relative flex h-11 w-11 items-center justify-center rounded-full text-sm font-extrabold text-white"
+            className="relative flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full text-xs sm:text-sm font-extrabold text-white"
             style={{
               background: isSelf ? 'var(--brand-primary)' : theme.gradient,
               boxShadow: theme.glowIntensity,
@@ -283,7 +283,7 @@ function PodiumEntry({ entry, isSelf }: PodiumEntryProps) {
 
       {/* Pedestal */}
       <motion.div
-        className="w-full flex flex-col items-center justify-center rounded-t-xl relative overflow-hidden"
+          className="w-full flex flex-col items-center justify-center rounded-t-xl relative overflow-hidden"
         style={{
           height: pedestalHeight,
           background: theme.bg,
@@ -306,13 +306,13 @@ function PodiumEntry({ entry, isSelf }: PodiumEntryProps) {
         />
 
         <span
-          className="text-2xl font-black relative z-10"
+          className="text-xl sm:text-2xl font-black relative z-10"
           style={{ color: theme.textColor }}
         >
           {theme.label}
         </span>
         <p
-          className="mt-0.5 text-[10px] font-bold relative z-10"
+          className="mt-0.5 text-[9px] sm:text-[10px] font-bold relative z-10"
           style={{ color: `${theme.textColor}99` }}
         >
           {formatPoints(entry.monthly_points)} pts
@@ -349,7 +349,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
 
   return (
     <motion.div
-      className="group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 hover:bg-slate-50 dark:hover:bg-white/[0.03]"
+      className="group relative flex items-center gap-2.5 sm:gap-3 rounded-xl px-3 py-2.5 transition-all duration-200 hover:bg-slate-50 dark:hover:bg-white/[0.03]"
       style={selfHighlight}
       variants={ROW_VARIANTS}
       custom={index}
@@ -388,7 +388,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
           <img
             src={entry.avatar_url}
             alt=""
-            className="h-9 w-9 rounded-full object-cover"
+          className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover"
             style={{
               border: isSelf
                 ? '2px solid var(--brand-primary)'
@@ -399,7 +399,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
           />
         ) : (
           <div
-            className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white dark:text-white"
+            className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full text-[10px] sm:text-xs font-bold text-white dark:text-white"
             style={{
               background: isSelf
                 ? 'var(--brand-primary)'
@@ -433,7 +433,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
       {/* Name + title */}
       <div className="flex-1 min-w-0">
         <p
-          className="truncate text-sm font-semibold text-slate-800 dark:text-white/90"
+          className="truncate text-xs sm:text-sm font-semibold text-slate-800 dark:text-white/90"
           style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
         >
           {isSelf ? `${entry.full_name} (você)` : entry.full_name}
@@ -444,13 +444,13 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
             style={{ color: progressMeta.color }}
           />
           <p
-            className="text-[10px] font-semibold"
+            className="truncate text-[9px] sm:text-[10px] font-semibold"
             style={{ color: progressMeta.color }}
           >
             {progressMeta.title}
           </p>
         </div>
-        <p className="mt-0.5 text-[10px] text-slate-500 dark:text-white/45">
+        <p className="mt-0.5 truncate text-[9px] sm:text-[10px] text-slate-500 dark:text-white/45">
           {identityMeta.title}
         </p>
         {recentAchievements.length > 0 && (
@@ -478,7 +478,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
             />
           )}
           <span
-            className="text-sm font-extrabold tabular-nums text-slate-800 dark:text-white/90"
+            className="text-xs sm:text-sm font-extrabold tabular-nums text-slate-800 dark:text-white/90"
             style={isTop3 && theme ? { color: theme.textColor } : undefined}
           >
             {formatPoints(entry.monthly_points)}
@@ -857,7 +857,7 @@ export default function RankingPage() {
 
               {/* Stats */}
               {myPosition !== null && (
-                <div className="flex gap-2.5">
+      <div className="flex gap-2.5">
                   <StatPill
                     label="Posição"
                     value={`#${myPosition}`}
@@ -904,7 +904,7 @@ export default function RankingPage() {
                   ))}
                 </div>
               ) : (
-                <div className="flex items-end gap-3 justify-center">
+                <div className="flex items-end gap-2.5 sm:gap-3 justify-center">
                   {podiumOrder.map((entry) => (
                     <PodiumEntry
                       key={entry.user_id}

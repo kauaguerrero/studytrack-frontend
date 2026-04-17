@@ -628,10 +628,10 @@ export default function PerfilPage() {
 
   return (
     <div className="min-h-screen bg-slate-50/30 dark:bg-slate-950/50">
-      <div className="mx-auto max-w-[1400px] px-4 py-8 md:py-12 lg:px-8">
+      <div className="mx-auto max-w-[1400px] px-4 py-6 md:py-12 lg:px-8">
 
         {/* Header */}
-        <div className="mb-10 flex items-end justify-between">
+        <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl">
               Meu Perfil
@@ -650,7 +650,7 @@ export default function PerfilPage() {
         <div className="flex flex-col gap-8 md:flex-row md:items-start">
 
           {/* Navegação lateral */}
-          <nav className="flex md:w-60 flex-shrink-0 flex-row gap-1 overflow-x-auto md:flex-col md:overflow-visible pb-4 md:pb-0">
+          <nav className="grid grid-cols-2 gap-2 md:flex md:w-60 md:flex-shrink-0 md:flex-col md:overflow-visible pb-2 md:pb-0">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = activeTab === item.id
@@ -684,13 +684,13 @@ export default function PerfilPage() {
               {activeTab === 'personal' && (
                 profileLoading ? <PersonalTabSkeleton /> : (
                   <Card className="border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
-                    <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-6 pt-8 px-8">
+                    <CardHeader className="border-b border-slate-100 dark:border-slate-800 px-5 pb-5 pt-6 sm:px-8 sm:pb-6 sm:pt-8">
                       <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Identidade Pessoal</CardTitle>
                       <CardDescription className="text-sm mt-1 dark:text-slate-400">
                         Informações básicas da sua conta. Visíveis na plataforma conforme suas configurações de privacidade.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="pt-8 px-8">
+                    <CardContent className="px-5 pt-6 sm:px-8 sm:pt-8">
                       <input
                         ref={fileInputRef}
                         type="file"
@@ -703,7 +703,7 @@ export default function PerfilPage() {
                         {/* Coluna esquerda */}
                         <div className="space-y-6">
                           {/* Avatar */}
-                          <div className="flex items-center gap-6">
+                          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
                             <button
                               type="button"
                               onClick={() => fileInputRef.current?.click()}
@@ -746,7 +746,7 @@ export default function PerfilPage() {
                           </div>
 
                           {/* Campos primários */}
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2 col-span-2">
                               <Label htmlFor="fullName" className="text-slate-700 dark:text-slate-200 font-bold">Nome Completo</Label>
                               <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} className={`rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 ${focusRingStyle}`} />
@@ -781,7 +781,7 @@ export default function PerfilPage() {
                             <Label htmlFor="accessibilityNeeds" className="text-slate-700 dark:text-slate-200 font-bold">Necessidade de Acessibilidade</Label>
                             <Textarea id="accessibilityNeeds" value={accessibilityNeeds} onChange={(e) => setAccessibilityNeeds(e.target.value)} placeholder="Ex: dislexia, daltonismo, baixa visão..." maxLength={500} className={`rounded-xl bg-slate-50/50 resize-none min-h-[72px] ${focusRingStyle}`} />
                           </div>
-                          <div className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-5 py-4">
+                          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="space-y-0.5">
                               <Label className="text-slate-700 dark:text-slate-200 font-bold">Perfil Público</Label>
                               <p className="text-xs text-slate-500 dark:text-slate-400">Permite que outros alunos vejam seu perfil e estatísticas.</p>
@@ -791,8 +791,8 @@ export default function PerfilPage() {
                         </div>
                       </div>
                     </CardContent>
-                    <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-8 py-5 flex justify-end">
-                      <Button onClick={handleSavePersonal} disabled={savingPersonal} style={primaryBtnStyle} className="rounded-xl px-8 font-semibold shadow-md transition-all hover:opacity-90">
+                    <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-5 py-4 sm:px-8 sm:py-5 flex justify-end">
+                      <Button onClick={handleSavePersonal} disabled={savingPersonal} style={primaryBtnStyle} className="w-full rounded-xl px-8 font-semibold shadow-md transition-all hover:opacity-90 sm:w-auto">
                         {savingPersonal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                         Salvar Identidade
                       </Button>
@@ -804,13 +804,13 @@ export default function PerfilPage() {
               {/* ── TAB: JORNADA ACADÊMICA ──────────────────────────────── */}
               {activeTab === 'journey' && (
                 <Card className="border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
-                  <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-6 pt-8 px-8">
+                  <CardHeader className="border-b border-slate-100 dark:border-slate-800 px-5 pb-5 pt-6 sm:px-8 sm:pb-6 sm:pt-8">
                     <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Jornada Acadêmica</CardTitle>
                     <CardDescription className="text-sm mt-1 dark:text-slate-400">
                       Configure seu objetivo, curso alvo e fase de estudo. A IA utiliza esses dados para personalizar seu aprendizado.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-8 pt-8 px-8">
+                  <CardContent className="space-y-8 px-5 pt-6 sm:px-8 sm:pt-8">
                     <div className="grid gap-6 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label className="text-slate-700 dark:text-slate-200 font-bold">Curso Alvo</Label>
@@ -855,8 +855,8 @@ export default function PerfilPage() {
                       </div>
                     </div>
                   </CardContent>
-                  <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-8 py-5 flex justify-end">
-                    <Button onClick={handleSaveJourney} disabled={savingJourney} style={primaryBtnStyle} className="rounded-xl px-8 font-semibold shadow-md hover:opacity-90">
+                  <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-5 py-4 sm:px-8 sm:py-5 flex justify-end">
+                    <Button onClick={handleSaveJourney} disabled={savingJourney} style={primaryBtnStyle} className="w-full rounded-xl px-8 font-semibold shadow-md hover:opacity-90 sm:w-auto">
                       {savingJourney && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Salvar alterações
                     </Button>
@@ -867,13 +867,13 @@ export default function PerfilPage() {
               {/* ── TAB: ROTINA DE ESTUDOS ──────────────────────────────── */}
               {activeTab === 'routine' && (
                 <Card className="border-slate-200/60 dark:border-slate-700/60 shadow-sm rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
-                  <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-6 pt-8 px-8">
+                  <CardHeader className="border-b border-slate-100 dark:border-slate-800 px-5 pb-5 pt-6 sm:px-8 sm:pb-6 sm:pt-8">
                     <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Rotina de Estudos</CardTitle>
                     <CardDescription className="text-sm mt-1 dark:text-slate-400">
                       Alinhe ritmo, dias e horas ao seu planejamento. Usados pela IA para sugerir cronogramas personalizados.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-8 pt-8 px-8">
+                  <CardContent className="space-y-8 px-5 pt-6 sm:px-8 sm:pt-8">
                     <div className="space-y-2">
                       <Label className="text-slate-700 dark:text-slate-200 font-bold">Ritmo de Estudo</Label>
                       <Select value={studyPace || 'moderate'} onValueChange={setStudyPace}>
@@ -939,7 +939,7 @@ export default function PerfilPage() {
                           Defina a janela de horário disponível. Os lembretes de WhatsApp serão enviados nesse período.
                         </p>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                         <div className="flex-1 space-y-1">
                           <Label className="text-xs text-slate-500 dark:text-slate-400 font-medium">Das</Label>
                           <input
@@ -969,8 +969,8 @@ export default function PerfilPage() {
                       )}
                     </div>
                   </CardContent>
-                  <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-8 py-5 flex justify-end">
-                    <Button onClick={handleSaveRoutine} disabled={savingRoutine} style={primaryBtnStyle} className="rounded-xl px-8 font-semibold shadow-md hover:opacity-90">
+                  <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-5 py-4 sm:px-8 sm:py-5 flex justify-end">
+                    <Button onClick={handleSaveRoutine} disabled={savingRoutine} style={primaryBtnStyle} className="w-full rounded-xl px-8 font-semibold shadow-md hover:opacity-90 sm:w-auto">
                       {savingRoutine ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
                       Salvar Rotina
                     </Button>
