@@ -1000,7 +1000,7 @@ export default function AdminQuestionApproval() {
                   {/* Dicas de Teclado Flutuantes */}
                   <div className="absolute -top-8 left-0 right-0 flex justify-center gap-8 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                     <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
-                      Atalho: DELET ou BACKSPACE
+                      Atalho: DEL ou BACKSPACE
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
                       Atalho: ENTER
