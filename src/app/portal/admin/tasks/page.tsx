@@ -111,9 +111,24 @@ export default function AdminTasksPage() {
 
   const sprintTaskIds = activeSprint?.tasks.map(item => item.task_id) ?? [];
   const filteredTasks = applyFilters(rawTasks, filters);
+  const activeSprintTaskIds = new Set(sprintTaskIds);
+  const tasksWithSprintContext = filteredTasks.map(task => (
+    activeSprintTaskIds.has(task.id)
+      ? {
+          ...task,
+          active_sprint: {
+            id: activeSprint!.id,
+            goal: activeSprint!.goal,
+            status: activeSprint!.status,
+            start_date: activeSprint!.start_date,
+            end_date: activeSprint!.end_date,
+          },
+        }
+      : task
+  ));
   const tasks = activeSprint && sprintOnly
-    ? filteredTasks.filter(task => sprintTaskIds.includes(task.id))
-    : filteredTasks;
+    ? tasksWithSprintContext.filter(task => activeSprintTaskIds.has(task.id))
+    : tasksWithSprintContext;
   const backlogTasks = rawTasks.filter(task => task.status === 'backlog');
   const { task: selectedTask } = useTaskDetail(selectedTaskId);
   const agingTasks = tasks.filter(task => {

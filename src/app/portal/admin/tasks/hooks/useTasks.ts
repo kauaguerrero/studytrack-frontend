@@ -52,6 +52,13 @@ export interface Task {
   last_reopened_at?: string | null;
   last_progress_update_at?: string | null;
   currently_doing?: string | null;
+  active_sprint?: {
+    id: string;
+    goal: string;
+    status: 'active' | 'completed';
+    start_date: string;
+    end_date: string;
+  } | null;
 }
 
 export interface SprintTaskLink {

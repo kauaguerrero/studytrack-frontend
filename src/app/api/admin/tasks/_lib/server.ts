@@ -81,7 +81,54 @@ export async function listTaskAssignableProfiles(supabaseAdmin: AdminClient) {
     .order('full_name');
 
   if (error) throw new Error(error.message);
-  return data ?? [];
+
+  const baseProfiles = data ?? [];
+
+  // Fallback defensivo: usa também qualquer perfil já referenciado nas tasks.
+  // Isso evita sumiço dos filtros quando a role do responsável/criador não cai
+  // exatamente no recorte admin/dev ou está temporariamente inconsistente.
+  const { data: taskRefs, error: taskRefsError } = await supabaseAdmin
+    .from('admin_tasks')
+    .select('assignee_id, co_assignee_id, created_by, assignee_ids');
+
+  if (taskRefsError) throw new Error(taskRefsError.message);
+
+  const referencedProfileIds = new Set<string>();
+  for (const row of taskRefs ?? []) {
+    const assigneeIds = Array.isArray(row.assignee_ids)
+      ? row.assignee_ids.map((value: unknown) => String(value).trim()).filter(Boolean)
+      : [];
+
+    for (const value of [row.assignee_id, row.co_assignee_id, row.created_by, ...assigneeIds]) {
+      if (typeof value === 'string' && value.trim()) {
+        referencedProfileIds.add(value.trim());
+      }
+    }
+  }
+
+  const missingIds = [...referencedProfileIds].filter(
+    (profileId) => !baseProfiles.some((profile: any) => profile.id === profileId)
+  );
+
+  if (!missingIds.length) return baseProfiles;
+
+  const { data: referencedProfiles, error: referencedProfilesError } = await supabaseAdmin
+    .from('profiles')
+    .select('id, full_name, avatar_url, role')
+    .in('id', missingIds);
+
+  if (referencedProfilesError) throw new Error(referencedProfilesError.message);
+
+  const mergedProfiles = [...baseProfiles, ...(referencedProfiles ?? [])];
+  const dedupedProfiles = Array.from(
+    new Map(
+      mergedProfiles.map((profile: any) => [profile.id, profile])
+    ).values()
+  );
+
+  return dedupedProfiles.sort((a: any, b: any) =>
+    String(a.full_name ?? '').localeCompare(String(b.full_name ?? ''), 'pt-BR')
+  );
 }
 
 export async function buildTasksDataset(supabaseAdmin: AdminClient) {

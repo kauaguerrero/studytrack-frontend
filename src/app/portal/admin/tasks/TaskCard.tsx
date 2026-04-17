@@ -105,6 +105,19 @@ export default function TaskCard({ task, onClick, onDragStart }: Props) {
           >
             {pc.label}
           </span>
+          {task.active_sprint?.status === 'active' && (
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded inline-block"
+              style={{
+                background: 'rgba(20,184,166,0.12)',
+                color: '#0f766e',
+                border: '1px solid rgba(20,184,166,0.28)',
+              }}
+              title={task.active_sprint.goal}
+            >
+              Sprint ativa
+            </span>
+          )}
           {readinessHint && (
             <span
               className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded"
