@@ -599,20 +599,43 @@ export default function ConfiguracoesPage() {
 
   return (
     <PartnerLayout>
-      <div className="mx-auto w-full max-w-4xl space-y-6">
+      <div className="edificar-page-canvas -mx-4 -mt-4 px-4 pt-4 pb-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
+        <div className="edificar-page-frame mx-auto w-full max-w-4xl space-y-6 p-3 md:p-4">
         <Button variant="ghost" size="sm" asChild className="gap-1.5 -ml-2">
           <Link href={`/partners/${org.slug}/dashboard`}>
             <ArrowLeft className="h-4 w-4" /> Voltar
           </Link>
         </Button>
 
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Configurações</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Personalize a identidade visual do portal</p>
-        </div>
+        <section
+          className="relative overflow-hidden rounded-3xl border p-6 shadow-sm"
+          style={{
+            borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, #e5e7eb)',
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 13%, white) 0%, color-mix(in srgb, var(--brand-secondary) 9%, white) 100%)',
+          }}
+        >
+          <div
+            className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full blur-3xl opacity-60"
+            style={{ background: 'color-mix(in srgb, var(--brand-secondary) 48%, transparent)' }}
+          />
+          <div className="relative z-10">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
+              style={{
+                color: 'var(--brand-primary)',
+                borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
+                background: 'rgba(255,255,255,0.52)',
+              }}
+            >
+              <Palette className="h-3.5 w-3.5" />
+              Aparência do portal
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Configurações</h1>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Personalize a identidade visual do portal com uma leitura mais quente e elegante.</p>
+          </div>
+        </section>
 
         {/* Identidade Visual */}
-        <Card>
+        <Card className="edificar-major-surface">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <Palette className="h-4 w-4" /> Identidade Visual
@@ -622,7 +645,7 @@ export default function ConfiguracoesPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+            <div className="edificar-soft-surface space-y-2 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
                 Modo de visualização do Founder
               </Label>
@@ -658,7 +681,7 @@ export default function ConfiguracoesPage() {
               </p>
             </div>
 
-            <div className="space-y-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+            <div className="edificar-soft-surface space-y-2 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
                 Foto de perfil do Founder
               </Label>
@@ -799,7 +822,7 @@ export default function ConfiguracoesPage() {
         </Card>
 
         {/* Contato */}
-        <Card>
+        <Card className="edificar-major-surface">
           <CardHeader>
             <CardTitle className="text-sm">Contato</CardTitle>
           </CardHeader>
@@ -817,7 +840,7 @@ export default function ConfiguracoesPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="edificar-major-surface">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <Users className="h-4 w-4" /> Associados
@@ -903,7 +926,7 @@ export default function ConfiguracoesPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="edificar-soft-surface rounded-xl border border-slate-200 dark:border-slate-700">
               {associatesLoading ? (
                 <div className="p-4 text-sm text-slate-500">Carregando associados...</div>
               ) : associates.length === 0 ? (
@@ -983,6 +1006,7 @@ export default function ConfiguracoesPage() {
           <Save className="h-4 w-4" />
           {saving ? 'Salvando...' : 'Salvar Configurações'}
         </Button>
+        </div>
       </div>
       {avatarCropOpen && avatarCropUrl && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">

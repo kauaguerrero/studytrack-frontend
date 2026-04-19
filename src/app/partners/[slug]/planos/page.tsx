@@ -549,7 +549,8 @@ export default function PartnerPlansPage() {
 
   return (
     <PartnerLayout>
-      <div className="space-y-6">
+      <div className="edificar-page-canvas -mx-4 -mt-4 space-y-6 px-4 pt-4 pb-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
+        <div className="edificar-page-frame space-y-6 p-3 md:p-4">
         <section
           className="relative overflow-hidden rounded-2xl border p-5 shadow-sm"
           style={{
@@ -600,7 +601,7 @@ export default function PartnerPlansPage() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-5">
-          <form onSubmit={handleCreatePlan} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 xl:col-span-2">
+          <form onSubmit={handleCreatePlan} className="edificar-major-surface space-y-4 rounded-2xl border border-slate-200 p-5 shadow-sm dark:border-slate-800 xl:col-span-2">
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Criar novo plano</h2>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -676,7 +677,7 @@ export default function PartnerPlansPage() {
             </Button>
           </form>
 
-          <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 xl:col-span-3">
+          <div className="edificar-major-surface space-y-3 rounded-2xl border border-slate-200 p-5 shadow-sm dark:border-slate-800 xl:col-span-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Planos cadastrados</h2>
@@ -748,7 +749,7 @@ export default function PartnerPlansPage() {
           </div>
         </section>
 
-        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <section className="edificar-major-surface space-y-4 rounded-2xl border border-slate-200 p-5 shadow-sm dark:border-slate-800">
           {expiringStudents.length > 0 && (
             <div
               className={cn(
@@ -823,7 +824,24 @@ export default function PartnerPlansPage() {
             </div>
           </div>
 
-          <div className="space-y-2">{studentAssignmentRows}</div>
+          <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--brand-primary)_14%,transparent)] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),color-mix(in_srgb,var(--brand-primary)_4%,white))] p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Painel de vínculo</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Uma área única para buscar, alterar e revisar pagamentos sem perder contexto.</p>
+              </div>
+              <div className="hidden rounded-full border px-3 py-1 text-xs font-semibold md:inline-flex"
+                style={{
+                  color: 'var(--brand-primary)',
+                  borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
+                  background: 'color-mix(in srgb, var(--brand-primary) 8%, white)',
+                }}
+              >
+                {filteredStudents.length} aluno(s) visíveis
+              </div>
+            </div>
+            <div className="space-y-2">{studentAssignmentRows}</div>
+          </div>
 
           {filteredStudents.length === 0 && !loading && (
             <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
@@ -832,7 +850,7 @@ export default function PartnerPlansPage() {
           )}
         </section>
 
-        <section className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 md:grid-cols-3">
+        <section className="edificar-major-surface grid gap-3 rounded-2xl border border-slate-200 p-4 text-xs text-slate-600 shadow-sm dark:border-slate-800 dark:text-slate-300 md:grid-cols-3">
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
             <p className="font-semibold text-slate-900 dark:text-slate-100">1. Nome do plano</p>
             <p>Use um título claro: ex. &quot;Mensal 4 Redações&quot;.</p>
@@ -846,6 +864,7 @@ export default function PartnerPlansPage() {
             <p>Selecione o plano e registre a data do último pagamento.</p>
           </div>
         </section>
+        </div>
       </div>
     </PartnerLayout>
   );

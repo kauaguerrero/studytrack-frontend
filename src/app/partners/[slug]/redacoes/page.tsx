@@ -455,8 +455,18 @@ export default function PartnerRedacoesPage() {
 
   return (
     <PartnerLayout>
-      <div className="space-y-6 min-h-full bg-slate-50 dark:bg-slate-950 -mx-4 -mt-4 md:-mx-8 md:-mt-8 px-4 pt-4 md:px-8 md:pt-8 pb-8">
-        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5 dark:border-slate-800 dark:bg-slate-900">
+      <div className="edificar-page-canvas space-y-6 min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
+        <div className="edificar-page-frame space-y-6 p-3 md:p-4">
+        <section
+          className="edificar-major-surface relative space-y-4 overflow-hidden rounded-2xl border border-slate-200 p-4 shadow-sm md:p-5 dark:border-slate-800"
+          style={{
+            background: 'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 7%, white) 0%, rgba(255,255,255,0.96) 32%, rgba(255,255,255,0.98) 100%)',
+          }}
+        >
+          <div
+            className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full blur-3xl opacity-40"
+            style={{ background: 'color-mix(in srgb, var(--brand-secondary) 38%, transparent)' }}
+          />
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Redações</h1>
             {metrics.pending_count > 0 && (
@@ -562,7 +572,7 @@ export default function PartnerRedacoesPage() {
             />
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+          <div className="edificar-soft-surface rounded-xl border border-slate-200 p-3 dark:border-slate-800">
             <h2 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Ranking dos alunos (Top 10)</h2>
 
             {metricsLoading ? (
@@ -690,7 +700,7 @@ export default function PartnerRedacoesPage() {
           </div>
         </section>
 
-        <section ref={queueSectionRef} className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <section ref={queueSectionRef} className="edificar-major-surface space-y-3 rounded-2xl border border-slate-200 p-4 shadow-sm dark:border-slate-800">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Redações a Corrigir</h2>
@@ -790,6 +800,7 @@ export default function PartnerRedacoesPage() {
             </>
           )}
         </section>
+        </div>
       </div>
     </PartnerLayout>
   );

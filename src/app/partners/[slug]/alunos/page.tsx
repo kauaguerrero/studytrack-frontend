@@ -287,7 +287,8 @@ export default function AlunosPage() {
 
   return (
     <PartnerLayout>
-      <div className="space-y-5">
+      <div className="edificar-page-canvas -mx-4 -mt-4 space-y-5 px-4 pt-4 pb-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
+        <div className="edificar-page-frame space-y-5 p-3 md:p-4">
 
         {/* ── Hero Header ───────────────────────────────────────────────────── */}
         <div
@@ -345,7 +346,8 @@ export default function AlunosPage() {
         </div>
 
         {/* ── Filtros ───────────────────────────────────────────────────────── */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="edificar-major-surface rounded-2xl border p-3 sm:p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
@@ -400,10 +402,11 @@ export default function AlunosPage() {
               Adicionar
             </Link>
           </Button>
+          </div>
         </div>
 
         {/* ── Lista de Alunos ───────────────────────────────────────────────── */}
-        <div className="space-y-2">
+        <div className="edificar-major-surface space-y-2 rounded-2xl border p-3 sm:p-4">
           {loading ? (
             [...Array(6)].map((_, i) => (
               <div
@@ -435,7 +438,7 @@ export default function AlunosPage() {
                   key={s.id}
                   className={cn(
                     'group flex items-center gap-4 rounded-2xl px-4 py-3.5',
-                    'bg-white dark:bg-slate-900',
+                    'edificar-soft-surface',
                     'border border-slate-100 dark:border-slate-800',
                     'shadow-sm hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700',
                     'transition-all duration-200',
@@ -588,6 +591,7 @@ export default function AlunosPage() {
           </div>
         )}
 
+        </div>
       </div>
     </PartnerLayout>
   );
