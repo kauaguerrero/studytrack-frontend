@@ -13,7 +13,7 @@ import { motion, AnimatePresence, useAnimation, useReducedMotion } from 'framer-
 import {
   Timer, ArrowRight, ArrowLeft, CheckCircle2, Play, RotateCcw,
   Trophy, BookOpen, History, Brain, ChevronDown, ChevronLeft, TrendingUp,
-  Medal, BarChart3, Plus, Clock, Zap,
+  Medal, BarChart3, Plus, Clock, Zap, Flag,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import {
@@ -22,6 +22,7 @@ import {
 } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
 import { UpsellModal } from '@/components/modals/UpsellModal'
+import { ReportDialog } from '@/components/questions/ReportDialog'
 import { SimuladoRewardPopup } from '@/components/partners/gamification/SimuladoRewardPopup'
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext'
 import {
@@ -46,6 +47,8 @@ interface SubjectResult { correct: number; total: number; percentage: number }
 interface FinishResult {
   score: number; total: number; percentage: number; tri_score: number | null
   time_taken_secs: number; results_by_subject: Record<string, SubjectResult>; session_id: string
+  annulled_question_ids?: string[];
+  annulled_questions_count?: number;
   new_streak?: number;
   streak_updated?: boolean;
 }
@@ -296,6 +299,9 @@ export default function SimuladoPage() {
   const startTimeRef = useRef<number>(0)
   const [finishResult, setFinishResult] = useState<FinishResult | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [reportDialogOpen, setReportDialogOpen] = useState(false)
+  const [reportQuestionId, setReportQuestionId] = useState<string | null>(null)
+  const [reportedQuestionIds, setReportedQuestionIds] = useState<Set<string>>(new Set())
 
   // Auth
   const [accessToken, setAccessToken] = useState<string | null>(null)
@@ -451,6 +457,7 @@ export default function SimuladoPage() {
       setTimeLeft(data.questions.length * 3 * 60)
       startTimeRef.current = Date.now()
       setUserAnswers({}); setCurrentIdx(0); setFinishResult(null)
+      setReportedQuestionIds(new Set())
       prevTimeLeftRef.current = data.questions.length * 3 * 60
       setStep('quiz')
     } catch { toast.error('Erro de conexão', { description: 'Não foi possível conectar ao servidor.' }) }
@@ -517,6 +524,7 @@ export default function SimuladoPage() {
   const resetSimulado = (openModal = false) => {
     setStep('setup'); setQuestions([]); setCurrentIdx(0); setUserAnswers({}); setTimeLeft(0)
     setSessionId(null); setFinishResult(null); setDashVersion(v => v + 1)
+    setReportedQuestionIds(new Set()); setReportDialogOpen(false); setReportQuestionId(null)
     if (openModal) setShowConfigModal(true)
   }
 
@@ -525,6 +533,7 @@ export default function SimuladoPage() {
   const displayScore = finishResult?.score ?? localScore
   const displayTotal = finishResult?.total ?? questions.length
   const displayPct = finishResult?.percentage ?? Math.round((localScore / Math.max(questions.length, 1)) * 100)
+  const annulledCount = finishResult?.annulled_questions_count ?? reportedQuestionIds.size
   const celebration = celebrationMessage(displayPct)
   const isTimeCritical = timeLeft > 0 && timeLeft <= 300
 
@@ -532,6 +541,19 @@ export default function SimuladoPage() {
   return (
     <>
       <UpsellModal isOpen={upsellOpen} onClose={() => setUpsellOpen(false)} reason={upsellReason} />
+      <ReportDialog
+        open={reportDialogOpen}
+        onOpenChange={setReportDialogOpen}
+        questionId={reportQuestionId || ''}
+        authToken={accessToken}
+        onSuccess={() => {
+          if (!reportQuestionId) return
+          setReportedQuestionIds(prev => new Set(prev).add(reportQuestionId))
+          setReportDialogOpen(false)
+          setReportQuestionId(null)
+          toast.success('Questão reportada. Ela será anulada no resultado final.')
+        }}
+      />
 
       {/* ── Finish dialog ── */}
       <Dialog open={finishDialogOpen} onOpenChange={setFinishDialogOpen}>
@@ -942,15 +964,34 @@ export default function SimuladoPage() {
           <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-6 pb-40">
             <div ref={questionTopRef} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
               {/* Tags */}
-              <div className="flex flex-wrap gap-2 mb-5">
-                <span className="text-xs font-bold px-3 py-1 rounded-full text-white" style={{ background: 'var(--brand-primary)' }}>
-                  {questions[currentIdx].subject}
-                </span>
-                {questions[currentIdx].topic && (
-                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
-                    {questions[currentIdx].topic}
+              <div className="mb-5 flex items-start justify-between gap-3">
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-xs font-bold px-3 py-1 rounded-full text-white" style={{ background: 'var(--brand-primary)' }}>
+                    {questions[currentIdx].subject}
                   </span>
-                )}
+                  {questions[currentIdx].topic && (
+                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                      {questions[currentIdx].topic}
+                    </span>
+                  )}
+                  {reportedQuestionIds.has(questions[currentIdx].id) && (
+                    <span className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-bold px-3 py-1 rounded-full border border-amber-200 dark:border-amber-800">
+                      Anulada ao finalizar
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReportQuestionId(questions[currentIdx].id)
+                    setReportDialogOpen(true)
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 shrink-0"
+                  title="Reportar erro nesta questão"
+                >
+                  <Flag className="h-3.5 w-3.5" />
+                  Reportar erro
+                </button>
               </div>
 
               {/* Context */}
@@ -980,9 +1021,10 @@ export default function SimuladoPage() {
               <div className="space-y-3">
                 {questions[currentIdx].alternatives?.map(alt => {
                   const isSelected = userAnswers[questions[currentIdx].id] === alt.letter
+                  const isAnnulled = reportedQuestionIds.has(questions[currentIdx].id)
                   return (
-                    <button key={alt.letter} onClick={() => handleSelectOption(alt.letter)}
-                      className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start cursor-pointer active:scale-[0.99] ${isSelected ? 'shadow-sm' : 'bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700'}`}
+                    <button key={alt.letter} onClick={() => handleSelectOption(alt.letter)} disabled={isAnnulled}
+                      className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start active:scale-[0.99] ${isAnnulled ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40' : isSelected ? 'shadow-sm cursor-pointer' : 'bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-pointer'}`}
                       style={isSelected ? {
                         background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)', // transparent on dark mode mixes better
                         borderColor: 'var(--brand-primary)',
@@ -1016,6 +1058,11 @@ export default function SimuladoPage() {
                   )
                 })}
               </div>
+              {reportedQuestionIds.has(questions[currentIdx].id) && (
+                <div className="mt-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                  Esta questão foi reportada e será desconsiderada no resultado final do simulado.
+                </div>
+              )}
             </div>
 
             {/* Question navigator */}
@@ -1127,6 +1174,13 @@ export default function SimuladoPage() {
                     <span className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-0.5">de {displayTotal}</span>
                   </div>
                 </div>
+
+                {annulledCount > 0 && (
+                  <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
+                    <Flag className="h-4 w-4" />
+                    {annulledCount} questão(ões) anulada(s) por report e desconsiderada(s) no resultado.
+                  </div>
+                )}
 
                 {/* Stats row */}
                 <div className="flex flex-wrap items-center justify-center gap-6 mb-8">

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, XCircle, Brain, Loader2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, XCircle, Brain, Loader2, Flag } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { createClient } from '@/lib/supabase/client'
 
@@ -23,6 +23,7 @@ interface ReviewExplanationEntry {
     correct_answer: string
     user_answer: string | null
     is_correct: boolean
+    is_annulled?: boolean
     subject: string
 }
 
@@ -30,6 +31,7 @@ interface SessionDetail {
     score: number
     total_questions: number
     percentage: number
+    annulled_question_ids?: string[]
     question_ids?: string[]
     answers: Record<string, string>
     questions: QuestionContent[]
@@ -38,6 +40,7 @@ interface SessionDetail {
 interface ReviewQuestion extends QuestionContent {
     user_answer: string | null
     is_correct: boolean
+    is_annulled: boolean
     explanation: string | null
 }
 
@@ -62,6 +65,7 @@ export default function RevisaoPage() {
     const [error, setError] = useState<string | null>(null)
     const [accessToken, setAccessToken] = useState<string | null>(null)
     const [filter, setFilter] = useState<'all' | 'wrong' | 'right'>('all')
+    const [annulledCount, setAnnulledCount] = useState(0)
 
     useEffect(() => {
         const init = async () => {
@@ -98,7 +102,11 @@ export default function RevisaoPage() {
             }
 
             const [reviewData, sessionData]: [
-                { explanations: Record<string, ReviewExplanationEntry>; session_id: string },
+                {
+                    explanations: Record<string, ReviewExplanationEntry>;
+                    session_id: string;
+                    annulled_question_ids?: string[];
+                },
                 SessionDetail,
             ] = await Promise.all([reviewRes.json(), sessionRes.json()])
 
@@ -107,6 +115,7 @@ export default function RevisaoPage() {
                 total: sessionData.total_questions,
                 pct: sessionData.percentage,
             })
+            setAnnulledCount(reviewData.annulled_question_ids?.length || sessionData.annulled_question_ids?.length || 0)
 
             const merged: ReviewQuestion[] = sessionData.questions.map(q => {
                 const exp = reviewData.explanations?.[q.id]
@@ -114,6 +123,7 @@ export default function RevisaoPage() {
                     ...q,
                     user_answer: exp?.user_answer ?? (sessionData.answers?.[q.id]?.toUpperCase() || null),
                     is_correct: exp?.is_correct ?? false,
+                    is_annulled: Boolean(exp?.is_annulled),
                     explanation: exp?.explanation ?? null,
                 }
             })
@@ -131,7 +141,7 @@ export default function RevisaoPage() {
     }, [fetchReview])
 
     const visibleQuestions = questions.filter(q => {
-        if (filter === 'wrong') return !q.is_correct
+        if (filter === 'wrong') return !q.is_correct && !q.is_annulled
         if (filter === 'right') return q.is_correct
         return true
     })
@@ -185,16 +195,24 @@ export default function RevisaoPage() {
                     <>
                         {/* Summary + filter */}
                         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mb-4 flex items-center justify-between gap-4">
-                            {summary && (
-                                <div>
-                                    <span className={`text-3xl font-black ${scoreColor(summary.pct)}`}>
-                                        {summary.score}/{summary.total}
-                                    </span>
-                                    <span className={`ml-2 text-base font-bold ${scoreColor(summary.pct)}`}>
-                                        ({summary.pct}%)
-                                    </span>
-                                </div>
-                            )}
+                            <div>
+                                {summary && (
+                                    <div>
+                                        <span className={`text-3xl font-black ${scoreColor(summary.pct)}`}>
+                                            {summary.score}/{summary.total}
+                                        </span>
+                                        <span className={`ml-2 text-base font-bold ${scoreColor(summary.pct)}`}>
+                                            ({summary.pct}%)
+                                        </span>
+                                    </div>
+                                )}
+                                {annulledCount > 0 && (
+                                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                                        <Flag size={12} />
+                                        {annulledCount} anulada(s) por report
+                                    </div>
+                                )}
+                            </div>
                             <div className="flex gap-2">
                                 {(['all', 'wrong', 'right'] as const).map(f => (
                                     <button
@@ -218,18 +236,31 @@ export default function RevisaoPage() {
                                 <div
                                     key={q.id}
                                     className={`bg-white dark:bg-slate-900 rounded-2xl border shadow-sm overflow-hidden ${
-                                        q.is_correct ? 'border-green-200 dark:border-green-900/50' : 'border-red-200 dark:border-red-900/50'
+                                        q.is_annulled
+                                            ? 'border-amber-200 dark:border-amber-900/50'
+                                            : q.is_correct
+                                                ? 'border-green-200 dark:border-green-900/50'
+                                                : 'border-red-200 dark:border-red-900/50'
                                     }`}
                                 >
                                     {/* Question header */}
-                                    <div className={`flex items-center gap-3 px-5 py-3 ${q.is_correct ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-                                        {q.is_correct
+                                    <div className={`flex items-center gap-3 px-5 py-3 ${
+                                        q.is_annulled
+                                            ? 'bg-amber-50 dark:bg-amber-900/20'
+                                            : q.is_correct
+                                                ? 'bg-green-50 dark:bg-green-900/20'
+                                                : 'bg-red-50 dark:bg-red-900/20'
+                                    }`}>
+                                        {q.is_annulled
+                                            ? <Flag size={18} className="text-amber-600 dark:text-amber-400 shrink-0" />
+                                            : q.is_correct
                                             ? <CheckCircle2 size={18} className="text-green-600 dark:text-green-400 shrink-0" />
                                             : <XCircle size={18} className="text-red-600 dark:text-red-400 shrink-0" />
                                         }
                                         <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Questão {idx + 1}</span>
                                         <span className="text-xs text-slate-400 dark:text-slate-500">{q.subject}</span>
                                         {q.topic && <span className="text-xs text-slate-400 dark:text-slate-500">· {q.topic}</span>}
+                                        {q.is_annulled && <span className="text-xs font-bold text-amber-700 dark:text-amber-300">Anulada</span>}
                                     </div>
 
                                     <div className="p-5">
@@ -249,7 +280,7 @@ export default function RevisaoPage() {
                                         <div className="space-y-2 mb-4">
                                             {q.alternatives?.map(alt => {
                                                 const isCorrect = alt.letter === q.correct_option?.toUpperCase()
-                                                const isUserWrong = alt.letter === q.user_answer?.toUpperCase() && !q.is_correct
+                                                const isUserWrong = alt.letter === q.user_answer?.toUpperCase() && !q.is_correct && !q.is_annulled
                                                 return (
                                                     <div
                                                         key={alt.letter}
@@ -303,10 +334,13 @@ export default function RevisaoPage() {
 
                                         {/* Answer summary */}
                                         <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mb-4">
-                                            {q.user_answer
-                                                ? <span>Sua resposta: <strong className={q.is_correct ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{q.user_answer}</strong></span>
-                                                : <span className="text-slate-400 dark:text-slate-500">Não respondida</span>
-                                            }
+                                            {q.is_annulled ? (
+                                                <span className="font-semibold text-amber-700 dark:text-amber-300">Questão anulada por report</span>
+                                            ) : q.user_answer ? (
+                                                <span>Sua resposta: <strong className={q.is_correct ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>{q.user_answer}</strong></span>
+                                            ) : (
+                                                <span className="text-slate-400 dark:text-slate-500">Não respondida</span>
+                                            )}
                                             <span>Gabarito: <strong className="text-green-600 dark:text-green-400">{q.correct_option?.toUpperCase()}</strong></span>
                                         </div>
 
