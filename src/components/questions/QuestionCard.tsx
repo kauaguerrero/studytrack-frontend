@@ -108,17 +108,28 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
   const [selected, setSelected] = useState<string | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const contextMarkdownImages = useMemo(() => extractMarkdownImageUrls(question.context || ''), [question.context]);
+  const statementMarkdownImages = useMemo(() => extractMarkdownImageUrls(question.statement || ''), [question.statement]);
+  const hasInlineMarkdownImages = contextMarkdownImages.length > 0 || statementMarkdownImages.length > 0;
 
   const supportImages = useMemo(() => {
     const fromImagesField = extractImageUrls(question.images);
-    const fromContext = extractMarkdownImageUrls(question.context || '');
-    const fromStatement = extractMarkdownImageUrls(question.statement || '');
-    const combined = fromImagesField.length > 0 ? fromImagesField : [...fromContext, ...fromStatement];
+    if (hasInlineMarkdownImages) {
+      const inlineImages = new Set([...contextMarkdownImages, ...statementMarkdownImages]);
+      return Array.from(new Set(fromImagesField.filter((url) => !inlineImages.has(url))));
+    }
+    const combined = fromImagesField.length > 0 ? fromImagesField : [...contextMarkdownImages, ...statementMarkdownImages];
     return Array.from(new Set(combined));
-  }, [question.images, question.context, question.statement]);
+  }, [question.images, contextMarkdownImages, statementMarkdownImages, hasInlineMarkdownImages]);
 
-  const contextText = useMemo(() => stripMarkdownImages(question.context || ''), [question.context]);
-  const statementText = useMemo(() => stripMarkdownImages(question.statement || ''), [question.statement]);
+  const contextText = useMemo(
+    () => (hasInlineMarkdownImages ? (question.context || '') : stripMarkdownImages(question.context || '')),
+    [question.context, hasInlineMarkdownImages],
+  );
+  const statementText = useMemo(
+    () => (hasInlineMarkdownImages ? (question.statement || '') : stripMarkdownImages(question.statement || '')),
+    [question.statement, hasInlineMarkdownImages],
+  );
 
   const handleSelect = (letter: string) => {
     if (!showAnswer) setSelected(letter);

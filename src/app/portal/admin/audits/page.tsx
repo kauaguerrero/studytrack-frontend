@@ -623,6 +623,10 @@ export default function AdminAuditCenterPage() {
   }, [runs, selectedRunId]);
   const runningRun = useMemo(() => runs.find(run => run.status === 'running') || null, [runs]);
   const selectedRow = useMemo(() => rows.find(row => row.id === selectedQuestionAuditId) || rows[0] || null, [rows, selectedQuestionAuditId]);
+  const selectedRowIndex = useMemo(() => {
+    if (!selectedRow) return -1;
+    return rows.findIndex(row => row.id === selectedRow.id);
+  }, [rows, selectedRow]);
   const selectedRunCurrentAudit = selectedRun?.current_audit || selectedRun?.progress?.current_audit || '—';
   const selectedRunCurrentQuestion = selectedRun?.current_question_external_id || selectedRun?.progress?.current_question_external_id || '—';
   const selectedRunProcessed = selectedRun?.processed_questions ?? selectedRun?.progress?.processed_questions ?? 0;
@@ -983,9 +987,11 @@ export default function AdminAuditCenterPage() {
             }
           : row
       )));
+      await markAuditResultHandled('pass');
+      removeRowFromQueue(selectedRow?.id || detail.id);
       toast.success('Questão atualizada.');
       setQuestionEditing(false);
-      await fetchDetail(selectedRow?.id || detail.id);
+      void fetchResults(resultsPage);
     } catch (error) {
       console.error('Erro ao salvar edição da questão:', error);
       void reportError('AdminAuditQuestionSaveError', String(error));
@@ -993,6 +999,30 @@ export default function AdminAuditCenterPage() {
     } finally {
       setQuestionSaving(false);
     }
+  }
+
+  async function markAuditResultHandled(nextStatus: 'pass' | 'resolved') {
+    if (!selectedRow?.id) return;
+    const payload = nextStatus === 'pass'
+      ? { status: 'pass', severity: 'none', issue_codes: [], issue_count: 0 }
+      : { status: 'resolved' };
+    const { error } = await supabase
+      .from('question_audit_results')
+      .update(payload)
+      .eq('id', selectedRow.id);
+    if (error) throw error;
+  }
+
+  function removeRowFromQueue(auditRowId: string) {
+    setRows(current => {
+      const currentIndex = current.findIndex(row => row.id === auditRowId);
+      if (currentIndex < 0) return current;
+      const nextRows = current.filter(row => row.id !== auditRowId);
+      const nextSelected = nextRows[currentIndex] || nextRows[currentIndex - 1] || nextRows[0] || null;
+      setSelectedQuestionAuditId(nextSelected?.id || null);
+      return nextRows;
+    });
+    setDetail(null);
   }
 
   async function unpublishQuestion() {
@@ -1005,8 +1035,10 @@ export default function AdminAuditCenterPage() {
         .eq('id', detail.question.id);
 
       if (error) throw error;
+      await markAuditResultHandled('resolved');
+      removeRowFromQueue(selectedRow?.id || detail.id);
       toast.success('Questão despublicada e removida do fluxo dos usuários.');
-      await fetchDetail(selectedRow?.id || detail.id);
+      void fetchResults(resultsPage);
     } catch (error) {
       console.error('Erro ao despublicar questão:', error);
       void reportError('AdminAuditQuestionUnpublishError', String(error));
@@ -1026,8 +1058,10 @@ export default function AdminAuditCenterPage() {
         .eq('id', detail.question.id);
 
       if (error) throw error;
+      await markAuditResultHandled('pass');
+      removeRowFromQueue(selectedRow?.id || detail.id);
       toast.success('Correção aplicada à questão.');
-      await fetchDetail(selectedRow?.id || detail.id);
+      void fetchResults(resultsPage);
     } catch (error) {
       console.error('Erro ao aplicar correção sugerida:', error);
       void reportError('AdminAuditQuestionApproveFixError', String(error));
@@ -1069,6 +1103,24 @@ export default function AdminAuditCenterPage() {
   useEffect(() => {
     setQuestionPreviewOpen(true);
   }, [selectedRow?.id]);
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (questionEditing || rows.length === 0) return;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        const nextRow = rows[selectedRowIndex + 1];
+        if (nextRow) setSelectedQuestionAuditId(nextRow.id);
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        const previousRow = rows[selectedRowIndex - 1];
+        if (previousRow) setSelectedQuestionAuditId(previousRow.id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [questionEditing, rows, selectedRowIndex]);
   useEffect(() => {
     if (runningRun === null) return;
     const interval = window.setInterval(() => {
@@ -1361,7 +1413,7 @@ export default function AdminAuditCenterPage() {
                       {detail?.suggested_fix && !questionEditing ? (
                         <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={questionPublishingAction !== null} onClick={() => void approveSuggestedFix()}>
                           {questionPublishingAction === 'approve_fix' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                          Aprovar correção
+                          Corrigir questão
                         </Button>
                       ) : null}
                       {detail?.question ? (
