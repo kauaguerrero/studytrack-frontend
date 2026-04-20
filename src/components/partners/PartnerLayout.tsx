@@ -25,9 +25,11 @@ import {
   Trophy,
   BadgeCheck,
   WalletCards,
+  Menu,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { ForcePasswordChangeModal } from '@/components/partners/ForcePasswordChangeModal';
 
@@ -48,13 +50,15 @@ function SidebarNavItem({
   label,
   collapsed,
   showNotification,
-}: NavItemDef & { collapsed?: boolean; showNotification?: boolean }) {
+  onClick,
+}: NavItemDef & { collapsed?: boolean; showNotification?: boolean; onClick?: () => void }) {
   const pathname = usePathname();
   const isActive = pathname === href || pathname.startsWith(href + '/');
 
   const linkEl = (
     <Link
       href={href}
+      onClick={onClick}
       style={isActive ? { backgroundColor: 'var(--brand-primary)' } : undefined}
       className={cn(
         'partner-nav-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors relative',
@@ -142,12 +146,16 @@ interface PartnerLayoutProps {
 
 export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutProps) {
   const { org, userProfile } = useOrg();
+  const pathname = usePathname();
   const { hasPendingCorrection } = useEssayNotification();
   const [isHovered, setIsHovered] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [passwordModalDismissed, setPasswordModalDismissed] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
   const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
+  const isEdificarStudent = variant === 'student' && org.slug === 'edificar';
+  const hideMobileChrome = isEdificarStudent && pathname.startsWith(`/partners/${org.slug}/student/simulado`);
 
   const founderNavItems: NavItemDef[] = [
     { href: `/partners/${org.slug}/dashboard`,      icon: LayoutDashboard, label: 'Dashboard',        shortLabel: 'Dashboard' },
@@ -176,6 +184,14 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const navItems = variant === 'student'
     ? studentNavItems
     : (isAssociate ? associateNavItems : founderNavItems);
+  const mobileBottomNavItems = isEdificarStudent
+    ? studentNavItems.filter((item) => (
+      item.href === `/partners/${org.slug}/student/dashboard`
+      || item.href === `/partners/${org.slug}/student/banco-de-questoes`
+      || item.href === `/partners/${org.slug}/student/redacoes`
+      || item.href === `/partners/${org.slug}/student/ranking`
+    ))
+    : navItems;
 
   const initials = userProfile.fullName
     .split(' ')
@@ -204,7 +220,13 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
 
   const collapsed = !isHovered;
 
-  const SidebarContent = ({ collapsed: c = false }: { collapsed?: boolean }) => (
+  const SidebarContent = ({
+    collapsed: c = false,
+    onNavigate,
+  }: {
+    collapsed?: boolean;
+    onNavigate?: () => void;
+  }) => (
     <div className="flex h-full flex-col">
       {/* Logo + org name */}
       <div className={cn('partner-sidebar-brand flex items-center gap-3 border-b dark:border-slate-800 px-4 py-4', c && 'justify-center px-2')}>
@@ -243,6 +265,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
             key={item.href}
             {...item}
             collapsed={c}
+            onClick={onNavigate}
             showNotification={
               variant === 'student'
                 && item.href === `/partners/${org.slug}/student/redacoes`
@@ -271,8 +294,8 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
               initials
             )}
           </div>
-          {!c && (
-            <>
+        {!c && (
+          <>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
                   {userProfile.fullName}
@@ -285,7 +308,10 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                onClick={handleSignOut}
+                onClick={async () => {
+                  onNavigate?.();
+                  await handleSignOut();
+                }}
                 title="Sair"
               >
                 <LogOut className="h-3.5 w-3.5" />
@@ -317,47 +343,61 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
       <div className="flex flex-1 flex-col overflow-hidden">
 
         {/* Mobile top header */}
-        <header className="partner-mobile-header flex items-center justify-between border-b dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 md:hidden shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            {org.logo_url ? (
-              <Image
-                src={org.logo_url}
-                alt={org.name}
-                width={28}
-                height={28}
-                className="rounded-md object-contain shrink-0"
-              />
-            ) : (
-              <div
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white"
-                style={{ backgroundColor: 'var(--brand-primary)' }}
-              >
-                <GraduationCap className="h-3.5 w-3.5" />
-              </div>
-            )}
-            <span className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-              {org.name}
-            </span>
-          </div>
-
-          {/* Avatar + sign out */}
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-2 rounded-xl py-1.5 pl-2 pr-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Sair"
-          >
-            <div
-              className="h-7 w-7 shrink-0 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white"
-              style={{ backgroundColor: 'var(--brand-primary)' }}
-            >
-              {userProfile.avatarUrl
-                // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={userProfile.avatarUrl} alt="" className="h-full w-full object-cover" />
-                : initials}
+        {!hideMobileChrome && (
+          <header className="flex items-center justify-between border-b dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 md:hidden shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {org.logo_url ? (
+                <Image
+                  src={org.logo_url}
+                  alt={org.name}
+                  width={28}
+                  height={28}
+                  className="rounded-md object-contain shrink-0"
+                />
+              ) : (
+                <div
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white"
+                  style={{ backgroundColor: 'var(--brand-primary)' }}
+                >
+                  <GraduationCap className="h-3.5 w-3.5" />
+                </div>
+              )}
+              <span className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                {org.name}
+              </span>
             </div>
-            <LogOut className="h-3.5 w-3.5 text-slate-400" />
-          </button>
-        </header>
+
+            {isEdificarStudent ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-touch"
+                className="shrink-0"
+                aria-label="Abrir menu completo"
+                onClick={() => setIsMobileMenuOpen(true)}
+              >
+                <Menu className="h-5 w-5 text-slate-500 dark:text-slate-300" />
+              </Button>
+            ) : (
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-2 rounded-xl py-1.5 pl-2 pr-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                title="Sair"
+              >
+                <div
+                  className="h-7 w-7 shrink-0 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white"
+                  style={{ backgroundColor: 'var(--brand-primary)' }}
+                >
+                  {userProfile.avatarUrl
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={userProfile.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    : initials}
+                </div>
+                <LogOut className="h-3.5 w-3.5 text-slate-400" />
+              </button>
+            )}
+          </header>
+        )}
 
         {/* Page content — extra bottom padding on mobile for bottom tab bar */}
         <main className="partner-main min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 pb-24 md:p-8 md:pb-8">
@@ -366,24 +406,39 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
       </div>
 
       {/* ── Mobile bottom tab bar ──────────────────────────────────────────── */}
-      <nav
-        className="partner-mobile-nav fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white dark:bg-slate-900 border-t dark:border-slate-800"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      >
-        <div className="relative flex items-stretch">
-          {navItems.map((item) => (
-            <BottomTabItem
-              key={item.href}
-              {...item}
-              showNotification={
-                variant === 'student'
-                && item.href === `/partners/${org.slug}/student/redacoes`
-                && hasPendingCorrection
-              }
-            />
-          ))}
-        </div>
-      </nav>
+      {!hideMobileChrome && (
+        <nav
+          className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white dark:bg-slate-900 border-t dark:border-slate-800"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
+          <div className="relative flex items-stretch">
+            {mobileBottomNavItems.map((item) => (
+              <BottomTabItem
+                key={item.href}
+                {...item}
+                showNotification={
+                  variant === 'student'
+                  && item.href === `/partners/${org.slug}/student/redacoes`
+                  && hasPendingCorrection
+                }
+              />
+            ))}
+          </div>
+        </nav>
+      )}
+
+      {isEdificarStudent && (
+        <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+          <SheetContent
+            side="right"
+            className="w-[88vw] max-w-sm p-0 bg-white dark:bg-slate-900 border-l dark:border-slate-800"
+            overlayClassName="bg-slate-950/55 backdrop-blur-[1px]"
+          >
+            <SheetTitle className="sr-only">Menu completo</SheetTitle>
+            <SidebarContent onNavigate={() => setIsMobileMenuOpen(false)} />
+          </SheetContent>
+        </Sheet>
+      )}
 
       {showPasswordModal && (
         <ForcePasswordChangeModal onSuccess={() => setPasswordModalDismissed(true)} />

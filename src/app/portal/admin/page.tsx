@@ -104,6 +104,11 @@ export default function SuperAdminDashboard() {
                     <ClipboardList className="w-4 h-4 text-indigo-500" /> Tasks
                 </span>
             </Link>
+            <Link href="/portal/admin/b2b" className="mr-2">
+                <span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <School className="w-4 h-4 text-indigo-500" /> Parceiros B2B
+                </span>
+            </Link>
             <Link href="/portal/admin/reengagement" className="mr-3">
                 <span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                     <Zap className="w-4 h-4 text-amber-500" /> Reengajamento
@@ -313,9 +318,9 @@ export default function SuperAdminDashboard() {
                     </div>
                 </div>
                 <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                    <button className="text-sm text-indigo-600 font-medium hover:underline flex items-center gap-1">
+                    <Link href="/portal/admin/b2b" className="text-sm text-indigo-600 font-medium hover:underline flex items-center gap-1">
                         Gerenciar <ArrowUpRight className="w-3 h-3" />
-                    </button>
+                    </Link>
                 </div>
             </CardContent>
         </Card>

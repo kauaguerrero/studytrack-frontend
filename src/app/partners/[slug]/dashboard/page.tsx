@@ -12,7 +12,7 @@ import { Typewriter } from '@/components/ui/typewriter';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
-  Users, Activity, BookOpen, FileText, TrendingUp, ArrowUpRight,
+  Users, Activity, BookOpen, FileText, TrendingUp, TrendingDown, ArrowUpRight,
   Trophy, Award, Star, Eye, EyeOff, AlertTriangle,
 } from 'lucide-react';
 import {
@@ -24,6 +24,15 @@ import {
 
 interface OrgStats {
   total_students: number;
+  prev_active_today: number;
+  prev_active_week: number;
+  prev_active_month: number;
+  prev_questions_today: number;
+  prev_questions_week: number;
+  prev_questions_month: number;
+  prev_simulados_today: number;
+  prev_simulados_week: number;
+  prev_simulados_month: number;
   active_today: number;
   active_week: number;
   active_month: number;
@@ -242,6 +251,8 @@ function KpiCard({
   href,
   loading,
   accentColor,
+  delta,
+  deltaLabel,
 }: {
   title: string;
   value: number | string;
@@ -250,6 +261,8 @@ function KpiCard({
   href?: string;
   loading?: boolean;
   accentColor: string;
+  delta?: number | null;
+  deltaLabel?: string | null;
 }) {
   const border  = `color-mix(in srgb, ${accentColor} 34%, #e2e8f0)`;
   const iconBg  = `color-mix(in srgb, ${accentColor} 16%, white)`;
@@ -296,9 +309,22 @@ function KpiCard({
               style={{ color: accentColor, filter: `drop-shadow(0 0 4px color-mix(in srgb, ${accentColor} 35%, transparent))` }}
             />
           </div>
-          {href && (
-            <ArrowUpRight className="h-3.5 w-3.5 text-slate-400 dark:text-white/20 group-hover:text-slate-700 dark:group-hover:text-white/60 transition-colors" />
-          )}
+          <div className="flex items-center gap-1.5">
+            {delta !== null && delta !== undefined && !loading ? (
+              <div className={`flex items-center gap-0.5 text-xs font-bold px-1.5 py-0.5 rounded-lg ${
+                delta > 0
+                  ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                  : delta < 0
+                    ? 'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400'
+                    : 'bg-slate-100 dark:bg-white/10 text-slate-400 dark:text-white/30'
+              }`}>
+                {delta > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : delta < 0 ? <TrendingDown className="w-3.5 h-3.5" /> : null}
+                <span>{delta > 0 ? '+' : ''}{delta}</span>
+              </div>
+            ) : href ? (
+              <ArrowUpRight className="h-3.5 w-3.5 text-slate-400 dark:text-white/20 group-hover:text-slate-700 dark:group-hover:text-white/60 transition-colors" />
+            ) : null}
+          </div>
         </div>
 
         {loading ? (
@@ -310,6 +336,9 @@ function KpiCard({
         <p className="text-xs font-semibold text-slate-600 dark:text-white/50 mt-1">{title}</p>
         {subtitle && (
           <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-white/30 mt-0.5">{subtitle}</p>
+        )}
+        {deltaLabel && delta !== null && delta !== undefined && !loading && (
+          <p className="text-[10px] text-slate-400 dark:text-white/25 mt-0.5">{deltaLabel}</p>
         )}
       </div>
     </div>
@@ -514,6 +543,17 @@ export default function FounderDashboard() {
     ? Math.round((activeValue / Math.max(stats.total_students, 1)) * 100)
     : 0;
 
+  const getDelta = (current: number, prevToday: number, prevWeek: number, prevMonth: number): number | null => {
+    if (metricWindow === 'total') return null;
+    const prev = metricWindow === 'today' ? prevToday : metricWindow === 'week' ? prevWeek : prevMonth;
+    return current - prev;
+  };
+
+  const deltaLabel = metricWindow === 'today' ? 'vs ontem'
+    : metricWindow === 'week' ? 'vs semana passada'
+    : metricWindow === 'month' ? 'vs mês passado'
+    : null;
+
   const todayBrtKey = toBrtDateKey(new Date());
   const todayBrtUtc = keyToUtcDate(todayBrtKey);
   const weekStartBrtUtc = new Date(todayBrtUtc);
@@ -613,6 +653,7 @@ export default function FounderDashboard() {
             href={`/partners/${org.slug}/alunos`}
             loading={loading}
             accentColor="var(--brand-primary)"
+            delta={null}
           />
           <KpiCard
             title={`Ativos • ${metricLabel}`}
@@ -621,6 +662,13 @@ export default function FounderDashboard() {
             icon={Activity}
             loading={loading}
             accentColor="var(--brand-secondary)"
+            delta={stats ? getDelta(
+              activeValue,
+              stats.prev_active_today,
+              stats.prev_active_week,
+              stats.prev_active_month,
+            ) : null}
+            deltaLabel={deltaLabel}
           />
           <KpiCard
             title={`Questões • ${metricLabel}`}
@@ -629,6 +677,13 @@ export default function FounderDashboard() {
             icon={BookOpen}
             loading={loading}
             accentColor="var(--brand-accent)"
+            delta={stats ? getDelta(
+              questionsValue,
+              stats.prev_questions_today,
+              stats.prev_questions_week,
+              stats.prev_questions_month,
+            ) : null}
+            deltaLabel={deltaLabel}
           />
           <KpiCard
             title={`Simulados • ${metricLabel}`}
@@ -637,6 +692,13 @@ export default function FounderDashboard() {
             icon={FileText}
             loading={loading}
             accentColor="#8b5cf6"
+            delta={stats ? getDelta(
+              simuladosValue,
+              stats.prev_simulados_today,
+              stats.prev_simulados_week,
+              stats.prev_simulados_month,
+            ) : null}
+            deltaLabel={deltaLabel}
           />
         </div>
 

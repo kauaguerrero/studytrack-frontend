@@ -581,7 +581,7 @@ export default function SimuladoPage() {
 
       {/* ── Config modal ── */}
       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
-        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto dark:bg-slate-900 dark:border-slate-800">
+          <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto dark:bg-slate-900 dark:border-slate-800">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 dark:text-slate-100">
               <Timer className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
@@ -622,7 +622,7 @@ export default function SimuladoPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Quantidade</label>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[5, 10, 15, 30, 45, 90, 180].map(val => (
                       <button key={val} onClick={() => setQty(val)}
                         className={`p-2.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${qty === val ? 'text-white border-transparent' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 border-slate-200 dark:border-slate-700'}`}
@@ -651,7 +651,7 @@ export default function SimuladoPage() {
 
             <div>
               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Dificuldade</label>
-              <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {DIFFICULTIES.map(d => (
                   <button key={d.value} onClick={() => setDifficulty(d.value)}
                     className={`p-2.5 rounded-xl border-2 font-bold text-xs transition-all cursor-pointer ${difficulty === d.value ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-900 dark:border-slate-100' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'}`}>
@@ -946,7 +946,7 @@ export default function SimuladoPage() {
 
             {/* Finish button */}
             <button onClick={() => setFinishDialogOpen(true)}
-              className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer shrink-0 min-h-[36px] transition-colors text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40">
+              className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer shrink-0 min-h-[44px] transition-colors text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40">
               Finalizar
             </button>
           </div>
@@ -1082,21 +1082,21 @@ export default function SimuladoPage() {
           {/* Nav bar */}
           <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 p-4 fixed bottom-0 left-0 right-0 z-20"
             style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
-            <div className="max-w-3xl mx-auto w-full flex justify-between items-center gap-4">
+            <div className="max-w-3xl mx-auto w-full flex items-center gap-3">
               <button onClick={() => setCurrentIdx(prev => Math.max(0, prev - 1))} disabled={currentIdx === 0}
-                className="px-4 py-3 text-slate-500 dark:text-slate-400 disabled:opacity-30 font-bold flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer min-h-[44px]">
+                className="flex-1 px-4 py-3 text-slate-500 dark:text-slate-400 disabled:opacity-30 font-bold flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer min-h-[44px]">
                 <ArrowLeft size={16} /> <span className="hidden sm:inline">Anterior</span>
               </button>
 
               {currentIdx < questions.length - 1 ? (
                 <button onClick={() => setCurrentIdx(prev => prev + 1)}
-                  className="text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-colors cursor-pointer min-h-[44px]"
+                  className="flex-[1.35] text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer min-h-[44px]"
                   style={{ background: 'var(--brand-primary)' }}>
                   Próxima <ArrowRight size={16} />
                 </button>
               ) : (
                 <button onClick={() => setFinishDialogOpen(true)}
-                  className="bg-green-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-green-700 transition-colors cursor-pointer min-h-[44px]">
+                  className="flex-[1.35] bg-green-600 text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-colors cursor-pointer min-h-[44px]">
                   Entregar <CheckCircle2 size={16} />
                 </button>
               )}

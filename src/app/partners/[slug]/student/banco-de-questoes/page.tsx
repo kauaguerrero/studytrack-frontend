@@ -675,7 +675,7 @@ export default function BancoDeQuestoes() {
             transition={{ duration: 0.18 }}
             onClick={() => setIsMenuOpen(true)}
             title="Mostrar filtros"
-            className="fixed top-4 right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-800 shadow-md text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 transition-colors"
+            className="fixed top-[4.75rem] right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-800 shadow-md text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 transition-colors"
           >
             <Eye size={14} />
             Filtros
