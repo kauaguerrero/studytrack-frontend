@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/app/api/admin/_utils';
+import { requireAdminOrDev } from '@/app/api/admin/_utils';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN!;
@@ -133,7 +133,7 @@ async function fetchDevActivity(username: string, repo: string, since: string) {
 }
 
 export async function POST(_request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireAdminOrDev();
   if (!auth.ok) return auth.response;
 
   if (!GITHUB_TOKEN || !OWNER || REPOS.length === 0) {

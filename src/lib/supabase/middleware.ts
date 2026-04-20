@@ -126,11 +126,12 @@ export async function updateSession(request: NextRequest) {
 
     const isTaskDashboardPath = path === '/portal/admin/tasks/dashboard' || path.startsWith('/portal/admin/tasks/dashboard/');
     const isTaskWorkspacePath = !isTaskDashboardPath && (path === '/portal/admin/tasks' || path.startsWith('/portal/admin/tasks/'));
+    const isGithubMonitoringPath = path === '/portal/admin/github' || path.startsWith('/portal/admin/github/');
 
     if (path.startsWith('/portal/admin') && currentRole !== 'admin') {
         // Role 'dev': acesso restrito ao workspace de tasks (excluindo dashboard)
         if (currentRole === 'dev') {
-          if (!isTaskWorkspacePath) {
+          if (!isTaskWorkspacePath && !isGithubMonitoringPath) {
             return NextResponse.redirect(new URL('/portal/admin/tasks', request.url));
           }
           return supabaseResponse;

@@ -28,6 +28,7 @@ import {
   ListChecks,
   Flag,
   ScanSearch,
+  Github,
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -302,6 +303,7 @@ export function SidebarContent({
           <div className="space-y-0.5">
             <SectionTitle>Dev</SectionTitle>
             <NavItem href="/portal/admin/tasks" icon={ListChecks} label="Tasks" />
+            <NavItem href="/portal/admin/github" icon={Github} label="GitHub" />
             <NavItem href="/portal/student/dashboard" icon={LayoutDashboard} label="Plataforma Completa" />
           </div>
         )}
@@ -311,6 +313,7 @@ export function SidebarContent({
             <SectionTitle>Visão Geral</SectionTitle>
             <NavItem href="/portal/admin" icon={LayoutDashboard} label="Dashboard" />
             <NavItem href="/portal/admin/tasks" icon={ListChecks} label="Tasks" />
+            <NavItem href="/portal/admin/github" icon={Github} label="GitHub" />
             <SectionTitle>Conteúdo</SectionTitle>
             <NavItem href="/portal/admin/audits" icon={ScanSearch} label="Audit Center" />
             <NavItem href="/portal/admin/social-media" icon={Sparkles} label="Social Media IA" />

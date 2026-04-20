@@ -5,7 +5,8 @@ import Link from 'next/link';
 import {
   ChevronLeft, School, Plus, Copy, Check, Edit2, Trash2,
   ExternalLink, UserPlus, X, Eye, EyeOff, Search,
-  DollarSign, Calendar, CheckCircle2, AlertCircle, Clock
+  DollarSign, Calendar, CheckCircle2, AlertCircle, Clock,
+  TrendingUp, TrendingDown
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -27,6 +28,14 @@ const PERIOD_LABELS: Record<StatsPeriod, string> = {
   lifetime: 'Total',
 };
 
+const PREV_PERIOD_LABELS: Record<StatsPeriod, string | null> = {
+  today: 'vs ontem',
+  week: 'vs semana passada',
+  month: 'vs mês passado',
+  year: 'vs ano passado',
+  lifetime: null,
+};
+
 interface B2BStats {
   total_orgs: number;
   total_students: number;
@@ -34,10 +43,10 @@ interface B2BStats {
   questions_period: number;
   simulados_period: number;
   essays_period: number;
-  prev_active_week: number;
-  prev_questions_week: number;
-  prev_simulados_week: number;
-  prev_essays_week: number;
+  prev_active_period: number;
+  prev_questions_period: number;
+  prev_simulados_period: number;
+  prev_essays_period: number;
   per_org: Array<{
     org_id: string;
     active_period: number;
@@ -1016,42 +1025,49 @@ export default function AdminB2BPage() {
           {[
             { label: 'Instituições', value: stats?.total_orgs, color: '#6366f1', prev: null },
             { label: 'Alunos B2B', value: stats?.total_students, color: '#8b5cf6', prev: null },
-            { label: `Ativos (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.active_period, color: '#10b981', prev: stats?.prev_active_week ?? null },
-            { label: `Questões (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.questions_period, color: '#f59e0b', prev: stats?.prev_questions_week ?? null },
-            { label: `Simulados (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.simulados_period, color: '#3b82f6', prev: stats?.prev_simulados_week ?? null },
-            { label: `Redações (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.essays_period, color: '#ec4899', prev: stats?.prev_essays_week ?? null },
+            { label: `Ativos (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.active_period, color: '#10b981', prev: stats?.prev_active_period ?? null },
+            { label: `Questões (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.questions_period, color: '#f59e0b', prev: stats?.prev_questions_period ?? null },
+            { label: `Simulados (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.simulados_period, color: '#3b82f6', prev: stats?.prev_simulados_period ?? null },
+            { label: `Redações (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.essays_period, color: '#ec4899', prev: stats?.prev_essays_period ?? null },
           ].map(({ label, value, color, prev }) => {
             const delta = (value !== undefined && prev !== null && prev !== undefined)
               ? value - prev
               : null;
+            const prevLabel = PREV_PERIOD_LABELS[period];
+            const loaded = !statsLoading && value !== undefined;
             return (
             <div
               key={label}
-              className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/[0.06] rounded-xl p-4 flex flex-col gap-1"
+              className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/[0.06] rounded-xl p-4 flex flex-col gap-1.5"
               style={{ borderTop: `2px solid ${color}` }}
             >
-              {statsLoading || value === undefined ? (
-                <div className="h-7 w-14 bg-slate-100 dark:bg-zinc-800 rounded animate-pulse" />
-              ) : (
-                <span className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">
-                  {value.toLocaleString('pt-BR')}
-                </span>
-              )}
-              {delta !== null && (
-                <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${
-                  delta > 0
-                    ? 'text-emerald-500'
-                    : delta < 0
-                      ? 'text-red-400'
-                      : 'text-zinc-500'
-                }`}>
-                  {delta > 0 ? '↑' : delta < 0 ? '↓' : '→'}
-                  {delta > 0 ? '+' : ''}{delta} vs sem. ant.
-                </span>
-              )}
+              <div className="flex items-start justify-between gap-2">
+                {!loaded ? (
+                  <div className="h-7 w-14 bg-slate-100 dark:bg-zinc-800 rounded animate-pulse" />
+                ) : (
+                  <span className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">
+                    {value.toLocaleString('pt-BR')}
+                  </span>
+                )}
+                {loaded && delta !== null && (
+                  <div className={`flex items-center gap-0.5 text-xs font-bold px-1.5 py-0.5 rounded-md shrink-0 mt-0.5 ${
+                    delta > 0
+                      ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                      : delta < 0
+                        ? 'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400'
+                        : 'bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500'
+                  }`}>
+                    {delta > 0 ? <TrendingUp className="w-3 h-3" /> : delta < 0 ? <TrendingDown className="w-3 h-3" /> : null}
+                    <span>{delta > 0 ? '+' : ''}{delta}</span>
+                  </div>
+                )}
+              </div>
               <span className="text-[11px] font-medium text-slate-400 dark:text-zinc-500 leading-tight">
                 {label}
               </span>
+              {loaded && delta !== null && prevLabel && (
+                <span className="text-[10px] text-slate-300 dark:text-zinc-600">{prevLabel}</span>
+              )}
             </div>
             );
           })}
