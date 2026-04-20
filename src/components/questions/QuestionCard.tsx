@@ -223,21 +223,27 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
         </div>
       </div>
 
-      {supportImages.map((img, i) => (
-          <div key={i} className="mb-6 flex justify-center bg-muted p-4 rounded-xl border border-border">
-              <img src={img} alt="Material de apoio" className="max-h-80 object-contain rounded-lg" />
-          </div>
-      ))}
-
       {contextText && (
         <div className="prose prose-slate dark:prose-invert prose-sm max-w-none mb-6 text-muted-foreground border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed">
           <ReactMarkdown>{contextText}</ReactMarkdown>
         </div>
       )}
 
+      {!hasInlineMarkdownImages && supportImages.map((img, i) => (
+          <div key={i} className="mb-6 flex justify-center bg-muted p-4 rounded-xl border border-border">
+              <img src={img} alt="Material de apoio" className="max-h-80 object-contain rounded-lg" />
+          </div>
+      ))}
+
       <div className="font-medium text-card-foreground text-lg mb-8 leading-relaxed">
         <ReactMarkdown>{statementText}</ReactMarkdown>
       </div>
+
+      {hasInlineMarkdownImages && supportImages.map((img, i) => (
+          <div key={i} className="mb-6 flex justify-center bg-muted p-4 rounded-xl border border-border">
+              <img src={img} alt="Material de apoio" className="max-h-80 object-contain rounded-lg" />
+          </div>
+      ))}
 
       <div className="space-y-3">
         {question.alternatives.map((alt) => {
