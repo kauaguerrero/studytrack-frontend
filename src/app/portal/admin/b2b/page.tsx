@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft, School, Plus, Copy, Check, Edit2, Trash2,
-  ExternalLink, UserPlus, X, Eye, EyeOff, Search
+  ExternalLink, UserPlus, X, Eye, EyeOff, Search,
+  DollarSign, Calendar, CheckCircle2, AlertCircle, Clock
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,6 +61,9 @@ interface Organization {
   created_at: string;
   founder: Founder | null;
   student_count: number;
+  monthly_value: number | null;
+  last_paid_at: string | null;
+  plan_renewal_date: string | null;
 }
 
 interface OrgFormData {
@@ -135,6 +139,30 @@ function CardSkeleton() {
     </div>
   );
 }
+
+type BillingStatus = 'active' | 'overdue' | 'pending' | 'none';
+
+function getBillingStatus(org: Organization): BillingStatus {
+  if (!org.monthly_value) return 'none';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (org.plan_renewal_date) {
+    return new Date(org.plan_renewal_date) >= today ? 'active' : 'overdue';
+  }
+  if (!org.last_paid_at) return 'pending';
+  const paid = new Date(org.last_paid_at);
+  if (paid.getFullYear() === today.getFullYear() && paid.getMonth() === today.getMonth()) {
+    return 'active';
+  }
+  return 'pending';
+}
+
+const BILLING_BADGE: Record<BillingStatus, { label: string; className: string; Icon: React.ElementType } | null> = {
+  none: null,
+  active: { label: 'Em dia', className: 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400', Icon: CheckCircle2 },
+  overdue: { label: 'Vencido', className: 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400', Icon: AlertCircle },
+  pending: { label: 'Renovação pendente', className: 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400', Icon: Clock },
+};
 
 // ─── OrgModal ─────────────────────────────────────────────────────────────────
 
@@ -508,6 +536,16 @@ function OrgCard({
   const [deleting, setDeleting] = useState(false);
   const [unlinkingSchool, setUnlinkingSchool] = useState(false);
 
+  // Billing state
+  const [billingEdit, setBillingEdit] = useState(false);
+  const [billingValue, setBillingValue] = useState(org.monthly_value?.toString() ?? '');
+  const [billingRenewal, setBillingRenewal] = useState(org.plan_renewal_date ?? '');
+  const [savingBilling, setSavingBilling] = useState(false);
+  const [markingPaid, setMarkingPaid] = useState(false);
+  const [billingError, setBillingError] = useState('');
+  const billingStatus = getBillingStatus(org);
+  const billingBadge = BILLING_BADGE[billingStatus];
+
   const pct = org.max_students > 0
     ? Math.min((org.student_count / org.max_students) * 100, 100)
     : 0;
@@ -545,6 +583,53 @@ function OrgCard({
   }
 
   const hasSchoolError = deleteError.includes('escola');
+
+  async function handleMarkPaid() {
+    setMarkingPaid(true); setBillingError('');
+    try {
+      const now = new Date().toISOString();
+      let body: Record<string, unknown> = { last_paid_at: now };
+      // Advance renewal date by 1 month if it was overdue
+      if (org.plan_renewal_date) {
+        const renewal = new Date(org.plan_renewal_date);
+        if (renewal < new Date()) {
+          renewal.setMonth(renewal.getMonth() + 1);
+          body.plan_renewal_date = renewal.toISOString().split('T')[0];
+        }
+      }
+      const res = await fetch(`/api/admin/b2b/organizations/${org.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) { setBillingError(json.error ?? 'Erro'); return; }
+      onDelete(); // refresh list
+    } finally {
+      setMarkingPaid(false);
+    }
+  }
+
+  async function handleSaveBilling() {
+    setSavingBilling(true); setBillingError('');
+    try {
+      const body: Record<string, unknown> = {
+        monthly_value: billingValue ? parseFloat(billingValue) : null,
+        plan_renewal_date: billingRenewal || null,
+      };
+      const res = await fetch(`/api/admin/b2b/organizations/${org.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) { setBillingError(json.error ?? 'Erro'); return; }
+      setBillingEdit(false);
+      onDelete(); // refresh list
+    } finally {
+      setSavingBilling(false);
+    }
+  }
 
   return (
     <div
@@ -632,6 +717,111 @@ function OrgCard({
             ))}
           </div>
         )}
+
+        {/* Faturamento */}
+        <div className="border border-slate-100 dark:border-white/[0.06] rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <DollarSign className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
+              <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300">Faturamento</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {billingBadge && (
+                <span className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${billingBadge.className}`}>
+                  <billingBadge.Icon className="w-3 h-3" />
+                  {billingBadge.label}
+                </span>
+              )}
+              <button
+                onClick={() => { setBillingEdit(e => !e); setBillingError(''); }}
+                className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                {billingEdit ? 'Cancelar' : 'Editar'}
+              </button>
+            </div>
+          </div>
+
+          {billingEdit ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] text-slate-400 dark:text-zinc-500 w-16 shrink-0">Valor/mês</label>
+                <div className="flex items-center gap-1 flex-1">
+                  <span className="text-xs text-slate-400">R$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0,00"
+                    value={billingValue}
+                    onChange={e => setBillingValue(e.target.value)}
+                    className="flex-1 text-xs bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded px-2 py-1 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] text-slate-400 dark:text-zinc-500 w-16 shrink-0">Renova em</label>
+                <input
+                  type="date"
+                  value={billingRenewal}
+                  onChange={e => setBillingRenewal(e.target.value)}
+                  className="flex-1 text-xs bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded px-2 py-1 text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              {billingError && <p className="text-[10px] text-red-500">{billingError}</p>}
+              <button
+                onClick={handleSaveBilling}
+                disabled={savingBilling}
+                className="w-full text-xs font-semibold py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-50"
+              >
+                {savingBilling ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-400 dark:text-zinc-500">Valor mensal</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-white">
+                  {org.monthly_value
+                    ? org.monthly_value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                    : <span className="text-slate-300 dark:text-zinc-600 font-normal text-xs">—</span>}
+                </span>
+              </div>
+              {org.last_paid_at && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400 dark:text-zinc-500">Último pagamento</span>
+                  <span className="text-[10px] text-slate-600 dark:text-zinc-400">
+                    {new Date(org.last_paid_at).toLocaleDateString('pt-BR')}
+                  </span>
+                </div>
+              )}
+              {org.plan_renewal_date && (
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400 dark:text-zinc-500 flex items-center gap-1">
+                    <Calendar className="w-3 h-3" /> Renovação
+                  </span>
+                  <span className="text-[10px] text-slate-600 dark:text-zinc-400">
+                    {new Date(org.plan_renewal_date + 'T00:00:00').toLocaleDateString('pt-BR')}
+                  </span>
+                </div>
+              )}
+              {!org.plan_renewal_date && !org.last_paid_at && org.monthly_value && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                  Sem prazo definido — renovação solicitada toda virada de mês.
+                </p>
+              )}
+              {org.monthly_value && (
+                <button
+                  onClick={handleMarkPaid}
+                  disabled={markingPaid}
+                  className="w-full mt-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {markingPaid ? 'Registrando...' : 'Marcar como pago'}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Invite code */}
         {org.invite_code && (
