@@ -34,6 +34,10 @@ interface B2BStats {
   questions_period: number;
   simulados_period: number;
   essays_period: number;
+  prev_active_week: number;
+  prev_questions_week: number;
+  prev_simulados_week: number;
+  prev_essays_week: number;
   per_org: Array<{
     org_id: string;
     active_period: number;
@@ -1010,13 +1014,17 @@ export default function AdminB2BPage() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { label: 'Instituições', value: stats?.total_orgs, color: '#6366f1' },
-            { label: 'Alunos B2B', value: stats?.total_students, color: '#8b5cf6' },
-            { label: `Ativos (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.active_period, color: '#10b981' },
-            { label: `Questões (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.questions_period, color: '#f59e0b' },
-            { label: `Simulados (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.simulados_period, color: '#3b82f6' },
-            { label: `Redações (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.essays_period, color: '#ec4899' },
-          ].map(({ label, value, color }) => (
+            { label: 'Instituições', value: stats?.total_orgs, color: '#6366f1', prev: null },
+            { label: 'Alunos B2B', value: stats?.total_students, color: '#8b5cf6', prev: null },
+            { label: `Ativos (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.active_period, color: '#10b981', prev: stats?.prev_active_week ?? null },
+            { label: `Questões (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.questions_period, color: '#f59e0b', prev: stats?.prev_questions_week ?? null },
+            { label: `Simulados (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.simulados_period, color: '#3b82f6', prev: stats?.prev_simulados_week ?? null },
+            { label: `Redações (${PERIOD_LABELS[period].toLowerCase()})`, value: stats?.essays_period, color: '#ec4899', prev: stats?.prev_essays_week ?? null },
+          ].map(({ label, value, color, prev }) => {
+            const delta = (value !== undefined && prev !== null && prev !== undefined)
+              ? value - prev
+              : null;
+            return (
             <div
               key={label}
               className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/[0.06] rounded-xl p-4 flex flex-col gap-1"
@@ -1029,11 +1037,24 @@ export default function AdminB2BPage() {
                   {value.toLocaleString('pt-BR')}
                 </span>
               )}
+              {delta !== null && (
+                <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${
+                  delta > 0
+                    ? 'text-emerald-500'
+                    : delta < 0
+                      ? 'text-red-400'
+                      : 'text-zinc-500'
+                }`}>
+                  {delta > 0 ? '↑' : delta < 0 ? '↓' : '→'}
+                  {delta > 0 ? '+' : ''}{delta} vs sem. ant.
+                </span>
+              )}
               <span className="text-[11px] font-medium text-slate-400 dark:text-zinc-500 leading-tight">
                 {label}
               </span>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

@@ -4,6 +4,26 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 type Period = 'today' | 'week' | 'month' | 'year' | 'lifetime';
 
+function getMondayISO(): string {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() + diff);
+  monday.setUTCHours(0, 0, 0, 0);
+  return monday.toISOString().slice(0, 10);
+}
+
+function getPrevMondayISO(): string {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setUTCDate(now.getUTCDate() + diff - 7);
+  monday.setUTCHours(0, 0, 0, 0);
+  return monday.toISOString().slice(0, 10);
+}
+
 function getPeriodStart(period: Period): string | null {
   const now = new Date();
   switch (period) {
@@ -46,6 +66,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       total_orgs: 0, total_students: 0,
       active_period: 0, questions_period: 0, simulados_period: 0, essays_period: 0,
+      prev_active_week: 0, prev_questions_week: 0, prev_simulados_week: 0, prev_essays_week: 0,
       per_org: [], period, period_start: periodStart,
     });
   }
@@ -87,6 +108,43 @@ export async function GET(request: NextRequest) {
     .in('org_id', orgIds);
   if (periodStart) essaysQuery = essaysQuery.gte('submitted_at', `${periodStart}T00:00:00Z`);
   const { count: essays_period } = await essaysQuery;
+
+  const weekStart = getMondayISO();
+  const prevWeekStart = getPrevMondayISO();
+
+  // Ativos semana anterior
+  const prev_active_week = profiles.filter(
+    (p: any) =>
+      p.last_activity_date &&
+      p.last_activity_date >= prevWeekStart &&
+      p.last_activity_date < weekStart
+  ).length;
+
+  // Questões e simulados semana anterior
+  let prev_questions_week = 0;
+  let prev_simulados_week = 0;
+
+  if (profileIds.length > 0) {
+    const { data: prevUsage } = await db
+      .from('daily_usage')
+      .select('questions_count, simulations_count')
+      .in('user_id', profileIds)
+      .gte('usage_date', prevWeekStart)
+      .lt('usage_date', weekStart);
+
+    for (const row of prevUsage ?? []) {
+      prev_questions_week += row.questions_count ?? 0;
+      prev_simulados_week += row.simulations_count ?? 0;
+    }
+  }
+
+  // Redações semana anterior
+  const { count: prev_essays_week } = await db
+    .from('essays')
+    .select('id', { count: 'exact', head: true })
+    .in('org_id', orgIds)
+    .gte('submitted_at', `${prevWeekStart}T00:00:00Z`)
+    .lt('submitted_at', `${weekStart}T00:00:00Z`);
 
   const per_org = await Promise.all(
     orgIds.map(async (org_id: string) => {
@@ -142,6 +200,10 @@ export async function GET(request: NextRequest) {
     questions_period,
     simulados_period,
     essays_period: essays_period ?? 0,
+    prev_active_week,
+    prev_questions_week,
+    prev_simulados_week,
+    prev_essays_week: prev_essays_week ?? 0,
     per_org,
     period,
     period_start: periodStart,

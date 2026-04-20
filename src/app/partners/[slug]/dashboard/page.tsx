@@ -24,6 +24,15 @@ import {
 
 interface OrgStats {
   total_students: number;
+  prev_active_today: number;
+  prev_active_week: number;
+  prev_active_month: number;
+  prev_questions_today: number;
+  prev_questions_week: number;
+  prev_questions_month: number;
+  prev_simulados_today: number;
+  prev_simulados_week: number;
+  prev_simulados_month: number;
   active_today: number;
   active_week: number;
   active_month: number;
@@ -242,6 +251,7 @@ function KpiCard({
   href,
   loading,
   accentColor,
+  delta,
 }: {
   title: string;
   value: number | string;
@@ -250,6 +260,7 @@ function KpiCard({
   href?: string;
   loading?: boolean;
   accentColor: string;
+  delta?: number | null;
 }) {
   const border  = `color-mix(in srgb, ${accentColor} 34%, #e2e8f0)`;
   const iconBg  = `color-mix(in srgb, ${accentColor} 16%, white)`;
@@ -304,7 +315,21 @@ function KpiCard({
         {loading ? (
           <div className="h-9 w-24 bg-slate-200 dark:bg-white/10 rounded-lg animate-pulse" />
         ) : (
-          <div className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">{value}</div>
+          <>
+            <div className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">{value}</div>
+            {delta !== null && delta !== undefined && (
+              <div className={`flex items-center gap-1 mt-1 text-xs font-semibold ${
+                delta > 0
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : delta < 0
+                    ? 'text-red-500 dark:text-red-400'
+                    : 'text-slate-400'
+              }`}>
+                {delta > 0 ? '↑' : delta < 0 ? '↓' : '→'}
+                <span>{delta > 0 ? '+' : ''}{delta} vs anterior</span>
+              </div>
+            )}
+          </>
         )}
 
         <p className="text-xs font-semibold text-slate-600 dark:text-white/50 mt-1">{title}</p>
@@ -514,6 +539,12 @@ export default function FounderDashboard() {
     ? Math.round((activeValue / Math.max(stats.total_students, 1)) * 100)
     : 0;
 
+  const getDelta = (current: number, prevToday: number, prevWeek: number, prevMonth: number): number | null => {
+    if (metricWindow === 'total') return null;
+    const prev = metricWindow === 'today' ? prevToday : metricWindow === 'week' ? prevWeek : prevMonth;
+    return current - prev;
+  };
+
   const todayBrtKey = toBrtDateKey(new Date());
   const todayBrtUtc = keyToUtcDate(todayBrtKey);
   const weekStartBrtUtc = new Date(todayBrtUtc);
@@ -613,6 +644,7 @@ export default function FounderDashboard() {
             href={`/partners/${org.slug}/alunos`}
             loading={loading}
             accentColor="var(--brand-primary)"
+            delta={null}
           />
           <KpiCard
             title={`Ativos • ${metricLabel}`}
@@ -621,6 +653,12 @@ export default function FounderDashboard() {
             icon={Activity}
             loading={loading}
             accentColor="var(--brand-secondary)"
+            delta={stats ? getDelta(
+              activeValue,
+              stats.prev_active_today,
+              stats.prev_active_week,
+              stats.prev_active_month,
+            ) : null}
           />
           <KpiCard
             title={`Questões • ${metricLabel}`}
@@ -629,6 +667,12 @@ export default function FounderDashboard() {
             icon={BookOpen}
             loading={loading}
             accentColor="var(--brand-accent)"
+            delta={stats ? getDelta(
+              questionsValue,
+              stats.prev_questions_today,
+              stats.prev_questions_week,
+              stats.prev_questions_month,
+            ) : null}
           />
           <KpiCard
             title={`Simulados • ${metricLabel}`}
@@ -637,6 +681,12 @@ export default function FounderDashboard() {
             icon={FileText}
             loading={loading}
             accentColor="#8b5cf6"
+            delta={stats ? getDelta(
+              simuladosValue,
+              stats.prev_simulados_today,
+              stats.prev_simulados_week,
+              stats.prev_simulados_month,
+            ) : null}
           />
         </div>
 
