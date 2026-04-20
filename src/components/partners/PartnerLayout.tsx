@@ -25,11 +25,8 @@ import {
   Trophy,
   BadgeCheck,
   WalletCards,
-<<<<<<< Updated upstream
   Menu,
-=======
   LifeBuoy,
->>>>>>> Stashed changes
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
