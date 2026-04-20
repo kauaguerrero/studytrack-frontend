@@ -24,6 +24,7 @@ import {
 export default function SuperAdminDashboard() {
   const [stats, setStats] = useState<any>(null);
   const [dist, setDist] = useState<any>(null);
+  const [orgCount, setOrgCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [marketingOpen, setMarketingOpen] = useState(false);
   const [subscribersOpen, setSubscribersOpen] = useState(false);
@@ -44,13 +45,18 @@ export default function SuperAdminDashboard() {
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
 
       try {
-        const [resStats, resDist] = await Promise.all([
+        const [resStats, resDist, resOrgs] = await Promise.all([
           fetch(`${apiUrl}/api/admin/stats`, { headers }),
           fetch(`${apiUrl}/api/admin/stats/distribution`, { headers }),
+          fetch('/api/admin/b2b/organizations'),
         ]);
 
         if (resStats.ok) setStats(await resStats.json());
         if (resDist.ok) setDist(await resDist.json());
+        if (resOrgs.ok) {
+          const orgsJson = await resOrgs.json();
+          setOrgCount((orgsJson.organizations ?? []).length);
+        }
       } catch (error) {
         console.error("Erro ao buscar dados do dashboard:", error);
         void reportError("AdminDashboardFetchError", String(error));
@@ -299,8 +305,8 @@ export default function SuperAdminDashboard() {
             <CardContent>
                 <div className="flex items-center justify-between mt-2">
                     <div>
-                        <span className="text-4xl font-bold text-slate-900 dark:text-slate-100">{b2b?.active_schools || 0}</span>
-                        <p className="text-sm text-slate-500 font-medium">Escolas</p>
+                        <span className="text-4xl font-bold text-slate-900 dark:text-slate-100">{orgCount ?? 0}</span>
+                        <p className="text-sm text-slate-500 font-medium">Organizações</p>
                     </div>
                     <div className="h-12 w-12 bg-indigo-50 dark:bg-indigo-950/40 rounded-full flex items-center justify-center">
                          <GraduationCap className="w-6 h-6 text-indigo-600" />

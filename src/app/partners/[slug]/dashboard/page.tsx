@@ -537,7 +537,8 @@ export default function FounderDashboard() {
 
   return (
     <PartnerLayout>
-      <div className="space-y-6 min-h-full bg-slate-50 dark:bg-slate-950 -mx-4 -mt-4 md:-mx-8 md:-mt-8 px-4 pt-4 md:px-8 md:pt-8 pb-8 [--partner-surface-base:#ffffff] dark:[--partner-surface-base:#0f172a]">
+      <div className="edificar-page-canvas space-y-6 min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 [--partner-surface-base:#ffffff] dark:[--partner-surface-base:#0f172a]">
+        <div className="edificar-page-frame space-y-6 p-3 md:p-4">
         <LiquidGlassDefs />
 
         {/* ── Hero Header ───────────────────────────────────────────────────── */}
@@ -639,7 +640,7 @@ export default function FounderDashboard() {
           />
         </div>
 
-        <TintedCard accentColor="var(--brand-primary)" accentStrength={9}>
+        <TintedCard accentColor="var(--brand-primary)" accentStrength={9} className="edificar-major-surface">
           <CardHeader className="flex flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <CardTitle className="text-sm text-slate-700 dark:text-white/80 font-bold">Redações entregues</CardTitle>
@@ -696,7 +697,7 @@ export default function FounderDashboard() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
           {/* Distribuição de Planos — tinta secondary */}
-          <TintedCard accentColor="var(--brand-secondary)" accentStrength={7}>
+          <TintedCard accentColor="var(--brand-secondary)" accentStrength={7} className="edificar-major-surface">
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -1121,6 +1122,7 @@ export default function FounderDashboard() {
           </CardContent>
         </TintedCard>
 
+        </div>
       </div>
     </PartnerLayout>
   );

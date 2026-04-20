@@ -193,7 +193,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
           --brand-accent: ${safeAccent};
         }
       `}</style>
-      <div className="partner-founder-scope">
+      <div className="partner-founder-scope" data-partner-slug={slug}>
         {children}
       </div>
     </OrgProvider>

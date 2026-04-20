@@ -30,7 +30,8 @@ export default function OnboardingTelefone() {
   // Removido o 'success' para evitar tela intermediária
   const [step, setStep] = useState<'input' | 'processing'>('input');
   const [loadingMessage, setLoadingMessage] = useState("Conectando com a IA...");
-  
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
   const router = useRouter();
   const supabase = createClient();
 
@@ -120,7 +121,9 @@ export default function OnboardingTelefone() {
           focus_area: focusArea,
           study_pace: studyPace,
           days_per_week: daysPerWeek,
-          hours_per_day: hoursPerDay
+          hours_per_day: hoursPerDay,
+          terms_accepted: termsAccepted,
+          terms_version: "1.0",
         })
       });
 
@@ -245,9 +248,42 @@ export default function OnboardingTelefone() {
             />
           </div>
 
+          {/* Aceite de Termos de Uso */}
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <div className="relative mt-0.5 flex-shrink-0">
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                className="peer sr-only"
+                required
+              />
+              <div className="w-5 h-5 rounded-md border-2 border-slate-200 bg-slate-50 peer-checked:bg-blue-600 peer-checked:border-blue-600 transition-all flex items-center justify-center">
+                {termsAccepted && (
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+            </div>
+            <span className="text-sm text-slate-500 leading-relaxed">
+              Li e aceito os{" "}
+              <a
+                href="/termos-de-uso"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-700 font-medium underline underline-offset-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Termos de Uso e Política de Privacidade
+              </a>
+              , incluindo o uso dos meus dados para personalização do plano de estudos.
+            </span>
+          </label>
+
           <button
             type="submit"
-            disabled={loading || phone.length < 14}
+            disabled={loading || phone.length < 14 || !termsAccepted}
             className="w-full h-14 bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg rounded-2xl shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none flex items-center justify-center gap-2 group"
           >
             {loading ? (
@@ -261,8 +297,8 @@ export default function OnboardingTelefone() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-slate-400 mt-8 font-medium">
-          Prometemos não enviar spam. Apenas conteúdo relevante.
+        <p className="text-center text-xs text-slate-400 mt-6 font-medium">
+          🔒 Seus dados são protegidos e nunca compartilhados com terceiros.
         </p>
       </div>
     </div>

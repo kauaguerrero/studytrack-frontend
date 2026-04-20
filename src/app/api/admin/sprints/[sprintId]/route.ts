@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/app/api/admin/_utils';
+import { requireTaskAccess } from '@/app/api/admin/_utils';
 import { getSprintDetail } from '../_utils';
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ sprintId: string }> }
 ) {
-  const auth = await requireAdmin();
+  const auth = await requireTaskAccess();
   if (!auth.ok) return auth.response;
 
   const { sprintId } = await params;

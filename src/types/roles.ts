@@ -17,5 +17,5 @@ export const ROLE_PERMISSIONS = {
   admin: ['all'],
   founder: ['view_org_dashboard', 'manage_students', 'manage_org_settings'],
   associate: ['correct_essays'],
-  dev: ['view_tasks', 'use_platform'],
+  dev: ['view_tasks', 'update_tasks', 'use_platform'],
 } as const;

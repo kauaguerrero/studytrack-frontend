@@ -41,6 +41,7 @@ const STATUS_OPTIONS = [
   { value: 'in_progress', label: 'Em Andamento',  color: '#3b82f6' },
   { value: 'review',      label: 'Em Revisão',    color: '#f59e0b' },
   { value: 'done',        label: 'Concluído',     color: '#10b981' },
+  { value: 'blocked',     label: 'Bloqueadas',    color: '#ef4444' },
   { value: 'archived',    label: 'Arquivado',     color: '#71717a' },
 ];
 

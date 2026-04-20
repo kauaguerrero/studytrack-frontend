@@ -194,10 +194,34 @@ export default function ConvidarAlunosPage() {
           </Link>
         </Button>
 
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Adicionar Alunos</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Importe via CSV ou compartilhe o link de convite</p>
-        </div>
+        <section
+          className="relative overflow-hidden rounded-3xl border p-6 shadow-sm"
+          style={{
+            borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, #e5e7eb)',
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 14%, white) 0%, color-mix(in srgb, var(--brand-secondary) 10%, white) 100%)',
+          }}
+        >
+          <div
+            className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full blur-3xl opacity-60"
+            style={{ background: 'color-mix(in srgb, var(--brand-secondary) 48%, transparent)' }}
+          />
+          <div className="relative z-10">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
+              style={{
+                color: 'var(--brand-primary)',
+                borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
+                background: 'rgba(255,255,255,0.52)',
+              }}
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              Entrada de alunos
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Adicionar Alunos</h1>
+            <p className="mt-1 max-w-xl text-sm text-slate-600 dark:text-slate-300">
+              Importe via CSV ou compartilhe o link de convite em um fluxo mais leve e centralizado.
+            </p>
+          </div>
+        </section>
 
         {/* Link de convite */}
         <Card>
