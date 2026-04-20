@@ -170,7 +170,7 @@ export function RankingPopup({ ranking, onClose }: Props) {
           <div className="flex items-center gap-2 py-1.5" aria-hidden>
             <div className={`flex-1 border-t border-dashed ${theme.isDark ? 'border-white/10' : 'border-slate-200'}`} />
             <span className={`shrink-0 text-[9px] font-bold uppercase tracking-widest ${theme.rankingRowSubtextClass}`}>
-              Zona do prêmio
+              Zona de destaque
             </span>
             <div className={`flex-1 border-t border-dashed ${theme.isDark ? 'border-white/10' : 'border-slate-200'}`} />
           </div>
@@ -199,7 +199,7 @@ export function RankingPopup({ ranking, onClose }: Props) {
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div className={`${theme.isDark ? 'border-t border-white/8' : 'border-t border-slate-200/80'} px-4 py-3`}>
           <p className={`text-center text-xs ${theme.bodyClass}`}>
-            Top {prize_cutoff} estão mais perto do prêmio — quem atingir 1.500 pts no mês vence 🏆
+            Top {prize_cutoff} lideram o mês — quem atingir 1.500 pts no mês se destaca 🏆
           </p>
         </div>
       </motion.div>
