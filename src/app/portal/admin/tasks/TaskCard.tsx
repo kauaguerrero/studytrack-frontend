@@ -2,12 +2,14 @@
 
 import { Task, TaskPriority, TaskStatus } from './hooks/useTasks';
 import { Calendar, AlertCircle, GripVertical, Clock } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 export const COLUMN_ACCENT: Record<TaskStatus, string> = {
   backlog: '#6366f1',
   in_progress: '#3b82f6',
   review: '#f59e0b',
   done: '#10b981',
+  blocked: '#ef4444',
   archived: '#71717a',
 };
 
@@ -49,6 +51,16 @@ function formatDeadline(deadline: string): string {
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
+function getReadinessHint(_task: Task): {
+  label: string;
+  bg: string;
+  color: string;
+  border: string;
+  icon?: LucideIcon;
+} | null {
+  return null;
+}
+
 interface Props {
   task: Task;
   onClick: (task: Task) => void;
@@ -66,13 +78,17 @@ export default function TaskCard({ task, onClick, onDragStart }: Props) {
   const avatarColor = assigneeName ? getAvatarColor(assigneeName) : 'bg-zinc-700';
   const priority = task.priority ?? 'medium';
   const pc = PRIORITY_CONFIG[priority] ?? PRIORITY_CONFIG.medium;
+  const readinessHint = getReadinessHint(task);
+  const ReadinessIcon = readinessHint?.icon;
 
   return (
     <div
       draggable
+      tabIndex={0}
       onDragStart={() => onDragStart(task)}
       onClick={() => onClick(task)}
-      className="group relative bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/90 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 rounded-xl p-3.5 cursor-pointer transition-all duration-150 select-none hover:shadow-xl hover:shadow-black/10 dark:hover:shadow-black/30 hover:-translate-y-0.5 active:scale-[0.97] active:opacity-75 w-full"
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(task); } }}
+      className="group relative bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/90 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 rounded-xl p-3 cursor-pointer transition-all duration-150 select-none hover:shadow-lg hover:shadow-black/5 dark:hover:shadow-black/20 hover:-translate-y-0.5 active:scale-[0.98] active:opacity-75 w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900"
       style={{ borderLeft: `3px solid ${accentColor}` }}
     >
       {/* Drag handle */}
@@ -81,14 +97,38 @@ export default function TaskCard({ task, onClick, onDragStart }: Props) {
       </div>
 
       {/* Priority + Title row */}
-      <div className="mb-3 pr-6">
-        <span
-          className="text-[9px] font-bold px-1.5 py-0.5 rounded mb-1.5 inline-block"
-          style={{ background: pc.bg, color: pc.color, border: `1px solid ${pc.border}` }}
-        >
-          {pc.label}
-        </span>
-        <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-100 leading-snug break-words">
+      <div className="mb-2 pr-6">
+        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded inline-block"
+            style={{ background: pc.bg, color: pc.color, border: `1px solid ${pc.border}` }}
+          >
+            {pc.label}
+          </span>
+          {task.active_sprint?.status === 'active' && (
+            <span
+              className="text-[10px] font-bold px-2 py-0.5 rounded inline-block"
+              style={{
+                background: 'rgba(20,184,166,0.12)',
+                color: '#0f766e',
+                border: '1px solid rgba(20,184,166,0.28)',
+              }}
+              title={task.active_sprint.goal}
+            >
+              Sprint ativa
+            </span>
+          )}
+          {readinessHint && (
+            <span
+              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded"
+              style={{ background: readinessHint.bg, color: readinessHint.color, border: `1px solid ${readinessHint.border}` }}
+            >
+              {ReadinessIcon && <ReadinessIcon className="w-2.5 h-2.5" />}
+              {readinessHint.label}
+            </span>
+          )}
+        </div>
+        <p className="text-[13px] font-semibold text-zinc-900 dark:text-zinc-100 leading-snug break-words line-clamp-2">
           {task.title}
         </p>
       </div>
@@ -96,17 +136,34 @@ export default function TaskCard({ task, onClick, onDragStart }: Props) {
       {/* In-progress snippet */}
       {task.status === 'in_progress' && task.currently_doing && (
         <div
-          className="mb-3 rounded-lg px-2.5 py-1.5"
+          className="mb-2 rounded-lg px-2 py-1"
           style={{ background: `${accentColor}18`, border: `1px solid ${accentColor}30` }}
         >
           <div className="flex items-center gap-1.5 mb-0.5">
             <Clock className="w-2.5 h-2.5 flex-shrink-0" style={{ color: accentColor }} />
-            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: accentColor, opacity: 0.8 }}>
+            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: accentColor, opacity: 0.8 }}>
               Fazendo agora
             </span>
           </div>
-          <p className="text-[11px] text-zinc-400 line-clamp-1 leading-relaxed">
+          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 line-clamp-1 leading-relaxed">
             {task.currently_doing}
+          </p>
+        </div>
+      )}
+
+      {task.status === 'blocked' && (
+        <div
+          className="mb-2 rounded-lg px-2 py-1"
+          style={{ background: `${accentColor}18`, border: `1px solid ${accentColor}30` }}
+        >
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <AlertCircle className="w-2.5 h-2.5 flex-shrink-0" style={{ color: accentColor }} />
+            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: accentColor, opacity: 0.8 }}>
+              Bloqueio
+            </span>
+          </div>
+          <p className="text-[10px] text-zinc-500 dark:text-zinc-400 line-clamp-1 leading-relaxed">
+            {task.block_reason || 'Sem motivo informado'}
           </p>
         </div>
       )}
@@ -164,19 +221,30 @@ export default function TaskCard({ task, onClick, onDragStart }: Props) {
           )}
         </div>
 
-        {/* Deadline */}
-        {task.deadline && (
-          <div
-            className={`flex items-center gap-1 text-[11px] font-medium flex-shrink-0 px-2 py-0.5 rounded-md ${
-              overdue
-                ? 'bg-red-500/15 text-red-400 border border-red-500/20 animate-pulse'
-                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-300 dark:border-zinc-700/50'
-            }`}
-          >
-            {overdue ? <AlertCircle className="w-2.5 h-2.5" /> : <Calendar className="w-2.5 h-2.5" />}
-            <span>{formatDeadline(task.deadline)}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {(task.reopened_count ?? 0) > 0 && (
+            <span className="text-[10px] text-amber-600 dark:text-amber-300 font-medium">
+              R{task.reopened_count}
+            </span>
+          )}
+          {(task.blocked_count ?? 0) > 0 && task.status !== 'blocked' && (
+            <span className="text-[10px] text-red-600 dark:text-red-300 font-medium">
+              B{task.blocked_count}
+            </span>
+          )}
+          {task.deadline && (
+            <div
+              className={`flex items-center gap-1 text-[10px] font-medium flex-shrink-0 px-1.5 py-0.5 rounded-md ${
+                overdue
+                  ? 'bg-red-500/15 text-red-400 border border-red-500/20'
+                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-300 dark:border-zinc-700/50'
+              }`}
+            >
+              {overdue ? <AlertCircle className="w-2.5 h-2.5" /> : <Calendar className="w-2.5 h-2.5" />}
+              <span>{formatDeadline(task.deadline)}</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

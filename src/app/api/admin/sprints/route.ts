@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/app/api/admin/_utils';
+import { requireAdmin, requireTaskAccess } from '@/app/api/admin/_utils';
 import { getActiveSprintDetail, getSprintDetail } from './_utils';
 
 export async function GET(request: Request) {
-  const auth = await requireAdmin();
+  const auth = await requireTaskAccess();
   if (!auth.ok) return auth.response;
 
   const url = new URL(request.url);

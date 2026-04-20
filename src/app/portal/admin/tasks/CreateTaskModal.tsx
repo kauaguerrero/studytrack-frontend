@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Calendar, FileText, Tag, User, Flag } from 'lucide-react';
+import { Plus, Calendar, FileText, Tag, User, Flag, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { apiCreateTask, useAdminProfiles, TaskPriority } from './hooks/useTasks';
 import { PRIORITY_CONFIG } from './TaskCard';
 import { mutate } from 'swr';
@@ -10,24 +10,56 @@ import { toast } from 'sonner';
 
 interface Props {
   open: boolean;
-  userId: string;
   onClose: () => void;
 }
 
 const PRIORITIES: TaskPriority[] = ['low', 'medium', 'high', 'critical'];
+const TASK_TYPE_OPTIONS = [
+  { value: 'bug', label: 'Bug' },
+  { value: 'feature', label: 'Feature' },
+  { value: 'improvement', label: 'Melhoria' },
+  { value: 'tech_debt', label: 'Dívida técnica' },
+  { value: 'ops', label: 'Operação' },
+  { value: 'other', label: 'Outro' },
+] as const;
+const STEPS = [
+  {
+    id: 'definition',
+  },
+  {
+    id: 'classification',
+  },
+] as const;
 
-export default function CreateTaskModal({ open, userId, onClose }: Props) {
+export default function CreateTaskModal({ open, onClose }: Props) {
   const [title, setTitle] = useState('');
   const [scope, setScope] = useState('');
-  const [deadline, setDeadline] = useState('');
+  const [targetDate, setTargetDate] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
-  const [assigneeId, setAssigneeId] = useState<string>('');
-  const [coAssigneeId, setCoAssigneeId] = useState<string>('');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [taskType, setTaskType] = useState('');
+  const [customTaskType, setCustomTaskType] = useState('');
+  const [expectedOutcome, setExpectedOutcome] = useState('');
+  const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const { profiles } = useAdminProfiles();
-  const isValid = title.trim() && scope.trim();
-
+  const resolvedTaskType = taskType === 'other' ? customTaskType.trim() : taskType;
+  const requiredFields = {
+    title: title.trim().length > 0,
+    scope: scope.trim().length > 0,
+    expectedOutcome: expectedOutcome.trim().length > 0,
+    priority: !!priority,
+    taskType: resolvedTaskType.length > 0,
+  };
+  const isValid = Object.values(requiredFields).every(Boolean);
+  const stepReady = [
+    requiredFields.title && requiredFields.scope && requiredFields.expectedOutcome,
+    requiredFields.priority && requiredFields.taskType,
+  ];
+  const canAdvance = stepReady[currentStep];
+  const isLastStep = currentStep === STEPS.length - 1;
+  const flowProgress = ((currentStep + 1) / STEPS.length) * 100;
   async function handleSubmit() {
     if (!isValid) return;
     setLoading(true);
@@ -35,11 +67,11 @@ export default function CreateTaskModal({ open, userId, onClose }: Props) {
       await apiCreateTask({
         title: title.trim(),
         scope: scope.trim(),
-        created_by: userId,
         priority,
-        assignee_id: assigneeId || undefined,
-        co_assignee_id: coAssigneeId || undefined,
-        deadline: deadline ? new Date(deadline).toISOString() : undefined,
+        assignee_ids: assigneeIds.length ? assigneeIds : undefined,
+        target_date: targetDate ? new Date(targetDate).toISOString() : undefined,
+        task_type: resolvedTaskType || undefined,
+        expected_outcome: expectedOutcome || undefined,
       });
       toast.success('Task criada com sucesso!');
       mutate(key => typeof key === 'string' && key.startsWith('/api/admin/tasks'));
@@ -52,156 +84,254 @@ export default function CreateTaskModal({ open, userId, onClose }: Props) {
   }
 
   function handleClose() {
-    setTitle(''); setScope(''); setDeadline('');
-    setPriority('medium'); setAssigneeId(''); setCoAssigneeId('');
+    setTitle(''); setScope(''); setTargetDate('');
+    setPriority('medium'); setAssigneeIds([]);
+    setTaskType(''); setCustomTaskType(''); setExpectedOutcome('');
+    setCurrentStep(0);
     onClose();
   }
 
+  function handleNext() {
+    if (!canAdvance || isLastStep) return;
+    setCurrentStep((step) => Math.min(step + 1, STEPS.length - 1));
+  }
+
+  function handlePrevious() {
+    setCurrentStep((step) => Math.max(step - 1, 0));
+  }
+
+  const submitLabel = loading ? 'Criando...' : 'Criar Task';
+
   return (
     <Dialog open={open} onOpenChange={v => !v && handleClose()}>
-      <DialogContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 max-w-lg p-0 gap-0 overflow-hidden rounded-2xl">
+      <DialogContent className="bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 max-w-4xl w-[calc(100%-2rem)] p-0 gap-0 overflow-hidden rounded-[28px] flex flex-col max-h-[min(92vh,860px)]">
+        <div className="h-[4px]" style={{ background: 'linear-gradient(90deg, #1d4ed8, #2563eb, #60a5fa)' }} />
 
-        {/* Accent bar */}
-        <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #6366f1, #6366f140)' }} />
+        <div className="px-5 pt-4 pb-3 border-b border-zinc-200 dark:border-zinc-800/60">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/15 flex items-center justify-center">
+                <Plus className="w-4 h-4 text-blue-500" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-black text-zinc-900 dark:text-zinc-100">Nova Task</DialogTitle>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">Criação por etapas</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+                Passo {currentStep + 1} de {STEPS.length}
+              </span>
+              <div className="h-1.5 flex-1 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${flowProgress}%`, background: 'linear-gradient(90deg, #2563eb, #60a5fa)' }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
 
-        {/* Header */}
-        <div className="px-6 pt-5 pb-4 border-b border-zinc-200 dark:border-zinc-800/60">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6">
+          <div className="mx-auto max-w-3xl">
+              {currentStep === 0 && (
+                <div className="space-y-4">
+                  <div>
+                    <FieldLabel icon={Tag} label="Título" required />
+                    <input
+                      value={title}
+                      onChange={e => setTitle(e.target.value)}
+                      placeholder="Ex: Ajustar fluxo de reset de senha no portal"
+                      className="mt-2 w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-3 text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel icon={FileText} label="Escopo" required />
+                    <textarea
+                      value={scope}
+                      onChange={e => setScope(e.target.value)}
+                      placeholder="Explique o problema, o contexto e o limite do que deve ser feito."
+                      rows={5}
+                      className="mt-2 w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-3 text-sm resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel icon={CheckCircle2} label="Resultado esperado" required />
+                    <textarea
+                      value={expectedOutcome}
+                      onChange={e => setExpectedOutcome(e.target.value)}
+                      rows={4}
+                      placeholder="Ex: usuário consegue redefinir a senha sem erro e recebe feedback claro na tela."
+                      className="mt-2 w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-3 text-sm resize-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {currentStep === 1 && (
+                <div className="space-y-5">
+                  <div>
+                    <FieldLabel icon={Flag} label="Prioridade" required />
+                    <div className="mt-2 flex gap-2 flex-wrap">
+                      {PRIORITIES.map(p => {
+                        const pc = PRIORITY_CONFIG[p];
+                        const selected = priority === p;
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setPriority(p)}
+                            className="text-xs font-bold px-3.5 py-2 rounded-xl transition-all border"
+                            style={{
+                              background: selected ? pc.bg : 'transparent',
+                              color: selected ? pc.color : '#71717a',
+                              borderColor: selected ? pc.border : 'rgba(113,113,122,0.25)',
+                            }}
+                          >
+                            {pc.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-[minmax(0,260px),1fr] gap-5">
+                    <div>
+                      <FieldLabel icon={Tag} label="Tipo" required />
+                      <select
+                        value={taskType}
+                        onChange={e => setTaskType(e.target.value)}
+                        className="mt-2 w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-3 text-sm"
+                      >
+                        <option value="">Selecione o tipo</option>
+                        {TASK_TYPE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+
+                      {taskType === 'other' && (
+                        <input
+                          value={customTaskType}
+                          onChange={e => setCustomTaskType(e.target.value)}
+                          placeholder="Descreva o tipo"
+                          className="mt-3 w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-3 text-sm"
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <FieldLabel icon={User} label="Responsáveis" />
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {profiles.map((profile) => {
+                          const active = assigneeIds.includes(profile.id);
+                          return (
+                            <button
+                              key={profile.id}
+                              type="button"
+                              onClick={() => setAssigneeIds((current) => (
+                                current.includes(profile.id)
+                                  ? current.filter((id) => id !== profile.id)
+                                  : [...current, profile.id]
+                              ))}
+                              className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all"
+                              style={{
+                                background: active ? 'rgba(37,99,235,0.10)' : 'transparent',
+                                borderColor: active ? 'rgba(37,99,235,0.35)' : 'rgba(113,113,122,0.22)',
+                                color: active ? '#2563eb' : undefined,
+                              }}
+                            >
+                              <span className={`h-2 w-2 rounded-full ${active ? 'bg-blue-500' : 'bg-zinc-400'}`} />
+                              {profile.full_name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {assigneeIds.length > 0 && (
+                        <p className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+                          {assigneeIds.length} selecionado(s)
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <FieldLabel icon={Calendar} label="Prazo" />
+                    <input
+                      type="date"
+                      value={targetDate}
+                      onChange={e => setTargetDate(e.target.value)}
+                      className="mt-2 w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-3 text-sm [color-scheme:dark]"
+                    />
+                  </div>
+                </div>
+              )}
+          </div>
+        </div>
+
+        <div className="px-6 pb-5 pt-4 flex items-center justify-between gap-3 border-t border-zinc-200 dark:border-zinc-800/60 flex-shrink-0">
+          <div className="text-xs text-zinc-500 dark:text-zinc-400">
+            {canAdvance || isLastStep ? 'Você pode seguir.' : 'Complete os campos essenciais deste passo para continuar.'}
+          </div>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500/15 flex items-center justify-center">
-              <Plus className="w-4 h-4 text-indigo-400" />
-            </div>
-            <div>
-              <DialogTitle className="text-base font-bold text-zinc-100">Nova Task</DialogTitle>
-              <p className="text-xs text-zinc-600">Será adicionada ao Backlog</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Form */}
-        <div className="px-6 py-5 space-y-4">
-          {/* Title */}
-          <div>
-            <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
-              <Tag className="w-3 h-3" /> Título <span className="text-red-400">*</span>
-            </label>
-            <input
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="Título curto e descritivo"
-              className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
-              onKeyDown={e => e.key === 'Enter' && isValid && handleSubmit()}
-            />
-          </div>
-
-          {/* Scope */}
-          <div>
-            <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
-              <FileText className="w-3 h-3" /> Escopo <span className="text-red-400">*</span>
-            </label>
-            <textarea
-              value={scope}
-              onChange={e => setScope(e.target.value)}
-              placeholder="Descreva detalhadamente o que precisa ser feito, contexto e critérios de aceitação..."
-              rows={4}
-              className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-600 resize-none focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
-            />
-          </div>
-
-          {/* Priority */}
-          <div>
-            <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
-              <Flag className="w-3 h-3" /> Prioridade
-            </label>
-            <div className="flex gap-2 flex-wrap">
-              {PRIORITIES.map(p => {
-                const pc = PRIORITY_CONFIG[p];
-                const selected = priority === p;
-                return (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPriority(p)}
-                    className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
-                    style={{
-                      background: selected ? pc.bg : 'transparent',
-                      color: selected ? pc.color : '#71717a',
-                      border: `1px solid ${selected ? pc.border : 'rgba(113,113,122,0.3)'}`,
-                    }}
-                  >
-                    {pc.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Assignees */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
-                <User className="w-3 h-3" /> Responsável <span className="text-zinc-700">(opcional)</span>
-              </label>
-              <select
-                value={assigneeId}
-                onChange={e => setAssigneeId(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+            <button
+              onClick={handleClose}
+              className="text-sm font-medium px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300"
+            >
+              Cancelar
+            </button>
+            {currentStep > 0 && (
+              <button
+                onClick={handlePrevious}
+                className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300"
               >
-                <option value="">Não atribuído</option>
-                {profiles.map(p => (
-                  <option key={p.id} value={p.id} disabled={p.id === coAssigneeId}>{p.full_name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
-                <User className="w-3 h-3" /> Co-responsável <span className="text-zinc-700">(opcional)</span>
-              </label>
-              <select
-                value={coAssigneeId}
-                onChange={e => setCoAssigneeId(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Voltar
+              </button>
+            )}
+            {!isLastStep ? (
+              <button
+                onClick={handleNext}
+                disabled={!canAdvance}
+                className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: '#2563eb' }}
               >
-                <option value="">Nenhum</option>
-                {profiles.map(p => (
-                  <option key={p.id} value={p.id} disabled={p.id === assigneeId}>{p.full_name}</option>
-                ))}
-              </select>
-            </div>
+                Continuar
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={!isValid || loading}
+                className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ background: '#2563eb' }}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                {submitLabel}
+              </button>
+            )}
           </div>
-
-          {/* Deadline */}
-          <div>
-            <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
-              <Calendar className="w-3 h-3" /> Prazo <span className="text-zinc-700">(opcional)</span>
-            </label>
-            <input
-              type="date"
-              value={deadline}
-              onChange={e => setDeadline(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-700 dark:text-zinc-300 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all [color-scheme:dark]"
-            />
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 pb-5 flex items-center justify-end gap-2.5">
-          <button
-            onClick={handleClose}
-            className="text-sm font-medium px-4 py-2 rounded-xl border border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700 transition-all"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!isValid || loading}
-            className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: isValid ? '#6366f1' : '#6366f160' }}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            {loading ? 'Criando...' : 'Criar Task'}
-          </button>
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function FieldLabel({
+  icon: Icon,
+  label,
+  required,
+}: {
+  icon: typeof Tag;
+  label: string;
+  required?: boolean;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">
+      <Icon className="w-3.5 h-3.5" />
+      {label}
+      {required && <span className="rounded-full bg-red-100 dark:bg-red-950/40 px-1.5 py-0.5 text-[9px] text-red-600 dark:text-red-300">Obrigatório</span>}
+    </label>
   );
 }

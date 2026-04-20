@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { requireAdminOrDev, recordHistory } from '@/app/api/admin/_utils';
+import { requireTaskAccess, recordHistory } from '@/app/api/admin/_utils';
+import { sanitizeTaskUpdateBody } from './_lib/server';
 
 export async function GET(request: Request) {
-  const auth = await requireAdminOrDev();
+  const auth = await requireTaskAccess();
   if (!auth.ok) return auth.response;
 
   const url = new URL(request.url);
@@ -52,25 +53,46 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAdminOrDev();
+  const auth = await requireTaskAccess();
   if (!auth.ok) return auth.response;
 
   const body = await request.json();
   const title = (body.title ?? '').trim();
   const scope = (body.scope ?? '').trim();
-  const createdBy = (body.created_by ?? '').trim();
+  const createdBy = auth.user.id;
 
   if (!title) return NextResponse.json({ error: "Campo 'title' é obrigatório" }, { status: 400 });
   if (!scope) return NextResponse.json({ error: "Campo 'scope' é obrigatório" }, { status: 400 });
-  if (!createdBy) return NextResponse.json({ error: "Campo 'created_by' é obrigatório" }, { status: 400 });
 
   const validPriorities = ['low', 'medium', 'high', 'critical'];
   const priority = validPriorities.includes(body.priority) ? body.priority : 'medium';
+  const assigneeIds = Array.isArray(body.assignee_ids)
+    ? body.assignee_ids.map((value: unknown) => String(value).trim()).filter(Boolean)
+    : [];
 
-  const payload: Record<string, unknown> = { title, scope, created_by: createdBy, status: 'backlog', priority };
-  if (body.assignee_id) payload.assignee_id = body.assignee_id;
-  if (body.co_assignee_id) payload.co_assignee_id = body.co_assignee_id;
+  let payload: Record<string, unknown> = { title, scope, created_by: createdBy, status: 'backlog', priority };
+  if (assigneeIds.length) {
+    payload.assignee_ids = assigneeIds;
+    payload.assignee_id = assigneeIds[0] ?? null;
+    payload.co_assignee_id = assigneeIds[1] ?? null;
+  } else {
+    if (body.assignee_id) payload.assignee_id = body.assignee_id;
+    if (body.co_assignee_id) payload.co_assignee_id = body.co_assignee_id;
+  }
   if (body.deadline) payload.deadline = body.deadline;
+  try {
+    payload = {
+      ...payload,
+      ...sanitizeTaskUpdateBody({
+        description: body.description ?? null,
+        task_type: body.task_type ?? null,
+        expected_outcome: body.expected_outcome ?? null,
+        target_date: body.target_date ?? null,
+      }),
+    };
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || 'Payload inválido' }, { status: 400 });
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: inserted, error } = await (auth.supabaseAdmin as any)

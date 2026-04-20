@@ -118,7 +118,7 @@ export default function ActiveSprintPanel({
 
   return (
     <div
-      className="flex items-center gap-3 px-6 h-10 flex-shrink-0 border-b"
+      className="flex items-center gap-3 px-6 h-12 flex-shrink-0 border-b"
       style={{
         background:   isDark ? 'rgba(20,184,166,0.05)' : 'rgba(20,184,166,0.04)',
         borderColor:  isDark ? 'rgba(20,184,166,0.13)' : 'rgba(20,184,166,0.10)',
@@ -149,7 +149,7 @@ export default function ActiveSprintPanel({
       {/* ── Progress bar + % ──────────────────────────────────────────────── */}
       <div className="hidden md:flex items-center gap-2 flex-shrink-0">
         <div
-          className="w-28 h-1.5 rounded-full overflow-hidden flex-shrink-0"
+          className="w-28 h-2 rounded-full overflow-hidden flex-shrink-0"
           style={{ background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)' }}
         >
           <div
@@ -252,7 +252,7 @@ export default function ActiveSprintPanel({
               {/* Progress bar */}
               <div className="flex items-center gap-2 pt-0.5">
                 <div
-                  className="flex-1 h-1.5 rounded-full overflow-hidden"
+                  className="flex-1 h-2 rounded-full overflow-hidden"
                   style={{ background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)' }}
                 >
                   <div

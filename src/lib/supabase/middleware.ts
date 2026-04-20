@@ -124,10 +124,13 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(new URL(dest, request.url));
     }
 
+    const isTaskDashboardPath = path === '/portal/admin/tasks/dashboard' || path.startsWith('/portal/admin/tasks/dashboard/');
+    const isTaskWorkspacePath = !isTaskDashboardPath && (path === '/portal/admin/tasks' || path.startsWith('/portal/admin/tasks/'));
+
     if (path.startsWith('/portal/admin') && currentRole !== 'admin') {
-        // Role 'dev': acesso restrito a /portal/admin/tasks
+        // Role 'dev': acesso restrito ao workspace de tasks (excluindo dashboard)
         if (currentRole === 'dev') {
-          if (!path.startsWith('/portal/admin/tasks')) {
+          if (!isTaskWorkspacePath) {
             return NextResponse.redirect(new URL('/portal/admin/tasks', request.url));
           }
           return supabaseResponse;
@@ -141,6 +144,11 @@ export async function updateSession(request: NextRequest) {
             userId: user.id,
           });
         }
+        const dest = currentRole === 'manager' ? '/portal/manager' : currentRole === 'teacher' ? '/portal/teacher' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
+        return NextResponse.redirect(new URL(dest, request.url));
+    }
+
+    if (path.startsWith('/portal/dev') && currentRole !== 'dev' && currentRole !== 'admin') {
         const dest = currentRole === 'manager' ? '/portal/manager' : currentRole === 'teacher' ? '/portal/teacher' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
         return NextResponse.redirect(new URL(dest, request.url));
     }

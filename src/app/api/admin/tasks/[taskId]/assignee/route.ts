@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { requireAdminOrDev, recordHistory, getTaskDetail } from '@/app/api/admin/_utils';
+import { requireTaskAccess, recordHistory, getTaskDetail } from '@/app/api/admin/_utils';
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ taskId: string }> }
 ) {
-  const auth = await requireAdminOrDev();
+  const auth = await requireTaskAccess();
   if (!auth.ok) return auth.response;
 
   const { taskId } = await params;
