@@ -265,6 +265,13 @@ interface AuditDetail {
     notes?: string | null;
   } | null;
   question?: QuestionFull | null;
+  suggested_fix?: {
+    kind: 'prepend_missing_context_text';
+    source_pdf?: string | null;
+    question_number?: string | null;
+    missing_body_text: string;
+    suggested_context: string;
+  } | null;
 }
 
 const AUDIT_META: Record<AuditType, {
@@ -605,7 +612,7 @@ export default function AdminAuditCenterPage() {
   const [questionPreviewOpen, setQuestionPreviewOpen] = useState(true);
   const [questionEditing, setQuestionEditing] = useState(false);
   const [questionSaving, setQuestionSaving] = useState(false);
-  const [questionPublishingAction, setQuestionPublishingAction] = useState<'unpublish' | null>(null);
+  const [questionPublishingAction, setQuestionPublishingAction] = useState<'approve_fix' | 'unpublish' | null>(null);
   const [editForm, setEditForm] = useState<EditableQuestionForm | null>(null);
   const [newImageUrl, setNewImageUrl] = useState('');
 
@@ -639,6 +646,13 @@ export default function AdminAuditCenterPage() {
     issue: deferredIssue.trim(),
   }), [queryFilters, deferredIssue]);
   const activeResultFilterCount = countActiveResultFilters(resultQueryFilters);
+  const suggestedQuestionPreview = useMemo(() => {
+    if (!detail?.question || !detail?.suggested_fix?.suggested_context) return null;
+    return {
+      ...detail.question,
+      context: detail.suggested_fix.suggested_context,
+    } satisfies QuestionFull;
+  }, [detail?.question, detail?.suggested_fix?.suggested_context]);
 
   async function getToken() {
     const sessionResult = await supabase.auth.getSession();
@@ -1002,6 +1016,27 @@ export default function AdminAuditCenterPage() {
     }
   }
 
+  async function approveSuggestedFix() {
+    if (!detail?.question?.id || !detail?.suggested_fix?.suggested_context) return;
+    setQuestionPublishingAction('approve_fix');
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .update({ context: detail.suggested_fix.suggested_context })
+        .eq('id', detail.question.id);
+
+      if (error) throw error;
+      toast.success('Correção aplicada à questão.');
+      await fetchDetail(selectedRow?.id || detail.id);
+    } catch (error) {
+      console.error('Erro ao aplicar correção sugerida:', error);
+      void reportError('AdminAuditQuestionApproveFixError', String(error));
+      toast.error('Não foi possível aplicar a correção.');
+    } finally {
+      setQuestionPublishingAction(null);
+    }
+  }
+
   useEffect(() => { void fetchRuns(true); }, []);
   useEffect(() => {
     void fetchDashboard();
@@ -1323,10 +1358,16 @@ export default function AdminAuditCenterPage() {
                           Salvar
                         </Button>
                       ) : null}
-                      {detail?.question?.is_verified ? (
-                        <Button type="button" variant="outline" className="bg-white text-amber-700 border-amber-200 hover:bg-amber-50" disabled={questionPublishingAction === 'unpublish' || questionEditing} onClick={() => void unpublishQuestion()}>
+                      {detail?.suggested_fix && !questionEditing ? (
+                        <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={questionPublishingAction !== null} onClick={() => void approveSuggestedFix()}>
+                          {questionPublishingAction === 'approve_fix' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                          Aprovar correção
+                        </Button>
+                      ) : null}
+                      {detail?.question ? (
+                        <Button type="button" variant="outline" className="bg-white text-amber-700 border-amber-200 hover:bg-amber-50" disabled={questionPublishingAction === 'unpublish' || questionEditing || detail.question.is_verified === false} onClick={() => void unpublishQuestion()}>
                           {questionPublishingAction === 'unpublish' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          Despublicar
+                          {detail.question.is_verified === false ? 'Já reprovada' : 'Reprovar questão'}
                         </Button>
                       ) : null}
                     </div>
@@ -1341,10 +1382,29 @@ export default function AdminAuditCenterPage() {
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  {detail?.suggested_fix && !questionEditing ? (
+                    <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-emerald-900">Sugestão de correção</p>
+                          <p className="mt-1 text-xs text-emerald-700">Texto faltante identificado na base oficial do ENEM. Ao aprovar, esse trecho será inserido antes das imagens do contexto.</p>
+                        </div>
+                        <Badge variant="outline" className="border-emerald-300 bg-white text-emerald-800">
+                          {detail.suggested_fix.source_pdf || 'pdf oficial'}{detail.suggested_fix.question_number ? ` · questão ${detail.suggested_fix.question_number}` : ''}
+                        </Badge>
+                      </div>
+                      <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
+                        <p className="mb-2 text-xs font-bold uppercase text-emerald-700">Trecho que será inserido</p>
+                        <div className="prose prose-sm max-w-none whitespace-pre-wrap text-emerald-950">
+                          {detail.suggested_fix.missing_body_text}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">Questão renderizada</p>
-                      <p className="mt-1 text-xs text-slate-500">Abra o conteúdo real da questão para inspecionar o problema.</p>
+                      <p className="text-sm font-semibold text-slate-900">{detail?.suggested_fix && !questionEditing ? 'Prévia da correção' : 'Questão renderizada'}</p>
+                      <p className="mt-1 text-xs text-slate-500">{detail?.suggested_fix && !questionEditing ? 'Visualização de como a questão ficará após aplicar a sugestão.' : 'Abra o conteúdo real da questão para inspecionar o problema.'}</p>
                     </div>
                     {!questionEditing ? <Button type="button" variant="ghost" size="sm" className="text-slate-600" onClick={() => setQuestionPreviewOpen(current => !current)}>
                       {questionPreviewOpen ? <><ChevronUp className="mr-1 h-4 w-4" />Ocultar questão</> : <><ChevronDown className="mr-1 h-4 w-4" />Ver questão</>}
@@ -1411,7 +1471,7 @@ export default function AdminAuditCenterPage() {
                         <textarea value={editForm.ai_reasoning.thought} onChange={event => setEditForm({ ...editForm, ai_reasoning: { thought: event.target.value } })} className="mt-1 min-h-[100px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
                       </div>
                     </div>
-                  ) : questionPreviewOpen ? <QuestionPreview question={detail?.question} /> : null}
+                  ) : questionPreviewOpen ? <QuestionPreview question={suggestedQuestionPreview || detail?.question} /> : null}
                 </div>
               </div>
             )}
