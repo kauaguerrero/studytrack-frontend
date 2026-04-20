@@ -1,17 +1,25 @@
 'use client';
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import {
   Activity,
+  AlertCircle,
   AlertTriangle,
   BarChart3,
   BookOpen,
+  Bot,
+  CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   CircleAlert,
   Clock3,
+  Edit3,
+  Filter,
   Layers3,
   LoaderCircle,
   Play,
@@ -19,7 +27,9 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Save,
   TerminalSquare,
+  X,
 } from 'lucide-react';
 import {
   Bar,
@@ -56,6 +66,49 @@ interface QuestionLite {
   subject: string | null;
   discipline: string | null;
   difficulty: string | null;
+}
+
+interface AlternativeInfo {
+  letter: string;
+  text: string;
+  image?: string;
+  isCorrect?: boolean;
+}
+
+interface QuestionFull extends QuestionLite {
+  title?: string | null;
+  context?: string | null;
+  statement?: string | null;
+  alternatives_intro?: string | null;
+  alternatives?: AlternativeInfo[];
+  correct_alternative?: string | null;
+  images?: string[];
+  metadata?: Record<string, unknown>;
+  ai_reasoning?: { thought?: string };
+  is_verified?: boolean;
+  status?: string | null;
+}
+
+interface EditableAlternativeInfo {
+  letter: string;
+  text: string;
+  image?: string;
+  isCorrect?: boolean;
+}
+
+interface EditableQuestionForm {
+  id: string;
+  subject: string;
+  discipline: string;
+  difficulty: string;
+  exam_year: number | null;
+  title: string;
+  context: string;
+  alternatives_intro: string;
+  alternatives: EditableAlternativeInfo[];
+  correct_alternative: string;
+  images: string[];
+  ai_reasoning: { thought: string };
 }
 
 interface AuditRow {
@@ -117,20 +170,13 @@ interface AuditRun {
       status_counts: Record<string, number>;
     }>;
   };
-}
-
-interface ExceptionQueuePayload {
-  page: number;
-  page_size: number;
-  total: number;
-  items: AuditRow[];
-  counts: Record<string, number>;
-}
-
-interface CoverageGapItem {
-  question: QuestionLite;
-  missing_audits: AuditType[];
-  missing_count: number;
+  progress?: {
+    current_audit?: string | null;
+    current_question_external_id?: string | null;
+    processed_questions?: number | null;
+    total_questions?: number | null;
+    eta_seconds?: number | null;
+  };
 }
 
 interface RunComparisonPayload {
@@ -196,6 +242,36 @@ interface DashboardPayload {
     disciplines: string[];
     difficulties: string[];
   };
+}
+
+interface AuditDetail {
+  id: string;
+  audit_type: AuditType;
+  status: AuditStatus;
+  scanner_status?: string;
+  severity: AuditSeverity;
+  issue_codes: string[];
+  issue_count: number;
+  latest_run_at: string | null;
+  latest_run_version: string | null;
+  latest_run_id?: string | null;
+  latest_run_group_id?: string | null;
+  latest_baseline_id?: string | null;
+  latest_report?: Record<string, unknown> | null;
+  exception?: {
+    id?: string;
+    state: string;
+    reason?: string | null;
+    notes?: string | null;
+  } | null;
+  question?: QuestionFull | null;
+  suggested_fix?: {
+    kind: 'prepend_missing_context_text';
+    source_pdf?: string | null;
+    question_number?: string | null;
+    missing_body_text: string;
+    suggested_context: string;
+  } | null;
 }
 
 const AUDIT_META: Record<AuditType, {
@@ -265,6 +341,61 @@ function formatDateTime(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatEta(seconds?: number | null) {
+  if (!seconds || seconds <= 0) return null;
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes < 60) return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+}
+
+function buildEditForm(question: QuestionFull): EditableQuestionForm {
+  return {
+    id: question.id,
+    subject: question.subject || '',
+    discipline: question.discipline || '',
+    difficulty: question.difficulty || '',
+    exam_year: question.exam_year ?? null,
+    title: question.title || '',
+    context: question.context || '',
+    alternatives_intro: question.alternatives_intro || question.statement || '',
+    alternatives: (question.alternatives || []).map(alternative => ({
+      letter: alternative.letter,
+      text: alternative.text || '',
+      image: alternative.image,
+      isCorrect: alternative.isCorrect,
+    })),
+    correct_alternative: question.correct_alternative || '',
+    images: question.images || [],
+    ai_reasoning: { thought: question.ai_reasoning?.thought || '' },
+  };
+}
+
+function countActiveResultFilters(filters: {
+  audit_type: string;
+  status: string;
+  severity: string;
+  year: string;
+  subject: string;
+  discipline: string;
+  difficulty: string;
+  issue: string;
+}) {
+  let count = 0;
+  if (filters.audit_type) count += 1;
+  if (filters.status) count += 1;
+  if (filters.severity) count += 1;
+  if (filters.year) count += 1;
+  if (filters.subject) count += 1;
+  if (filters.discipline) count += 1;
+  if (filters.difficulty) count += 1;
+  if (filters.issue) count += 1;
+  return count;
 }
 
 function classForSeverity(severity: string) {
@@ -341,6 +472,86 @@ function buildCommandPreview(config: {
   return parts.join(' \\\n  ');
 }
 
+function QuestionPreview({ question }: { question?: QuestionFull | null }) {
+  if (!question) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
+        <p className="flex items-center gap-2">
+          <AlertCircle className="h-4 w-4" />
+          Questão removida ou indisponível.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 rounded-2xl border border-slate-200 bg-slate-50/50 p-6">
+      {question.context ? (
+        <div className="relative border-l-4 border-slate-200 py-1 pl-5">
+          <div className="prose prose-slate max-w-none text-sm italic leading-relaxed text-slate-600">
+            <ReactMarkdown>{question.context}</ReactMarkdown>
+          </div>
+        </div>
+      ) : null}
+
+      {question.title || question.statement || question.alternatives_intro ? (
+        <div className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-800">
+          {question.title ? <h3 className="mb-2 text-base font-bold">{question.title}</h3> : null}
+          <ReactMarkdown>{question.statement || question.alternatives_intro || ''}</ReactMarkdown>
+        </div>
+      ) : null}
+
+      {question.images && question.images.length > 0 ? (
+        <div className="flex gap-4 overflow-x-auto pb-2">
+          {question.images.map((image, index) => (
+            <img
+              key={image + index}
+              src={image}
+              alt={`Apoio ${index + 1}`}
+              className="h-40 w-auto rounded-lg border border-slate-200 bg-white object-contain"
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {question.alternatives && question.alternatives.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-bold uppercase text-slate-500">Alternativas</p>
+          {question.alternatives.map((alternative) => {
+            const isCorrect = alternative.letter === question.correct_alternative || alternative.isCorrect;
+            return (
+              <div
+                key={alternative.letter}
+                className={`rounded-xl border p-3 text-sm ${
+                  isCorrect ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="w-6 font-bold">{alternative.letter}.</span>
+                  <span className={isCorrect ? 'font-medium text-emerald-800' : 'text-slate-700'}>
+                    {alternative.text || '(imagem)'}
+                  </span>
+                  {isCorrect ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {question.ai_reasoning?.thought ? (
+        <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <Bot className="h-4 w-4 text-sky-700" />
+            <span className="text-xs font-bold uppercase text-sky-800">Raciocínio / Comentário</span>
+          </div>
+          <p className="text-sm italic leading-relaxed text-sky-900">{question.ai_reasoning.thought}</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function AdminAuditCenterPage() {
   const supabase = useMemo(() => createClient(), []);
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
@@ -363,14 +574,8 @@ export default function AdminAuditCenterPage() {
   const [resultsPage, setResultsPage] = useState(1);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [selectedQuestionAuditId, setSelectedQuestionAuditId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<any | null>(null);
-  const [exceptionQueue, setExceptionQueue] = useState<ExceptionQueuePayload | null>(null);
-  const [coverageGaps, setCoverageGaps] = useState<CoverageGapItem[]>([]);
+  const [detail, setDetail] = useState<AuditDetail | null>(null);
   const [runComparisonData, setRunComparisonData] = useState<RunComparisonPayload | null>(null);
-  const [decisionState, setDecisionState] = useState<'needs_manual_review' | 'accepted_exception' | 'resolved'>('needs_manual_review');
-  const [decisionReason, setDecisionReason] = useState('');
-  const [decisionNotes, setDecisionNotes] = useState('');
-  const [decisionSubmitting, setDecisionSubmitting] = useState(false);
 
   const [filterAuditType, setFilterAuditType] = useState<'all' | AuditType>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | AuditStatus>('all');
@@ -380,7 +585,9 @@ export default function AdminAuditCenterPage() {
   const [filterDiscipline, setFilterDiscipline] = useState<string>('all');
   const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [filterIssue, setFilterIssue] = useState('');
   const deferredSearch = useDeferredValue(search);
+  const deferredIssue = useDeferredValue(filterIssue);
 
   const defaultRenderBaseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://127.0.0.1:3000';
   const defaultRenderServiceUrl = process.env.NEXT_PUBLIC_RENDER_SERVICE_URL || 'http://127.0.0.1:3099';
@@ -401,6 +608,13 @@ export default function AdminAuditCenterPage() {
   const [plannerVerifyUrls, setPlannerVerifyUrls] = useState(true);
   const [runModalOpen, setRunModalOpen] = useState(false);
   const [resultsCollapsed, setResultsCollapsed] = useState(false);
+  const [resultsFiltersOpen, setResultsFiltersOpen] = useState(false);
+  const [questionPreviewOpen, setQuestionPreviewOpen] = useState(true);
+  const [questionEditing, setQuestionEditing] = useState(false);
+  const [questionSaving, setQuestionSaving] = useState(false);
+  const [questionPublishingAction, setQuestionPublishingAction] = useState<'approve_fix' | 'unpublish' | null>(null);
+  const [editForm, setEditForm] = useState<EditableQuestionForm | null>(null);
+  const [newImageUrl, setNewImageUrl] = useState('');
 
   const resultsPageSize = 50;
   const selectedRun = useMemo(() => {
@@ -409,6 +623,12 @@ export default function AdminAuditCenterPage() {
   }, [runs, selectedRunId]);
   const runningRun = useMemo(() => runs.find(run => run.status === 'running') || null, [runs]);
   const selectedRow = useMemo(() => rows.find(row => row.id === selectedQuestionAuditId) || rows[0] || null, [rows, selectedQuestionAuditId]);
+  const selectedRunCurrentAudit = selectedRun?.current_audit || selectedRun?.progress?.current_audit || '—';
+  const selectedRunCurrentQuestion = selectedRun?.current_question_external_id || selectedRun?.progress?.current_question_external_id || '—';
+  const selectedRunProcessed = selectedRun?.processed_questions ?? selectedRun?.progress?.processed_questions ?? 0;
+  const selectedRunTotal = selectedRun?.total_questions ?? selectedRun?.progress?.total_questions ?? 0;
+  const selectedRunEta = selectedRun?.eta_seconds ?? selectedRun?.progress?.eta_seconds ?? null;
+  const selectedRunProgressPercent = selectedRunTotal > 0 ? Math.min(100, (selectedRunProcessed / selectedRunTotal) * 100) : 0;
 
   const queryFilters = useMemo(() => ({
     baseline_id: dashboard?.baseline?.baseline_id || '',
@@ -421,6 +641,18 @@ export default function AdminAuditCenterPage() {
     difficulty: filterDifficulty === 'all' ? '' : filterDifficulty,
     search: deferredSearch.trim(),
   }), [dashboard?.baseline?.baseline_id, filterAuditType, filterStatus, filterSeverity, filterYear, filterSubject, filterDiscipline, filterDifficulty, deferredSearch]);
+  const resultQueryFilters = useMemo(() => ({
+    ...queryFilters,
+    issue: deferredIssue.trim(),
+  }), [queryFilters, deferredIssue]);
+  const activeResultFilterCount = countActiveResultFilters(resultQueryFilters);
+  const suggestedQuestionPreview = useMemo(() => {
+    if (!detail?.question || !detail?.suggested_fix?.suggested_context) return null;
+    return {
+      ...detail.question,
+      context: detail.suggested_fix.suggested_context,
+    } satisfies QuestionFull;
+  }, [detail?.question, detail?.suggested_fix?.suggested_context]);
 
   async function getToken() {
     const sessionResult = await supabase.auth.getSession();
@@ -542,15 +774,16 @@ export default function AdminAuditCenterPage() {
       const token = await getToken();
       if (token === null) return;
       const response = await fetch(apiUrl + '/api/admin/question-audits/results' + buildQuery({
-        baseline_id: queryFilters.baseline_id,
-        audit_type: queryFilters.audit_type,
-        status: queryFilters.status,
-        severity: queryFilters.severity,
-        year: queryFilters.year,
-        subject: queryFilters.subject,
-        discipline: queryFilters.discipline,
-        difficulty: queryFilters.difficulty,
-        search: queryFilters.search,
+        baseline_id: resultQueryFilters.baseline_id,
+        audit_type: resultQueryFilters.audit_type,
+        status: resultQueryFilters.status,
+        severity: resultQueryFilters.severity,
+        year: resultQueryFilters.year,
+        subject: resultQueryFilters.subject,
+        discipline: resultQueryFilters.discipline,
+        difficulty: resultQueryFilters.difficulty,
+        search: resultQueryFilters.search,
+        issue: resultQueryFilters.issue,
         page,
         page_size: resultsPageSize,
         sort_by: 'updated_at',
@@ -582,60 +815,13 @@ export default function AdminAuditCenterPage() {
       });
       const payload = await response.json();
       if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar detalhe');
-      setDetail(payload || null);
+      setDetail((payload || null) as AuditDetail | null);
     } catch (error) {
       console.error('Erro ao carregar detalhe da questão auditada:', error);
       void reportError('AdminAuditQuestionDetailFetchError', String(error));
       setDetail(null);
     } finally {
       setDetailLoading(false);
-    }
-  }
-
-  async function fetchExceptionQueue() {
-    try {
-      const token = await getToken();
-      if (token === null) return;
-      const response = await fetch(apiUrl + '/api/admin/question-audits/exceptions' + buildQuery({
-        baseline_id: queryFilters.baseline_id,
-        year: queryFilters.year,
-        subject: queryFilters.subject,
-        discipline: queryFilters.discipline,
-        difficulty: queryFilters.difficulty,
-        page: 1,
-        page_size: 8,
-      }), {
-        headers: { Authorization: 'Bearer ' + token },
-      });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar exceções');
-      setExceptionQueue(payload as ExceptionQueuePayload);
-    } catch (error) {
-      console.error('Erro ao carregar fila de exceções:', error);
-      void reportError('AdminAuditExceptionQueueFetchError', String(error));
-    }
-  }
-
-  async function fetchCoverageGaps() {
-    try {
-      const token = await getToken();
-      if (token === null) return;
-      const response = await fetch(apiUrl + '/api/admin/question-audits/coverage-gaps' + buildQuery({
-        baseline_id: queryFilters.baseline_id,
-        year: queryFilters.year,
-        subject: queryFilters.subject,
-        discipline: queryFilters.discipline,
-        difficulty: queryFilters.difficulty,
-        limit: 8,
-      }), {
-        headers: { Authorization: 'Bearer ' + token },
-      });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar cobertura faltante');
-      setCoverageGaps((payload.items || []) as CoverageGapItem[]);
-    } catch (error) {
-      console.error('Erro ao carregar cobertura faltante:', error);
-      void reportError('AdminAuditCoverageGapsFetchError', String(error));
     }
   }
 
@@ -659,44 +845,11 @@ export default function AdminAuditCenterPage() {
     }
   }
 
-  async function submitDecision(nextState: 'needs_manual_review' | 'accepted_exception' | 'resolved') {
-    if (!selectedRow) return;
-    setDecisionSubmitting(true);
-    try {
-      const token = await getToken();
-      if (token === null) return;
-      const response = await fetch(apiUrl + '/api/admin/question-audits/results/' + selectedRow.id + '/exception', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + token,
-        },
-        body: JSON.stringify({
-          state: nextState,
-          reason: decisionReason,
-          notes: decisionNotes,
-        }),
-      });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao salvar decisão operacional');
-      toast.success('Decisão operacional salva.');
-      setDecisionState(nextState);
-      setDetail(payload || null);
-      await Promise.all([fetchResults(resultsPage), fetchExceptionQueue(), fetchCoverageGaps()]);
-    } catch (error) {
-      console.error('Erro ao salvar decisão operacional:', error);
-      void reportError('AdminAuditDecisionSaveError', String(error));
-      toast.error('Não foi possível salvar a decisão operacional.');
-    } finally {
-      setDecisionSubmitting(false);
-    }
-  }
-
   async function exportCurrentResults() {
     try {
       const token = await getToken();
       if (token === null) return;
-      const response = await fetch(apiUrl + '/api/admin/question-audits/export' + buildQuery(queryFilters), {
+      const response = await fetch(apiUrl + '/api/admin/question-audits/export' + buildQuery(resultQueryFilters), {
         headers: { Authorization: 'Bearer ' + token },
       });
       if (response.ok === false) {
@@ -786,13 +939,111 @@ export default function AdminAuditCenterPage() {
     }
   }
 
+  async function saveQuestionEdits() {
+    if (!editForm || !detail?.question) return;
+    setQuestionSaving(true);
+    try {
+      const payload = {
+        subject: editForm.subject,
+        discipline: editForm.discipline,
+        difficulty: editForm.difficulty,
+        exam_year: editForm.exam_year,
+        title: editForm.title,
+        context: editForm.context,
+        alternatives_intro: editForm.alternatives_intro,
+        alternatives: editForm.alternatives.map(alternative => ({
+          letter: alternative.letter,
+          text: alternative.text,
+          image: alternative.image,
+          isCorrect: alternative.letter === editForm.correct_alternative,
+        })),
+        correct_alternative: editForm.correct_alternative,
+        images: editForm.images,
+        ai_reasoning: editForm.ai_reasoning,
+      };
+
+      const { error } = await supabase
+        .from('questions')
+        .update(payload)
+        .eq('id', editForm.id);
+
+      if (error) throw error;
+
+      setRows(current => current.map(row => (
+        row.question?.id === editForm.id
+          ? {
+              ...row,
+              question: {
+                ...row.question,
+                subject: payload.subject,
+                discipline: payload.discipline,
+                difficulty: payload.difficulty,
+                exam_year: payload.exam_year,
+              },
+            }
+          : row
+      )));
+      toast.success('Questão atualizada.');
+      setQuestionEditing(false);
+      await fetchDetail(selectedRow?.id || detail.id);
+    } catch (error) {
+      console.error('Erro ao salvar edição da questão:', error);
+      void reportError('AdminAuditQuestionSaveError', String(error));
+      toast.error('Não foi possível salvar a questão.');
+    } finally {
+      setQuestionSaving(false);
+    }
+  }
+
+  async function unpublishQuestion() {
+    if (!detail?.question?.id) return;
+    setQuestionPublishingAction('unpublish');
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .update({ is_verified: false, status: 'audit_flagged' })
+        .eq('id', detail.question.id);
+
+      if (error) throw error;
+      toast.success('Questão despublicada e removida do fluxo dos usuários.');
+      await fetchDetail(selectedRow?.id || detail.id);
+    } catch (error) {
+      console.error('Erro ao despublicar questão:', error);
+      void reportError('AdminAuditQuestionUnpublishError', String(error));
+      toast.error('Não foi possível despublicar a questão.');
+    } finally {
+      setQuestionPublishingAction(null);
+    }
+  }
+
+  async function approveSuggestedFix() {
+    if (!detail?.question?.id || !detail?.suggested_fix?.suggested_context) return;
+    setQuestionPublishingAction('approve_fix');
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .update({ context: detail.suggested_fix.suggested_context })
+        .eq('id', detail.question.id);
+
+      if (error) throw error;
+      toast.success('Correção aplicada à questão.');
+      await fetchDetail(selectedRow?.id || detail.id);
+    } catch (error) {
+      console.error('Erro ao aplicar correção sugerida:', error);
+      void reportError('AdminAuditQuestionApproveFixError', String(error));
+      toast.error('Não foi possível aplicar a correção.');
+    } finally {
+      setQuestionPublishingAction(null);
+    }
+  }
+
   useEffect(() => { void fetchRuns(true); }, []);
   useEffect(() => {
     void fetchDashboard();
-    void fetchResults(1);
-    void fetchExceptionQueue();
-    void fetchCoverageGaps();
   }, [queryFilters]);
+  useEffect(() => {
+    void fetchResults(1);
+  }, [resultQueryFilters]);
   useEffect(() => {
     if (selectedQuestionAuditId === null && rows[0]) setSelectedQuestionAuditId(rows[0].id);
     if (selectedQuestionAuditId !== null && rows.some(row => row.id === selectedQuestionAuditId) === false) setSelectedQuestionAuditId(rows[0] ? rows[0].id : null);
@@ -802,19 +1053,22 @@ export default function AdminAuditCenterPage() {
     if (selectedRow === null) setDetail(null);
   }, [selectedRow?.id]);
   useEffect(() => {
+    if (!detail?.question) {
+      setEditForm(null);
+      setQuestionEditing(false);
+      setNewImageUrl('');
+      return;
+    }
+    setEditForm(buildEditForm(detail.question));
+    setQuestionEditing(false);
+    setNewImageUrl('');
+  }, [detail?.id, detail?.question?.id]);
+  useEffect(() => {
     if (selectedRunId) void fetchRunDetail(selectedRunId);
   }, [selectedRunId]);
   useEffect(() => {
-    if (detail?.exception?.state) {
-      setDecisionState(detail.exception.state as 'needs_manual_review' | 'accepted_exception' | 'resolved');
-      setDecisionReason(detail.exception.reason || '');
-      setDecisionNotes(detail.exception.notes || '');
-      return;
-    }
-    setDecisionState('needs_manual_review');
-    setDecisionReason('');
-    setDecisionNotes('');
-  }, [detail?.id, detail?.exception?.state, detail?.exception?.reason, detail?.exception?.notes]);
+    setQuestionPreviewOpen(true);
+  }, [selectedRow?.id]);
   useEffect(() => {
     if (runningRun === null) return;
     const interval = window.setInterval(() => {
@@ -975,39 +1229,257 @@ export default function AdminAuditCenterPage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div><CardTitle className="flex items-center gap-2 text-lg"><Search className="h-5 w-5 text-slate-700" />Explorar Resultados</CardTitle><CardDescription>{isPartialContext ? 'Busca e paginação da execução parcial exibida, com filtros server-side.' : 'Busca, paginação e filtros server-side no backend.'}</CardDescription></div>
-            <div className="flex gap-2"><Button type="button" variant="outline" className="bg-white" onClick={() => void exportCurrentResults()}>Exportar recorte</Button><Button type="button" variant="outline" className="bg-white" onClick={() => setResultsCollapsed(resultsCollapsed === false)}>{resultsCollapsed ? 'Expandir resultados' : 'Minimizar resultados'}</Button></div>
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Search className="h-5 w-5 text-slate-700" />
+                Explorar Resultados
+              </CardTitle>
+              <CardDescription>
+                {isPartialContext ? 'Busca e paginação da execução parcial exibida, com filtros server-side.' : 'Busca, paginação e filtros server-side no backend.'}
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" className="bg-white" onClick={() => void exportCurrentResults()}>
+                Exportar recorte
+              </Button>
+              <Button type="button" variant="outline" className="bg-white" onClick={() => setResultsCollapsed(resultsCollapsed === false)}>
+                {resultsCollapsed ? 'Expandir resultados' : 'Minimizar resultados'}
+              </Button>
+            </div>
           </div>
         </CardHeader>
-        {resultsCollapsed ? null : <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Input value={search} onChange={event => { setSearch(event.target.value); setResultsPage(1); }} placeholder="Buscar external_id, issue code..." className="bg-white" />
-            <Select value={filterAuditType} onValueChange={value => { setFilterAuditType(value as 'all' | AuditType); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Trilha" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as trilhas</SelectItem>{(Object.keys(AUDIT_META) as AuditType[]).map(auditType => <SelectItem key={auditType} value={auditType}>{AUDIT_META[auditType].label}</SelectItem>)}</SelectContent></Select>
-            <Select value={filterStatus} onValueChange={value => { setFilterStatus(value as 'all' | AuditStatus); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">Todos os status</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="pass">Pass</SelectItem><SelectItem value="flagged">Flagged</SelectItem><SelectItem value="needs_manual_review">Needs Manual Review</SelectItem><SelectItem value="accepted_exception">Accepted Exception</SelectItem><SelectItem value="resolved">Resolved</SelectItem></SelectContent></Select>
-            <Select value={filterSeverity} onValueChange={value => { setFilterSeverity(value as 'all' | AuditSeverity); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Severidade" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as severidades</SelectItem><SelectItem value="none">None</SelectItem><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem><SelectItem value="critical">Critical</SelectItem></SelectContent></Select>
-            <Select value={filterYear} onValueChange={value => { setFilterYear(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Ano" /></SelectTrigger><SelectContent><SelectItem value="all">Todos os anos</SelectItem>{(dashboard?.filter_options.years || []).map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent></Select>
-            <Select value={filterSubject} onValueChange={value => { setFilterSubject(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Matéria" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as matérias</SelectItem>{(dashboard?.filter_options.subjects || []).map(subject => <SelectItem key={subject} value={subject}>{subject}</SelectItem>)}</SelectContent></Select>
-            <Select value={filterDiscipline} onValueChange={value => { setFilterDiscipline(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Disciplina" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as disciplinas</SelectItem>{(dashboard?.filter_options.disciplines || []).map(discipline => <SelectItem key={discipline} value={discipline}>{discipline}</SelectItem>)}</SelectContent></Select>
-            <Select value={filterDifficulty} onValueChange={value => { setFilterDifficulty(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Dificuldade" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as dificuldades</SelectItem>{(dashboard?.filter_options.difficulties || []).map(difficulty => <SelectItem key={difficulty} value={difficulty}>{difficulty}</SelectItem>)}</SelectContent></Select>
-          </div>
+        {resultsCollapsed ? null : (
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              <Input value={search} onChange={event => { setSearch(event.target.value); setResultsPage(1); }} placeholder="Buscar external_id, matéria, run..." className="bg-white md:flex-1" />
+              <Button type="button" variant="outline" className="bg-white" onClick={() => setResultsFiltersOpen(current => !current)}>
+                <Filter className="mr-2 h-4 w-4" />
+                Filtros
+                {activeResultFilterCount > 0 ? <Badge variant="outline" className="ml-2 bg-slate-50">{activeResultFilterCount}</Badge> : null}
+              </Button>
+            </div>
+            {resultsFiltersOpen ? (
+              <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 md:grid-cols-2 xl:grid-cols-4">
+                <Input value={filterIssue} onChange={event => { setFilterIssue(event.target.value); setResultsPage(1); }} placeholder="Filtrar por issue code" className="bg-white" />
+                <Select value={filterAuditType} onValueChange={value => { setFilterAuditType(value as 'all' | AuditType); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Trilha" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as trilhas</SelectItem>{(Object.keys(AUDIT_META) as AuditType[]).map(auditType => <SelectItem key={auditType} value={auditType}>{AUDIT_META[auditType].label}</SelectItem>)}</SelectContent></Select>
+                <Select value={filterStatus} onValueChange={value => { setFilterStatus(value as 'all' | AuditStatus); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">Todos os status</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="pass">Pass</SelectItem><SelectItem value="flagged">Flagged</SelectItem><SelectItem value="needs_manual_review">Needs Manual Review</SelectItem><SelectItem value="accepted_exception">Accepted Exception</SelectItem><SelectItem value="resolved">Resolved</SelectItem></SelectContent></Select>
+                <Select value={filterSeverity} onValueChange={value => { setFilterSeverity(value as 'all' | AuditSeverity); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Severidade" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as severidades</SelectItem><SelectItem value="none">None</SelectItem><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem><SelectItem value="critical">Critical</SelectItem></SelectContent></Select>
+                <Select value={filterYear} onValueChange={value => { setFilterYear(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Ano" /></SelectTrigger><SelectContent><SelectItem value="all">Todos os anos</SelectItem>{(dashboard?.filter_options.years || []).map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent></Select>
+                <Select value={filterSubject} onValueChange={value => { setFilterSubject(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Matéria" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as matérias</SelectItem>{(dashboard?.filter_options.subjects || []).map(subject => <SelectItem key={subject} value={subject}>{subject}</SelectItem>)}</SelectContent></Select>
+                <Select value={filterDiscipline} onValueChange={value => { setFilterDiscipline(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Disciplina" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as disciplinas</SelectItem>{(dashboard?.filter_options.disciplines || []).map(discipline => <SelectItem key={discipline} value={discipline}>{discipline}</SelectItem>)}</SelectContent></Select>
+                <Select value={filterDifficulty} onValueChange={value => { setFilterDifficulty(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Dificuldade" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as dificuldades</SelectItem>{(dashboard?.filter_options.difficulties || []).map(difficulty => <SelectItem key={difficulty} value={difficulty}>{difficulty}</SelectItem>)}</SelectContent></Select>
+              </div>
+            ) : null}
 
-          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500"><Badge variant="outline" className="bg-white">{resultsTotal} linha(s) no filtro</Badge><Badge variant="outline" className="bg-white">página {resultsPage} de {totalPages}</Badge></div>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+              <Badge variant="outline" className="bg-white">{resultsTotal} linha(s) no filtro</Badge>
+              <Badge variant="outline" className="bg-white">página {resultsPage} de {totalPages}</Badge>
+              {deferredIssue.trim() ? <Badge variant="outline" className="bg-white">issue: {deferredIssue.trim()}</Badge> : null}
+            </div>
 
-          <div className="overflow-hidden rounded-2xl border border-slate-200"><div className="overflow-x-auto"><table className="w-full min-w-[980px] text-sm"><thead className="bg-slate-50"><tr className="text-left text-slate-500"><th className="px-4 py-3 font-medium">Questão</th><th className="px-4 py-3 font-medium">Trilha</th><th className="px-4 py-3 font-medium">Status</th><th className="px-4 py-3 font-medium">Severidade</th><th className="px-4 py-3 font-medium">Matéria</th><th className="px-4 py-3 font-medium">Issues</th><th className="px-4 py-3 font-medium">Run</th></tr></thead><tbody className="divide-y divide-slate-200 bg-white">{resultsLoading ? Array.from({ length: 8 }).map((_, index) => <tr key={index}><td colSpan={7} className="px-4 py-3"><Skeleton className="h-8 w-full rounded-lg" /></td></tr>) : rows.map(row => <tr key={row.id} className={(selectedRow?.id === row.id ? 'bg-slate-50 ' : '') + 'cursor-pointer align-top hover:bg-slate-50/80'} onClick={() => { setSelectedQuestionAuditId(row.id); openQuestionDrilldown(row.id); }}><td className="px-4 py-3"><div><p className="font-semibold text-slate-900">{row.question?.external_id || row.question?.id || 'Sem ID'}</p><p className="mt-1 text-xs text-slate-500">{row.question?.exam_year || '—'} · {row.question?.discipline || 'Sem disciplina'} · {row.question?.difficulty || '—'}</p></div></td><td className="px-4 py-3"><Badge className={AUDIT_META[row.audit_type].tone}>{AUDIT_META[row.audit_type].label}</Badge></td><td className="px-4 py-3"><Badge className={classForStatus(row.status)}>{row.status}</Badge></td><td className="px-4 py-3"><Badge className={classForSeverity(row.severity)}>{row.severity}</Badge></td><td className="px-4 py-3"><div><p className="text-slate-900">{row.question?.subject || 'Sem matéria'}</p><p className="mt-1 text-xs text-slate-500">{row.question?.discipline || 'Sem disciplina'}</p></div></td><td className="px-4 py-3"><div className="flex max-w-[260px] flex-wrap gap-1.5">{(row.issue_codes || []).slice(0, 3).map(issue => <Badge key={row.id + '-' + issue} variant="outline" className="bg-white">{issue}</Badge>)}</div></td><td className="px-4 py-3"><div className="space-y-1"><p className="text-xs font-medium text-slate-900">{row.latest_run_version || 'sem-versao'}</p><p className="text-xs text-slate-500">{formatDateTime(row.latest_run_at)}</p></div></td></tr>)}</tbody></table></div></div>
+            <div className="overflow-hidden rounded-2xl border border-slate-200">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] text-sm">
+                  <thead className="bg-slate-50">
+                    <tr className="text-left text-slate-500">
+                      <th className="px-4 py-3 font-medium">Questão</th>
+                      <th className="px-4 py-3 font-medium">Trilha</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                      <th className="px-4 py-3 font-medium">Severidade</th>
+                      <th className="px-4 py-3 font-medium">Matéria</th>
+                      <th className="px-4 py-3 font-medium">Issues</th>
+                      <th className="px-4 py-3 font-medium">Run</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 bg-white">
+                    {resultsLoading ? Array.from({ length: 8 }).map((_, index) => <tr key={index}><td colSpan={7} className="px-4 py-3"><Skeleton className="h-8 w-full rounded-lg" /></td></tr>) : rows.map(row => <tr key={row.id} className={(selectedRow?.id === row.id ? 'bg-slate-50 ' : '') + 'cursor-pointer align-top hover:bg-slate-50/80'} onClick={() => { setSelectedQuestionAuditId(row.id); openQuestionDrilldown(row.id); }}><td className="px-4 py-3"><div><p className="font-semibold text-slate-900">{row.question?.external_id || row.question?.id || 'Sem ID'}</p><p className="mt-1 text-xs text-slate-500">{row.question?.exam_year || '—'} · {row.question?.discipline || 'Sem disciplina'} · {row.question?.difficulty || '—'}</p></div></td><td className="px-4 py-3"><Badge className={AUDIT_META[row.audit_type].tone}>{AUDIT_META[row.audit_type].label}</Badge></td><td className="px-4 py-3"><Badge className={classForStatus(row.status)}>{row.status}</Badge></td><td className="px-4 py-3"><Badge className={classForSeverity(row.severity)}>{row.severity}</Badge></td><td className="px-4 py-3"><div><p className="text-slate-900">{row.question?.subject || 'Sem matéria'}</p><p className="mt-1 text-xs text-slate-500">{row.question?.discipline || 'Sem disciplina'}</p></div></td><td className="px-4 py-3"><div className="flex max-w-[260px] flex-wrap gap-1.5">{(row.issue_codes || []).slice(0, 3).map(issue => <Badge key={row.id + '-' + issue} variant="outline" className="bg-white">{issue}</Badge>)}</div></td><td className="px-4 py-3"><div className="space-y-1"><p className="text-xs font-medium text-slate-900">{row.latest_run_version || 'sem-versao'}</p><p className="text-xs text-slate-500">{formatDateTime(row.latest_run_at)}</p></div></td></tr>)}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-          <div className="flex items-center justify-between gap-3"><p className="text-sm text-slate-500">Mostrando {rows.length} item(ns) desta página.</p><div className="flex items-center gap-2"><Button variant="outline" className="bg-white" disabled={resultsPage <= 1 || resultsLoading} onClick={() => void fetchResults(resultsPage - 1)}><ChevronLeft className="mr-2 h-4 w-4" />Anterior</Button><Button variant="outline" className="bg-white" disabled={resultsPage >= totalPages || resultsLoading} onClick={() => void fetchResults(resultsPage + 1)}>Próxima<ChevronRight className="ml-2 h-4 w-4" /></Button></div></div>
-        </CardContent>}
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-slate-500">Mostrando {rows.length} item(ns) desta página.</p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" className="bg-white" disabled={resultsPage <= 1 || resultsLoading} onClick={() => void fetchResults(resultsPage - 1)}><ChevronLeft className="mr-2 h-4 w-4" />Anterior</Button>
+                <Button variant="outline" className="bg-white" disabled={resultsPage >= totalPages || resultsLoading} onClick={() => void fetchResults(resultsPage + 1)}>Próxima<ChevronRight className="ml-2 h-4 w-4" /></Button>
+              </div>
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       <Dialog open={runModalOpen} onOpenChange={setRunModalOpen}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle className="flex items-center gap-2"><TerminalSquare className="h-5 w-5 text-slate-700" />Iniciar Auditoria</DialogTitle><DialogDescription>Configure a execução operacional no mesmo formato do orquestrador do terminal.</DialogDescription></DialogHeader><div className="space-y-4 pt-2"><div><p className="mb-2 text-sm font-semibold text-slate-900">Trilhas</p><div className="flex flex-wrap gap-2">{(Object.keys(AUDIT_META) as AuditType[]).map(auditType => <button key={auditType} type="button" onClick={() => setPlannerAudits(current => current.includes(auditType) ? current.filter(item => item !== auditType) : current.concat(auditType))} className={(plannerAudits.includes(auditType) ? 'border-slate-900 bg-slate-900 text-white ' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 ') + 'rounded-xl border px-3 py-2 text-sm font-medium transition-colors'}>{AUDIT_META[auditType].label}</button>)}</div></div><div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4"><div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-900">Escopo das trilhas selecionadas</p><p className="mt-1 text-xs text-slate-500">Mostra exatamente o que cada auditoria vai verificar antes da execução.</p></div><Badge variant="outline" className="bg-white">{plannerAudits.length} trilha(s)</Badge></div><div className="space-y-3">{plannerAudits.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">Selecione ao menos uma trilha para ver o escopo auditado.</div> : plannerAudits.map(auditType => <div key={auditType} className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center gap-2"><Badge className={AUDIT_META[auditType].tone}>{AUDIT_META[auditType].label}</Badge><p className="text-sm font-medium text-slate-900">{AUDIT_META[auditType].description}</p></div><div className="mt-3 flex flex-wrap gap-2">{AUDIT_META[auditType].checks.map(check => <Badge key={auditType + check} variant="outline" className="bg-white">{check}</Badge>)}</div><p className="mt-3 text-xs text-slate-500">Fora de escopo: {AUDIT_META[auditType].outOfScope}</p></div>)}</div></div><div className="grid grid-cols-1 gap-3 md:grid-cols-2"><Input value={plannerAuditVersion} onChange={event => setPlannerAuditVersion(event.target.value)} placeholder="Versão lógica" className="bg-white" /><Input value={plannerLimit} onChange={event => setPlannerLimit(event.target.value)} placeholder="Limite opcional" className="bg-white" /><Input value={plannerQuestionId} onChange={event => setPlannerQuestionId(event.target.value)} placeholder="Question ID opcional" className="bg-white" /><Input value={plannerTimeout} onChange={event => setPlannerTimeout(event.target.value)} placeholder="Timeout em segundos" className="bg-white" /></div>{plannerAudits.includes('render') ? <div className="grid grid-cols-1 gap-3 md:grid-cols-2"><Input value={plannerBaseUrl} onChange={event => setPlannerBaseUrl(event.target.value)} placeholder="Base URL do frontend auditável" className="bg-white" /><Input value={plannerServiceUrl} onChange={event => setPlannerServiceUrl(event.target.value)} placeholder="Service URL do render service" className="bg-white" /><Input value={plannerVariants} onChange={event => setPlannerVariants(event.target.value)} placeholder="Variantes (ex: bank,simulado,review)" className="bg-white" /><Input value={plannerViewports} onChange={event => setPlannerViewports(event.target.value)} placeholder="Viewports (ex: desktop,mobile)" className="bg-white" /></div> : null}<div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3"><div><p className="text-sm font-semibold text-slate-900">Verificar URLs reais no media audit</p><p className="text-xs text-slate-500">Ative quando a execução incluir Asset Audit.</p></div><Switch checked={plannerVerifyUrls} onCheckedChange={setPlannerVerifyUrls} /></div><div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-slate-50"><div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-slate-400"><Activity className="h-3.5 w-3.5" />Command Preview</div><pre className="overflow-x-auto whitespace-pre-wrap text-xs leading-6">{plannerCommand}</pre></div><div className="flex gap-2"><Button onClick={() => void startRun()} disabled={runSubmitting} className="flex-1 bg-slate-900 text-white hover:bg-slate-800">{runSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}Iniciar auditoria</Button><Button variant="outline" className="bg-white" onClick={() => setRunModalOpen(false)}>Fechar</Button></div></div></DialogContent>
       </Dialog>
 
-      <div ref={drilldownRef}><Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><BookOpen className="h-5 w-5 text-slate-700" />Drilldown da Questão</CardTitle><CardDescription>Detalhe do item selecionado, carregado sob demanda no backend.</CardDescription></CardHeader><CardContent>{selectedRow === null ? <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">Selecione uma questão na tabela para abrir o resumo persistido e os metadados principais.</div> : <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]"><div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4"><div><div className="mb-3 flex flex-wrap items-center gap-2"><Badge className={AUDIT_META[selectedRow.audit_type].tone}>{AUDIT_META[selectedRow.audit_type].label}</Badge><Badge className={classForStatus(selectedRow.status)}>{selectedRow.status}</Badge><Badge className={classForSeverity(selectedRow.severity)}>{selectedRow.severity}</Badge>{selectedRow.exception?.state ? <Badge variant="outline" className="bg-white">{selectedRow.exception.state}</Badge> : null}</div><h3 className="text-xl font-bold text-slate-900">{selectedRow.question?.external_id || selectedRow.question?.id || 'Questão sem ID'}</h3><p className="mt-1 text-sm text-slate-500">{selectedRow.question?.subject || 'Sem matéria'} · {selectedRow.question?.discipline || 'Sem disciplina'} · {selectedRow.question?.difficulty || 'Sem dificuldade'}</p></div><div><p className="mb-2 text-sm font-semibold text-slate-900">Issue codes</p><div className="flex flex-wrap gap-2">{(selectedRow.issue_codes || []).map(issue => <Badge key={selectedRow.id + '-' + issue} variant="outline" className="bg-white">{issue}</Badge>)}</div></div><div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="mb-2 text-sm font-semibold text-slate-900">Ação operacional</p><div className="grid grid-cols-1 gap-3 md:grid-cols-3"><button type="button" onClick={() => setDecisionState('needs_manual_review')} className={(decisionState === 'needs_manual_review' ? 'border-orange-400 bg-orange-50 text-orange-900 ' : 'border-slate-200 bg-white text-slate-700 ') + 'rounded-xl border px-3 py-2 text-sm font-medium'}>Manual Review</button><button type="button" onClick={() => setDecisionState('accepted_exception')} className={(decisionState === 'accepted_exception' ? 'border-blue-400 bg-blue-50 text-blue-900 ' : 'border-slate-200 bg-white text-slate-700 ') + 'rounded-xl border px-3 py-2 text-sm font-medium'}>Aceitar exceção</button><button type="button" onClick={() => setDecisionState('resolved')} className={(decisionState === 'resolved' ? 'border-emerald-400 bg-emerald-50 text-emerald-900 ' : 'border-slate-200 bg-white text-slate-700 ') + 'rounded-xl border px-3 py-2 text-sm font-medium'}>Marcar resolvido</button></div><div className="mt-3 space-y-3"><Input value={decisionReason} onChange={event => setDecisionReason(event.target.value)} placeholder="Motivo operacional" className="bg-white" /><textarea value={decisionNotes} onChange={event => setDecisionNotes(event.target.value)} placeholder="Notas internas para a fila de exceções" className="min-h-[110px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" /><Button className="w-full bg-slate-900 text-white hover:bg-slate-800" disabled={decisionSubmitting} onClick={() => void submitDecision(decisionState)}>{decisionSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}Salvar decisão operacional</Button></div></div></div><div className="space-y-4"><div className="rounded-2xl border border-slate-200 bg-white p-4"><div className="mb-3"><p className="text-sm font-semibold text-slate-900">Último relatório persistido</p><p className="mt-1 text-xs text-slate-500">Conteúdo salvo em latest_report para essa trilha.</p></div>{detailLoading ? <Skeleton className="h-[320px] rounded-xl" /> : <pre className="min-h-[280px] max-h-[520px] overflow-auto whitespace-pre-wrap rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">{JSON.stringify(detail?.latest_report || {}, null, 2)}</pre>}</div>{detail?.exception ? <div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="mb-2 text-sm font-semibold text-slate-900">Decisão atual</p><p className="text-sm text-slate-700">{detail.exception.state}</p><p className="mt-2 text-xs text-slate-500">{detail.exception.reason || 'Sem motivo registrado.'}</p>{detail.exception.notes ? <p className="mt-2 text-xs text-slate-500">{detail.exception.notes}</p> : null}</div> : null}</div></div>}</CardContent></Card></div>
+      <div ref={drilldownRef}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <BookOpen className="h-5 w-5 text-slate-700" />
+              Drilldown da Questão
+            </CardTitle>
+            <CardDescription>Detalhe do item selecionado com foco total na questão renderizada.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {selectedRow === null ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
+                Selecione uma questão na tabela para abrir o drilldown.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <Badge className={AUDIT_META[selectedRow.audit_type].tone}>{AUDIT_META[selectedRow.audit_type].label}</Badge>
+                        <Badge className={classForStatus(selectedRow.status)}>{selectedRow.status}</Badge>
+                        <Badge className={classForSeverity(selectedRow.severity)}>{selectedRow.severity}</Badge>
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-900">{selectedRow.question?.external_id || selectedRow.question?.id || 'Questão sem ID'}</h3>
+                      <p className="mt-1 text-sm text-slate-500">{selectedRow.question?.subject || 'Sem matéria'} · {selectedRow.question?.discipline || 'Sem disciplina'} · {selectedRow.question?.difficulty || 'Sem dificuldade'}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" className="bg-white" disabled={!detail?.question || questionSaving} onClick={() => {
+                        if (!detail?.question) return;
+                        if (questionEditing) {
+                          setEditForm(buildEditForm(detail.question));
+                          setQuestionEditing(false);
+                          return;
+                        }
+                        setQuestionEditing(true);
+                      }}>
+                        {questionEditing ? <><X className="mr-2 h-4 w-4" />Cancelar edição</> : <><Edit3 className="mr-2 h-4 w-4" />Editar questão</>}
+                      </Button>
+                      {questionEditing ? (
+                        <Button type="button" className="bg-slate-900 text-white hover:bg-slate-800" disabled={!editForm || questionSaving} onClick={() => void saveQuestionEdits()}>
+                          {questionSaving ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                          Salvar
+                        </Button>
+                      ) : null}
+                      {detail?.suggested_fix && !questionEditing ? (
+                        <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={questionPublishingAction !== null} onClick={() => void approveSuggestedFix()}>
+                          {questionPublishingAction === 'approve_fix' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                          Aprovar correção
+                        </Button>
+                      ) : null}
+                      {detail?.question ? (
+                        <Button type="button" variant="outline" className="bg-white text-amber-700 border-amber-200 hover:bg-amber-50" disabled={questionPublishingAction === 'unpublish' || questionEditing || detail.question.is_verified === false} onClick={() => void unpublishQuestion()}>
+                          {questionPublishingAction === 'unpublish' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          {detail.question.is_verified === false ? 'Já reprovada' : 'Reprovar questão'}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
 
-      <div className="grid grid-cols-1 gap-4 md:gap-6 xl:grid-cols-2"><Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CircleAlert className="h-5 w-5 text-slate-700" />Fila de Exceções</CardTitle><CardDescription>Itens que exigem decisão humana no recorte atual.</CardDescription></CardHeader><CardContent className="space-y-3">{exceptionQueue === null ? Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-16 rounded-xl" />) : <><div className="flex flex-wrap gap-2">{Object.entries(exceptionQueue.counts || {}).map(([key, value]) => <Badge key={key} variant="outline" className="bg-white">{key}: {value}</Badge>)}</div>{exceptionQueue.items.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">Nenhuma exceção pendente no recorte atual.</div> : exceptionQueue.items.map(item => <button key={item.id} type="button" onClick={() => openQuestionDrilldown(item.id, item)} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left hover:bg-slate-50"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-slate-900">{item.question?.external_id || item.question?.id || 'Questão'}</p><p className="mt-1 text-xs text-slate-500">{item.question?.subject || 'Sem matéria'} · {item.question?.discipline || 'Sem disciplina'}</p></div><Badge className={classForStatus(item.status)}>{item.status}</Badge></div><div className="mt-3 flex flex-wrap gap-2">{(item.issue_codes || []).slice(0, 3).map(issue => <Badge key={item.id + issue} variant="outline" className="bg-white">{issue}</Badge>)}</div></button>)}</>}</CardContent></Card><Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ShieldCheck className="h-5 w-5 text-slate-700" />Cobertura Faltante</CardTitle><CardDescription>Questões sem as 5 trilhas aprovadas na baseline oficial.</CardDescription></CardHeader><CardContent className="space-y-3">{coverageGaps.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">Nenhuma lacuna de cobertura visível no recorte atual.</div> : coverageGaps.map(item => <div key={item.question.id} className="rounded-2xl border border-slate-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-slate-900">{item.question.external_id || item.question.id}</p><p className="mt-1 text-xs text-slate-500">{item.question.subject || 'Sem matéria'} · {item.question.discipline || 'Sem disciplina'}</p></div><Badge variant="outline" className="bg-white">faltam {item.missing_count}</Badge></div><div className="mt-3 flex flex-wrap gap-2">{item.missing_audits.map(audit => <Badge key={item.question.id + audit} className={AUDIT_META[audit].tone}>{AUDIT_META[audit].label}</Badge>)}</div></div>)}</CardContent></Card></div>
+                  <div>
+                    <p className="mb-2 text-sm font-semibold text-slate-900">Issue codes</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(selectedRow.issue_codes || []).map(issue => <Badge key={selectedRow.id + '-' + issue} variant="outline" className="bg-white">{issue}</Badge>)}
+                    </div>
+                  </div>
+                </div>
 
-      <div ref={runConsoleRef} className="grid grid-cols-1 gap-4 md:gap-6 xl:grid-cols-[0.95fr_1.35fr]"><Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Activity className="h-5 w-5 text-slate-700" />Histórico de Runs</CardTitle><CardDescription>Listagem leve para polling; detalhe pesado só na run selecionada.</CardDescription></CardHeader><CardContent className="space-y-3">{runsLoading && runs.length === 0 ? Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-20 rounded-xl" />) : runs.slice(0, 8).map(run => <button key={run.run_id} type="button" onClick={() => setSelectedRunId(run.run_id)} className={(selectedRun?.run_id === run.run_id ? 'border-slate-900 bg-slate-900 text-white ' : 'border-slate-200 bg-white hover:bg-slate-50 ') + 'w-full rounded-2xl border p-4 text-left transition-colors'}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className={(selectedRun?.run_id === run.run_id ? 'text-white ' : 'text-slate-900 ') + 'truncate font-semibold'}>{run.audit_version || run.params.audit_version || run.run_id}</p><p className={(selectedRun?.run_id === run.run_id ? 'text-slate-300 ' : 'text-slate-500 ') + 'mt-1 text-xs'}>{formatDateTime(run.started_at)}</p><p className={(selectedRun?.run_id === run.run_id ? 'text-slate-300 ' : 'text-slate-500 ') + 'mt-2 text-xs'}>{run.log_line_count || 0} linha(s) de log · {run.artifact_count || 0} artefato(s)</p></div><Badge className={classForRunStatus(run.status)}>{run.status}</Badge></div></button>)}</CardContent></Card><Card><CardHeader><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><CardTitle className="flex items-center gap-2 text-lg"><TerminalSquare className="h-5 w-5 text-slate-700" />Console do Run</CardTitle><CardDescription>{selectedRun ? (selectedRun.audit_version || selectedRun.params.audit_version || selectedRun.run_id) + ' • ' + selectedRun.status : 'Selecione uma execução para acompanhar'}</CardDescription></div>{selectedRun && selectedRun.status === 'running' ? <Button variant="outline" className="bg-white" disabled={runCancelling} onClick={() => void cancelRun(selectedRun.run_id)}>{runCancelling ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}Cancelar run</Button> : null}</div></CardHeader><CardContent className="space-y-4">{selectedRun === null ? <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">O console aparece aqui assim que houver uma execução iniciada ou selecionada.</div> : <><div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"><div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Status</p><p className="mt-1 font-semibold text-slate-900">{selectedRun.status}</p></div><div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Origem</p><p className="mt-1 font-semibold text-slate-900">{selectedRun.source || 'ui'}</p></div><div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Início</p><p className="mt-1 font-semibold text-slate-900">{formatDateTime(selectedRun.started_at)}</p></div><div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">PID / retorno</p><p className="mt-1 font-semibold text-slate-900">{selectedRun.pid || '—'} / {selectedRun.returncode ?? '—'}</p></div></div><div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"><div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Trilha atual</p><p className="mt-1 font-semibold text-slate-900">{selectedRun.current_audit || '—'}</p><p className="mt-2 text-xs text-slate-500">Questão: {selectedRun.current_question_external_id || '—'}</p></div><div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"><div className="flex items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-wide text-slate-500">Progresso</p><p className="mt-1 font-semibold text-slate-900">{(selectedRun.processed_questions || 0).toLocaleString('pt-BR')} / {(selectedRun.total_questions || 0).toLocaleString('pt-BR')}</p></div>{selectedRun.eta_seconds ? <Badge variant="outline" className="bg-white">ETA ~ {selectedRun.eta_seconds}s</Badge> : null}</div><Progress value={selectedRun.total_questions ? Math.min(100, ((selectedRun.processed_questions || 0) / selectedRun.total_questions) * 100) : 0} className="mt-3 h-2.5" /></div><div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Logs carregados</p><p className="mt-1 font-semibold text-slate-900">{selectedRun.log_window?.items.length || selectedRun.log_tail?.length || 0}</p><p className="mt-2 text-xs text-slate-500">de {selectedRun.log_line_count || 0} linha(s)</p></div><div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3"><p className="text-xs uppercase tracking-wide text-slate-500">Artefatos</p><p className="mt-1 font-semibold text-slate-900">{selectedRun.artifact_count || selectedRun.artifacts?.length || 0}</p><p className="mt-2 text-xs text-slate-500">saídas por trilha</p></div></div>{selectedRun.error_message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{selectedRun.error_message}</div> : null}<div className="flex flex-wrap items-center justify-between gap-3"><div className="text-xs text-slate-500">{selectedRun.cancellation_requested_at ? 'Cancelamento solicitado em ' + formatDateTime(selectedRun.cancellation_requested_at) : 'Janela de logs sob demanda para evitar payload pesado.'}</div>{selectedRun.log_window?.has_more ? <Button variant="outline" className="bg-white" disabled={runDetailLoading} onClick={() => void fetchRunDetail(selectedRun.run_id, { before: selectedRun.log_window?.next_before || undefined })}>{runDetailLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}Carregar logs anteriores</Button> : null}</div><div className="rounded-2xl border border-slate-900 bg-slate-950 p-4 text-slate-100"><pre className="min-h-[280px] max-h-[520px] overflow-auto whitespace-pre-wrap text-xs leading-6">{(selectedRun.log_window?.items || selectedRun.log_tail || []).join('\n') || 'Sem logs ainda.'}</pre></div>{selectedRun.artifacts && selectedRun.artifacts.length > 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="mb-3 text-sm font-semibold text-slate-900">Artefatos persistidos</p><div className="space-y-2">{selectedRun.artifacts.map((artifact, index) => <div key={artifact.audit_type + '-' + index} className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-sm"><div className="flex items-center justify-between gap-3"><span className="font-medium text-slate-900">{artifact.audit_type || 'audit'}</span><span className="text-slate-500">{artifact.returncode ?? '—'}</span></div><p className="truncate text-xs text-slate-500">{artifact.path || 'Sem caminho persistido'}</p></div>)}</div></div> : null}</>}</CardContent></Card></div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  {detail?.suggested_fix && !questionEditing ? (
+                    <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-emerald-900">Sugestão de correção</p>
+                          <p className="mt-1 text-xs text-emerald-700">Texto faltante identificado na base oficial do ENEM. Ao aprovar, esse trecho será inserido antes das imagens do contexto.</p>
+                        </div>
+                        <Badge variant="outline" className="border-emerald-300 bg-white text-emerald-800">
+                          {detail.suggested_fix.source_pdf || 'pdf oficial'}{detail.suggested_fix.question_number ? ` · questão ${detail.suggested_fix.question_number}` : ''}
+                        </Badge>
+                      </div>
+                      <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
+                        <p className="mb-2 text-xs font-bold uppercase text-emerald-700">Trecho que será inserido</p>
+                        <div className="prose prose-sm max-w-none whitespace-pre-wrap text-emerald-950">
+                          {detail.suggested_fix.missing_body_text}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{detail?.suggested_fix && !questionEditing ? 'Prévia da correção' : 'Questão renderizada'}</p>
+                      <p className="mt-1 text-xs text-slate-500">{detail?.suggested_fix && !questionEditing ? 'Visualização de como a questão ficará após aplicar a sugestão.' : 'Abra o conteúdo real da questão para inspecionar o problema.'}</p>
+                    </div>
+                    {!questionEditing ? <Button type="button" variant="ghost" size="sm" className="text-slate-600" onClick={() => setQuestionPreviewOpen(current => !current)}>
+                      {questionPreviewOpen ? <><ChevronUp className="mr-1 h-4 w-4" />Ocultar questão</> : <><ChevronDown className="mr-1 h-4 w-4" />Ver questão</>}
+                    </Button> : null}
+                  </div>
+                  {detailLoading && !detail?.question ? <Skeleton className="h-[480px] rounded-xl" /> : questionEditing && editForm ? (
+                    <div className="space-y-6 rounded-2xl border border-slate-200 bg-slate-50/50 p-6">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                        <div><label className="text-xs font-bold uppercase text-slate-500">Matéria</label><Input value={editForm.subject} onChange={event => setEditForm({ ...editForm, subject: event.target.value })} className="mt-1 bg-white" /></div>
+                        <div><label className="text-xs font-bold uppercase text-slate-500">Disciplina</label><Input value={editForm.discipline} onChange={event => setEditForm({ ...editForm, discipline: event.target.value })} className="mt-1 bg-white" /></div>
+                        <div><label className="text-xs font-bold uppercase text-slate-500">Dificuldade</label><Input value={editForm.difficulty} onChange={event => setEditForm({ ...editForm, difficulty: event.target.value })} className="mt-1 bg-white" /></div>
+                        <div><label className="text-xs font-bold uppercase text-slate-500">Ano</label><Input type="number" value={editForm.exam_year ?? ''} onChange={event => setEditForm({ ...editForm, exam_year: event.target.value === '' ? null : Number(event.target.value) })} className="mt-1 bg-white" /></div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase text-slate-500">Contexto</label>
+                        <textarea value={editForm.context} onChange={event => setEditForm({ ...editForm, context: event.target.value })} className="mt-1 min-h-[120px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase text-slate-500">Título</label>
+                        <textarea value={editForm.title} onChange={event => setEditForm({ ...editForm, title: event.target.value })} className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase text-slate-500">Comando / Introdução</label>
+                        <textarea value={editForm.alternatives_intro} onChange={event => setEditForm({ ...editForm, alternatives_intro: event.target.value })} className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-4">
+                        <p className="mb-3 text-xs font-bold uppercase text-slate-500">Imagens da questão</p>
+                        <div className="flex flex-col gap-3 md:flex-row">
+                          <Input value={newImageUrl} onChange={event => setNewImageUrl(event.target.value)} placeholder="Adicionar URL de imagem" className="bg-white md:flex-1" />
+                          <Button type="button" variant="outline" className="bg-white" onClick={() => {
+                            const value = newImageUrl.trim();
+                            if (!value || !editForm) return;
+                            setEditForm({ ...editForm, images: [...editForm.images, value] });
+                            setNewImageUrl('');
+                          }}>
+                            Adicionar imagem
+                          </Button>
+                        </div>
+                        {editForm.images.length > 0 ? <div className="mt-4 flex gap-4 overflow-x-auto pb-2">{editForm.images.map((image, index) => <div key={image + index} className="relative shrink-0"><img src={image} alt={`Imagem ${index + 1}`} className="h-32 w-auto rounded-lg border border-slate-200 object-contain" /><button type="button" onClick={() => setEditForm({ ...editForm, images: editForm.images.filter((_, currentIndex) => currentIndex !== index) })} className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white shadow-sm hover:bg-red-600"><X className="h-3 w-3" /></button></div>)}</div> : <p className="mt-3 text-sm text-slate-500">Nenhuma imagem vinculada.</p>}
+                      </div>
+                      <div className="space-y-3">
+                        <p className="text-xs font-bold uppercase text-slate-500">Alternativas</p>
+                        {editForm.alternatives.map((alternative, index) => {
+                          const isCorrect = editForm.correct_alternative === alternative.letter;
+                          return (
+                            <div key={alternative.letter} className={`rounded-xl border p-3 ${isCorrect ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                              <div className="flex items-start gap-3">
+                                <button type="button" onClick={() => setEditForm({
+                                  ...editForm,
+                                  correct_alternative: alternative.letter,
+                                  alternatives: editForm.alternatives.map(item => ({ ...item, isCorrect: item.letter === alternative.letter })),
+                                })} className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-sm font-bold ${isCorrect ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 bg-slate-100 text-slate-700'}`}>{alternative.letter}</button>
+                                <textarea value={alternative.text} onChange={event => setEditForm({
+                                  ...editForm,
+                                  alternatives: editForm.alternatives.map((item, currentIndex) => currentIndex === index ? { ...item, text: event.target.value } : item),
+                                })} className="min-h-[72px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase text-slate-500">Comentário / Raciocínio</label>
+                        <textarea value={editForm.ai_reasoning.thought} onChange={event => setEditForm({ ...editForm, ai_reasoning: { thought: event.target.value } })} className="mt-1 min-h-[100px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                      </div>
+                    </div>
+                  ) : questionPreviewOpen ? <QuestionPreview question={suggestedQuestionPreview || detail?.question} /> : null}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div ref={runConsoleRef} className="grid grid-cols-1 gap-4 md:gap-6 xl:grid-cols-[0.95fr_1.35fr]"><Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Activity className="h-5 w-5 text-slate-700" />Histórico de Runs</CardTitle><CardDescription>Listagem leve para polling; detalhe pesado só na run selecionada.</CardDescription></CardHeader><CardContent className="space-y-3">{runsLoading && runs.length === 0 ? Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-20 rounded-xl" />) : runs.slice(0, 8).map(run => <button key={run.run_id} type="button" onClick={() => setSelectedRunId(run.run_id)} className={(selectedRun?.run_id === run.run_id ? 'border-slate-900 bg-slate-900 text-white ' : 'border-slate-200 bg-white hover:bg-slate-50 ') + 'w-full rounded-2xl border p-4 text-left transition-colors'}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className={(selectedRun?.run_id === run.run_id ? 'text-white ' : 'text-slate-900 ') + 'truncate font-semibold'}>{run.audit_version || run.params.audit_version || run.run_id}</p><p className={(selectedRun?.run_id === run.run_id ? 'text-slate-300 ' : 'text-slate-500 ') + 'mt-1 text-xs'}>{formatDateTime(run.started_at)}</p><p className={(selectedRun?.run_id === run.run_id ? 'text-slate-300 ' : 'text-slate-500 ') + 'mt-2 text-xs'}>{run.current_audit || run.progress?.current_audit || 'aguardando trilha'}{(run.current_question_external_id || run.progress?.current_question_external_id) ? ` · ${run.current_question_external_id || run.progress?.current_question_external_id}` : ''}</p></div><Badge className={classForRunStatus(run.status)}>{run.status}</Badge></div></button>)}</CardContent></Card><Card><CardHeader><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><CardTitle className="flex items-center gap-2 text-lg"><TerminalSquare className="h-5 w-5 text-slate-700" />Console do Run</CardTitle><CardDescription>{selectedRun ? (selectedRun.audit_version || selectedRun.params.audit_version || selectedRun.run_id) + ' • ' + selectedRun.status : 'Selecione uma execução para acompanhar'}</CardDescription></div>{selectedRun && selectedRun.status === 'running' ? <Button variant="outline" className="bg-white" disabled={runCancelling} onClick={() => void cancelRun(selectedRun.run_id)}>{runCancelling ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}Cancelar run</Button> : null}</div></CardHeader><CardContent className="space-y-4">{selectedRun === null ? <div className="rounded-2xl border border-dashed border-slate-300 p-6 text-sm text-slate-500">O console aparece aqui assim que houver uma execução iniciada ou selecionada.</div> : <><div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.2fr_0.8fr]"><div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-wide text-slate-500">Questão atual</p><p className="mt-2 text-2xl font-bold text-slate-900">{selectedRunCurrentQuestion}</p><p className="mt-2 text-sm text-slate-500">Trilha: <span className="font-medium text-slate-700">{selectedRunCurrentAudit}</span></p></div><div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-right"><p className="text-xs uppercase tracking-wide text-slate-500">Status</p><p className="mt-1 font-semibold text-slate-900">{selectedRun.status}</p></div></div></div><div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-wide text-slate-500">Progresso</p><p className="mt-2 text-2xl font-bold text-slate-900">{selectedRunProcessed.toLocaleString('pt-BR')} / {selectedRunTotal.toLocaleString('pt-BR')}</p></div>{formatEta(selectedRunEta) ? <Badge variant="outline" className="bg-white">ETA ~ {formatEta(selectedRunEta)}</Badge> : null}</div><Progress value={selectedRunProgressPercent} className="mt-4 h-3" /><p className="mt-3 text-xs text-slate-500">{selectedRunTotal > 0 ? `${selectedRunProgressPercent.toFixed(1)}% concluído` : 'Progresso ainda não reportado por esta trilha.'}</p></div></div>{selectedRun.error_message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{selectedRun.error_message}</div> : null}<div className="flex flex-wrap items-center justify-between gap-3"><div className="text-xs text-slate-500">{selectedRun.cancellation_requested_at ? 'Cancelamento solicitado em ' + formatDateTime(selectedRun.cancellation_requested_at) : 'Janela de logs sob demanda para evitar payload pesado.'}</div>{selectedRun.log_window?.has_more ? <Button variant="outline" className="bg-white" disabled={runDetailLoading} onClick={() => void fetchRunDetail(selectedRun.run_id, { before: selectedRun.log_window?.next_before || undefined })}>{runDetailLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}Carregar logs anteriores</Button> : null}</div><div className="rounded-2xl border border-slate-900 bg-slate-950 p-4 text-slate-100"><pre className="min-h-[280px] max-h-[520px] overflow-auto whitespace-pre-wrap text-xs leading-6">{(selectedRun.log_window?.items || selectedRun.log_tail || []).join('\n') || 'Sem logs ainda.'}</pre></div></>}</CardContent></Card></div>
 
       <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><BarChart3 className="h-5 w-5 text-slate-700" />Comparativo Entre Runs</CardTitle><CardDescription>Comparação calculada no backend apenas para runs compatíveis.</CardDescription></CardHeader><CardContent>{runComparisonData === null ? <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">Assim que houver pelo menos duas execuções concluídas e compatíveis, o comparativo aparecerá aqui.</div> : <div className="space-y-4"><div className="grid grid-cols-1 gap-4 lg:grid-cols-3"><div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4"><p className="text-xs uppercase tracking-wide text-slate-500">Run atual</p><p className="mt-2 font-semibold text-slate-900">{runComparisonData.current.audit_version || runComparisonData.current.params.audit_version || runComparisonData.current.run_id}</p><p className="mt-2 text-sm text-slate-500">{runComparisonData.current.summary?.flagged_rows || 0} achado(s)</p></div><div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4"><p className="text-xs uppercase tracking-wide text-slate-500">Run anterior</p><p className="mt-2 font-semibold text-slate-900">{runComparisonData.previous.audit_version || runComparisonData.previous.params.audit_version || runComparisonData.previous.run_id}</p><p className="mt-2 text-sm text-slate-500">{runComparisonData.previous.summary?.flagged_rows || 0} achado(s)</p></div><div className="rounded-2xl border border-slate-200 bg-white p-4"><p className="text-xs uppercase tracking-wide text-slate-500">Delta de achados</p><p className={(runComparisonData.delta.flagged_rows > 0 ? 'text-red-600 ' : runComparisonData.delta.flagged_rows < 0 ? 'text-emerald-600 ' : 'text-slate-900 ') + 'mt-2 text-3xl font-bold'}>{runComparisonData.delta.flagged_rows > 0 ? '+' : ''}{runComparisonData.delta.flagged_rows}</p></div></div><div className="grid grid-cols-1 gap-3 lg:grid-cols-5">{runComparisonData.by_audit_type.map(item => <div key={item.audit_type} className="rounded-2xl border border-slate-200 bg-white p-4"><Badge className={AUDIT_META[item.audit_type].tone}>{AUDIT_META[item.audit_type].label}</Badge><p className="mt-3 text-sm text-slate-500">{item.current_flagged} agora vs {item.previous_flagged} antes</p><p className={(item.delta_flagged > 0 ? 'text-red-600 ' : item.delta_flagged < 0 ? 'text-emerald-600 ' : 'text-slate-900 ') + 'mt-2 text-2xl font-bold'}>{item.delta_flagged > 0 ? '+' : ''}{item.delta_flagged}</p></div>)}</div></div>}</CardContent></Card>
     </div>

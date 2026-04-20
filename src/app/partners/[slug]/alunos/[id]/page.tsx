@@ -281,7 +281,28 @@ export default function StudentProfilePage() {
         </Button>
 
         {/* Header do perfil */}
-        <Card>
+        <section
+          className="relative overflow-hidden rounded-3xl border p-5 shadow-sm"
+          style={{
+            borderColor: 'color-mix(in srgb, var(--brand-primary) 24%, #e5e7eb)',
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 14%, white) 0%, color-mix(in srgb, var(--brand-secondary) 10%, white) 100%)',
+          }}
+        >
+          <div
+            className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full blur-3xl opacity-60"
+            style={{ background: 'color-mix(in srgb, var(--brand-secondary) 54%, transparent)' }}
+          />
+          <div className="relative z-10 mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
+            style={{
+              color: 'var(--brand-primary)',
+              borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
+              background: 'rgba(255,255,255,0.56)',
+            }}
+          >
+            <Target className="h-3.5 w-3.5" />
+            Visão individual do aluno
+          </div>
+          <Card className="border-white/70 bg-white/88 shadow-none backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/80">
           <CardContent className="pt-6">
             {loading ? (
               <div className="flex gap-4">
@@ -339,7 +360,8 @@ export default function StudentProfilePage() {
               </div>
             )}
           </CardContent>
-        </Card>
+          </Card>
+        </section>
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -350,10 +372,18 @@ export default function StudentProfilePage() {
             { label: 'Simulados', value: metrics?.simulados_month, icon: FileText },
             { label: 'Acertos%', value: metrics?.accuracy_pct != null ? `${metrics.accuracy_pct}%` : '—', icon: Target },
           ].map(({ label, value, icon: Icon }) => (
-            <Card key={label}>
+            <Card
+              key={label}
+              className="overflow-hidden border-[color:color-mix(in_srgb,var(--brand-primary)_14%,transparent)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),color-mix(in_srgb,var(--brand-primary)_5%,white))]"
+            >
               <CardHeader className="flex flex-row items-center justify-between pb-1 pt-4 px-4">
                 <CardTitle className="text-xs text-slate-500 leading-tight">{label}</CardTitle>
-                <Icon className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                <div
+                  className="flex h-7 w-7 items-center justify-center rounded-full"
+                  style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, white)' }}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
+                </div>
               </CardHeader>
               <CardContent className="px-4 pb-4">
                 {loading ? (
@@ -367,7 +397,7 @@ export default function StudentProfilePage() {
         </div>
 
         {/* Redações */}
-        <Card>
+        <Card className="border-[color:color-mix(in_srgb,var(--brand-primary)_16%,transparent)]">
           <CardHeader>
             <CardTitle className="text-sm">Redações</CardTitle>
             {!loading && (
@@ -438,7 +468,7 @@ export default function StudentProfilePage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-[color:color-mix(in_srgb,var(--brand-secondary)_18%,transparent)]">
           <CardHeader>
             <CardTitle className="text-sm">Histórico de redações</CardTitle>
             <CardDescription>Todas as redações enviadas por este aluno</CardDescription>

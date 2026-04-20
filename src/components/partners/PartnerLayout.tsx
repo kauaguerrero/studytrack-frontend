@@ -61,7 +61,7 @@ function SidebarNavItem({
       onClick={onClick}
       style={isActive ? { backgroundColor: 'var(--brand-primary)' } : undefined}
       className={cn(
-        'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors relative',
+        'partner-nav-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors relative',
         collapsed && 'justify-center px-2',
         isActive
           ? 'text-white'
@@ -102,7 +102,7 @@ function BottomTabItem({ href, icon: Icon, shortLabel, showNotification }: NavIt
     <Link
       href={href}
       className={cn(
-        'flex flex-1 flex-col items-center justify-center gap-1 py-2',
+        'partner-bottom-nav-link flex flex-1 flex-col items-center justify-center gap-1 py-2',
         'min-h-[56px] transition-colors',
         'text-[10px] font-bold tracking-wide',
         isActive
@@ -229,7 +229,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   }) => (
     <div className="flex h-full flex-col">
       {/* Logo + org name */}
-      <div className={cn('flex items-center gap-3 border-b dark:border-slate-800 px-4 py-4', c && 'justify-center px-2')}>
+      <div className={cn('partner-sidebar-brand flex items-center gap-3 border-b dark:border-slate-800 px-4 py-4', c && 'justify-center px-2')}>
         {org.logo_url ? (
           <Image
             src={org.logo_url}
@@ -259,7 +259,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
       </div>
 
       {/* Navigation */}
-      <nav className={cn('flex-1 space-y-1 py-4', c ? 'px-2' : 'px-3')}>
+      <nav className={cn('partner-sidebar-links flex-1 space-y-1 py-4', c ? 'px-2' : 'px-3')}>
         {navItems.map((item) => (
           <SidebarNavItem
             key={item.href}
@@ -277,7 +277,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
 
       {/* User footer */}
       <div className={cn('border-t dark:border-slate-800 py-3', c ? 'px-2' : 'px-3')}>
-        <div className={cn('flex items-center gap-3 rounded-lg bg-slate-50 dark:bg-slate-800 px-3 py-2', c && 'justify-center px-2')}>
+        <div className={cn('partner-sidebar-profile flex items-center gap-3 rounded-lg bg-slate-50 dark:bg-slate-800 px-3 py-2', c && 'justify-center px-2')}>
           <div
             className="w-9 h-9 shrink-0 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white"
             style={{ backgroundColor: 'var(--brand-primary)' }}
@@ -324,13 +324,15 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   );
 
   return (
-    <div className="flex h-dvh min-h-dvh overflow-hidden overscroll-none bg-slate-50 dark:bg-slate-950">
+    <div className="partner-shell flex h-dvh min-h-dvh overflow-hidden overscroll-none bg-slate-50 dark:bg-slate-950">
+      <div aria-hidden className="partner-shell-glow partner-shell-glow-primary" />
+      <div aria-hidden className="partner-shell-glow partner-shell-glow-secondary" />
       {/* Desktop sidebar */}
       <aside
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         className={cn(
-          'hidden md:flex md:flex-col shrink-0 border-r dark:border-slate-800 bg-white dark:bg-slate-900 transition-[width] duration-300 ease-in-out overflow-hidden',
+          'partner-sidebar hidden md:flex md:flex-col shrink-0 border-r dark:border-slate-800 bg-white dark:bg-slate-900 transition-[width] duration-300 ease-in-out overflow-hidden',
           collapsed ? 'w-20' : 'w-64'
         )}
       >
@@ -398,7 +400,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
         )}
 
         {/* Page content — extra bottom padding on mobile for bottom tab bar */}
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 pb-24 md:p-8 md:pb-8">
+        <main className="partner-main min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 pb-24 md:p-8 md:pb-8">
           {children}
         </main>
       </div>
