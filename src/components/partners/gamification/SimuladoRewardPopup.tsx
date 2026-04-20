@@ -194,7 +194,7 @@ export function SimuladoRewardPopup({
               </p>
               {pointsToTop3 !== null && (
                 <p className={`text-xs ${theme.bodyClass}`}>
-                  {pointsToTop3 > 0
+                  {pointsToTop3 !== null && pointsToTop3 > 0 && (rankPosition === null || rankPosition > 3)
                     ? `Faltam ${pointsToTop3.toLocaleString('pt-BR')} pts para o top 3 🏆`
                     : '🏆 Você está no top 3! Defenda sua posição!'}
                 </p>
