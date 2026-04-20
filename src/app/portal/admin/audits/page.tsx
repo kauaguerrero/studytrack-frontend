@@ -111,6 +111,8 @@ interface EditableQuestionForm {
   ai_reasoning: { thought: string };
 }
 
+type SuggestedFixDecision = 'accepted' | 'rejected' | null;
+
 interface AuditRow {
   id: string;
   audit_type: AuditType;
@@ -376,6 +378,17 @@ function buildEditForm(question: QuestionFull): EditableQuestionForm {
   };
 }
 
+function buildQuestionWithSuggestedFix(
+  question: QuestionFull,
+  suggestedFix?: AuditDetail['suggested_fix'] | null,
+): QuestionFull {
+  if (!suggestedFix?.suggested_context) return question;
+  return {
+    ...question,
+    context: suggestedFix.suggested_context,
+  };
+}
+
 function countActiveResultFilters(filters: {
   audit_type: string;
   status: string;
@@ -612,9 +625,10 @@ export default function AdminAuditCenterPage() {
   const [questionPreviewOpen, setQuestionPreviewOpen] = useState(true);
   const [questionEditing, setQuestionEditing] = useState(false);
   const [questionSaving, setQuestionSaving] = useState(false);
-  const [questionPublishingAction, setQuestionPublishingAction] = useState<'approve_fix' | 'unpublish' | null>(null);
+  const [questionPublishingAction, setQuestionPublishingAction] = useState<'approve_fix' | 'approve_manual' | 'unpublish' | null>(null);
   const [editForm, setEditForm] = useState<EditableQuestionForm | null>(null);
   const [newImageUrl, setNewImageUrl] = useState('');
+  const [suggestedFixDecision, setSuggestedFixDecision] = useState<SuggestedFixDecision>(null);
 
   const resultsPageSize = 50;
   const selectedRun = useMemo(() => {
@@ -650,13 +664,14 @@ export default function AdminAuditCenterPage() {
     issue: deferredIssue.trim(),
   }), [queryFilters, deferredIssue]);
   const activeResultFilterCount = countActiveResultFilters(resultQueryFilters);
+  const questionForSuggestedFix = useMemo(() => {
+    if (!detail?.question) return null;
+    return buildQuestionWithSuggestedFix(detail.question, detail.suggested_fix);
+  }, [detail?.question, detail?.suggested_fix]);
   const suggestedQuestionPreview = useMemo(() => {
-    if (!detail?.question || !detail?.suggested_fix?.suggested_context) return null;
-    return {
-      ...detail.question,
-      context: detail.suggested_fix.suggested_context,
-    } satisfies QuestionFull;
-  }, [detail?.question, detail?.suggested_fix?.suggested_context]);
+    if (!detail?.question || !detail?.suggested_fix?.suggested_context || suggestedFixDecision === 'rejected') return null;
+    return buildQuestionWithSuggestedFix(detail.question, detail.suggested_fix);
+  }, [detail?.question, detail?.suggested_fix, suggestedFixDecision]);
 
   async function getToken() {
     const sessionResult = await supabase.auth.getSession();
@@ -947,6 +962,7 @@ export default function AdminAuditCenterPage() {
     if (!editForm || !detail?.question) return;
     setQuestionSaving(true);
     try {
+      const updatedAt = new Date().toISOString();
       const payload = {
         subject: editForm.subject,
         discipline: editForm.discipline,
@@ -964,6 +980,7 @@ export default function AdminAuditCenterPage() {
         correct_alternative: editForm.correct_alternative,
         images: editForm.images,
         ai_reasoning: editForm.ai_reasoning,
+        updated_at: updatedAt,
       };
 
       const { error } = await supabase
@@ -987,11 +1004,39 @@ export default function AdminAuditCenterPage() {
             }
           : row
       )));
-      await markAuditResultHandled('pass');
-      removeRowFromQueue(selectedRow?.id || detail.id);
-      toast.success('Questão atualizada.');
+      setDetail(current => {
+        if (!current?.question) return current;
+        return {
+          ...current,
+          question: {
+            ...current.question,
+            subject: payload.subject,
+            discipline: payload.discipline,
+            difficulty: payload.difficulty,
+            exam_year: payload.exam_year,
+            title: payload.title,
+            context: payload.context,
+            alternatives_intro: payload.alternatives_intro,
+            alternatives: payload.alternatives,
+            correct_alternative: payload.correct_alternative,
+            images: payload.images,
+            ai_reasoning: payload.ai_reasoning,
+          },
+          suggested_fix: null,
+        };
+      });
+      setEditForm({
+        ...editForm,
+        alternatives: payload.alternatives.map(alternative => ({
+          letter: alternative.letter,
+          text: alternative.text,
+          image: alternative.image,
+          isCorrect: alternative.isCorrect,
+        })),
+      });
+      setSuggestedFixDecision(null);
+      toast.success('Edição salva. Revise e aprove manualmente quando concluir.');
       setQuestionEditing(false);
-      void fetchResults(resultsPage);
     } catch (error) {
       console.error('Erro ao salvar edição da questão:', error);
       void reportError('AdminAuditQuestionSaveError', String(error));
@@ -1031,7 +1076,7 @@ export default function AdminAuditCenterPage() {
     try {
       const { error } = await supabase
         .from('questions')
-        .update({ is_verified: false, status: 'audit_flagged' })
+        .update({ is_verified: false, updated_at: new Date().toISOString() })
         .eq('id', detail.question.id);
 
       if (error) throw error;
@@ -1054,7 +1099,12 @@ export default function AdminAuditCenterPage() {
     try {
       const { error } = await supabase
         .from('questions')
-        .update({ context: detail.suggested_fix.suggested_context })
+        .update({
+          context: detail.suggested_fix.suggested_context,
+          is_verified: true,
+          status: 'approved',
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', detail.question.id);
 
       if (error) throw error;
@@ -1069,6 +1119,43 @@ export default function AdminAuditCenterPage() {
     } finally {
       setQuestionPublishingAction(null);
     }
+  }
+
+  async function approveQuestionManually() {
+    if (!detail?.question?.id) return;
+    setQuestionPublishingAction('approve_manual');
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .update({
+          is_verified: true,
+          status: 'approved',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', detail.question.id);
+
+      if (error) throw error;
+      await markAuditResultHandled('pass');
+      removeRowFromQueue(selectedRow?.id || detail.id);
+      toast.success('Questão aprovada manualmente.');
+      void fetchResults(resultsPage);
+    } catch (error) {
+      console.error('Erro ao aprovar questão manualmente:', error);
+      void reportError('AdminAuditQuestionApproveManualError', String(error));
+      toast.error('Não foi possível aprovar a questão manualmente.');
+    } finally {
+      setQuestionPublishingAction(null);
+    }
+  }
+
+  function startEditingQuestion(mode: 'suggested' | 'manual') {
+    if (!detail?.question) return;
+    const sourceQuestion = mode === 'suggested'
+      ? (questionForSuggestedFix || detail.question)
+      : detail.question;
+    setSuggestedFixDecision(mode === 'suggested' ? 'accepted' : 'rejected');
+    setEditForm(buildEditForm(sourceQuestion));
+    setQuestionEditing(true);
   }
 
   useEffect(() => { void fetchRuns(true); }, []);
@@ -1091,11 +1178,13 @@ export default function AdminAuditCenterPage() {
       setEditForm(null);
       setQuestionEditing(false);
       setNewImageUrl('');
+      setSuggestedFixDecision(null);
       return;
     }
     setEditForm(buildEditForm(detail.question));
     setQuestionEditing(false);
     setNewImageUrl('');
+    setSuggestedFixDecision(null);
   }, [detail?.id, detail?.question?.id]);
   useEffect(() => {
     if (selectedRunId) void fetchRunDetail(selectedRunId);
@@ -1105,7 +1194,7 @@ export default function AdminAuditCenterPage() {
   }, [selectedRow?.id]);
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (questionEditing || rows.length === 0) return;
+      if (questionEditing || questionPublishingAction !== null || rows.length === 0) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
       if (event.key === 'ArrowRight') {
         event.preventDefault();
@@ -1115,12 +1204,26 @@ export default function AdminAuditCenterPage() {
         event.preventDefault();
         const previousRow = rows[selectedRowIndex - 1];
         if (previousRow) setSelectedQuestionAuditId(previousRow.id);
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        if (detail?.suggested_fix && suggestedFixDecision !== 'rejected') {
+          void approveSuggestedFix();
+          return;
+        }
+        if (detail?.question) {
+          void approveQuestionManually();
+        }
+      } else if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        if (detail?.question) {
+          void unpublishQuestion();
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [questionEditing, rows, selectedRowIndex]);
+  }, [questionEditing, questionPublishingAction, rows, selectedRowIndex, detail?.question?.id, detail?.suggested_fix, suggestedFixDecision]);
   useEffect(() => {
     if (runningRun === null) return;
     const interval = window.setInterval(() => {
@@ -1393,14 +1496,18 @@ export default function AdminAuditCenterPage() {
                       <p className="mt-1 text-sm text-slate-500">{selectedRow.question?.subject || 'Sem matéria'} · {selectedRow.question?.discipline || 'Sem disciplina'} · {selectedRow.question?.difficulty || 'Sem dificuldade'}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button type="button" variant="outline" className="bg-white" disabled={!detail?.question || questionSaving} onClick={() => {
+                      <Button type="button" variant="outline" className="bg-white" disabled={!detail?.question || questionSaving || questionPublishingAction !== null} onClick={() => {
                         if (!detail?.question) return;
                         if (questionEditing) {
-                          setEditForm(buildEditForm(detail.question));
+                          setEditForm(buildEditForm(suggestedFixDecision === 'accepted' && questionForSuggestedFix ? questionForSuggestedFix : detail.question));
                           setQuestionEditing(false);
                           return;
                         }
-                        setQuestionEditing(true);
+                        if (detail.suggested_fix && suggestedFixDecision !== 'rejected') {
+                          startEditingQuestion('suggested');
+                          return;
+                        }
+                        startEditingQuestion('manual');
                       }}>
                         {questionEditing ? <><X className="mr-2 h-4 w-4" />Cancelar edição</> : <><Edit3 className="mr-2 h-4 w-4" />Editar questão</>}
                       </Button>
@@ -1410,16 +1517,22 @@ export default function AdminAuditCenterPage() {
                           Salvar
                         </Button>
                       ) : null}
-                      {detail?.suggested_fix && !questionEditing ? (
-                        <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={questionPublishingAction !== null} onClick={() => void approveSuggestedFix()}>
-                          {questionPublishingAction === 'approve_fix' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                          Corrigir questão
+                      {!questionEditing && detail?.question ? (
+                        <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={questionPublishingAction !== null} onClick={() => {
+                          if (detail?.suggested_fix && suggestedFixDecision !== 'rejected') {
+                            void approveSuggestedFix();
+                            return;
+                          }
+                          void approveQuestionManually();
+                        }}>
+                          {questionPublishingAction === 'approve_fix' || questionPublishingAction === 'approve_manual' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                          {detail?.suggested_fix && suggestedFixDecision !== 'rejected' ? 'Aprovar correção' : 'Aprovar manualmente'}
                         </Button>
                       ) : null}
                       {detail?.question ? (
                         <Button type="button" variant="outline" className="bg-white text-amber-700 border-amber-200 hover:bg-amber-50" disabled={questionPublishingAction === 'unpublish' || questionEditing || detail.question.is_verified === false} onClick={() => void unpublishQuestion()}>
                           {questionPublishingAction === 'unpublish' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          {detail.question.is_verified === false ? 'Já reprovada' : 'Reprovar questão'}
+                          {detail.question.is_verified === false ? 'Já despublicada' : 'Despublicar questão'}
                         </Button>
                       ) : null}
                     </div>
@@ -1434,12 +1547,12 @@ export default function AdminAuditCenterPage() {
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                  {detail?.suggested_fix && !questionEditing ? (
+                  {detail?.suggested_fix && !questionEditing && suggestedFixDecision !== 'rejected' ? (
                     <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                         <div>
                           <p className="text-sm font-semibold text-emerald-900">Sugestão de correção</p>
-                          <p className="mt-1 text-xs text-emerald-700">Texto faltante identificado na base oficial do ENEM. Ao aprovar, esse trecho será inserido antes das imagens do contexto.</p>
+                          <p className="mt-1 text-xs text-emerald-700">Você pode aprovar direto, abrir a edição já com a correção aplicada ou rejeitar a sugestão para editar manualmente.</p>
                         </div>
                         <Badge variant="outline" className="border-emerald-300 bg-white text-emerald-800">
                           {detail.suggested_fix.source_pdf || 'pdf oficial'}{detail.suggested_fix.question_number ? ` · questão ${detail.suggested_fix.question_number}` : ''}
@@ -1451,12 +1564,31 @@ export default function AdminAuditCenterPage() {
                           {detail.suggested_fix.missing_body_text}
                         </div>
                       </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" className="bg-white" disabled={questionPublishingAction !== null} onClick={() => startEditingQuestion('suggested')}>
+                          <Edit3 className="mr-2 h-4 w-4" />
+                          Editar com correção
+                        </Button>
+                        <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={questionPublishingAction !== null} onClick={() => void approveSuggestedFix()}>
+                          {questionPublishingAction === 'approve_fix' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                          Aprovar direto
+                        </Button>
+                        <Button type="button" variant="outline" className="bg-white text-slate-700" disabled={questionPublishingAction !== null} onClick={() => startEditingQuestion('manual')}>
+                          Rejeitar correção
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {detail?.suggested_fix && suggestedFixDecision === 'rejected' && !questionEditing ? (
+                    <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-sm font-semibold text-amber-900">Correção automática rejeitada</p>
+                      <p className="mt-1 text-xs text-amber-800">A edição manual está liberada. Salve suas alterações e use “Aprovar manualmente” quando finalizar.</p>
                     </div>
                   ) : null}
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">{detail?.suggested_fix && !questionEditing ? 'Prévia da correção' : 'Questão renderizada'}</p>
-                      <p className="mt-1 text-xs text-slate-500">{detail?.suggested_fix && !questionEditing ? 'Visualização de como a questão ficará após aplicar a sugestão.' : 'Abra o conteúdo real da questão para inspecionar o problema.'}</p>
+                      <p className="text-sm font-semibold text-slate-900">{detail?.suggested_fix && !questionEditing && suggestedFixDecision !== 'rejected' ? 'Prévia da correção' : 'Questão renderizada'}</p>
+                      <p className="mt-1 text-xs text-slate-500">{detail?.suggested_fix && !questionEditing && suggestedFixDecision !== 'rejected' ? 'Visualização de como a questão ficará após aplicar a sugestão.' : 'Abra o conteúdo real da questão para inspecionar o problema.'}</p>
                     </div>
                     {!questionEditing ? <Button type="button" variant="ghost" size="sm" className="text-slate-600" onClick={() => setQuestionPreviewOpen(current => !current)}>
                       {questionPreviewOpen ? <><ChevronUp className="mr-1 h-4 w-4" />Ocultar questão</> : <><ChevronDown className="mr-1 h-4 w-4" />Ver questão</>}
