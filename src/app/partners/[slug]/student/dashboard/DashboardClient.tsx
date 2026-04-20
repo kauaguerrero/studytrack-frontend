@@ -357,9 +357,9 @@ export function DashboardClient({
 
                 <div className="mt-4 md:hidden">
                   <div className="inline-flex w-full items-center rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-white/12 dark:bg-white/5 dark:text-white/85">
-                    <span className="mr-[0.25em]">📚 Nós nascemos para</span>
+                    <span className="mr-[0.25em]">📚 Nós nascemos para {slug === 'edificar' ? 'edificar ' : ''}</span>
                     <Typewriter
-                      text={['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                      text={slug === 'edificar' ? ['conquistas.', 'sonhos.', 'amizades.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
                       speed={95}
                       deleteSpeed={52}
                       waitTime={2600}
@@ -371,9 +371,9 @@ export function DashboardClient({
               </div>
               <div className="absolute bottom-4 right-4 z-20 hidden md:block">
                 <div className="inline-flex items-center rounded-full border border-slate-300 dark:border-white/12 bg-white dark:bg-white/5 px-4 py-2 text-sm sm:text-base text-slate-700 dark:text-white/85">
-                  <span className="mr-[0.25em]">📚 Nós nascemos para</span>
+                  <span className="mr-[0.25em]">📚 Nós nascemos para {slug === 'edificar' ? 'edificar ' : ''}</span>
                   <Typewriter
-                    text={['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                    text={slug === 'edificar' ? ['conquistas.', 'sonhos.', 'amizades.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
                     speed={95}
                     deleteSpeed={52}
                     waitTime={2600}
