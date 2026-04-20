@@ -289,14 +289,18 @@ export default function StudentProfilePage() {
           }}
         >
           <div
+            className="pointer-events-none absolute inset-0 hidden dark:block"
+            style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 22%, #0f172a) 0%, color-mix(in srgb, var(--brand-secondary) 16%, #0f172a) 100%)' }}
+          />
+          <div
             className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full blur-3xl opacity-60"
             style={{ background: 'color-mix(in srgb, var(--brand-secondary) 54%, transparent)' }}
           />
           <div className="relative z-10 mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
             style={{
               color: 'var(--brand-primary)',
-              borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
-              background: 'rgba(255,255,255,0.56)',
+              borderColor: 'color-mix(in srgb, var(--brand-primary) 28%, transparent)',
+              background: 'color-mix(in srgb, var(--brand-primary) 12%, rgba(255,255,255,0.72))',
             }}
           >
             <Target className="h-3.5 w-3.5" />
@@ -326,18 +330,18 @@ export default function StudentProfilePage() {
                     <h1 className="text-xl font-bold text-slate-900 dark:text-white">
                       {profile?.full_name || 'Aluno'}
                     </h1>
-                    <p className="text-sm text-slate-500">{profile?.email}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-300">{profile?.email}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs border-[color-mix(in_srgb,var(--brand-primary)_30%,transparent)] text-slate-700 dark:text-slate-200 dark:border-[color-mix(in_srgb,var(--brand-secondary)_40%,transparent)] dark:bg-[color-mix(in_srgb,var(--brand-primary)_14%,transparent)]">
                         {focusAndPaceLabel}
                       </Badge>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="text-right text-xs text-slate-500">
+                  <div className="text-right text-xs text-slate-500 dark:text-slate-300">
                     <p>Plano atual</p>
-                    <p className="font-semibold text-slate-700 dark:text-slate-300">{currentPlanLabel}</p>
+                    <p className="font-semibold text-slate-700 dark:text-slate-100">{currentPlanLabel}</p>
                   </div>
                   <Select
                     value={selectedPlanValue}

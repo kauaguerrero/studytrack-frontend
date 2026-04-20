@@ -582,6 +582,10 @@ export default function CorrecaoRedacaoPage() {
           }}
         >
           <div
+            className="pointer-events-none absolute inset-0 hidden dark:block"
+            style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 22%, #0f172a) 0%, color-mix(in srgb, var(--brand-secondary) 16%, #0f172a) 100%)' }}
+          />
+          <div
             className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full blur-3xl opacity-60"
             style={{ background: 'color-mix(in srgb, var(--brand-secondary) 54%, transparent)' }}
           />

@@ -146,31 +146,28 @@
 }
 
 .partner-founder-scope[data-partner-slug="edificar"] {
-  --brand-primary: #cf6f2d;
-  --brand-secondary: #eca25e;
-  --brand-accent: #f6c68e;
   --edificar-shell-bg:
-    radial-gradient(circle at top left, rgba(255, 204, 153, 0.42), transparent 36%),
-    radial-gradient(circle at top right, rgba(255, 176, 104, 0.24), transparent 32%),
-    radial-gradient(circle at 50% 0%, rgba(255, 219, 186, 0.34), transparent 30%),
+    radial-gradient(circle at top left, color-mix(in srgb, var(--brand-secondary) 28%, transparent) 0%, transparent 36%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--brand-primary) 16%, transparent) 0%, transparent 32%),
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--brand-accent) 22%, transparent) 0%, transparent 30%),
     linear-gradient(180deg, #fff8f1 0%, #fffaf7 28%, #fffdfb 100%);
-  --edificar-panel-bg: rgba(255, 249, 241, 0.84);
-  --edificar-panel-border: rgba(207, 111, 45, 0.18);
-  --edificar-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 246, 237, 0.96) 100%);
-  --edificar-card-border: rgba(207, 111, 45, 0.16);
-  --edificar-shadow: 0 24px 52px rgba(118, 63, 23, 0.1);
-  --edificar-shadow-strong: 0 30px 64px rgba(118, 63, 23, 0.15);
+  --edificar-panel-bg: rgba(255, 249, 241, 0.94);
+  --edificar-panel-border: color-mix(in srgb, var(--brand-primary) 18%, transparent);
+  --edificar-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(255, 248, 239, 0.99) 100%);
+  --edificar-card-border: color-mix(in srgb, var(--brand-primary) 22%, transparent);
+  --edificar-shadow: 0 4px 16px color-mix(in srgb, var(--brand-primary) 8%, transparent), 0 1px 3px color-mix(in srgb, var(--brand-primary) 6%, transparent);
+  --edificar-shadow-strong: 0 8px 28px color-mix(in srgb, var(--brand-primary) 13%, transparent), 0 2px 6px color-mix(in srgb, var(--brand-primary) 8%, transparent);
 }
 
 .dark .partner-founder-scope[data-partner-slug="edificar"] {
   --edificar-shell-bg:
-    radial-gradient(circle at top left, rgba(255, 166, 87, 0.2), transparent 32%),
-    radial-gradient(circle at 85% 20%, rgba(207, 111, 45, 0.18), transparent 26%),
+    radial-gradient(circle at top left, color-mix(in srgb, var(--brand-secondary) 20%, transparent) 0%, transparent 32%),
+    radial-gradient(circle at 85% 20%, color-mix(in srgb, var(--brand-primary) 18%, transparent) 0%, transparent 26%),
     linear-gradient(180deg, #1d140f 0%, #140f0c 48%, #100c09 100%);
-  --edificar-panel-bg: rgba(30, 21, 16, 0.8);
-  --edificar-panel-border: rgba(236, 162, 94, 0.16);
+  --edificar-panel-bg: rgba(28, 19, 14, 0.94);
+  --edificar-panel-border: color-mix(in srgb, var(--brand-secondary) 16%, transparent);
   --edificar-card-bg: linear-gradient(180deg, rgba(35, 24, 18, 0.86) 0%, rgba(22, 16, 13, 0.94) 100%);
-  --edificar-card-border: rgba(236, 162, 94, 0.14);
+  --edificar-card-border: color-mix(in srgb, var(--brand-secondary) 14%, transparent);
   --edificar-shadow: 0 24px 54px rgba(0, 0, 0, 0.28);
   --edificar-shadow-strong: 0 28px 64px rgba(0, 0, 0, 0.34);
 }
@@ -208,11 +205,10 @@
 
 .partner-founder-scope[data-partner-slug="edificar"] :is(.partner-sidebar, .partner-mobile-header, .partner-mobile-nav) {
   position: relative;
-  z-index: 1;
+  z-index: 10;
   background: var(--edificar-panel-bg);
   border-color: var(--edificar-panel-border);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 10px 28px rgba(120, 62, 22, 0.06);
+  box-shadow: 1px 0 0 rgba(207, 111, 45, 0.12), 4px 0 16px rgba(120, 62, 22, 0.06);
 }
 
 .partner-founder-scope[data-partner-slug="edificar"] .partner-sidebar::after {
@@ -251,23 +247,35 @@
 }
 
 .partner-founder-scope[data-partner-slug="edificar"] .partner-nav-link:not([style]) {
-  color: #6b5a4c;
+  color: color-mix(in srgb, var(--brand-primary) 60%, #1a0f08);
 }
 
 .partner-founder-scope[data-partner-slug="edificar"] .partner-nav-link:not([style]):hover {
-  background: rgba(255, 244, 232, 0.88);
-  border-color: rgba(207, 111, 45, 0.12);
-  color: #2b211c;
+  background: color-mix(in srgb, var(--brand-accent) 40%, white);
+  border-color: color-mix(in srgb, var(--brand-primary) 22%, transparent);
+  color: color-mix(in srgb, var(--brand-primary) 80%, #0a0603);
+}
+
+.dark .partner-founder-scope[data-partner-slug="edificar"] .partner-nav-link:not([style]) {
+  color: rgba(255, 210, 165, 0.72);
+}
+
+.dark .partner-founder-scope[data-partner-slug="edificar"] .partner-nav-link:not([style]):hover {
+  background: rgba(255, 160, 70, 0.13);
+  border-color: rgba(236, 162, 94, 0.25);
+  color: rgba(255, 228, 196, 0.95);
 }
 
 .partner-founder-scope[data-partner-slug="edificar"] .partner-sidebar-profile,
 .partner-founder-scope[data-partner-slug="edificar"] .partner-sidebar-brand {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), color-mix(in srgb, var(--brand-accent) 20%, white));
+  border-color: color-mix(in srgb, var(--brand-primary) 14%, transparent);
 }
 
 .dark .partner-founder-scope[data-partner-slug="edificar"] .partner-sidebar-profile,
 .dark .partner-founder-scope[data-partner-slug="edificar"] .partner-sidebar-brand {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  background: linear-gradient(180deg, rgba(255, 160, 60, 0.12), rgba(255, 130, 30, 0.07));
+  border-color: rgba(236, 162, 94, 0.22);
 }
 
 .partner-founder-scope[data-partner-slug="edificar"] :is([data-slot="card"], [data-slot="input"], [data-slot="select-trigger"], textarea) {
@@ -297,14 +305,14 @@
 }
 
 .partner-founder-scope[data-partner-slug="edificar"] .edificar-major-surface {
-  background: linear-gradient(180deg, rgba(255, 251, 246, 0.96) 0%, rgba(255, 245, 236, 0.98) 100%);
-  border-color: rgba(207, 111, 45, 0.14);
+  background: linear-gradient(180deg, rgba(255, 253, 249, 0.99) 0%, rgba(255, 246, 236, 1.0) 100%);
+  border-color: color-mix(in srgb, var(--brand-primary) 22%, transparent);
   box-shadow: var(--edificar-shadow);
 }
 
 .partner-founder-scope[data-partner-slug="edificar"] .edificar-soft-surface {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 248, 242, 0.96) 100%);
-  border-color: rgba(207, 111, 45, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 249, 243, 1.0) 100%);
+  border-color: color-mix(in srgb, var(--brand-primary) 18%, transparent);
 }
 
 .partner-founder-scope[data-partner-slug="edificar"] .edificar-page-canvas {
@@ -313,7 +321,7 @@
 
 .partner-founder-scope[data-partner-slug="edificar"] .edificar-page-frame {
   background: rgba(255, 252, 248, 0.62);
-  border: 1px solid rgba(207, 111, 45, 0.1);
+  border: 1px solid color-mix(in srgb, var(--brand-primary) 10%, transparent);
   border-radius: 2rem;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }

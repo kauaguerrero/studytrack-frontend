@@ -458,15 +458,20 @@ export default function PartnerRedacoesPage() {
       <div className="edificar-page-canvas space-y-6 min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
         <div className="edificar-page-frame space-y-6 p-3 md:p-4">
         <section
-          className="edificar-major-surface relative space-y-4 overflow-hidden rounded-2xl border border-slate-200 p-4 shadow-sm md:p-5 dark:border-slate-800"
+          className="relative space-y-4 overflow-hidden rounded-2xl border border-slate-200 p-4 shadow-sm md:p-5 dark:border-slate-700"
           style={{
             background: 'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 7%, white) 0%, rgba(255,255,255,0.96) 32%, rgba(255,255,255,0.98) 100%)',
           }}
         >
           <div
+            className="pointer-events-none absolute inset-0 hidden dark:block"
+            style={{ background: 'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 20%, #0f172a) 0%, color-mix(in srgb, var(--brand-secondary) 14%, #0f172a) 100%)' }}
+          />
+          <div
             className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full blur-3xl opacity-40"
             style={{ background: 'color-mix(in srgb, var(--brand-secondary) 38%, transparent)' }}
           />
+          <div className="relative z-10 space-y-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Redações</h1>
             {metrics.pending_count > 0 && (
@@ -698,6 +703,7 @@ export default function PartnerRedacoesPage() {
               </>
             )}
           </div>
+          </div>{/* end relative z-10 */}
         </section>
 
         <section ref={queueSectionRef} className="edificar-major-surface space-y-3 rounded-2xl border border-slate-200 p-4 shadow-sm dark:border-slate-800">

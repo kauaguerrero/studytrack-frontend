@@ -629,9 +629,9 @@ export default function FounderDashboard() {
             </div>
             <div className="w-full lg:w-auto">
               <div className="inline-flex w-full items-center rounded-2xl border border-slate-300/80 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-white/15 dark:bg-slate-900/70 dark:text-white/85 sm:w-auto sm:rounded-full sm:px-4 sm:py-2.5 sm:text-base">
-                <span className="mr-[0.25em]">📚 Nós nascemos para {org.slug === 'edificar' ? 'Edificar ' : ''}</span>
+                <span className="mr-[0.25em]">📚 Nós nascemos para</span>
                 <Typewriter
-                  text={org.slug === 'edificar' ? ['conquistas.', 'sonhos.', 'amizades.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                  text={org.slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
                   speed={95}
                   deleteSpeed={52}
                   waitTime={2600}
