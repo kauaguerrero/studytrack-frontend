@@ -424,7 +424,7 @@ export default function StudentRedacoesPage() {
                     <YAxis domain={[0, 1000]} tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
                     <Tooltip
                       contentStyle={{ background: 'var(--background)', border: '1px solid rgba(148,163,184,0.25)', borderRadius: 12, fontSize: 12 }}
-                      formatter={(v: number) => [`${v} pts`, 'Nota']}
+                      formatter={(v) => [`${v} pts`, 'Nota']}
                     />
                     <Line
                       type="monotone"
