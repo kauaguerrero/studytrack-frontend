@@ -1,0 +1,124 @@
+import { NextResponse } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { requireAdmin } from '@/app/api/admin/_utils';
+
+const BUCKET_NAME = 'questions_images';
+const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
+
+function extensionFromContentType(contentType: string): string | null {
+  const normalized = contentType.split(';')[0].trim().toLowerCase();
+  if (normalized === 'image/jpeg') return 'jpg';
+  if (normalized === 'image/png') return 'png';
+  if (normalized === 'image/webp') return 'webp';
+  if (normalized === 'image/gif') return 'gif';
+  if (normalized === 'image/svg+xml') return 'svg';
+  if (normalized === 'image/avif') return 'avif';
+  return null;
+}
+
+function slugifySegment(value: string): string {
+  const normalized = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized || 'question';
+}
+
+export async function POST(request: Request) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
+  let payload: {
+    imageUrl?: string;
+    questionId?: string;
+    externalId?: string;
+    alternativeLetter?: string;
+  };
+
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Payload inválido.' }, { status: 400 });
+  }
+
+  const imageUrl = String(payload.imageUrl || '').trim();
+  const questionId = String(payload.questionId || '').trim();
+  const externalId = String(payload.externalId || '').trim();
+  const alternativeLetter = String(payload.alternativeLetter || '').trim().toUpperCase();
+
+  if (!imageUrl || !questionId || !alternativeLetter) {
+    return NextResponse.json(
+      { error: 'imageUrl, questionId e alternativeLetter são obrigatórios.' },
+      { status: 400 }
+    );
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(imageUrl);
+  } catch {
+    return NextResponse.json({ error: 'URL de imagem inválida.' }, { status: 400 });
+  }
+
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    return NextResponse.json({ error: 'A URL da imagem deve usar http ou https.' }, { status: 400 });
+  }
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(parsedUrl.toString(), {
+      signal: AbortSignal.timeout(15000),
+      cache: 'no-store',
+    });
+  } catch {
+    return NextResponse.json({ error: 'Não foi possível baixar a imagem remota.' }, { status: 502 });
+  }
+
+  if (!upstream.ok) {
+    return NextResponse.json(
+      { error: `Falha ao baixar a imagem remota (${upstream.status}).` },
+      { status: 502 }
+    );
+  }
+
+  const contentType = upstream.headers.get('content-type') || '';
+  const extension = extensionFromContentType(contentType);
+  if (!extension) {
+    return NextResponse.json({ error: 'A URL informada não retornou uma imagem suportada.' }, { status: 400 });
+  }
+
+  const arrayBuffer = await upstream.arrayBuffer();
+  if (arrayBuffer.byteLength <= 0) {
+    return NextResponse.json({ error: 'A imagem remota veio vazia.' }, { status: 400 });
+  }
+  if (arrayBuffer.byteLength > MAX_IMAGE_SIZE_BYTES) {
+    return NextResponse.json({ error: 'A imagem excede o limite de 8 MB.' }, { status: 400 });
+  }
+
+  const supabaseAdmin = createAdminClient();
+  const storageKey = `${slugifySegment(externalId || questionId)}/alternatives/${alternativeLetter.toLowerCase()}-${crypto.randomUUID()}.${extension}`;
+  const fileBytes = new Uint8Array(arrayBuffer);
+
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(BUCKET_NAME)
+    .upload(storageKey, fileBytes, {
+      contentType,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    return NextResponse.json(
+      { error: `Falha ao salvar a imagem no bucket ${BUCKET_NAME}.` },
+      { status: 500 }
+    );
+  }
+
+  const { data } = supabaseAdmin.storage.from(BUCKET_NAME).getPublicUrl(storageKey);
+  return NextResponse.json({
+    publicUrl: data.publicUrl,
+    storagePath: storageKey,
+    bucket: BUCKET_NAME,
+  });
+}

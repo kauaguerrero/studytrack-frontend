@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, XCircle, Brain, Loader2, Flag } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { formatScientificText } from '@/lib/scientific-text'
 import { createClient } from '@/lib/supabase/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -267,13 +268,13 @@ export default function RevisaoPage() {
                                         {/* Context */}
                                         {q.context && (
                                             <div className="prose prose-sm prose-slate dark:prose-invert max-w-none mb-4 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-3">
-                                                <ReactMarkdown>{q.context}</ReactMarkdown>
+                                                <ReactMarkdown>{formatScientificText(q.context)}</ReactMarkdown>
                                             </div>
                                         )}
 
                                         {/* Statement */}
                                         <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-800 dark:text-slate-100 font-medium mb-4 leading-relaxed">
-                                            <ReactMarkdown>{q.statement}</ReactMarkdown>
+                                            <ReactMarkdown>{formatScientificText(q.statement)}</ReactMarkdown>
                                         </div>
 
                                         {/* Alternatives */}
@@ -319,7 +320,7 @@ export default function RevisaoPage() {
                                                                             ? 'text-red-800 dark:text-red-300' 
                                                                             : 'text-slate-600 dark:text-slate-300'
                                                                 }`}>
-                                                                    {alt.text}
+                                                                    {formatScientificText(alt.text)}
                                                                 </span>
                                                             ) : !alt.image ? (
                                                                 <span className="text-sm italic text-slate-400 dark:text-slate-500">

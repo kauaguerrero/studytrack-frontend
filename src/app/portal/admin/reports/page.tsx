@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
+import { formatScientificText } from '@/lib/scientific-text';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import {
@@ -395,14 +396,14 @@ export default function AdminReportsPage() {
                           {q.context && (
                             <div className="relative pl-5 border-l-4 border-slate-200 py-1">
                               <div className="prose prose-slate max-w-none text-slate-600 italic text-sm leading-relaxed">
-                                <ReactMarkdown>{q.context}</ReactMarkdown>
+                                <ReactMarkdown>{formatScientificText(q.context)}</ReactMarkdown>
                               </div>
                             </div>
                           )}
                           {(q.title || q.alternatives_intro) && (
                             <div className="prose prose-slate max-w-none text-slate-800 text-sm font-medium leading-relaxed">
                               {q.title && <h5 className="text-base font-bold mb-2">{q.title}</h5>}
-                              <ReactMarkdown>{q.alternatives_intro ?? ''}</ReactMarkdown>
+                              <ReactMarkdown>{formatScientificText(q.alternatives_intro ?? '')}</ReactMarkdown>
                             </div>
                           )}
                           {q.images && q.images.length > 0 && (
@@ -433,7 +434,7 @@ export default function AdminReportsPage() {
                                   >
                                     <span className="font-bold w-6">{alt.letter}.</span>
                                     <span className={isCorrect ? 'text-emerald-800 font-medium' : 'text-slate-700'}>
-                                      {alt.text || '(imagem)'}
+                                      {alt.text ? formatScientificText(alt.text) : '(imagem)'}
                                     </span>
                                     {isCorrect && <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />}
                                   </div>

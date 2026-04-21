@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import ReactMarkdown from 'react-markdown';
+import { formatScientificText } from '@/lib/scientific-text';
 import {
   CheckCircle2,
   Trash2,
@@ -849,7 +850,7 @@ export default function AdminQuestionApproval() {
                         <BookOpen size={16} />
                       </div>
                       <div className="prose prose-slate max-w-none text-slate-600 italic leading-relaxed text-[15px]">
-                        <ReactMarkdown>{activeQuestion.context}</ReactMarkdown>
+                        <ReactMarkdown>{formatScientificText(activeQuestion.context)}</ReactMarkdown>
                       </div>
                     </div>
                   )}
@@ -857,7 +858,7 @@ export default function AdminQuestionApproval() {
                   {/* Enunciado Principal */}
                   <div className="prose prose-slate prose-lg max-w-none text-slate-900 font-medium leading-relaxed">
                     {activeQuestion.title && <h3 className="text-xl font-bold mb-2 text-slate-800">{activeQuestion.title}</h3>}
-                    <ReactMarkdown>{activeQuestion.alternatives_intro || ''}</ReactMarkdown>
+                    <ReactMarkdown>{formatScientificText(activeQuestion.alternatives_intro || '')}</ReactMarkdown>
                   </div>
 
                   {/* Raciocínio da IA (Audit View) */}
@@ -917,7 +918,7 @@ export default function AdminQuestionApproval() {
                               {alt.letter}
                             </div>
                             <div className={`flex-1 text-[15px] leading-snug ${isCorrect ? 'text-emerald-950 font-medium' : 'text-slate-700'}`}>
-                              {alt.text || <span className="italic opacity-50">Conteúdo em anexo/imagem</span>}
+                              {alt.text ? formatScientificText(alt.text) : <span className="italic opacity-50">Conteúdo em anexo/imagem</span>}
                             </div>
                             {isCorrect && (
                               <div className="shrink-0 pl-2">

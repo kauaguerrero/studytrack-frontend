@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { CheckCircle2, XCircle, BrainCircuit, ImageIcon, Flag } from 'lucide-react';
 import { reportError } from '@/lib/reportError';
+import { formatScientificText } from '@/lib/scientific-text';
 import { createClient } from '@/lib/supabase/client';
 
 interface Alternative {
@@ -220,7 +221,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
 
       {contextText && (
         <div className="prose prose-slate dark:prose-invert prose-sm max-w-none mb-6 text-muted-foreground border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed">
-          <ReactMarkdown>{contextText}</ReactMarkdown>
+          <ReactMarkdown>{formatScientificText(contextText)}</ReactMarkdown>
         </div>
       )}
 
@@ -231,7 +232,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
       ))}
 
       <div className="font-medium text-card-foreground text-lg mb-8 leading-relaxed">
-        <ReactMarkdown>{statementText}</ReactMarkdown>
+        <ReactMarkdown>{formatScientificText(statementText)}</ReactMarkdown>
       </div>
 
       <div className="space-y-3">
@@ -282,7 +283,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
                   )}
                   {alternativeText ? (
                       <span className={`text-base leading-snug ${showAnswer && isCorrect ? 'text-green-900 dark:text-green-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}>
-                          {alternativeText}
+                          {formatScientificText(alternativeText)}
                       </span>
                   ) : alternativeImages.length === 0 && (
                       <span className="text-slate-400 dark:text-slate-500 italic text-sm">(Imagem indisponível)</span>

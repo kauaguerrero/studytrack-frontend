@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown';
 import { notFound } from 'next/navigation';
+import { formatScientificText } from '@/lib/scientific-text';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -149,12 +150,12 @@ export default async function AuditQuestionPreview({
 
         {data.context && (
           <div className="prose prose-slate mb-6 max-w-none border-l-4 border-slate-200 pl-4 text-sm text-slate-600">
-            <ReactMarkdown>{data.context}</ReactMarkdown>
+            <ReactMarkdown>{formatScientificText(data.context)}</ReactMarkdown>
           </div>
         )}
 
         <div className="prose prose-slate mb-8 max-w-none text-lg">
-          <ReactMarkdown>{data.alternatives_intro || data.statement || data.title || ''}</ReactMarkdown>
+          <ReactMarkdown>{formatScientificText(data.alternatives_intro || data.statement || data.title || '')}</ReactMarkdown>
         </div>
 
         <div className="space-y-3">
@@ -177,7 +178,7 @@ export default async function AuditQuestionPreview({
                     </div>
                   )}
                   {alt.text ? (
-                    <div className="text-base leading-relaxed text-slate-800">{alt.text}</div>
+                    <div className="text-base leading-relaxed text-slate-800">{formatScientificText(alt.text)}</div>
                   ) : !altImage ? (
                     <div className="text-sm italic text-slate-400">Conteúdo da alternativa indisponível.</div>
                   ) : null}

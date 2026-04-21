@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
+import { formatScientificText } from '@/lib/scientific-text';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -399,7 +400,7 @@ function QuestionCard({ question, index, onRemove }: { question: Question, index
 
                 {/* Enunciado */}
                 <div className="text-slate-900 font-semibold text-lg leading-relaxed">
-                    {question.alternatives_intro || question.statement || "Texto da questão indisponível."}
+                    {formatScientificText(question.alternatives_intro || question.statement || "Texto da questão indisponível.")}
                 </div>
 
                 {/* Alternativas */}
@@ -424,7 +425,7 @@ function QuestionCard({ question, index, onRemove }: { question: Question, index
                                         {alt.letter || String.fromCharCode(65 + i)}
                                     </div>
                                     <div className={`text-base leading-relaxed ${isCorrect ? 'text-emerald-900 font-medium' : 'text-slate-700'}`}>
-                                        {alt.text}
+                                        {formatScientificText(alt.text)}
                                         {isCorrect && <span className="ml-3 text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider align-middle">Gabarito</span>}
                                     </div>
                                 </div>

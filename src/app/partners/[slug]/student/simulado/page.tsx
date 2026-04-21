@@ -16,6 +16,7 @@ import {
   Medal, BarChart3, Plus, Clock, Zap, Flag,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { formatScientificText } from '@/lib/scientific-text'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
@@ -1008,13 +1009,13 @@ export default function SimuladoPage() {
               {/* Context */}
               {questions[currentIdx].context && (
                 <div className="prose prose-slate dark:prose-invert max-w-none mb-5 text-slate-600 dark:text-slate-300 border-l-4 pl-4 text-sm leading-relaxed" style={{ borderColor: 'var(--brand-primary)' }}>
-                  <ReactMarkdown>{questions[currentIdx].context}</ReactMarkdown>
+                  <ReactMarkdown>{formatScientificText(questions[currentIdx].context)}</ReactMarkdown>
                 </div>
               )}
 
               {/* Statement */}
               <div className="prose prose-slate dark:prose-invert max-w-none text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed">
-                <ReactMarkdown>{questions[currentIdx].statement}</ReactMarkdown>
+                <ReactMarkdown>{formatScientificText(questions[currentIdx].statement)}</ReactMarkdown>
               </div>
 
               {/* Alternatives */}
@@ -1046,7 +1047,7 @@ export default function SimuladoPage() {
                         {alt.text ? (
                           <span className={`text-sm leading-snug ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
                             style={isSelected ? { color: 'var(--brand-primary)' } : {}}>
-                            {alt.text}
+                            {formatScientificText(alt.text)}
                           </span>
                         ) : !alt.image ? (
                           <span className="text-sm italic text-slate-400 dark:text-slate-500">

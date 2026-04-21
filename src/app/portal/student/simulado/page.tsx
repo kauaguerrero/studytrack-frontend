@@ -9,6 +9,7 @@ import {
     Medal, BarChart3, Plus, Clock, Zap,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { formatScientificText } from '@/lib/scientific-text'
 import {
     LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
     Tooltip, ResponsiveContainer, Cell,
@@ -1057,12 +1058,12 @@ export default function SimuladoPage() {
 
                             {questions[currentIdx].context && (
                                 <div className="prose prose-slate dark:prose-invert max-w-none mb-6 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-4 text-sm">
-                                    <ReactMarkdown>{stripMarkdownImages(questions[currentIdx].context)}</ReactMarkdown>
+                                    <ReactMarkdown>{formatScientificText(stripMarkdownImages(questions[currentIdx].context))}</ReactMarkdown>
                                 </div>
                             )}
 
                             <div className="prose prose-slate dark:prose-invert max-w-none text-lg md:text-xl text-slate-900 dark:text-slate-50 font-medium mb-8 leading-relaxed">
-                                <ReactMarkdown>{stripMarkdownImages(questions[currentIdx].statement)}</ReactMarkdown>
+                                <ReactMarkdown>{formatScientificText(stripMarkdownImages(questions[currentIdx].statement))}</ReactMarkdown>
                             </div>
 
                             <div className="space-y-3">
@@ -1089,7 +1090,7 @@ export default function SimuladoPage() {
                                                 )}
                                                 {alt.text ? (
                                                     <span className={`text-base leading-snug ${isSelected ? 'text-blue-900 dark:text-blue-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}>
-                                                        {alt.text}
+                                                        {formatScientificText(alt.text)}
                                                     </span>
                                                 ) : !alt.image ? (
                                                     <span className="text-sm italic text-slate-400 dark:text-slate-500">

@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
+import { formatScientificText } from '@/lib/scientific-text';
 import {
   Activity,
   AlertCircle,
@@ -27,8 +28,10 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Copy,
   Save,
   TerminalSquare,
+  ImagePlus,
   X,
 } from 'lucide-react';
 import {
@@ -314,7 +317,7 @@ const AUDIT_META: Record<AuditType, {
     tone: 'bg-orange-100 text-orange-800 border-orange-200',
     chart: '#f97316',
     description: 'Detecta problemas editoriais objetivos e artefatos textuais da questão.',
-    checks: ['prompt vazio ou curto demais', 'placeholders quebrados', 'markdown inválido', 'alternativas suspeitas ou duplicadas'],
+    checks: ['prompt vazio ou curto demais', 'placeholders quebrados', 'markdown inválido', 'alternativas suspeitas ou duplicadas', 'notação científica/química degradada'],
     outOfScope: 'Não faz julgamento semântico profundo nem revisão pedagógica avançada.',
   },
   render: {
@@ -446,7 +449,32 @@ function insertParagraphBreakAtCursor(
   event: React.KeyboardEvent<HTMLTextAreaElement>,
   apply: (nextValue: string) => void,
 ) {
-  if (!(event.ctrlKey || event.metaKey) || event.key !== 'Enter') return;
+  const isModifierPressed = event.ctrlKey || event.metaKey;
+  if (!isModifierPressed) return;
+
+  if (event.key.toLowerCase() === 'b') {
+    event.preventDefault();
+    const target = event.currentTarget;
+    const start = target.selectionStart ?? target.value.length;
+    const end = target.selectionEnd ?? target.value.length;
+    const hasSelection = end > start;
+    const selectedText = target.value.slice(start, end);
+    const wrappedText = `**${hasSelection ? selectedText : 'texto em negrito'}**`;
+    const nextValue = target.value.slice(0, start) + wrappedText + target.value.slice(end);
+    apply(nextValue);
+    window.requestAnimationFrame(() => {
+      if (hasSelection) {
+        target.selectionStart = start;
+        target.selectionEnd = start + wrappedText.length;
+        return;
+      }
+      target.selectionStart = start + 2;
+      target.selectionEnd = start + wrappedText.length - 2;
+    });
+    return;
+  }
+
+  if (event.key !== 'Enter') return;
   event.preventDefault();
   const target = event.currentTarget;
   const start = target.selectionStart ?? target.value.length;
@@ -574,7 +602,7 @@ function QuestionPreview({ question }: { question?: QuestionFull | null }) {
       {question.context ? (
         <div className="relative border-l-4 border-slate-200 py-1 pl-5">
           <div className="prose prose-slate max-w-none text-sm italic leading-relaxed text-slate-600">
-            <ReactMarkdown>{question.context}</ReactMarkdown>
+            <ReactMarkdown>{formatScientificText(question.context)}</ReactMarkdown>
           </div>
         </div>
       ) : null}
@@ -582,7 +610,7 @@ function QuestionPreview({ question }: { question?: QuestionFull | null }) {
       {question.title || question.statement || question.alternatives_intro ? (
         <div className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-800">
           {question.title ? <h3 className="mb-2 text-base font-bold">{question.title}</h3> : null}
-          <ReactMarkdown>{question.statement || question.alternatives_intro || ''}</ReactMarkdown>
+          <ReactMarkdown>{formatScientificText(question.statement || question.alternatives_intro || '')}</ReactMarkdown>
         </div>
       ) : null}
 
@@ -633,7 +661,7 @@ function QuestionPreview({ question }: { question?: QuestionFull | null }) {
                     ) : null}
                     {alternative.text ? (
                       <span className={`text-base leading-snug ${isCorrect ? 'font-medium text-emerald-800' : 'text-slate-700'}`}>
-                        {alternative.text}
+                        {formatScientificText(alternative.text)}
                       </span>
                     ) : alternativeImages.length === 0 ? (
                       <span className="text-sm italic text-slate-400">(Imagem indisponível)</span>
@@ -719,12 +747,15 @@ export default function AdminAuditCenterPage() {
   const [runModalOpen, setRunModalOpen] = useState(false);
   const [resultsCollapsed, setResultsCollapsed] = useState(false);
   const [resultsFiltersOpen, setResultsFiltersOpen] = useState(false);
+  const [resultsJsonCopying, setResultsJsonCopying] = useState(false);
   const [questionPreviewOpen, setQuestionPreviewOpen] = useState(true);
   const [questionEditing, setQuestionEditing] = useState(false);
   const [questionSaving, setQuestionSaving] = useState(false);
   const [questionPublishingAction, setQuestionPublishingAction] = useState<'approve_fix' | 'approve_manual' | 'unpublish' | null>(null);
   const [editForm, setEditForm] = useState<EditableQuestionForm | null>(null);
   const [newImageUrl, setNewImageUrl] = useState('');
+  const [alternativeImageInputs, setAlternativeImageInputs] = useState<Record<string, string>>({});
+  const [alternativeImageUploading, setAlternativeImageUploading] = useState<string | null>(null);
   const [suggestedFixDecision, setSuggestedFixDecision] = useState<SuggestedFixDecision>(null);
 
   const resultsPageSize = 50;
@@ -1043,6 +1074,70 @@ export default function AdminAuditCenterPage() {
     }
   }
 
+  async function fetchCurrentResultSlice() {
+    const token = await getToken();
+    if (token === null) return null;
+
+    const pageSize = 200;
+    let page = 1;
+    let total = 0;
+    const items: AuditRow[] = [];
+
+    while (page === 1 || items.length < total) {
+      const response = await fetch(apiUrl + '/api/admin/question-audits/results' + buildQuery({
+        baseline_id: resultQueryFilters.baseline_id,
+        audit_type: resultQueryFilters.audit_type,
+        status: resultQueryFilters.status,
+        severity: resultQueryFilters.severity,
+        year: resultQueryFilters.year,
+        subject: resultQueryFilters.subject,
+        discipline: resultQueryFilters.discipline,
+        difficulty: resultQueryFilters.difficulty,
+        search: resultQueryFilters.search,
+        issue: resultQueryFilters.issue,
+        page,
+        page_size: pageSize,
+        sort_by: 'updated_at',
+        sort_dir: 'desc',
+      }), {
+        headers: { Authorization: 'Bearer ' + token },
+      });
+      const payload = await readJsonPayload(response);
+      if (response.ok === false) {
+        throw new Error((payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '') || 'Falha ao carregar recorte');
+      }
+
+      const typedPayload = (payload || {}) as { items?: AuditRow[]; total?: number; page?: number; page_size?: number };
+      items.push(...(typedPayload.items || []));
+      total = typedPayload.total || 0;
+
+      if ((typedPayload.items || []).length < pageSize) break;
+      page += 1;
+    }
+
+    return {
+      filters: resultQueryFilters,
+      total,
+      items,
+    };
+  }
+
+  async function copyCurrentResultsAsJson() {
+    setResultsJsonCopying(true);
+    try {
+      const payload = await fetchCurrentResultSlice();
+      if (payload === null) return;
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      toast.success('Recorte atual copiado como JSON.');
+    } catch (error) {
+      console.error('Erro ao copiar recorte em JSON:', error);
+      void reportError('AdminAuditCopyJsonError', String(error));
+      toast.error('Não foi possível copiar o recorte atual como JSON.');
+    } finally {
+      setResultsJsonCopying(false);
+    }
+  }
+
   async function startRun() {
     if (plannerAudits.length === 0) {
       toast.error('Selecione ao menos uma trilha para executar.');
@@ -1199,6 +1294,68 @@ export default function AdminAuditCenterPage() {
     }
   }
 
+  async function importAlternativeImage(alternativeIndex: number) {
+    if (!editForm || !detail?.question) return;
+    const alternative = editForm.alternatives[alternativeIndex];
+    if (!alternative) return;
+
+    const imageUrl = (alternativeImageInputs[alternative.letter] || '').trim();
+    if (!imageUrl) {
+      toast.error('Informe a URL da imagem da alternativa.');
+      return;
+    }
+
+    setAlternativeImageUploading(alternative.letter);
+    try {
+      const response = await fetch('/api/admin/question-audits/upload-alternative-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl,
+          questionId: editForm.id,
+          externalId: detail.question.external_id || editForm.id,
+          alternativeLetter: alternative.letter,
+        }),
+      });
+
+      const payload = await readJsonPayload(response);
+      if (response.ok === false) {
+        throw new Error(
+          (payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '') ||
+          'Falha ao importar imagem da alternativa'
+        );
+      }
+
+      const publicUrl = payload && typeof payload === 'object' && 'publicUrl' in payload
+        ? String(payload.publicUrl || '').trim()
+        : '';
+      if (!publicUrl) throw new Error('URL pública da imagem não retornada.');
+
+      setEditForm(current => {
+        if (!current) return current;
+        return {
+          ...current,
+          alternatives: current.alternatives.map((item, currentIndex) => (
+            currentIndex === alternativeIndex
+              ? { ...item, image: publicUrl }
+              : item
+          )),
+        };
+      });
+      setAlternativeImageInputs(current => ({ ...current, [alternative.letter]: '' }));
+      toast.success(`Imagem vinculada à alternativa ${alternative.letter}.`);
+    } catch (error) {
+      console.error('Erro ao importar imagem da alternativa:', error);
+      void reportError('AdminAuditAlternativeImageImportError', String(error), {
+        question_id: editForm.id,
+        alternative_letter: alternative.letter,
+      });
+      toast.error(String(error));
+    } finally {
+      setAlternativeImageUploading(null);
+    }
+  }
+
   async function markAuditResultHandled(nextStatus: 'pass' | 'resolved' | 'needs_manual_review') {
     if (!selectedRow?.id) return;
     const payload = nextStatus === 'pass'
@@ -1327,12 +1484,16 @@ export default function AdminAuditCenterPage() {
   useEffect(() => {
     if (!detail?.question) {
       setEditForm(null);
+      setAlternativeImageInputs({});
+      setAlternativeImageUploading(null);
       setQuestionEditing(false);
       setNewImageUrl('');
       setSuggestedFixDecision(null);
       return;
     }
     setEditForm(buildEditForm(detail.question));
+    setAlternativeImageInputs({});
+    setAlternativeImageUploading(null);
     setQuestionEditing(false);
     setNewImageUrl('');
     setSuggestedFixDecision(null);
@@ -1556,6 +1717,9 @@ export default function AdminAuditCenterPage() {
             <div className="flex gap-2">
               <Button type="button" variant="outline" className="bg-white" onClick={() => void exportCurrentResults()}>
                 Exportar recorte
+              </Button>
+              <Button type="button" variant="outline" className="bg-white" disabled={resultsJsonCopying} onClick={() => void copyCurrentResultsAsJson()}>
+                {resultsJsonCopying ? <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Copiando JSON</> : <><Copy className="mr-2 h-4 w-4" />Copiar JSON</>}
               </Button>
               <Button type="button" variant="outline" className="bg-white" onClick={() => setResultsCollapsed(resultsCollapsed === false)}>
                 {resultsCollapsed ? 'Expandir resultados' : 'Minimizar resultados'}
@@ -1811,6 +1975,8 @@ export default function AdminAuditCenterPage() {
                         <p className="text-xs font-bold uppercase text-slate-500">Alternativas</p>
                         {editForm.alternatives.map((alternative, index) => {
                           const isCorrect = editForm.correct_alternative === alternative.letter;
+                          const alternativeImages = extractAlternativeImageUrls(alternative.image);
+                          const isUploadingAlternativeImage = alternativeImageUploading === alternative.letter;
                           return (
                             <div key={alternative.letter} className={`rounded-xl border p-3 ${isCorrect ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
                               <div className="flex items-start gap-3">
@@ -1826,6 +1992,53 @@ export default function AdminAuditCenterPage() {
                                   ...editForm,
                                   alternatives: editForm.alternatives.map((item, currentIndex) => currentIndex === index ? { ...item, text: nextValue } : item),
                                 }))} className="min-h-[72px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                              </div>
+                              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                                <div className="flex flex-col gap-3 md:flex-row">
+                                  <Input
+                                    value={alternativeImageInputs[alternative.letter] || ''}
+                                    onChange={event => setAlternativeImageInputs(current => ({ ...current, [alternative.letter]: event.target.value }))}
+                                    placeholder={`URL da imagem da alternativa ${alternative.letter}`}
+                                    className="bg-white md:flex-1"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="bg-white"
+                                    disabled={isUploadingAlternativeImage}
+                                    onClick={() => void importAlternativeImage(index)}
+                                  >
+                                    {isUploadingAlternativeImage ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
+                                    Inserir imagem
+                                  </Button>
+                                </div>
+                                {alternativeImages.length > 0 ? (
+                                  <div className="mt-3 flex flex-wrap gap-3">
+                                    {alternativeImages.map((imageUrl, imageIndex) => (
+                                      <div key={`${alternative.letter}-${imageIndex}`} className="relative">
+                                        <img
+                                          src={imageUrl}
+                                          alt={`Imagem da alternativa ${alternative.letter}`}
+                                          className="h-24 w-auto rounded-lg border border-slate-200 bg-white object-contain"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditForm({
+                                            ...editForm,
+                                            alternatives: editForm.alternatives.map((item, currentIndex) => (
+                                              currentIndex === index ? { ...item, image: '' } : item
+                                            )),
+                                          })}
+                                          className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white shadow-sm hover:bg-red-600"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="mt-3 text-xs text-slate-500">Nenhuma imagem vinculada a esta alternativa.</p>
+                                )}
                               </div>
                             </div>
                           );

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { reportError } from '@/lib/reportError'
+import { formatScientificText } from '@/lib/scientific-text'
 import { useRouter } from 'next/navigation'
 import { 
     Zap, Timer, Trophy, ArrowRight, XCircle, CheckCircle2, 
@@ -909,7 +910,7 @@ export default function SpeedRunPage() {
                         <span className="w-10 h-10 rounded-lg bg-slate-950 flex items-center justify-center font-bold text-slate-500 group-hover:text-blue-400 group-hover:bg-blue-500/10 transition-colors text-lg border border-slate-800 group-hover:border-blue-500/30">
                             {alt.id.toUpperCase()}
                         </span>
-                        <span className="font-medium text-lg text-slate-300 group-hover:text-white leading-snug">{alt.text}</span>
+                        <span className="font-medium text-lg text-slate-300 group-hover:text-white leading-snug">{formatScientificText(alt.text)}</span>
                     </div>
                 </button>
             ))}
