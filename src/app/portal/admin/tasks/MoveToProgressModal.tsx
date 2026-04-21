@@ -59,10 +59,12 @@ function buildClaudePrompt(task: Task, progress: { already_done: string; current
     lines.push('');
   }
 
-  lines.push('Contexto de execução:');
-  lines.push(`Já foi feito: ${progress.already_done}`);
-  lines.push(`Sendo feito agora: ${progress.currently_doing}`);
-  lines.push(`Ainda falta: ${progress.remaining}`);
+  if (progress.already_done || progress.currently_doing || progress.remaining) {
+    lines.push('Contexto de execução:');
+    if (progress.already_done) lines.push(`Já foi feito: ${progress.already_done}`);
+    if (progress.currently_doing) lines.push(`Sendo feito agora: ${progress.currently_doing}`);
+    if (progress.remaining) lines.push(`Ainda falta: ${progress.remaining}`);
+  }
 
   return lines.join('\n');
 }
@@ -146,6 +148,34 @@ export default function MoveToProgressModal({ open, task, onConfirm, onCancel }:
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6">
           <div className="mx-auto max-w-3xl space-y-4">
             {currentStep === 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bot className="w-4 h-4 text-blue-400" />
+                    <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Contexto para o Claude</p>
+                  </div>
+                  <button
+                    onClick={handleCopy}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition-all"
+                    style={copied
+                      ? { background: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.35)', color: '#10b981' }
+                      : { background: 'rgba(59,130,246,0.10)', borderColor: 'rgba(59,130,246,0.30)', color: '#3b82f6' }
+                    }
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? 'Copiado!' : 'Copiar'}
+                  </button>
+                </div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Copie o bloco abaixo e cole no Claude Web para iniciar a execução com contexto completo.
+                </p>
+                <pre className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-4 text-xs text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono leading-relaxed overflow-y-auto max-h-[340px]">
+                  {claudePrompt}
+                </pre>
+              </div>
+            )}
+
+            {currentStep === 1 && (
               <>
                 <ProgressField
                   label="O que já foi feito?"
@@ -173,42 +203,14 @@ export default function MoveToProgressModal({ open, task, onConfirm, onCancel }:
                 />
               </>
             )}
-
-            {currentStep === 1 && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Bot className="w-4 h-4 text-blue-400" />
-                    <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Contexto para o Claude</p>
-                  </div>
-                  <button
-                    onClick={handleCopy}
-                    className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl border transition-all"
-                    style={copied
-                      ? { background: 'rgba(16,185,129,0.12)', borderColor: 'rgba(16,185,129,0.35)', color: '#10b981' }
-                      : { background: 'rgba(59,130,246,0.10)', borderColor: 'rgba(59,130,246,0.30)', color: '#3b82f6' }
-                    }
-                  >
-                    {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copied ? 'Copiado!' : 'Copiar'}
-                  </button>
-                </div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Copie o bloco abaixo e cole no Claude Web para iniciar a execução com contexto completo.
-                </p>
-                <pre className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl px-4 py-4 text-xs text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap font-mono leading-relaxed overflow-y-auto max-h-[340px]">
-                  {claudePrompt}
-                </pre>
-              </div>
-            )}
           </div>
         </div>
 
         <div className="px-6 pb-5 pt-4 flex items-center justify-between gap-3 border-t border-zinc-200 dark:border-zinc-800/60 flex-shrink-0">
           <div className="text-xs text-zinc-500 dark:text-zinc-400">
             {currentStep === 0
-              ? isValid ? 'Você pode seguir.' : 'Complete todos os campos antes de continuar.'
-              : 'Copie o contexto e inicie a execução.'}
+              ? 'Copie o contexto e continue para registrar o progresso.'
+              : isValid ? 'Você pode iniciar a execução.' : 'Complete todos os campos antes de continuar.'}
           </div>
           <div className="flex items-center gap-2.5">
             <button
@@ -229,8 +231,7 @@ export default function MoveToProgressModal({ open, task, onConfirm, onCancel }:
             {currentStep === 0 ? (
               <button
                 onClick={() => setCurrentStep(1)}
-                disabled={!isValid}
-                className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white"
                 style={{ background: '#3b82f6' }}
               >
                 Continuar
@@ -239,7 +240,7 @@ export default function MoveToProgressModal({ open, task, onConfirm, onCancel }:
             ) : (
               <button
                 onClick={handleConfirm}
-                disabled={loading}
+                disabled={!isValid || loading}
                 className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: '#3b82f6' }}
               >
