@@ -8,8 +8,20 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useOrg } from '@/contexts/OrgContext';
 
-const SUPPORT_WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP_NUMBER || '5516993118146';
+const WHATSAPP_NUMBERS = ['5516996973320', '5516994045785'];
 const SUPPORT_WHATSAPP_TEXT = encodeURIComponent('Olá, preciso de ajuda com a plataforma.');
+const WHATSAPP_COUNTER_KEY = 'edificar_support_wa_counter';
+
+function getNextWhatsAppNumber(): string {
+  try {
+    const current = parseInt(localStorage.getItem(WHATSAPP_COUNTER_KEY) || '0', 10);
+    const next = (current + 1) % WHATSAPP_NUMBERS.length;
+    localStorage.setItem(WHATSAPP_COUNTER_KEY, String(next));
+    return WHATSAPP_NUMBERS[current];
+  } catch {
+    return WHATSAPP_NUMBERS[0];
+  }
+}
 const SUPPORT_EMAIL_TO = 'igorsilvacruz284@gmail.com';
 const SUPPORT_EMAIL_SUBJECT = encodeURIComponent('Suporte StudyTrack');
 const SUPPORT_EMAIL_BODY = encodeURIComponent(
@@ -119,9 +131,12 @@ export default function SuportePage() {
 
             {/* Card 2 — Suporte via WhatsApp */}
             <a
-              href={`https://wa.me/${SUPPORT_WHATSAPP_NUMBER}?text=${SUPPORT_WHATSAPP_TEXT}`}
-              target="_blank"
-              rel="noopener noreferrer"
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                const number = getNextWhatsAppNumber();
+                window.open(`https://wa.me/${number}?text=${SUPPORT_WHATSAPP_TEXT}`, '_blank', 'noopener,noreferrer');
+              }}
               className="block"
             >
               <Card className="rounded-2xl hover:border-emerald-400 dark:hover:border-emerald-600 hover:shadow-lg transition-all bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 group h-full cursor-pointer">
