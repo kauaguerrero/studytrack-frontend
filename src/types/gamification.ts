@@ -38,6 +38,7 @@ export interface PartnerRankingEntry {
   rank: number;
   user_id: string;
   full_name: string;
+  is_anonymous?: boolean;
   monthly_points: number;
   gamification_title: string;
   progress_tier?: ProgressTier;
@@ -75,6 +76,7 @@ export interface PopupState {
   winners?: Array<{
     position: 1 | 2 | 3;
     full_name: string;
+    is_anonymous?: boolean;
     monthly_points: number;
   }>;
   /** For month_end: user's final rank for that month */

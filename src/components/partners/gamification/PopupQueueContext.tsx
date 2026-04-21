@@ -75,6 +75,7 @@ export type QueuePopup =
       winners: Array<{
         position: 1 | 2 | 3;
         full_name: string;
+        is_anonymous?: boolean;
         monthly_points: number;
       }>;
       organizationName: string;

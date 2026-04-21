@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Award,
   Sparkles,
+  EyeOff,
 } from 'lucide-react';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,6 +23,7 @@ import type {
   MonthlyHistoryEntry,
   PartnerRankingEntry,
 } from '@/types/gamification';
+import { getInitials, getRankingDisplayName, isAnonymousRankingEntry } from '@/lib/ranking-privacy';
 
 // ─── Animation config ────────────────────────────────────────────────────────
 
@@ -104,14 +106,6 @@ const RANK_THEMES = {
 
 function formatPoints(pts: number): string {
   return pts.toLocaleString('pt-BR');
-}
-
-function getInitials(name: string): string {
-  const parts = name.split(' ');
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-  return name.charAt(0).toUpperCase();
 }
 
 function formatMonthLabel(monthRef: string): string {
@@ -212,6 +206,7 @@ function PodiumEntry({ entry, isSelf }: PodiumEntryProps) {
   const Icon = theme.icon;
 
   const pedestalHeight = isFirst ? 104 : entry.rank === 2 ? 76 : 60;
+  const isAnonymous = isAnonymousRankingEntry(entry, isSelf);
 
   return (
     <motion.div
@@ -239,9 +234,9 @@ function PodiumEntry({ entry, isSelf }: PodiumEntryProps) {
       <p
         className="text-center text-[10px] sm:text-[11px] font-bold leading-tight max-w-[68px] sm:max-w-[80px] truncate text-slate-800 dark:text-white/85"
         style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
-        title={entry.full_name}
+        title={getRankingDisplayName(entry, { isSelf })}
       >
-        {isSelf ? 'Você' : entry.full_name.split(' ')[0]}
+        {getRankingDisplayName(entry, { isSelf, short: true })}
       </p>
 
       {/* Avatar */}
@@ -256,7 +251,18 @@ function PodiumEntry({ entry, isSelf }: PodiumEntryProps) {
           />
         )}
 
-        {entry.avatar_url ? (
+        {isAnonymous ? (
+          <div
+            className="relative flex h-10 w-10 items-center justify-center rounded-full text-white sm:h-11 sm:w-11"
+            style={{
+              background: 'linear-gradient(135deg, #475569, #334155)',
+              boxShadow: theme.glowIntensity,
+              border: '2.5px solid rgba(148, 163, 184, 0.55)',
+            }}
+          >
+            <EyeOff className="h-4 w-4" />
+          </div>
+        ) : entry.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={entry.avatar_url}
@@ -338,6 +344,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
   const progressMeta = getProgressTierMeta(entry.progress_tier);
   const ProgressIcon = progressMeta.Icon;
   const recentAchievements = (entry.podium_history ?? []).slice(0, 2);
+  const isAnonymous = isAnonymousRankingEntry(entry, isSelf);
 
   // Find the max points to compute relative bar width (first entry = 100%)
   const selfHighlight = isSelf
@@ -383,7 +390,20 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
 
       {/* Avatar */}
       <div className="relative shrink-0">
-        {entry.avatar_url ? (
+        {isAnonymous ? (
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-600 text-white sm:h-9 sm:w-9 dark:bg-slate-700"
+            style={{
+              border: isSelf
+                ? '2px solid var(--brand-primary)'
+                : theme
+                  ? `2px solid ${theme.glow}44`
+                  : '2px solid #475569',
+            }}
+          >
+            <EyeOff className="h-3.5 w-3.5" />
+          </div>
+        ) : entry.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={entry.avatar_url}
@@ -436,7 +456,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
           className="truncate text-xs sm:text-sm font-semibold text-slate-800 dark:text-white/90"
           style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
         >
-          {isSelf ? `${entry.full_name} (você)` : entry.full_name}
+          {getRankingDisplayName(entry, { isSelf, withYouSuffix: true })}
         </p>
         <div className="flex items-center gap-1 mt-0.5">
           <ProgressIcon

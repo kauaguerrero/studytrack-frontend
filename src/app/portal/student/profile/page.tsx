@@ -296,7 +296,7 @@ export default function ProfilePage() {
     setUsername(p.username ?? '')
     setBio(p.bio ?? '')
     setPronouns(p.pronouns ?? '')
-    setPublicProfile(p.public_profile ?? false)
+    setPublicProfile(p.public_profile ?? true)
     setAccessibilityNeeds(p.accessibility_needs ?? '')
     setTargetCourse(p.target_course ?? '')
     setTargetUniversity(p.target_university ?? '')

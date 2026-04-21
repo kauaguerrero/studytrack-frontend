@@ -1,14 +1,16 @@
 'use client';
 
 import { useReducedMotion, motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Medal, Crown, ArrowRight } from 'lucide-react';
+import { Trophy, Medal, Crown, ArrowRight, EyeOff } from 'lucide-react';
 import { usePopupTheme } from './popupTheme';
+import { getRankingDisplayName } from '@/lib/ranking-privacy';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Winner {
   position: 1 | 2 | 3;
   full_name: string;
+  is_anonymous?: boolean;
   monthly_points: number;
 }
 
@@ -72,9 +74,9 @@ function PodiumSlot({
       {/* Name */}
       <p
         className={`max-w-[72px] truncate text-center text-[11px] font-semibold leading-tight ${theme.softTextClass}`}
-        title={winner.full_name}
+        title={getRankingDisplayName(winner)}
       >
-        {winner.full_name.split(' ')[0]}
+        {getRankingDisplayName(winner, { short: true })}
       </p>
 
       {/* Avatar */}
@@ -88,7 +90,7 @@ function PodiumSlot({
             : 'linear-gradient(135deg, #a16207, #92400e)',
         }}
       >
-        {winner.full_name.charAt(0).toUpperCase()}
+        {winner.is_anonymous ? <EyeOff className="h-4 w-4" /> : winner.full_name.charAt(0).toUpperCase()}
       </div>
 
       {/* Medal icon row */}

@@ -13,7 +13,7 @@ import { motion, AnimatePresence, useAnimation, useReducedMotion } from 'framer-
 import {
   Timer, ArrowRight, ArrowLeft, CheckCircle2, Play, RotateCcw,
   Trophy, BookOpen, History, Brain, ChevronDown, ChevronLeft, TrendingUp,
-  Medal, BarChart3, Plus, Clock, Zap, Flag,
+  Medal, BarChart3, Plus, Clock, Zap, Flag, EyeOff,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { formatScientificText } from '@/lib/scientific-text'
@@ -63,7 +63,7 @@ interface SimuladoSession {
 }
 
 interface RankEntry {
-  position: number; user_id: string; percentage: number; full_name?: string; is_calibration?: boolean
+  position: number; user_id: string; percentage: number; full_name?: string; is_calibration?: boolean; is_anonymous?: boolean
 }
 
 interface RankingData {
@@ -900,7 +900,10 @@ export default function SimuladoPage() {
                         <div key={entry.user_id} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${isMe ? 'border' : 'bg-slate-50 dark:bg-slate-800/50'}`}
                           style={isMe ? { background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)', borderColor: 'color-mix(in srgb, var(--brand-primary) 30%, transparent)' } : {}}>
                           <span className="text-lg w-7 text-center" role="img" aria-label={`${entry.position}º lugar`}>{medals[entry.position - 1] ?? `#${entry.position}`}</span>
-                          <span className={`flex-1 text-sm font-semibold truncate ${isMe ? '' : 'text-slate-700 dark:text-slate-300'}`} style={isMe ? { color: 'var(--brand-primary)' } : {}}>{isMe ? 'Você' : (entry.full_name || `Usuário ${entry.user_id.slice(0, 6)}`)}</span>
+                          <span className={`flex flex-1 items-center gap-2 text-sm font-semibold truncate ${isMe ? '' : 'text-slate-700 dark:text-slate-300'}`} style={isMe ? { color: 'var(--brand-primary)' } : {}}>
+                            {!isMe && entry.is_anonymous ? <EyeOff className="h-4 w-4 shrink-0 text-slate-400" /> : null}
+                            <span className="truncate">{isMe ? 'Você' : (entry.is_anonymous ? 'Aluno secreto' : (entry.full_name || `Usuário ${entry.user_id.slice(0, 6)}`))}</span>
+                          </span>
                           <span className={`text-sm font-black ${scoreColor(entry.percentage)}`}>{entry.percentage}%</span>
                         </div>
                       )

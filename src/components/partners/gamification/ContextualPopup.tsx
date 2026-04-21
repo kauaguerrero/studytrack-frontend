@@ -1,24 +1,17 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowUpRight, Crown, Gift, Sparkles, Trophy, X, Zap } from 'lucide-react';
+import { ArrowUpRight, Crown, EyeOff, Gift, Sparkles, Trophy, X, Zap } from 'lucide-react';
 import type { PartnerRankingEntry, PartnerRankingResponse, PopupState } from '@/types/gamification';
 import { usePopupTheme } from './popupTheme';
 import { getGamificationTitleMeta, getProgressTierMeta } from './titleSystem';
+import { getInitials, getRankingDisplayName, isAnonymousRankingEntry } from '@/lib/ranking-privacy';
 
 interface Props {
   popupState: PopupState;
   ranking: PartnerRankingResponse | null;
   slug: string;
   onDismiss: () => void;
-}
-
-function getInitials(name: string): string {
-  const parts = name.split(' ');
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-  return name.charAt(0).toUpperCase();
 }
 
 function formatPoints(pts: number): string {
@@ -39,6 +32,7 @@ function PopupRankRow({
   const titleMeta = getGamificationTitleMeta(entry.gamification_title);
   const progressMeta = getProgressTierMeta(entry.progress_tier);
   const ProgressIcon = progressMeta.Icon;
+  const isAnonymous = isAnonymousRankingEntry(entry, isSelf);
 
   return (
     <div
@@ -58,7 +52,17 @@ function PopupRankRow({
         #{entry.rank}
       </div>
 
-      {entry.avatar_url ? (
+      {isAnonymous ? (
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-full text-white"
+          style={{
+            background: isSelf ? 'var(--brand-primary)' : 'linear-gradient(135deg, #475569, #334155)',
+            border: isSelf ? '2px solid var(--brand-primary)' : '2px solid rgba(255,255,255,0.12)',
+          }}
+        >
+          <EyeOff className="h-4 w-4" />
+        </div>
+      ) : entry.avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={entry.avatar_url}
@@ -85,7 +89,7 @@ function PopupRankRow({
           className={`truncate text-sm font-semibold ${theme.rankingRowTextClass}`}
           style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
         >
-          {isSelf ? `${entry.full_name} (você)` : entry.full_name}
+          {getRankingDisplayName(entry, { isSelf, withYouSuffix: true })}
         </p>
         <div className="mt-0.5 flex items-center gap-1">
           <ProgressIcon className="h-2.5 w-2.5" style={{ color: progressMeta.color }} />

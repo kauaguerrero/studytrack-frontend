@@ -2,10 +2,11 @@
 
 import { useRef } from 'react';
 import { motion } from 'framer-motion';
-import { X } from 'lucide-react';
+import { EyeOff, X } from 'lucide-react';
 import { useReducedMotion } from 'framer-motion';
 import type { PartnerRankingEntry, PartnerRankingResponse } from '@/types/gamification';
 import { usePopupTheme } from './popupTheme';
+import { getRankingDisplayName } from '@/lib/ranking-privacy';
 
 // ─── Props ─────────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,13 @@ const MEDALS = ['🥇', '🥈', '🥉'] as const;
 
 function Avatar({ entry, size = 'sm' }: { entry: PartnerRankingEntry; size?: 'sm' | 'xs' }) {
   const cls = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-6 h-6 text-[10px]';
+  if (entry.is_anonymous) {
+    return (
+      <div className={`${cls} rounded-full bg-slate-700 flex items-center justify-center text-white shrink-0`}>
+        <EyeOff className={size === 'sm' ? 'h-4 w-4' : 'h-3 w-3'} />
+      </div>
+    );
+  }
   if (entry.avatar_url) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={entry.avatar_url} className={`${cls} rounded-full object-cover shrink-0`} alt="" />;
@@ -72,7 +80,7 @@ function RankRow({
           isHighlighted ? theme.rankingRowTextClass : theme.softTextClass
         }`}
       >
-        {entry.full_name}
+        {getRankingDisplayName(entry, { isSelf: label === '← Você está aqui', withYouSuffix: label === '← Você está aqui' })}
       </span>
 
       {/* "← Você" label */}

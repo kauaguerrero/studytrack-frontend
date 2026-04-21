@@ -1,10 +1,11 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowUpRight, Award, Crown, Gift, Sparkles, Trophy, X, Zap } from 'lucide-react';
+import { ArrowUpRight, Award, Crown, EyeOff, Gift, Sparkles, Trophy, X, Zap } from 'lucide-react';
 import type { PartnerRankingEntry, PartnerRankingResponse } from '@/types/gamification';
 import { usePopupTheme } from './popupTheme';
 import { getGamificationTitleMeta, getProgressTierMeta } from './titleSystem';
+import { getInitials, getRankingDisplayName, isAnonymousRankingEntry } from '@/lib/ranking-privacy';
 
 interface Props {
   position: 1 | 2 | 3;
@@ -47,14 +48,6 @@ const SWAP_DURATION = 1.2;
 
 function formatPoints(pts: number): string {
   return pts.toLocaleString('pt-BR');
-}
-
-function getInitials(name: string): string {
-  const parts = name.split(' ');
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-  return name.charAt(0).toUpperCase();
 }
 
 function FloatingParticles() {
@@ -109,6 +102,7 @@ function RankingSliceRow({
   const titleMeta = getGamificationTitleMeta(entry.gamification_title);
   const progressMeta = getProgressTierMeta(entry.progress_tier);
   const ProgressIcon = progressMeta.Icon;
+  const isAnonymous = isAnonymousRankingEntry(entry, isSelf);
 
   return (
     <div
@@ -138,7 +132,21 @@ function RankingSliceRow({
       </div>
 
       <div className="relative shrink-0">
-        {entry.avatar_url ? (
+        {isAnonymous ? (
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-full text-white"
+            style={{
+              background: isSelf ? 'var(--brand-primary)' : 'linear-gradient(135deg, #475569, #334155)',
+              border: isSelf
+                ? '2px solid var(--brand-primary)'
+                : theme
+                  ? `2px solid ${theme.glow}44`
+                  : '2px solid #475569',
+            }}
+          >
+            <EyeOff className="h-3.5 w-3.5" />
+          </div>
+        ) : entry.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={entry.avatar_url}
@@ -187,7 +195,7 @@ function RankingSliceRow({
           className={`truncate text-[13px] font-semibold ${popupTheme.rankingRowTextClass}`}
           style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
         >
-          {isSelf ? `${entry.full_name} (você)` : entry.full_name}
+          {getRankingDisplayName(entry, { isSelf, withYouSuffix: true })}
         </p>
         <div className="mt-0.5 flex items-center gap-1">
           <ProgressIcon className="h-2.5 w-2.5" style={{ color: progressMeta.color }} />
