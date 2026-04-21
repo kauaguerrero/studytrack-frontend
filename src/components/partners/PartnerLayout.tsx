@@ -26,6 +26,7 @@ import {
   BadgeCheck,
   WalletCards,
   Menu,
+  LifeBuoy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -163,6 +164,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/planos`,          icon: WalletCards,     label: 'Planos',            shortLabel: 'Planos' },
     { href: `/partners/${org.slug}/redacoes`,        icon: FileText,        label: 'Redações',          shortLabel: 'Redações' },
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
+    { href: `/partners/${org.slug}/suporte`,          icon: LifeBuoy,        label: 'Suporte',           shortLabel: 'Suporte' },
     { href: `/partners/${org.slug}/configuracoes`,   icon: Settings,        label: 'Configurações',    shortLabel: 'Config' },
   ];
 
@@ -174,6 +176,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck, label: 'Títulos',        shortLabel: 'Títulos' },
     { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3, label: 'Meu Desempenho',  shortLabel: 'Desempenho' },
     { href: `/partners/${org.slug}/student/redacoes`,          icon: PenLine,  label: 'Redações',        shortLabel: 'Redações' },
+    { href: `/partners/${org.slug}/student/suporte`,            icon: LifeBuoy,  label: 'Suporte',          shortLabel: 'Suporte' },
     { href: `/partners/${org.slug}/student/perfil`,            icon: User,      label: 'Perfil',          shortLabel: 'Perfil' },
   ];
 

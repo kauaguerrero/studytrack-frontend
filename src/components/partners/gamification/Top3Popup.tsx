@@ -217,7 +217,7 @@ function RankingSliceRow({
             }}
           >
             <Gift className="h-2 w-2" />
-            prêmio
+            aprovação
           </span>
         ) : (
           <span className={`text-[9px] font-medium ${popupTheme.rankingRowSubtextClass}`}>pts</span>
@@ -233,7 +233,7 @@ function PrizeZoneDivider({ cutoff }: { cutoff: number }) {
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
       <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-500/50">
         <Gift className="h-2.5 w-2.5" />
-        mais perto do prêmio — top {cutoff}
+        líderes do mês — top {cutoff}
       </span>
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
     </div>
@@ -317,7 +317,7 @@ export function Top3Popup({ position, ranking, slug, onDismiss }: Props) {
                 Você entrou no top 3
               </h2>
               <p className={`mt-1.5 max-w-xl text-[13px] leading-relaxed sm:text-sm ${theme.bodyClass}`}>
-                Você ultrapassou a linha do prêmio. A troca acontece logo abaixo.
+                Você está no topo do ranking. A disputa acontece logo abaixo.
               </p>
             </div>
           </div>
@@ -354,7 +354,7 @@ export function Top3Popup({ position, ranking, slug, onDismiss }: Props) {
                         Antes da sua questão
                       </p>
                       <p className={`mt-0.5 text-[13px] font-semibold ${theme.softTextClass}`}>
-                        Você estava logo abaixo da faixa do prêmio.
+                        Você estava logo abaixo da zona de liderança.
                       </p>
                     </div>
                     {canShowSwap && (

@@ -493,7 +493,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
             }}
           >
             <Gift className="h-2 w-2" />
-            prêmio
+            destaque
           </span>
         ) : (
           <span className="text-[10px] font-medium text-slate-400 dark:text-white/30">pts</span>
@@ -511,7 +511,7 @@ function PrizeZoneDivider({ cutoff }: { cutoff: number }) {
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
       <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-500/50">
         <Gift className="h-2.5 w-2.5" />
-        mais perto do prêmio — top {cutoff}
+        líderes do mês — top {cutoff}
       </span>
       <div className="h-px flex-1 bg-gradient-to-r from-transparent via-amber-500/20 to-transparent" />
     </div>
@@ -634,7 +634,7 @@ export default function RankingPage() {
   const monthLabel = summary?.month_label ?? 'Este mês';
   const myPosition = summary?.rank_position ?? null;
   const myPoints = summary?.monthly_points ?? 0;
-  const prizeCutoff = ranking?.prize_cutoff ?? summary?.prize_cutoff ?? 3;
+  const topCutoff = ranking?.prize_cutoff ?? summary?.prize_cutoff ?? 3;
   const monthlyHistory = useMemo(
     () => ranking?.monthly_history ?? [],
     [ranking?.monthly_history],
@@ -653,8 +653,8 @@ export default function RankingPage() {
         ? [top3[1], top3[0]]
         : top3;
 
-  // Determine if the first entry after prize cutoff needs a divider
-  const hasPrizeDivider = visibleList.length > prizeCutoff;
+  // Determine if the first entry after top cutoff needs a divider
+  const hasTopDivider = visibleList.length > topCutoff;
 
   return (
     <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 overflow-hidden bg-slate-50 dark:bg-[#080808]">
@@ -993,13 +993,13 @@ export default function RankingPage() {
                   {visibleList.map((entry, i) => (
                     <div key={entry.user_id}>
                       {/* Insert prize divider after the cutoff */}
-                      {hasPrizeDivider && i === prizeCutoff && (
-                        <PrizeZoneDivider cutoff={prizeCutoff} />
+                      {hasTopDivider && i === topCutoff && (
+                        <PrizeZoneDivider cutoff={topCutoff} />
                       )}
                       <RankRow
                         entry={entry}
                         isSelf={selfEntry?.user_id === entry.user_id}
-                        isPrize={entry.rank <= prizeCutoff}
+                        isPrize={entry.rank <= topCutoff}
                         index={i}
                       />
                     </div>
@@ -1017,7 +1017,7 @@ export default function RankingPage() {
               <div className="h-px w-8 bg-gradient-to-r from-transparent to-white/10" />
               <p className="text-[10px] font-semibold text-slate-400 dark:text-white/25 flex items-center gap-1">
                 <Gift className="h-2.5 w-2.5" />
-                Top {prizeCutoff} mais perto do prêmio — mas qualquer um pode chegar lá
+                Top {topCutoff} lideram o mês — mas qualquer um pode virar o jogo
               </p>
               <div className="h-px w-8 bg-gradient-to-l from-transparent to-white/10" />
             </div>

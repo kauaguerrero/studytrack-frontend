@@ -9,7 +9,6 @@ import {
   Sparkles,
   Orbit,
   Trophy,
-  History,
   ShieldCheck,
   Stars,
 } from 'lucide-react';
@@ -108,23 +107,6 @@ export default function PartnerStudentTitlesPage() {
         style={{ background: 'radial-gradient(ellipse 78% 56% at 50% -8%, color-mix(in srgb, var(--brand-primary) 15%, transparent) 0%, transparent 72%), radial-gradient(ellipse 52% 38% at 80% 78%, rgba(245,158,11,0.08) 0%, transparent 62%)' }}
       />
 
-      <div className="pointer-events-none absolute inset-0 hidden dark:block">
-        {PARTICLE_DATA.map((particle, index) => (
-          <div
-            key={index}
-            className="absolute rounded-full"
-            style={{
-              width: particle.size,
-              height: particle.size,
-              left: `${particle.left}%`,
-              top: `${particle.top}%`,
-              opacity: particle.opacity,
-              background: index % 2 === 0 ? 'var(--brand-primary)' : '#f59e0b',
-            }}
-          />
-        ))}
-      </div>
-
       <div className="relative z-10 space-y-6">
         <section className="relative overflow-hidden rounded-[2rem] border border-slate-200/90 bg-white shadow-xl dark:border-white/8 dark:bg-[#0B0F19]">
           <div
@@ -145,11 +127,11 @@ export default function PartnerStudentTitlesPage() {
               </div>
 
               <h1 className="mt-4 max-w-3xl text-3xl font-black leading-none tracking-tight text-slate-950 sm:text-4xl dark:text-white">
-                Sua identidade do mês agora tem cara de jornada.
+                Títulos e evolução
               </h1>
 
-              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-slate-700 sm:text-[15px] dark:text-white/72">
-                A identidade mostra o perfil que você escolheu carregar. A trilha de evolução continua independente, subindo por pontos até Lendário. Aqui os dois sistemas aparecem juntos, sem misturar as regras.
+              <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-[15px] dark:text-white/62">
+                Sua identidade do mês e sua trilha de pontos — os dois em um lugar só.
               </p>
 
               <div className="mt-5 flex flex-wrap gap-2.5">
@@ -165,10 +147,6 @@ export default function PartnerStudentTitlesPage() {
                   </div>
                 )}
 
-                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/80 px-3 py-2 text-xs font-bold text-slate-700 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/68">
-                  <History className="h-3.5 w-3.5" />
-                  Histórico comparativo por mês
-                </div>
               </div>
             </div>
 
@@ -224,7 +202,7 @@ export default function PartnerStudentTitlesPage() {
                       Identidade do mês
                     </p>
                     <h2 className="mt-2 text-xl font-black tracking-tight text-slate-950 dark:text-white">
-                      A camada que dá personalidade ao mês
+                      Identidade do mês
                     </h2>
                   </div>
                   <Orbit className="h-5 w-5 text-slate-300 dark:text-white/30" />
@@ -266,22 +244,7 @@ export default function PartnerStudentTitlesPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4 dark:border-white/8 dark:bg-white/[0.03]">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-white/52">
-                          Trilha atual
-                        </p>
-                        <div className="mt-3 flex items-center gap-2">
-                          <currentTierMeta.Icon className="h-4 w-4" style={{ color: currentTierMeta.color }} />
-                          <p className="text-sm font-black" style={{ color: currentTierMeta.color }}>
-                            {titlesJourney?.progress_tier}
-                          </p>
-                        </div>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-white/64">
-                          O ranking usa esse tier como status principal.
-                        </p>
-                      </div>
-
+                    <div className="mt-4">
                       <div className="rounded-[1.4rem] border border-slate-200 bg-slate-50 p-4 dark:border-white/8 dark:bg-white/[0.03]">
                         <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-white/52">
                           Próximo salto
@@ -300,10 +263,7 @@ export default function PartnerStudentTitlesPage() {
                     <div className="mt-4 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4 dark:border-white/8 dark:bg-white/[0.03]">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <p className="text-xs font-semibold text-slate-600 dark:text-white/62">Refazer check-in</p>
-                          <p className="mt-1 text-sm text-slate-700 dark:text-white/72">
-                            Você pode recalibrar sua identidade sem mexer na pontuação mensal.
-                          </p>
+                          <p className="text-xs font-semibold text-slate-600 dark:text-white/62">Recalibrar identidade</p>
                         </div>
                         <Link
                           href={`/partners/${org.slug}/student/dashboard?forceCheckIn=1`}
@@ -343,7 +303,7 @@ export default function PartnerStudentTitlesPage() {
                     Trilha do mês
                   </p>
                   <h2 className="mt-2 text-xl font-black tracking-tight text-slate-950 dark:text-white">
-                    Jornada até Lendário
+                    Trilha do mês
                   </h2>
                 </div>
 
@@ -357,27 +317,7 @@ export default function PartnerStudentTitlesPage() {
                 </div>
               </div>
 
-              <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-50/90 p-4 dark:border-white/8 dark:bg-white/[0.03]">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500 dark:text-white/56">Seu status principal agora</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <currentTierMeta.Icon className="h-4 w-4" style={{ color: currentTierMeta.color }} />
-                      <span className="text-lg font-black" style={{ color: currentTierMeta.color }}>
-                        {titlesJourney?.progress_tier}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-semibold text-slate-500 dark:text-white/56">Distância até o próximo tier</p>
-                    <p className="mt-2 text-lg font-black text-slate-950 dark:text-white">
-                      {(titlesJourney?.points_to_next_tier ?? 0).toLocaleString('pt-BR')} pts
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-8 space-y-0">
+              <div className="mt-4 space-y-0">
                 {titlesJourney?.milestones.map((milestone, index) => {
                   const meta = getProgressTierMeta(milestone.tier);
                   const isLast = index === (titlesJourney.milestones.length - 1);
@@ -393,7 +333,7 @@ export default function PartnerStudentTitlesPage() {
                     <div key={milestone.tier} className="relative flex gap-4 pb-8 last:pb-0">
                       {!isLast && (
                         <div
-                          className="absolute left-[1.15rem] top-12 h-[calc(100%-0.9rem)] w-px"
+                          className="absolute left-[1.15rem] top-12 h-[calc(100%-2.75rem)] w-px"
                           style={{
                             background: milestone.unlocked
                               ? `linear-gradient(180deg, ${meta.glow}, rgba(148,163,184,0.18))`
@@ -459,10 +399,6 @@ export default function PartnerStudentTitlesPage() {
                             }}
                           />
                         </div>
-
-                        <p className="mt-3 text-sm leading-relaxed text-slate-700 dark:text-white/70">
-                          {meta.longDesc}
-                        </p>
                       </div>
                     </div>
                   );
@@ -491,11 +427,8 @@ export default function PartnerStudentTitlesPage() {
           <div className="mt-6 grid gap-4">
             {(titlesHistory?.history ?? []).length === 0 ? (
               <div className="rounded-[1.6rem] border border-dashed border-slate-300 bg-slate-50/80 p-5 dark:border-white/12 dark:bg-white/[0.03]">
-                <p className="text-sm font-semibold text-slate-800 dark:text-white/86">
-                  O histórico começa a aparecer quando o primeiro mês for fechado.
-                </p>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-white/68">
-                  Quando isso acontecer, você verá a identidade final do mês, a pontuação e a comparação direta com o período anterior.
+                <p className="text-sm font-semibold text-slate-600 dark:text-white/62">
+                  O histórico aparece quando o primeiro mês for fechado.
                 </p>
               </div>
             ) : (
@@ -534,9 +467,6 @@ export default function PartnerStudentTitlesPage() {
                             </span>
                           </div>
 
-                          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-700 dark:text-white/70">
-                            {item.identity_title_description}
-                          </p>
                         </div>
                       </div>
 

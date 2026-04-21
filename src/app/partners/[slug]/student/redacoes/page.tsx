@@ -1,12 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { useOrg } from '@/contexts/OrgContext';
-import { CalendarDays, Eye, FileText, Plus } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarDays, ChevronDown, Eye, FileText, Minus, Plus, TrendingUp, BarChart3, CheckCircle2, Clock, Target } from 'lucide-react';
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid,
+} from 'recharts';
 
 interface Essay {
   id: string;
@@ -55,6 +59,14 @@ function formatDateBR(value: string | null | undefined): string {
   return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 }
 
+const COMPETENCY_NAMES = [
+  'Domínio da norma culta',
+  'Compreensão da proposta',
+  'Organização de informações',
+  'Mecanismos linguísticos',
+  'Proposta de intervenção',
+];
+
 function getScoreColorClass(score: number | null): string {
   if (score === null) return 'text-slate-400';
   if (score >= 700) return 'text-emerald-600 dark:text-emerald-400';
@@ -80,6 +92,18 @@ export default function StudentRedacoesPage() {
   const [error, setError] = useState<string | null>(null);
   const [pulsingIds, setPulsingIds] = useState<string[]>([]);
   const [credits, setCredits] = useState<EssaysApiResponse['credits']>(null);
+  const [competencyScores, setCompetencyScores] = useState<{ essay_id: string; competency: number; score: number }[]>([]);
+  const [competencyOpen, setCompetencyOpen] = useState(true);
+  const [page, setPage] = useState(0);
+  const competencySectionRef = useRef<HTMLElement>(null);
+  const essaysListRef = useRef<HTMLDivElement>(null);
+
+  function scrollToCompetency() {
+    setCompetencyOpen(true);
+    setTimeout(() => {
+      competencySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -135,6 +159,15 @@ export default function StudentRedacoesPage() {
         setEssays(mapped);
         setCredits(creditsPayload);
 
+        if (mapped.length > 0) {
+          const essayIds = mapped.map((e) => e.id);
+          const { data: compData } = await supabase
+            .from('essay_competency_scores')
+            .select('essay_id, competency, score')
+            .in('essay_id', essayIds);
+          if (mounted && compData) setCompetencyScores(compData);
+        }
+
         const correctedIds = mapped.filter((e) => e.status === 'corrected').map((e) => e.id);
         setPulsingIds(correctedIds);
 
@@ -166,6 +199,87 @@ export default function StudentRedacoesPage() {
     }
     setSortBy('score');
   }, [sortOption]);
+
+  useEffect(() => { setPage(0); }, [filter, sortOption]);
+
+  const metrics = useMemo(() => {
+    const corrected = essays.filter((e) => e.total_score !== null);
+    const scores = corrected.map((e) => e.total_score as number);
+    const avg = scores.length
+      ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+      : null;
+    const best = scores.length ? Math.max(...scores) : null;
+    const pending = essays.filter((e) => e.status === 'pending').length;
+
+    const chartData = corrected
+      .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())
+      .slice(-10)
+      .map((e, i) => ({
+        label: `#${i + 1}`,
+        score: e.total_score as number,
+        date: new Date(e.submitted_at).toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+        }),
+      }));
+
+    const sorted = corrected
+      .slice()
+      .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
+
+    let trend: 'up' | 'down' | 'neutral' | null = null;
+    let trendDelta: number | null = null;
+
+    if (sorted.length >= 4) {
+      const recent = sorted.slice(-3).map((e) => e.total_score as number);
+      const previous = sorted.slice(-6, -3).map((e) => e.total_score as number);
+      if (previous.length >= 1) {
+        const avgRecent = Math.round(recent.reduce((a, b) => a + b, 0) / recent.length);
+        const avgPrev = Math.round(previous.reduce((a, b) => a + b, 0) / previous.length);
+        trendDelta = avgRecent - avgPrev;
+        trend = trendDelta > 10 ? 'up' : trendDelta < -10 ? 'down' : 'neutral';
+      }
+    }
+
+    const withCorrectionTime = essays.filter(
+      (e) => e.corrected_at !== null && e.submitted_at
+    );
+    const avgCorrectionDays = withCorrectionTime.length
+      ? Math.round(
+          withCorrectionTime.reduce((acc, e) => {
+            const diff =
+              new Date(e.corrected_at as string).getTime() -
+              new Date(e.submitted_at).getTime();
+            return acc + diff / (1000 * 60 * 60 * 24);
+          }, 0) / withCorrectionTime.length
+        )
+      : null;
+
+    const lastCorrected = sorted.length > 0 ? sorted[sorted.length - 1] : null;
+    const isRecord = best !== null
+      && lastCorrected !== null
+      && lastCorrected.total_score === best
+      && corrected.length > 1;
+
+    return { total: essays.length, correctedCount: corrected.length, avg, best, pending, chartData, trend, trendDelta, avgCorrectionDays, isRecord };
+  }, [essays]);
+
+  const { competencyMetrics, weakestCompetency } = useMemo(() => {
+    const items = [1, 2, 3, 4, 5].map((c) => {
+      const scores = competencyScores.filter((s) => s.competency === c).map((s) => s.score);
+      const avg = scores.length
+        ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+        : null;
+      return { competency: c, name: COMPETENCY_NAMES[c - 1], avg, count: scores.length };
+    });
+
+    const withScores = items.filter((i) => i.avg !== null);
+    const weakest = withScores.length >= 2
+      ? withScores.reduce((min, cur) => (cur.avg as number) < (min.avg as number) ? cur : min)
+      : null;
+
+    return { competencyMetrics: items, weakestCompetency: weakest };
+  }, [competencyScores]);
 
   const filteredAndSorted = useMemo(() => {
     let data = [...essays];
@@ -211,25 +325,201 @@ export default function StudentRedacoesPage() {
           </Link>
         </header>
 
-        {credits && (
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Plano ativo</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {credits.plan_name || 'Customizado'}
+        {!loading && essays.length > 0 && (
+          <section className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {([
+                {
+                  label: 'Enviadas',
+                  value: metrics.total,
+                  icon: FileText,
+                  color: 'text-slate-700 dark:text-slate-200',
+                  bg: 'bg-slate-100 dark:bg-slate-800',
+                  delta: null as number | null,
+                  deltaLabel: null as string | null,
+                  context: 'Total acumulado',
+                },
+                {
+                  label: 'Corrigidas',
+                  value: metrics.correctedCount,
+                  icon: CheckCircle2,
+                  color: 'text-emerald-700 dark:text-emerald-300',
+                  bg: 'bg-emerald-50 dark:bg-emerald-500/10',
+                  delta: null as number | null,
+                  deltaLabel: null as string | null,
+                  context: metrics.avgCorrectionDays !== null
+                    ? metrics.avgCorrectionDays === 0
+                      ? 'Correção em menos de 1 dia'
+                      : metrics.avgCorrectionDays === 1
+                        ? 'Média: 1 dia para corrigir'
+                        : `Média: ${metrics.avgCorrectionDays} dias para corrigir`
+                    : 'Total acumulado',
+                },
+                {
+                  label: 'Nota média',
+                  value: metrics.avg !== null ? `${metrics.avg}` : '—',
+                  icon: TrendingUp,
+                  color: metrics.avg !== null && metrics.avg >= 700
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : metrics.avg !== null && metrics.avg >= 500
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : metrics.avg !== null
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-slate-400',
+                  bg: 'bg-amber-50 dark:bg-amber-500/10',
+                  delta: metrics.trendDelta,
+                  deltaLabel: metrics.trendDelta !== null
+                    ? `${metrics.trendDelta > 0 ? '+' : ''}${metrics.trendDelta} pts vs 3 anteriores`
+                    : null,
+                  context: 'Sobre 1000 pts',
+                },
+                {
+                  label: 'Melhor nota',
+                  value: metrics.best !== null ? `${metrics.best}` : '—',
+                  icon: BarChart3,
+                  color: 'text-[var(--brand-primary)]',
+                  bg: 'bg-orange-50 dark:bg-orange-500/10',
+                  delta: null as number | null,
+                  deltaLabel: metrics.isRecord ? 'recorde pessoal ✓' : null,
+                  context: 'Sobre 1000 pts',
+                },
+              ]).map(({ label, value, icon: Icon, color, bg, delta, deltaLabel, context }) => (
+                <div key={label} className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{label}</p>
+                    <div className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${bg}`}>
+                      <Icon className={`h-3.5 w-3.5 ${color}`} />
+                    </div>
+                  </div>
+                  <p className={`text-3xl font-extrabold tracking-tight tabular-nums leading-none ${color}`}>
+                    {value}
+                  </p>
+                  {deltaLabel && (
+                    <p className={`text-[11px] font-semibold leading-tight ${
+                      delta !== null && delta > 0
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : delta !== null && delta < 0
+                          ? 'text-red-500 dark:text-red-400'
+                          : 'text-[var(--brand-primary)]'
+                    }`}>
+                      {delta !== null && delta > 0 && '↑ '}
+                      {delta !== null && delta < 0 && '↓ '}
+                      {deltaLabel}
+                    </p>
+                  )}
+                  <p className="text-[10px] leading-tight text-slate-400 dark:text-slate-500">
+                    {context}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {metrics.chartData.length >= 2 && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-5">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Evolução das notas</p>
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={metrics.chartData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.18)" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                    <YAxis domain={[0, 1000]} tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                    <Tooltip
+                      contentStyle={{ background: 'var(--background)', border: '1px solid rgba(148,163,184,0.25)', borderRadius: 12, fontSize: 12 }}
+                      formatter={(v) => [`${v} pts`, 'Nota']}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke={org.brand_primary || 'var(--brand-primary)'}
+                      strokeWidth={2.5}
+                      dot={{ r: 4, fill: org.brand_primary || 'var(--brand-primary)', strokeWidth: 0 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {metrics.trend !== null && (
+              <div className={`flex items-center gap-4 rounded-2xl border p-4 ${
+                metrics.trend === 'up'
+                  ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10'
+                  : metrics.trend === 'down'
+                    ? 'border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10'
+                    : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50'
+              }`}>
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                  metrics.trend === 'up'
+                    ? 'bg-emerald-100 dark:bg-emerald-500/20'
+                    : metrics.trend === 'down'
+                      ? 'bg-red-100 dark:bg-red-500/20'
+                      : 'bg-slate-200 dark:bg-slate-700'
+                }`}>
+                  {metrics.trend === 'up' && <ArrowUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />}
+                  {metrics.trend === 'down' && <ArrowDown className="h-5 w-5 text-red-600 dark:text-red-400" />}
+                  {metrics.trend === 'neutral' && <Minus className="h-5 w-5 text-slate-500 dark:text-slate-400" />}
+                </div>
+                <div>
+                  <p className={`text-sm font-semibold ${
+                    metrics.trend === 'up'
+                      ? 'text-emerald-800 dark:text-emerald-200'
+                      : metrics.trend === 'down'
+                        ? 'text-red-800 dark:text-red-200'
+                        : 'text-slate-700 dark:text-slate-300'
+                  }`}>
+                    {metrics.trend === 'up' && <>Você está evoluindo — <span className="font-bold">+{metrics.trendDelta} pts</span> nas últimas 3 redações</>}
+                    {metrics.trend === 'down' && <>Queda recente — <span className="font-bold">{Math.abs(metrics.trendDelta as number)} pts a menos</span> nas últimas 3 redações</>}
+                    {metrics.trend === 'neutral' && 'Desempenho estável nas últimas redações'}
+                  </p>
+                  <p className={`mt-0.5 text-xs ${
+                    metrics.trend === 'up'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : metrics.trend === 'down'
+                        ? 'text-red-500 dark:text-red-400'
+                        : 'text-slate-500 dark:text-slate-400'
+                  }`}>
+                    {metrics.trend === 'up' && 'Continue assim — consistência é o que aprova.'}
+                    {metrics.trend === 'down' && 'Reveja os comentários das últimas correções para identificar o padrão.'}
+                    {metrics.trend === 'neutral' && 'Pequenas variações são normais. Foque na competência mais fraca.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {metrics.pending > 0 && (
+              <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+                <Clock className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  {metrics.pending === 1 ? '1 redação aguardando correção' : `${metrics.pending} redações aguardando correção`}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2 text-sm">
-                <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                  {credits.remaining ?? '∞'} / {credits.limit ?? '∞'} créditos
-                </span>
-                <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1.5 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                  {credits.period === 'week' ? 'na semana' : 'no mês'}
-                </span>
-              </div>
-            </div>
+            )}
           </section>
+        )}
+
+        {weakestCompetency !== null && (
+          <button
+            onClick={scrollToCompetency}
+            className="flex w-full items-center gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left transition-colors hover:bg-amber-100/70 active:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:hover:bg-amber-500/15"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-500/20">
+              <Target className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                Foco aqui: C{weakestCompetency.competency} — {weakestCompetency.name}
+              </p>
+              <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+                Sua média nesta competência é{' '}
+                <span className="font-bold">{weakestCompetency.avg} / 200</span>
+                {' '}— a mais baixa do seu histórico. Peça feedback específico ao professor na próxima redação.
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-xl font-extrabold text-amber-700 dark:text-amber-300">{weakestCompetency.avg}</p>
+              <p className="text-[10px] font-medium text-amber-500 dark:text-amber-400">/ 200</p>
+            </div>
+            <ChevronDown className="h-4 w-4 shrink-0 -rotate-90 text-amber-500 dark:text-amber-400" />
+          </button>
         )}
 
         <section className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2">
@@ -261,6 +551,27 @@ export default function StudentRedacoesPage() {
           </label>
         </section>
 
+        {credits && (
+          <section className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Plano ativo</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {credits.plan_name || 'Customizado'}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-sm">
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  {credits.remaining ?? '∞'} / {credits.limit ?? '∞'} créditos
+                </span>
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1.5 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  {credits.period === 'week' ? 'na semana' : 'no mês'}
+                </span>
+              </div>
+            </div>
+          </section>
+        )}
+
         {loading ? (
           <div className="grid gap-4">
             {[1, 2, 3].map((k) => (
@@ -285,8 +596,8 @@ export default function StudentRedacoesPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {filteredAndSorted.map((essay) => {
+          <div ref={essaysListRef} className="grid gap-4">
+            {filteredAndSorted.slice(page * 5, page * 5 + 5).map((essay) => {
               const isCorrected = essay.status === 'corrected';
               const isSeen = essay.status === 'seen';
               const showScore = isCorrected || isSeen;
@@ -355,7 +666,112 @@ export default function StudentRedacoesPage() {
                 </article>
               );
             })}
+
+            {filteredAndSorted.length > 5 && (
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  {page * 5 + 1}–{Math.min(page * 5 + 5, filteredAndSorted.length)} de {filteredAndSorted.length}
+                </p>
+                <div className="flex gap-2">
+                  {page > 0 && (
+                    <button
+                      onClick={() => { setPage((p) => p - 1); setTimeout(() => essaysListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }}
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      Anterior
+                    </button>
+                  )}
+                  {page * 5 + 5 < filteredAndSorted.length && (
+                    <button
+                      onClick={() => { setPage((p) => p + 1); setTimeout(() => essaysListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }}
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      Próximo
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
+        )}
+
+        {competencyScores.length > 0 && (
+          <section ref={competencySectionRef} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <button
+              onClick={() => setCompetencyOpen((v) => !v)}
+              className="flex w-full items-center justify-between px-5 py-4 text-left"
+            >
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
+                  Desempenho por competência
+                </p>
+                <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                  Média acumulada de todas as redações corrigidas
+                </p>
+              </div>
+              <ChevronDown
+                className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-300 dark:text-slate-500"
+                style={{ transform: competencyOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              />
+            </button>
+
+            <div
+              className="overflow-hidden transition-all duration-300 ease-in-out"
+              style={{ maxHeight: competencyOpen ? '700px' : '0px', opacity: competencyOpen ? 1 : 0 }}
+            >
+              <div className="divide-y divide-slate-100 border-t border-slate-100 dark:divide-slate-800 dark:border-slate-800">
+                {competencyMetrics.map(({ competency, name, avg }) => {
+                  const isWeakest = weakestCompetency?.competency === competency;
+                  const pct = avg !== null ? (avg / 200) * 100 : 0;
+                  const barColor = avg === null ? '#94a3b8' : avg >= 160 ? '#10b981' : avg >= 120 ? '#f59e0b' : '#ef4444';
+                  const scoreClass = avg === null
+                    ? 'text-slate-400'
+                    : avg >= 160
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : avg >= 120
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-red-600 dark:text-red-400';
+                  return (
+                    <div
+                      key={competency}
+                      className="flex items-center gap-4 px-5 py-3.5 transition-colors"
+                      style={isWeakest ? { backgroundColor: 'rgba(251,191,36,0.08)' } : undefined}
+                    >
+                      <span className={`w-6 shrink-0 text-xs font-black ${isWeakest ? 'text-amber-500 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                        C{competency}
+                      </span>
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <p className={`truncate text-sm font-medium ${isWeakest ? 'text-amber-800 dark:text-amber-200' : 'text-slate-800 dark:text-slate-200'}`}>
+                            {name}
+                          </p>
+                          {isWeakest && <Target className="h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-amber-400" />}
+                        </div>
+                        <div className={`h-2 overflow-hidden rounded-full ${isWeakest ? 'bg-amber-100 dark:bg-amber-500/15' : 'bg-slate-100 dark:bg-slate-800'}`}>
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${pct}%`, backgroundColor: barColor }}
+                          />
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className={`text-sm font-extrabold tabular-nums ${scoreClass}`}>
+                          {avg !== null ? avg : '—'}
+                        </p>
+                        <p className="text-[10px] text-slate-400">/ 200</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="border-t border-slate-100 px-5 py-3 dark:border-slate-800">
+                <p className="text-xs text-slate-400">
+                  Média sobre {new Set(competencyScores.map((s) => s.essay_id)).size}{' '}
+                  {new Set(competencyScores.map((s) => s.essay_id)).size === 1 ? 'redação corrigida' : 'redações corrigidas'}
+                </p>
+              </div>
+            </div>
+          </section>
         )}
       </div>
     </div>

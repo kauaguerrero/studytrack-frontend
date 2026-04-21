@@ -194,7 +194,7 @@ export function SimuladoRewardPopup({
               </p>
               {pointsToTop3 !== null && (
                 <p className={`text-xs ${theme.bodyClass}`}>
-                  {pointsToTop3 > 0
+                  {pointsToTop3 !== null && pointsToTop3 > 0 && (rankPosition === null || rankPosition > 3)
                     ? `Faltam ${pointsToTop3.toLocaleString('pt-BR')} pts para o top 3 🏆`
                     : '🏆 Você está no top 3! Defenda sua posição!'}
                 </p>
@@ -205,7 +205,7 @@ export function SimuladoRewardPopup({
           {/* ── Seção 4: Barra de progresso mensal ───────────────────────── */}
           <div>
             <div className="flex justify-between items-baseline mb-2">
-              <p className={`text-xs ${theme.mutedClass}`}>Progresso para a zona do prêmio</p>
+              <p className={`text-xs ${theme.mutedClass}`}>Progresso no ranking do mês</p>
               <p className={`text-xs font-semibold ${theme.titleClass}`}>
                 {newMonthlyPoints.toLocaleString('pt-BR')} / 1.500 pts
               </p>

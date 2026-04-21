@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, ReactNode, useEffect, useMemo, useState } from 'react';
+import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, CalendarDays, MessageSquare, PenLine } from 'lucide-react';
@@ -187,7 +187,7 @@ function renderAnnotatedText(
           key={segment.key}
           type="button"
           onClick={() => onCommentClick({ id: annotation.id, comment: commentText, excerpt: coveredText })}
-          className="inline rounded-sm border-b border-dashed border-amber-400 bg-amber-400/10 px-0.5 text-left text-amber-700 underline decoration-amber-500/70 underline-offset-2 dark:text-amber-100 dark:decoration-amber-400/70"
+          className="inline cursor-pointer rounded-sm border-b-2 border-dashed border-amber-400 bg-amber-400/15 px-0.5 text-left font-medium text-amber-700 underline decoration-amber-500/70 underline-offset-2 transition-colors hover:bg-amber-400/30 hover:border-amber-500 active:scale-95 dark:text-amber-200 dark:decoration-amber-400/70 dark:hover:bg-amber-400/25"
         >
           {coveredText}
         </button>
@@ -219,6 +219,14 @@ export default function RedacaoDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedCompetencies, setExpandedCompetencies] = useState<Record<number, boolean>>({});
   const [activeComment, setActiveComment] = useState<{ id: string; comment: string; excerpt: string } | null>(null);
+  const activeCommentRef = useRef<HTMLDivElement>(null);
+
+  const handleCommentClick = (payload: { id: string; comment: string; excerpt: string }) => {
+    setActiveComment(payload);
+    setTimeout(() => {
+      activeCommentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -323,7 +331,7 @@ export default function RedacaoDetailPage() {
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900">
             <div>
               <h1 className="text-xl font-bold md:text-2xl">
-                Redação - {formatDateBR(essay.submitted_at)}
+                Redação — {formatDateBR(essay.submitted_at)}
               </h1>
               <p className="mt-1 inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                 <CalendarDays className="h-4 w-4" />
@@ -425,9 +433,17 @@ export default function RedacaoDetailPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              <div>{renderAnnotatedText(essay.text, essay.annotations || [], setActiveComment)}</div>
+              {(essay.annotations?.length ?? 0) > 0 && (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-500/30 dark:bg-amber-500/10">
+                  <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-amber-400" />
+                  <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
+                    Toque nas palavras destacadas em laranja para ver o comentário do professor.
+                  </p>
+                </div>
+              )}
+              <div>{renderAnnotatedText(essay.text, essay.annotations || [], handleCommentClick)}</div>
               {activeComment && (
-                <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
+                <div ref={activeCommentRef} className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
                   <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">Comentário do professor</p>
                   <p className="mt-1 text-xs opacity-80">&quot;{activeComment.excerpt}&quot;</p>
                   <p className="mt-2 leading-relaxed">{activeComment.comment}</p>

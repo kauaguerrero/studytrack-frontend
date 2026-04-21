@@ -209,7 +209,7 @@ export default function RevisaoPage() {
                                 {annulledCount > 0 && (
                                     <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-1 text-xs font-semibold text-amber-800 dark:text-amber-200">
                                         <Flag size={12} />
-                                        {annulledCount} anulada(s) por report
+                                        {annulledCount} {annulledCount === 1 ? 'anulada' : 'anuladas'} por report
                                     </div>
                                 )}
                             </div>
@@ -323,7 +323,7 @@ export default function RevisaoPage() {
                                                                 </span>
                                                             ) : !alt.image ? (
                                                                 <span className="text-sm italic text-slate-400 dark:text-slate-500">
-                                                                    Conteudo da alternativa indisponivel.
+                                                                    Conteúdo da alternativa indisponível.
                                                                 </span>
                                                             ) : null}
                                                         </div>

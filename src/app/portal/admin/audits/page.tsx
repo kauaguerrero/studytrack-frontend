@@ -111,6 +111,8 @@ interface EditableQuestionForm {
   ai_reasoning: { thought: string };
 }
 
+type SuggestedFixDecision = 'accepted' | 'rejected' | null;
+
 interface AuditRow {
   id: string;
   audit_type: AuditType;
@@ -241,6 +243,7 @@ interface DashboardPayload {
     subjects: string[];
     disciplines: string[];
     difficulties: string[];
+    issues: string[];
   };
 }
 
@@ -376,6 +379,86 @@ function buildEditForm(question: QuestionFull): EditableQuestionForm {
   };
 }
 
+function buildQuestionWithSuggestedFix(
+  question: QuestionFull,
+  suggestedFix?: AuditDetail['suggested_fix'] | null,
+): QuestionFull {
+  if (!suggestedFix?.suggested_context) return question;
+  return {
+    ...question,
+    context: suggestedFix.suggested_context,
+  };
+}
+
+function normalizeSuggestedFixSnippet(text?: string | null) {
+  if (!text) return '';
+  return text
+    .replace(/\r/g, '')
+    .replace(/([^\n])\n([^\n])/g, '$1 $2')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+async function readJsonPayload(response: Response) {
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().includes('application/json')) return null;
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeImageUrl(raw: string): string | null {
+  const cleaned = String(raw || '')
+    .trim()
+    .replace(/^<|>$/g, '')
+    .replace(/^['"]|['"]$/g, '');
+  if (!cleaned) return null;
+  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned;
+  if (cleaned.startsWith('/storage/v1/object/public/')) return cleaned;
+  return null;
+}
+
+function extractAlternativeImageUrls(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeImageUrl(String(item)))
+      .filter((url): url is string => Boolean(url));
+  }
+  if (typeof value !== 'string') return [];
+  const raw = value.trim();
+  if (!raw) return [];
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(raw);
+      return extractAlternativeImageUrls(parsed);
+    } catch {
+      // ignore and fall through
+    }
+  }
+  const direct = normalizeImageUrl(raw);
+  return direct ? [direct] : [];
+}
+
+function insertParagraphBreakAtCursor(
+  event: React.KeyboardEvent<HTMLTextAreaElement>,
+  apply: (nextValue: string) => void,
+) {
+  if (!(event.ctrlKey || event.metaKey) || event.key !== 'Enter') return;
+  event.preventDefault();
+  const target = event.currentTarget;
+  const start = target.selectionStart ?? target.value.length;
+  const end = target.selectionEnd ?? target.value.length;
+  const nextValue = target.value.slice(0, start) + '\n\n' + target.value.slice(end);
+  apply(nextValue);
+  window.requestAnimationFrame(() => {
+    target.selectionStart = start + 2;
+    target.selectionEnd = start + 2;
+  });
+}
+
 function countActiveResultFilters(filters: {
   audit_type: string;
   status: string;
@@ -443,6 +526,7 @@ function buildCommandPreview(config: {
   difficulty: string;
   limit: string;
   questionId: string;
+  includeReviewed: boolean;
   auditVersion: string;
   timeout: string;
   baseUrl: string;
@@ -462,6 +546,7 @@ function buildCommandPreview(config: {
   if (config.difficulty !== 'all') parts.push('--difficulty "' + config.difficulty + '"');
   if (config.limit !== '') parts.push('--limit ' + config.limit);
   if (config.questionId !== '') parts.push('--question-id ' + config.questionId);
+  if (config.includeReviewed) parts.push('--include-reviewed');
   if (config.timeout !== '') parts.push('--timeout ' + config.timeout);
   if (config.audits.includes('render')) {
     if (config.baseUrl !== '') parts.push('--base-url ' + JSON.stringify(config.baseUrl));
@@ -515,23 +600,46 @@ function QuestionPreview({ question }: { question?: QuestionFull | null }) {
       ) : null}
 
       {question.alternatives && question.alternatives.length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-xs font-bold uppercase text-slate-500">Alternativas</p>
+        <div className="space-y-3">
           {question.alternatives.map((alternative) => {
             const isCorrect = alternative.letter === question.correct_alternative || alternative.isCorrect;
+            const alternativeImages = extractAlternativeImageUrls(alternative.image);
             return (
               <div
                 key={alternative.letter}
-                className={`rounded-xl border p-3 text-sm ${
+                className={`w-full rounded-xl border-2 p-4 text-left transition-all ${
                   isCorrect ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <span className="w-6 font-bold">{alternative.letter}.</span>
-                  <span className={isCorrect ? 'font-medium text-emerald-800' : 'text-slate-700'}>
-                    {alternative.text || '(imagem)'}
+                <div className="flex items-start gap-3">
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 text-sm font-bold ${
+                    isCorrect ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-200 bg-white text-slate-500'
+                  }`}>
+                    {alternative.letter}
                   </span>
-                  {isCorrect ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : null}
+                  <div className="min-w-0 flex-1">
+                    {alternativeImages.length > 0 ? (
+                      <div className="mb-2">
+                        {alternativeImages.map((imageUrl, imageIndex) => (
+                          <div key={`${alternative.letter}-${imageIndex}`} className={imageIndex > 0 ? 'mt-2' : ''}>
+                            <img
+                              src={imageUrl}
+                              alt={`Alternativa ${alternative.letter}`}
+                              className="max-h-32 rounded border border-slate-200"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {alternative.text ? (
+                      <span className={`text-base leading-snug ${isCorrect ? 'font-medium text-emerald-800' : 'text-slate-700'}`}>
+                        {alternative.text}
+                      </span>
+                    ) : alternativeImages.length === 0 ? (
+                      <span className="text-sm italic text-slate-400">(Imagem indisponível)</span>
+                    ) : null}
+                  </div>
+                  {isCorrect ? <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" /> : null}
                 </div>
               </div>
             );
@@ -558,6 +666,7 @@ export default function AdminAuditCenterPage() {
   const apiUrl = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
   const drilldownRef = useRef<HTMLDivElement | null>(null);
   const runConsoleRef = useRef<HTMLDivElement | null>(null);
+  const pollingErrorRef = useRef<Record<string, string>>({});
 
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
@@ -585,7 +694,7 @@ export default function AdminAuditCenterPage() {
   const [filterDiscipline, setFilterDiscipline] = useState<string>('all');
   const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
   const [search, setSearch] = useState('');
-  const [filterIssue, setFilterIssue] = useState('');
+  const [filterIssue, setFilterIssue] = useState('all');
   const deferredSearch = useDeferredValue(search);
   const deferredIssue = useDeferredValue(filterIssue);
 
@@ -606,15 +715,17 @@ export default function AdminAuditCenterPage() {
   const [plannerVariants, setPlannerVariants] = useState('bank,simulado,review');
   const [plannerViewports, setPlannerViewports] = useState('desktop');
   const [plannerVerifyUrls, setPlannerVerifyUrls] = useState(true);
+  const [plannerIncludeReviewed, setPlannerIncludeReviewed] = useState(false);
   const [runModalOpen, setRunModalOpen] = useState(false);
   const [resultsCollapsed, setResultsCollapsed] = useState(false);
   const [resultsFiltersOpen, setResultsFiltersOpen] = useState(false);
   const [questionPreviewOpen, setQuestionPreviewOpen] = useState(true);
   const [questionEditing, setQuestionEditing] = useState(false);
   const [questionSaving, setQuestionSaving] = useState(false);
-  const [questionPublishingAction, setQuestionPublishingAction] = useState<'approve_fix' | 'unpublish' | null>(null);
+  const [questionPublishingAction, setQuestionPublishingAction] = useState<'approve_fix' | 'approve_manual' | 'unpublish' | null>(null);
   const [editForm, setEditForm] = useState<EditableQuestionForm | null>(null);
   const [newImageUrl, setNewImageUrl] = useState('');
+  const [suggestedFixDecision, setSuggestedFixDecision] = useState<SuggestedFixDecision>(null);
 
   const resultsPageSize = 50;
   const selectedRun = useMemo(() => {
@@ -623,13 +734,16 @@ export default function AdminAuditCenterPage() {
   }, [runs, selectedRunId]);
   const runningRun = useMemo(() => runs.find(run => run.status === 'running') || null, [runs]);
   const selectedRow = useMemo(() => rows.find(row => row.id === selectedQuestionAuditId) || rows[0] || null, [rows, selectedQuestionAuditId]);
+  const selectedRowIndex = useMemo(() => {
+    if (!selectedRow) return -1;
+    return rows.findIndex(row => row.id === selectedRow.id);
+  }, [rows, selectedRow]);
   const selectedRunCurrentAudit = selectedRun?.current_audit || selectedRun?.progress?.current_audit || '—';
   const selectedRunCurrentQuestion = selectedRun?.current_question_external_id || selectedRun?.progress?.current_question_external_id || '—';
   const selectedRunProcessed = selectedRun?.processed_questions ?? selectedRun?.progress?.processed_questions ?? 0;
   const selectedRunTotal = selectedRun?.total_questions ?? selectedRun?.progress?.total_questions ?? 0;
   const selectedRunEta = selectedRun?.eta_seconds ?? selectedRun?.progress?.eta_seconds ?? null;
   const selectedRunProgressPercent = selectedRunTotal > 0 ? Math.min(100, (selectedRunProcessed / selectedRunTotal) * 100) : 0;
-
   const queryFilters = useMemo(() => ({
     baseline_id: dashboard?.baseline?.baseline_id || '',
     audit_type: filterAuditType === 'all' ? '' : filterAuditType,
@@ -643,16 +757,30 @@ export default function AdminAuditCenterPage() {
   }), [dashboard?.baseline?.baseline_id, filterAuditType, filterStatus, filterSeverity, filterYear, filterSubject, filterDiscipline, filterDifficulty, deferredSearch]);
   const resultQueryFilters = useMemo(() => ({
     ...queryFilters,
-    issue: deferredIssue.trim(),
+    issue: deferredIssue === 'all' ? '' : deferredIssue.trim(),
   }), [queryFilters, deferredIssue]);
   const activeResultFilterCount = countActiveResultFilters(resultQueryFilters);
+  const questionForSuggestedFix = useMemo(() => {
+    if (!detail?.question) return null;
+    return buildQuestionWithSuggestedFix(detail.question, detail.suggested_fix);
+  }, [detail?.question, detail?.suggested_fix]);
   const suggestedQuestionPreview = useMemo(() => {
-    if (!detail?.question || !detail?.suggested_fix?.suggested_context) return null;
-    return {
-      ...detail.question,
-      context: detail.suggested_fix.suggested_context,
-    } satisfies QuestionFull;
-  }, [detail?.question, detail?.suggested_fix?.suggested_context]);
+    if (!detail?.question || !detail?.suggested_fix?.suggested_context || suggestedFixDecision === 'rejected') return null;
+    return buildQuestionWithSuggestedFix(detail.question, detail.suggested_fix);
+  }, [detail?.question, detail?.suggested_fix, suggestedFixDecision]);
+
+  function clearResultFilters() {
+    setSearch('');
+    setFilterIssue('all');
+    setFilterAuditType('all');
+    setFilterStatus('all');
+    setFilterSeverity('all');
+    setFilterYear('all');
+    setFilterSubject('all');
+    setFilterDiscipline('all');
+    setFilterDifficulty('all');
+    setResultsPage(1);
+  }
 
   async function getToken() {
     const sessionResult = await supabase.auth.getSession();
@@ -667,8 +795,11 @@ export default function AdminAuditCenterPage() {
       const response = await fetch(apiUrl + '/api/admin/question-audits/runs' + buildQuery({ limit: 30 }), {
         headers: { Authorization: 'Bearer ' + token },
       });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar runs');
+      const payload = await readJsonPayload(response);
+      if (response.ok === false) {
+        if (response.status === 401 || response.status === 403) return;
+        throw new Error((payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '') || 'Falha ao carregar runs');
+      }
       const nextRuns = (payload.runs || []) as AuditRun[];
       setRuns(current => {
         const merged = nextRuns.map(run => {
@@ -683,8 +814,13 @@ export default function AdminAuditCenterPage() {
       });
       if (shouldSelectLatest && nextRuns[0]) setSelectedRunId(nextRuns[0].run_id);
       if (selectedRunId === null && nextRuns[0]) setSelectedRunId(nextRuns[0].run_id);
+      pollingErrorRef.current.runs = '';
     } catch (error) {
-      console.error('Erro ao carregar runs de auditoria:', error);
+      const message = String(error);
+      if (pollingErrorRef.current.runs !== message) {
+        console.error('Erro ao carregar runs de auditoria:', error);
+        pollingErrorRef.current.runs = message;
+      }
       void reportError('AdminAuditRunsFetchError', String(error));
     } finally {
       setRunsLoading(false);
@@ -702,8 +838,11 @@ export default function AdminAuditCenterPage() {
       }), {
         headers: { Authorization: 'Bearer ' + token },
       });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar detalhe da run');
+      const payload = await readJsonPayload(response);
+      if (response.ok === false) {
+        if (response.status === 401 || response.status === 403) return;
+        throw new Error((payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '') || 'Falha ao carregar detalhe da run');
+      }
       setRuns(current => {
         const next = current.map(run => {
           if (run.run_id !== runId) return run;
@@ -717,8 +856,14 @@ export default function AdminAuditCenterPage() {
         });
         return next.some(run => run.run_id === runId) ? next : current.concat(payload as AuditRun);
       });
+      pollingErrorRef.current[`run:${runId}`] = '';
     } catch (error) {
-      console.error('Erro ao carregar detalhe da run:', error);
+      const errorKey = `run:${runId}`;
+      const message = String(error);
+      if (pollingErrorRef.current[errorKey] !== message) {
+        console.error('Erro ao carregar detalhe da run:', error);
+        pollingErrorRef.current[errorKey] = message;
+      }
       void reportError('AdminAuditRunDetailFetchError', String(error));
     } finally {
       setRunDetailLoading(false);
@@ -756,11 +901,19 @@ export default function AdminAuditCenterPage() {
       const response = await fetch(apiUrl + '/api/admin/question-audits/dashboard' + buildQuery(queryFilters), {
         headers: { Authorization: 'Bearer ' + token },
       });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar dashboard');
+      const payload = await readJsonPayload(response);
+      if (response.ok === false) {
+        if (response.status === 401 || response.status === 403) return;
+        throw new Error((payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '') || 'Falha ao carregar dashboard');
+      }
       setDashboard(payload as DashboardPayload);
+      pollingErrorRef.current.dashboard = '';
     } catch (error) {
-      console.error('Erro ao carregar dashboard de auditoria:', error);
+      const message = String(error);
+      if (pollingErrorRef.current.dashboard !== message) {
+        console.error('Erro ao carregar dashboard de auditoria:', error);
+        pollingErrorRef.current.dashboard = message;
+      }
       void reportError('AdminAuditDashboardFetchError', String(error));
       toast.error('Não foi possível carregar o dashboard operacional.');
     } finally {
@@ -791,13 +944,21 @@ export default function AdminAuditCenterPage() {
       }), {
         headers: { Authorization: 'Bearer ' + token },
       });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar resultados');
+      const payload = await readJsonPayload(response);
+      if (response.ok === false) {
+        if (response.status === 401 || response.status === 403) return;
+        throw new Error((payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '') || 'Falha ao carregar resultados');
+      }
       setRows((payload.items || []) as AuditRow[]);
       setResultsTotal(payload.total || 0);
       setResultsPage(payload.page || 1);
+      pollingErrorRef.current.results = '';
     } catch (error) {
-      console.error('Erro ao carregar resultados da auditoria:', error);
+      const message = String(error);
+      if (pollingErrorRef.current.results !== message) {
+        console.error('Erro ao carregar resultados da auditoria:', error);
+        pollingErrorRef.current.results = message;
+      }
       void reportError('AdminAuditResultsFetchError', String(error));
       toast.error('Não foi possível carregar os resultados operacionais.');
     } finally {
@@ -813,11 +974,23 @@ export default function AdminAuditCenterPage() {
       const response = await fetch(apiUrl + '/api/admin/question-audits/results/' + id, {
         headers: { Authorization: 'Bearer ' + token },
       });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar detalhe');
+      const payload = await readJsonPayload(response);
+      if (response.ok === false) {
+        if (response.status === 401 || response.status === 403) {
+          setDetail(null);
+          return;
+        }
+        throw new Error((payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '') || 'Falha ao carregar detalhe');
+      }
       setDetail((payload || null) as AuditDetail | null);
+      pollingErrorRef.current[`detail:${id}`] = '';
     } catch (error) {
-      console.error('Erro ao carregar detalhe da questão auditada:', error);
+      const errorKey = `detail:${id}`;
+      const message = String(error);
+      if (pollingErrorRef.current[errorKey] !== message) {
+        console.error('Erro ao carregar detalhe da questão auditada:', error);
+        pollingErrorRef.current[errorKey] = message;
+      }
       void reportError('AdminAuditQuestionDetailFetchError', String(error));
       setDetail(null);
     } finally {
@@ -915,6 +1088,7 @@ export default function AdminAuditCenterPage() {
           audit_version: plannerAuditVersion || null,
           timeout: plannerTimeout || null,
           verify_urls: plannerVerifyUrls,
+          include_reviewed: plannerIncludeReviewed,
           base_url: renderEnabled ? plannerBaseUrl.trim() : null,
           service_url: renderEnabled ? plannerServiceUrl.trim() : null,
           variants: renderEnabled ? variants : [],
@@ -983,9 +1157,39 @@ export default function AdminAuditCenterPage() {
             }
           : row
       )));
-      toast.success('Questão atualizada.');
+      setDetail(current => {
+        if (!current?.question) return current;
+        return {
+          ...current,
+          question: {
+            ...current.question,
+            subject: payload.subject,
+            discipline: payload.discipline,
+            difficulty: payload.difficulty,
+            exam_year: payload.exam_year,
+            title: payload.title,
+            context: payload.context,
+            alternatives_intro: payload.alternatives_intro,
+            alternatives: payload.alternatives,
+            correct_alternative: payload.correct_alternative,
+            images: payload.images,
+            ai_reasoning: payload.ai_reasoning,
+          },
+          suggested_fix: null,
+        };
+      });
+      setEditForm({
+        ...editForm,
+        alternatives: payload.alternatives.map(alternative => ({
+          letter: alternative.letter,
+          text: alternative.text,
+          image: alternative.image,
+          isCorrect: alternative.isCorrect,
+        })),
+      });
+      setSuggestedFixDecision(null);
+      toast.success('Edição salva. Revise e aprove manualmente quando concluir.');
       setQuestionEditing(false);
-      await fetchDetail(selectedRow?.id || detail.id);
     } catch (error) {
       console.error('Erro ao salvar edição da questão:', error);
       void reportError('AdminAuditQuestionSaveError', String(error));
@@ -995,18 +1199,44 @@ export default function AdminAuditCenterPage() {
     }
   }
 
+  async function markAuditResultHandled(nextStatus: 'pass' | 'resolved' | 'needs_manual_review') {
+    if (!selectedRow?.id) return;
+    const payload = nextStatus === 'pass'
+      ? { status: 'pass', severity: 'none', issue_codes: [], issue_count: 0 }
+      : { status: nextStatus };
+    const { error } = await supabase
+      .from('question_audit_results')
+      .update(payload)
+      .eq('id', selectedRow.id);
+    if (error) throw error;
+  }
+
+  function removeRowFromQueue(auditRowId: string) {
+    setRows(current => {
+      const currentIndex = current.findIndex(row => row.id === auditRowId);
+      if (currentIndex < 0) return current;
+      const nextRows = current.filter(row => row.id !== auditRowId);
+      const nextSelected = nextRows[currentIndex] || nextRows[currentIndex - 1] || nextRows[0] || null;
+      setSelectedQuestionAuditId(nextSelected?.id || null);
+      return nextRows;
+    });
+    setDetail(null);
+  }
+
   async function unpublishQuestion() {
     if (!detail?.question?.id) return;
     setQuestionPublishingAction('unpublish');
     try {
       const { error } = await supabase
         .from('questions')
-        .update({ is_verified: false, status: 'audit_flagged' })
+        .update({ is_verified: false })
         .eq('id', detail.question.id);
 
       if (error) throw error;
+      await markAuditResultHandled('needs_manual_review');
+      removeRowFromQueue(selectedRow?.id || detail.id);
       toast.success('Questão despublicada e removida do fluxo dos usuários.');
-      await fetchDetail(selectedRow?.id || detail.id);
+      void fetchResults(resultsPage);
     } catch (error) {
       console.error('Erro ao despublicar questão:', error);
       void reportError('AdminAuditQuestionUnpublishError', String(error));
@@ -1022,12 +1252,18 @@ export default function AdminAuditCenterPage() {
     try {
       const { error } = await supabase
         .from('questions')
-        .update({ context: detail.suggested_fix.suggested_context })
+        .update({
+          context: detail.suggested_fix.suggested_context,
+          is_verified: true,
+          status: 'approved',
+        })
         .eq('id', detail.question.id);
 
       if (error) throw error;
+      await markAuditResultHandled('resolved');
+      removeRowFromQueue(selectedRow?.id || detail.id);
       toast.success('Correção aplicada à questão.');
-      await fetchDetail(selectedRow?.id || detail.id);
+      void fetchResults(resultsPage);
     } catch (error) {
       console.error('Erro ao aplicar correção sugerida:', error);
       void reportError('AdminAuditQuestionApproveFixError', String(error));
@@ -1035,6 +1271,42 @@ export default function AdminAuditCenterPage() {
     } finally {
       setQuestionPublishingAction(null);
     }
+  }
+
+  async function approveQuestionManually() {
+    if (!detail?.question?.id) return;
+    setQuestionPublishingAction('approve_manual');
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .update({
+          is_verified: true,
+          status: 'approved',
+        })
+        .eq('id', detail.question.id);
+
+      if (error) throw error;
+      await markAuditResultHandled('resolved');
+      removeRowFromQueue(selectedRow?.id || detail.id);
+      toast.success('Questão aprovada manualmente.');
+      void fetchResults(resultsPage);
+    } catch (error) {
+      console.error('Erro ao aprovar questão manualmente:', error);
+      void reportError('AdminAuditQuestionApproveManualError', String(error));
+      toast.error('Não foi possível aprovar a questão manualmente.');
+    } finally {
+      setQuestionPublishingAction(null);
+    }
+  }
+
+  function startEditingQuestion(mode: 'suggested' | 'manual') {
+    if (!detail?.question) return;
+    const sourceQuestion = mode === 'suggested'
+      ? (questionForSuggestedFix || detail.question)
+      : detail.question;
+    setSuggestedFixDecision(mode === 'suggested' ? 'accepted' : 'rejected');
+    setEditForm(buildEditForm(sourceQuestion));
+    setQuestionEditing(true);
   }
 
   useEffect(() => { void fetchRuns(true); }, []);
@@ -1057,11 +1329,13 @@ export default function AdminAuditCenterPage() {
       setEditForm(null);
       setQuestionEditing(false);
       setNewImageUrl('');
+      setSuggestedFixDecision(null);
       return;
     }
     setEditForm(buildEditForm(detail.question));
     setQuestionEditing(false);
     setNewImageUrl('');
+    setSuggestedFixDecision(null);
   }, [detail?.id, detail?.question?.id]);
   useEffect(() => {
     if (selectedRunId) void fetchRunDetail(selectedRunId);
@@ -1069,6 +1343,46 @@ export default function AdminAuditCenterPage() {
   useEffect(() => {
     setQuestionPreviewOpen(true);
   }, [selectedRow?.id]);
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isSaveShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's';
+      if (isSaveShortcut && questionEditing) {
+        event.preventDefault();
+        if (!questionSaving && editForm) {
+          void saveQuestionEdits();
+        }
+        return;
+      }
+      if (questionEditing || questionPublishingAction !== null || rows.length === 0) return;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        const nextRow = rows[selectedRowIndex + 1];
+        if (nextRow) setSelectedQuestionAuditId(nextRow.id);
+      } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        const previousRow = rows[selectedRowIndex - 1];
+        if (previousRow) setSelectedQuestionAuditId(previousRow.id);
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        if (detail?.suggested_fix && suggestedFixDecision !== 'rejected') {
+          void approveSuggestedFix();
+          return;
+        }
+        if (detail?.question) {
+          void approveQuestionManually();
+        }
+      } else if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        if (detail?.question) {
+          void unpublishQuestion();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [questionEditing, questionPublishingAction, rows, selectedRowIndex, detail?.question?.id, detail?.suggested_fix, suggestedFixDecision, questionSaving, editForm]);
   useEffect(() => {
     if (runningRun === null) return;
     const interval = window.setInterval(() => {
@@ -1103,6 +1417,7 @@ export default function AdminAuditCenterPage() {
     difficulty: plannerDifficulty,
     limit: plannerLimit,
     questionId: plannerQuestionId,
+    includeReviewed: plannerIncludeReviewed,
     auditVersion: plannerAuditVersion,
     timeout: plannerTimeout,
     baseUrl: plannerBaseUrl,
@@ -1252,15 +1567,28 @@ export default function AdminAuditCenterPage() {
           <CardContent className="space-y-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center">
               <Input value={search} onChange={event => { setSearch(event.target.value); setResultsPage(1); }} placeholder="Buscar external_id, matéria, run..." className="bg-white md:flex-1" />
-              <Button type="button" variant="outline" className="bg-white" onClick={() => setResultsFiltersOpen(current => !current)}>
-                <Filter className="mr-2 h-4 w-4" />
-                Filtros
-                {activeResultFilterCount > 0 ? <Badge variant="outline" className="ml-2 bg-slate-50">{activeResultFilterCount}</Badge> : null}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" className="bg-white" onClick={() => setResultsFiltersOpen(current => !current)}>
+                  <Filter className="mr-2 h-4 w-4" />
+                  Filtros
+                  {activeResultFilterCount > 0 ? <Badge variant="outline" className="ml-2 bg-slate-50">{activeResultFilterCount}</Badge> : null}
+                </Button>
+                <Button type="button" variant="outline" className="bg-white" disabled={activeResultFilterCount === 0} onClick={clearResultFilters}>
+                  Limpar filtros
+                </Button>
+              </div>
             </div>
             {resultsFiltersOpen ? (
               <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 md:grid-cols-2 xl:grid-cols-4">
-                <Input value={filterIssue} onChange={event => { setFilterIssue(event.target.value); setResultsPage(1); }} placeholder="Filtrar por issue code" className="bg-white" />
+                <Select value={filterIssue} onValueChange={value => { setFilterIssue(value); setResultsPage(1); }}>
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Issue code" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os issues</SelectItem>
+                    {(dashboard?.filter_options.issues || []).map(issue => <SelectItem key={issue} value={issue}>{issue}</SelectItem>)}
+                  </SelectContent>
+                </Select>
                 <Select value={filterAuditType} onValueChange={value => { setFilterAuditType(value as 'all' | AuditType); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Trilha" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as trilhas</SelectItem>{(Object.keys(AUDIT_META) as AuditType[]).map(auditType => <SelectItem key={auditType} value={auditType}>{AUDIT_META[auditType].label}</SelectItem>)}</SelectContent></Select>
                 <Select value={filterStatus} onValueChange={value => { setFilterStatus(value as 'all' | AuditStatus); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">Todos os status</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="pass">Pass</SelectItem><SelectItem value="flagged">Flagged</SelectItem><SelectItem value="needs_manual_review">Needs Manual Review</SelectItem><SelectItem value="accepted_exception">Accepted Exception</SelectItem><SelectItem value="resolved">Resolved</SelectItem></SelectContent></Select>
                 <Select value={filterSeverity} onValueChange={value => { setFilterSeverity(value as 'all' | AuditSeverity); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Severidade" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as severidades</SelectItem><SelectItem value="none">None</SelectItem><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem><SelectItem value="critical">Critical</SelectItem></SelectContent></Select>
@@ -1268,11 +1596,16 @@ export default function AdminAuditCenterPage() {
                 <Select value={filterSubject} onValueChange={value => { setFilterSubject(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Matéria" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as matérias</SelectItem>{(dashboard?.filter_options.subjects || []).map(subject => <SelectItem key={subject} value={subject}>{subject}</SelectItem>)}</SelectContent></Select>
                 <Select value={filterDiscipline} onValueChange={value => { setFilterDiscipline(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Disciplina" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as disciplinas</SelectItem>{(dashboard?.filter_options.disciplines || []).map(discipline => <SelectItem key={discipline} value={discipline}>{discipline}</SelectItem>)}</SelectContent></Select>
                 <Select value={filterDifficulty} onValueChange={value => { setFilterDifficulty(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Dificuldade" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as dificuldades</SelectItem>{(dashboard?.filter_options.difficulties || []).map(difficulty => <SelectItem key={difficulty} value={difficulty}>{difficulty}</SelectItem>)}</SelectContent></Select>
+                <div className="md:col-span-2 xl:col-span-4">
+                  <Button type="button" variant="outline" className="bg-white" disabled={activeResultFilterCount === 0} onClick={clearResultFilters}>
+                    Limpar todos os filtros
+                  </Button>
+                </div>
               </div>
             ) : null}
 
             <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-              <Badge variant="outline" className="bg-white">{resultsTotal} linha(s) no filtro</Badge>
+              <Badge variant="outline" className="bg-white">{resultsTotal} {resultsTotal === 1 ? 'linha' : 'linhas'} no filtro</Badge>
               <Badge variant="outline" className="bg-white">página {resultsPage} de {totalPages}</Badge>
               {deferredIssue.trim() ? <Badge variant="outline" className="bg-white">issue: {deferredIssue.trim()}</Badge> : null}
             </div>
@@ -1310,7 +1643,7 @@ export default function AdminAuditCenterPage() {
       </Card>
 
       <Dialog open={runModalOpen} onOpenChange={setRunModalOpen}>
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle className="flex items-center gap-2"><TerminalSquare className="h-5 w-5 text-slate-700" />Iniciar Auditoria</DialogTitle><DialogDescription>Configure a execução operacional no mesmo formato do orquestrador do terminal.</DialogDescription></DialogHeader><div className="space-y-4 pt-2"><div><p className="mb-2 text-sm font-semibold text-slate-900">Trilhas</p><div className="flex flex-wrap gap-2">{(Object.keys(AUDIT_META) as AuditType[]).map(auditType => <button key={auditType} type="button" onClick={() => setPlannerAudits(current => current.includes(auditType) ? current.filter(item => item !== auditType) : current.concat(auditType))} className={(plannerAudits.includes(auditType) ? 'border-slate-900 bg-slate-900 text-white ' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 ') + 'rounded-xl border px-3 py-2 text-sm font-medium transition-colors'}>{AUDIT_META[auditType].label}</button>)}</div></div><div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4"><div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-900">Escopo das trilhas selecionadas</p><p className="mt-1 text-xs text-slate-500">Mostra exatamente o que cada auditoria vai verificar antes da execução.</p></div><Badge variant="outline" className="bg-white">{plannerAudits.length} trilha(s)</Badge></div><div className="space-y-3">{plannerAudits.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">Selecione ao menos uma trilha para ver o escopo auditado.</div> : plannerAudits.map(auditType => <div key={auditType} className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center gap-2"><Badge className={AUDIT_META[auditType].tone}>{AUDIT_META[auditType].label}</Badge><p className="text-sm font-medium text-slate-900">{AUDIT_META[auditType].description}</p></div><div className="mt-3 flex flex-wrap gap-2">{AUDIT_META[auditType].checks.map(check => <Badge key={auditType + check} variant="outline" className="bg-white">{check}</Badge>)}</div><p className="mt-3 text-xs text-slate-500">Fora de escopo: {AUDIT_META[auditType].outOfScope}</p></div>)}</div></div><div className="grid grid-cols-1 gap-3 md:grid-cols-2"><Input value={plannerAuditVersion} onChange={event => setPlannerAuditVersion(event.target.value)} placeholder="Versão lógica" className="bg-white" /><Input value={plannerLimit} onChange={event => setPlannerLimit(event.target.value)} placeholder="Limite opcional" className="bg-white" /><Input value={plannerQuestionId} onChange={event => setPlannerQuestionId(event.target.value)} placeholder="Question ID opcional" className="bg-white" /><Input value={plannerTimeout} onChange={event => setPlannerTimeout(event.target.value)} placeholder="Timeout em segundos" className="bg-white" /></div>{plannerAudits.includes('render') ? <div className="grid grid-cols-1 gap-3 md:grid-cols-2"><Input value={plannerBaseUrl} onChange={event => setPlannerBaseUrl(event.target.value)} placeholder="Base URL do frontend auditável" className="bg-white" /><Input value={plannerServiceUrl} onChange={event => setPlannerServiceUrl(event.target.value)} placeholder="Service URL do render service" className="bg-white" /><Input value={plannerVariants} onChange={event => setPlannerVariants(event.target.value)} placeholder="Variantes (ex: bank,simulado,review)" className="bg-white" /><Input value={plannerViewports} onChange={event => setPlannerViewports(event.target.value)} placeholder="Viewports (ex: desktop,mobile)" className="bg-white" /></div> : null}<div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3"><div><p className="text-sm font-semibold text-slate-900">Verificar URLs reais no media audit</p><p className="text-xs text-slate-500">Ative quando a execução incluir Asset Audit.</p></div><Switch checked={plannerVerifyUrls} onCheckedChange={setPlannerVerifyUrls} /></div><div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-slate-50"><div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-slate-400"><Activity className="h-3.5 w-3.5" />Command Preview</div><pre className="overflow-x-auto whitespace-pre-wrap text-xs leading-6">{plannerCommand}</pre></div><div className="flex gap-2"><Button onClick={() => void startRun()} disabled={runSubmitting} className="flex-1 bg-slate-900 text-white hover:bg-slate-800">{runSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}Iniciar auditoria</Button><Button variant="outline" className="bg-white" onClick={() => setRunModalOpen(false)}>Fechar</Button></div></div></DialogContent>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle className="flex items-center gap-2"><TerminalSquare className="h-5 w-5 text-slate-700" />Iniciar Auditoria</DialogTitle><DialogDescription>Configure a execução operacional no mesmo formato do orquestrador do terminal.</DialogDescription></DialogHeader><div className="space-y-4 pt-2"><div><p className="mb-2 text-sm font-semibold text-slate-900">Trilhas</p><div className="flex flex-wrap gap-2">{(Object.keys(AUDIT_META) as AuditType[]).map(auditType => <button key={auditType} type="button" onClick={() => setPlannerAudits(current => current.includes(auditType) ? current.filter(item => item !== auditType) : current.concat(auditType))} className={(plannerAudits.includes(auditType) ? 'border-slate-900 bg-slate-900 text-white ' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 ') + 'rounded-xl border px-3 py-2 text-sm font-medium transition-colors'}>{AUDIT_META[auditType].label}</button>)}</div></div><div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4"><div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-900">Escopo das trilhas selecionadas</p><p className="mt-1 text-xs text-slate-500">Mostra exatamente o que cada auditoria vai verificar antes da execução.</p></div><Badge variant="outline" className="bg-white">{plannerAudits.length} trilha(s)</Badge></div><div className="space-y-3">{plannerAudits.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">Selecione ao menos uma trilha para ver o escopo auditado.</div> : plannerAudits.map(auditType => <div key={auditType} className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center gap-2"><Badge className={AUDIT_META[auditType].tone}>{AUDIT_META[auditType].label}</Badge><p className="text-sm font-medium text-slate-900">{AUDIT_META[auditType].description}</p></div><div className="mt-3 flex flex-wrap gap-2">{AUDIT_META[auditType].checks.map(check => <Badge key={auditType + check} variant="outline" className="bg-white">{check}</Badge>)}</div><p className="mt-3 text-xs text-slate-500">Fora de escopo: {AUDIT_META[auditType].outOfScope}</p></div>)}</div></div><div className="grid grid-cols-1 gap-3 md:grid-cols-2"><Input value={plannerAuditVersion} onChange={event => setPlannerAuditVersion(event.target.value)} placeholder="Versão lógica" className="bg-white" /><Input value={plannerLimit} onChange={event => setPlannerLimit(event.target.value)} placeholder="Limite opcional" className="bg-white" /><Input value={plannerQuestionId} onChange={event => setPlannerQuestionId(event.target.value)} placeholder="Question ID opcional" className="bg-white" /><Input value={plannerTimeout} onChange={event => setPlannerTimeout(event.target.value)} placeholder="Timeout em segundos" className="bg-white" /></div>{plannerAudits.includes('render') ? <div className="grid grid-cols-1 gap-3 md:grid-cols-2"><Input value={plannerBaseUrl} onChange={event => setPlannerBaseUrl(event.target.value)} placeholder="Base URL do frontend auditável" className="bg-white" /><Input value={plannerServiceUrl} onChange={event => setPlannerServiceUrl(event.target.value)} placeholder="Service URL do render service" className="bg-white" /><Input value={plannerVariants} onChange={event => setPlannerVariants(event.target.value)} placeholder="Variantes (ex: bank,simulado,review)" className="bg-white" /><Input value={plannerViewports} onChange={event => setPlannerViewports(event.target.value)} placeholder="Viewports (ex: desktop,mobile)" className="bg-white" /></div> : null}<div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3"><div><p className="text-sm font-semibold text-slate-900">Incluir itens já revisados nesta trilha</p><p className="text-xs text-slate-500">Desative para auditar apenas achados ainda não tratados no fluxo operacional.</p></div><Switch checked={plannerIncludeReviewed} onCheckedChange={setPlannerIncludeReviewed} /></div><div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3"><div><p className="text-sm font-semibold text-slate-900">Verificar URLs reais no media audit</p><p className="text-xs text-slate-500">Ative quando a execução incluir Asset Audit.</p></div><Switch checked={plannerVerifyUrls} onCheckedChange={setPlannerVerifyUrls} /></div><div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-slate-50"><div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-slate-400"><Activity className="h-3.5 w-3.5" />Command Preview</div><pre className="overflow-x-auto whitespace-pre-wrap text-xs leading-6">{plannerCommand}</pre></div><div className="flex gap-2"><Button onClick={() => void startRun()} disabled={runSubmitting} className="flex-1 bg-slate-900 text-white hover:bg-slate-800">{runSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}Iniciar auditoria</Button><Button variant="outline" className="bg-white" onClick={() => setRunModalOpen(false)}>Fechar</Button></div></div></DialogContent>
       </Dialog>
 
       <div ref={drilldownRef}>
@@ -1341,14 +1674,18 @@ export default function AdminAuditCenterPage() {
                       <p className="mt-1 text-sm text-slate-500">{selectedRow.question?.subject || 'Sem matéria'} · {selectedRow.question?.discipline || 'Sem disciplina'} · {selectedRow.question?.difficulty || 'Sem dificuldade'}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button type="button" variant="outline" className="bg-white" disabled={!detail?.question || questionSaving} onClick={() => {
+                      <Button type="button" variant="outline" className="bg-white" disabled={!detail?.question || questionSaving || questionPublishingAction !== null} onClick={() => {
                         if (!detail?.question) return;
                         if (questionEditing) {
-                          setEditForm(buildEditForm(detail.question));
+                          setEditForm(buildEditForm(suggestedFixDecision === 'accepted' && questionForSuggestedFix ? questionForSuggestedFix : detail.question));
                           setQuestionEditing(false);
                           return;
                         }
-                        setQuestionEditing(true);
+                        if (detail.suggested_fix && suggestedFixDecision !== 'rejected') {
+                          startEditingQuestion('suggested');
+                          return;
+                        }
+                        startEditingQuestion('manual');
                       }}>
                         {questionEditing ? <><X className="mr-2 h-4 w-4" />Cancelar edição</> : <><Edit3 className="mr-2 h-4 w-4" />Editar questão</>}
                       </Button>
@@ -1358,16 +1695,22 @@ export default function AdminAuditCenterPage() {
                           Salvar
                         </Button>
                       ) : null}
-                      {detail?.suggested_fix && !questionEditing ? (
-                        <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={questionPublishingAction !== null} onClick={() => void approveSuggestedFix()}>
-                          {questionPublishingAction === 'approve_fix' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                          Aprovar correção
+                      {!questionEditing && detail?.question ? (
+                        <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={questionPublishingAction !== null} onClick={() => {
+                          if (detail?.suggested_fix && suggestedFixDecision !== 'rejected') {
+                            void approveSuggestedFix();
+                            return;
+                          }
+                          void approveQuestionManually();
+                        }}>
+                          {questionPublishingAction === 'approve_fix' || questionPublishingAction === 'approve_manual' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                          {detail?.suggested_fix && suggestedFixDecision !== 'rejected' ? 'Aprovar correção' : 'Aprovar manualmente'}
                         </Button>
                       ) : null}
                       {detail?.question ? (
                         <Button type="button" variant="outline" className="bg-white text-amber-700 border-amber-200 hover:bg-amber-50" disabled={questionPublishingAction === 'unpublish' || questionEditing || detail.question.is_verified === false} onClick={() => void unpublishQuestion()}>
                           {questionPublishingAction === 'unpublish' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : null}
-                          {detail.question.is_verified === false ? 'Já reprovada' : 'Reprovar questão'}
+                          {detail.question.is_verified === false ? 'Já despublicada' : 'Despublicar questão'}
                         </Button>
                       ) : null}
                     </div>
@@ -1382,12 +1725,12 @@ export default function AdminAuditCenterPage() {
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                  {detail?.suggested_fix && !questionEditing ? (
+                  {detail?.suggested_fix && !questionEditing && suggestedFixDecision !== 'rejected' ? (
                     <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                         <div>
                           <p className="text-sm font-semibold text-emerald-900">Sugestão de correção</p>
-                          <p className="mt-1 text-xs text-emerald-700">Texto faltante identificado na base oficial do ENEM. Ao aprovar, esse trecho será inserido antes das imagens do contexto.</p>
+                          <p className="mt-1 text-xs text-emerald-700">Você pode aprovar direto, abrir a edição já com a correção aplicada ou rejeitar a sugestão para editar manualmente.</p>
                         </div>
                         <Badge variant="outline" className="border-emerald-300 bg-white text-emerald-800">
                           {detail.suggested_fix.source_pdf || 'pdf oficial'}{detail.suggested_fix.question_number ? ` · questão ${detail.suggested_fix.question_number}` : ''}
@@ -1395,16 +1738,35 @@ export default function AdminAuditCenterPage() {
                       </div>
                       <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
                         <p className="mb-2 text-xs font-bold uppercase text-emerald-700">Trecho que será inserido</p>
-                        <div className="prose prose-sm max-w-none whitespace-pre-wrap text-emerald-950">
-                          {detail.suggested_fix.missing_body_text}
+                        <div className="prose prose-sm max-w-none text-emerald-950">
+                          <ReactMarkdown>{normalizeSuggestedFixSnippet(detail.suggested_fix.missing_body_text)}</ReactMarkdown>
                         </div>
                       </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" className="bg-white" disabled={questionPublishingAction !== null} onClick={() => startEditingQuestion('suggested')}>
+                          <Edit3 className="mr-2 h-4 w-4" />
+                          Editar com correção
+                        </Button>
+                        <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700" disabled={questionPublishingAction !== null} onClick={() => void approveSuggestedFix()}>
+                          {questionPublishingAction === 'approve_fix' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                          Aprovar direto
+                        </Button>
+                        <Button type="button" variant="outline" className="bg-white text-slate-700" disabled={questionPublishingAction !== null} onClick={() => startEditingQuestion('manual')}>
+                          Rejeitar correção
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {detail?.suggested_fix && suggestedFixDecision === 'rejected' && !questionEditing ? (
+                    <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-sm font-semibold text-amber-900">Correção automática rejeitada</p>
+                      <p className="mt-1 text-xs text-amber-800">A edição manual está liberada. Salve suas alterações e use “Aprovar manualmente” quando finalizar.</p>
                     </div>
                   ) : null}
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">{detail?.suggested_fix && !questionEditing ? 'Prévia da correção' : 'Questão renderizada'}</p>
-                      <p className="mt-1 text-xs text-slate-500">{detail?.suggested_fix && !questionEditing ? 'Visualização de como a questão ficará após aplicar a sugestão.' : 'Abra o conteúdo real da questão para inspecionar o problema.'}</p>
+                      <p className="text-sm font-semibold text-slate-900">{detail?.suggested_fix && !questionEditing && suggestedFixDecision !== 'rejected' ? 'Prévia da correção' : 'Questão renderizada'}</p>
+                      <p className="mt-1 text-xs text-slate-500">{detail?.suggested_fix && !questionEditing && suggestedFixDecision !== 'rejected' ? 'Visualização de como a questão ficará após aplicar a sugestão.' : 'Abra o conteúdo real da questão para inspecionar o problema.'}</p>
                     </div>
                     {!questionEditing ? <Button type="button" variant="ghost" size="sm" className="text-slate-600" onClick={() => setQuestionPreviewOpen(current => !current)}>
                       {questionPreviewOpen ? <><ChevronUp className="mr-1 h-4 w-4" />Ocultar questão</> : <><ChevronDown className="mr-1 h-4 w-4" />Ver questão</>}
@@ -1420,15 +1782,15 @@ export default function AdminAuditCenterPage() {
                       </div>
                       <div>
                         <label className="text-xs font-bold uppercase text-slate-500">Contexto</label>
-                        <textarea value={editForm.context} onChange={event => setEditForm({ ...editForm, context: event.target.value })} className="mt-1 min-h-[120px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                        <textarea value={editForm.context} onChange={event => setEditForm({ ...editForm, context: event.target.value })} onKeyDown={event => insertParagraphBreakAtCursor(event, nextValue => setEditForm({ ...editForm, context: nextValue }))} className="mt-1 min-h-[120px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
                       </div>
                       <div>
                         <label className="text-xs font-bold uppercase text-slate-500">Título</label>
-                        <textarea value={editForm.title} onChange={event => setEditForm({ ...editForm, title: event.target.value })} className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                        <textarea value={editForm.title} onChange={event => setEditForm({ ...editForm, title: event.target.value })} onKeyDown={event => insertParagraphBreakAtCursor(event, nextValue => setEditForm({ ...editForm, title: nextValue }))} className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
                       </div>
                       <div>
                         <label className="text-xs font-bold uppercase text-slate-500">Comando / Introdução</label>
-                        <textarea value={editForm.alternatives_intro} onChange={event => setEditForm({ ...editForm, alternatives_intro: event.target.value })} className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                        <textarea value={editForm.alternatives_intro} onChange={event => setEditForm({ ...editForm, alternatives_intro: event.target.value })} onKeyDown={event => insertParagraphBreakAtCursor(event, nextValue => setEditForm({ ...editForm, alternatives_intro: nextValue }))} className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-white p-4">
                         <p className="mb-3 text-xs font-bold uppercase text-slate-500">Imagens da questão</p>
@@ -1460,7 +1822,10 @@ export default function AdminAuditCenterPage() {
                                 <textarea value={alternative.text} onChange={event => setEditForm({
                                   ...editForm,
                                   alternatives: editForm.alternatives.map((item, currentIndex) => currentIndex === index ? { ...item, text: event.target.value } : item),
-                                })} className="min-h-[72px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                                })} onKeyDown={event => insertParagraphBreakAtCursor(event, nextValue => setEditForm({
+                                  ...editForm,
+                                  alternatives: editForm.alternatives.map((item, currentIndex) => currentIndex === index ? { ...item, text: nextValue } : item),
+                                }))} className="min-h-[72px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
                               </div>
                             </div>
                           );
@@ -1468,7 +1833,7 @@ export default function AdminAuditCenterPage() {
                       </div>
                       <div>
                         <label className="text-xs font-bold uppercase text-slate-500">Comentário / Raciocínio</label>
-                        <textarea value={editForm.ai_reasoning.thought} onChange={event => setEditForm({ ...editForm, ai_reasoning: { thought: event.target.value } })} className="mt-1 min-h-[100px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                        <textarea value={editForm.ai_reasoning.thought} onChange={event => setEditForm({ ...editForm, ai_reasoning: { thought: event.target.value } })} onKeyDown={event => insertParagraphBreakAtCursor(event, nextValue => setEditForm({ ...editForm, ai_reasoning: { thought: nextValue } }))} className="mt-1 min-h-[100px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
                       </div>
                     </div>
                   ) : questionPreviewOpen ? <QuestionPreview question={suggestedQuestionPreview || detail?.question} /> : null}

@@ -631,7 +631,7 @@ export default function FounderDashboard() {
               <div className="inline-flex w-full items-center rounded-2xl border border-slate-300/80 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-white/15 dark:bg-slate-900/70 dark:text-white/85 sm:w-auto sm:rounded-full sm:px-4 sm:py-2.5 sm:text-base">
                 <span className="mr-[0.25em]">📚 Nós nascemos para</span>
                 <Typewriter
-                  text={['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                  text={org.slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
                   speed={95}
                   deleteSpeed={52}
                   waitTime={2600}
@@ -673,7 +673,7 @@ export default function FounderDashboard() {
           <KpiCard
             title={`Questões • ${metricLabel}`}
             value={questionsValue ?? '—'}
-            subtitle="respondidas pela turma"
+            subtitle="Respondidas pela turma"
             icon={BookOpen}
             loading={loading}
             accentColor="var(--brand-accent)"
@@ -688,7 +688,7 @@ export default function FounderDashboard() {
           <KpiCard
             title={`Simulados • ${metricLabel}`}
             value={simuladosValue ?? '—'}
-            subtitle="realizados pela turma"
+            subtitle="Realizados pela turma"
             icon={FileText}
             loading={loading}
             accentColor="#8b5cf6"
@@ -749,7 +749,7 @@ export default function FounderDashboard() {
             ) : (
               <div className="flex items-end justify-between gap-3">
                 <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">{deliveredEssaysCount}</p>
-                <p className="text-xs text-slate-500 dark:text-white/45">redações no período selecionado</p>
+                <p className="text-xs text-slate-500 dark:text-white/45">Redações no período selecionado</p>
               </div>
             )}
           </CardContent>
@@ -1077,7 +1077,7 @@ export default function FounderDashboard() {
                 <TrendingUp className="h-4 w-4" style={{ color: 'var(--brand-accent)' }} />
                 Ranking de Atividade
               </CardTitle>
-              <p className="text-xs text-slate-500 dark:text-white/45">Alunos mais ativos em {metricLabel.toLowerCase()}</p>
+              <p className="text-xs text-slate-500 dark:text-white/45">Alunos mais ativos em {metricLabel}</p>
             </div>
             <div className="flex items-center gap-3">
               <span

@@ -94,12 +94,10 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
 
   // Aluno B2B com org vinculada — delega para student/layout.tsx em vez de redirecionar
   if (profile?.role === 'student' && profile?.organization_id) {
-    // Em algumas requests (Turbopack/dev), x-pathname pode vir vazio.
-    // Nesses casos, evita redirect em loop e delega para o layout aninhado.
-    if (pathname === '') {
-      return <>{children}</>;
-    }
-    if (isStudentRoute) {
+    // Em alguns requests de navegação (dev/hot-reload), o header x-pathname pode
+    // não chegar aqui. Nesses casos, redirecionar para o dashboard cria self-redirect
+    // (307 para a mesma URL). Se o path não é conhecido, apenas delega aos filhos.
+    if (isStudentRoute || pathname === '') {
       return <>{children}</>;
     }
     redirect(`/partners/${slug}/student/dashboard`);

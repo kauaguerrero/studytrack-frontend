@@ -54,14 +54,6 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
     }
     const task = dragging;
     setDragging(null);
-    const missingAcceptanceCriteria =
-      targetStatus === 'in_progress' &&
-      ['high', 'critical'].includes(task.priority) &&
-      !task.acceptance_criteria?.trim();
-
-    if (missingAcceptanceCriteria) {
-      toast.warning('Essa task ainda não está pronta para execução: faltam critérios de aceite.');
-    }
     if (task.status === 'blocked' && ['in_progress', 'review', 'done'].includes(targetStatus)) {
       setActionModal({ mode: 'unblock', task, targetStatus });
     } else if (task.status === 'done' && ['review', 'in_progress', 'blocked'].includes(targetStatus)) {
@@ -149,7 +141,7 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
       {progressModal && (
         <MoveToProgressModal
           open
-          taskTitle={progressModal.task.title}
+          task={progressModal.task}
           onConfirm={async (data) => {
             await performStatusUpdate(progressModal.task, 'in_progress', { progress: data });
             setProgressModal(null);

@@ -138,7 +138,7 @@ export function EssayRewardPopup({
                     Você está em <span className="font-black">#{rankPosition}</span> no ranking
                   </p>
                   <p className={`mt-1 text-xs ${theme.bodyClass}`}>
-                    {pointsToTop3 && pointsToTop3 > 0
+                    {pointsToTop3 !== null && pointsToTop3 > 0 && (rankPosition === null || rankPosition > 3)
                       ? `Faltam ${pointsToTop3.toLocaleString('pt-BR')} pts para alcançar o top 3.`
                       : 'Você já está na zona mais disputada do ranking. Continue sustentando essa posição.'}
                   </p>

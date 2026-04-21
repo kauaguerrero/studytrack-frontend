@@ -105,10 +105,15 @@ function LoginForm() {
         // 'student' omitted intentionally: /portal handles B2B routing via organization_id
       };
 
-      const target = role && roleToPath[role] ? roleToPath[role] : '/portal';
-      
+      // Respeita ?next= se for URL relativa (segurança: evita open redirect para domínio externo)
+      const nextParam = searchParams.get('next');
+      const safeNext = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : null;
+
+      const roleBasedTarget = role && roleToPath[role] ? roleToPath[role] : '/portal';
+      const target = safeNext ?? roleBasedTarget;
+
       // Atualiza o cache do roteador do Next.js para que o Middleware leia os novos cookies
-      router.refresh(); 
+      router.refresh();
       router.push(target);
       
     } catch (err: unknown) {

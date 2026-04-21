@@ -258,7 +258,7 @@ export function DashboardClient({
     [dismissCurrentPopup, router, slug],
   );
 
-  // ── Monthly prize progress ─────────────────────────────────────────────────
+  // ── Monthly ranking progress ───────────────────────────────────────────────
   const monthlyPts = summary?.monthly_points ?? 0;
   const monthlyGoal = summary?.monthly_goal ?? 1500;
   const goalReached = summary?.goal_reached ?? false;
@@ -343,15 +343,15 @@ export function DashboardClient({
                 <div className="mt-5 flex flex-wrap gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
                     <Flame className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                    {effectiveCurrentStreak} {effectiveCurrentStreak === 1 ? 'dia' : 'dias'} de sequência
+                    {effectiveCurrentStreak} {effectiveCurrentStreak === 1 ? 'Dia' : 'Dias'} de Sequência
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
                     <BookOpen className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                    {questionsCount.toLocaleString('pt-BR')} {questionsCount === 1 ? 'questão' : 'questões'}
+                    {questionsCount.toLocaleString('pt-BR')} {questionsCount === 1 ? 'Questão' : 'Questões'}
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
                     <FileText className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                    {simuladosCount} {simuladosCount === 1 ? 'simulado' : 'simulados'}
+                    {simuladosCount} {simuladosCount === 1 ? 'Simulado' : 'Simulados'}
                   </span>
                 </div>
 
@@ -359,7 +359,7 @@ export function DashboardClient({
                   <div className="inline-flex w-full items-center rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-white/12 dark:bg-white/5 dark:text-white/85">
                     <span className="mr-[0.25em]">📚 Nós nascemos para</span>
                     <Typewriter
-                      text={['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                      text={slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
                       speed={95}
                       deleteSpeed={52}
                       waitTime={2600}
@@ -373,7 +373,7 @@ export function DashboardClient({
                 <div className="inline-flex items-center rounded-full border border-slate-300 dark:border-white/12 bg-white dark:bg-white/5 px-4 py-2 text-sm sm:text-base text-slate-700 dark:text-white/85">
                   <span className="mr-[0.25em]">📚 Nós nascemos para</span>
                   <Typewriter
-                    text={['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                    text={slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
                     speed={95}
                     deleteSpeed={52}
                     waitTime={2600}
@@ -385,7 +385,7 @@ export function DashboardClient({
             </div>
           </motion.div>
 
-          {/* ── 2. Corrida para o prêmio ───────────────────────────────────── */}
+          {/* ── 2. Corrida para aprovação ──────────────────────────────────── */}
           <motion.div variants={itemVariant}>
             <div className="relative overflow-hidden rounded-2xl p-5 bg-white dark:bg-[#0F0F0F] border border-slate-200 dark:border-white/6 shadow-sm dark:shadow-none">
               {/* Glow atrás da barra — só dark */}
@@ -407,7 +407,7 @@ export function DashboardClient({
                       <Trophy className="h-3 w-3" style={{ color: 'var(--brand-primary)' }} />
                     </div>
                     <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">
-                      Corrida para o prêmio
+                      Corrida para aprovação
                     </span>
                   </div>
                   <span
@@ -452,10 +452,10 @@ export function DashboardClient({
                 </div>
 
                 {/* Status */}
-                <p className="mt-3 text-[11px] font-medium text-slate-400 dark:text-white/30">
+                <p className="mt-3 text-[11px] font-medium text-slate-400 dark:text-white/30 flex items-center gap-1">
                   {summary
                     ? goalReached
-                      ? '🏆 Você está na disputa pelo prêmio!'
+                      ? <><Trophy className="h-3 w-3 text-amber-400 shrink-0" /> Você está entre os líderes do mês!</>
                       : `Faltam ${(monthlyGoal - monthlyPts).toLocaleString('pt-BR')} pts para entrar na disputa`
                     : 'Carregando…'}
                 </p>

@@ -304,7 +304,7 @@ export default function ConvidarAlunosPage() {
                   <span>{validRows.length} válido{validRows.length !== 1 ? 's' : ''}</span>
                   {invalidRows.length > 0 && (
                     <span className="text-rose-500 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" /> {invalidRows.length} linha{invalidRows.length !== 1 ? 's' : ''} com email inválido serão ignoradas
+                      <AlertCircle className="h-3 w-3" /> {invalidRows.length} linha{invalidRows.length !== 1 ? 's' : ''} com email inválido {invalidRows.length !== 1 ? 'serão ignoradas' : 'será ignorada'}
                     </span>
                   )}
                 </div>

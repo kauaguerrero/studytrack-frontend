@@ -173,7 +173,7 @@ export default async function AuditQuestionPreview({
                   {altImage && (
                     <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={altImage} alt={`Alternativa ${alt.letter}`} className="max-h-72 w-full object-contain" />
+                      <img src={altImage} alt={`Alternativa ${alt.letter}`} data-audit-role="alternative-image" className="max-h-72 w-full object-contain" />
                     </div>
                   )}
                   {alt.text ? (
