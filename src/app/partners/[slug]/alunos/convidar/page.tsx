@@ -195,22 +195,26 @@ export default function ConvidarAlunosPage() {
         </Button>
 
         <section
-          className="relative overflow-hidden rounded-3xl border p-6 shadow-sm"
+          className="relative overflow-hidden rounded-3xl border border-slate-200 p-6 shadow-sm dark:border-slate-700"
           style={{
-            borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, #e5e7eb)',
             background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 14%, white) 0%, color-mix(in srgb, var(--brand-secondary) 10%, white) 100%)',
           }}
         >
+          <div
+            className="pointer-events-none absolute inset-0 hidden dark:block"
+            style={{
+              background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 24%, #0f172a) 0%, color-mix(in srgb, var(--brand-secondary) 18%, #0f172a) 100%)',
+            }}
+          />
           <div
             className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full blur-3xl opacity-60"
             style={{ background: 'color-mix(in srgb, var(--brand-secondary) 48%, transparent)' }}
           />
           <div className="relative z-10">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-white/70 px-3 py-1 text-xs font-semibold dark:bg-slate-900/60"
               style={{
                 color: 'var(--brand-primary)',
                 borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
-                background: 'rgba(255,255,255,0.52)',
               }}
             >
               <FileSpreadsheet className="h-3.5 w-3.5" />
@@ -224,7 +228,7 @@ export default function ConvidarAlunosPage() {
         </section>
 
         {/* Link de convite */}
-        <Card>
+        <Card className="edificar-major-surface">
           <CardHeader>
             <CardTitle className="text-sm">Link de Convite</CardTitle>
             <CardDescription>Compartilhe com os alunos para cadastro direto</CardDescription>
@@ -260,21 +264,21 @@ export default function ConvidarAlunosPage() {
         </Card>
 
         {/* Import CSV */}
-        <Card>
+        <Card className="edificar-major-surface">
           <CardHeader>
             <CardTitle className="text-sm flex items-center gap-2">
               <FileSpreadsheet className="h-4 w-4" />
               Importação em Massa (CSV / Excel)
             </CardTitle>
             <CardDescription>
-              Faça upload de uma planilha com as colunas <code className="bg-slate-100 px-1 rounded text-xs">nome</code> e{' '}
-              <code className="bg-slate-100 px-1 rounded text-xs">email</code>. Alunos que já têm conta serão vinculados automaticamente.
+              Faça upload de uma planilha com as colunas <code className="rounded bg-slate-100 px-1 text-xs dark:bg-slate-800">nome</code> e{' '}
+              <code className="rounded bg-slate-100 px-1 text-xs dark:bg-slate-800">email</code>. Alunos que já têm conta serão vinculados automaticamente.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Drop zone */}
             <div
-              className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-[var(--brand-primary)] transition-colors"
+              className="cursor-pointer rounded-lg border-2 border-dashed border-slate-300 p-8 text-center transition-colors hover:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900/50"
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
@@ -308,13 +312,13 @@ export default function ConvidarAlunosPage() {
                     </span>
                   )}
                 </div>
-                <div className="rounded-lg border overflow-hidden max-h-52 overflow-y-auto">
+                <div className="max-h-52 overflow-y-auto overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
                       <tr>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500">Nome</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500">Email</th>
-                        <th className="px-3 py-2 text-center font-medium text-slate-500">Status</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-300">Nome</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-300">Email</th>
+                        <th className="px-3 py-2 text-center font-medium text-slate-500 dark:text-slate-300">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -386,11 +390,11 @@ export default function ConvidarAlunosPage() {
 
             {/* Credenciais após importação bem-sucedida */}
             {result && result.imported > 0 && (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+              <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/40 dark:bg-emerald-900/20">
                 <p className="text-sm font-semibold text-emerald-800">
                   ✅ {result.imported} alunos importados com sucesso
                 </p>
-                <div className="bg-white rounded-lg border border-emerald-100 p-3 space-y-2">
+                <div className="space-y-2 rounded-lg border border-emerald-100 bg-white p-3 dark:border-emerald-500/30 dark:bg-slate-950/70">
                   <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">
                     Credenciais para repassar aos alunos:
                   </p>
@@ -421,7 +425,7 @@ export default function ConvidarAlunosPage() {
 
             {/* Resultado completo (erros e vinculados) */}
             {result && (result.linked > 0 || result.errors.length > 0) && (
-              <div className="rounded-lg border p-4 space-y-2">
+              <div className="space-y-2 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
                 <p className="text-sm font-semibold text-slate-700 dark:text-white">Detalhes da importação</p>
                 <div className="flex gap-4 text-sm">
                   {result.linked > 0 && (

@@ -567,11 +567,10 @@ export default function PartnerPlansPage() {
           <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ background: 'color-mix(in srgb, var(--brand-secondary) 35%, transparent)' }} />
           <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border bg-white/70 px-3 py-1 text-xs font-semibold dark:bg-slate-900/60"
                 style={{
                   color: 'var(--brand-primary)',
                   borderColor: 'color-mix(in srgb, var(--brand-primary) 30%, transparent)',
-                  background: 'color-mix(in srgb, var(--brand-primary) 10%, white)',
                 }}
               >
                 <WalletCards className="h-3.5 w-3.5" />
@@ -584,17 +583,17 @@ export default function PartnerPlansPage() {
             </div>
 
             <div className="grid grid-cols-3 gap-2 text-center md:min-w-[360px]">
-              <div className="rounded-xl border border-slate-200 bg-white/90 p-3">
-                <p className="text-xl font-black text-slate-900">{sortedPlans.length}</p>
-                <p className="text-[11px] font-semibold text-slate-500">Planos totais</p>
+              <div className="rounded-xl border border-slate-200 bg-white/90 p-3 dark:border-slate-700 dark:bg-slate-900/70">
+                <p className="text-xl font-black text-slate-900 dark:text-slate-100">{sortedPlans.length}</p>
+                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-300">Planos totais</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white/90 p-3">
+              <div className="rounded-xl border border-slate-200 bg-white/90 p-3 dark:border-slate-700 dark:bg-slate-900/70">
                 <p className="text-xl font-black" style={{ color: 'var(--brand-primary)' }}>{activePlans}</p>
-                <p className="text-[11px] font-semibold text-slate-500">Planos ativos</p>
+                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-300">Planos ativos</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white/90 p-3">
+              <div className="rounded-xl border border-slate-200 bg-white/90 p-3 dark:border-slate-700 dark:bg-slate-900/70">
                 <p className="text-xl font-black" style={{ color: 'var(--brand-secondary)' }}>{activePlanStudents}</p>
-                <p className="text-[11px] font-semibold text-slate-500">Alunos com plano ativo</p>
+                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-300">Alunos com plano ativo</p>
               </div>
             </div>
           </div>
@@ -824,22 +823,23 @@ export default function PartnerPlansPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--brand-primary)_14%,transparent)] bg-[linear-gradient(180deg,rgba(255,255,255,0.88),color-mix(in_srgb,var(--brand-primary)_4%,white))] p-3">
+          <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--brand-primary)_14%,transparent)] bg-white p-3 dark:border-slate-700 dark:bg-slate-950/90">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Painel de vínculo</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Uma área única para buscar, alterar e revisar pagamentos sem perder contexto.</p>
               </div>
-              <div className="hidden rounded-full border px-3 py-1 text-xs font-semibold md:inline-flex"
+              <div className="rounded-full border px-3 py-1 text-xs font-semibold"
                 style={{
                   color: 'var(--brand-primary)',
                   borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
-                  background: 'color-mix(in srgb, var(--brand-primary) 8%, white)',
+                  background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)',
                 }}
               >
                 {filteredStudents.length} aluno(s) visíveis
               </div>
             </div>
+            <div className="mb-3 h-px bg-slate-200 dark:bg-slate-800" />
             <div className="space-y-2">{studentAssignmentRows}</div>
           </div>
 

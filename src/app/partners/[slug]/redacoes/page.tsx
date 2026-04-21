@@ -177,6 +177,48 @@ function KpiCard({
   );
 }
 
+function PaginationControls({
+  page,
+  totalPages,
+  totalItems,
+  onPageChange,
+  loading,
+}: {
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  onPageChange: (next: number) => void;
+  loading?: boolean;
+}) {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950">
+      <span className="text-slate-600 dark:text-slate-300">
+        Página {page} de {totalPages} • {totalItems} redação(ões)
+      </span>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          disabled={loading || page <= 1}
+          onClick={() => onPageChange(page - 1)}
+          className="min-h-9 rounded-lg border border-slate-300 px-2.5 py-1 font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          Anterior
+        </button>
+        <button
+          type="button"
+          disabled={loading || page >= totalPages}
+          onClick={() => onPageChange(page + 1)}
+          className="min-h-9 rounded-lg border border-slate-300 px-2.5 py-1 font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+        >
+          Próxima
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function EssayQueueCard({
   slug,
   item,
@@ -295,6 +337,12 @@ export default function PartnerRedacoesPage() {
   const [metrics, setMetrics] = useState<EssaysMetrics>(DEFAULT_METRICS);
   const [pendingEssays, setPendingEssays] = useState<EssayListItem[]>([]);
   const [correctedEssays, setCorrectedEssays] = useState<EssayListItem[]>([]);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [pendingTotalPages, setPendingTotalPages] = useState(1);
+  const [pendingTotalItems, setPendingTotalItems] = useState(0);
+  const [correctedPage, setCorrectedPage] = useState(1);
+  const [correctedTotalPages, setCorrectedTotalPages] = useState(1);
+  const [correctedTotalItems, setCorrectedTotalItems] = useState(0);
 
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [queueLoading, setQueueLoading] = useState(true);
@@ -314,34 +362,51 @@ export default function PartnerRedacoesPage() {
   type EssaysOverviewPayload = {
     metrics: EssaysMetrics;
     pending_items: EssayListItem[];
-    all_items: EssayListItem[];
+    corrected_items: EssayListItem[];
+    pagination?: {
+      pending?: { page?: number; limit?: number; total?: number; total_pages?: number };
+      corrected?: { page?: number; limit?: number; total?: number; total_pages?: number };
+    };
   };
 
   const loadOverview = useCallback(async () => {
     setMetricsLoading(true);
     setQueueLoading(true);
     try {
-      const res = await fetch(`/api/partners/${org.slug}/essays/overview`, { cache: 'no-store' });
-      if (!res.ok) throw new Error();
+      const params = new URLSearchParams({
+        pending_page: String(pendingPage),
+        pending_limit: '10',
+        corrected_page: String(correctedPage),
+        corrected_limit: '10',
+      });
+      const res = await fetch(`/api/partners/${org.slug}/essays/overview?${params.toString()}`, { cache: 'no-store' });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null) as { error?: string; details?: string } | null;
+        throw new Error(payload?.error || 'Não foi possível carregar as métricas de redações.');
+      }
       const data: EssaysOverviewPayload = await res.json();
       setMetrics(data.metrics || DEFAULT_METRICS);
-      const pendingItems = (data.pending_items || [])
-        .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
-      const doneItems = (data.all_items || [])
-        .filter((item) => item.status === 'corrected' || item.status === 'seen')
-        .sort((a, b) => {
-          const aTs = new Date(a.corrected_at || a.submitted_at).getTime();
-          const bTs = new Date(b.corrected_at || b.submitted_at).getTime();
-          return bTs - aTs;
-        });
-      setPendingEssays(pendingItems);
-      setCorrectedEssays(doneItems);
-    } catch {
-      toast.error('Não foi possível carregar as métricas de redações.');
+      setPendingEssays(data.pending_items || []);
+      setCorrectedEssays(data.corrected_items || []);
+      const pendingMeta = data.pagination?.pending;
+      const correctedMeta = data.pagination?.corrected;
+      setPendingTotalPages(Math.max(1, Number(pendingMeta?.total_pages || 1)));
+      setPendingTotalItems(Math.max(0, Number(pendingMeta?.total || 0)));
+      setCorrectedTotalPages(Math.max(1, Number(correctedMeta?.total_pages || 1)));
+      setCorrectedTotalItems(Math.max(0, Number(correctedMeta?.total || 0)));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Não foi possível carregar as métricas de redações.';
+      toast.error(message);
     } finally {
       setMetricsLoading(false);
       setQueueLoading(false);
     }
+  }, [org.slug, pendingPage, correctedPage]);
+
+  useEffect(() => {
+    setPendingPage(1);
+    setCorrectedPage(1);
+    setQueueInitDone(false);
   }, [org.slug]);
 
   useEffect(() => {
@@ -358,9 +423,21 @@ export default function PartnerRedacoesPage() {
   useEffect(() => {
     if (queueInitDone) return;
     if (metricsLoading) return;
-    setQueueOpen(metrics.pending_count > 0);
+    setQueueOpen(pendingTotalItems > 0);
     setQueueInitDone(true);
-  }, [metrics.pending_count, metricsLoading, queueInitDone]);
+  }, [pendingTotalItems, metricsLoading, queueInitDone]);
+
+  useEffect(() => {
+    if (pendingPage > pendingTotalPages) {
+      setPendingPage(pendingTotalPages);
+    }
+  }, [pendingPage, pendingTotalPages]);
+
+  useEffect(() => {
+    if (correctedPage > correctedTotalPages) {
+      setCorrectedPage(correctedTotalPages);
+    }
+  }, [correctedPage, correctedTotalPages]);
 
   const pendingByStudent = useMemo(() => {
     const map = new Map<string, EssayListItem>();
@@ -474,9 +551,9 @@ export default function PartnerRedacoesPage() {
           <div className="relative z-10 space-y-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Redações</h1>
-            {metrics.pending_count > 0 && (
+            {pendingTotalItems > 0 && (
               <span className="rounded-full bg-red-500 px-2.5 py-1 text-xs font-bold text-white">
-                {metrics.pending_count} {metrics.pending_count === 1 ? 'pendente' : 'pendentes'}
+                {pendingTotalItems} {pendingTotalItems === 1 ? 'pendente' : 'pendentes'}
               </span>
             )}
           </div>
@@ -555,10 +632,10 @@ export default function PartnerRedacoesPage() {
             />
             <KpiCard
               label="Aguardando correção"
-              value={metricsLoading ? '...' : metrics.pending_count}
+              value={metricsLoading ? '...' : pendingTotalItems}
               icon={Clock}
               badge={
-                !metricsLoading && metrics.pending_count > 0 ? (
+                !metricsLoading && pendingTotalItems > 0 ? (
                   <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">
                     urgente
                   </span>
@@ -713,12 +790,12 @@ export default function PartnerRedacoesPage() {
               <span
                 className={cn(
                   'rounded-full px-2.5 py-1 text-xs font-bold',
-                  metrics.pending_count > 0
+                  pendingTotalItems > 0
                     ? 'bg-red-500 text-white'
                     : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
                 )}
               >
-                {metrics.pending_count}
+                {pendingTotalItems}
               </span>
             </div>
 
@@ -762,6 +839,13 @@ export default function PartnerRedacoesPage() {
                   ))}
                 </div>
               )}
+              <PaginationControls
+                page={pendingPage}
+                totalPages={pendingTotalPages}
+                totalItems={pendingTotalItems}
+                loading={queueLoading}
+                onPageChange={setPendingPage}
+              />
             </>
           )}
         </section>
@@ -803,6 +887,13 @@ export default function PartnerRedacoesPage() {
                   ))}
                 </div>
               )}
+              <PaginationControls
+                page={correctedPage}
+                totalPages={correctedTotalPages}
+                totalItems={correctedTotalItems}
+                loading={queueLoading}
+                onPageChange={setCorrectedPage}
+              />
             </>
           )}
         </section>

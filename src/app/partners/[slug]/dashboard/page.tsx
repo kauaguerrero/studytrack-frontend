@@ -124,18 +124,6 @@ function toBrtDateKey(date: Date): string {
   }).format(date);
 }
 
-function keyToUtcDate(key: string): Date {
-  const [y, m, d] = key.split('-').map(Number);
-  return new Date(Date.UTC(y, (m || 1) - 1, d || 1));
-}
-
-function utcDateToKey(date: Date): string {
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(date.getUTCDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
 const TOOLTIP_STYLE = {
   backgroundColor: 'rgb(255 255 255 / 0.98)',
   border: '1px solid rgb(226 232 240)',
@@ -355,6 +343,9 @@ export default function FounderDashboard() {
   const [students, setStudents] = useState<Student[]>([]);
   const [rankingStudents, setRankingStudents] = useState<Student[]>([]);
   const [essays, setEssays] = useState<EssayListItem[]>([]);
+  const [essaysCounts, setEssaysCounts] = useState<{
+    today: number; week: number; month: number; total: number;
+  } | null>(null);
   const [metricWindow, setMetricWindow] = useState<MetricWindow>('week');
   const [activePlanIndex, setActivePlanIndex] = useState<number | null>(null);
   const [showRevenueValue, setShowRevenueValue] = useState(false);
@@ -369,12 +360,17 @@ export default function FounderDashboard() {
 
       const headers = { Authorization: `Bearer ${session.access_token}` };
       const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
+      setEssays([]);
+      setEssaysCounts(null);
 
       try {
-        const [resStats, resEssays, resRankingFirstPage] = await Promise.all([
+        const [resStats, resEssaysCount, resRankingFirstPage, resAssociates] = await Promise.all([
           fetch(`${api}/api/partners/${org.slug}/stats`, { headers }),
-          fetch(`${api}/api/partners/${org.slug}/essays?status=all&page=1&limit=1000`, { headers }),
+          fetch(`${api}/api/partners/${org.slug}/essays/count`, { headers }),
           fetch(`${api}/api/partners/${org.slug}/students?limit=100&page=1&sort=full_name&order=asc`, { headers }),
+          (userProfile.role === 'founder' || userProfile.role === 'admin')
+            ? fetch(`/api/partners/${org.slug}/associates`)
+            : Promise.resolve(null),
         ]);
 
         if (resStats.ok) {
@@ -391,54 +387,45 @@ export default function FounderDashboard() {
           const pageSize = Number(firstPayload?.limit || 100);
           const totalPages = Math.max(1, Math.ceil(total / Math.max(pageSize, 1)));
 
-          if (totalPages <= 1) {
-            setRankingStudents(firstStudents);
-            setStudents(firstStudents);
-          } else {
+          setRankingStudents(firstStudents);
+          setStudents(firstStudents);
+
+          if (totalPages > 1) {
             const pageFetches: Promise<Response>[] = [];
             for (let page = 2; page <= totalPages; page += 1) {
               pageFetches.push(
                 fetch(`${api}/api/partners/${org.slug}/students?limit=100&page=${page}&sort=full_name&order=asc`, { headers }),
               );
             }
-            const pageResponses = await Promise.all(pageFetches);
-            const extraStudents: Student[] = [];
-            for (const response of pageResponses) {
-              if (!response.ok) continue;
-              const payload = await response.json();
-              if (Array.isArray(payload?.students)) {
-                extraStudents.push(...payload.students);
+            Promise.all(pageFetches).then(async (pageResponses) => {
+              const extraStudents: Student[] = [];
+              for (const response of pageResponses) {
+                if (!response.ok) continue;
+                const payload = await response.json();
+                if (Array.isArray(payload?.students)) {
+                  extraStudents.push(...payload.students);
+                }
               }
-            }
-            const allStudents = [...firstStudents, ...extraStudents];
-            setRankingStudents(allStudents);
-            setStudents(allStudents);
+              if (extraStudents.length > 0) {
+                setRankingStudents((prev) => [...prev, ...extraStudents]);
+                setStudents((prev) => [...prev, ...extraStudents]);
+              }
+            }).catch(() => {});
           }
         }
-        if (resEssays.ok) {
-          const data = await resEssays.json();
-          const items = Array.isArray(data?.items) ? data.items : [];
-          setEssays(
-            items
-              .map((e: { id?: string; submitted_at?: string }) => ({
-                id: e.id ?? '',
-                submitted_at: e.submitted_at ?? '',
-              }))
-              .filter((e: EssayListItem) => Boolean(e.id && e.submitted_at)),
-          );
+        if (resEssaysCount && resEssaysCount.ok) {
+          const countsData = await resEssaysCount.json();
+          setEssaysCounts(countsData);
         }
-        if (userProfile.role === 'founder' || userProfile.role === 'admin') {
-          const resAssociates = await fetch(`/api/partners/${org.slug}/associates`);
-          if (resAssociates.ok) {
-            const associatesData = await resAssociates.json() as {
-              total?: number;
-              associates?: unknown[];
-            };
-            if (typeof associatesData.total === 'number') {
-              setAssociatesCount(associatesData.total);
-            } else if (Array.isArray(associatesData.associates)) {
-              setAssociatesCount(associatesData.associates.length);
-            }
+        if (resAssociates && resAssociates.ok) {
+          const associatesData = await resAssociates.json() as {
+            total?: number;
+            associates?: unknown[];
+          };
+          if (typeof associatesData.total === 'number') {
+            setAssociatesCount(associatesData.total);
+          } else if (Array.isArray(associatesData.associates)) {
+            setAssociatesCount(associatesData.associates.length);
           }
         }
       } catch {
@@ -555,23 +542,15 @@ export default function FounderDashboard() {
     : null;
 
   const todayBrtKey = toBrtDateKey(new Date());
-  const todayBrtUtc = keyToUtcDate(todayBrtKey);
-  const weekStartBrtUtc = new Date(todayBrtUtc);
-  const weekDay = (weekStartBrtUtc.getUTCDay() + 6) % 7;
-  weekStartBrtUtc.setUTCDate(weekStartBrtUtc.getUTCDate() - weekDay);
-  const weekStartBrtKey = utcDateToKey(weekStartBrtUtc);
-  const monthStartBrtKey = `${todayBrtKey.slice(0, 8)}01`;
-
-  const deliveredEssaysCount = essays.filter((essay) => {
-    if (!essay.submitted_at) return false;
-    if (metricWindow === 'total') return true;
-    const submitted = new Date(essay.submitted_at);
-    if (Number.isNaN(submitted.getTime())) return false;
-    const submittedBrtKey = toBrtDateKey(submitted);
-    if (metricWindow === 'today') return submittedBrtKey >= todayBrtKey;
-    if (metricWindow === 'week') return submittedBrtKey >= weekStartBrtKey;
-    return submittedBrtKey >= monthStartBrtKey;
-  }).length;
+  const deliveredEssaysCount = essaysCounts
+    ? metricWindow === 'today'
+      ? essaysCounts.today
+      : metricWindow === 'week'
+        ? essaysCounts.week
+        : metricWindow === 'month'
+          ? essaysCounts.month
+          : essaysCounts.total
+    : essays.length;
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
