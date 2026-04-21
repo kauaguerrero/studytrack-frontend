@@ -769,6 +769,19 @@ export default function AdminAuditCenterPage() {
     return buildQuestionWithSuggestedFix(detail.question, detail.suggested_fix);
   }, [detail?.question, detail?.suggested_fix, suggestedFixDecision]);
 
+  function clearResultFilters() {
+    setSearch('');
+    setFilterIssue('all');
+    setFilterAuditType('all');
+    setFilterStatus('all');
+    setFilterSeverity('all');
+    setFilterYear('all');
+    setFilterSubject('all');
+    setFilterDiscipline('all');
+    setFilterDifficulty('all');
+    setResultsPage(1);
+  }
+
   async function getToken() {
     const sessionResult = await supabase.auth.getSession();
     return sessionResult.data.session?.access_token || null;
@@ -1186,11 +1199,11 @@ export default function AdminAuditCenterPage() {
     }
   }
 
-  async function markAuditResultHandled(nextStatus: 'pass' | 'resolved') {
+  async function markAuditResultHandled(nextStatus: 'pass' | 'resolved' | 'needs_manual_review') {
     if (!selectedRow?.id) return;
     const payload = nextStatus === 'pass'
       ? { status: 'pass', severity: 'none', issue_codes: [], issue_count: 0 }
-      : { status: 'resolved' };
+      : { status: nextStatus };
     const { error } = await supabase
       .from('question_audit_results')
       .update(payload)
@@ -1220,7 +1233,7 @@ export default function AdminAuditCenterPage() {
         .eq('id', detail.question.id);
 
       if (error) throw error;
-      await markAuditResultHandled('resolved');
+      await markAuditResultHandled('needs_manual_review');
       removeRowFromQueue(selectedRow?.id || detail.id);
       toast.success('Questão despublicada e removida do fluxo dos usuários.');
       void fetchResults(resultsPage);
@@ -1247,7 +1260,7 @@ export default function AdminAuditCenterPage() {
         .eq('id', detail.question.id);
 
       if (error) throw error;
-      await markAuditResultHandled('pass');
+      await markAuditResultHandled('resolved');
       removeRowFromQueue(selectedRow?.id || detail.id);
       toast.success('Correção aplicada à questão.');
       void fetchResults(resultsPage);
@@ -1273,7 +1286,7 @@ export default function AdminAuditCenterPage() {
         .eq('id', detail.question.id);
 
       if (error) throw error;
-      await markAuditResultHandled('pass');
+      await markAuditResultHandled('resolved');
       removeRowFromQueue(selectedRow?.id || detail.id);
       toast.success('Questão aprovada manualmente.');
       void fetchResults(resultsPage);
@@ -1554,11 +1567,16 @@ export default function AdminAuditCenterPage() {
           <CardContent className="space-y-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center">
               <Input value={search} onChange={event => { setSearch(event.target.value); setResultsPage(1); }} placeholder="Buscar external_id, matéria, run..." className="bg-white md:flex-1" />
-              <Button type="button" variant="outline" className="bg-white" onClick={() => setResultsFiltersOpen(current => !current)}>
-                <Filter className="mr-2 h-4 w-4" />
-                Filtros
-                {activeResultFilterCount > 0 ? <Badge variant="outline" className="ml-2 bg-slate-50">{activeResultFilterCount}</Badge> : null}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" className="bg-white" onClick={() => setResultsFiltersOpen(current => !current)}>
+                  <Filter className="mr-2 h-4 w-4" />
+                  Filtros
+                  {activeResultFilterCount > 0 ? <Badge variant="outline" className="ml-2 bg-slate-50">{activeResultFilterCount}</Badge> : null}
+                </Button>
+                <Button type="button" variant="outline" className="bg-white" disabled={activeResultFilterCount === 0} onClick={clearResultFilters}>
+                  Limpar filtros
+                </Button>
+              </div>
             </div>
             {resultsFiltersOpen ? (
               <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1578,6 +1596,11 @@ export default function AdminAuditCenterPage() {
                 <Select value={filterSubject} onValueChange={value => { setFilterSubject(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Matéria" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as matérias</SelectItem>{(dashboard?.filter_options.subjects || []).map(subject => <SelectItem key={subject} value={subject}>{subject}</SelectItem>)}</SelectContent></Select>
                 <Select value={filterDiscipline} onValueChange={value => { setFilterDiscipline(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Disciplina" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as disciplinas</SelectItem>{(dashboard?.filter_options.disciplines || []).map(discipline => <SelectItem key={discipline} value={discipline}>{discipline}</SelectItem>)}</SelectContent></Select>
                 <Select value={filterDifficulty} onValueChange={value => { setFilterDifficulty(value); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Dificuldade" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as dificuldades</SelectItem>{(dashboard?.filter_options.difficulties || []).map(difficulty => <SelectItem key={difficulty} value={difficulty}>{difficulty}</SelectItem>)}</SelectContent></Select>
+                <div className="md:col-span-2 xl:col-span-4">
+                  <Button type="button" variant="outline" className="bg-white" disabled={activeResultFilterCount === 0} onClick={clearResultFilters}>
+                    Limpar todos os filtros
+                  </Button>
+                </div>
               </div>
             ) : null}
 
