@@ -176,7 +176,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck, label: 'Títulos',        shortLabel: 'Títulos' },
     { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3, label: 'Meu Desempenho',  shortLabel: 'Desempenho' },
     { href: `/partners/${org.slug}/student/redacoes`,          icon: PenLine,  label: 'Redações',        shortLabel: 'Redações' },
-    { href: `/partners/${org.slug}/suporte`,                   icon: LifeBuoy,  label: 'Suporte',          shortLabel: 'Suporte' },
+    { href: `/partners/${org.slug}/student/suporte`,            icon: LifeBuoy,  label: 'Suporte',          shortLabel: 'Suporte' },
     { href: `/partners/${org.slug}/student/perfil`,            icon: User,      label: 'Perfil',          shortLabel: 'Perfil' },
   ];
 

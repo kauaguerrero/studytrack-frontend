@@ -343,15 +343,15 @@ export function DashboardClient({
                 <div className="mt-5 flex flex-wrap gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
                     <Flame className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                    {effectiveCurrentStreak} {effectiveCurrentStreak === 1 ? 'dia' : 'dias'} de sequência
+                    {effectiveCurrentStreak} {effectiveCurrentStreak === 1 ? 'Dia' : 'Dias'} de Sequência
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
                     <BookOpen className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                    {questionsCount.toLocaleString('pt-BR')} {questionsCount === 1 ? 'questão' : 'questões'}
+                    {questionsCount.toLocaleString('pt-BR')} {questionsCount === 1 ? 'Questão' : 'Questões'}
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
                     <FileText className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                    {simuladosCount} {simuladosCount === 1 ? 'simulado' : 'simulados'}
+                    {simuladosCount} {simuladosCount === 1 ? 'Simulado' : 'Simulados'}
                   </span>
                 </div>
 

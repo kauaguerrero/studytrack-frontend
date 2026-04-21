@@ -21,6 +21,7 @@ function getNextWhatsAppNumber(): string {
     return WHATSAPP_NUMBERS[0];
   }
 }
+
 const SUPPORT_EMAIL_TO = 'igorsilvacruz284@gmail.com';
 const SUPPORT_EMAIL_SUBJECT = encodeURIComponent('Suporte StudyTrack');
 const SUPPORT_EMAIL_BODY = encodeURIComponent(
@@ -31,7 +32,7 @@ const KB_LINK = '/portal/support/kb';
 
 const PARTNER_FAQS: never[] = [];
 
-export default function SuportePage() {
+export default function StudentSuportePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [hoveredCard, setHoveredCard] = useState<'kb' | null>(null);
@@ -43,7 +44,7 @@ export default function SuportePage() {
   void setExpandedIndex;
 
   return (
-    <PartnerLayout variant="founder">
+    <PartnerLayout variant="student">
       <div className="min-h-full bg-[#F4F7FA] dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-50 -m-4 md:-m-8 pb-16">
 
         {/* Hero */}

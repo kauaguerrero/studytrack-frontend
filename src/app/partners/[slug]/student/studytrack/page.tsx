@@ -319,19 +319,19 @@ export default function StudyTrackPage() {
   type StatDef = StatCardProps & { key: string }
   const statCards: StatDef[] = ([
     ov?.current_streak && ov.current_streak > 0
-      ? { key: 'streak', icon: Flame, value: ov.current_streak, label: 'dias seguidos', delay: 0, accentColor: 'var(--brand-primary)', bgTint: 'bg-orange-50 dark:bg-orange-900/20' }
+      ? { key: 'streak', icon: Flame, value: ov.current_streak, label: 'Dias Seguidos', delay: 0, accentColor: 'var(--brand-primary)', bgTint: 'bg-orange-50 dark:bg-orange-900/20' }
       : null,
     ov?.total_questions && ov.total_questions > 0
-      ? { key: 'questions', icon: BookOpen, value: ov.total_questions, label: 'questões respondidas', delay: 0.06, accentColor: '#6366f1', bgTint: 'bg-indigo-50 dark:bg-indigo-900/20' }
+      ? { key: 'questions', icon: BookOpen, value: ov.total_questions, label: 'Questões Respondidas', delay: 0.06, accentColor: '#6366f1', bgTint: 'bg-indigo-50 dark:bg-indigo-900/20' }
       : null,
     ov?.total_xp && ov.total_xp > 0
-      ? { key: 'xp', icon: Zap, value: ov.total_xp, label: 'XP acumulados', sublabel: `Nível ${level}`, delay: 0.12, accentColor: '#8b5cf6', bgTint: 'bg-violet-50 dark:bg-violet-900/20', progress: levelProgress }
+      ? { key: 'xp', icon: Zap, value: ov.total_xp, label: 'XP Acumulados', sublabel: `Nível ${level}`, delay: 0.12, accentColor: '#8b5cf6', bgTint: 'bg-violet-50 dark:bg-violet-900/20', progress: levelProgress }
       : null,
     ov?.total_simulados && ov.total_simulados > 0
-      ? { key: 'simulados', icon: Brain, value: ov.total_simulados, label: 'simulados feitos', delay: 0.18, accentColor: '#0ea5e9', bgTint: 'bg-sky-50 dark:bg-sky-900/20' }
+      ? { key: 'simulados', icon: Brain, value: ov.total_simulados, label: 'Simulados Feitos', delay: 0.18, accentColor: '#0ea5e9', bgTint: 'bg-sky-50 dark:bg-sky-900/20' }
       : null,
     rankingPos
-      ? { key: 'ranking', icon: Trophy, value: rankingPos, label: 'no ranking de hoje', suffix: 'º', delay: 0.24, accentColor: '#f59e0b', bgTint: 'bg-yellow-50 dark:bg-yellow-900/20' }
+      ? { key: 'ranking', icon: Trophy, value: rankingPos, label: 'No Ranking de Hoje', suffix: 'º', delay: 0.24, accentColor: '#f59e0b', bgTint: 'bg-yellow-50 dark:bg-yellow-900/20' }
       : null,
   ] as (StatDef | null)[]).filter(Boolean) as StatDef[]
 
