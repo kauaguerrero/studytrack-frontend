@@ -243,6 +243,7 @@ interface DashboardPayload {
     subjects: string[];
     disciplines: string[];
     difficulties: string[];
+    issues: string[];
   };
 }
 
@@ -389,6 +390,75 @@ function buildQuestionWithSuggestedFix(
   };
 }
 
+function normalizeSuggestedFixSnippet(text?: string | null) {
+  if (!text) return '';
+  return text
+    .replace(/\r/g, '')
+    .replace(/([^\n])\n([^\n])/g, '$1 $2')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+async function readJsonPayload(response: Response) {
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().includes('application/json')) return null;
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeImageUrl(raw: string): string | null {
+  const cleaned = String(raw || '')
+    .trim()
+    .replace(/^<|>$/g, '')
+    .replace(/^['"]|['"]$/g, '');
+  if (!cleaned) return null;
+  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned;
+  if (cleaned.startsWith('/storage/v1/object/public/')) return cleaned;
+  return null;
+}
+
+function extractAlternativeImageUrls(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeImageUrl(String(item)))
+      .filter((url): url is string => Boolean(url));
+  }
+  if (typeof value !== 'string') return [];
+  const raw = value.trim();
+  if (!raw) return [];
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(raw);
+      return extractAlternativeImageUrls(parsed);
+    } catch {
+      // ignore and fall through
+    }
+  }
+  const direct = normalizeImageUrl(raw);
+  return direct ? [direct] : [];
+}
+
+function insertParagraphBreakAtCursor(
+  event: React.KeyboardEvent<HTMLTextAreaElement>,
+  apply: (nextValue: string) => void,
+) {
+  if (!(event.ctrlKey || event.metaKey) || event.key !== 'Enter') return;
+  event.preventDefault();
+  const target = event.currentTarget;
+  const start = target.selectionStart ?? target.value.length;
+  const end = target.selectionEnd ?? target.value.length;
+  const nextValue = target.value.slice(0, start) + '\n\n' + target.value.slice(end);
+  apply(nextValue);
+  window.requestAnimationFrame(() => {
+    target.selectionStart = start + 2;
+    target.selectionEnd = start + 2;
+  });
+}
+
 function countActiveResultFilters(filters: {
   audit_type: string;
   status: string;
@@ -456,6 +526,7 @@ function buildCommandPreview(config: {
   difficulty: string;
   limit: string;
   questionId: string;
+  includeReviewed: boolean;
   auditVersion: string;
   timeout: string;
   baseUrl: string;
@@ -475,6 +546,7 @@ function buildCommandPreview(config: {
   if (config.difficulty !== 'all') parts.push('--difficulty "' + config.difficulty + '"');
   if (config.limit !== '') parts.push('--limit ' + config.limit);
   if (config.questionId !== '') parts.push('--question-id ' + config.questionId);
+  if (config.includeReviewed) parts.push('--include-reviewed');
   if (config.timeout !== '') parts.push('--timeout ' + config.timeout);
   if (config.audits.includes('render')) {
     if (config.baseUrl !== '') parts.push('--base-url ' + JSON.stringify(config.baseUrl));
@@ -528,23 +600,46 @@ function QuestionPreview({ question }: { question?: QuestionFull | null }) {
       ) : null}
 
       {question.alternatives && question.alternatives.length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-xs font-bold uppercase text-slate-500">Alternativas</p>
+        <div className="space-y-3">
           {question.alternatives.map((alternative) => {
             const isCorrect = alternative.letter === question.correct_alternative || alternative.isCorrect;
+            const alternativeImages = extractAlternativeImageUrls(alternative.image);
             return (
               <div
                 key={alternative.letter}
-                className={`rounded-xl border p-3 text-sm ${
+                className={`w-full rounded-xl border-2 p-4 text-left transition-all ${
                   isCorrect ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <span className="w-6 font-bold">{alternative.letter}.</span>
-                  <span className={isCorrect ? 'font-medium text-emerald-800' : 'text-slate-700'}>
-                    {alternative.text || '(imagem)'}
+                <div className="flex items-start gap-3">
+                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 text-sm font-bold ${
+                    isCorrect ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-200 bg-white text-slate-500'
+                  }`}>
+                    {alternative.letter}
                   </span>
-                  {isCorrect ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : null}
+                  <div className="min-w-0 flex-1">
+                    {alternativeImages.length > 0 ? (
+                      <div className="mb-2">
+                        {alternativeImages.map((imageUrl, imageIndex) => (
+                          <div key={`${alternative.letter}-${imageIndex}`} className={imageIndex > 0 ? 'mt-2' : ''}>
+                            <img
+                              src={imageUrl}
+                              alt={`Alternativa ${alternative.letter}`}
+                              className="max-h-32 rounded border border-slate-200"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {alternative.text ? (
+                      <span className={`text-base leading-snug ${isCorrect ? 'font-medium text-emerald-800' : 'text-slate-700'}`}>
+                        {alternative.text}
+                      </span>
+                    ) : alternativeImages.length === 0 ? (
+                      <span className="text-sm italic text-slate-400">(Imagem indisponível)</span>
+                    ) : null}
+                  </div>
+                  {isCorrect ? <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-emerald-600" /> : null}
                 </div>
               </div>
             );
@@ -571,6 +666,7 @@ export default function AdminAuditCenterPage() {
   const apiUrl = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
   const drilldownRef = useRef<HTMLDivElement | null>(null);
   const runConsoleRef = useRef<HTMLDivElement | null>(null);
+  const pollingErrorRef = useRef<Record<string, string>>({});
 
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
@@ -598,7 +694,7 @@ export default function AdminAuditCenterPage() {
   const [filterDiscipline, setFilterDiscipline] = useState<string>('all');
   const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
   const [search, setSearch] = useState('');
-  const [filterIssue, setFilterIssue] = useState('');
+  const [filterIssue, setFilterIssue] = useState('all');
   const deferredSearch = useDeferredValue(search);
   const deferredIssue = useDeferredValue(filterIssue);
 
@@ -619,6 +715,7 @@ export default function AdminAuditCenterPage() {
   const [plannerVariants, setPlannerVariants] = useState('bank,simulado,review');
   const [plannerViewports, setPlannerViewports] = useState('desktop');
   const [plannerVerifyUrls, setPlannerVerifyUrls] = useState(true);
+  const [plannerIncludeReviewed, setPlannerIncludeReviewed] = useState(false);
   const [runModalOpen, setRunModalOpen] = useState(false);
   const [resultsCollapsed, setResultsCollapsed] = useState(false);
   const [resultsFiltersOpen, setResultsFiltersOpen] = useState(false);
@@ -647,7 +744,6 @@ export default function AdminAuditCenterPage() {
   const selectedRunTotal = selectedRun?.total_questions ?? selectedRun?.progress?.total_questions ?? 0;
   const selectedRunEta = selectedRun?.eta_seconds ?? selectedRun?.progress?.eta_seconds ?? null;
   const selectedRunProgressPercent = selectedRunTotal > 0 ? Math.min(100, (selectedRunProcessed / selectedRunTotal) * 100) : 0;
-
   const queryFilters = useMemo(() => ({
     baseline_id: dashboard?.baseline?.baseline_id || '',
     audit_type: filterAuditType === 'all' ? '' : filterAuditType,
@@ -661,7 +757,7 @@ export default function AdminAuditCenterPage() {
   }), [dashboard?.baseline?.baseline_id, filterAuditType, filterStatus, filterSeverity, filterYear, filterSubject, filterDiscipline, filterDifficulty, deferredSearch]);
   const resultQueryFilters = useMemo(() => ({
     ...queryFilters,
-    issue: deferredIssue.trim(),
+    issue: deferredIssue === 'all' ? '' : deferredIssue.trim(),
   }), [queryFilters, deferredIssue]);
   const activeResultFilterCount = countActiveResultFilters(resultQueryFilters);
   const questionForSuggestedFix = useMemo(() => {
@@ -686,8 +782,11 @@ export default function AdminAuditCenterPage() {
       const response = await fetch(apiUrl + '/api/admin/question-audits/runs' + buildQuery({ limit: 30 }), {
         headers: { Authorization: 'Bearer ' + token },
       });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar runs');
+      const payload = await readJsonPayload(response);
+      if (response.ok === false) {
+        if (response.status === 401 || response.status === 403) return;
+        throw new Error((payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '') || 'Falha ao carregar runs');
+      }
       const nextRuns = (payload.runs || []) as AuditRun[];
       setRuns(current => {
         const merged = nextRuns.map(run => {
@@ -702,8 +801,13 @@ export default function AdminAuditCenterPage() {
       });
       if (shouldSelectLatest && nextRuns[0]) setSelectedRunId(nextRuns[0].run_id);
       if (selectedRunId === null && nextRuns[0]) setSelectedRunId(nextRuns[0].run_id);
+      pollingErrorRef.current.runs = '';
     } catch (error) {
-      console.error('Erro ao carregar runs de auditoria:', error);
+      const message = String(error);
+      if (pollingErrorRef.current.runs !== message) {
+        console.error('Erro ao carregar runs de auditoria:', error);
+        pollingErrorRef.current.runs = message;
+      }
       void reportError('AdminAuditRunsFetchError', String(error));
     } finally {
       setRunsLoading(false);
@@ -721,8 +825,11 @@ export default function AdminAuditCenterPage() {
       }), {
         headers: { Authorization: 'Bearer ' + token },
       });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar detalhe da run');
+      const payload = await readJsonPayload(response);
+      if (response.ok === false) {
+        if (response.status === 401 || response.status === 403) return;
+        throw new Error((payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '') || 'Falha ao carregar detalhe da run');
+      }
       setRuns(current => {
         const next = current.map(run => {
           if (run.run_id !== runId) return run;
@@ -736,8 +843,14 @@ export default function AdminAuditCenterPage() {
         });
         return next.some(run => run.run_id === runId) ? next : current.concat(payload as AuditRun);
       });
+      pollingErrorRef.current[`run:${runId}`] = '';
     } catch (error) {
-      console.error('Erro ao carregar detalhe da run:', error);
+      const errorKey = `run:${runId}`;
+      const message = String(error);
+      if (pollingErrorRef.current[errorKey] !== message) {
+        console.error('Erro ao carregar detalhe da run:', error);
+        pollingErrorRef.current[errorKey] = message;
+      }
       void reportError('AdminAuditRunDetailFetchError', String(error));
     } finally {
       setRunDetailLoading(false);
@@ -775,11 +888,19 @@ export default function AdminAuditCenterPage() {
       const response = await fetch(apiUrl + '/api/admin/question-audits/dashboard' + buildQuery(queryFilters), {
         headers: { Authorization: 'Bearer ' + token },
       });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar dashboard');
+      const payload = await readJsonPayload(response);
+      if (response.ok === false) {
+        if (response.status === 401 || response.status === 403) return;
+        throw new Error((payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '') || 'Falha ao carregar dashboard');
+      }
       setDashboard(payload as DashboardPayload);
+      pollingErrorRef.current.dashboard = '';
     } catch (error) {
-      console.error('Erro ao carregar dashboard de auditoria:', error);
+      const message = String(error);
+      if (pollingErrorRef.current.dashboard !== message) {
+        console.error('Erro ao carregar dashboard de auditoria:', error);
+        pollingErrorRef.current.dashboard = message;
+      }
       void reportError('AdminAuditDashboardFetchError', String(error));
       toast.error('Não foi possível carregar o dashboard operacional.');
     } finally {
@@ -810,13 +931,21 @@ export default function AdminAuditCenterPage() {
       }), {
         headers: { Authorization: 'Bearer ' + token },
       });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar resultados');
+      const payload = await readJsonPayload(response);
+      if (response.ok === false) {
+        if (response.status === 401 || response.status === 403) return;
+        throw new Error((payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '') || 'Falha ao carregar resultados');
+      }
       setRows((payload.items || []) as AuditRow[]);
       setResultsTotal(payload.total || 0);
       setResultsPage(payload.page || 1);
+      pollingErrorRef.current.results = '';
     } catch (error) {
-      console.error('Erro ao carregar resultados da auditoria:', error);
+      const message = String(error);
+      if (pollingErrorRef.current.results !== message) {
+        console.error('Erro ao carregar resultados da auditoria:', error);
+        pollingErrorRef.current.results = message;
+      }
       void reportError('AdminAuditResultsFetchError', String(error));
       toast.error('Não foi possível carregar os resultados operacionais.');
     } finally {
@@ -832,11 +961,23 @@ export default function AdminAuditCenterPage() {
       const response = await fetch(apiUrl + '/api/admin/question-audits/results/' + id, {
         headers: { Authorization: 'Bearer ' + token },
       });
-      const payload = await response.json();
-      if (response.ok === false) throw new Error(payload.error || 'Falha ao carregar detalhe');
+      const payload = await readJsonPayload(response);
+      if (response.ok === false) {
+        if (response.status === 401 || response.status === 403) {
+          setDetail(null);
+          return;
+        }
+        throw new Error((payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : '') || 'Falha ao carregar detalhe');
+      }
       setDetail((payload || null) as AuditDetail | null);
+      pollingErrorRef.current[`detail:${id}`] = '';
     } catch (error) {
-      console.error('Erro ao carregar detalhe da questão auditada:', error);
+      const errorKey = `detail:${id}`;
+      const message = String(error);
+      if (pollingErrorRef.current[errorKey] !== message) {
+        console.error('Erro ao carregar detalhe da questão auditada:', error);
+        pollingErrorRef.current[errorKey] = message;
+      }
       void reportError('AdminAuditQuestionDetailFetchError', String(error));
       setDetail(null);
     } finally {
@@ -934,6 +1075,7 @@ export default function AdminAuditCenterPage() {
           audit_version: plannerAuditVersion || null,
           timeout: plannerTimeout || null,
           verify_urls: plannerVerifyUrls,
+          include_reviewed: plannerIncludeReviewed,
           base_url: renderEnabled ? plannerBaseUrl.trim() : null,
           service_url: renderEnabled ? plannerServiceUrl.trim() : null,
           variants: renderEnabled ? variants : [],
@@ -962,7 +1104,6 @@ export default function AdminAuditCenterPage() {
     if (!editForm || !detail?.question) return;
     setQuestionSaving(true);
     try {
-      const updatedAt = new Date().toISOString();
       const payload = {
         subject: editForm.subject,
         discipline: editForm.discipline,
@@ -980,7 +1121,6 @@ export default function AdminAuditCenterPage() {
         correct_alternative: editForm.correct_alternative,
         images: editForm.images,
         ai_reasoning: editForm.ai_reasoning,
-        updated_at: updatedAt,
       };
 
       const { error } = await supabase
@@ -1076,7 +1216,7 @@ export default function AdminAuditCenterPage() {
     try {
       const { error } = await supabase
         .from('questions')
-        .update({ is_verified: false, updated_at: new Date().toISOString() })
+        .update({ is_verified: false })
         .eq('id', detail.question.id);
 
       if (error) throw error;
@@ -1103,7 +1243,6 @@ export default function AdminAuditCenterPage() {
           context: detail.suggested_fix.suggested_context,
           is_verified: true,
           status: 'approved',
-          updated_at: new Date().toISOString(),
         })
         .eq('id', detail.question.id);
 
@@ -1130,7 +1269,6 @@ export default function AdminAuditCenterPage() {
         .update({
           is_verified: true,
           status: 'approved',
-          updated_at: new Date().toISOString(),
         })
         .eq('id', detail.question.id);
 
@@ -1194,6 +1332,14 @@ export default function AdminAuditCenterPage() {
   }, [selectedRow?.id]);
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const isSaveShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's';
+      if (isSaveShortcut && questionEditing) {
+        event.preventDefault();
+        if (!questionSaving && editForm) {
+          void saveQuestionEdits();
+        }
+        return;
+      }
       if (questionEditing || questionPublishingAction !== null || rows.length === 0) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
       if (event.key === 'ArrowRight') {
@@ -1223,7 +1369,7 @@ export default function AdminAuditCenterPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [questionEditing, questionPublishingAction, rows, selectedRowIndex, detail?.question?.id, detail?.suggested_fix, suggestedFixDecision]);
+  }, [questionEditing, questionPublishingAction, rows, selectedRowIndex, detail?.question?.id, detail?.suggested_fix, suggestedFixDecision, questionSaving, editForm]);
   useEffect(() => {
     if (runningRun === null) return;
     const interval = window.setInterval(() => {
@@ -1258,6 +1404,7 @@ export default function AdminAuditCenterPage() {
     difficulty: plannerDifficulty,
     limit: plannerLimit,
     questionId: plannerQuestionId,
+    includeReviewed: plannerIncludeReviewed,
     auditVersion: plannerAuditVersion,
     timeout: plannerTimeout,
     baseUrl: plannerBaseUrl,
@@ -1415,7 +1562,15 @@ export default function AdminAuditCenterPage() {
             </div>
             {resultsFiltersOpen ? (
               <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 md:grid-cols-2 xl:grid-cols-4">
-                <Input value={filterIssue} onChange={event => { setFilterIssue(event.target.value); setResultsPage(1); }} placeholder="Filtrar por issue code" className="bg-white" />
+                <Select value={filterIssue} onValueChange={value => { setFilterIssue(value); setResultsPage(1); }}>
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Issue code" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os issues</SelectItem>
+                    {(dashboard?.filter_options.issues || []).map(issue => <SelectItem key={issue} value={issue}>{issue}</SelectItem>)}
+                  </SelectContent>
+                </Select>
                 <Select value={filterAuditType} onValueChange={value => { setFilterAuditType(value as 'all' | AuditType); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Trilha" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as trilhas</SelectItem>{(Object.keys(AUDIT_META) as AuditType[]).map(auditType => <SelectItem key={auditType} value={auditType}>{AUDIT_META[auditType].label}</SelectItem>)}</SelectContent></Select>
                 <Select value={filterStatus} onValueChange={value => { setFilterStatus(value as 'all' | AuditStatus); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">Todos os status</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="pass">Pass</SelectItem><SelectItem value="flagged">Flagged</SelectItem><SelectItem value="needs_manual_review">Needs Manual Review</SelectItem><SelectItem value="accepted_exception">Accepted Exception</SelectItem><SelectItem value="resolved">Resolved</SelectItem></SelectContent></Select>
                 <Select value={filterSeverity} onValueChange={value => { setFilterSeverity(value as 'all' | AuditSeverity); setResultsPage(1); }}><SelectTrigger className="bg-white"><SelectValue placeholder="Severidade" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as severidades</SelectItem><SelectItem value="none">None</SelectItem><SelectItem value="low">Low</SelectItem><SelectItem value="medium">Medium</SelectItem><SelectItem value="high">High</SelectItem><SelectItem value="critical">Critical</SelectItem></SelectContent></Select>
@@ -1465,7 +1620,7 @@ export default function AdminAuditCenterPage() {
       </Card>
 
       <Dialog open={runModalOpen} onOpenChange={setRunModalOpen}>
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle className="flex items-center gap-2"><TerminalSquare className="h-5 w-5 text-slate-700" />Iniciar Auditoria</DialogTitle><DialogDescription>Configure a execução operacional no mesmo formato do orquestrador do terminal.</DialogDescription></DialogHeader><div className="space-y-4 pt-2"><div><p className="mb-2 text-sm font-semibold text-slate-900">Trilhas</p><div className="flex flex-wrap gap-2">{(Object.keys(AUDIT_META) as AuditType[]).map(auditType => <button key={auditType} type="button" onClick={() => setPlannerAudits(current => current.includes(auditType) ? current.filter(item => item !== auditType) : current.concat(auditType))} className={(plannerAudits.includes(auditType) ? 'border-slate-900 bg-slate-900 text-white ' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 ') + 'rounded-xl border px-3 py-2 text-sm font-medium transition-colors'}>{AUDIT_META[auditType].label}</button>)}</div></div><div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4"><div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-900">Escopo das trilhas selecionadas</p><p className="mt-1 text-xs text-slate-500">Mostra exatamente o que cada auditoria vai verificar antes da execução.</p></div><Badge variant="outline" className="bg-white">{plannerAudits.length} trilha(s)</Badge></div><div className="space-y-3">{plannerAudits.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">Selecione ao menos uma trilha para ver o escopo auditado.</div> : plannerAudits.map(auditType => <div key={auditType} className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center gap-2"><Badge className={AUDIT_META[auditType].tone}>{AUDIT_META[auditType].label}</Badge><p className="text-sm font-medium text-slate-900">{AUDIT_META[auditType].description}</p></div><div className="mt-3 flex flex-wrap gap-2">{AUDIT_META[auditType].checks.map(check => <Badge key={auditType + check} variant="outline" className="bg-white">{check}</Badge>)}</div><p className="mt-3 text-xs text-slate-500">Fora de escopo: {AUDIT_META[auditType].outOfScope}</p></div>)}</div></div><div className="grid grid-cols-1 gap-3 md:grid-cols-2"><Input value={plannerAuditVersion} onChange={event => setPlannerAuditVersion(event.target.value)} placeholder="Versão lógica" className="bg-white" /><Input value={plannerLimit} onChange={event => setPlannerLimit(event.target.value)} placeholder="Limite opcional" className="bg-white" /><Input value={plannerQuestionId} onChange={event => setPlannerQuestionId(event.target.value)} placeholder="Question ID opcional" className="bg-white" /><Input value={plannerTimeout} onChange={event => setPlannerTimeout(event.target.value)} placeholder="Timeout em segundos" className="bg-white" /></div>{plannerAudits.includes('render') ? <div className="grid grid-cols-1 gap-3 md:grid-cols-2"><Input value={plannerBaseUrl} onChange={event => setPlannerBaseUrl(event.target.value)} placeholder="Base URL do frontend auditável" className="bg-white" /><Input value={plannerServiceUrl} onChange={event => setPlannerServiceUrl(event.target.value)} placeholder="Service URL do render service" className="bg-white" /><Input value={plannerVariants} onChange={event => setPlannerVariants(event.target.value)} placeholder="Variantes (ex: bank,simulado,review)" className="bg-white" /><Input value={plannerViewports} onChange={event => setPlannerViewports(event.target.value)} placeholder="Viewports (ex: desktop,mobile)" className="bg-white" /></div> : null}<div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3"><div><p className="text-sm font-semibold text-slate-900">Verificar URLs reais no media audit</p><p className="text-xs text-slate-500">Ative quando a execução incluir Asset Audit.</p></div><Switch checked={plannerVerifyUrls} onCheckedChange={setPlannerVerifyUrls} /></div><div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-slate-50"><div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-slate-400"><Activity className="h-3.5 w-3.5" />Command Preview</div><pre className="overflow-x-auto whitespace-pre-wrap text-xs leading-6">{plannerCommand}</pre></div><div className="flex gap-2"><Button onClick={() => void startRun()} disabled={runSubmitting} className="flex-1 bg-slate-900 text-white hover:bg-slate-800">{runSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}Iniciar auditoria</Button><Button variant="outline" className="bg-white" onClick={() => setRunModalOpen(false)}>Fechar</Button></div></div></DialogContent>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle className="flex items-center gap-2"><TerminalSquare className="h-5 w-5 text-slate-700" />Iniciar Auditoria</DialogTitle><DialogDescription>Configure a execução operacional no mesmo formato do orquestrador do terminal.</DialogDescription></DialogHeader><div className="space-y-4 pt-2"><div><p className="mb-2 text-sm font-semibold text-slate-900">Trilhas</p><div className="flex flex-wrap gap-2">{(Object.keys(AUDIT_META) as AuditType[]).map(auditType => <button key={auditType} type="button" onClick={() => setPlannerAudits(current => current.includes(auditType) ? current.filter(item => item !== auditType) : current.concat(auditType))} className={(plannerAudits.includes(auditType) ? 'border-slate-900 bg-slate-900 text-white ' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 ') + 'rounded-xl border px-3 py-2 text-sm font-medium transition-colors'}>{AUDIT_META[auditType].label}</button>)}</div></div><div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4"><div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-900">Escopo das trilhas selecionadas</p><p className="mt-1 text-xs text-slate-500">Mostra exatamente o que cada auditoria vai verificar antes da execução.</p></div><Badge variant="outline" className="bg-white">{plannerAudits.length} trilha(s)</Badge></div><div className="space-y-3">{plannerAudits.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">Selecione ao menos uma trilha para ver o escopo auditado.</div> : plannerAudits.map(auditType => <div key={auditType} className="rounded-xl border border-slate-200 bg-white p-4"><div className="flex flex-wrap items-center gap-2"><Badge className={AUDIT_META[auditType].tone}>{AUDIT_META[auditType].label}</Badge><p className="text-sm font-medium text-slate-900">{AUDIT_META[auditType].description}</p></div><div className="mt-3 flex flex-wrap gap-2">{AUDIT_META[auditType].checks.map(check => <Badge key={auditType + check} variant="outline" className="bg-white">{check}</Badge>)}</div><p className="mt-3 text-xs text-slate-500">Fora de escopo: {AUDIT_META[auditType].outOfScope}</p></div>)}</div></div><div className="grid grid-cols-1 gap-3 md:grid-cols-2"><Input value={plannerAuditVersion} onChange={event => setPlannerAuditVersion(event.target.value)} placeholder="Versão lógica" className="bg-white" /><Input value={plannerLimit} onChange={event => setPlannerLimit(event.target.value)} placeholder="Limite opcional" className="bg-white" /><Input value={plannerQuestionId} onChange={event => setPlannerQuestionId(event.target.value)} placeholder="Question ID opcional" className="bg-white" /><Input value={plannerTimeout} onChange={event => setPlannerTimeout(event.target.value)} placeholder="Timeout em segundos" className="bg-white" /></div>{plannerAudits.includes('render') ? <div className="grid grid-cols-1 gap-3 md:grid-cols-2"><Input value={plannerBaseUrl} onChange={event => setPlannerBaseUrl(event.target.value)} placeholder="Base URL do frontend auditável" className="bg-white" /><Input value={plannerServiceUrl} onChange={event => setPlannerServiceUrl(event.target.value)} placeholder="Service URL do render service" className="bg-white" /><Input value={plannerVariants} onChange={event => setPlannerVariants(event.target.value)} placeholder="Variantes (ex: bank,simulado,review)" className="bg-white" /><Input value={plannerViewports} onChange={event => setPlannerViewports(event.target.value)} placeholder="Viewports (ex: desktop,mobile)" className="bg-white" /></div> : null}<div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3"><div><p className="text-sm font-semibold text-slate-900">Incluir itens já revisados nesta trilha</p><p className="text-xs text-slate-500">Desative para auditar apenas achados ainda não tratados no fluxo operacional.</p></div><Switch checked={plannerIncludeReviewed} onCheckedChange={setPlannerIncludeReviewed} /></div><div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3"><div><p className="text-sm font-semibold text-slate-900">Verificar URLs reais no media audit</p><p className="text-xs text-slate-500">Ative quando a execução incluir Asset Audit.</p></div><Switch checked={plannerVerifyUrls} onCheckedChange={setPlannerVerifyUrls} /></div><div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-slate-50"><div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-slate-400"><Activity className="h-3.5 w-3.5" />Command Preview</div><pre className="overflow-x-auto whitespace-pre-wrap text-xs leading-6">{plannerCommand}</pre></div><div className="flex gap-2"><Button onClick={() => void startRun()} disabled={runSubmitting} className="flex-1 bg-slate-900 text-white hover:bg-slate-800">{runSubmitting ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}Iniciar auditoria</Button><Button variant="outline" className="bg-white" onClick={() => setRunModalOpen(false)}>Fechar</Button></div></div></DialogContent>
       </Dialog>
 
       <div ref={drilldownRef}>
@@ -1560,8 +1715,8 @@ export default function AdminAuditCenterPage() {
                       </div>
                       <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
                         <p className="mb-2 text-xs font-bold uppercase text-emerald-700">Trecho que será inserido</p>
-                        <div className="prose prose-sm max-w-none whitespace-pre-wrap text-emerald-950">
-                          {detail.suggested_fix.missing_body_text}
+                        <div className="prose prose-sm max-w-none text-emerald-950">
+                          <ReactMarkdown>{normalizeSuggestedFixSnippet(detail.suggested_fix.missing_body_text)}</ReactMarkdown>
                         </div>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -1604,15 +1759,15 @@ export default function AdminAuditCenterPage() {
                       </div>
                       <div>
                         <label className="text-xs font-bold uppercase text-slate-500">Contexto</label>
-                        <textarea value={editForm.context} onChange={event => setEditForm({ ...editForm, context: event.target.value })} className="mt-1 min-h-[120px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                        <textarea value={editForm.context} onChange={event => setEditForm({ ...editForm, context: event.target.value })} onKeyDown={event => insertParagraphBreakAtCursor(event, nextValue => setEditForm({ ...editForm, context: nextValue }))} className="mt-1 min-h-[120px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
                       </div>
                       <div>
                         <label className="text-xs font-bold uppercase text-slate-500">Título</label>
-                        <textarea value={editForm.title} onChange={event => setEditForm({ ...editForm, title: event.target.value })} className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                        <textarea value={editForm.title} onChange={event => setEditForm({ ...editForm, title: event.target.value })} onKeyDown={event => insertParagraphBreakAtCursor(event, nextValue => setEditForm({ ...editForm, title: nextValue }))} className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
                       </div>
                       <div>
                         <label className="text-xs font-bold uppercase text-slate-500">Comando / Introdução</label>
-                        <textarea value={editForm.alternatives_intro} onChange={event => setEditForm({ ...editForm, alternatives_intro: event.target.value })} className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                        <textarea value={editForm.alternatives_intro} onChange={event => setEditForm({ ...editForm, alternatives_intro: event.target.value })} onKeyDown={event => insertParagraphBreakAtCursor(event, nextValue => setEditForm({ ...editForm, alternatives_intro: nextValue }))} className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-white p-4">
                         <p className="mb-3 text-xs font-bold uppercase text-slate-500">Imagens da questão</p>
@@ -1644,7 +1799,10 @@ export default function AdminAuditCenterPage() {
                                 <textarea value={alternative.text} onChange={event => setEditForm({
                                   ...editForm,
                                   alternatives: editForm.alternatives.map((item, currentIndex) => currentIndex === index ? { ...item, text: event.target.value } : item),
-                                })} className="min-h-[72px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                                })} onKeyDown={event => insertParagraphBreakAtCursor(event, nextValue => setEditForm({
+                                  ...editForm,
+                                  alternatives: editForm.alternatives.map((item, currentIndex) => currentIndex === index ? { ...item, text: nextValue } : item),
+                                }))} className="min-h-[72px] flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
                               </div>
                             </div>
                           );
@@ -1652,7 +1810,7 @@ export default function AdminAuditCenterPage() {
                       </div>
                       <div>
                         <label className="text-xs font-bold uppercase text-slate-500">Comentário / Raciocínio</label>
-                        <textarea value={editForm.ai_reasoning.thought} onChange={event => setEditForm({ ...editForm, ai_reasoning: { thought: event.target.value } })} className="mt-1 min-h-[100px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
+                        <textarea value={editForm.ai_reasoning.thought} onChange={event => setEditForm({ ...editForm, ai_reasoning: { thought: event.target.value } })} onKeyDown={event => insertParagraphBreakAtCursor(event, nextValue => setEditForm({ ...editForm, ai_reasoning: { thought: nextValue } }))} className="mt-1 min-h-[100px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400" />
                       </div>
                     </div>
                   ) : questionPreviewOpen ? <QuestionPreview question={suggestedQuestionPreview || detail?.question} /> : null}

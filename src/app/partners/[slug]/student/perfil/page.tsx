@@ -575,13 +575,13 @@ export default function PerfilPage() {
         body: JSON.stringify({ reason: deleteAccountReason }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data?.error ?? 'Falha ao excluir conta.')
-      toast.success('Conta excluída.')
+      if (!res.ok) throw new Error(data?.error ?? 'Falha ao desativar conta.')
+      toast.success('Conta desativada. Seu acesso foi encerrado.')
       setDeleteAccountModalOpen(false)
       await supabase.auth.signOut()
       window.location.href = '/'
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha na exclusão.')
+      toast.error(e instanceof Error ? e.message : 'Falha ao desativar conta.')
     } finally {
       setDeletingAccount(false)
     }
