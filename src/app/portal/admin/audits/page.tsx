@@ -1582,7 +1582,7 @@ export default function AdminAuditCenterPage() {
             ) : null}
 
             <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-              <Badge variant="outline" className="bg-white">{resultsTotal} linha(s) no filtro</Badge>
+              <Badge variant="outline" className="bg-white">{resultsTotal} {resultsTotal === 1 ? 'linha' : 'linhas'} no filtro</Badge>
               <Badge variant="outline" className="bg-white">página {resultsPage} de {totalPages}</Badge>
               {deferredIssue.trim() ? <Badge variant="outline" className="bg-white">issue: {deferredIssue.trim()}</Badge> : null}
             </div>

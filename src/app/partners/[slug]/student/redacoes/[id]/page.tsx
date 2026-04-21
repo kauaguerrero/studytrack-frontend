@@ -331,7 +331,7 @@ export default function RedacaoDetailPage() {
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-slate-800 dark:bg-slate-900">
             <div>
               <h1 className="text-xl font-bold md:text-2xl">
-                Redação - {formatDateBR(essay.submitted_at)}
+                Redação — {formatDateBR(essay.submitted_at)}
               </h1>
               <p className="mt-1 inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                 <CalendarDays className="h-4 w-4" />

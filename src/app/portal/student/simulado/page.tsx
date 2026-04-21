@@ -505,7 +505,7 @@ export default function SimuladoPage() {
                         <DialogTitle>Finalizar simulado?</DialogTitle>
                         <DialogDescription>
                             {questions.length - Object.keys(userAnswers).length > 0
-                                ? `Você tem ${questions.length - Object.keys(userAnswers).length} questão(ões) sem resposta. Ao finalizar, não será possível voltar.`
+                                ? `Você tem ${questions.length - Object.keys(userAnswers).length} ${questions.length - Object.keys(userAnswers).length === 1 ? 'questão' : 'questões'} sem resposta. Ao finalizar, não será possível voltar.`
                                 : 'Todas as questões foram respondidas. Deseja entregar?'}
                         </DialogDescription>
                     </DialogHeader>
@@ -1093,7 +1093,7 @@ export default function SimuladoPage() {
                                                     </span>
                                                 ) : !alt.image ? (
                                                     <span className="text-sm italic text-slate-400 dark:text-slate-500">
-                                                        Conteudo da alternativa indisponivel.
+                                                        Conteúdo da alternativa indisponível.
                                                     </span>
                                                 ) : null}
                                             </div>

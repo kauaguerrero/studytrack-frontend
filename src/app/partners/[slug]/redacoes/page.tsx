@@ -476,7 +476,7 @@ export default function PartnerRedacoesPage() {
             <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Redações</h1>
             {metrics.pending_count > 0 && (
               <span className="rounded-full bg-red-500 px-2.5 py-1 text-xs font-bold text-white">
-                {metrics.pending_count} pendente(s)
+                {metrics.pending_count} {metrics.pending_count === 1 ? 'pendente' : 'pendentes'}
               </span>
             )}
           </div>
@@ -549,7 +549,7 @@ export default function PartnerRedacoesPage() {
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KpiCard
-              label="Recebidas essa semana"
+              label="Recebidas esta semana"
               value={metricsLoading ? '...' : metrics.received_week}
               icon={FileText}
             />

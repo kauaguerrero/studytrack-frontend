@@ -312,7 +312,7 @@ export default function RevisaoPage() {
                                                                     </span>
                                                                 ) : !alt.image ? (
                                                                     <span className="text-sm italic text-slate-400 dark:text-slate-500">
-                                                                        Conteudo da alternativa indisponivel.
+                                                                        Conteúdo da alternativa indisponível.
                                                                     </span>
                                                                 ) : null}
                                                             </div>

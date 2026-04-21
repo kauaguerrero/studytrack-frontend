@@ -553,7 +553,7 @@ export default function AdminQuestionApproval() {
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-200">
                   <AlertCircle size={14} className="text-amber-600" />
                   <span className="font-semibold text-amber-800 text-sm">
-                    {auditSummary.flagged} achado(s) em {auditSummary.totalAudited} questão(ões) auditada(s)
+                    {auditSummary.flagged} {auditSummary.flagged === 1 ? 'achado' : 'achados'} em {auditSummary.totalAudited} {auditSummary.totalAudited === 1 ? 'questão auditada' : 'questões auditadas'}
                   </span>
                 </div>
               </>
