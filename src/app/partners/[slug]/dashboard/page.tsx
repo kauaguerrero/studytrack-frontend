@@ -673,7 +673,7 @@ export default function FounderDashboard() {
           <KpiCard
             title={`Questões • ${metricLabel}`}
             value={questionsValue ?? '—'}
-            subtitle="respondidas pela turma"
+            subtitle="Respondidas pela turma"
             icon={BookOpen}
             loading={loading}
             accentColor="var(--brand-accent)"
@@ -688,7 +688,7 @@ export default function FounderDashboard() {
           <KpiCard
             title={`Simulados • ${metricLabel}`}
             value={simuladosValue ?? '—'}
-            subtitle="realizados pela turma"
+            subtitle="Realizados pela turma"
             icon={FileText}
             loading={loading}
             accentColor="#8b5cf6"
@@ -749,7 +749,7 @@ export default function FounderDashboard() {
             ) : (
               <div className="flex items-end justify-between gap-3">
                 <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">{deliveredEssaysCount}</p>
-                <p className="text-xs text-slate-500 dark:text-white/45">redações no período selecionado</p>
+                <p className="text-xs text-slate-500 dark:text-white/45">Redações no período selecionado</p>
               </div>
             )}
           </CardContent>
@@ -1077,7 +1077,7 @@ export default function FounderDashboard() {
                 <TrendingUp className="h-4 w-4" style={{ color: 'var(--brand-accent)' }} />
                 Ranking de Atividade
               </CardTitle>
-              <p className="text-xs text-slate-500 dark:text-white/45">Alunos mais ativos em {metricLabel.toLowerCase()}</p>
+              <p className="text-xs text-slate-500 dark:text-white/45">Alunos mais ativos em {metricLabel}</p>
             </div>
             <div className="flex items-center gap-3">
               <span
