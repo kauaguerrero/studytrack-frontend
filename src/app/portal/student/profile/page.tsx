@@ -1007,7 +1007,7 @@ export default function ProfilePage() {
                         <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} className="rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus-visible:ring-blue-500 transition-all" />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="username" className="text-slate-700 dark:text-slate-200 font-bold">Nome de Utilizador</Label>
+                        <Label htmlFor="username" className="text-slate-700 dark:text-slate-200 font-bold">Nome de usuário</Label>
                         <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="@seunome" className="rounded-xl bg-slate-50/50 dark:bg-slate-800/50 focus-visible:ring-blue-500" />
                       </div>
                       <div className="space-y-2">

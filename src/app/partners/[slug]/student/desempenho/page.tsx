@@ -1095,7 +1095,7 @@ export default function DesempenhoPage() {
                     Performance por matéria
                   </p>
                   <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
-                    Precisão e volume 
+                    Precisão e volume
                   </h2>
                 </div>
                 <div className="rounded-2xl bg-slate-950 p-2 text-white dark:bg-white/10">

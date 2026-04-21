@@ -562,7 +562,7 @@ export default function SimuladoPage() {
             <DialogTitle className="dark:text-slate-100">Finalizar simulado?</DialogTitle>
             <DialogDescription className="dark:text-slate-400">
               {questions.length - Object.keys(userAnswers).length > 0
-                ? `Você tem ${questions.length - Object.keys(userAnswers).length} questão(ões) sem resposta. Ao finalizar, não será possível voltar.`
+                ? `Você tem ${questions.length - Object.keys(userAnswers).length} ${questions.length - Object.keys(userAnswers).length === 1 ? 'questão' : 'questões'} sem resposta. Ao finalizar, não será possível voltar.`
                 : 'Todas as questões foram respondidas. Deseja entregar?'}
             </DialogDescription>
           </DialogHeader>
@@ -1050,7 +1050,7 @@ export default function SimuladoPage() {
                           </span>
                         ) : !alt.image ? (
                           <span className="text-sm italic text-slate-400 dark:text-slate-500">
-                            Conteudo da alternativa indisponivel.
+                            Conteúdo da alternativa indisponível.
                           </span>
                         ) : null}
                       </div>
@@ -1178,7 +1178,7 @@ export default function SimuladoPage() {
                 {annulledCount > 0 && (
                   <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
                     <Flag className="h-4 w-4" />
-                    {annulledCount} questão(ões) anulada(s) por report e desconsiderada(s) no resultado.
+                    {annulledCount === 1 ? `${annulledCount} questão anulada por report e desconsiderada no resultado.` : `${annulledCount} questões anuladas por report e desconsideradas no resultado.`}
                   </div>
                 )}
 
