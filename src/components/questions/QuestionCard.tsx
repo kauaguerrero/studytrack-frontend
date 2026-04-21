@@ -110,25 +110,20 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
   const [isSubmitting, setIsSubmitting] = useState(false);
   const contextMarkdownImages = useMemo(() => extractMarkdownImageUrls(question.context || ''), [question.context]);
   const statementMarkdownImages = useMemo(() => extractMarkdownImageUrls(question.statement || ''), [question.statement]);
-  const hasInlineMarkdownImages = contextMarkdownImages.length > 0 || statementMarkdownImages.length > 0;
 
   const supportImages = useMemo(() => {
     const fromImagesField = extractImageUrls(question.images);
-    if (hasInlineMarkdownImages) {
-      const inlineImages = new Set([...contextMarkdownImages, ...statementMarkdownImages]);
-      return Array.from(new Set(fromImagesField.filter((url) => !inlineImages.has(url))));
-    }
-    const combined = fromImagesField.length > 0 ? fromImagesField : [...contextMarkdownImages, ...statementMarkdownImages];
+    const combined = [...fromImagesField, ...contextMarkdownImages, ...statementMarkdownImages];
     return Array.from(new Set(combined));
-  }, [question.images, contextMarkdownImages, statementMarkdownImages, hasInlineMarkdownImages]);
+  }, [question.images, contextMarkdownImages, statementMarkdownImages]);
 
   const contextText = useMemo(
-    () => (hasInlineMarkdownImages ? (question.context || '') : stripMarkdownImages(question.context || '')),
-    [question.context, hasInlineMarkdownImages],
+    () => stripMarkdownImages(question.context || ''),
+    [question.context],
   );
   const statementText = useMemo(
-    () => (hasInlineMarkdownImages ? (question.statement || '') : stripMarkdownImages(question.statement || '')),
-    [question.statement, hasInlineMarkdownImages],
+    () => stripMarkdownImages(question.statement || ''),
+    [question.statement],
   );
 
   const handleSelect = (letter: string) => {
@@ -229,7 +224,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
         </div>
       )}
 
-      {!hasInlineMarkdownImages && supportImages.map((img, i) => (
+      {supportImages.map((img, i) => (
           <div key={i} className="mb-6 flex justify-center bg-muted p-4 rounded-xl border border-border">
               <img src={img} alt="Material de apoio" className="max-h-80 object-contain rounded-lg" />
           </div>
@@ -238,12 +233,6 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
       <div className="font-medium text-card-foreground text-lg mb-8 leading-relaxed">
         <ReactMarkdown>{statementText}</ReactMarkdown>
       </div>
-
-      {hasInlineMarkdownImages && supportImages.map((img, i) => (
-          <div key={i} className="mb-6 flex justify-center bg-muted p-4 rounded-xl border border-border">
-              <img src={img} alt="Material de apoio" className="max-h-80 object-contain rounded-lg" />
-          </div>
-      ))}
 
       <div className="space-y-3">
         {question.alternatives.map((alt) => {
