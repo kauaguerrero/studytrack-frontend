@@ -608,22 +608,26 @@ export default function ConfiguracoesPage() {
         </Button>
 
         <section
-          className="relative overflow-hidden rounded-3xl border p-6 shadow-sm"
+          className="relative overflow-hidden rounded-3xl border border-slate-200 p-6 shadow-sm dark:border-slate-700"
           style={{
-            borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, #e5e7eb)',
             background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 13%, white) 0%, color-mix(in srgb, var(--brand-secondary) 9%, white) 100%)',
           }}
         >
+          <div
+            className="pointer-events-none absolute inset-0 hidden dark:block"
+            style={{
+              background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 24%, #0f172a) 0%, color-mix(in srgb, var(--brand-secondary) 18%, #0f172a) 100%)',
+            }}
+          />
           <div
             className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full blur-3xl opacity-60"
             style={{ background: 'color-mix(in srgb, var(--brand-secondary) 48%, transparent)' }}
           />
           <div className="relative z-10">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-white/70 dark:bg-slate-900/60"
               style={{
                 color: 'var(--brand-primary)',
                 borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
-                background: 'rgba(255,255,255,0.52)',
               }}
             >
               <Palette className="h-3.5 w-3.5" />

@@ -30,6 +30,12 @@ type StudentRow = {
   avatar_url: string | null;
 };
 
+function parsePageParam(value: string | null, fallback: number, max = 100): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(1, Math.floor(parsed)), max);
+}
+
 function toBrtDateKey(date: Date): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
@@ -52,10 +58,15 @@ function startOfWeekBrtKey(): string {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await context.params;
+  const url = new URL(request.url);
+  const pendingPage = parsePageParam(url.searchParams.get('pending_page'), 1, 1000);
+  const pendingLimit = parsePageParam(url.searchParams.get('pending_limit'), 10, 50);
+  const correctedPage = parsePageParam(url.searchParams.get('corrected_page'), 1, 1000);
+  const correctedLimit = parsePageParam(url.searchParams.get('corrected_limit'), 10, 50);
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
@@ -82,25 +93,58 @@ export async function GET(
     return NextResponse.json({ error: 'Acesso negado à organização.' }, { status: 403 });
   }
 
-  const { data: essays, error: essaysError } = await admin
-    .from('essays')
-    .select('*')
-    .eq('org_id', org.id)
-    .order('submitted_at', { ascending: false })
-    .limit(500);
+  const essayFields = 'id, student_id, status, submitted_at, corrected_at, total_score, text, theme';
+  const pendingFrom = (pendingPage - 1) * pendingLimit;
+  const pendingTo = pendingFrom + pendingLimit - 1;
+  const correctedFrom = (correctedPage - 1) * correctedLimit;
+  const correctedTo = correctedFrom + correctedLimit - 1;
 
-  if (essaysError) {
+  const [essaysMetricsRes, pendingRes, correctedRes] = await Promise.all([
+    admin
+      .from('essays')
+      .select('*')
+      .eq('org_id', org.id)
+      .order('submitted_at', { ascending: false })
+      .limit(500),
+    admin
+      .from('essays')
+      .select(essayFields, { count: 'exact' })
+      .eq('org_id', org.id)
+      .eq('status', 'pending')
+      .order('submitted_at', { ascending: true })
+      .range(pendingFrom, pendingTo),
+    admin
+      .from('essays')
+      .select(essayFields, { count: 'exact' })
+      .eq('org_id', org.id)
+      .in('status', ['corrected', 'seen'])
+      .order('submitted_at', { ascending: false })
+      .range(correctedFrom, correctedTo),
+  ]);
+
+  if (essaysMetricsRes.error) {
     return NextResponse.json(
       {
         error: 'Não foi possível carregar redações.',
-        details: process.env.NODE_ENV === 'development' ? essaysError.message : undefined,
+        details: process.env.NODE_ENV === 'development' ? essaysMetricsRes.error?.message : undefined,
       },
       { status: 500 },
     );
   }
 
-  const list = (essays || []) as EssayRow[];
-  const studentIds = Array.from(new Set(list.map((e) => e.student_id).filter(Boolean)));
+  const metricsList = (essaysMetricsRes.data || []) as EssayRow[];
+  const pendingItemsRaw = ((pendingRes.error ? [] : pendingRes.data) || []) as EssayRow[];
+  const correctedItemsRaw = ((correctedRes.error ? [] : correctedRes.data) || []) as EssayRow[];
+  const pendingTotal = pendingRes.error ? 0 : (pendingRes.count || 0);
+  const correctedTotal = correctedRes.error ? 0 : (correctedRes.count || 0);
+  const pendingTotalPages = Math.max(1, Math.ceil(pendingTotal / pendingLimit));
+  const correctedTotalPages = Math.max(1, Math.ceil(correctedTotal / correctedLimit));
+
+  const studentIds = Array.from(new Set(
+    [...metricsList, ...pendingItemsRaw, ...correctedItemsRaw]
+      .map((e) => e.student_id)
+      .filter(Boolean),
+  ));
 
   let studentsMap = new Map<string, StudentRow>();
   if (studentIds.length > 0) {
@@ -110,17 +154,11 @@ export async function GET(
     studentsMap = new Map(((students || []) as StudentRow[]).map((s) => [s.id, s]));
   }
 
-  const pendingItems = list
-    .filter((e) => e.status === 'pending')
-    .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
-
-  const allItems = list;
-
   const weekStart = startOfWeekBrtKey();
-  const receivedWeek = list.filter((e) => toBrtDateKey(new Date(e.submitted_at)) >= weekStart).length;
-  const pendingCount = list.filter((e) => e.status === 'pending').length;
+  const receivedWeek = metricsList.filter((e) => toBrtDateKey(new Date(e.submitted_at)) >= weekStart).length;
+  const pendingCount = metricsList.filter((e) => e.status === 'pending').length;
 
-  const scored = list.filter((e) => (e.status === 'corrected' || e.status === 'seen') && typeof e.total_score === 'number');
+  const scored = metricsList.filter((e) => (e.status === 'corrected' || e.status === 'seen') && typeof e.total_score === 'number');
   const scores = scored.map((e) => Number(e.total_score || 0));
   const avgScore = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
   const highestScore = scores.length ? Math.max(...scores) : null;
@@ -182,7 +220,21 @@ export async function GET(
       lowest_score: lowestScore,
       ranking,
     },
-    pending_items: pendingItems.map(hydrateEssay),
-    all_items: allItems.map(hydrateEssay),
+    pending_items: pendingItemsRaw.map(hydrateEssay),
+    corrected_items: correctedItemsRaw.map(hydrateEssay),
+    pagination: {
+      pending: {
+        page: pendingPage,
+        limit: pendingLimit,
+        total: pendingTotal,
+        total_pages: pendingTotalPages,
+      },
+      corrected: {
+        page: correctedPage,
+        limit: correctedLimit,
+        total: correctedTotal,
+        total_pages: correctedTotalPages,
+      },
+    },
   });
 }
