@@ -308,7 +308,7 @@ export default function StudyTrackPage() {
     ov?.total_questions && ov.total_questions > 0
       ? { key: 'questions', icon: BookOpen, value: ov.total_questions, label: 'Questões Respondidas', delay: 0.06, accentColor: '#6366f1', bgTint: 'bg-indigo-50 dark:bg-indigo-900/20' }
       : null,
-    ov?.monthly_points !== undefined
+    ov?.monthly_points && ov.monthly_points > 0
       ? { key: 'points', icon: Zap, value: ov.monthly_points, label: 'Pontos do Mês', delay: 0.12, accentColor: '#8b5cf6', bgTint: 'bg-violet-50 dark:bg-violet-900/20' }
       : null,
     ov?.total_simulados && ov.total_simulados > 0

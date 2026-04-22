@@ -10,6 +10,7 @@ import { ForcePasswordChangeModal } from './ForcePasswordChangeModal'
 import { ShieldEarnedPopup } from './gamification/ShieldEarnedPopup'
 import { QuestionSessionRewardPopup } from './gamification/QuestionSessionRewardPopup'
 import { PopupQueueProvider, usePopupQueue } from './gamification/PopupQueueContext'
+import { fetchPartnerGamificationCheckInStatusCached } from '@/hooks/usePartnerGamification'
 
 /**
  * Aplica a classe `dark` em um contêiner isolado para as rotas de aluno.
@@ -50,16 +51,8 @@ function StudentThemeShellContent({
         const token = session?.access_token
         if (!token || cancelled) return
 
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000'
-        const res = await fetch(`${apiBase}/api/partner/gamification/check-in/status`, {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        })
-        if (!res.ok || cancelled) return
-
-        const data = await res.json() as { required?: boolean }
+        const data = await fetchPartnerGamificationCheckInStatusCached(token) as { required?: boolean }
+        if (cancelled) return
         if (data.required && !cancelled) {
           window.location.assign(`/partners/${slug}/student/dashboard?forceCheckIn=1`)
         }

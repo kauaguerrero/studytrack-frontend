@@ -1004,17 +1004,6 @@ export default function SimuladoPage() {
               </div>
 
               {/* Context */}
-              {extractQuestionImageUrls(
-                questions[currentIdx].images,
-                questions[currentIdx].context,
-                questions[currentIdx].statement,
-              ).map((img, i) => (
-                <div key={`${questions[currentIdx].id}-img-${i}`} className="mb-5 flex justify-center bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <img src={img} alt="Imagem de apoio da questão" className="max-h-80 object-contain rounded-lg" />
-                </div>
-              ))}
-
-              {/* Context */}
               {questions[currentIdx].context && (
                 <div className="prose prose-slate dark:prose-invert max-w-none mb-5 text-slate-600 dark:text-slate-300 border-l-4 pl-4 text-sm leading-relaxed" style={{ borderColor: 'var(--brand-primary)' }}>
                   <ReactMarkdown>{formatScientificText(stripMarkdownImages(questions[currentIdx].context))}</ReactMarkdown>
@@ -1025,6 +1014,17 @@ export default function SimuladoPage() {
               <div className="prose prose-slate dark:prose-invert max-w-none text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed">
                 <ReactMarkdown>{formatScientificText(stripMarkdownImages(questions[currentIdx].statement))}</ReactMarkdown>
               </div>
+
+              {/* Imagens de apoio */}
+              {extractQuestionImageUrls(
+                questions[currentIdx].images,
+                questions[currentIdx].context,
+                questions[currentIdx].statement,
+              ).map((img, i) => (
+                <div key={`${questions[currentIdx].id}-img-${i}`} className="mb-5 flex justify-center bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <img src={img} alt="Imagem de apoio da questão" className="max-h-80 object-contain rounded-lg" />
+                </div>
+              ))}
 
               {/* Alternatives */}
               <div className="space-y-3">
