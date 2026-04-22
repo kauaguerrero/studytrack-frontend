@@ -632,9 +632,6 @@ export default function PerfilPage() {
 
   const navItems = [
     { id: 'personal' as const,     label: 'Identidade',          icon: User          },
-    ...(isEdificar ? [
-      { id: 'plan' as const,        label: 'Meu Plano',           icon: WalletCards   },
-    ] : []),
     ...(!isEdificar ? [
       { id: 'journey' as const,    label: 'Jornada Acadêmica',   icon: GraduationCap },
       { id: 'routine' as const,    label: 'Rotina de Estudos',   icon: Clock         },
@@ -644,7 +641,7 @@ export default function PerfilPage() {
   ]
 
   useEffect(() => {
-    if (isEdificar && (activeTab === 'journey' || activeTab === 'routine')) {
+    if (isEdificar && (activeTab === 'plan' || activeTab === 'journey' || activeTab === 'routine')) {
       setActiveTab('personal')
     }
   }, [activeTab, isEdificar])
