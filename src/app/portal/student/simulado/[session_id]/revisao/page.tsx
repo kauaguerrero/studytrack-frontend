@@ -16,6 +16,7 @@ interface QuestionContent {
     topic?: string
     context: string
     statement: string
+    images?: unknown
     alternatives: { letter: string; text: string; image?: string | null }[]
     correct_option: string
 }
@@ -52,6 +53,66 @@ function scoreColor(pct: number) {
     if (pct >= 70) return 'text-green-600 dark:text-green-400'
     if (pct >= 45) return 'text-yellow-600 dark:text-yellow-400'
     return 'text-red-600 dark:text-red-400'
+}
+
+const QUESTION_MD_IMAGE_REGEX = /!\[[^\]]*]\((.*?)\)/g
+
+function normalizeImageUrl(value: string): string | null {
+    const cleaned = String(value || '').trim().replace(/^<|>$/g, '').replace(/^['"]|['"]$/g, '')
+    if (!cleaned) return null
+    if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned
+    if (cleaned.startsWith('/storage/v1/object/public/')) return cleaned
+    return null
+}
+
+function extractMarkdownImageUrls(text?: string): string[] {
+    if (!text) return []
+    return Array.from(text.matchAll(QUESTION_MD_IMAGE_REGEX))
+        .map((m) => normalizeImageUrl(m[1] || ''))
+        .filter((url): url is string => Boolean(url))
+}
+
+function stripMarkdownImages(text?: string): string {
+    if (!text) return ''
+    return text.replace(QUESTION_MD_IMAGE_REGEX, '').trim()
+}
+
+function extractQuestionImageUrls(images: unknown, context?: string, statement?: string): string[] {
+    const fromImages = (() => {
+        if (!images) return []
+        if (Array.isArray(images)) {
+            return images
+                .map((img) => normalizeImageUrl(String(img)))
+                .filter((url): url is string => Boolean(url))
+        }
+        if (typeof images !== 'string') return []
+
+        const raw = images.trim()
+        if (!raw) return []
+        if (raw.startsWith('[') && raw.endsWith(']')) {
+            try {
+                const parsed = JSON.parse(raw)
+                if (Array.isArray(parsed)) {
+                    return parsed
+                        .map((img) => normalizeImageUrl(String(img)))
+                        .filter((url): url is string => Boolean(url))
+                }
+            } catch {
+                // fallback para markdown/url direta
+            }
+        }
+
+        const markdownUrls = extractMarkdownImageUrls(raw)
+        if (markdownUrls.length > 0) return markdownUrls
+
+        const direct = normalizeImageUrl(raw)
+        return direct ? [direct] : []
+    })()
+
+    if (fromImages.length > 0) return Array.from(new Set(fromImages))
+
+    const fromText = [...extractMarkdownImageUrls(context), ...extractMarkdownImageUrls(statement)]
+    return Array.from(new Set(fromText))
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -256,6 +317,12 @@ export default function RevisaoPage() {
                             {/* Question cards */}
                             <div className="space-y-4">
                                 {visibleQuestions.map((q, idx) => (
+                                    (() => {
+                                        const contextText = stripMarkdownImages(q.context)
+                                        const statementText = stripMarkdownImages(q.statement)
+                                        const supportImages = extractQuestionImageUrls(q.images, q.context, q.statement)
+
+                                        return (
                                     <div
                                         key={q.id}
                                         className={`bg-white dark:bg-slate-900 rounded-2xl border shadow-sm overflow-hidden ${q.is_correct ? 'border-green-200 dark:border-green-900/50' : 'border-red-200 dark:border-red-900/50'}`}
@@ -273,16 +340,32 @@ export default function RevisaoPage() {
 
                                         <div className="p-5">
                                             {/* Context */}
-                                            {q.context && (
+                                            {contextText && (
                                                 <div className="prose prose-sm prose-slate dark:prose-invert max-w-none mb-4 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-3">
-                                                    <ReactMarkdown>{formatScientificText(q.context)}</ReactMarkdown>
+                                                    <ReactMarkdown>{formatScientificText(contextText)}</ReactMarkdown>
                                                 </div>
                                             )}
 
+                                            {/* Support images */}
+                                            {supportImages.map((img, imageIndex) => (
+                                                <div
+                                                    key={`${q.id}-support-image-${imageIndex}`}
+                                                    className="mb-4 flex justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4"
+                                                >
+                                                    <img
+                                                        src={img}
+                                                        alt="Material de apoio"
+                                                        className="max-h-80 rounded-lg object-contain"
+                                                    />
+                                                </div>
+                                            ))}
+
                                             {/* Statement */}
-                                            <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-800 dark:text-slate-200 font-medium mb-4 leading-relaxed">
-                                                <ReactMarkdown>{formatScientificText(q.statement)}</ReactMarkdown>
-                                            </div>
+                                            {statementText && (
+                                                <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-800 dark:text-slate-200 font-medium mb-4 leading-relaxed">
+                                                    <ReactMarkdown>{formatScientificText(statementText)}</ReactMarkdown>
+                                                </div>
+                                            )}
 
                                             {/* Alternatives */}
                                             <div className="space-y-2 mb-4">
@@ -345,6 +428,8 @@ export default function RevisaoPage() {
                                             )}
                                         </div>
                                     </div>
+                                        )
+                                    })()
                                 ))}
                             </div>
 

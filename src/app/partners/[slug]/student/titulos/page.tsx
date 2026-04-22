@@ -19,10 +19,11 @@ import { getIdentityTitleIcon, getProgressTierMeta } from '@/components/partners
 function formatMonthLabel(monthRef: string): string {
   const date = new Date(`${monthRef}T12:00:00`);
   if (Number.isNaN(date.getTime())) return monthRef;
-  return new Intl.DateTimeFormat('pt-BR', {
+  const label = new Intl.DateTimeFormat('pt-BR', {
     month: 'long',
     year: 'numeric',
   }).format(date);
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function seededRand(seed: number): number {

@@ -1010,11 +1010,6 @@ export default function SimuladoPage() {
                 </div>
               )}
 
-              {/* Statement */}
-              <div className="prose prose-slate dark:prose-invert max-w-none text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed">
-                <ReactMarkdown>{formatScientificText(stripMarkdownImages(questions[currentIdx].statement))}</ReactMarkdown>
-              </div>
-
               {/* Imagens de apoio */}
               {extractQuestionImageUrls(
                 questions[currentIdx].images,
@@ -1025,6 +1020,11 @@ export default function SimuladoPage() {
                   <img src={img} alt="Imagem de apoio da questão" className="max-h-80 object-contain rounded-lg" />
                 </div>
               ))}
+
+              {/* Statement */}
+              <div className="prose prose-slate dark:prose-invert max-w-none text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed">
+                <ReactMarkdown>{formatScientificText(stripMarkdownImages(questions[currentIdx].statement))}</ReactMarkdown>
+              </div>
 
               {/* Alternatives */}
               <div className="space-y-3">
