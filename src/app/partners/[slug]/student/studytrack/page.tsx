@@ -7,7 +7,7 @@ import {
   Flame, BookOpen, Zap, Trophy, ShieldCheck,
   TrendingUp, AlertCircle, Brain, ArrowRight,
   MessageCircle, Gamepad2, Target, Layers,
-  Calculator, Calendar, Library, FileEdit,
+  Calendar, Library, FileEdit,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
@@ -19,7 +19,7 @@ interface AnalyticsData {
     total_questions: number
     accuracy_percentage: number
     current_streak: number
-    total_xp: number
+    monthly_points: number
     total_simulados: number
   }
   performance_by_subject: Array<{
@@ -33,20 +33,6 @@ interface AnalyticsData {
     questions_count: number
     simulations_count: number
   }>
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getLevelFromXP(xp: number) {
-  const thresholds = [0, 100, 300, 600, 1000, 1500, 2200]
-  let level = 1
-  for (let i = 1; i < thresholds.length; i++) {
-    if (xp >= thresholds[i]) level = i + 1; else break
-  }
-  const lo = thresholds[Math.min(level - 1, thresholds.length - 1)]
-  const hi = level < thresholds.length ? thresholds[level] : lo + 1000
-  const progress = hi > lo ? Math.min((xp - lo) / (hi - lo), 1) : 1
-  return { level, progress }
 }
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
@@ -210,9 +196,9 @@ const FEATURES = [
     desc: 'Sistema de repetição espaçada para fixar conteúdo',
   },
   {
-    icon: Calculator,
-    title: 'Tutor de Exatas',
-    desc: 'Resolução passo a passo de matemática e ciências',
+    icon: MessageCircle,
+    title: 'Suporte direto com a equipe',
+    desc: 'Canal aberto para tirar dúvidas e destravar o uso da plataforma',
   },
   {
     icon: Calendar,
@@ -314,8 +300,6 @@ export default function StudyTrackPage() {
   })()
   const hasActivity = activityLast30.some(v => v > 0)
 
-  const { level, progress: levelProgress } = getLevelFromXP(ov?.total_xp || 0)
-
   type StatDef = StatCardProps & { key: string }
   const statCards: StatDef[] = ([
     ov?.current_streak && ov.current_streak > 0
@@ -324,8 +308,8 @@ export default function StudyTrackPage() {
     ov?.total_questions && ov.total_questions > 0
       ? { key: 'questions', icon: BookOpen, value: ov.total_questions, label: 'Questões Respondidas', delay: 0.06, accentColor: '#6366f1', bgTint: 'bg-indigo-50 dark:bg-indigo-900/20' }
       : null,
-    ov?.total_xp && ov.total_xp > 0
-      ? { key: 'xp', icon: Zap, value: ov.total_xp, label: 'XP Acumulados', sublabel: `Nível ${level}`, delay: 0.12, accentColor: '#8b5cf6', bgTint: 'bg-violet-50 dark:bg-violet-900/20', progress: levelProgress }
+    ov?.monthly_points !== undefined
+      ? { key: 'points', icon: Zap, value: ov.monthly_points, label: 'Pontos do Mês', delay: 0.12, accentColor: '#8b5cf6', bgTint: 'bg-violet-50 dark:bg-violet-900/20' }
       : null,
     ov?.total_simulados && ov.total_simulados > 0
       ? { key: 'simulados', icon: Brain, value: ov.total_simulados, label: 'Simulados Feitos', delay: 0.18, accentColor: '#0ea5e9', bgTint: 'bg-sky-50 dark:bg-sky-900/20' }

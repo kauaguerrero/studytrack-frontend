@@ -622,7 +622,7 @@ export default function PerfilPage() {
       toast.success('Conta desativada. Seu acesso foi encerrado.')
       setDeleteAccountModalOpen(false)
       await supabase.auth.signOut()
-      window.location.href = '/'
+      window.location.href = `/partners/${slug}/register`
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Falha ao desativar conta.')
     } finally {
