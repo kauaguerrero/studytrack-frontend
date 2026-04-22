@@ -54,7 +54,7 @@ export function PortalLayoutWrapper({
   }
 
   const sidebarProps = {
-    role: resolvedRole,
+    role,
     fullName,
     avatarUrl,
   };
