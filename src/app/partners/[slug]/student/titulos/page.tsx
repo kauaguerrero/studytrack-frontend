@@ -62,7 +62,7 @@ export default function PartnerStudentTitlesPage() {
 
   useEffect(() => {
     if (isLoading) return;
-    void Promise.all([
+    void Promise.allSettled([
       refreshTitlesJourney(),
       refreshTitlesHistory(),
       refreshCheckInStatus(),

@@ -146,6 +146,33 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
     };
 
     try {
+        async function submitAnswerWithRetry() {
+          const supabase = createClient();
+          const { data: { session } } = await supabase.auth.getSession();
+          const token = session?.access_token;
+          if (!token) throw new Error('Unauthorized');
+
+          let lastError: unknown = null;
+          for (let attempt = 0; attempt < 2; attempt += 1) {
+            try {
+              return await fetch('/api/proxy/questions', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ question_id: question.id, option: selected }),
+              });
+            } catch (error) {
+              lastError = error;
+              if (attempt === 0) {
+                await new Promise((resolve) => setTimeout(resolve, 300));
+              }
+            }
+          }
+          throw lastError instanceof Error ? lastError : new Error('Load failed');
+        }
+
         if (!userId) {
           setShowAnswer(true);
           setIsSubmitting(false);
@@ -153,19 +180,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
           return;
         }
 
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        if (!token) throw new Error('Unauthorized');
-
-        const res = await fetch('/api/proxy/questions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ question_id: question.id, option: selected })
-        });
+        const res = await submitAnswerWithRetry();
 
         const data = await res.json();
 
