@@ -321,13 +321,22 @@ export default function PartnerStudentTitlesPage() {
                 {titlesJourney?.milestones.map((milestone, index) => {
                   const meta = getProgressTierMeta(milestone.tier);
                   const isLast = index === (titlesJourney.milestones.length - 1);
-                  const progressWidth = milestone.max_points == null
-                    ? 100
-                    : titlesJourney.monthly_points >= milestone.max_points
-                      ? 100
-                      : titlesJourney.monthly_points <= milestone.min_points
-                        ? milestone.is_current ? 18 : 0
-                        : Math.max(18, Math.min(100, ((titlesJourney.monthly_points - milestone.min_points) / Math.max(1, milestone.max_points - milestone.min_points)) * 100));
+                  const monthlyPoints = titlesJourney.monthly_points ?? 0;
+                  const progressWidth = (() => {
+                    if (milestone.max_points == null) {
+                      return monthlyPoints >= milestone.min_points ? 100 : 0;
+                    }
+                    if (monthlyPoints <= milestone.min_points) {
+                      return 0;
+                    }
+                    if (monthlyPoints >= milestone.max_points) {
+                      return 100;
+                    }
+                    return Math.min(
+                      100,
+                      ((monthlyPoints - milestone.min_points) / Math.max(1, milestone.max_points - milestone.min_points)) * 100
+                    );
+                  })();
 
                   return (
                     <div key={milestone.tier} className="relative flex gap-4 pb-8 last:pb-0">

@@ -622,7 +622,7 @@ export default function PerfilPage() {
       toast.success('Conta desativada. Seu acesso foi encerrado.')
       setDeleteAccountModalOpen(false)
       await supabase.auth.signOut()
-      window.location.href = '/'
+      window.location.href = `/partners/${slug}/register`
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Falha ao desativar conta.')
     } finally {
@@ -632,9 +632,6 @@ export default function PerfilPage() {
 
   const navItems = [
     { id: 'personal' as const,     label: 'Identidade',          icon: User          },
-    ...(isEdificar ? [
-      { id: 'plan' as const,        label: 'Meu Plano',           icon: WalletCards   },
-    ] : []),
     ...(!isEdificar ? [
       { id: 'journey' as const,    label: 'Jornada Acadêmica',   icon: GraduationCap },
       { id: 'routine' as const,    label: 'Rotina de Estudos',   icon: Clock         },
@@ -644,7 +641,7 @@ export default function PerfilPage() {
   ]
 
   useEffect(() => {
-    if (isEdificar && (activeTab === 'journey' || activeTab === 'routine')) {
+    if (isEdificar && (activeTab === 'plan' || activeTab === 'journey' || activeTab === 'routine')) {
       setActiveTab('personal')
     }
   }, [activeTab, isEdificar])

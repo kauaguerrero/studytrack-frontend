@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
-import { LifeBuoy, Search, BookOpen, MessageSquare, Mail, ChevronRight, ChevronDown } from 'lucide-react';
+import { LifeBuoy, Search, MessageSquare, Mail, ChevronRight, ChevronDown } from 'lucide-react';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,15 +27,11 @@ const SUPPORT_EMAIL_BODY = encodeURIComponent(
   'Olá, equipe StudyTrack!\n\nPreciso de ajuda com:\n\n[Descreva aqui sua dúvida, problema técnico ou solicitação]\n\nMeus dados (opcional):\n- Nome:\n- E-mail da conta:\n\nObrigado(a)!'
 );
 const SUPPORT_GMAIL_URL = `https://mail.google.com/mail/?view=cm&fs=1&to=${SUPPORT_EMAIL_TO}&su=${SUPPORT_EMAIL_SUBJECT}&body=${SUPPORT_EMAIL_BODY}`;
-const KB_LINK = '/portal/support/kb';
-
 const PARTNER_FAQS: never[] = [];
 
 export default function StudentSuportePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-  const [hoveredCard, setHoveredCard] = useState<'kb' | null>(null);
-
   const filteredFaqs = useMemo(() => PARTNER_FAQS, []);
 
   // suppress unused var warnings
@@ -96,37 +91,9 @@ export default function StudentSuportePage() {
         <div className="max-w-5xl mx-auto w-full p-4 md:p-8 -mt-12 relative z-20 space-y-8">
 
           {/* Action cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-            {/* Card 1 — Manual da Plataforma */}
-            <Link href={KB_LINK} className="block">
-              <Card
-                className="rounded-2xl hover:shadow-lg transition-all bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 group h-full cursor-pointer"
-                style={hoveredCard === 'kb' ? { borderColor: 'var(--brand-primary)' } : undefined}
-                onMouseEnter={() => setHoveredCard('kb')}
-                onMouseLeave={() => setHoveredCard(null)}
-              >
-                <CardContent className="p-8 flex flex-col items-center text-center space-y-4 h-full">
-                  <div
-                    className="h-14 w-14 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform"
-                    style={{
-                      background: 'color-mix(in srgb, var(--brand-primary) 15%, transparent)',
-                      color: 'var(--brand-primary)',
-                    }}
-                  >
-                    <BookOpen className="h-7 w-7" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 dark:text-slate-50 text-lg">Manual da Plataforma</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 font-medium">
-                      Guias passo a passo de todos os recursos.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-
-            {/* Card 2 — Suporte via WhatsApp */}
+            {/* Card 1 — Suporte via WhatsApp */}
             <a
               href="#"
               onClick={(e) => {
@@ -151,7 +118,7 @@ export default function StudentSuportePage() {
               </Card>
             </a>
 
-            {/* Card 3 — E-mail de Suporte */}
+            {/* Card 2 — E-mail de Suporte */}
             <a
               href={SUPPORT_GMAIL_URL}
               target="_blank"
