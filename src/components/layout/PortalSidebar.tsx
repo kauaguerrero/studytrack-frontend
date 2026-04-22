@@ -29,6 +29,10 @@ import {
   Flag,
   ScanSearch,
   Github,
+  Building2,
+  Monitor,
+  ShieldCheck,
+  ArrowLeft,
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -222,6 +226,29 @@ export function SidebarContent({
           collapsed ? 'px-2 pb-4' : 'px-4 pb-4'
         }`}
       >
+        {/* Banner de retorno ao painel — visível APENAS para admins navegando na área do student */}
+        {role === 'admin' && resolvedRole === 'student' && (
+          <Link
+            href="/portal/admin"
+            className={cn(
+              'flex items-center gap-2 mb-3 rounded-xl border transition-colors group',
+              'bg-indigo-50 dark:bg-indigo-500/15 border-indigo-200 dark:border-indigo-500/30',
+              'text-indigo-700 dark:text-indigo-400',
+              'hover:bg-indigo-100 dark:hover:bg-indigo-500/25',
+              collapsed ? 'justify-center p-2' : 'px-3 py-2.5',
+            )}
+            title={collapsed ? 'Painel Admin' : undefined}
+          >
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="flex-1 text-sm font-semibold">Painel Admin</span>
+                <ArrowLeft className="w-3.5 h-3.5 opacity-40 group-hover:opacity-100 transition-opacity" />
+              </>
+            )}
+          </Link>
+        )}
+
         {resolvedRole === 'student' && (
           <div className="space-y-0.5">
             <SectionTitle>Estudos</SectionTitle>
@@ -317,10 +344,14 @@ export function SidebarContent({
             <SectionTitle>Conteúdo</SectionTitle>
             <NavItem href="/portal/admin/audits" icon={ScanSearch} label="Audit Center" />
             <NavItem href="/portal/admin/social-media" icon={Sparkles} label="Social Media IA" />
-            <NavItem href="/portal/admin/questions" icon={BookOpen} label="Questões" />
-            <SectionTitle>Relatórios</SectionTitle>
+            <NavItem href="/portal/admin/questions" icon={BookOpen} label="Curadoria" />
+            <SectionTitle>Parceiros</SectionTitle>
+            <NavItem href="/portal/admin/b2b" icon={Building2} label="Parceiros B2B" />
+            <SectionTitle>Reports</SectionTitle>
             <NavItem href="/portal/admin/reengagement" icon={Target} label="Reengajamento" />
-            <NavItem href="/portal/admin/reports" icon={Flag} label="Denúncias" />
+            <NavItem href="/portal/admin/reports" icon={Flag} label="Reports" />
+            <SectionTitle>Plataforma</SectionTitle>
+            <NavItem href="/portal/student/dashboard" icon={Monitor} label="Visão de Student" />
           </div>
         )}
 
@@ -385,15 +416,17 @@ export function SidebarContent({
           }`}
         >
           <NavItem
-            href="/portal/student/profile"
+            href={resolvedRole === 'admin' ? '/portal/admin/profile' : '/portal/student/profile'}
             icon={User}
             label="Meu Perfil"
           />
-          <NavItem
-            href="/portal/support"
-            icon={LifeBuoy}
-            label="Ajuda e Suporte"
-          />
+          {resolvedRole !== 'admin' && (
+            <NavItem
+              href="/portal/support"
+              icon={LifeBuoy}
+              label="Ajuda e Suporte"
+            />
+          )}
         </div>
       </nav>
 

@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Send } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { EssayRewardPopup } from '@/components/partners/gamification/EssayRewardPopup';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 interface EssayRewardState {
   points_awarded: number;
@@ -18,8 +19,24 @@ interface EssayRewardState {
   points_to_top3: number | null;
 }
 
+interface SupportItem {
+  type: 'text' | 'image' | 'link';
+  content: string;
+  label?: string;
+}
+
+interface EssayPrompt {
+  id: string;
+  title: string;
+  description: string | null;
+  support_items: SupportItem[];
+  is_active?: boolean;
+}
+
 export default function NovaRedacaoPage() {
   const { slug } = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
+  const promptId = searchParams.get('prompt_id');
   const router = useRouter();
   const { org } = useOrg();
 
@@ -34,6 +51,10 @@ export default function NovaRedacaoPage() {
     remaining?: number | null;
   } | null>(null);
   const [rewardState, setRewardState] = useState<EssayRewardState | null>(null);
+  const [prompt, setPrompt] = useState<EssayPrompt | null>(null);
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [availablePrompts, setAvailablePrompts] = useState<EssayPrompt[]>([]);
+  const [selectedPromptId, setSelectedPromptId] = useState<string>('');
 
   const charCount = text.trim().length;
   const isValidLength = charCount >= 100 && charCount <= 5000;
@@ -72,6 +93,31 @@ export default function NovaRedacaoPage() {
     };
   }, [slug]);
 
+  useEffect(() => {
+    let mounted = true;
+    setPromptLoading(true);
+    fetch(`/api/partners/${slug}/essay-prompts`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!mounted) return;
+        const allPrompts = Array.isArray(data?.prompts) ? data.prompts as EssayPrompt[] : [];
+        const activePrompts = allPrompts.filter((p) => p.is_active !== false);
+        setAvailablePrompts(activePrompts);
+        if (!promptId) return;
+        const found = activePrompts.find((p: EssayPrompt) => p.id === promptId);
+        if (found) {
+          setPrompt(found);
+          setSelectedPromptId(found.id);
+          setTheme(found.title);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setPromptLoading(false));
+    return () => {
+      mounted = false;
+    };
+  }, [promptId, slug]);
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!isThemeValid) {
@@ -102,14 +148,9 @@ export default function NovaRedacaoPage() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          text: text.trim(),
-          theme: theme.trim(),
-          essay_theme: theme.trim(),
-          tema: theme.trim(),
-          topic: theme.trim(),
-          title: theme.trim(),
-          proposal: theme.trim(),
-          prompt: theme.trim(),
+          theme,
+          text,
+          ...(selectedPromptId ? { prompt_id: selectedPromptId } : {}),
         }),
       });
 
@@ -166,14 +207,118 @@ export default function NovaRedacaoPage() {
             </div>
           )}
 
+          {promptLoading && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+              Carregando coletânea...
+            </div>
+          )}
+
+          {!promptLoading && availablePrompts.length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2 dark:border-slate-800 dark:bg-slate-950">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Tema opcional da coletânea
+              </p>
+              <select
+                value={selectedPromptId}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  setSelectedPromptId(nextId);
+                  if (!nextId) {
+                    setPrompt(null);
+                    setTheme('');
+                    return;
+                  }
+                  const chosen = availablePrompts.find((p) => p.id === nextId) || null;
+                  setPrompt(chosen);
+                  setTheme(chosen?.title || '');
+                }}
+                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              >
+                <option value="">Sem coletânea (tema livre)</option>
+                {availablePrompts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {prompt && (
+            <div className="rounded-2xl border border-[var(--brand-primary)]/20 bg-[var(--brand-primary)]/5 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <div
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: 'var(--brand-primary)' }}
+                />
+                <p className="text-xs font-bold uppercase tracking-wide"
+                  style={{ color: 'var(--brand-primary)' }}>
+                  Coletânea
+                </p>
+              </div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                {prompt.title}
+              </h2>
+              {prompt.description && (
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                  {prompt.description}
+                </p>
+              )}
+              {prompt.support_items.length > 0 && (
+                <div className="space-y-3 pt-2 border-t border-[var(--brand-primary)]/10">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    Textos de apoio
+                  </p>
+                  {prompt.support_items.map((item, i) => (
+                    <div key={i}>
+                      {item.label && (
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          {item.label}
+                        </p>
+                      )}
+                      {item.type === 'text' && (
+                        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                          {item.content}
+                        </p>
+                      )}
+                      {item.type === 'image' && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={item.content}
+                          alt={item.label || `Apoio ${i + 1}`}
+                          className="rounded-xl max-w-full border border-slate-200 dark:border-slate-700"
+                        />
+                      )}
+                      {item.type === 'link' && (
+                        <a
+                          href={item.content}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-sm font-medium underline underline-offset-2"
+                          style={{ color: 'var(--brand-primary)' }}
+                        >
+                          {item.label || item.content}
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="space-y-1">
             <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Tema da Redação</label>
             <Input
               value={theme}
               onChange={(e) => setTheme(e.target.value)}
               placeholder="Digite o tema da redação"
+              readOnly={!!prompt}
               required
-              className="h-11 border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 focus-visible:ring-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className={cn(
+                'h-11 border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 focus-visible:ring-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100',
+                prompt ? 'bg-slate-50 dark:bg-slate-800 cursor-default' : '',
+              )}
             />
             <p className="text-xs text-slate-500 dark:text-slate-400">Esse tema será exibido para o professor na correção.</p>
           </div>
