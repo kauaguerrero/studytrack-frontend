@@ -133,6 +133,21 @@ export async function GET(
   }
 
   const metricsList = (essaysMetricsRes.data || []) as EssayRow[];
+
+  let competencyRows: { competency: number; score: number }[] = [];
+  if (metricsList.length > 0) {
+    const correctedIds = metricsList
+      .filter((e) => e.status === 'corrected' || e.status === 'seen')
+      .map((e) => e.id);
+
+    if (correctedIds.length > 0) {
+      const { data: compData } = await (admin.from('essay_competency_scores') as any)
+        .select('competency, score')
+        .in('essay_id', correctedIds);
+      competencyRows = (compData || []) as { competency: number; score: number }[];
+    }
+  }
+
   const pendingItemsRaw = ((pendingRes.error ? [] : pendingRes.data) || []) as EssayRow[];
   const correctedItemsRaw = ((correctedRes.error ? [] : correctedRes.data) || []) as EssayRow[];
   const pendingTotal = pendingRes.error ? 0 : (pendingRes.count || 0);
@@ -185,6 +200,59 @@ export async function GET(
     if (nextTs > prevTs) current.last_essay_at = essay.corrected_at || essay.submitted_at || current.last_essay_at;
   });
 
+  // Média por competência (C1-C5)
+  const competencyMap: Record<number, { sum: number; count: number }> = {};
+  for (const row of competencyRows) {
+    const c = Number(row.competency);
+    if (c < 1 || c > 5) continue;
+    if (!competencyMap[c]) competencyMap[c] = { sum: 0, count: 0 };
+    competencyMap[c].sum += Number(row.score || 0);
+    competencyMap[c].count += 1;
+  }
+  const competencyScores = [1, 2, 3, 4, 5].map((c) => ({
+    competency: c,
+    avg: competencyMap[c]?.count
+      ? Math.round(competencyMap[c].sum / competencyMap[c].count)
+      : null,
+    count: competencyMap[c]?.count ?? 0,
+  }));
+
+  // Competência mais fraca
+  const withData = competencyScores.filter((c) => c.avg !== null);
+  const weakestCompetency = withData.length >= 2
+    ? withData.reduce((min, cur) => (cur.avg as number) < (min.avg as number) ? cur : min)
+    : null;
+
+  // Tempo médio de correção em dias
+  const withCorrectionTime = metricsList.filter(
+    (e) => (e.status === 'corrected' || e.status === 'seen') && e.corrected_at && e.submitted_at,
+  );
+  const avgCorrectionDays = withCorrectionTime.length
+    ? Math.round(
+        withCorrectionTime.reduce((acc, e) => {
+          const diff =
+            new Date(e.corrected_at as string).getTime() -
+            new Date(e.submitted_at).getTime();
+          return acc + diff / (1000 * 60 * 60 * 24);
+        }, 0) / withCorrectionTime.length,
+      )
+    : null;
+
+  // Taxa de melhoria: % de alunos cuja última nota > penúltima
+  const studentScoreHistory = new Map<string, number[]>();
+  for (const essay of [...metricsList]
+    .filter((e) => (e.status === 'corrected' || e.status === 'seen') && e.total_score !== null)
+    .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())) {
+    const arr = studentScoreHistory.get(essay.student_id) || [];
+    arr.push(Number(essay.total_score));
+    studentScoreHistory.set(essay.student_id, arr);
+  }
+  const studentsWithHistory = Array.from(studentScoreHistory.values()).filter((arr) => arr.length >= 2);
+  const improved = studentsWithHistory.filter((arr) => arr[arr.length - 1] > arr[arr.length - 2]).length;
+  const improvementRate = studentsWithHistory.length > 0
+    ? Math.round((improved / studentsWithHistory.length) * 100)
+    : null;
+
   const ranking = Array.from(byStudent.entries())
     .map(([student_id, value]) => ({
       student_id,
@@ -219,6 +287,10 @@ export async function GET(
       highest_score: highestScore,
       lowest_score: lowestScore,
       ranking,
+      competency_scores: competencyScores,
+      weakest_competency: weakestCompetency,
+      avg_correction_days: avgCorrectionDays,
+      improvement_rate: improvementRate,
     },
     pending_items: pendingItemsRaw.map(hydrateEssay),
     corrected_items: correctedItemsRaw.map(hydrateEssay),

@@ -58,6 +58,12 @@ interface RankingItem {
   last_essay_at: string | null;
 }
 
+interface CompetencyScore {
+  competency: number;
+  avg: number | null;
+  count: number;
+}
+
 interface EssaysMetrics {
   received_week: number;
   pending_count: number;
@@ -65,6 +71,10 @@ interface EssaysMetrics {
   highest_score: number | null;
   lowest_score: number | null;
   ranking: RankingItem[];
+  competency_scores: CompetencyScore[];
+  weakest_competency: { competency: number; avg: number } | null;
+  avg_correction_days: number | null;
+  improvement_rate: number | null;
 }
 
 type EssaysOverviewPayload = {
@@ -81,6 +91,14 @@ export type { EssaysOverviewPayload };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+const COMPETENCY_NAMES = [
+  'Domínio da norma culta',
+  'Compreensão da proposta',
+  'Organização das informações',
+  'Mecanismos linguísticos',
+  'Proposta de intervenção',
+];
+
 const DEFAULT_METRICS: EssaysMetrics = {
   received_week: 0,
   pending_count: 0,
@@ -88,6 +106,10 @@ const DEFAULT_METRICS: EssaysMetrics = {
   highest_score: null,
   lowest_score: null,
   ranking: [],
+  competency_scores: [],
+  weakest_competency: null,
+  avg_correction_days: null,
+  improvement_rate: null,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -657,7 +679,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               badge={
                 !metricsLoading && pendingTotalItems > 0 ? (
                   <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">
-                    urgente
+                    Urgente
                   </span>
                 ) : undefined
               }
@@ -673,6 +695,132 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               icon={BarChart2}
             />
           </div>
+
+          {/* ── Métricas expandidas ─────────────────────────────────── */}
+          <div className="grid gap-3 sm:grid-cols-3">
+
+            {/* Tempo médio de correção */}
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Tempo médio de correção
+              </p>
+              <p className="mt-2 text-2xl font-extrabold text-slate-900 dark:text-white">
+                {metricsLoading
+                  ? '...'
+                  : metrics.avg_correction_days === null
+                    ? '—'
+                    : metrics.avg_correction_days === 0
+                      ? '< 1 dia'
+                      : metrics.avg_correction_days === 1
+                        ? '1 dia'
+                        : `${metrics.avg_correction_days} dias`}
+              </p>
+              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                Entre envio e correção
+              </p>
+            </div>
+
+            {/* Taxa de melhoria */}
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Taxa de melhoria
+              </p>
+              <p className={`mt-2 text-2xl font-extrabold ${
+                !metricsLoading && metrics.improvement_rate !== null
+                  ? metrics.improvement_rate >= 60
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : metrics.improvement_rate >= 40
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-red-600 dark:text-red-400'
+                  : 'text-slate-900 dark:text-white'
+              }`}>
+                {metricsLoading
+                  ? '...'
+                  : metrics.improvement_rate === null
+                    ? '—'
+                    : `${metrics.improvement_rate}%`}
+              </p>
+              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                Alunos que melhoraram a nota
+              </p>
+            </div>
+
+            {/* Competência mais fraca */}
+            {!metricsLoading && metrics.weakest_competency && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                  Foco pedagógico
+                </p>
+                <p className="mt-2 text-base font-extrabold text-amber-900 dark:text-amber-200">
+                  C{metrics.weakest_competency.competency} — {COMPETENCY_NAMES[metrics.weakest_competency.competency - 1]}
+                </p>
+                <p className="mt-0.5 text-sm font-bold text-amber-700 dark:text-amber-300">
+                  Média: {metrics.weakest_competency.avg} / 200
+                </p>
+                <p className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-400">
+                  Competência com menor desempenho da turma
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* ── Desempenho por competência ──────────────────────────── */}
+          {!metricsLoading && metrics.competency_scores.some((c) => c.avg !== null) && (
+            <div className="edificar-soft-surface rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+              <h2 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Desempenho da turma por competência
+              </h2>
+              <div className="space-y-2.5">
+                {metrics.competency_scores.map((c) => {
+                  const pct = c.avg !== null ? Math.round((c.avg / 200) * 100) : 0;
+                  const isWeakest = metrics.weakest_competency?.competency === c.competency;
+                  const barColor = pct >= 70
+                    ? '#16a34a'
+                    : pct >= 50
+                      ? '#d97706'
+                      : '#dc2626';
+                  return (
+                    <div key={c.competency} className="flex items-center gap-3">
+                      <span className={`w-5 shrink-0 text-xs font-black ${
+                        isWeakest ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'
+                      }`}>
+                        C{c.competency}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-0.5 flex items-center justify-between gap-2">
+                          <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-300">
+                            {COMPETENCY_NAMES[c.competency - 1]}
+                          </p>
+                          <span className="shrink-0 text-xs font-bold tabular-nums text-slate-700 dark:text-slate-300">
+                            {c.avg !== null ? `${c.avg}/200` : '—'}
+                          </span>
+                        </div>
+                        <div className={`h-2 overflow-hidden rounded-full ${
+                          isWeakest ? 'bg-amber-100 dark:bg-amber-500/15' : 'bg-slate-100 dark:bg-slate-800'
+                        }`}>
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: c.avg !== null ? `${pct}%` : '0%',
+                              backgroundColor: isWeakest ? '#f59e0b' : barColor,
+                            }}
+                          />
+                        </div>
+                      </div>
+                      {c.count > 0 && (
+                        <span className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">
+                          {c.count} aval.
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-[10px] text-slate-400 dark:text-slate-500">
+                Baseado nas redações corrigidas com score por competência
+              </p>
+            </div>
+          )}
 
           <div className="edificar-soft-surface rounded-xl border border-slate-200 p-3 dark:border-slate-800">
             <h2 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Ranking dos alunos (Top 10)</h2>
