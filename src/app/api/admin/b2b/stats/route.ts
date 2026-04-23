@@ -111,17 +111,22 @@ export async function GET(request: NextRequest) {
   let simulados_period = 0;
 
   if (profileIds.length > 0) {
-    let usageQuery = db
-      .from('daily_usage')
-      .select('user_id, questions_count, simulations_count')
+    let answersQuery = db
+      .from('user_answers')
+      .select('id', { count: 'exact', head: true })
       .in('user_id', profileIds);
-    if (periodStart) usageQuery = usageQuery.gte('usage_date', periodStart);
+    if (periodStart) answersQuery = answersQuery.gte('created_at', `${periodStart}T00:00:00Z`);
+    const { count: answersCount } = await answersQuery;
+    questions_period = answersCount ?? 0;
 
-    const { data: usage } = await usageQuery;
-    for (const row of usage ?? []) {
-      questions_period += row.questions_count ?? 0;
-      simulados_period += row.simulations_count ?? 0;
-    }
+    let simsQuery = db
+      .from('simulado_sessions')
+      .select('id', { count: 'exact', head: true })
+      .in('user_id', profileIds)
+      .eq('status', 'completed');
+    if (periodStart) simsQuery = simsQuery.gte('completed_at', `${periodStart}T00:00:00Z`);
+    const { count: simsCount } = await simsQuery;
+    simulados_period = simsCount ?? 0;
   }
 
   let essaysQuery = db
@@ -148,17 +153,22 @@ export async function GET(request: NextRequest) {
   let prev_simulados_period = 0;
 
   if (profileIds.length > 0 && prevBounds) {
-    const { data: prevUsage } = await db
-      .from('daily_usage')
-      .select('questions_count, simulations_count')
+    const { count: prevAnswersCount } = await db
+      .from('user_answers')
+      .select('id', { count: 'exact', head: true })
       .in('user_id', profileIds)
-      .gte('usage_date', prevBounds.start)
-      .lt('usage_date', prevBounds.end);
+      .gte('created_at', `${prevBounds.start}T00:00:00Z`)
+      .lt('created_at', `${prevBounds.end}T00:00:00Z`);
+    prev_questions_period = prevAnswersCount ?? 0;
 
-    for (const row of prevUsage ?? []) {
-      prev_questions_period += row.questions_count ?? 0;
-      prev_simulados_period += row.simulations_count ?? 0;
-    }
+    const { count: prevSimsCount } = await db
+      .from('simulado_sessions')
+      .select('id', { count: 'exact', head: true })
+      .in('user_id', profileIds)
+      .eq('status', 'completed')
+      .gte('completed_at', `${prevBounds.start}T00:00:00Z`)
+      .lt('completed_at', `${prevBounds.end}T00:00:00Z`);
+    prev_simulados_period = prevSimsCount ?? 0;
   }
 
   // Redações período anterior
@@ -191,16 +201,22 @@ export async function GET(request: NextRequest) {
       let org_simulados = 0;
 
       if (orgProfileIds.length > 0) {
-        let q = db
-          .from('daily_usage')
-          .select('questions_count, simulations_count')
+        let aq = db
+          .from('user_answers')
+          .select('id', { count: 'exact', head: true })
           .in('user_id', orgProfileIds);
-        if (periodStart) q = q.gte('usage_date', periodStart);
-        const { data: orgUsage } = await q;
-        for (const row of orgUsage ?? []) {
-          org_questions += row.questions_count ?? 0;
-          org_simulados += row.simulations_count ?? 0;
-        }
+        if (periodStart) aq = aq.gte('created_at', `${periodStart}T00:00:00Z`);
+        const { count: orgAnswersCount } = await aq;
+        org_questions = orgAnswersCount ?? 0;
+
+        let sq = db
+          .from('simulado_sessions')
+          .select('id', { count: 'exact', head: true })
+          .in('user_id', orgProfileIds)
+          .eq('status', 'completed');
+        if (periodStart) sq = sq.gte('completed_at', `${periodStart}T00:00:00Z`);
+        const { count: orgSimsCount } = await sq;
+        org_simulados = orgSimsCount ?? 0;
       }
 
       let eq = db
