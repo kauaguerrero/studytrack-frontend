@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
+  const requestUrl = new URL(request.url)
   const cookieStore = await cookies()
 
   const supabase = createServerClient(
@@ -40,7 +41,30 @@ export async function POST(request: Request) {
     await supabase.auth.signOut()
   }
 
-  // Redireciona para a Home ou Login após sair
+  const requestedNext = requestUrl.searchParams.get('next')
+  if (requestedNext && requestedNext.startsWith('/') && !requestedNext.startsWith('//')) {
+    return NextResponse.redirect(new URL(requestedNext, request.url), {
+      status: 302,
+    })
+  }
+
+  const referer = request.headers.get('referer')
+  if (referer) {
+    try {
+      const refererUrl = new URL(referer)
+      const partnerMatch = refererUrl.pathname.match(/^\/partners\/([^/]+)(?:\/|$)/)
+      if (partnerMatch) {
+        const slug = partnerMatch[1]
+        return NextResponse.redirect(new URL(`/partners/${slug}/register`, request.url), {
+          status: 302,
+        })
+      }
+    } catch {
+      // Ignora referer inválido e cai no fallback padrão.
+    }
+  }
+
+  // Fallback padrão para fluxos genéricos da StudyTrack
   return NextResponse.redirect(new URL('/auth/login', request.url), {
     status: 302,
   })

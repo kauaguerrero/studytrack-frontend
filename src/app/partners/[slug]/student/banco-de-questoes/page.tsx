@@ -117,6 +117,7 @@ export default function BancoDeQuestoes() {
   // ── Refs ─────────────────────────────────────────────────────────────────────
   const isLoadingRef = useRef(false);
   const authTokenRef = useRef<string | null>(null);
+  const questionTopRef = useRef<HTMLDivElement>(null);
 
   // ── Session points (gamification B2B) ────────────────────────────────────────
   const SESSION_KEY = 'qsr_pending_points';
@@ -339,11 +340,17 @@ export default function BancoDeQuestoes() {
   const handleNext = () => {
     if (isLockedByQuota) { setUpsellReason('DAILY_QUOTA_REACHED'); setIsUpsellOpen(true); return; }
     if (loadingMore && currentIdx >= questions.length - 1) return;
-    if (currentIdx < questions.length - 1) setCurrentIdx((prev) => prev + 1);
+    if (currentIdx < questions.length - 1) {
+      setCurrentIdx((prev) => prev + 1);
+      questionTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   const handlePrev = () => {
-    if (currentIdx > 0) setCurrentIdx((prev) => prev - 1);
+    if (currentIdx > 0) {
+      setCurrentIdx((prev) => prev - 1);
+      questionTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   const handleLocalAnswer = (qId: string) => {
@@ -781,7 +788,7 @@ export default function BancoDeQuestoes() {
             )}
 
             {/* Question card */}
-            <div className="relative group">
+            <div ref={questionTopRef} className="relative group">
               <div
                 className={`absolute -inset-1 rounded-2xl blur opacity-0 group-hover:opacity-15 transition duration-500 ${isTabTodo
                   ? ''

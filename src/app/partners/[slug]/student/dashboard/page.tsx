@@ -22,7 +22,7 @@ export default async function PartnerStudentDashboard({ params }: Props) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect(`/auth/login?next=/partners/${slug}/student/dashboard`);
+  if (!user) redirect(`/partners/${slug}/login?next=/partners/${slug}/student/dashboard`);
 
   const { data: profile } = await supabase
     .from('profiles')

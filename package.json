@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:essay-credits": "node scripts/test-essay-credits-logic.mjs",
+    "test:student-theme": "rm -rf .tmp-student-theme-tests && ./node_modules/.bin/tsc scripts/test-student-theme.ts --outDir .tmp-student-theme-tests --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node .tmp-student-theme-tests/scripts/test-student-theme.js",
     "test:task-intelligence": "rm -rf .tmp-task-intelligence-tests && ./node_modules/.bin/tsc scripts/test-task-intelligence.ts --outDir .tmp-task-intelligence-tests --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node .tmp-task-intelligence-tests/scripts/test-task-intelligence.js",
     "test:dev-role": "node scripts/test-dev-role-logic.mjs"
   },

@@ -8,8 +8,9 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { OrgProvider } from '@/contexts/OrgContext';
 import { EssayNotificationProvider } from '@/contexts/EssayNotificationContext';
-import { StudentThemeProvider, type StudentTheme } from '@/contexts/StudentThemeContext';
+import { StudentThemeProvider } from '@/contexts/StudentThemeContext';
 import { StudentThemeShell } from '@/components/partners/StudentThemeShell';
+import { getStudentThemeStorageKey, type StudentTheme } from '@/lib/student-theme';
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 function sanitizeCssHexColor(value: string | null | undefined, fallback: string): string {
@@ -44,7 +45,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
   // 1. Autenticação
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) {
-    redirect(`/auth/login?next=/partners/${slug}/student/dashboard`);
+    redirect(`/partners/${slug}/login?next=/partners/${slug}/student/dashboard`);
   }
 
   const adminClient = createAdminClient();
@@ -59,7 +60,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
   const profile = profileRes.data as ProfileRow | null;
 
   if (!profile) {
-    redirect(`/auth/login?next=/partners/${slug}/student/dashboard`);
+    redirect(`/partners/${slug}/login?next=/partners/${slug}/student/dashboard`);
   }
 
   // 3. Busca org (admin para bypass RLS)
@@ -84,7 +85,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
     redirect(`/partners/${slug}/register`);
   }
   if (!['student', 'founder', 'admin'].includes(role)) {
-    redirect(`/auth/login?next=/partners/${slug}/student/dashboard`);
+    redirect(`/partners/${slug}/login?next=/partners/${slug}/student/dashboard`);
   }
 
   const brandPrimary = sanitizeCssHexColor(org.brand_primary, '#6366f1');
@@ -116,6 +117,14 @@ export default async function PartnerStudentLayout({ children, params }: Student
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
     .replace(/&/g, '\\u0026');
+  const safeThemeJson = JSON.stringify(initialTheme)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+  const safeStorageKeyJson = JSON.stringify(getStudentThemeStorageKey(slug))
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
 
   return (
     <OrgProvider
@@ -127,10 +136,10 @@ export default async function PartnerStudentLayout({ children, params }: Student
       }}
     >
       {/* Inline script: resolve o tema a partir do localStorage antes do primeiro paint do React,
-          eliminando o flash quando localStorage difere do valor do banco (SSR). */}
+          usando o banco como fonte de verdade e sincronizando o cache local. */}
       <script
         dangerouslySetInnerHTML={{
-          __html: `(function(){try{var slug=${safeSlugJson};var k='partner-student-theme-'+slug;var s=localStorage.getItem(k);var r=s==='dark'?'dark':s==='light'?'light':(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');window.__pst=window.__pst||{};window.__pst[slug]=r;}catch(e){}})()`,
+          __html: `(function(){try{var slug=${safeSlugJson};var theme=${safeThemeJson};var key=${safeStorageKeyJson};var resolved=theme==='dark'?'dark':theme==='light'?'light':(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');localStorage.setItem(key,theme);window.__pst=window.__pst||{};window.__pst[slug]=resolved;}catch(e){}})()`,
         }}
       />
       <style>{`

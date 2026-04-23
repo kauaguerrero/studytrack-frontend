@@ -87,14 +87,23 @@ function LoginForm() {
       });
 
       if (error) throw error;
+      if (!authData.user?.id) {
+        throw new Error('Sessão não retornada após autenticação.');
+      }
 
       // O @supabase/ssr já setou os cookies no navegador neste ponto.
       // O código legado do fetch('/api/auth/set-session') foi removido.
 
-      const userId = authData?.user?.id;
-      const { data: profile } = userId
-        ? await supabase.from('profiles').select('role').eq('id', userId).single()
-        : { data: null };
+      const userId = authData.user.id;
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, organization_id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profileError) {
+        throw new Error('Falha ao carregar o perfil após autenticação.');
+      }
       
       const role = profile?.role ?? null;
       const roleToPath: Record<string, string> = {
@@ -109,7 +118,29 @@ function LoginForm() {
       const nextParam = searchParams.get('next');
       const safeNext = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : null;
 
-      const roleBasedTarget = role && roleToPath[role] ? roleToPath[role] : '/portal';
+      let partnerTarget: string | null = null;
+      if (profile?.organization_id && (role === 'student' || role === 'founder' || role === 'admin' || role === 'associate' || role === 'teacher')) {
+        const { data: org, error: orgError } = await supabase
+          .from('organizations')
+          .select('slug')
+          .eq('id', profile.organization_id)
+          .maybeSingle();
+
+        if (orgError) {
+          throw new Error('Falha ao resolver a organização do usuário.');
+        }
+
+        if (org?.slug) {
+          partnerTarget =
+            role === 'founder' || role === 'admin'
+              ? `/partners/${org.slug}/dashboard`
+              : role === 'associate' || role === 'teacher'
+                ? `/partners/${org.slug}/redacoes`
+                : `/partners/${org.slug}/student/dashboard`;
+        }
+      }
+
+      const roleBasedTarget = partnerTarget ?? (role && roleToPath[role] ? roleToPath[role] : '/portal');
       const target = safeNext ?? roleBasedTarget;
 
       // Atualiza o cache do roteador do Next.js para que o Middleware leia os novos cookies
@@ -120,6 +151,8 @@ function LoginForm() {
       const message = err instanceof Error ? err.message : '';
       if (message.includes('Invalid login credentials') || message.includes('Email not confirmed')) {
         setError("E-mail ou senha incorretos. Verifique suas credenciais e tente novamente.");
+      } else if (message.includes('Falha ao carregar o perfil') || message.includes('Falha ao resolver a organização')) {
+        setError('Login realizado, mas não foi possível concluir o direcionamento da sua conta. Tente novamente.');
       } else {
         setError("Não foi possível fazer login. Tente novamente em alguns instantes.");
       }
