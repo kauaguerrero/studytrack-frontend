@@ -1,9 +1,12 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-
-export type StudentTheme = 'light' | 'dark' | 'system'
-export type ResolvedTheme = 'light' | 'dark'
+import {
+  getStudentThemeStorageKey,
+  resolveStudentTheme,
+  type StudentTheme,
+  type ResolvedTheme,
+} from '@/lib/student-theme'
 
 interface StudentThemeContextType {
   theme: StudentTheme
@@ -14,7 +17,7 @@ interface StudentThemeContextType {
 const StudentThemeContext = createContext<StudentThemeContextType | null>(null)
 
 function storageKey(slug: string) {
-  return `partner-student-theme-${slug}`
+  return getStudentThemeStorageKey(slug)
 }
 
 function getSystemTheme(): ResolvedTheme {
@@ -23,7 +26,7 @@ function getSystemTheme(): ResolvedTheme {
 }
 
 function resolve(theme: StudentTheme): ResolvedTheme {
-  return theme === 'system' ? getSystemTheme() : theme
+  return resolveStudentTheme(theme, getSystemTheme())
 }
 
 interface Props {
@@ -34,22 +37,19 @@ interface Props {
 }
 
 export function StudentThemeProvider({ children, slug, initialTheme = 'system' }: Props) {
-  // Inicializa a partir do localStorage (client) ou initialTheme (SSR).
-  // Evita flash ao priorizar o valor persistido antes do primeiro paint do React.
-  const [theme, setThemeState] = useState<StudentTheme>(() => {
+  // Para alunos, o banco é a fonte de verdade. O localStorage é apenas cache
+  // para manter a experiência fluida entre navegações e refreshes.
+  const [theme, setThemeState] = useState<StudentTheme>(initialTheme)
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolve(initialTheme))
+
+  useEffect(() => {
+    setThemeState(initialTheme)
+    setResolvedTheme(resolve(initialTheme))
+
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(storageKey(slug))
-      if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
+      localStorage.setItem(storageKey(slug), initialTheme)
     }
-    return initialTheme
-  })
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(storageKey(slug))
-      if (stored === 'light' || stored === 'dark' || stored === 'system') return resolve(stored)
-    }
-    return resolve(initialTheme)
-  })
+  }, [initialTheme, slug])
 
   // Atualiza o resolved quando theme muda.
   useEffect(() => {
@@ -69,7 +69,9 @@ export function StudentThemeProvider({ children, slug, initialTheme = 'system' }
   const setTheme = (next: StudentTheme) => {
     setThemeState(next)
     setResolvedTheme(resolve(next))
-    localStorage.setItem(storageKey(slug), next)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(storageKey(slug), next)
+    }
   }
 
   return (
