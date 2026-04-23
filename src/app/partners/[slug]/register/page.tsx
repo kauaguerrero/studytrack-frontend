@@ -92,7 +92,7 @@ export default function PartnerRegisterPage() {
             action: {
               label: 'Fazer login',
               onClick: () =>
-                router.push(`/auth/login?next=/partners/${slug}/student/dashboard`),
+                router.push(`/partners/${slug}/login?next=/partners/${slug}/student/dashboard`),
             },
           });
         } else {
@@ -110,7 +110,7 @@ export default function PartnerRegisterPage() {
 
       if (signInError) {
         toast.success('Conta criada! Faça login para continuar.');
-        router.push(`/auth/login?next=/partners/${slug}/student/dashboard`);
+        router.push(`/partners/${slug}/login?next=/partners/${slug}/student/dashboard`);
         return;
       }
 
@@ -266,7 +266,7 @@ export default function PartnerRegisterPage() {
             <p className="text-center text-sm text-slate-500 pt-1">
               Já tenho conta{' '}
               <Link
-                href={`/auth/login?next=/partners/${slug}/student/dashboard`}
+                href={`/partners/${slug}/login?next=/partners/${slug}/student/dashboard`}
                 className="underline font-medium hover:opacity-80"
                 style={{ color: primary }}
               >

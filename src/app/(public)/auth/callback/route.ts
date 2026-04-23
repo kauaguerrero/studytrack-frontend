@@ -167,5 +167,12 @@ export async function GET(request: Request) {
   }
 
   const message = error_description || oauthError || "Sessão expirada ou inválida. Tente entrar novamente."
+  const partnerStudentMatch = requestedNext?.match(/^\/partners\/([^/]+)\/student(?:\/|$)/)
+  if (partnerStudentMatch) {
+    const slug = partnerStudentMatch[1]
+    return NextResponse.redirect(
+      `${origin}/partners/${slug}/login?next=${encodeURIComponent(requestedNext!)}&error=${encodeURIComponent(message)}`
+    )
+  }
   return NextResponse.redirect(`${origin}/auth/login?error=${encodeURIComponent(message)}`)
 }

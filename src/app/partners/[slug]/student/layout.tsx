@@ -45,7 +45,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
   // 1. Autenticação
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) {
-    redirect(`/auth/login?next=/partners/${slug}/student/dashboard`);
+    redirect(`/partners/${slug}/login?next=/partners/${slug}/student/dashboard`);
   }
 
   const adminClient = createAdminClient();
@@ -60,7 +60,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
   const profile = profileRes.data as ProfileRow | null;
 
   if (!profile) {
-    redirect(`/auth/login?next=/partners/${slug}/student/dashboard`);
+    redirect(`/partners/${slug}/login?next=/partners/${slug}/student/dashboard`);
   }
 
   // 3. Busca org (admin para bypass RLS)
@@ -85,7 +85,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
     redirect(`/partners/${slug}/register`);
   }
   if (!['student', 'founder', 'admin'].includes(role)) {
-    redirect(`/auth/login?next=/partners/${slug}/student/dashboard`);
+    redirect(`/partners/${slug}/login?next=/partners/${slug}/student/dashboard`);
   }
 
   const brandPrimary = sanitizeCssHexColor(org.brand_primary, '#6366f1');

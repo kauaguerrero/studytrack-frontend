@@ -113,7 +113,7 @@ export default async function OrgLandingPage({ params }: OrgLandingProps) {
               className="w-full gap-2 text-white"
               style={{ backgroundColor: primary }}
             >
-              <Link href={`/auth/login?next=/partners/${slug}/student/dashboard`}>
+              <Link href={`/partners/${slug}/login?next=/partners/${slug}/student/dashboard`}>
                 <BookOpen className="h-4 w-4" />
                 Acessar como Aluno
                 <ArrowRight className="h-4 w-4 ml-auto" />
