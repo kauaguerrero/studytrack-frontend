@@ -126,7 +126,7 @@ function formatPlanPeriod(period?: 'week' | 'month' | null) {
 export default function PerfilPage() {
   const router = useRouter()
   const { slug } = useParams<{ slug: string }>()
-  const { setTheme: setStudentTheme } = useStudentTheme()
+  const { theme: studentTheme, setTheme: setStudentTheme } = useStudentTheme()
   const [profileState, setProfileState] = useState<ProfileData | null>(null)
   const [userState, setUserState] = useState<UserData | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>('personal')
@@ -167,7 +167,7 @@ export default function PerfilPage() {
   const [loadingSessions, setLoadingSessions] = useState(false)
 
   // States - Preferências
-  const [themePref, setThemePref] = useState('system')
+  const [themeSaving, setThemeSaving] = useState(false)
 
   // States - Encerrar Conta
   const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false)
@@ -267,7 +267,6 @@ export default function PerfilPage() {
         setFreeHoursEnd(parts[1].trim())
       }
     }
-    setThemePref((p as ProfileData & { theme_preference?: string })?.theme_preference ?? 'system')
   }, [profileResponse])
 
   useEffect(() => {
@@ -534,10 +533,37 @@ export default function PerfilPage() {
     }, setSavingRoutine)
   }
 
-  const handleSaveTheme = (val: string) => {
-    setThemePref(val)
-    setStudentTheme(val as 'light' | 'dark' | 'system')
-    handleUpdateProfile({ theme_preference: val }, () => {})
+  const handleSaveTheme = async (val: string) => {
+    const next = val as 'light' | 'dark' | 'system'
+    const previous = studentTheme
+
+    setStudentTheme(next)
+    setThemeSaving(true)
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('Sessão inválida.')
+
+      const res = await fetch(`${apiUrl}/api/account/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ theme_preference: next }),
+      })
+
+      if (!res.ok) throw new Error('Falha ao salvar alterações.')
+
+      toast.success('Tema atualizado com sucesso.')
+      await mutateProfile()
+      router.refresh()
+    } catch (e) {
+      setStudentTheme(previous)
+      toast.error(e instanceof Error ? e.message : 'Falha ao salvar.')
+    } finally {
+      setThemeSaving(false)
+    }
   }
 
   const handleSavePassword = async () => {
@@ -1242,7 +1268,7 @@ export default function PerfilPage() {
                           </p>
                           <p className="text-sm text-slate-500 dark:text-slate-400">Substitui o padrão do sistema operacional.</p>
                         </div>
-                        <Select value={themePref} onValueChange={handleSaveTheme}>
+                        <Select value={studentTheme} onValueChange={(value) => { void handleSaveTheme(value) }} disabled={themeSaving}>
                           <SelectTrigger className="w-full rounded-xl bg-slate-50 font-semibold dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:w-[140px]">
                             <SelectValue placeholder="Tema" />
                           </SelectTrigger>
