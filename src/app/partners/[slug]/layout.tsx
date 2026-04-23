@@ -55,7 +55,9 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   const isPublicRoute =
     pathname === `/partners/${slug}` ||
     pathname === `/partners/${slug}/register` ||
-    pathname === `/partners/${slug}/login`;
+    pathname === `/partners/${slug}/login` ||
+    pathname === `/partners/${slug}/reset` ||
+    pathname === `/partners/${slug}/reset/confirm`;
   // Nota: pathname === '' foi removido — quando o header x-pathname não chegar,
   // o layout cai no fluxo normal de autenticação e injeta OrgProvider corretamente.
 

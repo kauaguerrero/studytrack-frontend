@@ -241,7 +241,7 @@ export default function PartnerLoginPage() {
                 <div className="flex items-center justify-between gap-3">
                   <Label htmlFor="password" className="text-sm">Senha</Label>
                   <Link
-                    href="/auth/reset"
+                    href={`/partners/${slug}/reset`}
                     className="text-xs underline hover:opacity-80"
                     style={{ color: primary }}
                   >

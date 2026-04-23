@@ -72,10 +72,10 @@ export async function updateSession(request: NextRequest) {
   }
 
   // 5a. Proteção do Portal de Parceiros (/partners/*)
-  // Rotas públicas: /partners/[slug] (landing), /register e /login
+  // Rotas públicas: /partners/[slug] (landing), /register, /login e reset de senha
   // Restante exige autenticação; validação de role/org fica no layout server component.
   if (path.startsWith('/partners')) {
-    const isPublicPartnerRoute = /^\/partners\/[^/]+(?:\/(register|login))?$/.test(path);
+    const isPublicPartnerRoute = /^\/partners\/[^/]+(?:\/(register|login|reset)(?:\/confirm)?)?$/.test(path);
     if (!isPublicPartnerRoute && !user) {
       const studentMatch = path.match(/^\/partners\/([^/]+)\/student(?:\/|$)/);
       const redirectUrl = studentMatch
