@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap } from 'lucide-react';
+import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap, Shield } from 'lucide-react';
 import { Typewriter } from '@/components/ui/typewriter';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { useOrg } from '@/contexts/OrgContext';
@@ -212,15 +212,17 @@ export function DashboardClient({
       setEffectiveCurrentStreak(0);
 
       if (result) {
+        dismissCurrentPopup();
         await refreshSummary();
-        if (result.points_deducted > 0) {
+        window.setTimeout(() => {
           enqueuePopup({
             kind: 'streak_points_lost',
             routeScope: 'dashboard',
             result,
             dedupeKey: `streak-points-lost:${result.points_deducted}:${result.current_rank}`,
           });
-        }
+        }, 0);
+        return;
       }
 
       dismissCurrentPopup();
@@ -233,17 +235,23 @@ export function DashboardClient({
   const handleUseShield = useCallback(async (): Promise<void> => {
     const result = await activateShield();
     if (result?.shield_used) {
-      setEffectiveCurrentStreak(result.streak_preserved ?? currentStreak);
-      enqueuePopup({
-        kind: 'shield_popup',
-        routeScope: 'dashboard',
-        streakPreserved: result.streak_preserved ?? currentStreak,
-        slug,
-        dedupeKey: `shield-popup:${result.streak_preserved ?? currentStreak}`,
-      });
+      const preservedStreak = result.streak_preserved ?? currentStreak;
+      setEffectiveCurrentStreak(preservedStreak);
+      dismissCurrentPopup();
+      await refreshSummary();
+      window.setTimeout(() => {
+        enqueuePopup({
+          kind: 'shield_popup',
+          routeScope: 'dashboard',
+          streakPreserved: preservedStreak,
+          slug,
+          dedupeKey: `shield-popup:${preservedStreak}`,
+        });
+      }, 0);
+      return;
     }
     dismissCurrentPopup();
-  }, [activateShield, currentStreak, dismissCurrentPopup, enqueuePopup, slug]);
+  }, [activateShield, currentStreak, dismissCurrentPopup, enqueuePopup, refreshSummary, slug]);
 
   const handleStreakDismiss = useCallback(() => {
     dismissCurrentPopup();
@@ -264,6 +272,8 @@ export function DashboardClient({
   const goalReached = summary?.goal_reached ?? false;
   const goalProgressPct = summary?.goal_progress_pct ?? 0;
   const monthLabel = summary?.month_label ?? '';
+  const shieldCount = summary?.shield_count ?? 0;
+  const hasShield = shieldCount > 0;
 
   return (
     <>
@@ -344,6 +354,31 @@ export function DashboardClient({
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
                     <Flame className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
                     {effectiveCurrentStreak} {effectiveCurrentStreak === 1 ? 'Dia' : 'Dias'} de Sequência
+                    <span
+                      className="relative ml-1 inline-flex h-5 w-5 items-center justify-center"
+                      title={
+                        hasShield
+                          ? `${shieldCount} ${shieldCount === 1 ? 'escudo disponível' : 'escudos disponíveis'}`
+                          : 'Sem escudo disponível'
+                      }
+                      aria-label={
+                        hasShield
+                          ? `${shieldCount} ${shieldCount === 1 ? 'escudo disponível' : 'escudos disponíveis'}`
+                          : 'Sem escudo disponível'
+                      }
+                    >
+                      <Shield
+                        className="h-5 w-5"
+                        strokeWidth={2.2}
+                        style={{ color: hasShield ? '#f59e0b' : '#94a3b8' }}
+                      />
+                      <span
+                        className="pointer-events-none absolute inset-0 flex items-center justify-center text-[7px] font-black leading-none"
+                        style={{ color: hasShield ? '#f59e0b' : '#94a3b8' }}
+                      >
+                        {shieldCount}
+                      </span>
+                    </span>
                   </span>
                   <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
                     <BookOpen className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
@@ -636,6 +671,7 @@ export function DashboardClient({
             winners={currentPopup.winners}
             organizationName={currentPopup.organizationName}
             onContinue={dismissCurrentPopup}
+            onDismiss={dismissCurrentPopup}
           />
         )}
       </AnimatePresence>

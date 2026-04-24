@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { apiFetcher } from '@/lib/api-fetcher';
+import { getApiBaseUrl } from '@/lib/api-base';
 import type {
   DiagnosticResult,
   MonthlySummary,
@@ -22,8 +23,6 @@ export interface ShieldResult {
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
 
 type CacheEntry<T> = {
   value?: T;
@@ -86,11 +85,12 @@ function buildHeaders(token: string): HeadersInit {
 }
 
 export async function fetchPartnerGamificationCheckInStatusCached(token: string) {
+  const apiBase = getApiBaseUrl();
   return getCachedRequest<MonthlyCheckInStatus>(
-    `partner-gamification:checkin:${token}`,
+    `partner-gamification:checkin:${apiBase}:${token}`,
     15_000,
     () => apiFetcher<MonthlyCheckInStatus>(
-      `${API_BASE}/api/partner/gamification/check-in/status`,
+      `${apiBase}/api/partner/gamification/check-in/status`,
       { headers: buildHeaders(token) },
     ),
   );
@@ -123,11 +123,12 @@ export function usePartnerGamification(
   // ── Fetch summary ──────────────────────────────────────────────────────────
 
   const fetchSummary = useCallback(async (token: string) => {
+    const apiBase = getApiBaseUrl();
     const data = await getCachedRequest<MonthlySummary>(
-      `partner-gamification:summary:${token}`,
+      `partner-gamification:summary:${apiBase}:${token}`,
       15_000,
       () => apiFetcher<MonthlySummary>(
-        `${API_BASE}/api/partner/gamification/summary`,
+        `${apiBase}/api/partner/gamification/summary`,
         { headers: buildHeaders(token) },
       ),
     );
@@ -138,11 +139,12 @@ export function usePartnerGamification(
   // ── Fetch popup state ──────────────────────────────────────────────────────
 
   const fetchPopupState = useCallback(async (token: string) => {
+    const apiBase = getApiBaseUrl();
     const data = await getCachedRequest<PopupState>(
-      `partner-gamification:popup:${token}`,
+      `partner-gamification:popup:${apiBase}:${token}`,
       500,
       () => apiFetcher<PopupState>(
-        `${API_BASE}/api/partner/gamification/popup-state`,
+        `${apiBase}/api/partner/gamification/popup-state`,
         { headers: buildHeaders(token) },
       ),
     );
@@ -162,11 +164,12 @@ export function usePartnerGamification(
   }, []);
 
   const fetchTitlesJourney = useCallback(async (token: string) => {
+    const apiBase = getApiBaseUrl();
     const data = await getCachedRequest<TitlesJourneyResponse>(
-      `partner-gamification:titles-journey:${token}`,
+      `partner-gamification:titles-journey:${apiBase}:${token}`,
       20_000,
       () => apiFetcher<TitlesJourneyResponse>(
-        `${API_BASE}/api/partner/gamification/titles/journey`,
+        `${apiBase}/api/partner/gamification/titles/journey`,
         { headers: buildHeaders(token) },
       ),
     );
@@ -175,11 +178,12 @@ export function usePartnerGamification(
   }, []);
 
   const fetchTitlesHistory = useCallback(async (token: string) => {
+    const apiBase = getApiBaseUrl();
     const data = await getCachedRequest<TitlesHistoryResponse>(
-      `partner-gamification:titles-history:${token}`,
+      `partner-gamification:titles-history:${apiBase}:${token}`,
       30_000,
       () => apiFetcher<TitlesHistoryResponse>(
-        `${API_BASE}/api/partner/gamification/titles/history`,
+        `${apiBase}/api/partner/gamification/titles/history`,
         { headers: buildHeaders(token) },
       ),
     );
@@ -192,9 +196,10 @@ export function usePartnerGamification(
   const useShield = useCallback(async (): Promise<ShieldResult | null> => {
     const token = tokenRef.current;
     if (!token) return null;
+    const apiBase = getApiBaseUrl();
     try {
       const result = await apiFetcher<ShieldResult>(
-        `${API_BASE}/api/partner/gamification/shield/use`,
+        `${apiBase}/api/partner/gamification/shield/use`,
         { method: 'POST', headers: buildHeaders(token) },
       );
       setShieldResult(result);
@@ -280,10 +285,11 @@ export function usePartnerGamification(
   const refreshRanking = useCallback(async (limit = 50): Promise<PartnerRankingResponse | null> => {
     const token = tokenRef.current;
     if (!token) return null;
+    const apiBase = getApiBaseUrl();
 
     try {
       const data = await apiFetcher<PartnerRankingResponse>(
-        `${API_BASE}/api/partner/gamification/ranking?limit=${Math.min(limit, 100)}`,
+        `${apiBase}/api/partner/gamification/ranking?limit=${Math.min(limit, 100)}`,
         { headers: buildHeaders(token) },
       );
       setRanking(data);
@@ -302,9 +308,10 @@ export function usePartnerGamification(
     async (score: number, questionIds: string[]): Promise<DiagnosticResult> => {
       const token = tokenRef.current;
       if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+      const apiBase = getApiBaseUrl();
 
       const result = await apiFetcher<DiagnosticResult>(
-        `${API_BASE}/api/partner/gamification/diagnostic/complete`,
+        `${apiBase}/api/partner/gamification/diagnostic/complete`,
         {
           method: 'POST',
           headers: buildHeaders(token),
@@ -313,8 +320,8 @@ export function usePartnerGamification(
       );
 
       invalidateCache([
-        `partner-gamification:summary:${token}`,
-        `partner-gamification:popup:${token}`,
+        `partner-gamification:summary:${apiBase}:${token}`,
+        `partner-gamification:popup:${apiBase}:${token}`,
       ]);
 
       // Refresh summary so monthly_points reflects the new points
@@ -329,9 +336,10 @@ export function usePartnerGamification(
     async (answers: MonthlyCheckInAnswerInput[]): Promise<MonthlyCheckInResult> => {
       const token = tokenRef.current;
       if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+      const apiBase = getApiBaseUrl();
 
       const result = await apiFetcher<MonthlyCheckInResult>(
-        `${API_BASE}/api/partner/gamification/check-in/complete`,
+        `${apiBase}/api/partner/gamification/check-in/complete`,
         {
           method: 'POST',
           headers: buildHeaders(token),
@@ -340,11 +348,11 @@ export function usePartnerGamification(
       );
 
       invalidateCache([
-        `partner-gamification:summary:${token}`,
-        `partner-gamification:checkin:${token}`,
-        `partner-gamification:titles-journey:${token}`,
-        `partner-gamification:titles-history:${token}`,
-        `partner-gamification:popup:${token}`,
+        `partner-gamification:summary:${apiBase}:${token}`,
+        `partner-gamification:checkin:${apiBase}:${token}`,
+        `partner-gamification:titles-journey:${apiBase}:${token}`,
+        `partner-gamification:titles-history:${apiBase}:${token}`,
+        `partner-gamification:popup:${apiBase}:${token}`,
       ]);
 
       await Promise.allSettled([
@@ -366,14 +374,15 @@ export function usePartnerGamification(
       console.error('[applyStreakDecay] token ausente');
       return null;
     }
+    const apiBase = getApiBaseUrl();
     try {
       const result = await apiFetcher<StreakDecayResult>(
-        `${API_BASE}/api/partner/gamification/streak/broken`,
+        `${apiBase}/api/partner/gamification/streak/broken`,
         { method: 'POST', headers: buildHeaders(token) },
       );
       invalidateCache([
-        `partner-gamification:summary:${token}`,
-        `partner-gamification:popup:${token}`,
+        `partner-gamification:summary:${apiBase}:${token}`,
+        `partner-gamification:popup:${apiBase}:${token}`,
       ]);
       console.log('[applyStreakDecay] resultado:', result);
       return result;
