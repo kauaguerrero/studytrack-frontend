@@ -155,8 +155,8 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
   const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
-  const isEdificarStudent = variant === 'student' && org.slug === 'edificar';
-  const hideMobileChrome = isEdificarStudent && pathname.startsWith(`/partners/${org.slug}/student/simulado`);
+  const isPartnerStudent = variant === 'student';
+  const hideMobileChrome = isPartnerStudent && pathname.startsWith(`/partners/${org.slug}/student/simulado`);
 
   const founderNavItems: NavItemDef[] = [
     { href: `/partners/${org.slug}/dashboard`,      icon: LayoutDashboard, label: 'Dashboard',        shortLabel: 'Dashboard' },
@@ -188,7 +188,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const navItems = variant === 'student'
     ? studentNavItems
     : (isAssociate ? associateNavItems : founderNavItems);
-  const mobileBottomNavItems = isEdificarStudent
+  const mobileBottomNavItems = isPartnerStudent
     ? studentNavItems.filter((item) => (
       item.href === `/partners/${org.slug}/student/dashboard`
       || item.href === `/partners/${org.slug}/student/banco-de-questoes`
@@ -371,7 +371,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
               </span>
             </div>
 
-            {isEdificarStudent ? (
+            {isPartnerStudent ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -431,7 +431,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
         </nav>
       )}
 
-      {isEdificarStudent && (
+      {isPartnerStudent && (
         <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
           <SheetContent
             side="right"

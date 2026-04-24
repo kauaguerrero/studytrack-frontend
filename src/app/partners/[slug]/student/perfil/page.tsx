@@ -225,14 +225,12 @@ export default function PerfilPage() {
 
   const profile = profileResponse?.profile ?? profileState
   const user = profileResponse?.user ?? userState
-  const isEdificar = slug === 'edificar'
-
   const {
     data: currentPlan,
     error: currentPlanError,
     isLoading: currentPlanLoading,
   } = useSWR<StudentCurrentPlan>(
-    token && isEdificar ? [`${apiUrl}/api/partners/${slug}/student/current-plan`, token] : null,
+    token ? [`${apiUrl}/api/partners/${slug}/student/current-plan`, token] : null,
     profileFetcher,
     { revalidateOnFocus: true }
   )
@@ -368,7 +366,7 @@ export default function PerfilPage() {
     bio: bio || null,
     pronouns: pronouns || null,
     public_profile: publicProfile,
-    ...(slug === 'edificar' ? {} : { accessibility_needs: accessibilityNeeds || null }),
+    accessibility_needs: accessibilityNeeds || null,
   }, setSavingPersonal)
 
   const AVATAR_BUCKET = 'avatars'
@@ -658,19 +656,12 @@ export default function PerfilPage() {
 
   const navItems = [
     { id: 'personal' as const,     label: 'Identidade',          icon: User          },
-    ...(!isEdificar ? [
-      { id: 'journey' as const,    label: 'Jornada Acadêmica',   icon: GraduationCap },
-      { id: 'routine' as const,    label: 'Rotina de Estudos',   icon: Clock         },
-    ] : []),
+    { id: 'plan' as const,         label: 'Meu Plano',           icon: WalletCards   },
+    { id: 'journey' as const,      label: 'Jornada Acadêmica',   icon: GraduationCap },
+    { id: 'routine' as const,      label: 'Rotina de Estudos',   icon: Clock         },
     { id: 'security' as const,     label: 'Acesso e Segurança',  icon: Shield        },
     { id: 'preferences' as const,  label: 'Preferências',        icon: Settings      },
   ]
-
-  useEffect(() => {
-    if (isEdificar && (activeTab === 'plan' || activeTab === 'journey' || activeTab === 'routine')) {
-      setActiveTab('personal')
-    }
-  }, [activeTab, isEdificar])
 
   const planBenefits = [
     currentPlan?.essay_credits_limit
@@ -873,12 +864,10 @@ export default function PerfilPage() {
                             <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Conte um pouco sobre você..." maxLength={500} className={`rounded-xl bg-slate-50/50 resize-none min-h-[90px] ${focusRingStyle}`} />
                             <p className="text-xs text-slate-400 text-right">{bio.length}/500</p>
                           </div>
-                          {!isEdificar && (
-                            <div className="space-y-2">
-                              <Label htmlFor="accessibilityNeeds" className="text-slate-700 dark:text-slate-200 font-bold">Necessidade de Acessibilidade</Label>
-                              <Textarea id="accessibilityNeeds" value={accessibilityNeeds} onChange={(e) => setAccessibilityNeeds(e.target.value)} placeholder="Ex: dislexia, daltonismo, baixa visão..." maxLength={500} className={`rounded-xl bg-slate-50/50 resize-none min-h-[72px] ${focusRingStyle}`} />
-                            </div>
-                          )}
+                          <div className="space-y-2">
+                            <Label htmlFor="accessibilityNeeds" className="text-slate-700 dark:text-slate-200 font-bold">Necessidade de Acessibilidade</Label>
+                            <Textarea id="accessibilityNeeds" value={accessibilityNeeds} onChange={(e) => setAccessibilityNeeds(e.target.value)} placeholder="Ex: dislexia, daltonismo, baixa visão..." maxLength={500} className={`rounded-xl bg-slate-50/50 resize-none min-h-[72px] ${focusRingStyle}`} />
+                          </div>
                           <div className="flex flex-col gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="space-y-0.5">
                               <Label className="text-slate-700 dark:text-slate-200 font-bold">Perfil Público</Label>
@@ -901,7 +890,7 @@ export default function PerfilPage() {
                 )
               )}
 
-              {isEdificar && activeTab === 'plan' && (
+              {activeTab === 'plan' && (
                 <Card className={sectionCardClassName}>
                   <CardHeader className="border-b border-slate-100 px-5 pb-5 pt-6 dark:border-slate-800 sm:px-8 sm:pb-6 sm:pt-8">
                     <CardTitle className="flex items-center gap-2 text-xl font-bold tracking-tight dark:text-slate-50">
@@ -978,7 +967,7 @@ export default function PerfilPage() {
                         <WalletCards className="mx-auto h-8 w-8 text-slate-400" />
                         <h3 className="mt-3 text-base font-bold text-slate-900 dark:text-slate-100">Nenhum plano vinculado</h3>
                         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                          Quando a Edificar associar um plano à sua conta, ele aparecerá aqui com valor e benefícios atualizados em tempo real.
+                          Quando seu founder associar um plano à sua conta, ele aparecerá aqui com valor e benefícios atualizados em tempo real.
                         </p>
                       </div>
                     )}
@@ -987,7 +976,7 @@ export default function PerfilPage() {
               )}
 
               {/* ── TAB: JORNADA ACADÊMICA ──────────────────────────────── */}
-              {!isEdificar && activeTab === 'journey' && (
+              {activeTab === 'journey' && (
                 <Card className={sectionCardClassName}>
                   <CardHeader className="border-b border-slate-100 dark:border-slate-800 px-5 pb-5 pt-6 sm:px-8 sm:pb-6 sm:pt-8">
                     <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Jornada Acadêmica</CardTitle>
@@ -1050,7 +1039,7 @@ export default function PerfilPage() {
               )}
 
               {/* ── TAB: ROTINA DE ESTUDOS ──────────────────────────────── */}
-              {!isEdificar && activeTab === 'routine' && (
+              {activeTab === 'routine' && (
                 <Card className={sectionCardClassName}>
                   <CardHeader className="border-b border-slate-100 dark:border-slate-800 px-5 pb-5 pt-6 sm:px-8 sm:pb-6 sm:pt-8">
                     <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Rotina de Estudos</CardTitle>
@@ -1284,14 +1273,14 @@ export default function PerfilPage() {
                   </Card>
 
                   {/* Zona de Risco (LGPD + Encerrar Conta) */}
-                  <Card className={`${isEdificar ? sectionCardClassName : 'overflow-hidden rounded-[24px] border border-red-200/50 bg-red-50/20 shadow-sm dark:border-red-900/50 dark:bg-red-950/20'}`}>
+                  <Card className="overflow-hidden rounded-[24px] border border-red-200/50 bg-red-50/20 shadow-sm dark:border-red-900/50 dark:bg-red-950/20">
                     <CardHeader className="border-b border-red-100/50 px-5 pb-5 pt-6 dark:border-red-900/50 sm:px-8">
-                      <CardTitle className={`text-lg font-bold ${isEdificar ? 'text-slate-900 dark:text-slate-100' : 'text-red-700 dark:text-red-400'}`}>
-                        {isEdificar ? 'Seus Dados' : 'Zona de Risco'}
+                      <CardTitle className="text-lg font-bold text-red-700 dark:text-red-400">
+                        Zona de Risco
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4 px-5 pt-6 sm:px-8">
-                      <div className={`flex flex-col items-start justify-between gap-4 rounded-xl border bg-white p-5 dark:bg-slate-800/50 sm:flex-row sm:items-center ${isEdificar ? 'border-slate-200 dark:border-slate-700' : 'border-red-100 dark:border-slate-700'}`}>
+                      <div className="flex flex-col items-start justify-between gap-4 rounded-xl border border-red-100 bg-white p-5 dark:border-slate-700 dark:bg-slate-800/50 sm:flex-row sm:items-center">
                         <div>
                           <p className="font-bold text-slate-900 dark:text-slate-100">Exportar Dados (LGPD)</p>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">Faça o download de todos os seus dados em JSON.</p>
@@ -1302,8 +1291,7 @@ export default function PerfilPage() {
                         </Button>
                       </div>
 
-                      {!isEdificar && (
-                        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between border border-red-200 dark:border-red-900/50 bg-white dark:bg-slate-800/50 p-5 rounded-xl">
+                      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between border border-red-200 dark:border-red-900/50 bg-white dark:bg-slate-800/50 p-5 rounded-xl">
                           <div>
                             <p className="font-bold text-red-600 dark:text-red-400">Encerrar Conta Permanentemente</p>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">Esta ação é irreversível. Todos os dados serão apagados.</p>
@@ -1312,7 +1300,6 @@ export default function PerfilPage() {
                             <Trash2 size={16} className="mr-2" /> Deletar Conta
                           </Button>
                         </div>
-                      )}
                     </CardContent>
                   </Card>
                 </div>
@@ -1401,7 +1388,7 @@ export default function PerfilPage() {
       </Dialog>
 
       {/* ── Modal: Encerrar Conta ────────────────────────────────────────── */}
-      <Dialog open={!isEdificar && deleteAccountModalOpen} onOpenChange={setDeleteAccountModalOpen}>
+      <Dialog open={deleteAccountModalOpen} onOpenChange={setDeleteAccountModalOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] overflow-hidden rounded-3xl border-0 p-0 shadow-2xl sm:max-w-lg">
           <div className="relative bg-gradient-to-r from-red-700 to-red-600 p-5 text-white sm:p-8">
             <div className="absolute top-0 right-0 p-4 opacity-10">
