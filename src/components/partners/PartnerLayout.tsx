@@ -160,7 +160,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
 
   const founderNavItems: NavItemDef[] = [
     { href: `/partners/${org.slug}/dashboard`,      icon: LayoutDashboard, label: 'Dashboard',        shortLabel: 'Dashboard' },
-    { href: `/partners/${org.slug}/student/ranking`, icon: Trophy,         label: 'Ranking',          shortLabel: 'Ranking' },
+    { href: `/partners/${org.slug}/ranking`,          icon: Trophy,         label: 'Ranking',          shortLabel: 'Ranking' },
     { href: `/partners/${org.slug}/alunos`,          icon: Users,           label: 'Alunos',            shortLabel: 'Alunos' },
     { href: `/partners/${org.slug}/planos`,          icon: WalletCards,     label: 'Planos',            shortLabel: 'Planos' },
     { href: `/partners/${org.slug}/redacoes`,        icon: FileText,        label: 'Redações',          shortLabel: 'Redações' },
