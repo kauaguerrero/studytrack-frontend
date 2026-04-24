@@ -511,7 +511,7 @@ export function DashboardClient({
                       Banco de Questões
                     </h2>
                     <p className="mt-1 text-xs text-slate-400 dark:text-white/40">
-                      Pratique com +2.700 questões do ENEM
+                      Pratique com +5.000 questões do ENEM
                     </p>
                   </div>
                   <div

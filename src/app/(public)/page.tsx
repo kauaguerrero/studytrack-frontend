@@ -181,7 +181,7 @@ export default function Home() {
       ([entry]) => {
         if (!entry.isIntersecting || countersStarted.current) return;
         countersStarted.current = true;
-        const targets = { students: 4217, clarity: 87, questions: 2700, essay: 23 };
+        const targets = { students: 4217, clarity: 87, questions: 5000, essay: 23 };
         const duration = 2000;
         const start = performance.now();
         const tick = (now: number) => {
@@ -826,7 +826,7 @@ export default function Home() {
                   <div className="w-11 h-11 rounded-2xl bg-blue-500/20 border border-blue-400/20 flex items-center justify-center mb-4 group-hover:bg-blue-500/30 transition-colors">
                     <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                   </div>
-                  <h3 className="text-lg font-bold text-white mb-2">Banco de 2.700+ questões — filtradas pela sua lacuna</h3>
+                  <h3 className="text-lg font-bold text-white mb-2">Banco de 5.000+ questões — filtradas pela sua lacuna</h3>
                   <p className="text-white/55 text-sm leading-relaxed">Não são questões aleatórias. Cada exercício foi selecionado com base no que o ENEM cobrou nos últimos 20 anos e cruzado com o ponto exato onde você precisa praticar. Você nunca perde tempo com o que já sabe.</p>
                 </div>
               </div>

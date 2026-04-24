@@ -83,7 +83,7 @@ const PLANS = [
 ];
 
 const PLATFORM_NUMBERS = [
-  { target: 2700, prefix: "+", suffix: "", label: "questões no banco" },
+  { target: 5000, prefix: "+", suffix: "", label: "questões no banco" },
   { target: 5,    prefix: "",  suffix: "", label: "simulados ENEM completos" },
   { target: 20,   prefix: "",  suffix: "+", label: "conquistas desbloqueáveis" },
   { target: 7,    prefix: "",  suffix: "", label: "matérias cobertas" },

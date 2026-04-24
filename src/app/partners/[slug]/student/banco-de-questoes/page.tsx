@@ -41,6 +41,7 @@ const YEARS = Array.from({ length: CURRENT_YEAR - 2008 }, (_, i) =>
 );
 
 const DIFFICULTIES = ['Fácil', 'Médio', 'Difícil'];
+const TOTAL_QUESTIONS = 5000;
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ export default function BancoDeQuestoes() {
   const [isLockedByQuota, setIsLockedByQuota] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportQuestionId, setReportQuestionId] = useState<string | null>(null);
-  const [totalQuestions, setTotalQuestions] = useState<number>(2700);
+  const totalQuestions = TOTAL_QUESTIONS;
 
   // ── Refs ─────────────────────────────────────────────────────────────────────
   const isLoadingRef = useRef(false);
@@ -167,25 +168,6 @@ export default function BancoDeQuestoes() {
     sessionStorage.removeItem('qsr_pending_points');
     sessionStorage.removeItem('qsr_shield_earned');
   }, []);
-
-  // ── Total de questões — direto no Supabase (sem CORS) ───────────────────────
-  useEffect(() => {
-    if (!userId) return;
-
-    const fetchTotal = async () => {
-      try {
-        const supabase = createClient();
-        const { count } = await supabase
-          .from('questions')
-          .select('id', { count: 'exact', head: true })
-          .eq('is_verified', true);
-        if (count) setTotalQuestions(count);
-      } catch (err) {
-        // não-crítico: totalQuestions tem fallback de 2700
-      }
-    };
-    fetchTotal();
-  }, [userId]);
 
   // ── 2. Topics — direto no Supabase (sem CORS) ────────────────────────────────
   useEffect(() => {

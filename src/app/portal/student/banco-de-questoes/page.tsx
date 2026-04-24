@@ -30,6 +30,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 2008 }, (_, i) => (CURRENT_YEAR - i).toString());
 
 const DIFFICULTIES = ["Fácil", "Médio", "Difícil"];
+const TOTAL_QUESTIONS = 5000;
 
 // --- COMPONENTS: SKELETON UI (UX Improvement) ---
 const QuestionCardSkeleton = () => (
@@ -96,8 +97,8 @@ export default function BancoDeQuestoes() {
     /** Token JWT obtido uma única vez no init; usado em todos os fetch da API de questões. */
     const authTokenRef = useRef<string | null>(null);
 
-    //total questions 
-    const [totalQuestions, setTotalQuestions] = useState<number>(2700);
+    // Total exibido no estado inicial do banco de questões
+    const totalQuestions = TOTAL_QUESTIONS;
 
     // 1. Init: Auth, sessão (token) e dados do usuário — uma única chamada getSession
     useEffect(() => {
@@ -128,29 +129,6 @@ export default function BancoDeQuestoes() {
         };
         init();
     }, []);
-
-    // Busca o total global de questões aprovadas (só com token; evita chamadas inúteis)
-    useEffect(() => {
-        const token = authTokenRef.current;
-        if (!token) return;
-
-        const fetchTotal = async () => {
-            try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-                const res = await fetch(`${apiUrl}/api/questions/total`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.total) setTotalQuestions(data.total);
-                }
-            } catch (err) {
-                console.error("Erro ao buscar total de questões:", err);
-                void reportError("QuestionBankTotalFetchError", String(err));
-            }
-        };
-        fetchTotal();
-    }, [userId]);
 
     // 2. Topics Fetching (usa o mesmo token do ref)
     useEffect(() => {
