@@ -140,7 +140,7 @@ export function usePartnerGamification(
   const fetchPopupState = useCallback(async (token: string) => {
     const data = await getCachedRequest<PopupState>(
       `partner-gamification:popup:${token}`,
-      15_000,
+      500,
       () => apiFetcher<PopupState>(
         `${API_BASE}/api/partner/gamification/popup-state`,
         { headers: buildHeaders(token) },

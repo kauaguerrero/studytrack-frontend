@@ -480,7 +480,7 @@ export default function SimuladoPage() {
       if (res.ok) {
         setFinishResult({ ...data, session_id: sessionId })
         console.log('finish response:', data)
-        if (data.streak_updated && (data.new_streak ?? 0) >= 2) {
+        if (data.streak_updated && (data.new_streak ?? 0) >= 1) {
           enqueuePopup({
             kind: 'streak',
             routeScope: 'dashboard',
