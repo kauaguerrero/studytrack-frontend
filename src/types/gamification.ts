@@ -40,6 +40,13 @@ export interface PartnerRankingEntry {
   full_name: string;
   is_anonymous?: boolean;
   monthly_points: number;
+  monthly_questions_count?: number;
+  monthly_accuracy_pct?: number;
+  has_questions_leader_badge?: boolean;
+  has_accuracy_leader_badge?: boolean;
+  has_streak_leader_badge?: boolean;
+  current_streak_days?: number;
+  has_active_streak?: boolean;
   gamification_title: string;
   progress_tier?: ProgressTier;
   avatar_url?: string | null;

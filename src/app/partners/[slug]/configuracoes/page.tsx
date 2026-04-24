@@ -791,7 +791,7 @@ export default function ConfiguracoesPage() {
                 <div className="px-4 py-3 flex items-center gap-3" style={{ backgroundColor: primary }}>
                   {logoUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={logoUrl} alt="" className="h-7 w-7 object-contain rounded bg-white/20 p-0.5" />
+                    <img src={logoUrl} alt="" className="h-7 w-7 object-contain" />
                   )}
                   <span className="text-white font-semibold text-sm">{org.name}</span>
                   <span className="ml-auto text-white/70 text-xs">Portal</span>
