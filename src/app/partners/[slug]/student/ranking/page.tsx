@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getGamificationTitleMeta, getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
+import { getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
 import type {
   MonthlyHistoryEntry,
   PartnerRankingEntry,
@@ -111,10 +111,11 @@ function formatPoints(pts: number): string {
 function formatMonthLabel(monthRef: string): string {
   const date = new Date(`${monthRef}T12:00:00`);
   if (Number.isNaN(date.getTime())) return monthRef;
-  return new Intl.DateTimeFormat('pt-BR', {
-    month: 'short',
+  const formatted = new Intl.DateTimeFormat('pt-BR', {
+    month: 'long',
     year: 'numeric',
   }).format(date);
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
 function getPodiumLabel(position: number): string {
@@ -145,22 +146,14 @@ function getPodiumBadgeStyle(position: number): { background: string; color: str
 
 // ─── Animated background particles ───────────────────────────────────────────
 
-// Deterministic pseudo-random: same output on SSR and client for a given seed.
-function seededRand(seed: number): number {
-  const x = Math.sin(seed + 1) * 10000;
-  return x - Math.floor(x);
-}
-
-const PARTICLE_DATA = Array.from({ length: 6 }, (_, i) => ({
-  width:    3 + seededRand(i * 7 + 0) * 4,
-  height:   3 + seededRand(i * 7 + 1) * 4,
-  opacity:  0.15 + seededRand(i * 7 + 2) * 0.2,
-  left:     10 + seededRand(i * 7 + 3) * 80,
-  top:      10 + seededRand(i * 7 + 4) * 80,
-  yPeak:  -(20 + seededRand(i * 7 + 5) * 30),
-  duration: 3  + seededRand(i * 7 + 6) * 3,
-  delay:    seededRand(i * 7 + 7) * 2,
-}));
+const PARTICLE_DATA = [
+  { width: 6.5, height: 6.9, opacity: 0.16, left: 20.2, top: 71.8, yPeak: -38, duration: 4.6, delay: 0.4 },
+  { width: 4.9, height: 6.2, opacity: 0.19, left: 48.6, top: 56.8, yPeak: -31, duration: 5.1, delay: 1.0 },
+  { width: 5.8, height: 5.1, opacity: 0.22, left: 67.3, top: 29.4, yPeak: -44, duration: 3.8, delay: 0.7 },
+  { width: 3.9, height: 4.6, opacity: 0.17, left: 34.8, top: 22.6, yPeak: -26, duration: 4.3, delay: 1.5 },
+  { width: 6.1, height: 3.8, opacity: 0.2, left: 79.1, top: 63.2, yPeak: -35, duration: 5.6, delay: 0.2 },
+  { width: 4.3, height: 5.7, opacity: 0.18, left: 14.5, top: 40.7, yPeak: -29, duration: 4.9, delay: 1.3 },
+];
 
 function FloatingParticles() {
   return (
@@ -340,11 +333,11 @@ interface RowProps {
 function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
   const isTop3 = entry.rank <= 3;
   const theme = isTop3 ? RANK_THEMES[entry.rank as 1 | 2 | 3] : null;
-  const identityMeta = getGamificationTitleMeta(entry.gamification_title);
   const progressMeta = getProgressTierMeta(entry.progress_tier);
   const ProgressIcon = progressMeta.Icon;
   const recentAchievements = (entry.podium_history ?? []).slice(0, 2);
   const isAnonymous = isAnonymousRankingEntry(entry, isSelf);
+  const hasActiveStreak = Boolean((entry.current_streak_days ?? 0) > 0 && entry.has_active_streak);
 
   // Find the max points to compute relative bar width (first entry = 100%)
   const selfHighlight = isSelf
@@ -452,12 +445,20 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
 
       {/* Name + title */}
       <div className="flex-1 min-w-0">
-        <p
-          className="truncate text-xs sm:text-sm font-semibold text-slate-800 dark:text-white/90"
-          style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
-        >
-          {getRankingDisplayName(entry, { isSelf, withYouSuffix: true })}
-        </p>
+        <div className="min-w-0 flex items-center">
+          <p
+            className="truncate text-xs sm:text-sm font-semibold text-slate-800 dark:text-white/90"
+            style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
+          >
+            {getRankingDisplayName(entry, { isSelf, withYouSuffix: true })}
+          </p>
+          {hasActiveStreak && (
+            <span className="ml-1.5 inline-flex shrink-0 items-center gap-0.5 text-[10px] font-bold text-orange-500 dark:text-orange-400">
+              <span className="tabular-nums">{entry.current_streak_days}</span>
+              <Flame className="h-3 w-3" />
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1 mt-0.5">
           <ProgressIcon
             className="h-2.5 w-2.5"
@@ -470,9 +471,6 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
             {progressMeta.title}
           </p>
         </div>
-        <p className="mt-0.5 truncate text-[9px] sm:text-[10px] text-slate-500 dark:text-white/45">
-          {identityMeta.title}
-        </p>
         {recentAchievements.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {recentAchievements.map((achievement) => (
@@ -504,17 +502,39 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
             {formatPoints(entry.monthly_points)}
           </span>
         </div>
-        {isPrize ? (
-          <span
-            className="flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white"
-            style={{
-              background:
-                'linear-gradient(135deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 80%, #000))',
-            }}
-          >
-            <Gift className="h-2 w-2" />
-            destaque
-          </span>
+        {(entry.has_questions_leader_badge || entry.has_accuracy_leader_badge || entry.has_streak_leader_badge) ? (
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            {entry.has_questions_leader_badge && (
+              <span
+                className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white"
+                style={{
+                  background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+                }}
+              >
+                Mais questões feitas
+              </span>
+            )}
+            {entry.has_accuracy_leader_badge && (
+              <span
+                className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white"
+                style={{
+                  background: 'linear-gradient(135deg, #22C55E, #15803D)',
+                }}
+              >
+                Maior % de acerto
+              </span>
+            )}
+            {entry.has_streak_leader_badge && (
+              <span
+                className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white"
+                style={{
+                  background: 'linear-gradient(135deg, #EF4444, #B91C1C)',
+                }}
+              >
+                Maior sequência
+              </span>
+            )}
+          </div>
         ) : (
           <span className="text-[10px] font-medium text-slate-400 dark:text-white/30">pts</span>
         )}
@@ -617,7 +637,7 @@ function HistoryRow({ item }: { item: MonthlyHistoryEntry }) {
             </span>
           ) : (
             <span className="text-[10px] font-medium text-slate-400 dark:text-white/25">
-              sem pódio
+              Sem pódio
             </span>
           )}
         </div>
@@ -947,7 +967,7 @@ export default function RankingPage() {
                   style={{ color: 'var(--brand-primary)' }}
                 />
                 <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">
-                  Seu histórico mensal
+                  Seu Histórico Mensal
                 </p>
               </div>
               <div className="space-y-2">

@@ -16,29 +16,49 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Para cada org: busca founder e contagem de alunos em paralelo
-  const enriched = await Promise.all(
-    (orgs ?? []).map(async (org: any) => {
-      const [founderRes, countRes] = await Promise.all([
-        db
-          .from('profiles')
-          .select('id, full_name, email, avatar_url')
-          .eq('organization_id', org.id)
-          .eq('role', 'founder')
-          .maybeSingle(),
-        db
-          .from('profiles')
-          .select('id', { count: 'exact', head: true })
-          .eq('organization_id', org.id)
-          .eq('role', 'student'),
-      ]);
-      return {
-        ...org,
-        founder: founderRes.data ?? null,
-        student_count: countRes.count ?? 0,
-      };
-    })
-  );
+  const orgList: any[] = orgs ?? [];
+  const orgIds = orgList.map((org: any) => org.id);
+
+  let foundersByOrg = new Map<string, any>();
+  let studentCountByOrg = new Map<string, number>();
+
+  if (orgIds.length > 0) {
+    const [foundersRes, studentsRes] = await Promise.all([
+      db
+        .from('profiles')
+        .select('id, full_name, email, avatar_url, organization_id')
+        .in('organization_id', orgIds)
+        .eq('role', 'founder'),
+      db
+        .from('profiles')
+        .select('organization_id')
+        .in('organization_id', orgIds)
+        .eq('role', 'student'),
+    ]);
+
+    for (const founder of foundersRes.data ?? []) {
+      const orgId = founder.organization_id as string | null;
+      if (!orgId || foundersByOrg.has(orgId)) continue;
+      foundersByOrg.set(orgId, {
+        id: founder.id,
+        full_name: founder.full_name,
+        email: founder.email,
+        avatar_url: founder.avatar_url,
+      });
+    }
+
+    for (const student of studentsRes.data ?? []) {
+      const orgId = student.organization_id as string | null;
+      if (!orgId) continue;
+      studentCountByOrg.set(orgId, (studentCountByOrg.get(orgId) ?? 0) + 1);
+    }
+  }
+
+  const enriched = orgList.map((org: any) => ({
+    ...org,
+    founder: foundersByOrg.get(org.id) ?? null,
+    student_count: studentCountByOrg.get(org.id) ?? 0,
+  }));
 
   return NextResponse.json({ organizations: enriched });
 }

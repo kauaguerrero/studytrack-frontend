@@ -90,7 +90,7 @@ export default async function OrgLandingPage({ params }: OrgLandingProps) {
                 alt={org.name}
                 width={72}
                 height={72}
-                className="mx-auto mb-4 rounded-xl object-contain bg-white/20 p-1"
+                className="mx-auto mb-4 rounded-xl object-contain"
               />
             ) : (
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-white/20">

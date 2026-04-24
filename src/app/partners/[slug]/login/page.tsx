@@ -203,7 +203,7 @@ export default function PartnerLoginPage() {
               <img
                 src={org.logo_url}
                 alt={org.name}
-                className="h-14 w-14 mx-auto mb-3 rounded-xl object-contain bg-white/20 p-1"
+                className="h-14 w-14 mx-auto mb-3 rounded-xl object-contain"
               />
             ) : (
               <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/20 mx-auto mb-3">

@@ -130,7 +130,7 @@ function ConfirmResetForm() {
               <div className="h-14 w-14 rounded-xl bg-white/20 animate-pulse mx-auto mb-3" />
             ) : org?.logo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={org.logo_url} alt={org.name} className="h-14 w-14 mx-auto mb-3 rounded-xl object-contain bg-white/20 p-1" />
+              <img src={org.logo_url} alt={org.name} className="h-14 w-14 mx-auto mb-3 rounded-xl object-contain" />
             ) : (
               <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/20 mx-auto mb-3">
                 <GraduationCap className="h-7 w-7" />
