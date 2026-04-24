@@ -366,7 +366,7 @@ export default function BancoDeQuestoes() {
         sessionStorage.setItem('qsr_shield_earned', '1');
       }
       const nextStreak = result.new_streak ?? 0;
-      if (result.streak_updated && nextStreak >= 2) {
+      if (result.streak_updated && nextStreak >= 1) {
         enqueuePopup({
           kind: 'streak',
           routeScope: 'dashboard',
