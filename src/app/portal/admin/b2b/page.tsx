@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft, School, Plus, Copy, Check, Edit2, Trash2,
@@ -933,6 +933,10 @@ export default function AdminB2BPage() {
     org: null,
   });
   const [founderModal, setFounderModal] = useState<Organization | null>(null);
+  const perOrgStats = useMemo(
+    () => new Map((stats?.per_org ?? []).map((item) => [item.org_id, item])),
+    [stats]
+  );
 
   const fetchStats = useCallback(async (p: StatsPeriod) => {
     setStatsLoading(true);
@@ -1089,7 +1093,7 @@ export default function AdminB2BPage() {
               <OrgCard
                 key={org.id}
                 org={org}
-                orgStats={stats?.per_org?.find(p => p.org_id === org.id) ?? null}
+                orgStats={perOrgStats.get(org.id) ?? null}
                 period={period}
                 onEdit={() => setOrgModal({ open: true, org })}
                 onFounder={() => setFounderModal(org)}

@@ -4,67 +4,111 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 type Period = 'today' | 'week' | 'month' | 'year' | 'lifetime';
 
+const UTC_MINUS_3_OFFSET_MINUTES = -180;
+const STATS_CACHE_TTL_MS = 30_000;
+
+const statsCache = new Map<string, { expiresAt: number; payload: any }>();
+
+function getOffsetLocalDate(now = new Date()): Date {
+  const shifted = new Date(now.getTime() + UTC_MINUS_3_OFFSET_MINUTES * 60_000);
+  return new Date(Date.UTC(
+    shifted.getUTCFullYear(),
+    shifted.getUTCMonth(),
+    shifted.getUTCDate()
+  ));
+}
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function localDateToUtcStartISO(localDate: string): string {
+  const [year, month, day] = localDate.split('-').map(Number);
+  const utcMillis = Date.UTC(year, month - 1, day, 0, 0, 0) - (UTC_MINUS_3_OFFSET_MINUTES * 60_000);
+  return new Date(utcMillis).toISOString();
+}
+
 function getMondayISO(): string {
-  const now = new Date();
-  const day = now.getUTCDay();
+  const today = getOffsetLocalDate();
+  const day = today.getUTCDay();
   const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setUTCDate(now.getUTCDate() + diff);
-  monday.setUTCHours(0, 0, 0, 0);
-  return monday.toISOString().slice(0, 10);
+  const monday = new Date(today);
+  monday.setUTCDate(today.getUTCDate() + diff);
+  return isoDate(monday);
 }
 
 function getPrevMondayISO(): string {
-  const now = new Date();
-  const day = now.getUTCDay();
+  const today = getOffsetLocalDate();
+  const day = today.getUTCDay();
   const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setUTCDate(now.getUTCDate() + diff - 7);
-  monday.setUTCHours(0, 0, 0, 0);
-  return monday.toISOString().slice(0, 10);
+  const monday = new Date(today);
+  monday.setUTCDate(today.getUTCDate() + diff - 7);
+  return isoDate(monday);
 }
 
-function getPrevPeriodBounds(period: Period): { start: string; end: string } | null {
-  const now = new Date();
+function getPrevPeriodBounds(period: Period): { startDate: string; endDate: string; startUtc: string; endUtc: string } | null {
+  const today = getOffsetLocalDate();
   switch (period) {
     case 'today': {
-      const y = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
-      const t = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-      return { start: y.toISOString().slice(0, 10), end: t.toISOString().slice(0, 10) };
+      const y = new Date(today);
+      y.setUTCDate(today.getUTCDate() - 1);
+      const startDate = isoDate(y);
+      const endDate = isoDate(today);
+      return {
+        startDate,
+        endDate,
+        startUtc: localDateToUtcStartISO(startDate),
+        endUtc: localDateToUtcStartISO(endDate),
+      };
     }
-    case 'week':
-      return { start: getPrevMondayISO(), end: getMondayISO() };
+    case 'week': {
+      const startDate = getPrevMondayISO();
+      const endDate = getMondayISO();
+      return {
+        startDate,
+        endDate,
+        startUtc: localDateToUtcStartISO(startDate),
+        endUtc: localDateToUtcStartISO(endDate),
+      };
+    }
     case 'month': {
-      const cur = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-      const prev = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-      return { start: prev.toISOString().slice(0, 10), end: cur.toISOString().slice(0, 10) };
+      const cur = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+      const prev = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
+      const startDate = isoDate(prev);
+      const endDate = isoDate(cur);
+      return {
+        startDate,
+        endDate,
+        startUtc: localDateToUtcStartISO(startDate),
+        endUtc: localDateToUtcStartISO(endDate),
+      };
     }
-    case 'year':
-      return { start: `${now.getUTCFullYear() - 1}-01-01`, end: `${now.getUTCFullYear()}-01-01` };
+    case 'year': {
+      const startDate = `${today.getUTCFullYear() - 1}-01-01`;
+      const endDate = `${today.getUTCFullYear()}-01-01`;
+      return {
+        startDate,
+        endDate,
+        startUtc: localDateToUtcStartISO(startDate),
+        endUtc: localDateToUtcStartISO(endDate),
+      };
+    }
     case 'lifetime':
       return null;
   }
 }
 
 function getPeriodStart(period: Period): string | null {
-  const now = new Date();
+  const today = getOffsetLocalDate();
   switch (period) {
     case 'today':
-      return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-        .toISOString()
-        .slice(0, 10);
-    case 'week': {
-      const day = now.getUTCDay();
-      const diff = day === 0 ? -6 : 1 - day;
-      const monday = new Date(now);
-      monday.setUTCDate(now.getUTCDate() + diff);
-      monday.setUTCHours(0, 0, 0, 0);
-      return monday.toISOString().slice(0, 10);
-    }
+      return isoDate(today);
+    case 'week':
+      return getMondayISO();
     case 'month':
-      return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-01`;
+      return `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-01`;
     case 'year':
-      return `${now.getUTCFullYear()}-01-01`;
+      return `${today.getUTCFullYear()}-01-01`;
     case 'lifetime':
       return null;
   }
@@ -76,6 +120,12 @@ export async function GET(request: NextRequest) {
 
   const period = (new URL(request.url).searchParams.get('period') ?? 'week') as Period;
   const periodStart = getPeriodStart(period);
+  const periodStartUtc = periodStart ? localDateToUtcStartISO(periodStart) : null;
+  const cacheKey = `period:${period}`;
+  const cached = statsCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return NextResponse.json(cached.payload);
+  }
 
   const admin = createAdminClient();
   const db = admin as any;
@@ -85,12 +135,14 @@ export async function GET(request: NextRequest) {
   const total_orgs = orgIds.length;
 
   if (total_orgs === 0) {
-    return NextResponse.json({
+    const payload = {
       total_orgs: 0, total_students: 0,
       active_period: 0, questions_period: 0, simulados_period: 0, essays_period: 0,
       prev_active_period: 0, prev_questions_period: 0, prev_simulados_period: 0, prev_essays_period: 0,
       per_org: [], period, period_start: periodStart,
-    });
+    };
+    statsCache.set(cacheKey, { expiresAt: Date.now() + STATS_CACHE_TTL_MS, payload });
+    return NextResponse.json(payload);
   }
 
   const { data: b2bProfiles } = await db
@@ -102,34 +154,82 @@ export async function GET(request: NextRequest) {
   const profiles: any[] = b2bProfiles ?? [];
   const total_students = profiles.length;
   const profileIds = profiles.map((p: any) => p.id);
+  const profileOrgById = new Map<string, string>();
+  const perOrgActiveMap = new Map<string, number>();
+  const perOrgQuestionsMap = new Map<string, number>();
+  const perOrgSimuladosMap = new Map<string, number>();
+  const perOrgEssaysMap = new Map<string, number>();
 
-  const active_period = periodStart
-    ? profiles.filter((p: any) => p.last_activity_date && p.last_activity_date >= periodStart).length
-    : profiles.filter((p: any) => p.last_activity_date).length;
+  for (const orgId of orgIds) {
+    perOrgActiveMap.set(orgId, 0);
+    perOrgQuestionsMap.set(orgId, 0);
+    perOrgSimuladosMap.set(orgId, 0);
+    perOrgEssaysMap.set(orgId, 0);
+  }
+
+  let active_period = 0;
+  for (const profile of profiles) {
+    const profileId = profile.id as string;
+    const orgId = profile.organization_id as string;
+    profileOrgById.set(profileId, orgId);
+    const isActive = periodStart
+      ? Boolean(profile.last_activity_date && profile.last_activity_date >= periodStart)
+      : Boolean(profile.last_activity_date);
+    if (!isActive) continue;
+    active_period += 1;
+    perOrgActiveMap.set(orgId, (perOrgActiveMap.get(orgId) ?? 0) + 1);
+  }
 
   let questions_period = 0;
   let simulados_period = 0;
 
   if (profileIds.length > 0) {
-    let usageQuery = db
-      .from('daily_usage')
-      .select('user_id, questions_count, simulations_count')
+    let answersRowsQuery = db
+      .from('user_answers')
+      .select('user_id')
       .in('user_id', profileIds);
-    if (periodStart) usageQuery = usageQuery.gte('usage_date', periodStart);
+    if (periodStartUtc) answersRowsQuery = answersRowsQuery.gte('created_at', periodStartUtc);
 
-    const { data: usage } = await usageQuery;
-    for (const row of usage ?? []) {
-      questions_period += row.questions_count ?? 0;
-      simulados_period += row.simulations_count ?? 0;
+    let simsRowsQuery = db
+      .from('simulado_sessions')
+      .select('user_id')
+      .in('user_id', profileIds)
+      .eq('status', 'completed');
+    if (periodStartUtc) simsRowsQuery = simsRowsQuery.gte('completed_at', periodStartUtc);
+
+    const [{ data: answersRows }, { data: simsRows }] = await Promise.all([
+      answersRowsQuery,
+      simsRowsQuery,
+    ]);
+
+    questions_period = answersRows?.length ?? 0;
+    for (const row of answersRows ?? []) {
+      const orgId = profileOrgById.get(row.user_id as string);
+      if (!orgId) continue;
+      perOrgQuestionsMap.set(orgId, (perOrgQuestionsMap.get(orgId) ?? 0) + 1);
+    }
+
+    simulados_period = simsRows?.length ?? 0;
+    for (const row of simsRows ?? []) {
+      const orgId = profileOrgById.get(row.user_id as string);
+      if (!orgId) continue;
+      perOrgSimuladosMap.set(orgId, (perOrgSimuladosMap.get(orgId) ?? 0) + 1);
     }
   }
 
-  let essaysQuery = db
+  let essaysRowsQuery = db
     .from('essays')
-    .select('id', { count: 'exact', head: true })
+    .select('org_id')
     .in('org_id', orgIds);
-  if (periodStart) essaysQuery = essaysQuery.gte('submitted_at', `${periodStart}T00:00:00Z`);
-  const { count: essays_period } = await essaysQuery;
+  if (periodStartUtc) essaysRowsQuery = essaysRowsQuery.gte('submitted_at', periodStartUtc);
+  const { data: essaysRows } = await essaysRowsQuery;
+  const essays_period = essaysRows?.length ?? 0;
+
+  for (const row of essaysRows ?? []) {
+    const orgId = row.org_id as string | null;
+    if (!orgId) continue;
+    perOrgEssaysMap.set(orgId, (perOrgEssaysMap.get(orgId) ?? 0) + 1);
+  }
 
   const prevBounds = getPrevPeriodBounds(period);
 
@@ -138,8 +238,8 @@ export async function GET(request: NextRequest) {
     ? profiles.filter(
         (p: any) =>
           p.last_activity_date &&
-          p.last_activity_date >= prevBounds.start &&
-          p.last_activity_date < prevBounds.end
+          p.last_activity_date >= prevBounds.startDate &&
+          p.last_activity_date < prevBounds.endDate
       ).length
     : 0;
 
@@ -148,17 +248,24 @@ export async function GET(request: NextRequest) {
   let prev_simulados_period = 0;
 
   if (profileIds.length > 0 && prevBounds) {
-    const { data: prevUsage } = await db
-      .from('daily_usage')
-      .select('questions_count, simulations_count')
-      .in('user_id', profileIds)
-      .gte('usage_date', prevBounds.start)
-      .lt('usage_date', prevBounds.end);
+    const [{ count: prevAnswersCount }, { count: prevSimsCount }] = await Promise.all([
+      db
+        .from('user_answers')
+        .select('id', { count: 'exact', head: true })
+        .in('user_id', profileIds)
+        .gte('created_at', prevBounds.startUtc)
+        .lt('created_at', prevBounds.endUtc),
+      db
+        .from('simulado_sessions')
+        .select('id', { count: 'exact', head: true })
+        .in('user_id', profileIds)
+        .eq('status', 'completed')
+        .gte('completed_at', prevBounds.startUtc)
+        .lt('completed_at', prevBounds.endUtc),
+    ]);
 
-    for (const row of prevUsage ?? []) {
-      prev_questions_period += row.questions_count ?? 0;
-      prev_simulados_period += row.simulations_count ?? 0;
-    }
+    prev_questions_period = prevAnswersCount ?? 0;
+    prev_simulados_period = prevSimsCount ?? 0;
   }
 
   // Redações período anterior
@@ -168,65 +275,26 @@ export async function GET(request: NextRequest) {
       .from('essays')
       .select('id', { count: 'exact', head: true })
       .in('org_id', orgIds)
-      .gte('submitted_at', `${prevBounds.start}T00:00:00Z`)
-      .lt('submitted_at', `${prevBounds.end}T00:00:00Z`);
+      .gte('submitted_at', prevBounds.startUtc)
+      .lt('submitted_at', prevBounds.endUtc);
     prev_essays_period = count ?? 0;
   }
 
-  const per_org = await Promise.all(
-    orgIds.map(async (org_id: string) => {
-      const orgProfileIds = profiles
-        .filter((p: any) => p.organization_id === org_id)
-        .map((p: any) => p.id);
+  const per_org = orgIds.map((org_id: string) => ({
+    org_id,
+    active_period: perOrgActiveMap.get(org_id) ?? 0,
+    questions_period: perOrgQuestionsMap.get(org_id) ?? 0,
+    simulados_period: perOrgSimuladosMap.get(org_id) ?? 0,
+    essays_period: perOrgEssaysMap.get(org_id) ?? 0,
+  }));
 
-      const org_active = periodStart
-        ? profiles.filter((p: any) =>
-            p.organization_id === org_id &&
-            p.last_activity_date &&
-            p.last_activity_date >= periodStart
-          ).length
-        : profiles.filter((p: any) => p.organization_id === org_id && p.last_activity_date).length;
-
-      let org_questions = 0;
-      let org_simulados = 0;
-
-      if (orgProfileIds.length > 0) {
-        let q = db
-          .from('daily_usage')
-          .select('questions_count, simulations_count')
-          .in('user_id', orgProfileIds);
-        if (periodStart) q = q.gte('usage_date', periodStart);
-        const { data: orgUsage } = await q;
-        for (const row of orgUsage ?? []) {
-          org_questions += row.questions_count ?? 0;
-          org_simulados += row.simulations_count ?? 0;
-        }
-      }
-
-      let eq = db
-        .from('essays')
-        .select('id', { count: 'exact', head: true })
-        .eq('org_id', org_id);
-      if (periodStart) eq = eq.gte('submitted_at', `${periodStart}T00:00:00Z`);
-      const { count: org_essays } = await eq;
-
-      return {
-        org_id,
-        active_period: org_active,
-        questions_period: org_questions,
-        simulados_period: org_simulados,
-        essays_period: org_essays ?? 0,
-      };
-    })
-  );
-
-  return NextResponse.json({
+  const payload = {
     total_orgs,
     total_students,
     active_period,
     questions_period,
     simulados_period,
-    essays_period: essays_period ?? 0,
+    essays_period,
     prev_active_period,
     prev_questions_period,
     prev_simulados_period,
@@ -234,5 +302,9 @@ export async function GET(request: NextRequest) {
     per_org,
     period,
     period_start: periodStart,
-  });
+  };
+
+  statsCache.set(cacheKey, { expiresAt: Date.now() + STATS_CACHE_TTL_MS, payload });
+
+  return NextResponse.json(payload);
 }
