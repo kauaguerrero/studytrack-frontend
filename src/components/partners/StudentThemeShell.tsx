@@ -74,13 +74,13 @@ function StudentThemeShellContent({
       detail: { pathname, previousPathname: prev ?? null },
     }))
 
-    if (prev?.includes('banco-de-questoes') && !pathname?.includes('banco-de-questoes')) {
-      const rawPts = sessionStorage.getItem('qsr_pending_points')
-      const shieldEarned = sessionStorage.getItem('qsr_shield_earned') === '1'
+    if (pathname?.includes('/student/dashboard')) {
+      const genericShieldEarned = sessionStorage.getItem('shield_earned_pending') === '1'
+      const questionShieldEarned = sessionStorage.getItem('qsr_shield_earned') === '1'
+      const shieldEarned = genericShieldEarned || questionShieldEarned
 
-      const pts = rawPts ? parseInt(rawPts, 10) : 0
-      if (pts > 0) sessionStorage.removeItem('qsr_pending_points')
-      if (shieldEarned) sessionStorage.removeItem('qsr_shield_earned')
+      if (genericShieldEarned) sessionStorage.removeItem('shield_earned_pending')
+      if (questionShieldEarned) sessionStorage.removeItem('qsr_shield_earned')
 
       if (shieldEarned) {
         enqueuePopup({
@@ -89,6 +89,14 @@ function StudentThemeShellContent({
           dedupeKey: 'shield-earned-current-session',
         })
       }
+    }
+
+    if (prev?.includes('banco-de-questoes') && !pathname?.includes('banco-de-questoes')) {
+      const rawPts = sessionStorage.getItem('qsr_pending_points')
+      const shieldEarned = sessionStorage.getItem('qsr_shield_earned') === '1'
+
+      const pts = rawPts ? parseInt(rawPts, 10) : 0
+      if (pts > 0) sessionStorage.removeItem('qsr_pending_points')
 
       if (pts > 0) {
         enqueuePopup({

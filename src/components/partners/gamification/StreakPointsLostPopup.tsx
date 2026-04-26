@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { X } from 'lucide-react';
 import { usePopupTheme } from './popupTheme';
 
 interface Props {
@@ -22,6 +23,7 @@ export function StreakPointsLostPopup({
   const shouldReduce = useReducedMotion();
   const [displayPoints, setDisplayPoints] = useState(0);
   const theme = usePopupTheme('danger');
+  const hasPointsLoss = pointsLost > 0;
 
   // Counter: 0 → pointsLost em 1.2 s (ease-out cubic)
   useEffect(() => {
@@ -50,7 +52,11 @@ export function StreakPointsLostPopup({
         paddingLeft: 'max(env(safe-area-inset-left), 1rem)',
       }}
       aria-live="polite"
-      aria-label="Pontos perdidos por streak quebrada"
+      aria-label={
+        hasPointsLoss
+          ? 'Pontos perdidos por streak quebrada'
+          : 'Streak quebrada sem perda de pontos'
+      }
     >
       <motion.div
         className="relative w-full max-w-sm overflow-hidden rounded-3xl shadow-2xl"
@@ -67,6 +73,14 @@ export function StreakPointsLostPopup({
               : 'linear-gradient(180deg, rgba(239,68,68,0.12), transparent)',
           }}
         />
+        <button
+          type="button"
+          onClick={onDismiss}
+          className={`absolute right-3 top-3 z-10 rounded-full p-1.5 transition-colors ${theme.closeButtonClass}`}
+          aria-label="Fechar"
+        >
+          <X className="h-4 w-4" />
+        </button>
         <div className="overflow-y-auto px-5 pt-7 pb-5 space-y-5 sm:px-6 sm:pt-8 sm:pb-6">
           {/* Header */}
           <div className="text-center">
@@ -80,10 +94,12 @@ export function StreakPointsLostPopup({
               💔
             </motion.div>
             <p className={`text-xl font-extrabold uppercase tracking-widest leading-tight ${theme.titleClass}`}>
-              PONTOS PERDIDOS
+              {hasPointsLoss ? 'PONTOS PERDIDOS' : 'STREAK QUEBRADA'}
             </p>
             <p className={`mt-1 text-sm ${theme.bodyClass}`}>
-              Sua sequência foi quebrada por inatividade
+              {hasPointsLoss
+                ? 'Sua sequência foi quebrada por inatividade'
+                : 'Sua sequência foi quebrada, mas não havia pontos para descontar'}
             </p>
           </div>
 
@@ -93,12 +109,37 @@ export function StreakPointsLostPopup({
               className="text-5xl font-black tabular-nums leading-none sm:text-6xl"
               style={{ color: theme.isDark ? '#F87171' : '#DC2626' }}
             >
-              -{displayPoints}
-              <span className="text-3xl font-extrabold ml-1 align-baseline" style={{ color: theme.isDark ? '#FCA5A5' : '#EF4444' }}>
-                pts mensais
-              </span>
+              {hasPointsLoss ? (
+                <>
+                  -{displayPoints}
+                  <span className="text-3xl font-extrabold ml-1 align-baseline" style={{ color: theme.isDark ? '#FCA5A5' : '#EF4444' }}>
+                    pts mensais
+                  </span>
+                </>
+              ) : (
+                <span className="text-3xl font-extrabold sm:text-4xl">
+                  0
+                  <span className="ml-1 align-baseline text-2xl font-bold sm:text-3xl">
+                    pts descontados
+                  </span>
+                </span>
+              )}
             </p>
           </div>
+
+          {!hasPointsLoss && (
+            <motion.div
+              className="rounded-2xl px-4 py-3 text-center"
+              style={theme.accentPanelStyle}
+              initial={shouldReduce ? {} : { opacity: 0, y: 6 }}
+              animate={shouldReduce ? {} : { opacity: 1, y: 0 }}
+              transition={shouldReduce ? {} : { delay: 0.55 }}
+            >
+              <p className={`text-sm ${theme.bodyClass}`}>
+                Seus pontos mensais já estavam zerados neste ciclo.
+              </p>
+            </motion.div>
+          )}
 
           {/* Ranking drop info */}
           {rankDropped && (

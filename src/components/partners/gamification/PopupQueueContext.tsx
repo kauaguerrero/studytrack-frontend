@@ -209,7 +209,8 @@ export function PopupQueueProvider({ children }: { children: ReactNode }) {
       priority: popup.priority ?? POPUP_PRIORITIES[popup.kind],
     } as QueuePopup;
 
-    setQueuedPopups((prev) => [...prev, queueItem]);
+    queuedPopupsRef.current = [...queuedPopupsRef.current, queueItem];
+    setQueuedPopups(queuedPopupsRef.current);
     return id;
   }, []);
 

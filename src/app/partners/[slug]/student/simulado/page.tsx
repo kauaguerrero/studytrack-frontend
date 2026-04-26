@@ -52,6 +52,11 @@ interface FinishResult {
   annulled_questions_count?: number;
   new_streak?: number;
   streak_updated?: boolean;
+  gamification?: {
+    points_awarded?: number;
+    new_monthly_points?: number;
+    shield_awarded?: boolean;
+  };
 }
 
 interface SessionConfig { mode?: string; format?: string; subject?: string; difficulty?: string; qty?: number }
@@ -480,6 +485,9 @@ export default function SimuladoPage() {
       if (res.ok) {
         setFinishResult({ ...data, session_id: sessionId })
         console.log('finish response:', data)
+        if (data.gamification?.shield_awarded) {
+          sessionStorage.setItem('shield_earned_pending', '1')
+        }
         if (data.streak_updated && (data.new_streak ?? 0) >= 1) {
           enqueuePopup({
             kind: 'streak',

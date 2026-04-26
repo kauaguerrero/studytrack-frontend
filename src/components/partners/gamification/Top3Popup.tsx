@@ -253,17 +253,17 @@ export function Top3Popup({ position, ranking, slug, onDismiss }: Props) {
   const theme = usePopupTheme('ranking');
   const selfEntry = ranking?.user_context?.self ?? null;
   const currentTop4 = (ranking?.ranking ?? []).slice(0, 4);
-  const displacedEntry = currentTop4.find((entry) => entry.rank === 4) ?? null;
-  const canShowSwap =
-    position === 3 &&
+  const canShowShift =
     !!selfEntry &&
-    selfEntry.rank === 3 &&
-    !!displacedEntry;
+    selfEntry.rank === position &&
+    position >= 1 &&
+    position <= 3 &&
+    currentTop4.length >= 4;
 
-  const beforeRows = canShowSwap
+  const beforeRows = canShowShift
     ? currentTop4.map((entry) => {
         if (entry.user_id === selfEntry?.user_id) return { ...entry, rank: 4 };
-        if (entry.user_id === displacedEntry?.user_id) return { ...entry, rank: 3 };
+        if (entry.rank > position && entry.rank <= 4) return { ...entry, rank: entry.rank - 1 };
         return entry;
       }).sort((a, b) => a.rank - b.rank)
     : currentTop4;
@@ -365,7 +365,7 @@ export function Top3Popup({ position, ranking, slug, onDismiss }: Props) {
                         Você estava logo abaixo da zona de liderança.
                       </p>
                     </div>
-                    {canShowSwap && (
+                    {canShowShift && (
                       <motion.div
                         className="rounded-full border border-emerald-400/15 bg-emerald-400/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-300"
                         initial={shouldReduce ? {} : { opacity: 0 }}
@@ -405,8 +405,8 @@ export function Top3Popup({ position, ranking, slug, onDismiss }: Props) {
                             transition={{
                               opacity: { duration: 0.35, delay: 0.15 },
                               y: {
-                                duration: canShowSwap ? SWAP_DURATION : 0.45,
-                                delay: canShowSwap ? SWAP_DELAY : 0.15,
+                                duration: canShowShift ? SWAP_DURATION : 0.45,
+                                delay: canShowShift ? SWAP_DELAY : 0.15,
                                 ease: [0.22, 1, 0.36, 1],
                               },
                             }}

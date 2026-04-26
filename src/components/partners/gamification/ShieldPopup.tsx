@@ -1,6 +1,7 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
+import { X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { usePopupTheme } from './popupTheme';
 
@@ -52,6 +53,15 @@ export function ShieldPopup({ streakPreserved, slug, onDismiss }: Props) {
               : 'linear-gradient(180deg, rgba(96,165,250,0.14), transparent)',
           }}
         />
+
+        <button
+          type="button"
+          onClick={onDismiss}
+          className={`absolute right-3 top-3 z-10 rounded-full p-1.5 transition-colors ${theme.closeButtonClass}`}
+          aria-label="Fechar"
+        >
+          <X className="h-4 w-4" />
+        </button>
 
         <motion.div
           className="mb-5 text-6xl sm:mb-6 sm:text-7xl"

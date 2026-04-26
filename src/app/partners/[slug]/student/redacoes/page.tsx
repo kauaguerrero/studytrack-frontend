@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { getApiBaseUrl } from '@/lib/api-base';
 import { cn } from '@/lib/utils';
 import { useOrg } from '@/contexts/OrgContext';
 import { ArrowDown, ArrowUp, CalendarDays, ChevronDown, Eye, FileText, Minus, Plus, TrendingUp, BarChart3, CheckCircle2, Clock, Target } from 'lucide-react';
@@ -123,7 +124,7 @@ export default function StudentRedacoesPage() {
           return;
         }
 
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+        const apiUrl = getApiBaseUrl();
         const res = await fetch(
           `${apiUrl}/api/partners/${slug}/essays?status=all&page=1&limit=200`,
           {

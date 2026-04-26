@@ -364,6 +364,7 @@ export default function BancoDeQuestoes() {
       }
       if (result.gamification?.shield_awarded) {
         sessionStorage.setItem('qsr_shield_earned', '1');
+        sessionStorage.setItem('shield_earned_pending', '1');
       }
       const nextStreak = result.new_streak ?? 0;
       if (result.streak_updated && nextStreak >= 1) {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
+import { X } from 'lucide-react';
 import { usePopupTheme } from './popupTheme';
 
 interface Props {
@@ -68,6 +69,16 @@ export function StreakBrokenPopup({
               : 'linear-gradient(180deg, rgba(239,68,68,0.14), transparent)',
           }}
         />
+
+        <button
+          type="button"
+          onClick={handleDashboard}
+          disabled={loading}
+          className={`absolute right-3 top-3 z-10 rounded-full p-1.5 transition-colors disabled:opacity-50 ${theme.closeButtonClass}`}
+          aria-label="Fechar"
+        >
+          <X className="h-4 w-4" />
+        </button>
 
         <motion.div
           className="mb-5 text-6xl sm:mb-6 sm:text-7xl"

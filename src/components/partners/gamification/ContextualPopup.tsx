@@ -18,6 +18,10 @@ function formatPoints(pts: number): string {
   return pts.toLocaleString('pt-BR');
 }
 
+const URGENCY_ROW_HEIGHT = 58;
+const URGENCY_ROW_GAP = 8;
+const URGENCY_ROW_STRIDE = URGENCY_ROW_HEIGHT + URGENCY_ROW_GAP;
+
 function PopupRankRow({
   entry,
   isSelf,
@@ -122,7 +126,7 @@ export function ContextualPopup({ popupState, ranking, slug, onDismiss }: Props)
     ...(selfEntry ? [selfEntry] : []),
     ...belowEntries.slice(0, 2),
   ];
-  const swapDistance = 60;
+  const swapDistance = URGENCY_ROW_STRIDE;
 
   const handleOpenRanking = () => {
     onDismiss();
@@ -213,10 +217,14 @@ export function ContextualPopup({ popupState, ranking, slug, onDismiss }: Props)
                   <span>Agora</span>
                 </div>
 
-                <div className="relative h-[124px] overflow-hidden rounded-2xl" style={theme.panelStyle}>
+                <div
+                  className="relative overflow-hidden rounded-2xl"
+                  style={{ ...theme.panelStyle, height: URGENCY_ROW_HEIGHT * 2 + URGENCY_ROW_GAP + 10 }}
+                >
                   {selfEntry && (
                     <motion.div
-                      className="absolute inset-x-3 top-2.5 z-10"
+                      className="absolute inset-x-3 z-10"
+                      style={{ top: 5 }}
                       initial={shouldReduce ? {} : { y: 0, scale: 1 }}
                       animate={shouldReduce ? {} : { y: swapDistance, scale: 0.985 }}
                       transition={{ duration: 0.85, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
@@ -232,7 +240,8 @@ export function ContextualPopup({ popupState, ranking, slug, onDismiss }: Props)
 
                   {rivalEntry && (
                     <motion.div
-                      className="absolute inset-x-3 top-[63px] z-20"
+                      className="absolute inset-x-3 z-20"
+                      style={{ top: 5 + URGENCY_ROW_STRIDE }}
                       initial={shouldReduce ? {} : { y: 0, scale: 0.985 }}
                       animate={shouldReduce ? {} : { y: -swapDistance, scale: 1 }}
                       transition={{ duration: 0.85, delay: 0.8, ease: [0.22, 1, 0.36, 1] }}
