@@ -7,6 +7,7 @@ import { AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
+import { getApiBaseUrl } from '@/lib/api-base';
 import { useOrg } from '@/contexts/OrgContext';
 import { EssayRewardPopup } from '@/components/partners/gamification/EssayRewardPopup';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,7 @@ interface EssayRewardState {
   new_monthly_points: number;
   rank_position: number | null;
   points_to_top3: number | null;
+  shield_awarded?: boolean;
 }
 
 interface SupportItem {
@@ -75,7 +77,7 @@ export default function NovaRedacaoPage() {
         const supabase = createClient();
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) return;
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+        const apiUrl = getApiBaseUrl();
         const res = await fetch(`${apiUrl}/api/partners/${slug}/essays?status=all&page=1&limit=1`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
@@ -140,7 +142,7 @@ export default function NovaRedacaoPage() {
         return;
       }
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+      const apiUrl = getApiBaseUrl();
       const res = await fetch(`${apiUrl}/api/partners/${slug}/essays`, {
         method: 'POST',
         headers: {
@@ -164,12 +166,16 @@ export default function NovaRedacaoPage() {
       if (nextCredits) setCreditStatus(nextCredits);
 
       const reward = data?.gamification;
+      if (reward?.shield_awarded) {
+        sessionStorage.setItem('shield_earned_pending', '1');
+      }
       if (reward?.points_awarded && reward?.new_monthly_points !== undefined) {
         setRewardState({
           points_awarded: reward.points_awarded,
           new_monthly_points: reward.new_monthly_points,
           rank_position: reward.rank_position ?? null,
           points_to_top3: reward.points_to_top3 ?? null,
+          shield_awarded: reward.shield_awarded,
         });
       } else {
         toast.success('Redação enviada! Você será notificado quando o professor corrigir.');

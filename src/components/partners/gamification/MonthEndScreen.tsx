@@ -1,7 +1,7 @@
 'use client';
 
 import { useReducedMotion, motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Medal, Crown, ArrowRight, EyeOff } from 'lucide-react';
+import { Trophy, Medal, Crown, ArrowRight, EyeOff, X } from 'lucide-react';
 import { usePopupTheme } from './popupTheme';
 import { getRankingDisplayName } from '@/lib/ranking-privacy';
 
@@ -18,6 +18,7 @@ interface Props {
   winners: Winner[];
   organizationName: string;
   onContinue: () => void;
+  onDismiss: () => void;
 }
 
 // ─── Particles ────────────────────────────────────────────────────────────────
@@ -132,6 +133,7 @@ export function MonthEndScreen({
   winners,
   organizationName,
   onContinue,
+  onDismiss,
 }: Props) {
   const shouldReduce = useReducedMotion();
   const theme = usePopupTheme('ranking');
@@ -179,6 +181,15 @@ export function MonthEndScreen({
             className="pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 h-48 w-48 rounded-full blur-3xl opacity-25"
             style={{ background: 'var(--brand-primary)' }}
           />
+
+          <button
+            type="button"
+            onClick={onDismiss}
+            className={`absolute right-3 top-3 z-20 rounded-full p-1.5 transition-colors ${theme.closeButtonClass}`}
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4" />
+          </button>
 
           {/* Confetti particles */}
           {!shouldReduce && (
