@@ -280,16 +280,13 @@ export default function PartnerLoginPage() {
               </Button>
             </form>
 
-            <p className="text-center text-sm text-slate-500 pt-1">
-              Não tenho conta{' '}
-              <Link
-                href={`/partners/${slug}/register`}
-                className="underline font-medium hover:opacity-80"
-                style={{ color: primary }}
-              >
-                → Criar conta
-              </Link>
-            </p>
+            <Link
+              href={`/partners/${slug}/register`}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border-2 px-4 py-2 text-sm font-semibold transition-colors hover:bg-opacity-10"
+              style={{ borderColor: primary, color: primary }}
+            >
+              Não tenho conta — Criar conta
+            </Link>
           </div>
         </div>
 

@@ -207,7 +207,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    window.location.href = `/partners/${org.slug}/register`;
+    window.location.href = `/partners/${org.slug}/login?next=/partners/${org.slug}/student/dashboard`;
   }
 
   const handleMouseEnter = () => {

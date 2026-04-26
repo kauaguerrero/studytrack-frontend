@@ -980,7 +980,13 @@ export default function FounderDashboardClient({
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1.5">
                               <span className="text-sm font-semibold text-slate-700 dark:text-white/80 truncate group-hover:text-slate-900 dark:group-hover:text-slate-900 dark:text-white transition-colors">
-                                {student.full_name?.split(' ')[0] || '—'}
+                                {(() => {
+                                  const parts = student.full_name?.split(' ').filter(Boolean) ?? [];
+                                  const particles = new Set(['de', 'da', 'do', 'dos', 'das', 'e']);
+                                  const first = parts[0];
+                                  const last = parts.slice(1).find(p => !particles.has(p.toLowerCase()));
+                                  return first ? (last ? `${first} ${last}` : first) : '—';
+                                })()}
                               </span>
                               <div className="flex items-center gap-2.5 shrink-0 ml-2">
                                 <span
