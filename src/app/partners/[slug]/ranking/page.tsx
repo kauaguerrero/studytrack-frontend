@@ -22,6 +22,7 @@ import { getProgressTierMeta } from '@/components/partners/gamification/titleSys
 import type { PartnerRankingEntry } from '@/types/gamification';
 import { getInitials, getRankingDisplayName, isAnonymousRankingEntry } from '@/lib/ranking-privacy';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
+import { useOrg } from '@/contexts/OrgContext';
 
 // ─── Animation config ────────────────────────────────────────────────────────
 
@@ -372,6 +373,7 @@ function GlassCard({ children, className = '' }: { children: React.ReactNode; cl
 export default function FounderRankingPage() {
   const shouldReduce = useReducedMotion();
   const TOP_LIMIT = 50;
+  const { org } = useOrg();
 
   const { summary, ranking, isLoading, refreshRanking } = usePartnerGamification({
     fetchPopupStateOnMount: false,
@@ -379,7 +381,7 @@ export default function FounderRankingPage() {
 
   useEffect(() => {
     if (!isLoading) {
-      refreshRanking(TOP_LIMIT);
+      refreshRanking(TOP_LIMIT, org.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading]);

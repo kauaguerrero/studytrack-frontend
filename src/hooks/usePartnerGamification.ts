@@ -282,14 +282,16 @@ export function usePartnerGamification(
 
   // ── Lazy: fetch ranking ────────────────────────────────────────────────────
 
-  const refreshRanking = useCallback(async (limit = 50): Promise<PartnerRankingResponse | null> => {
+  const refreshRanking = useCallback(async (limit = 50, orgId?: string): Promise<PartnerRankingResponse | null> => {
     const token = tokenRef.current;
     if (!token) return null;
     const apiBase = getApiBaseUrl();
+    const params = new URLSearchParams({ limit: String(Math.min(limit, 100)) });
+    if (orgId) params.set('org_id', orgId);
 
     try {
       const data = await apiFetcher<PartnerRankingResponse>(
-        `${apiBase}/api/partner/gamification/ranking?limit=${Math.min(limit, 100)}`,
+        `${apiBase}/api/partner/gamification/ranking?${params.toString()}`,
         { headers: buildHeaders(token) },
       );
       setRanking(data);
