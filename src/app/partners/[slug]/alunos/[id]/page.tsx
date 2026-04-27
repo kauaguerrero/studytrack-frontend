@@ -15,7 +15,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, BookOpen, FileText, Target } from 'lucide-react';
+import {
+  ArrowLeft, BookOpen, FileText, Target,
+  Flame, TrendingUp, TrendingDown, Award, BarChart2, Zap,
+} from 'lucide-react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
@@ -40,22 +43,29 @@ interface StudentDetail {
     study_pace: string | null;
     hours_per_day: number | null;
     days_per_week: number | null;
+    current_streak?: number | null;
   };
   metrics: {
     questions_today: number;
     questions_week: number;
     questions_month: number;
+    questions_total: number;
     simulados_month: number;
+    simulados_total: number;
     accuracy_pct: number | null;
   };
   subject_breakdown: { subject: string; total: number; correct: number; accuracy_pct: number }[];
   weekly_evolution: { week_start: string; total: number; accuracy_pct: number }[];
+  daily_evolution?: { date: string; total: number; accuracy_pct: number }[];
   recent_answers: { id: string; question_id: string; selected_option: string; is_correct: boolean; subject: string; created_at: string }[];
   recent_simulados: { id: string; config: Record<string, unknown>; score: number; total_questions: number; tri_score: number | null; time_taken_secs: number; completed_at: string }[];
   essay_stats?: {
     delivered_count: number;
     corrected_count: number;
     avg_score: number | null;
+    best_score: number | null;
+    trend: 'up' | 'down' | 'neutral' | null;
+    trend_delta: number | null;
   };
   essay_evolution?: {
     id: string;
@@ -63,6 +73,11 @@ interface StudentDetail {
     submitted_at: string;
     corrected_at: string | null;
     total_score: number | null;
+  }[];
+  essay_competency_avgs?: {
+    competency: number;
+    avg: number | null;
+    count: number;
   }[];
 }
 
@@ -82,6 +97,28 @@ interface OrgPlanOption {
 }
 
 const PACE_LABELS: Record<string, string> = { slow: 'Leve', moderate: 'Moderado', intense: 'Intensivo' };
+
+const COMPETENCY_NAMES = [
+  'Norma Culta',
+  'Compreensão da Proposta',
+  'Organização das Informações',
+  'Mecanismos Linguísticos',
+  'Proposta de Intervenção',
+];
+
+function getTrendColor(trend: string | null | undefined): string {
+  if (trend === 'up') return 'text-emerald-600 dark:text-emerald-400';
+  if (trend === 'down') return 'text-red-500 dark:text-red-400';
+  return 'text-slate-500 dark:text-slate-400';
+}
+
+function getTrendLabel(trend: string | null | undefined, delta: number | null | undefined): string {
+  if (!trend || delta === null || delta === undefined) return '—';
+  const sign = delta > 0 ? '+' : '';
+  if (trend === 'up') return `↑ ${sign}${delta} pts (últimas 3)`;
+  if (trend === 'down') return `↓ ${sign}${delta} pts (últimas 3)`;
+  return `→ Estável (últimas 3)`;
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isPlanActive(value: OrgPlanOption['is_active']): boolean {
@@ -111,6 +148,18 @@ function formatIsoToBrtMonthDay(value?: string | null): string {
   return full.length >= 10 ? full.slice(5, 10) : full;
 }
 
+// Retorna DD/MM/YYYY para exibição (não usar como chave de ordenação)
+function formatIsoToBrtDateBR(value?: string | null): string {
+  const ymd = formatIsoToBrtDate(value);
+  if (ymd === '—' || ymd.length < 10) return ymd;
+  return `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}/${ymd.slice(0, 4)}`;
+}
+
+const SIM_FORMAT_LABELS: Record<string, string> = {
+  custom: 'Personalizado',
+  enem: 'ENEM',
+};
+
 export default function StudentProfilePage() {
   const { org } = useOrg();
   const params = useParams<{ slug: string; id: string }>();
@@ -125,6 +174,8 @@ export default function StudentProfilePage() {
   const [plans, setPlans] = useState<OrgPlanOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingPlan, setUpdatingPlan] = useState(false);
+  type EvolutionGranularity = 'daily' | 'weekly' | 'monthly';
+  const [evolutionGranularity, setEvolutionGranularity] = useState<EvolutionGranularity>('daily');
 
   useEffect(() => {
     async function fetchProfile() {
@@ -285,6 +336,42 @@ export default function StudentProfilePage() {
       ? (plans.find((plan) => plan.id === selectedPlanValue)?.name || 'Sem plano vinculado')
       : 'Sem plano vinculado');
 
+  // Evolução diária: usa daily_evolution do backend (4 semanas de dados)
+  const dailyEvolution = (data?.daily_evolution ?? []).map((d) => ({
+    label: `${d.date.slice(8, 10)}/${d.date.slice(5, 7)}`, // DD/MM
+    accuracy_pct: d.accuracy_pct,
+  }));
+
+  // Consistência de volume: questões por dia
+  const volumeChartData = (data?.daily_evolution ?? []).map((d) => ({
+    label: `${d.date.slice(8, 10)}/${d.date.slice(5, 7)}`, // DD/MM
+    total: d.total,
+  }));
+
+  // Evolução mensal: agrega weekly_evolution por mês
+  const monthlyEvolution = (() => {
+    const weeks = data?.weekly_evolution ?? [];
+    const monthMap: Record<string, { totalAnswers: number; sumCorrect: number }> = {};
+    for (const w of weeks) {
+      const month = w.week_start.slice(0, 7);
+      if (!monthMap[month]) monthMap[month] = { totalAnswers: 0, sumCorrect: 0 };
+      monthMap[month].totalAnswers += w.total;
+      monthMap[month].sumCorrect += Math.round((w.accuracy_pct / 100) * w.total);
+    }
+    return Object.entries(monthMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, v]) => ({
+        label: `${month.slice(5)}/${month.slice(2, 4)}`, // MM/AA
+        accuracy_pct: v.totalAnswers > 0 ? Math.round((v.sumCorrect / v.totalAnswers) * 100) : 0,
+      }));
+  })();
+
+  const evolutionChartData =
+    evolutionGranularity === 'daily' ? dailyEvolution
+    : evolutionGranularity === 'weekly'
+      ? (data?.weekly_evolution ?? []).map((w) => ({ label: `${w.week_start.slice(8, 10)}/${w.week_start.slice(5, 7)}`, accuracy_pct: w.accuracy_pct }))
+    : monthlyEvolution;
+
   return (
     <PartnerLayout>
       <div className="space-y-6">
@@ -382,111 +469,383 @@ export default function StudentProfilePage() {
           </Card>
         </section>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {[
-            { label: 'Questões hoje', value: metrics?.questions_today, icon: BookOpen },
-            { label: 'Semana', value: metrics?.questions_week, icon: BookOpen },
-            { label: 'Mês', value: metrics?.questions_month, icon: BookOpen },
-            { label: 'Simulados', value: metrics?.simulados_month, icon: FileText },
-            { label: 'Acertos%', value: metrics?.accuracy_pct != null ? `${metrics.accuracy_pct}%` : '—', icon: Target },
-          ].map(({ label, value, icon: Icon }) => (
-            <Card
-              key={label}
-              className="overflow-hidden border-[color:color-mix(in_srgb,var(--brand-primary)_14%,transparent)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),color-mix(in_srgb,var(--brand-primary)_5%,white))]"
-            >
-              <CardHeader className="flex flex-row items-center justify-between pb-1 pt-4 px-4">
-                <CardTitle className="text-xs text-slate-500 leading-tight">{label}</CardTitle>
-                <div
-                  className="flex h-7 w-7 items-center justify-center rounded-full"
-                  style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, white)' }}
-                >
-                  <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
+        {/* ── GRUPO 1: Volume ─────────────────────────── */}
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            Volume
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              {
+                label: 'Questões no mês',
+                value: metrics?.questions_month ?? '—',
+                sub: `${metrics?.questions_total ?? 0} no total`,
+                icon: BookOpen,
+                color: 'var(--brand-primary)',
+              },
+              {
+                label: 'Questões esta semana',
+                value: metrics?.questions_week ?? '—',
+                sub: `${metrics?.questions_today ?? 0} hoje`,
+                icon: Zap,
+                color: 'var(--brand-primary)',
+              },
+              {
+                label: 'Simulados',
+                value: metrics?.simulados_month ?? '—',
+                sub: 'no mês',
+                icon: FileText,
+                color: '#3b82f6',
+              },
+              {
+                label: 'Redações enviadas',
+                value: deliveredCount,
+                sub: `${correctedCount} corrigidas`,
+                icon: FileText,
+                color: '#8b5cf6',
+              },
+            ].map(({ label, value, sub, icon: Icon, color }) => (
+              <div
+                key={label}
+                className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{label}</p>
+                  <div
+                    className="flex h-7 w-7 items-center justify-center rounded-lg"
+                    style={{ background: `${color}18` }}
+                  >
+                    <Icon className="h-3.5 w-3.5" style={{ color }} />
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                {loading ? (
-                  <Skeleton className="h-6 w-12" />
-                ) : (
-                  <span className="text-2xl font-bold text-slate-900 dark:text-white">{value ?? '—'}</span>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                  {loading ? '—' : value}
+                </p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">{sub}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Redações */}
-        <Card className="border-[color:color-mix(in_srgb,var(--brand-primary)_16%,transparent)]">
-          <CardHeader>
-            <CardTitle className="text-sm">Redações</CardTitle>
-            {!loading && (
-              <div className="rounded-xl border p-2.5" style={{ borderColor: 'color-mix(in srgb, var(--brand-primary) 28%, transparent)' }}>
-                <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                  <span
-                    className="inline-flex items-center rounded-md px-2.5 py-1 text-white"
-                    style={{ backgroundColor: 'var(--brand-primary)' }}
+        {/* ── GRUPO 2: Qualidade ───────────────────────── */}
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            Qualidade
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              {
+                label: 'Taxa de acerto',
+                value: metrics?.accuracy_pct != null ? `${metrics.accuracy_pct}%` : '—',
+                sub: 'questões do mês',
+                icon: Target,
+                color: metrics?.accuracy_pct != null && metrics.accuracy_pct >= 60
+                  ? '#22c55e' : metrics?.accuracy_pct != null && metrics.accuracy_pct >= 40
+                    ? '#f59e0b' : '#ef4444',
+              },
+              {
+                label: 'Nota média redações',
+                value: data?.essay_stats?.avg_score != null
+                  ? `${data.essay_stats.avg_score}`
+                  : '—',
+                sub: 'sobre 1000 pts',
+                icon: TrendingUp,
+                color: data?.essay_stats?.avg_score != null && data.essay_stats.avg_score >= 700
+                  ? '#22c55e' : data?.essay_stats?.avg_score != null && data.essay_stats.avg_score >= 500
+                    ? '#f59e0b' : '#ef4444',
+              },
+              {
+                label: 'Melhor nota',
+                value: data?.essay_stats?.best_score != null
+                  ? `${data.essay_stats.best_score}`
+                  : '—',
+                sub: 'sobre 1000 pts',
+                icon: Award,
+                color: 'var(--brand-primary)',
+              },
+              {
+                label: 'Sequência atual',
+                value: data?.profile?.current_streak ?? 0,
+                sub: 'dias seguidos',
+                icon: Flame,
+                color: '#f97316',
+              },
+            ].map(({ label, value, sub, icon: Icon, color }) => (
+              <div
+                key={label}
+                className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{label}</p>
+                  <div
+                    className="flex h-7 w-7 items-center justify-center rounded-lg"
+                    style={{ background: `${color}18` }}
                   >
-                    {deliveredCount} entregues
-                  </span>
-                  <span className="text-slate-400">•</span>
-                  <span
-                    className="inline-flex items-center rounded-md px-2.5 py-1 text-white"
-                    style={{ backgroundColor: 'var(--brand-secondary)' }}
-                  >
-                    {correctedCount} corrigidas
-                  </span>
-                </div>
-              </div>
-            )}
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-44 w-full" />
-            ) : deliveredCount === 0 ? (
-              <p className="text-center text-sm text-slate-400 py-8">Aluno ainda não entregou redações.</p>
-            ) : correctedEssayEvolution.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-5 text-center">
-                <p className="text-sm text-slate-500">Há redações enviadas, mas ainda sem notas corrigidas.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div className="rounded-lg border dark:border-slate-800 px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Entregues</p>
-                    <p className="text-xl font-bold text-slate-900 dark:text-white">{deliveredCount}</p>
-                  </div>
-                  <div className="rounded-lg border dark:border-slate-800 px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Corrigidas</p>
-                    <p className="text-xl font-bold text-slate-900 dark:text-white">{correctedCount}</p>
-                  </div>
-                  <div className="rounded-lg border dark:border-slate-800 px-3 py-2">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Média</p>
-                    <p className="text-xl font-bold text-slate-900 dark:text-white">
-                      {essayStats?.avg_score != null ? `${essayStats.avg_score} / 1000` : '—'}
-                    </p>
+                    <Icon className="h-3.5 w-3.5" style={{ color }} />
                   </div>
                 </div>
+                <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                  {loading ? '—' : value}
+                </p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">{sub}</p>
+              </div>
+            ))}
+          </div>
+        </div>
 
-                <ResponsiveContainer width="100%" height={180}>
+        {/* Tendência de redações — só se houver dados */}
+        {!loading && data?.essay_stats?.trend && (
+          <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${
+            data.essay_stats.trend === 'up'
+              ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10'
+              : data.essay_stats.trend === 'down'
+                ? 'border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10'
+                : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50'
+          }`}>
+            {data.essay_stats.trend === 'up' && <TrendingUp className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />}
+            {data.essay_stats.trend === 'down' && <TrendingDown className="h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />}
+            {data.essay_stats.trend === 'neutral' && <BarChart2 className="h-4 w-4 shrink-0 text-slate-500" />}
+            <div>
+              <p className={`text-sm font-semibold ${getTrendColor(data.essay_stats.trend)}`}>
+                {getTrendLabel(data.essay_stats.trend, data.essay_stats.trend_delta)}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Comparando as últimas 3 redações com as 3 anteriores
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Redações ─────────────────────────────────── */}
+        {(deliveredCount > 0 || correctedEssayEvolution.length > 0) && (
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Gráfico de evolução de notas */}
+            {correctedEssayEvolution.length >= 2 && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <p className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  Evolução das notas de redação
+                </p>
+                <ResponsiveContainer width="100%" height={160}>
                   <LineChart data={essayEvolutionChart}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis domain={[0, 1000]} tick={{ fontSize: 10 }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 1000]} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                     <Tooltip formatter={(v) => [`${v} / 1000`, 'Nota']} />
-                    <Line
-                      type="monotone"
-                      dataKey="score"
-                      stroke="var(--brand-primary)"
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                    />
+                    <Line type="monotone" dataKey="score" stroke="var(--brand-primary)" strokeWidth={2.5} dot={{ r: 3, fill: 'var(--brand-primary)', strokeWidth: 0 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             )}
-          </CardContent>
-        </Card>
 
+            {/* Competências C1-C5 */}
+            {(data?.essay_competency_avgs ?? []).some((c) => c.avg !== null) && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                <p className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  Média por competência ENEM
+                </p>
+                <div className="space-y-2.5">
+                  {(data!.essay_competency_avgs ?? []).map((c) => {
+                    const pct = c.avg !== null ? Math.round((c.avg / 200) * 100) : 0;
+                    const barColor = pct >= 70 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
+                    return (
+                      <div key={c.competency} className="flex items-center gap-3">
+                        <span className="w-5 shrink-0 text-xs font-black text-slate-400">
+                          C{c.competency}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-0.5 flex items-center justify-between gap-2">
+                            <p className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
+                              {COMPETENCY_NAMES[c.competency - 1]}
+                            </p>
+                            <span className="shrink-0 text-xs font-bold tabular-nums text-slate-700 dark:text-slate-300">
+                              {c.avg !== null ? `${c.avg}/200` : '—'}
+                            </span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%`, backgroundColor: barColor }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Evolução de acertos + Volume + Acertos por matéria */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+              <CardTitle className="text-sm">Evolução de acertos</CardTitle>
+              <Select
+                value={evolutionGranularity}
+                onValueChange={(v) => setEvolutionGranularity(v as EvolutionGranularity)}
+              >
+                <SelectTrigger className="h-7 w-28 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Diária</SelectItem>
+                  <SelectItem value="weekly">Semanal</SelectItem>
+                  <SelectItem value="monthly">Mensal</SelectItem>
+                </SelectContent>
+              </Select>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-40 w-full" />
+              ) : evolutionChartData.length === 0 ? (
+                <p className="text-center text-sm text-slate-400 py-10">Sem dados ainda</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={160}>
+                  <LineChart data={evolutionChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
+                    <Tooltip formatter={(v) => [`${v}%`, 'Acertos']} />
+                    <Line type="monotone" dataKey="accuracy_pct" stroke="var(--brand-primary)" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Consistência de volume</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-40 w-full" />
+              ) : volumeChartData.length === 0 ? (
+                <p className="text-center text-sm text-slate-400 py-10">Sem dados ainda</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={160}>
+                  <LineChart data={volumeChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                    <Tooltip formatter={(v) => [`${v}`, 'Questões']} />
+                    <Line type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Acertos por Matéria (mês)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <Skeleton className="h-40 w-full" />
+              ) : (data?.subject_breakdown?.length ?? 0) === 0 ? (
+                <p className="text-center text-sm text-slate-400 py-10">Sem dados ainda</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={160}>
+                  <BarChart data={data!.subject_breakdown} layout="vertical" barSize={14}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                    <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
+                    <YAxis type="category" dataKey="subject" width={90} tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={(v) => [`${v}%`, 'Acertos']} />
+                    <Bar dataKey="accuracy_pct" fill="var(--brand-primary)" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Ponto fraco / Ponto forte por matéria */}
+        {!loading && (data?.subject_breakdown?.length ?? 0) > 0 && (() => {
+          const eligible = (data!.subject_breakdown).filter((s) => s.total >= 3);
+          if (eligible.length === 0) return null;
+          const weakest = eligible.reduce((a, b) => a.accuracy_pct <= b.accuracy_pct ? a : b);
+          const strongest = eligible.reduce((a, b) => a.accuracy_pct >= b.accuracy_pct ? a : b);
+          return (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="relative overflow-hidden rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm dark:border-red-500/25 dark:bg-red-500/10">
+                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 dark:bg-red-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-red-600 dark:text-red-400">Ponto fraco</p>
+                </div>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">{weakest.subject}</p>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  {weakest.accuracy_pct}% de acertos · {weakest.total} questões no mês
+                </p>
+              </div>
+              <div className="relative overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-500/25 dark:bg-emerald-500/10">
+                <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 dark:bg-emerald-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Ponto forte</p>
+                </div>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">{strongest.subject}</p>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  {strongest.accuracy_pct}% de acertos · {strongest.total} questões no mês
+                </p>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Últimos simulados */}
+        {(data?.recent_simulados?.length ?? 0) > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Últimos Simulados</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {data!.recent_simulados.map((s) => {
+                  const pct = Math.round((s.score / s.total_questions) * 100);
+                  return (
+                    <div
+                      key={s.id}
+                      className="flex items-center gap-3 rounded-xl border dark:border-slate-800 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                          {(() => {
+                            const fmt = (s.config as { format?: string })?.format;
+                            if (typeof fmt === 'string') return SIM_FORMAT_LABELS[fmt.toLowerCase()] ?? fmt;
+                            return 'Simulado';
+                          })()}
+                        </p>
+                        <p className="text-xs text-slate-400">{formatIsoToBrtDateBR(s.completed_at)}</p>
+                      </div>
+                      <div className="text-center shrink-0">
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                          {s.score}/{s.total_questions}
+                        </p>
+                        <p className="text-[10px] text-slate-400">questões</p>
+                      </div>
+                      <div
+                        className="text-lg font-black shrink-0 w-14 text-right"
+                        style={{ color: pct >= 60 ? 'var(--brand-primary)' : '#f43f5e' }}
+                      >
+                        {pct}%
+                      </div>
+                      {s.tri_score != null && (
+                        <div className="text-center shrink-0 hidden sm:block">
+                          <p className="text-sm font-bold text-slate-600 dark:text-slate-400">{s.tri_score}</p>
+                          <p className="text-[10px] text-slate-400">TRI</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Histórico de redações */}
         <Card className="border-[color:color-mix(in_srgb,var(--brand-secondary)_18%,transparent)]">
           <CardHeader>
             <CardTitle className="text-sm">Histórico de redações</CardTitle>
@@ -543,146 +902,6 @@ export default function StudentProfilePage() {
             )}
           </CardContent>
         </Card>
-
-        {/* Evolução semanal + Acertos por matéria */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Evolução de Acertos (4 semanas)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Skeleton className="h-40 w-full" />
-              ) : (data?.weekly_evolution?.length ?? 0) === 0 ? (
-                <p className="text-center text-sm text-slate-400 py-10">Sem dados ainda</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={160}>
-                  <LineChart data={data!.weekly_evolution}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="week_start" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(5)} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
-                    <Tooltip formatter={(v) => [`${v}%`, 'Acertos']} />
-                    <Line type="monotone" dataKey="accuracy_pct" stroke="var(--brand-primary)" strokeWidth={2} dot={{ r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Acertos por Matéria (mês)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <Skeleton className="h-40 w-full" />
-              ) : (data?.subject_breakdown?.length ?? 0) === 0 ? (
-                <p className="text-center text-sm text-slate-400 py-10">Sem dados ainda</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={160}>
-                  <BarChart data={data!.subject_breakdown} layout="vertical" barSize={14}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                    <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
-                    <YAxis type="category" dataKey="subject" width={90} tick={{ fontSize: 10 }} />
-                    <Tooltip formatter={(v) => [`${v}%`, 'Acertos']} />
-                    <Bar dataKey="accuracy_pct" fill="var(--brand-primary)" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Últimas respostas */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Últimas Respostas</CardTitle>
-            <CardDescription>20 mais recentes</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-2">
-                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
-              </div>
-            ) : (data?.recent_answers?.length ?? 0) === 0 ? (
-              <p className="text-center text-sm text-slate-400 py-6">Nenhuma resposta registrada</p>
-            ) : (
-              <div className="space-y-1.5">
-                {data!.recent_answers.map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-                  >
-                    <span className="text-xs text-slate-600 dark:text-slate-400 flex-1 truncate">
-                      {a.subject || '—'}
-                    </span>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">
-                      {a.selected_option}
-                    </span>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] shrink-0 ${a.is_correct ? 'border-emerald-300 text-emerald-600' : 'border-rose-300 text-rose-500'}`}
-                    >
-                      {a.is_correct ? 'Acerto' : 'Erro'}
-                    </Badge>
-                    <span className="text-[10px] text-slate-400 shrink-0 hidden sm:inline">
-                      {formatIsoToBrtDate(a.created_at)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Últimos simulados */}
-        {(data?.recent_simulados?.length ?? 0) > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Últimos Simulados</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {data!.recent_simulados.map((s) => {
-                  const pct = Math.round((s.score / s.total_questions) * 100);
-                  return (
-                    <div
-                      key={s.id}
-                      className="flex items-center gap-3 rounded-xl border dark:border-slate-800 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-white capitalize">
-                          {typeof (s.config as { format?: unknown })?.format === 'string'
-                            ? (s.config as { format?: string }).format
-                            : 'Simulado'}
-                        </p>
-                        <p className="text-xs text-slate-400">{formatIsoToBrtDate(s.completed_at)}</p>
-                      </div>
-                      <div className="text-center shrink-0">
-                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                          {s.score}/{s.total_questions}
-                        </p>
-                        <p className="text-[10px] text-slate-400">questões</p>
-                      </div>
-                      <div
-                        className="text-lg font-black shrink-0 w-14 text-right"
-                        style={{ color: pct >= 60 ? 'var(--brand-primary)' : '#f43f5e' }}
-                      >
-                        {pct}%
-                      </div>
-                      {s.tri_score != null && (
-                        <div className="text-center shrink-0 hidden sm:block">
-                          <p className="text-sm font-bold text-slate-600 dark:text-slate-400">{s.tri_score}</p>
-                          <p className="text-[10px] text-slate-400">TRI</p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </PartnerLayout>
   );
