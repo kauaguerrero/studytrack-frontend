@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import {
   Users, Activity, BookOpen, FileText, TrendingUp, TrendingDown, ArrowUpRight,
-  Trophy, Award, Star, Eye, EyeOff, AlertTriangle,
+  Trophy, Award, Star, Eye, EyeOff, AlertTriangle, Video,
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell,
@@ -93,7 +93,7 @@ const PLAN_COLORS = [
 ];
 
 function normalizePlanLabel(raw: string): string {
-  if (raw === 'b2b_student' || raw === 'b2b_pro' || raw === 'free' || raw === 'none' || raw === 'null') {
+  if (raw === 'b2b_student' || raw === 'b2b_pro' || raw === 'b2b_test' || raw === 'free' || raw === 'none' || raw === 'null') {
     return 'Sem plano vinculado';
   }
   return raw;
@@ -338,6 +338,27 @@ interface FounderDashboardClientProps {
   } | null;
 }
 
+interface VideoAdoptionKpi {
+  pct: number;
+  num: number;
+  den: number;
+}
+
+function filterOutTestAccounts(list: Student[]): Student[] {
+  return (list ?? []).filter((s) => s.plan_tier !== 'b2b_test');
+}
+
+function mergeUniqueStudents(base: Student[], incoming: Student[]): Student[] {
+  const map = new Map<string, Student>();
+  for (const student of base) {
+    map.set(student.id, student);
+  }
+  for (const student of incoming) {
+    map.set(student.id, student);
+  }
+  return Array.from(map.values());
+}
+
 // ─── Client Component ─────────────────────────────────────────────────────────
 
 export default function FounderDashboardClient({
@@ -348,15 +369,18 @@ export default function FounderDashboardClient({
   initialEssaysCounts,
 }: FounderDashboardClientProps) {
   const { org, userProfile } = useOrg();
+  const isVideoToolEnabled = org.permissions?.video_lessons_enabled === true;
 
   const [stats, setStats] = useState<OrgStats | null>(initialStats);
-  const [students, setStudents] = useState<Student[]>(initialStudents);
-  const [rankingStudents, setRankingStudents] = useState<Student[]>(initialStudents);
+  const [students, setStudents] = useState<Student[]>(filterOutTestAccounts(initialStudents));
+  const [rankingStudents, setRankingStudents] = useState<Student[]>(filterOutTestAccounts(initialStudents));
   const [essaysCounts, setEssaysCounts] = useState(initialEssaysCounts);
   const [metricWindow, setMetricWindow] = useState<MetricWindow>('week');
   const [activePlanIndex, setActivePlanIndex] = useState<number | null>(null);
   const [showRevenueValue, setShowRevenueValue] = useState(false);
   const [associatesCount, setAssociatesCount] = useState<number | null>(null);
+  const [videoAdoption, setVideoAdoption] = useState<VideoAdoptionKpi | null>(null);
+  const [videoAdoptionLoading, setVideoAdoptionLoading] = useState(isVideoToolEnabled);
   const [loading, setLoading] = useState(initialStats === null);
 
   useEffect(() => {
@@ -367,6 +391,26 @@ export default function FounderDashboardClient({
 
       const headers = { Authorization: `Bearer ${session.access_token}` };
       const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+
+      if (isVideoToolEnabled) {
+        try {
+          const resVideoKpi = await fetch(`${api}/api/partners/${slug}/videos/kpis?period_days=7`, { headers });
+          if (resVideoKpi.ok) {
+            const payload = await resVideoKpi.json();
+            setVideoAdoption({
+              pct: Number(payload?.summary?.adoption_weekly_pct || 0),
+              num: Number(payload?.summary?.adoption_weekly_num || 0),
+              den: Number(payload?.summary?.adoption_weekly_den || 0),
+            });
+          }
+        } catch {
+          // ignore
+        } finally {
+          setVideoAdoptionLoading(false);
+        }
+      } else {
+        setVideoAdoptionLoading(false);
+      }
 
       if (initialStats === null) {
         try {
@@ -379,9 +423,9 @@ export default function FounderDashboardClient({
           if (resEssaysCount.ok) setEssaysCounts(await resEssaysCount.json());
           if (resStudents.ok) {
             const payload = await resStudents.json();
-            const first = Array.isArray(payload?.students) ? payload.students : [];
-            setStudents(first);
-            setRankingStudents(first);
+            const first = filterOutTestAccounts(Array.isArray(payload?.students) ? payload.students : []);
+            setStudents((prev) => mergeUniqueStudents(prev, first));
+            setRankingStudents((prev) => mergeUniqueStudents(prev, first));
           }
         } catch {
           // ignore
@@ -412,11 +456,11 @@ export default function FounderDashboardClient({
           for (const r of responses) {
             if (!r.ok) continue;
             const p = await r.json();
-            if (Array.isArray(p?.students)) extra.push(...p.students);
+            if (Array.isArray(p?.students)) extra.push(...filterOutTestAccounts(p.students));
           }
           if (extra.length > 0) {
-            setStudents((prev) => [...prev, ...extra]);
-            setRankingStudents((prev) => [...prev, ...extra]);
+            setStudents((prev) => mergeUniqueStudents(prev, extra));
+            setRankingStudents((prev) => mergeUniqueStudents(prev, extra));
           }
         }).catch(() => {});
       }
@@ -424,7 +468,7 @@ export default function FounderDashboardClient({
 
     fetchMissing();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, userProfile.role]);
+  }, [slug, userProfile.role, isVideoToolEnabled]);
 
   // ── Derived ─────────────────────────────────────────────────────────────────
 
@@ -497,27 +541,53 @@ export default function FounderDashboardClient({
   const rankingBaseCount = rankingPool.length;
   const studentsForTable = sortedByActivity.slice(0, 10);
 
-  const activeValue = stats
-    ? (metricWindow === 'today' ? stats.active_today
-      : metricWindow === 'week' ? stats.active_week
-        : metricWindow === 'month' ? stats.active_month
-          : stats.active_total)
-    : 0;
-  const questionsValue = stats
-    ? (metricWindow === 'today' ? stats.questions_today
-      : metricWindow === 'week' ? stats.questions_week
-        : metricWindow === 'month' ? stats.questions_month
-          : stats.questions_total)
-    : 0;
-  const simuladosValue = stats
-    ? (metricWindow === 'today' ? stats.simulados_today
-      : metricWindow === 'week' ? stats.simulados_week
-        : metricWindow === 'month' ? stats.simulados_month
-          : stats.simulados_total)
-    : 0;
-  const activeRate = stats
-    ? Math.round((activeValue / Math.max(stats.total_students, 1)) * 100)
-    : 0;
+  const todayBrtKey = toBrtDateKey(new Date());
+  const monthStartBrt = `${todayBrtKey.slice(0, 7)}-01`;
+  const nowDate = new Date();
+  const weekStartDate = new Date(nowDate);
+  weekStartDate.setDate(nowDate.getDate() - ((nowDate.getDay() + 6) % 7));
+  const weekStartBrt = toBrtDateKey(weekStartDate);
+
+  const activeTodayFromStudents = students.filter((s) => s.last_activity_date === todayBrtKey).length;
+  const activeWeekFromStudents = students.filter((s) => (s.last_activity_date || '') >= weekStartBrt).length;
+  const activeMonthFromStudents = students.filter((s) => (s.last_activity_date || '') >= monthStartBrt).length;
+  const activeTotalFromStudents = students.length;
+
+  const questionsTodayFromStudents = students.reduce((acc, s) => acc + (s.questions_today || 0), 0);
+  const questionsWeekFromStudents = students.reduce((acc, s) => acc + (s.questions_week || 0), 0);
+  const questionsMonthFromStudents = students.reduce((acc, s) => acc + (s.questions_month || 0), 0);
+  const questionsTotalFromStudents = students.reduce((acc, s) => acc + (s.questions_total || 0), 0);
+
+  const simuladosTodayFromStudents = students.reduce((acc, s) => acc + (s.simulados_today || 0), 0);
+  const simuladosWeekFromStudents = students.reduce((acc, s) => acc + (s.simulados_week || 0), 0);
+  const simuladosMonthFromStudents = students.reduce((acc, s) => acc + (s.simulados_month || 0), 0);
+  const simuladosTotalFromStudents = students.reduce((acc, s) => acc + (s.simulados_total || 0), 0);
+
+  const activeValue = metricWindow === 'today'
+    ? activeTodayFromStudents
+    : metricWindow === 'week'
+      ? activeWeekFromStudents
+      : metricWindow === 'month'
+        ? activeMonthFromStudents
+        : activeTotalFromStudents;
+
+  const questionsValue = metricWindow === 'today'
+    ? questionsTodayFromStudents
+    : metricWindow === 'week'
+      ? questionsWeekFromStudents
+      : metricWindow === 'month'
+        ? questionsMonthFromStudents
+        : questionsTotalFromStudents;
+
+  const simuladosValue = metricWindow === 'today'
+    ? simuladosTodayFromStudents
+    : metricWindow === 'week'
+      ? simuladosWeekFromStudents
+      : metricWindow === 'month'
+        ? simuladosMonthFromStudents
+        : simuladosTotalFromStudents;
+
+  const activeRate = Math.round((activeValue / Math.max(students.length, 1)) * 100);
 
   const getDelta = (current: number, prevToday: number, prevWeek: number, prevMonth: number): number | null => {
     if (metricWindow === 'total') return null;
@@ -530,7 +600,6 @@ export default function FounderDashboardClient({
     : metricWindow === 'month' ? 'vs mês passado'
     : null;
 
-  const todayBrtKey = toBrtDateKey(new Date());
   const deliveredEssaysCount = essaysCounts
     ? metricWindow === 'today'
       ? essaysCounts.today
@@ -615,7 +684,7 @@ export default function FounderDashboardClient({
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <KpiCard
             title="Alunos Cadastrados"
-            value={stats?.total_students ?? '—'}
+            value={students.length}
             subtitle={`de ${org.max_students} vagas`}
             icon={Users}
             href={`/partners/${org.slug}/alunos`}
@@ -670,58 +739,100 @@ export default function FounderDashboardClient({
           />
         </div>
 
-        <TintedCard accentColor="var(--brand-primary)" accentStrength={9} className="edificar-major-surface">
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-sm text-slate-700 dark:text-white/80 font-bold">Redações entregues</CardTitle>
-              <Link
-                href={`/partners/${org.slug}/redacoes`}
-                className="relative inline-flex items-center gap-1.5 overflow-hidden rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition
-                  border-[color-mix(in_srgb,var(--brand-secondary)_45%,white)] dark:border-[color-mix(in_srgb,var(--brand-secondary)_45%,#0f172a)]
-                  bg-[color-mix(in_srgb,var(--brand-secondary)_22%,white)] dark:bg-[color-mix(in_srgb,var(--brand-secondary)_24%,#0f172a)]
-                  text-slate-800 dark:text-white hover:brightness-105"
-              >
-                <BrandLiquidGlass accentColor="var(--brand-secondary)" intensity={14} />
-                <span
-                  className="relative z-10 flex h-6 w-6 items-center justify-center rounded-lg border border-slate-300 dark:border-white/20"
-                  style={{
-                    background: 'color-mix(in srgb, var(--brand-secondary) 16%, white)',
-                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 8px color-mix(in srgb, var(--brand-secondary) 22%, transparent)',
-                  }}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <TintedCard
+            accentColor="var(--brand-primary)"
+            accentStrength={9}
+            className={cn('edificar-major-surface', !isVideoToolEnabled && 'lg:col-span-2')}
+          >
+            <CardHeader className="flex flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm text-slate-700 dark:text-white/80 font-bold">Redações entregues</CardTitle>
+                <Link
+                  href={`/partners/${org.slug}/redacoes`}
+                  className="relative inline-flex items-center gap-1.5 overflow-hidden rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition
+                    border-[color-mix(in_srgb,var(--brand-secondary)_45%,white)] dark:border-[color-mix(in_srgb,var(--brand-secondary)_45%,#0f172a)]
+                    bg-[color-mix(in_srgb,var(--brand-secondary)_22%,white)] dark:bg-[color-mix(in_srgb,var(--brand-secondary)_24%,#0f172a)]
+                    text-slate-800 dark:text-white hover:brightness-105"
                 >
-                  <FileText
-                    className="h-3.5 w-3.5"
+                  <BrandLiquidGlass accentColor="var(--brand-secondary)" intensity={14} />
+                  <span
+                    className="relative z-10 flex h-6 w-6 items-center justify-center rounded-lg border border-slate-300 dark:border-white/20"
                     style={{
-                      color: 'var(--brand-secondary)',
-                      filter: 'drop-shadow(0 0 4px color-mix(in srgb, var(--brand-secondary) 35%, transparent))',
+                      background: 'color-mix(in srgb, var(--brand-secondary) 16%, white)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 8px color-mix(in srgb, var(--brand-secondary) 22%, transparent)',
                     }}
-                  />
-                </span>
-                <span className="relative z-10">Redações</span>
-              </Link>
-            </div>
-            <div className="flex items-center gap-2">
-              {(userProfile.role === 'founder' || userProfile.role === 'admin') && (
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                  <Users className="h-3.5 w-3.5 text-[var(--brand-secondary)]" />
-                  <span>Número de Associados:</span>
-                  <span className="font-black text-slate-900 dark:text-white">{loading ? '—' : (associatesCount ?? 0)}</span>
+                  >
+                    <FileText
+                      className="h-3.5 w-3.5"
+                      style={{
+                        color: 'var(--brand-secondary)',
+                        filter: 'drop-shadow(0 0 4px color-mix(in srgb, var(--brand-secondary) 35%, transparent))',
+                      }}
+                    />
+                  </span>
+                  <span className="relative z-10">Redações</span>
+                </Link>
+              </div>
+              <div className="flex items-center gap-2">
+                {(userProfile.role === 'founder' || userProfile.role === 'admin') && (
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    <Users className="h-3.5 w-3.5 text-[var(--brand-secondary)]" />
+                    <span>Número de Associados:</span>
+                    <span className="font-black text-slate-900 dark:text-white">{loading ? '—' : (associatesCount ?? 0)}</span>
+                  </div>
+                )}
+                <span className="text-xs text-slate-500 dark:text-white/45">Período: {metricLabel}</span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="h-10 w-24 bg-slate-200 dark:bg-white/10 rounded-lg animate-pulse" />
+              ) : (
+                <div className="flex items-end justify-between gap-3">
+                  <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">{deliveredEssaysCount}</p>
+                  <p className="text-xs text-slate-500 dark:text-white/45">Redações no período selecionado</p>
                 </div>
               )}
-              <span className="text-xs text-slate-500 dark:text-white/45">Período: {metricLabel}</span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="h-10 w-24 bg-slate-200 dark:bg-white/10 rounded-lg animate-pulse" />
-            ) : (
-              <div className="flex items-end justify-between gap-3">
-                <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">{deliveredEssaysCount}</p>
-                <p className="text-xs text-slate-500 dark:text-white/45">Redações no período selecionado</p>
+            </CardContent>
+          </TintedCard>
+
+          {isVideoToolEnabled && (
+          <TintedCard accentColor="var(--brand-primary)" accentStrength={8} className="edificar-major-surface">
+            <CardHeader className="flex flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm text-slate-700 dark:text-white/80 font-bold">Adoção semanal de videoaulas</CardTitle>
+                <Link
+                  href={`/partners/${org.slug}/aulas`}
+                  className="relative inline-flex items-center gap-1.5 overflow-hidden rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition
+                    border-[color-mix(in_srgb,var(--brand-primary)_45%,white)] dark:border-[color-mix(in_srgb,var(--brand-primary)_45%,#0f172a)]
+                    bg-[color-mix(in_srgb,var(--brand-primary)_20%,white)] dark:bg-[color-mix(in_srgb,var(--brand-primary)_22%,#0f172a)]
+                    text-slate-800 dark:text-white hover:brightness-105"
+                >
+                  <BrandLiquidGlass accentColor="var(--brand-primary)" intensity={12} />
+                  <Video className="relative z-10 h-3.5 w-3.5" />
+                  <span className="relative z-10">Videoaulas</span>
+                </Link>
               </div>
-            )}
-          </CardContent>
-        </TintedCard>
+              <span className="text-xs text-slate-500 dark:text-white/45">Período: semanal</span>
+            </CardHeader>
+            <CardContent>
+              {videoAdoptionLoading ? (
+                <div className="h-10 w-24 bg-slate-200 dark:bg-white/10 rounded-lg animate-pulse" />
+              ) : (
+                <div className="flex items-end justify-between gap-3">
+                  <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+                    {videoAdoption?.pct ?? 0}%
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-white/45">
+                    {videoAdoption?.num ?? 0}/{videoAdoption?.den ?? 0} alunos ativos nos últimos 7 dias
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </TintedCard>
+          )}
+        </div>
 
         {/* ── Charts ────────────────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

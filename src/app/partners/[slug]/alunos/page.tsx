@@ -18,6 +18,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { brtDateDaysAgo, toBrtDateKey } from '@/lib/brt-date';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,6 @@ interface Student {
 
 const PAGE_SIZE = 50;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 type SortField = 'last_activity_date' | 'full_name' | 'joined_organization_at';
 
 interface PlanOption {
@@ -127,7 +127,7 @@ export default function AlunosPage() {
   const [updatingPlan, setUpdatingPlan] = useState<string | null>(null);
   const [customPlans, setCustomPlans] = useState<PlanOption[]>([]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toBrtDateKey(new Date());
 
   const fetchStudents = useCallback(async (p: number, s: string, plan: string, sortField: SortField) => {
     setLoading(true);
@@ -209,7 +209,7 @@ export default function AlunosPage() {
         ? {
             plan_id: newPlanValue.replace('custom:', ''),
             plan_assignment_status: 'active',
-            plan_last_payment_at: student.plan_last_payment_at || new Date().toISOString().slice(0, 10),
+            plan_last_payment_at: student.plan_last_payment_at || toBrtDateKey(new Date()),
           }
         : { plan_id: null };
       const res = await fetch(`${api}/api/partners/${org.slug}/students/${studentId}`, {
@@ -274,10 +274,10 @@ export default function AlunosPage() {
 
   // Derived
   const activeToday = students.filter(s => s.last_activity_date === today).length;
-  const activeWeek  = students.filter(s => s.last_activity_date && s.last_activity_date >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)).length;
+  const activeWeek  = students.filter(s => s.last_activity_date && s.last_activity_date >= brtDateDaysAgo(7)).length;
   const totalPages  = Math.ceil(total / PAGE_SIZE);
 
-  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const weekAgo = brtDateDaysAgo(7);
   const filteredStudents = students.filter((s) => {
     if (activityFilter === 'today') return s.last_activity_date === today;
     if (activityFilter === 'week') return s.last_activity_date != null && s.last_activity_date >= weekAgo;

@@ -19,6 +19,13 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import {
+  addDaysToDateKey,
+  compareDateKeys,
+  diffDaysBetweenDateKeys,
+  todayBrtDateKey,
+  toBrtDateKeyFromIso,
+} from '@/lib/brt-date';
+import {
   CalendarClock,
   Coins,
   CheckCircle2,
@@ -68,21 +75,11 @@ function formatMoney(cents: number) {
 }
 
 function toInputDate(value?: string | null) {
-  if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toISOString().slice(0, 10);
+  return toBrtDateKeyFromIso(value);
 }
 
 function isPlanActive(value: CustomPlan['is_active']): boolean {
   return value === true || value === 1 || value === '1' || value === 'true';
-}
-
-function parseIsoDate(value?: string | null): Date | null {
-  if (!value) return null;
-  const dt = new Date(value);
-  if (Number.isNaN(dt.getTime())) return null;
-  return dt;
 }
 
 function hasActivePlanByDates(student: StudentItem): boolean {
@@ -90,20 +87,22 @@ function hasActivePlanByDates(student: StudentItem): boolean {
   if (student.plan_assignment_status !== 'active') return false;
   const durationDays = Number(student.plan_duration_days || 0);
   if (durationDays <= 0) return false;
-  const lastPayment = parseIsoDate(student.plan_last_payment_at);
-  if (!lastPayment) return false;
-  const expiresAt = new Date(lastPayment.getTime() + durationDays * 24 * 60 * 60 * 1000);
-  return Date.now() <= expiresAt.getTime();
+  const lastPaymentDateKey = toInputDate(student.plan_last_payment_at);
+  if (!lastPaymentDateKey) return false;
+  const expiresDateKey = addDaysToDateKey(lastPaymentDateKey, durationDays);
+  if (!expiresDateKey) return false;
+  return compareDateKeys(todayBrtDateKey(), expiresDateKey) <= 0;
 }
 
 function getDaysUntilExpiry(student: StudentItem): number | null {
   if (!student.plan_id || student.plan_assignment_status !== 'active') return null;
   const durationDays = Number(student.plan_duration_days || 0);
   if (durationDays <= 0) return null;
-  const lastPayment = parseIsoDate(student.plan_last_payment_at);
-  if (!lastPayment) return null;
-  const expiryMs = lastPayment.getTime() + durationDays * 24 * 60 * 60 * 1000;
-  return Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000));
+  const lastPaymentDateKey = toInputDate(student.plan_last_payment_at);
+  if (!lastPaymentDateKey) return null;
+  const expiresDateKey = addDaysToDateKey(lastPaymentDateKey, durationDays);
+  if (!expiresDateKey) return null;
+  return diffDaysBetweenDateKeys(todayBrtDateKey(), expiresDateKey);
 }
 
 export default function PartnerPlansPage() {
@@ -403,7 +402,7 @@ export default function PartnerPlansPage() {
 
   const markStudentAsPaid = useCallback(async (student: StudentItem) => {
     if (!student.plan_id || markingPaidId) return;
-    const todayDate = new Date().toISOString().slice(0, 10);
+    const todayDate = todayBrtDateKey();
     setMarkingPaidId(student.id);
     try {
       const ok = await handleAssignPlan(student, student.plan_id, todayDate);
