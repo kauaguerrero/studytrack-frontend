@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
-  ChevronLeft, School, Plus, Copy, Check, Edit2, Trash2,
+  ChevronLeft, ChevronDown, School, Plus, Copy, Check, Edit2, Trash2,
   ExternalLink, UserPlus, X, Eye, EyeOff, Search,
   DollarSign, Calendar, CheckCircle2, AlertCircle, Clock,
-  TrendingUp, TrendingDown
+  TrendingUp, TrendingDown, Video, Loader2, Power
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -16,6 +16,15 @@ interface Founder {
   full_name: string;
   email: string;
   avatar_url?: string;
+}
+
+interface TestAccountProfile {
+  id: string;
+  full_name: string;
+  email: string;
+  avatar_url?: string | null;
+  plan_tier: string;
+  is_test_account: boolean;
 }
 
 type StatsPeriod = 'today' | 'week' | 'month' | 'year' | 'lifetime';
@@ -74,6 +83,7 @@ interface Organization {
   created_at: string;
   founder: Founder | null;
   student_count: number;
+  has_video_library: boolean;
   monthly_value: number | null;
   last_paid_at: string | null;
   plan_renewal_date: string | null;
@@ -526,6 +536,169 @@ function FounderModal({
   );
 }
 
+function TestAccountModal({
+  org,
+  onClose,
+  onSaved,
+}: {
+  org: Organization;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [accounts, setAccounts] = useState<TestAccountProfile[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  async function load(search = '') {
+    setLoading(true);
+    setError('');
+    try {
+      const qs = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
+      const res = await fetch(`/api/admin/b2b/organizations/${org.id}/test-account${qs}`);
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? 'Erro ao carregar contas.'); return; }
+      setAccounts(json.accounts ?? []);
+      setSelectedId(json.selected_profile_id ?? null);
+    } catch {
+      setError('Falha na requisição.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function saveSelection() {
+    if (!selectedId) return;
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/admin/b2b/organizations/${org.id}/test-account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile_id: selectedId }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? 'Erro ao salvar conta teste.'); return; }
+      onSaved();
+    } catch {
+      setError('Falha na requisição.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearSelection() {
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/admin/b2b/organizations/${org.id}/test-account`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? 'Erro ao remover conta teste.'); return; }
+      onSaved();
+    } catch {
+      setError('Falha na requisição.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls =
+    'w-full bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-white/[0.08] rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:border-indigo-500';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/[0.08] rounded-2xl w-full max-w-xl shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-white/[0.06]">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Conta teste — {org.name}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {error && (
+            <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg px-3 py-2">
+              {error}
+            </p>
+          )}
+
+          <div className="flex gap-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && load(query)}
+              placeholder="Buscar aluno por nome ou email..."
+              className={inputCls}
+            />
+            <button
+              onClick={() => load(query)}
+              className="px-3 py-2 bg-slate-100 dark:bg-zinc-700 hover:bg-slate-200 dark:hover:bg-zinc-600 rounded-lg text-slate-600 dark:text-zinc-300 transition-colors"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/[0.08]">
+            {loading ? (
+              <div className="p-4 text-sm text-slate-500 dark:text-zinc-400">Carregando...</div>
+            ) : accounts.length === 0 ? (
+              <div className="p-4 text-sm text-slate-500 dark:text-zinc-400">Nenhum aluno encontrado.</div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-white/[0.06]">
+                {accounts.map((account) => (
+                  <button
+                    key={account.id}
+                    onClick={() => setSelectedId(account.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                      selectedId === account.id
+                        ? 'bg-indigo-50 dark:bg-indigo-600/20'
+                        : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-zinc-700 flex items-center justify-center text-xs font-bold text-slate-700 dark:text-white shrink-0">
+                      {account.full_name?.[0] ?? '?'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{account.full_name}</p>
+                      <p className="truncate text-xs text-slate-500 dark:text-zinc-400">{account.email}</p>
+                    </div>
+                    {account.is_test_account && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                        Conta teste atual
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <button
+              onClick={clearSelection}
+              disabled={saving || !selectedId}
+              className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 disabled:opacity-50"
+            >
+              Remover conta teste
+            </button>
+            <button
+              onClick={saveSelection}
+              disabled={saving || !selectedId}
+              className="px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 disabled:opacity-50 transition-all"
+            >
+              {saving ? 'Salvando...' : 'Salvar conta teste'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── OrgCard ──────────────────────────────────────────────────────────────────
 
 function OrgCard({
@@ -534,6 +707,7 @@ function OrgCard({
   period,
   onEdit,
   onFounder,
+  onTestAccount,
   onDelete,
 }: {
   org: Organization;
@@ -541,6 +715,7 @@ function OrgCard({
   period: StatsPeriod;
   onEdit: () => void;
   onFounder: () => void;
+  onTestAccount: () => void;
   onDelete: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -556,8 +731,37 @@ function OrgCard({
   const [savingBilling, setSavingBilling] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [billingError, setBillingError] = useState('');
+  const [collapsed, setCollapsed] = useState(true);
   const billingStatus = getBillingStatus(org);
   const billingBadge = BILLING_BADGE[billingStatus];
+
+  // Video tool state
+  const [videoToolEnabled, setVideoToolEnabled] = useState(Boolean((org.permissions as Record<string, unknown> | null)?.video_lessons_enabled));
+  const [togglingVideoTool, setTogglingVideoTool] = useState(false);
+  const [libError, setLibError] = useState('');
+  const hasLib = org.has_video_library;
+
+  async function handleToggleVideoTool() {
+    const next = !videoToolEnabled;
+    setTogglingVideoTool(true); setLibError('');
+    try {
+      const nextPermissions = {
+        ...(org.permissions ?? {}),
+        video_lessons_enabled: next,
+      };
+      const res = await fetch(`/api/admin/b2b/organizations/${org.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permissions: nextPermissions }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setLibError(json.error ?? 'Erro'); return; }
+      setVideoToolEnabled(next);
+      onDelete();
+    } finally {
+      setTogglingVideoTool(false);
+    }
+  }
 
   const pct = org.max_students > 0
     ? Math.min((org.student_count / org.max_students) * 100, 100)
@@ -646,10 +850,10 @@ function OrgCard({
 
   return (
     <div
-      className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/[0.06] rounded-xl overflow-hidden flex flex-col"
+      className="self-start h-fit bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/[0.06] rounded-xl overflow-hidden"
       style={{ borderTop: `3px solid ${org.brand_primary}` }}
     >
-      <div className="p-5 flex-1 space-y-4">
+      <div className={`transition-all duration-300 ease-in-out ${collapsed ? 'p-3 space-y-5' : 'p-5 space-y-4'}`}>
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -668,9 +872,23 @@ function OrgCard({
               <span className="text-xs text-slate-400 dark:text-zinc-500 font-mono">{org.slug}</span>
             </div>
           </div>
-          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${planBadgeClass(org.plan_tier)}`}>
-            {planLabel(org.plan_tier)}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${planBadgeClass(org.plan_tier)}`}>
+              {planLabel(org.plan_tier)}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCollapsed((prev) => !prev)}
+              className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
+              aria-label={collapsed ? 'Expandir card da organização' : 'Recolher card da organização'}
+              title={collapsed ? 'Expandir' : 'Recolher'}
+            >
+              <ChevronDown
+                className="w-4 h-4 transition-transform"
+                style={{ transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Founder */}
@@ -731,6 +949,12 @@ function OrgCard({
           </div>
         )}
 
+        <div
+          className={`overflow-hidden transition-all duration-300 ease-in-out ${
+            collapsed ? 'max-h-0 opacity-0' : 'max-h-[1200px] opacity-100'
+          }`}
+          aria-hidden={collapsed}
+        >
         {/* Faturamento */}
         <div className="border border-slate-100 dark:border-white/[0.06] rounded-xl p-3 space-y-2">
           <div className="flex items-center justify-between">
@@ -835,12 +1059,49 @@ function OrgCard({
             </div>
           )}
         </div>
-
-        {/* Invite code */}
+        {/* Videoaulas */}
+        <div className="border border-slate-100 dark:border-white/[0.06] rounded-xl p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Video className="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500" />
+              <span className="text-xs font-semibold text-slate-600 dark:text-zinc-300">Videoaulas</span>
+            </div>
+            <button
+              onClick={handleToggleVideoTool}
+              disabled={togglingVideoTool}
+              className={`inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                videoToolEnabled
+                  ? 'border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+              }`}
+            >
+              {togglingVideoTool ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Power className="w-3.5 h-3.5" />}
+              {togglingVideoTool
+                ? 'Salvando...'
+                : videoToolEnabled
+                  ? 'Desativar ferramenta'
+                  : 'Ativar ferramenta'}
+            </button>
+          </div>
+          {libError && <p className="text-[10px] text-red-500">{libError}</p>}
+          <div className="flex items-center justify-between gap-2">
+            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+              videoToolEnabled
+                ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
+            }`}>
+              <Power className="w-3 h-3" /> {videoToolEnabled ? 'Ferramenta ativa' : 'Ferramenta inativa'}
+            </span>
+            <p className="text-[10px] text-slate-500 dark:text-zinc-400">
+              {hasLib ? 'Library Bunny: provisionada.' : 'Library Bunny: ainda não provisionada.'}
+            </p>
+          </div>
+        </div>
+        {/* Invite code (sempre último bloco do card) */}
         {org.invite_code && (
           <button
             onClick={copyInvite}
-            className="flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 transition-colors group"
+            className="mt-2.5 flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 transition-colors group"
           >
             <span className="font-mono bg-slate-100 dark:bg-zinc-800 px-2 py-1 rounded">
               {org.invite_code}
@@ -850,28 +1111,41 @@ function OrgCard({
               : <Copy className="w-3.5 h-3.5" />}
           </button>
         )}
+        </div>
       </div>
 
       {/* Actions */}
-      <div className="border-t border-slate-100 dark:border-white/[0.06] px-4 py-3 flex items-center gap-2">
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${
+          collapsed ? 'max-h-0 opacity-0 border-t-0 px-3 py-0 pointer-events-none' : 'max-h-36 opacity-100 border-t border-slate-100 dark:border-white/[0.06] px-3 py-2'
+        }`}
+        aria-hidden={collapsed}
+      >
+      <div className="flex items-center gap-2.5">
         <button
           onClick={onEdit}
-          className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+          className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white px-1.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
         >
-          <Edit2 className="w-3.5 h-3.5" /> Editar
+          <Edit2 className="w-3 h-3" /> Editar
         </button>
         <button
           onClick={onFounder}
-          className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+          className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white px-1.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
         >
-          <UserPlus className="w-3.5 h-3.5" /> Founder
+          <UserPlus className="w-3 h-3" /> Founder
+        </button>
+        <button
+          onClick={onTestAccount}
+          className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white px-1.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <CheckCircle2 className="w-3 h-3" /> Conta teste
         </button>
         <Link
           href={`/partners/${org.slug}/dashboard`}
           target="_blank"
-          className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+          className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white px-1.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
         >
-          <ExternalLink className="w-3.5 h-3.5" /> Portal
+          <ExternalLink className="w-3 h-3" /> Portal
         </Link>
         <div className="flex-1" />
         {!confirmDelete ? (
@@ -915,6 +1189,7 @@ function OrgCard({
           </div>
         )}
       </div>
+      </div>
     </div>
   );
 }
@@ -933,6 +1208,7 @@ export default function AdminB2BPage() {
     org: null,
   });
   const [founderModal, setFounderModal] = useState<Organization | null>(null);
+  const [testAccountModal, setTestAccountModal] = useState<Organization | null>(null);
   const perOrgStats = useMemo(
     () => new Map((stats?.per_org ?? []).map((item) => [item.org_id, item])),
     [stats]
@@ -974,6 +1250,7 @@ export default function AdminB2BPage() {
 
   function closeOrgModal() { setOrgModal({ open: false, org: null }); }
   function closeFounderModal() { setFounderModal(null); }
+  function closeTestAccountModal() { setTestAccountModal(null); }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 p-4 md:p-8">
@@ -1097,6 +1374,7 @@ export default function AdminB2BPage() {
                 period={period}
                 onEdit={() => setOrgModal({ open: true, org })}
                 onFounder={() => setFounderModal(org)}
+                onTestAccount={() => setTestAccountModal(org)}
                 onDelete={fetchOrgs}
               />
             ))}
@@ -1121,6 +1399,13 @@ export default function AdminB2BPage() {
           org={founderModal}
           onClose={closeFounderModal}
           onSaved={() => { closeFounderModal(); fetchOrgs(); }}
+        />
+      )}
+      {testAccountModal && (
+        <TestAccountModal
+          org={testAccountModal}
+          onClose={closeTestAccountModal}
+          onSaved={() => { closeTestAccountModal(); fetchOrgs(); fetchStats(period); }}
         />
       )}
     </div>

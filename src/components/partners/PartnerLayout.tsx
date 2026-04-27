@@ -27,6 +27,8 @@ import {
   WalletCards,
   Menu,
   LifeBuoy,
+  Video,
+  FlaskConical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -156,6 +158,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
   const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
   const isPartnerStudent = variant === 'student';
+  const isVideoToolEnabled = org.permissions?.video_lessons_enabled === true;
   const hideMobileChrome = isPartnerStudent && pathname.startsWith(`/partners/${org.slug}/student/simulado`);
 
   const founderNavItems: NavItemDef[] = [
@@ -164,21 +167,23 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/alunos`,          icon: Users,           label: 'Alunos',            shortLabel: 'Alunos' },
     { href: `/partners/${org.slug}/planos`,          icon: WalletCards,     label: 'Planos',            shortLabel: 'Planos' },
     { href: `/partners/${org.slug}/redacoes`,        icon: FileText,        label: 'Redações',          shortLabel: 'Redações' },
+    ...(isVideoToolEnabled ? [{ href: `/partners/${org.slug}/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
     { href: `/partners/${org.slug}/suporte`,          icon: LifeBuoy,        label: 'Suporte',           shortLabel: 'Suporte' },
     { href: `/partners/${org.slug}/configuracoes`,   icon: Settings,        label: 'Configurações',    shortLabel: 'Config' },
   ];
 
   const studentNavItems: NavItemDef[] = [
-    { href: `/partners/${org.slug}/student/dashboard`,         icon: Home,      label: 'Início',          shortLabel: 'Início' },
-    { href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,  label: 'Questões',        shortLabel: 'Questões' },
-    { href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck,  label: 'Simulados',       shortLabel: 'Simulados' },
-    { href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,    label: 'Ranking',         shortLabel: 'Ranking' },
-    { href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck, label: 'Títulos',        shortLabel: 'Títulos' },
-    { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3, label: 'Meu Desempenho',  shortLabel: 'Desempenho' },
-    { href: `/partners/${org.slug}/student/redacoes`,          icon: PenLine,  label: 'Redações',        shortLabel: 'Redações' },
-    { href: `/partners/${org.slug}/student/suporte`,            icon: LifeBuoy,  label: 'Suporte',          shortLabel: 'Suporte' },
-    { href: `/partners/${org.slug}/student/perfil`,            icon: User,      label: 'Perfil',          shortLabel: 'Perfil' },
+    { href: `/partners/${org.slug}/student/dashboard`,         icon: Home,           label: 'Início',         shortLabel: 'Início' },
+    { href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,       label: 'Questões',       shortLabel: 'Questões' },
+    { href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck, label: 'Simulados',      shortLabel: 'Simulados' },
+    { href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,         label: 'Ranking',        shortLabel: 'Ranking' },
+    { href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck,     label: 'Títulos',        shortLabel: 'Títulos' },
+    { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3,      label: 'Meu Desempenho', shortLabel: 'Desempenho' },
+    { href: `/partners/${org.slug}/student/redacoes`,          icon: PenLine,        label: 'Redações',       shortLabel: 'Redações' },
+    ...(isVideoToolEnabled ? [{ href: `/partners/${org.slug}/student/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
+    { href: `/partners/${org.slug}/student/suporte`,           icon: LifeBuoy,       label: 'Suporte',        shortLabel: 'Suporte' },
+    { href: `/partners/${org.slug}/student/perfil`,            icon: User,           label: 'Perfil',         shortLabel: 'Perfil' },
   ];
 
   const associateNavItems: NavItemDef[] = [
@@ -283,7 +288,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
       <div className={cn('border-t dark:border-slate-800 py-3', c ? 'px-2' : 'px-3')}>
         <div className={cn('partner-sidebar-profile flex items-center gap-3 rounded-lg bg-slate-50 dark:bg-slate-800 px-3 py-2', c && 'justify-center px-2')}>
           <div
-            className="w-9 h-9 shrink-0 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white"
+            className="relative w-9 h-9 shrink-0 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white"
             style={{ backgroundColor: 'var(--brand-primary)' }}
           >
             {userProfile.avatarUrl ? (
@@ -297,6 +302,14 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
             ) : (
               initials
             )}
+            {userProfile.isTestAccount && (
+              <span
+                className="absolute -right-0.5 -bottom-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full border border-white bg-amber-500 text-white dark:border-slate-900"
+                title="Conta teste"
+              >
+                <FlaskConical className="h-2.5 w-2.5" />
+              </span>
+            )}
           </div>
         {!c && (
           <>
@@ -304,9 +317,17 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
                 <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
                   {userProfile.fullName}
                 </p>
-                <p className="text-xs text-slate-500">
-                  {variant === 'student' ? 'Aluno' : isAssociate ? 'Associado' : 'Founder'}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-slate-500">
+                    {variant === 'student' ? 'Aluno' : isAssociate ? 'Associado' : 'Founder'}
+                  </p>
+                  {userProfile.isTestAccount && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                      <FlaskConical className="h-2.5 w-2.5" />
+                      Conta teste
+                    </span>
+                  )}
+                </div>
               </div>
               <Button
                 variant="ghost"

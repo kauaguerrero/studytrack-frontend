@@ -313,7 +313,7 @@ export default function PerfilPage() {
     if (diffHours < 24) return `Há ${diffHours}h`
     if (diffDays === 1) return 'Ontem'
     if (diffDays < 7) return `Há ${diffDays} dias`
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
   }
 
   const handleRevokeSession = async (sessionId: string) => {

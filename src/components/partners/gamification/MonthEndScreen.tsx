@@ -124,7 +124,7 @@ function PodiumSlot({
 function previousMonthLabel(): string {
   const d = new Date();
   d.setMonth(d.getMonth() - 1);
-  return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'America/Sao_Paulo' });
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────

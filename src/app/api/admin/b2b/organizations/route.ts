@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/app/api/admin/_utils';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
@@ -21,9 +23,10 @@ export async function GET() {
 
   let foundersByOrg = new Map<string, any>();
   let studentCountByOrg = new Map<string, number>();
+  let librariesByOrg = new Set<string>();
 
   if (orgIds.length > 0) {
-    const [foundersRes, studentsRes] = await Promise.all([
+    const [foundersRes, studentsRes, librariesRes] = await Promise.all([
       db
         .from('profiles')
         .select('id, full_name, email, avatar_url, organization_id')
@@ -33,7 +36,12 @@ export async function GET() {
         .from('profiles')
         .select('organization_id')
         .in('organization_id', orgIds)
-        .eq('role', 'student'),
+        .eq('role', 'student')
+        .neq('plan_tier', 'b2b_test'),
+      db
+        .from('video_libraries')
+        .select('org_id')
+        .in('org_id', orgIds),
     ]);
 
     for (const founder of foundersRes.data ?? []) {
@@ -52,13 +60,22 @@ export async function GET() {
       if (!orgId) continue;
       studentCountByOrg.set(orgId, (studentCountByOrg.get(orgId) ?? 0) + 1);
     }
+
+    for (const lib of librariesRes.data ?? []) {
+      const orgId = lib.org_id as string | null;
+      if (!orgId) continue;
+      librariesByOrg.add(orgId);
+    }
   }
 
-  const enriched = orgList.map((org: any) => ({
-    ...org,
-    founder: foundersByOrg.get(org.id) ?? null,
-    student_count: studentCountByOrg.get(org.id) ?? 0,
-  }));
+  const enriched = orgList.map((org: any) => {
+    return {
+      ...org,
+      founder: foundersByOrg.get(org.id) ?? null,
+      student_count: studentCountByOrg.get(org.id) ?? 0,
+      has_video_library: librariesByOrg.has(org.id),
+    };
+  });
 
   return NextResponse.json({ organizations: enriched });
 }

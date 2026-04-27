@@ -21,6 +21,7 @@ import {
   Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { toast } from 'sonner';
+import { BRT_TIMEZONE, toBrtDateKey } from '@/lib/brt-date';
 
 interface StudentDetail {
   profile: {
@@ -83,7 +84,6 @@ interface OrgPlanOption {
 const PACE_LABELS: Record<string, string> = { slow: 'Leve', moderate: 'Moderado', intense: 'Intensivo' };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 function isPlanActive(value: OrgPlanOption['is_active']): boolean {
   return value === true || value === 1 || value === '1' || value === 'true';
 }
@@ -94,6 +94,21 @@ function normalizePlanLabel(raw?: string | null): string {
     return 'Sem plano vinculado';
   }
   return String(raw).trim();
+}
+
+function formatIsoToBrtDate(value?: string | null): string {
+  if (!value) return '—';
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return '—';
+  return toBrtDateKey(dt);
+}
+
+function formatIsoToBrtMonthDay(value?: string | null): string {
+  if (!value) return '—';
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return '—';
+  const full = toBrtDateKey(dt);
+  return full.length >= 10 ? full.slice(5, 10) : full;
 }
 
 export default function StudentProfilePage() {
@@ -222,7 +237,7 @@ export default function StudentProfilePage() {
         body: JSON.stringify({
           plan_id: isNone ? null : newPlanId,
           plan_assignment_status: isNone ? null : 'active',
-          plan_last_payment_at: isNone ? null : new Date().toISOString().slice(0, 10),
+          plan_last_payment_at: isNone ? null : toBrtDateKey(new Date()),
         }),
       });
       if (res.ok) {
@@ -233,7 +248,7 @@ export default function StudentProfilePage() {
             plan_id: isNone ? null : newPlanId,
             plan_name: isNone ? null : (selectedPlan?.name || d.profile.plan_name || null),
             plan_assignment_status: isNone ? null : 'active',
-            plan_last_payment_at: isNone ? null : new Date().toISOString(),
+            plan_last_payment_at: isNone ? null : toBrtDateKey(new Date()),
           },
         } : d);
         toast.success('Plano atualizado.');
@@ -258,7 +273,7 @@ export default function StudentProfilePage() {
   const essayEvolution = data?.essay_evolution || [];
   const correctedEssayEvolution = essayEvolution.filter((e) => e.total_score !== null && e.total_score !== undefined);
   const essayEvolutionChart = correctedEssayEvolution.map((e) => ({
-    date: e.submitted_at?.slice(5, 10) || '—',
+    date: formatIsoToBrtMonthDay(e.submitted_at),
     score: e.total_score as number,
   }));
   const deliveredCount = Math.max(essayStats?.delivered_count ?? 0, fallbackEssayStats.delivered, essayEvolution.length);
@@ -499,8 +514,8 @@ export default function StudentProfilePage() {
                         {essay.theme || 'Tema não informado'}
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Enviada em {essay.submitted_at.slice(0, 10)}
-                        {essay.corrected_at ? ` • Corrigida em ${essay.corrected_at.slice(0, 10)}` : ''}
+                        Enviada em {formatIsoToBrtDate(essay.submitted_at)}
+                        {essay.corrected_at ? ` • Corrigida em ${formatIsoToBrtDate(essay.corrected_at)}` : ''}
                       </p>
                     </div>
 
@@ -611,7 +626,7 @@ export default function StudentProfilePage() {
                       {a.is_correct ? 'Acerto' : 'Erro'}
                     </Badge>
                     <span className="text-[10px] text-slate-400 shrink-0 hidden sm:inline">
-                      {a.created_at.slice(0, 10)}
+                      {formatIsoToBrtDate(a.created_at)}
                     </span>
                   </div>
                 ))}
@@ -641,7 +656,7 @@ export default function StudentProfilePage() {
                             ? (s.config as { format?: string }).format
                             : 'Simulado'}
                         </p>
-                        <p className="text-xs text-slate-400">{s.completed_at?.slice(0, 10) ?? '—'}</p>
+                        <p className="text-xs text-slate-400">{formatIsoToBrtDate(s.completed_at)}</p>
                       </div>
                       <div className="text-center shrink-0">
                         <p className="text-sm font-bold text-slate-700 dark:text-slate-300">

@@ -21,6 +21,7 @@ interface UserProfile {
   fullName: string;
   avatarUrl: string | null;
   role: string;
+  isTestAccount?: boolean;
   themePreference?: 'light' | 'dark' | 'system' | null;
   mustChangePassword?: boolean;
 }

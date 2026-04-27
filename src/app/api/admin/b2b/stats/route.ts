@@ -149,7 +149,8 @@ export async function GET(request: NextRequest) {
     .from('profiles')
     .select('id, organization_id, last_activity_date')
     .in('organization_id', orgIds)
-    .eq('role', 'student');
+    .eq('role', 'student')
+    .neq('plan_tier', 'b2b_test');
 
   const profiles: any[] = b2bProfiles ?? [];
   const total_students = profiles.length;

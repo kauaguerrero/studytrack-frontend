@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+import { brtDateDaysAgo } from '@/lib/brt-date'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -292,9 +293,7 @@ export default function StudyTrackPage() {
   const activityLast30 = (() => {
     const history = analytics?.activity_history || []
     return Array.from({ length: 30 }, (_, i) => {
-      const d = new Date()
-      d.setDate(d.getDate() - (29 - i))
-      const key = d.toISOString().split('T')[0]
+      const key = brtDateDaysAgo(29 - i)
       return history.find(r => r.usage_date === key)?.questions_count || 0
     })
   })()
