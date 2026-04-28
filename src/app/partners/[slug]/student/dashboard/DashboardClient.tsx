@@ -517,7 +517,7 @@ export function DashboardClient({
                     </p>
                     <h2 className="text-[18px] font-extrabold leading-tight text-white">Simulados</h2>
                     <p className="mt-1 text-xs text-white/80">
-                      Faça simulados completos com TRI
+                      Monte simulados ENEM e UFU com métricas por banca
                     </p>
                   </div>
                   <div className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-white">
@@ -546,7 +546,7 @@ export function DashboardClient({
                       Banco de Questões
                     </h2>
                     <p className="mt-1 text-xs text-slate-400 dark:text-white/40">
-                      Pratique com +5.000 questões do ENEM
+                      Pratique com milhares de questões ENEM e UFU
                     </p>
                   </div>
                   <div

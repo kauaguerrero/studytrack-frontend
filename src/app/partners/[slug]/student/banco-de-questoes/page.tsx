@@ -41,6 +41,7 @@ const YEARS = Array.from({ length: CURRENT_YEAR - 2008 }, (_, i) =>
 );
 
 const DIFFICULTIES = ['Fácil', 'Médio', 'Difícil'];
+const BANKS = ['ENEM', 'UFU'];
 const TOTAL_QUESTIONS = 5000;
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -73,6 +74,20 @@ const selectClass =
   'hover:border-slate-300 dark:hover:border-slate-600 focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] ' +
   'disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-50 dark:disabled:bg-slate-800/50';
 
+function normalizeBankValue(value: unknown): 'ENEM' | 'UFU' {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (normalized === 'UFU' || normalized === 'UFU_VEST') return 'UFU';
+  return 'ENEM';
+}
+
+function inferQuestionBank(row: any): 'ENEM' | 'UFU' {
+  if (row?.bank) return normalizeBankValue(row.bank);
+  const metadata = row?.metadata && typeof row.metadata === 'object' ? row.metadata : {};
+  if (metadata?.bank || metadata?.source) return normalizeBankValue(metadata.bank || metadata.source);
+  if (String(row?.external_id || '').toUpperCase().startsWith('UFU_VEST_')) return 'UFU';
+  return 'ENEM';
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function BancoDeQuestoes() {
@@ -85,7 +100,8 @@ export default function BancoDeQuestoes() {
   const [activeTab, setActiveTab] = useState<'todo' | 'done'>('todo');
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
 
-  const [filterSubject, setFilterSubject] = useState('');
+  const [filterSubject, setFilterSubject] = useState('Todas');
+  const [filterBank, setFilterBank] = useState('Todas');
   const [filterTopic, setFilterTopic] = useState('Todos');
   const [filterYear, setFilterYear] = useState('Todos');
   const [filterDifficulty, setFilterDifficulty] = useState('Todas');
@@ -129,6 +145,7 @@ export default function BancoDeQuestoes() {
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   const activeSecondaryCount = [
+    filterBank !== 'Todas',
     filterTopic !== 'Todos',
     filterYear !== 'Todos',
     filterDifficulty !== 'Todas',
@@ -178,7 +195,7 @@ export default function BancoDeQuestoes() {
         const supabase = createClient();
         const query = supabase
           .from('questions')
-          .select('discipline, metadata')
+          .select('discipline, metadata, external_id, bank')
           .eq('is_verified', true)
           .limit(2000);
 
@@ -189,6 +206,7 @@ export default function BancoDeQuestoes() {
 
         const counter: Record<string, number> = {};
         for (const row of data || []) {
+          if (filterBank !== 'Todas' && inferQuestionBank(row) !== filterBank) continue;
           const t: string | null =
             row.discipline?.trim() ||
             (row.metadata as any)?.ai_topic?.trim() ||
@@ -207,7 +225,7 @@ export default function BancoDeQuestoes() {
       }
     }
     loadTopics();
-  }, [filterSubject, userId]);
+  }, [filterSubject, filterBank, userId]);
 
   // ── Filter reset ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -216,16 +234,14 @@ export default function BancoDeQuestoes() {
       setPage(1);
       setCurrentIdx(0);
       setHasMore(true);
-      if (filterSubject) fetchQuestions(1, false);
+      fetchQuestions(1, false);
     }
-  }, [filterSubject, filterTopic, filterYear, filterDifficulty, activeTab, userId]);
+  }, [filterSubject, filterBank, filterTopic, filterYear, filterDifficulty, activeTab, userId]);
 
   // ── 3. Core fetch ─────────────────────────────────────────────────────────────
   const fetchQuestions = useCallback(
     async (targetPage = 1, append = false, retryCount = 0) => {
       if (!userId) return;
-      if (!filterSubject) return;
-
       // Always fetch a fresh session so expired tokens are refreshed automatically.
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
@@ -249,6 +265,7 @@ export default function BancoDeQuestoes() {
       try {
         const params = new URLSearchParams({ page: targetPage.toString(), limit: '20' });
         if (filterSubject && filterSubject !== 'Todas') params.append('subject', filterSubject);
+        if (filterBank && filterBank !== 'Todas') params.append('bank', filterBank);
         if (filterTopic && filterTopic !== 'Todos') params.append('topic', filterTopic);
         if (filterYear && filterYear !== 'Todos') params.append('year', filterYear);
         if (filterDifficulty && filterDifficulty !== 'Todas') params.append('difficulty', filterDifficulty);
@@ -302,7 +319,7 @@ export default function BancoDeQuestoes() {
         }
       }
     },
-    [userId, activeTab, answeredIds, filterSubject, filterTopic, filterYear, filterDifficulty]
+    [userId, activeTab, answeredIds, filterSubject, filterBank, filterTopic, filterYear, filterDifficulty]
   );
 
   // ── Infinite scroll ───────────────────────────────────────────────────────────
@@ -535,13 +552,27 @@ export default function BancoDeQuestoes() {
 
                 {/* Desktop: Tópico, Ano, Dificuldade inline */}
                 <div className="hidden sm:flex flex-1 gap-2">
+                  <div className="relative flex-1">
+                    <select
+                      className={selectClass}
+                      onChange={(e) => setFilterBank(e.target.value)}
+                      value={filterBank}
+                    >
+                      <option value="Todas">Todas as Bancas</option>
+                      {BANKS.map((bank) => (
+                        <option key={bank} value={bank}>{bank}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  </div>
+
                   {/* Tópico */}
                   <div className="relative flex-1">
                     <select
                       className={selectClass}
                       onChange={(e) => setFilterTopic(e.target.value)}
                       value={filterTopic}
-                      disabled={!filterSubject}
+                      disabled={availableTopics.length === 0}
                     >
                       <option value="Todos">Todos os Tópicos</option>
                       {availableTopics.map((t) => (
@@ -597,13 +628,27 @@ export default function BancoDeQuestoes() {
                     className="overflow-hidden sm:hidden"
                   >
                     <div className="grid grid-cols-3 gap-2 pt-1">
+                      <div className="relative col-span-3">
+                        <select
+                          className={selectClass}
+                          onChange={(e) => setFilterBank(e.target.value)}
+                          value={filterBank}
+                        >
+                          <option value="Todas">Todas as Bancas</option>
+                          {BANKS.map((bank) => (
+                            <option key={bank} value={bank}>{bank}</option>
+                          ))}
+                        </select>
+                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      </div>
+
                       {/* Tópico */}
                       <div className="relative col-span-3">
                         <select
                           className={selectClass}
                           onChange={(e) => setFilterTopic(e.target.value)}
                           value={filterTopic}
-                          disabled={!filterSubject}
+                          disabled={availableTopics.length === 0}
                         >
                           <option value="Todos">Todos os Tópicos</option>
                           {availableTopics.map((t) => (
@@ -709,8 +754,8 @@ export default function BancoDeQuestoes() {
                 <span className="font-bold text-slate-800 dark:text-slate-100">
                   {totalQuestions.toLocaleString('pt-BR')} questões
                 </span>{' '}
-                do ENEM disponíveis.{' '}
-                <span className="font-semibold">Selecione a matéria</span> acima para começar.
+                entre ENEM e UFU disponíveis.{' '}
+                <span className="font-semibold">Selecione a matéria e a banca</span> acima para começar.
               </p>
               <div className="mt-6 flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded-xl px-4 py-2.5 border border-slate-100 dark:border-slate-700/50">
                 <SlidersHorizontal size={13} />
@@ -790,6 +835,7 @@ export default function BancoDeQuestoes() {
                     id: currentQ.id,
                     external_id: currentQ.external_id,
                     year: currentQ.exam_year,
+                    bank: currentQ.bank,
                     subject: currentQ.subject,
                     difficulty: currentQ.difficulty || 'Médio',
                     context: currentQ.context,

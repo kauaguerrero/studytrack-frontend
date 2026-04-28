@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import ReactMarkdown from 'react-markdown';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import { formatScientificText } from '@/lib/scientific-text';
 import {
   CheckCircle2,
@@ -40,7 +42,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface Alternative {
   letter: string;
   text: string;
-  image?: string;
+  image?: string | string[] | null;
+  file?: string | string[] | null;
   isCorrect?: boolean;
 }
 
@@ -78,6 +81,319 @@ interface AuditQuestionItem {
   question: AdminQuestion;
 }
 
+const markdownImageRegex = /!\[[^\]]*]\((.*?)\)/g;
+const mathSegmentRegex = /(\$\$[\s\S]+?(?<!\\)\$\$|\$(?!\$)[\s\S]+?(?<!\\)\$)/g;
+const ufuSyntheticTitleRegex = /^Questão\s+\d+\s*-\s*UFU Vestibular\s+\d{4}\/[12]\s*$/i;
+
+function normalizeUrl(raw: string): string | null {
+  const cleaned = String(raw || '')
+    .trim()
+    .replace(/^<|>$/g, '')
+    .replace(/^['"]|['"]$/g, '');
+  if (!cleaned) return null;
+  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned;
+  if (cleaned.startsWith('/storage/v1/object/public/')) return cleaned;
+  return null;
+}
+
+function extractMarkdownImageUrls(text: string): string[] {
+  if (!text) return [];
+  const matches = Array.from(text.matchAll(markdownImageRegex));
+  return matches
+    .map((m) => normalizeUrl(m[1] || ''))
+    .filter((url): url is string => Boolean(url));
+}
+
+function stripMarkdownImages(text: string): string {
+  if (!text) return '';
+  return text.replace(markdownImageRegex, '').trim();
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function stripDuplicatedIntroFromContext(context: string, intro: string): string {
+  const cleanContext = stripMarkdownImages(context || '');
+  const cleanIntro = stripMarkdownImages(intro || '');
+  if (!cleanContext || !cleanIntro) return cleanContext;
+
+  const escapedIntro = escapeRegExp(cleanIntro);
+  const duplicatedSuffix = new RegExp(`\\s*${escapedIntro}\\s*$`);
+  return cleanContext.replace(duplicatedSuffix, '').trim();
+}
+
+function getDisplayTitle(question?: AdminQuestion): string {
+  const title = String(question?.title || '').trim();
+  if (!title) return '';
+  if (question?.metadata?.source === 'UFU_VEST' && ufuSyntheticTitleRegex.test(title)) {
+    return '';
+  }
+  return title;
+}
+
+function extractImageUrls(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeUrl(String(item)))
+      .filter((url): url is string => Boolean(url));
+  }
+
+  if (typeof value !== 'string') return [];
+  const raw = value.trim();
+  if (!raw) return [];
+
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(raw);
+      return extractImageUrls(parsed);
+    } catch {
+      // segue para os parsers abaixo
+    }
+  }
+
+  const mdUrls = extractMarkdownImageUrls(raw);
+  if (mdUrls.length > 0) return mdUrls;
+
+  const direct = normalizeUrl(raw);
+  return direct ? [direct] : [];
+}
+
+function normalizeLatexForKatex(value: string): string {
+  return value
+    .replace(/\$\$/g, '')
+    .replace(/^\$/g, '')
+    .replace(/\$$/g, '')
+    .trim();
+}
+
+function normalizePlainLatexText(value: string): string {
+  return normalizeLatexForKatex(value)
+    .replace(/\\%/g, '%')
+    .replace(/\\\$/g, '$')
+    .replace(/\\&/g, '&')
+    .replace(/\\#/g, '#')
+    .replace(/\\_/g, '_')
+    .replace(/\\,/g, ',')
+    .replace(/\\:/g, ':')
+    .replace(/\\;/g, ';')
+    .replace(/\\!/g, '!')
+    .replace(/\\\?/g, '?')
+    .replace(/\\text\{([^}]+)\}/g, '$1')
+    .replace(/\\mathrm\{([^}]+)\}/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isLikelyMathSegment(segment: string): boolean {
+  const latex = normalizeLatexForKatex(segment);
+  if (!latex) return false;
+
+  // Avoid sending currency/price-like fragments to KaTeX.
+  if (/^[\d\s.,]+$/.test(latex)) return false;
+
+  if (/[\\^_{}()=<>+\-*/]/.test(latex) || latex.includes('[') || latex.includes(']')) return true;
+  if (/[±×÷∑∫√∞≈≠≤≥]/.test(latex)) return true;
+
+  // Allow simple inline variables like $x$ or $y1$.
+  if (/^[A-Za-z](?:[A-Za-z0-9]{0,2})?$/.test(latex)) return true;
+
+  // Allow compact algebraic expressions without LaTeX commands.
+  if (/^[A-Za-z0-9]+(?:\s*[=+\-*/<>]\s*[A-Za-z0-9]+)+$/.test(latex)) return true;
+
+  return false;
+}
+
+function normalizeQuestionText(text?: string | null): string {
+  return formatScientificText(text || '');
+}
+
+function splitMarkdownTableRow(row: string): string[] {
+  return row
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim());
+}
+
+function parseMarkdownTable(block: string): {
+  headers: string[];
+  aligns: Array<'left' | 'center' | 'right'>;
+  rows: string[][];
+} | null {
+  const lines = block
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) return null;
+  if (!lines[0].includes('|') || !lines[1].includes('|')) return null;
+
+  const headers = splitMarkdownTableRow(lines[0]);
+  const separators = splitMarkdownTableRow(lines[1]);
+
+  if (headers.length === 0 || headers.length !== separators.length) return null;
+
+  const aligns = separators.map((separator) => {
+    if (!/^:?-{3,}:?$/.test(separator)) return null;
+    const startsWithColon = separator.startsWith(':');
+    const endsWithColon = separator.endsWith(':');
+    if (startsWithColon && endsWithColon) return 'center';
+    if (endsWithColon) return 'right';
+    return 'left';
+  });
+
+  if (aligns.some((align) => align == null)) return null;
+
+  const rows = lines.slice(2).map(splitMarkdownTableRow);
+  if (rows.some((row) => row.length !== headers.length)) return null;
+
+  return {
+    headers,
+    aligns: aligns as Array<'left' | 'center' | 'right'>,
+    rows,
+  };
+}
+
+function isMarkdownBlock(text: string): boolean {
+  return /^\s*(#{1,6}\s|>|\|.*\||[-*+]\s|\d+\.\s|!\[)/m.test(text);
+}
+
+function renderInlineRichText(text: string, keyPrefix: string) {
+  const segments = text.split(mathSegmentRegex).filter(Boolean);
+
+  return segments.map((segment, segmentIndex) => {
+    const isMath =
+      (segment.startsWith('$$') || (segment.startsWith('$') && segment.endsWith('$'))) &&
+      isLikelyMathSegment(segment);
+
+    if (!isMath) {
+      const plainText =
+        segment.startsWith('$') && segment.endsWith('$')
+          ? normalizePlainLatexText(segment)
+          : segment.replace(/\n+/g, ' ');
+
+      return (
+        <span
+          key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`}
+          className="whitespace-pre-wrap"
+        >
+          <ReactMarkdown
+            components={{
+              p: ({ children }) => <Fragment>{children}</Fragment>,
+            }}
+          >
+            {plainText}
+          </ReactMarkdown>
+        </span>
+      );
+    }
+
+    const latex = normalizeLatexForKatex(segment);
+    try {
+      const html = katex.renderToString(latex, {
+        throwOnError: false,
+        displayMode: segment.startsWith('$$'),
+        output: 'html',
+      } as Parameters<typeof katex.renderToString>[1] & {
+        output?: 'html' | 'mathml' | 'htmlAndMathml'
+      });
+      return (
+        <span
+          key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}
+          className="katex-fragment mx-1 inline-block align-baseline"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      );
+    } catch {
+      return (
+        <code
+          key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}
+          className="rounded bg-slate-100 px-1.5 py-0.5 text-sm text-slate-700"
+        >
+          {latex}
+        </code>
+      );
+    }
+  });
+}
+
+function RichText({ text, className }: { text?: string | null; className?: string }) {
+  const normalized = normalizeQuestionText(text);
+  const paragraphs = useMemo(
+    () => normalized.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean),
+    [normalized],
+  );
+
+  return (
+    <div className={className}>
+      {paragraphs.map((paragraph, paragraphIndex) => {
+        const table = parseMarkdownTable(paragraph);
+        if (table) {
+          return (
+            <div key={`${paragraphIndex}-${paragraph.slice(0, 20)}`} className="my-4 overflow-x-auto">
+              <table className="min-w-full border-collapse rounded-xl border border-slate-300 bg-white text-sm">
+                <thead>
+                  <tr className="bg-slate-100">
+                    {table.headers.map((header, headerIndex) => (
+                      <th
+                        key={`${paragraphIndex}-header-${headerIndex}`}
+                        className={`border border-slate-300 px-4 py-2 font-semibold text-slate-900 ${
+                          table.aligns[headerIndex] === 'center'
+                            ? 'text-center'
+                            : table.aligns[headerIndex] === 'right'
+                              ? 'text-right'
+                              : 'text-left'
+                        }`}
+                      >
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {table.rows.map((row, rowIndex) => (
+                    <tr key={`${paragraphIndex}-row-${rowIndex}`} className="odd:bg-white even:bg-slate-50">
+                      {row.map((cell, cellIndex) => (
+                        <td
+                          key={`${paragraphIndex}-row-${rowIndex}-cell-${cellIndex}`}
+                          className={`border border-slate-300 px-4 py-2 text-slate-700 ${
+                            table.aligns[cellIndex] === 'center'
+                              ? 'text-center'
+                              : table.aligns[cellIndex] === 'right'
+                                ? 'text-right'
+                                : 'text-left'
+                          }`}
+                        >
+                          {renderInlineRichText(normalizeQuestionText(cell), `${paragraphIndex}-row-${rowIndex}-cell-${cellIndex}`)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
+        if (isMarkdownBlock(paragraph)) {
+          return <ReactMarkdown key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>{paragraph}</ReactMarkdown>;
+        }
+
+        const segments = paragraph.split(mathSegmentRegex).filter(Boolean);
+
+        return (
+          <p key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>
+            {renderInlineRichText(paragraph, `${paragraphIndex}`)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function AdminQuestionApproval() {
   const [questions, setQuestions] = useState<AdminQuestion[]>([]);
   const [auditItems, setAuditItems] = useState<AuditQuestionItem[]>([]);
@@ -90,6 +406,7 @@ export default function AdminQuestionApproval() {
   const [auditSummary, setAuditSummary] = useState<{ totalAudited: number; flagged: number }>({ totalAudited: 0, flagged: 0 });
 
   // Filtros Locais
+  const [filterSource, setFilterSource] = useState<string>('all');
   const [filterSubject, setFilterSubject] = useState<string>('all');
   const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
 
@@ -351,20 +668,32 @@ export default function AdminQuestionApproval() {
   // --- FILTERING LOGIC ---
   const filteredQuestions = useMemo(() => {
     return questions.filter(q => {
+      const source = q.metadata?.source || 'UNKNOWN';
+      const matchSource = filterSource === 'all' || source === filterSource;
       const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
       const matchDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
-      return matchSubject && matchDifficulty;
+      return matchSource && matchSubject && matchDifficulty;
     });
-  }, [questions, filterSubject, filterDifficulty]);
+  }, [questions, filterSource, filterSubject, filterDifficulty]);
 
   const filteredAuditItems = useMemo(() => {
     return auditItems.filter(item => {
       const q = item.question;
+      const source = q.metadata?.source || 'UNKNOWN';
+      const matchSource = filterSource === 'all' || source === filterSource;
       const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
       const matchDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
-      return matchSubject && matchDifficulty;
+      return matchSource && matchSubject && matchDifficulty;
     });
-  }, [auditItems, filterSubject, filterDifficulty]);
+  }, [auditItems, filterSource, filterSubject, filterDifficulty]);
+
+  const sources = Array.from(
+    new Set(
+      (mode === 'audit'
+        ? auditItems.map(item => item.question.metadata?.source || 'UNKNOWN')
+        : questions.map(q => q.metadata?.source || 'UNKNOWN'))
+    )
+  ).filter(Boolean).sort();
 
   const subjects = Array.from(
     new Set(
@@ -385,6 +714,25 @@ export default function AdminQuestionApproval() {
     : filteredQuestions.length
       ? filteredQuestions[Math.min(currentIndex, filteredQuestions.length - 1)]
       : undefined;
+  const activeQuestionContextText = useMemo(
+    () => stripDuplicatedIntroFromContext(activeQuestion?.context || '', activeQuestion?.alternatives_intro || ''),
+    [activeQuestion?.context, activeQuestion?.alternatives_intro],
+  );
+  const activeQuestionStatementText = useMemo(
+    () => stripMarkdownImages(activeQuestion?.alternatives_intro || ''),
+    [activeQuestion?.alternatives_intro],
+  );
+  const activeQuestionDisplayTitle = useMemo(
+    () => getDisplayTitle(activeQuestion),
+    [activeQuestion],
+  );
+  const activeQuestionSupportImages = useMemo(() => {
+    if (!activeQuestion) return [];
+    const fromImagesField = extractImageUrls(activeQuestion.images);
+    const fromContext = extractMarkdownImageUrls(activeQuestion.context || '');
+    const fromIntro = extractMarkdownImageUrls(activeQuestion.alternatives_intro || '');
+    return Array.from(new Set([...fromImagesField, ...fromContext, ...fromIntro]));
+  }, [activeQuestion]);
 
   useEffect(() => {
     setCurrentIndex(0);
@@ -573,6 +921,16 @@ export default function AdminQuestionApproval() {
                 </SelectContent>
               </Select>
 
+              <Select value={filterSource} onValueChange={setFilterSource} disabled={isEditing}>
+                <SelectTrigger className="w-[130px] md:w-[150px] bg-white h-9 text-sm">
+                  <SelectValue placeholder="Origem" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas Origens</SelectItem>
+                  {sources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+
               <Select value={filterDifficulty} onValueChange={setFilterDifficulty} disabled={isEditing}>
                 <SelectTrigger className="w-[120px] md:w-[140px] bg-white h-9 text-sm">
                   <SelectValue placeholder="Dificuldade" />
@@ -616,8 +974,8 @@ export default function AdminQuestionApproval() {
                   ? 'Nenhuma questão pendente para os filtros atuais. A curadoria está em dia.'
                   : 'Nenhum achado aberto para os filtros atuais. A auditoria está em dia.'}
               </p>
-              {(filterSubject !== 'all' || filterDifficulty !== 'all') && (
-                <Button variant="link" onClick={() => { setFilterSubject('all'); setFilterDifficulty('all'); }} className="mt-4 text-blue-600">
+              {(filterSource !== 'all' || filterSubject !== 'all' || filterDifficulty !== 'all') && (
+                <Button variant="link" onClick={() => { setFilterSource('all'); setFilterSubject('all'); setFilterDifficulty('all'); }} className="mt-4 text-blue-600">
                   Limpar filtros e ver tudo
                 </Button>
               )}
@@ -639,6 +997,14 @@ export default function AdminQuestionApproval() {
                     <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none uppercase tracking-wider text-xs px-2.5 py-0.5 font-semibold rounded-md">
                       {activeQuestion.subject}
                     </Badge>
+                    <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 uppercase tracking-wider text-[10px] px-2 py-0.5 rounded-md">
+                      {activeQuestion.metadata?.source || 'UNKNOWN'}
+                    </Badge>
+                    {activeQuestion.metadata?.tipo && (
+                      <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 uppercase tracking-wider text-[10px] px-2 py-0.5 rounded-md">
+                        {activeQuestion.metadata.tipo}
+                      </Badge>
+                    )}
                     {activeQuestion.discipline && (
                       <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 uppercase tracking-wider text-[10px] px-2 py-0.5 rounded-md">
                         {activeQuestion.discipline}
@@ -844,21 +1210,36 @@ export default function AdminQuestionApproval() {
                   )}
 
                   {/* Contexto */}
-                  {activeQuestion.context && (
+                  {activeQuestionContextText && (
                     <div className="relative pl-5 border-l-4 border-slate-200 py-1">
                       <div className="absolute -left-[30px] -top-1 bg-white text-slate-400 p-1.5 rounded-full border border-slate-200 shadow-sm">
                         <BookOpen size={16} />
                       </div>
                       <div className="prose prose-slate max-w-none text-slate-600 italic leading-relaxed text-[15px]">
-                        <ReactMarkdown>{formatScientificText(activeQuestion.context)}</ReactMarkdown>
+                        <RichText text={activeQuestionContextText} />
                       </div>
                     </div>
                   )}
 
-                  {/* Enunciado Principal */}
+                  {/* Imagens de Apoio */}
+                  {activeQuestionSupportImages.length > 0 && (
+                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
+                      {activeQuestionSupportImages.map((img, i) => (
+                        <div key={i} className="relative shrink-0 snap-center group/img">
+                          <img
+                            src={img}
+                            alt={`Apoio ${i}`}
+                            className="h-48 w-auto rounded-xl border border-slate-200 object-cover shadow-sm hover:shadow-md transition-all cursor-zoom-in"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Comando da Questão */}
                   <div className="prose prose-slate prose-lg max-w-none text-slate-900 font-medium leading-relaxed">
-                    {activeQuestion.title && <h3 className="text-xl font-bold mb-2 text-slate-800">{activeQuestion.title}</h3>}
-                    <ReactMarkdown>{formatScientificText(activeQuestion.alternatives_intro || '')}</ReactMarkdown>
+                    {activeQuestionDisplayTitle && <h3 className="text-xl font-bold mb-2 text-slate-800">{activeQuestionDisplayTitle}</h3>}
+                    <RichText text={activeQuestionStatementText} />
                   </div>
 
                   {/* Raciocínio da IA (Audit View) */}
@@ -874,28 +1255,22 @@ export default function AdminQuestionApproval() {
                     </div>
                   )}
 
-                  {/* Imagens de Apoio */}
-                  {activeQuestion.images && activeQuestion.images.length > 0 && (
-                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
-                      {activeQuestion.images.map((img, i) => (
-                        <div key={i} className="relative shrink-0 snap-center group/img">
-                          <img
-                            src={img}
-                            alt={`Apoio ${i}`}
-                            className="h-48 w-auto rounded-xl border border-slate-200 object-cover shadow-sm hover:shadow-md transition-all cursor-zoom-in"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
                   {/* Bloco de Alternativas */}
                   <div className="space-y-3 pt-4 border-t border-slate-100">
                     <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Alternativas</h4>
                     {activeQuestion.alternatives && activeQuestion.alternatives.length > 0 ? (
                       activeQuestion.alternatives.map((alt) => {
-                        // Verifica tanto a letra exata quanto o booleano 'isCorrect' retornado pela IA
-                        const isCorrect = alt.letter === activeQuestion.correct_alternative || alt.isCorrect === true;
+                        const normalizedCorrect = String(activeQuestion.correct_alternative || '').toUpperCase();
+                        const fallbackCorrect = activeQuestion.alternatives.filter(a => a.isCorrect === true);
+                        const isCorrect = normalizedCorrect
+                          ? String(alt.letter || '').toUpperCase() === normalizedCorrect
+                          : (fallbackCorrect.length === 1 && fallbackCorrect[0].letter === alt.letter);
+                        const alternativeImages = [
+                          ...extractImageUrls(alt.image),
+                          ...extractImageUrls(alt.file),
+                          ...extractMarkdownImageUrls(alt.text || ''),
+                        ];
+                        const alternativeText = stripMarkdownImages(alt.text || '');
 
                         return (
                           <div
@@ -918,7 +1293,19 @@ export default function AdminQuestionApproval() {
                               {alt.letter}
                             </div>
                             <div className={`flex-1 text-[15px] leading-snug ${isCorrect ? 'text-emerald-950 font-medium' : 'text-slate-700'}`}>
-                              {alt.text ? formatScientificText(alt.text) : <span className="italic opacity-50">Conteúdo em anexo/imagem</span>}
+                              {alternativeImages.length > 0 && (
+                                <div className="mb-3 flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                                  {alternativeImages.map((img, index) => (
+                                    <img
+                                      key={`${alt.letter}-${index}-${img}`}
+                                      src={img}
+                                      alt={`Alternativa ${alt.letter}`}
+                                      className="max-h-40 rounded-lg border border-slate-200"
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                              {alternativeText ? <RichText text={alternativeText} /> : <span className="italic opacity-50">Conteúdo em anexo/imagem</span>}
                             </div>
                             {isCorrect && (
                               <div className="shrink-0 pl-2">

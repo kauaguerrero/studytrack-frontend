@@ -30,6 +30,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 2008 }, (_, i) => (CURRENT_YEAR - i).toString());
 
 const DIFFICULTIES = ["Fácil", "Médio", "Difícil"];
+const BANKS = ["ENEM", "UFU"];
 const TOTAL_QUESTIONS = 5000;
 
 // --- COMPONENTS: SKELETON UI (UX Improvement) ---
@@ -67,6 +68,7 @@ export default function BancoDeQuestoes() {
     
     // Filtros principais
     const [filterSubject, setFilterSubject] = useState('')
+    const [filterBank, setFilterBank] = useState('Todas')
     const [filterTopic, setFilterTopic] = useState('Todos')
     const [filterYear, setFilterYear] = useState('Todos')
     const [filterDifficulty, setFilterDifficulty] = useState('Todas')
@@ -139,7 +141,8 @@ export default function BancoDeQuestoes() {
             try {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
                 const subjectQuery = (!filterSubject || filterSubject === 'Todas') ? '' : filterSubject;
-                const res = await fetch(`${apiUrl}/api/questions/topics?subject=${encodeURIComponent(subjectQuery)}`, {
+                const bankQuery = (!filterBank || filterBank === 'Todas') ? '' : filterBank;
+                const res = await fetch(`${apiUrl}/api/questions/topics?subject=${encodeURIComponent(subjectQuery)}&bank=${encodeURIComponent(bankQuery)}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 const data = await res.json();
@@ -148,7 +151,7 @@ export default function BancoDeQuestoes() {
             } catch (err) { console.error(err); void reportError("QuestionBankError", String(err)); }
         }
         loadTopics();
-    }, [filterSubject, userId]);
+    }, [filterSubject, filterBank, userId]);
 
     // Reset ao mudar filtros principais
     useEffect(() => {
@@ -162,7 +165,7 @@ export default function BancoDeQuestoes() {
                 fetchQuestions(1, false);
             }
         }
-    }, [filterSubject, filterTopic, filterYear, filterDifficulty, activeTab, userId]); 
+    }, [filterSubject, filterBank, filterTopic, filterYear, filterDifficulty, activeTab, userId]); 
 
     // 3. Core Fetch Logic (Questions) — user_id vem do token no backend (IDOR-safe)
     const fetchQuestions = useCallback(async (targetPage = 1, append = false, retryCount = 0) => {
@@ -196,6 +199,7 @@ export default function BancoDeQuestoes() {
                 limit: '20'
             });
             if (filterSubject && filterSubject !== 'Todas') params.append('subject', filterSubject);
+            if (filterBank && filterBank !== 'Todas') params.append('bank', filterBank);
             if (filterTopic && filterTopic !== 'Todos') params.append('topic', filterTopic);
             if (filterYear && filterYear !== 'Todos') params.append('year', filterYear);
             if (filterDifficulty && filterDifficulty !== 'Todas') params.append('difficulty', filterDifficulty);
@@ -267,7 +271,7 @@ export default function BancoDeQuestoes() {
                 isLoadingRef.current = false;
             }
         }
-    }, [userId, activeTab, answeredIds, filterSubject, filterTopic, filterYear, filterDifficulty]);
+    }, [userId, activeTab, answeredIds, filterSubject, filterBank, filterTopic, filterYear, filterDifficulty]);
 
     // Infinite Scroll Logic
     useEffect(() => {
@@ -409,7 +413,7 @@ export default function BancoDeQuestoes() {
                         </div>
 
                         {/* Bottom Row: Filters (Issue 5 Fix: Grid Layout) */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                             {/* 1. Matéria */}
                             <div className="relative group">
                                 <select 
@@ -426,7 +430,22 @@ export default function BancoDeQuestoes() {
                                 <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                             </div>
 
-                            {/* 2. Tópico */}
+                            {/* 2. Banca */}
+                            <div className="relative group">
+                                <select 
+                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-600 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-100 text-sm font-semibold rounded-xl pl-3 pr-8 py-3 outline-none focus:ring-4 focus:ring-emerald-100 dark:focus:ring-emerald-900/50 focus:border-emerald-500 appearance-none transition-all cursor-pointer shadow-sm"
+                                    onChange={(e) => setFilterBank(e.target.value)}
+                                    value={filterBank}
+                                >
+                                    <option value="Todas" className="font-bold text-emerald-600">Todas as Bancas</option>
+                                    {BANKS.map(bank => (
+                                        <option key={bank} value={bank}>{bank}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                            </div>
+
+                            {/* 3. Tópico */}
                             <div className="relative group">
                                 <select 
                                     className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-100 text-sm font-semibold rounded-xl pl-3 pr-8 py-3 outline-none focus:ring-4 focus:ring-sky-100 dark:focus:ring-sky-900/50 focus:border-sky-500 appearance-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-900 shadow-sm"
@@ -442,7 +461,7 @@ export default function BancoDeQuestoes() {
                                 <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                             </div>
 
-                            {/* 3. Ano */}
+                            {/* 4. Ano */}
                             <div className="relative group">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                                     <Calendar size={14} className="text-slate-400 dark:text-slate-500" />
@@ -460,7 +479,7 @@ export default function BancoDeQuestoes() {
                                 <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
                             </div>
 
-                            {/* 4. Dificuldade */}
+                            {/* 5. Dificuldade */}
                             <div className="relative group">
                                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                                     <BarChart size={14} className="text-slate-400 dark:text-slate-500" />
@@ -512,7 +531,7 @@ export default function BancoDeQuestoes() {
                         <p className="text-slate-600 dark:text-slate-400 max-w-lg text-lg leading-relaxed">
                         O banco de questões com mais de <span className="font-bold text-blue-600 dark:text-blue-400">{totalQuestions.toLocaleString('pt-BR')} questões</span>. 
                             <br />
-                            Selecione a <span className="font-bold text-slate-800 dark:text-slate-200">matéria acima</span> e um tópico específico se preferir para começar.
+                            Selecione a <span className="font-bold text-slate-800 dark:text-slate-200">matéria</span> e a <span className="font-bold text-slate-800 dark:text-slate-200">banca</span> acima para começar.
                         </p>
                         <div className="mt-8 flex gap-2 text-sm text-slate-400 dark:text-slate-500">
                             <Filter size={16} /> 
@@ -567,6 +586,7 @@ export default function BancoDeQuestoes() {
                                         id: currentQ.id,
                                         external_id: currentQ.external_id,
                                         year: currentQ.exam_year,
+                                        bank: currentQ.bank,
                                         subject: currentQ.subject,
                                         difficulty: currentQ.difficulty || "Médio",
                                         context: currentQ.context,
