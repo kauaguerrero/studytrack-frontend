@@ -104,6 +104,8 @@ function renderInlineRichText(text: string, keyPrefix: string) {
   const segments = text.split(mathSegmentRegex).filter(Boolean)
 
   return segments.map((segment, segmentIndex) => {
+    const previousSegment = segments[segmentIndex - 1] || ''
+    const nextSegment = segments[segmentIndex + 1] || ''
     const isMath =
       (segment.startsWith('$$') || (segment.startsWith('$') && segment.endsWith('$'))) &&
       isLikelyMathSegment(segment)
@@ -128,6 +130,8 @@ function renderInlineRichText(text: string, keyPrefix: string) {
     }
 
     const latex = normalizeLatexForKatex(segment)
+    const needsLeadingSpace = /\s$/.test(previousSegment)
+    const needsTrailingSpace = /^\s/.test(nextSegment)
     try {
       const html = katex.renderToString(latex, {
         throwOnError: false,
@@ -135,11 +139,14 @@ function renderInlineRichText(text: string, keyPrefix: string) {
         output: 'html',
       } as KatexRenderOptions)
       return (
-        <span
-          key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}
-          className="katex-fragment mx-1 inline-block align-baseline"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        <Fragment key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}>
+          {needsLeadingSpace ? ' ' : null}
+          <span
+            className="katex-fragment inline-block align-baseline"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+          {needsTrailingSpace ? ' ' : null}
+        </Fragment>
       )
     } catch {
       return (
