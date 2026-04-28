@@ -13,10 +13,9 @@ import { motion, AnimatePresence, useAnimation, useReducedMotion } from 'framer-
 import {
   Timer, ArrowRight, ArrowLeft, CheckCircle2, Play, RotateCcw,
   Trophy, BookOpen, History, Brain, ChevronDown, ChevronLeft, TrendingUp,
-  Medal, BarChart3, Plus, Clock, Zap, Flag, EyeOff,
+  Medal, BarChart3, Plus, Clock, Zap, Flag, EyeOff, Target,
 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import { formatScientificText } from '@/lib/scientific-text'
+import { QuestionRichText } from '@/components/questions/QuestionRichText'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
@@ -39,15 +38,17 @@ interface Alternative { letter: string; text: string; image?: string | null }
 
 interface Question {
   id: string; external_id: string; subject: string; topic?: string
+  bank?: string; difficulty?: string; exam_year?: number
   context: string; statement: string; images?: unknown; alternatives: Alternative[]
   correct_option: string
 }
 
 interface SubjectResult { correct: number; total: number; percentage: number }
+interface BankResult { correct: number; total: number; percentage: number }
 
 interface FinishResult {
   score: number; total: number; percentage: number; tri_score: number | null
-  time_taken_secs: number; results_by_subject: Record<string, SubjectResult>; session_id: string
+  time_taken_secs: number; results_by_subject: Record<string, SubjectResult>; results_by_bank?: Record<string, BankResult>; session_id: string
   annulled_question_ids?: string[];
   annulled_questions_count?: number;
   new_streak?: number;
@@ -59,12 +60,12 @@ interface FinishResult {
   };
 }
 
-interface SessionConfig { mode?: string; format?: string; subject?: string; difficulty?: string; qty?: number }
+interface SessionConfig { mode?: string; format?: string; subject?: string; difficulty?: string; qty?: number; bank?: string; year?: number | null; results_by_bank?: Record<string, BankResult> }
 
 interface SimuladoSession {
   id: string; score: number; total_questions: number; percentage: number
   config: SessionConfig; time_taken_secs: number; started_at: string
-  completed_at: string; tri_score: number | null; results_by_subject?: Record<string, SubjectResult>
+  completed_at: string; tri_score: number | null; results_by_subject?: Record<string, SubjectResult>; results_by_bank?: Record<string, BankResult>
 }
 
 interface RankEntry {
@@ -77,7 +78,7 @@ interface RankingData {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const ENEM_FORMATS = [
+const ENEM_BLOCK_FORMATS = [
   { value: 'linguagens',  label: 'Linguagens e Códigos',         emoji: '📖', qty: 45 },
   { value: 'humanas',     label: 'Ciências Humanas',             emoji: '🏛️', qty: 45 },
   { value: 'natureza',    label: 'Ciências da Natureza',         emoji: '🧪', qty: 45 },
@@ -86,6 +87,22 @@ const ENEM_FORMATS = [
   { value: 'dia2',        label: 'Dia 2 (Natureza + Matemática)',emoji: '📅', qty: 90 },
   { value: 'completo',    label: 'ENEM Completo',                emoji: '🎯', qty: 180 },
 ]
+
+const UFU_BLOCK_FORMATS = [
+  { value: 'linguagens',  label: 'Linguagens',                   emoji: '📖', qty: 22 },
+  { value: 'humanas',     label: 'Ciências Humanas',             emoji: '🏛️', qty: 22 },
+  { value: 'natureza',    label: 'Ciências da Natureza',         emoji: '🧪', qty: 22 },
+  { value: 'matematica',  label: 'Matemática',                   emoji: '📐', qty: 22 },
+  { value: 'completo',    label: 'UFU Completo',                 emoji: '🎯', qty: 88 },
+]
+
+const BANK_OPTIONS = [
+  { value: 'Todas', label: 'Todas as bancas' },
+  { value: 'ENEM', label: 'ENEM' },
+  { value: 'UFU', label: 'UFU' },
+] as const
+
+const SIMULADO_YEARS = ['Todos', ...Array.from({ length: 18 }, (_, i) => String(new Date().getFullYear() - i))]
 
 const CUSTOM_SUBJECTS = [
   { value: 'Todas',             label: 'Todas as Matérias', qty: null },
@@ -224,6 +241,12 @@ function scoreColor(pct: number) {
 function scoreBarColor(pct: number)  { return perfColorHex(pct) }
 function scoreRingColor(pct: number) { return perfColorHex(pct) }
 
+const BANK_VISUALS = {
+  ENEM: { label: 'ENEM', color: '#22c55e', bgClass: 'bg-green-500' },
+  UFU: { label: 'UFU', color: '#f59e0b', bgClass: 'bg-amber-500' },
+  Todas: { label: 'ENEM + UFU', color: '#64748b', bgClass: 'bg-slate-500' },
+} as const
+
 function celebrationMessage(pct: number): { emoji: string; title: string; sub: string } {
   if (pct >= 80) return { emoji: '🏆', title: 'Resultado extraordinário!', sub: 'Você está no caminho certo para a aprovação.' }
   if (pct >= 70) return { emoji: '🎉', title: 'Excelente resultado!', sub: 'Continue assim e a aprovação é certa.' }
@@ -231,16 +254,37 @@ function celebrationMessage(pct: number): { emoji: string; title: string; sub: s
   return { emoji: '💪', title: 'Continue praticando!', sub: 'A persistência é o que separa os aprovados.' }
 }
 
+function normalizeBank(value?: string | null): 'ENEM' | 'UFU' | 'Todas' {
+  const normalized = String(value || '').trim().toUpperCase()
+  if (normalized === 'UFU' || normalized === 'UFU_VEST') return 'UFU'
+  if (normalized === 'ENEM' || normalized === 'INEP_ENEM' || normalized === 'ENEM_OFICIAL') return 'ENEM'
+  return 'Todas'
+}
+
+function inferSessionBank(config?: SessionConfig): 'ENEM' | 'UFU' | 'Todas' {
+  const explicit = normalizeBank(config?.bank)
+  if (explicit !== 'Todas') return explicit
+
+  const fmt = String(config?.format || '').toLowerCase()
+  if (fmt && fmt !== 'custom') return 'ENEM'
+  return 'Todas'
+}
+
 function getConfigLabel(session: SimuladoSession): string {
   const c = session.config || {}
   if (c.format && c.format !== 'custom') {
-    const fmt = ENEM_FORMATS.find(f => f.value === c.format)
-    return fmt ? fmt.label : c.format
+    const bankLabel = inferSessionBank(c)
+    const formatList = bankLabel === 'UFU' ? UFU_BLOCK_FORMATS : ENEM_BLOCK_FORMATS
+    const fmt = formatList.find(f => f.value === c.format)
+    return fmt ? `${fmt.label}${bankLabel !== 'Todas' ? ` · ${bankLabel}` : ''}` : c.format
   }
+  const bankLabel = inferSessionBank(c)
   const subj = c.subject || 'Todas'
   const qty = session.total_questions || c.qty || 0
   const diff = DIFFICULTIES.find(d => d.value === c.difficulty)?.label || 'Misto'
-  return `${subj} · ${qty}q · ${diff}`
+  const yearLabel = c.year ? ` · ${c.year}` : ''
+  const bankSuffix = bankLabel !== 'Todas' ? ` · ${bankLabel}` : ''
+  return `${subj} · ${qty}q · ${diff}${bankSuffix}${yearLabel}`
 }
 
 function aggregateSubjectPerf(sessions: SimuladoSession[]) {
@@ -258,12 +302,75 @@ function aggregateSubjectPerf(sessions: SimuladoSession[]) {
     .sort((a, b) => b.pct - a.pct)
 }
 
+function getSessionScopedStats(session: SimuladoSession, bankFilter: 'Todas' | 'ENEM' | 'UFU') {
+  if (bankFilter === 'Todas') {
+    return {
+      score: session.score || 0,
+      total: session.total_questions || 0,
+      percentage: session.percentage ?? 0,
+    }
+  }
+
+  const storedBreakdown = session.results_by_bank || session.config?.results_by_bank
+  const bankResult = storedBreakdown?.[bankFilter]
+  if (bankResult) {
+    return {
+      score: bankResult.correct,
+      total: bankResult.total,
+      percentage: bankResult.percentage,
+    }
+  }
+
+  if (inferSessionBank(session.config) === bankFilter) {
+    return {
+      score: session.score || 0,
+      total: session.total_questions || 0,
+      percentage: session.percentage ?? 0,
+    }
+  }
+
+  return null
+}
+
+function aggregateBankPerf(sessions: SimuladoSession[], bankFilter: 'Todas' | 'ENEM' | 'UFU' = 'Todas') {
+  const acc: Record<string, { correct: number; total: number; sessions: number }> = {}
+  for (const session of sessions) {
+    const storedBreakdown = session.results_by_bank || session.config?.results_by_bank
+    if (storedBreakdown && Object.keys(storedBreakdown).length > 0) {
+      Object.entries(storedBreakdown).forEach(([bank, result]) => {
+        if (bankFilter !== 'Todas' && bank !== bankFilter) return
+        if (!acc[bank]) acc[bank] = { correct: 0, total: 0, sessions: 0 }
+        acc[bank].correct += result.correct
+        acc[bank].total += result.total
+        acc[bank].sessions += 1
+      })
+      continue
+    }
+
+    const bank = inferSessionBank(session.config)
+    if (bank === 'Todas') continue
+    if (bankFilter !== 'Todas' && bank !== bankFilter) continue
+    if (!acc[bank]) acc[bank] = { correct: 0, total: 0, sessions: 0 }
+    acc[bank].correct += session.score || 0
+    acc[bank].total += session.total_questions || 0
+    acc[bank].sessions += 1
+  }
+  return Object.entries(acc).map(([bank, stats]) => ({
+    bank,
+    pct: stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0,
+    sessions: stats.sessions,
+    total: stats.total,
+  }))
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
+  const bank = payload[0]?.payload?.bank as keyof typeof BANK_VISUALS | undefined
   return (
     <div className="bg-slate-900 dark:bg-slate-800 text-white px-3 py-2 rounded-lg text-sm shadow-lg border border-slate-700">
       <p className="text-slate-400 text-xs mb-0.5">{label}</p>
+      {bank ? <p className="text-slate-300 text-xs mb-0.5">{BANK_VISUALS[bank]?.label ?? bank}</p> : null}
       <p className="font-bold text-green-400">{payload[0].value}%</p>
     </div>
   )
@@ -291,11 +398,17 @@ export default function SimuladoPage() {
   const [showConfigModal, setShowConfigModal] = useState(false)
 
   // Config
-  const [mode, setMode] = useState<'custom' | 'enem'>('custom')
+  const [mode, setMode] = useState<'custom' | 'preset'>('custom')
+  const [pageBankFilter, setPageBankFilter] = useState<'Todas' | 'ENEM' | 'UFU'>('Todas')
+  const [bank, setBank] = useState<'Todas' | 'ENEM' | 'UFU'>('Todas')
   const [subject, setSubject] = useState('Todas')
+  const [year, setYear] = useState('Todos')
   const [qty, setQty] = useState(10)
   const [difficulty, setDifficulty] = useState('misto')
   const [enemFormat, setEnemFormat] = useState('linguagens')
+  const [presetBank, setPresetBank] = useState<'ENEM' | 'UFU'>('ENEM')
+  const [availableCustomCount, setAvailableCustomCount] = useState<number | null>(null)
+  const [loadingCustomCount, setLoadingCustomCount] = useState(false)
 
   // Quiz state
   const [questions, setQuestions] = useState<Question[]>([])
@@ -359,7 +472,7 @@ export default function SimuladoPage() {
       try {
         const [histRes, rankRes] = await Promise.all([
           fetch(`${apiUrl}/api/simulado/history?page=1&limit=20`, { headers: { Authorization: `Bearer ${accessToken}` } }),
-          fetch(`${apiUrl}/api/simulado/ranking`, { headers: { Authorization: `Bearer ${accessToken}` } }),
+          fetch(`${apiUrl}/api/simulado/ranking?bank=${pageBankFilter}`, { headers: { Authorization: `Bearer ${accessToken}` } }),
         ])
         const histData = histRes.ok ? await histRes.json() : { sessions: [] }
         const rankJson = rankRes.ok ? await rankRes.json() : { ranking: [], user_position: null }
@@ -372,7 +485,7 @@ export default function SimuladoPage() {
       }
     }
     fetchDashboard()
-  }, [accessToken, apiUrl, dashVersion])
+  }, [accessToken, apiUrl, dashVersion, pageBankFilter])
 
   // ── Timer ──
   useEffect(() => {
@@ -427,27 +540,85 @@ export default function SimuladoPage() {
   }, [step])
 
   // ── Derived KPIs ──
-  const totalSimulados = sessions.length
-  const avgPct = totalSimulados > 0 ? Math.round(sessions.reduce((s, x) => s + (x.percentage ?? 0), 0) / totalSimulados) : 0
-  const bestPct = totalSimulados > 0 ? Math.max(...sessions.map(s => s.percentage ?? 0)) : 0
+  const pageFilteredSessions = pageBankFilter === 'Todas'
+    ? sessions
+    : sessions.filter((session) => {
+        const storedBreakdown = session.results_by_bank || session.config?.results_by_bank
+        if (storedBreakdown && Object.keys(storedBreakdown).length > 0) {
+          return storedBreakdown[pageBankFilter] != null
+        }
+        return inferSessionBank(session.config) === pageBankFilter
+      })
+  const totalSimuladosFiltered = pageFilteredSessions.length
+  const scopedSessionStats = pageFilteredSessions
+    .map((session) => ({ session, scoped: getSessionScopedStats(session, pageBankFilter) }))
+    .filter((entry): entry is { session: SimuladoSession; scoped: { score: number; total: number; percentage: number } } => entry.scoped != null)
+  const avgPct = scopedSessionStats.length > 0
+    ? Math.round(scopedSessionStats.reduce((sum, entry) => sum + entry.scoped.percentage, 0) / scopedSessionStats.length)
+    : 0
+  const bestPct = scopedSessionStats.length > 0
+    ? Math.max(...scopedSessionStats.map((entry) => entry.scoped.percentage))
+    : 0
   const rankingPos = rankingData?.user_position ?? null
   const nextTarget = (() => {
     const inc = bestPct < 50 ? 10 : bestPct <= 80 ? 5 : 3
     return Math.min(100, bestPct + inc)
   })()
-  const heroSubtitle = totalSimulados === 0
+  const heroSubtitle = totalSimuladosFiltered === 0
     ? 'Faça seu primeiro simulado e descubra seu nível'
-    : `Sua próxima meta: superar ${nextTarget}%`
+    : `Sua próxima meta: superar ${nextTarget}% em ${pageBankFilter === 'Todas' ? 'ENEM e UFU' : pageBankFilter}`
 
-  const simuladoCtxHint = mode === 'enem'
-    ? (() => { const fmt = ENEM_FORMATS.find(f => f.value === enemFormat); const q = fmt?.qty ?? 45; return `~${Math.round(q * 1.5)} min · ${q} questões · TRI` })()
-    : `~${qty * 3} min · ${qty} questões · TRI`
+  const simuladoCtxHint = mode === 'preset'
+    ? (() => {
+        const presetFormats = presetBank === 'UFU' ? UFU_BLOCK_FORMATS : ENEM_BLOCK_FORMATS
+        const fmt = presetFormats.find(f => f.value === enemFormat)
+        const q = fmt?.qty ?? 45
+        return `${presetBank} · ~${Math.round(q * 1.5)} min · ${q} questões${presetBank === 'ENEM' ? ' · TRI' : ''}`
+      })()
+    : `${bank === 'Todas' ? 'ENEM + UFU' : bank} · ~${qty * 3} min · ${qty} questões${bank === 'ENEM' ? ' · TRI' : ''}`
 
   // ── Chart data ──
-  const subjectOptions = ['Todas', ...Array.from(new Set(sessions.flatMap(s => Object.keys(s.results_by_subject || {}))))]
-  const filteredSessions = evolutionSubject === 'Todas' ? sessions : sessions.filter(s => s.results_by_subject?.[evolutionSubject] != null)
-  const evolutionData = [...filteredSessions].reverse().map((s, i) => ({ name: `#${i + 1}`, pct: s.percentage ?? 0, date: formatDate(s.started_at) }))
-  const subjectPerfData = aggregateSubjectPerf(sessions)
+  const subjectOptions = ['Todas', ...Array.from(new Set(pageFilteredSessions.flatMap(s => Object.keys(s.results_by_subject || {}))))]
+  const filteredSessions = evolutionSubject === 'Todas' ? pageFilteredSessions : pageFilteredSessions.filter(s => s.results_by_subject?.[evolutionSubject] != null)
+  const evolutionData = [...filteredSessions]
+    .reverse()
+    .map((session, i) => {
+      const scoped = getSessionScopedStats(session, pageBankFilter)
+      if (!scoped) return null
+      return {
+        name: `#${i + 1}`,
+        pct: scoped.percentage,
+        date: formatDate(session.started_at),
+        bank: pageBankFilter === 'Todas' ? inferSessionBank(session.config) : pageBankFilter,
+      }
+    })
+    .filter((item): item is { name: string; pct: number; date: string; bank: 'ENEM' | 'UFU' | 'Todas' } => item != null)
+  const subjectPerfData = aggregateSubjectPerf(pageFilteredSessions)
+    .map((entry) => ({
+      ...entry,
+      fill: pageBankFilter === 'Todas' ? BANK_VISUALS.Todas.color : BANK_VISUALS[pageBankFilter].color,
+    }))
+  const bankPerfData = aggregateBankPerf(pageFilteredSessions, pageBankFilter)
+  const customCountInsufficient = mode === 'custom' && availableCustomCount !== null && availableCustomCount < qty
+  const presetFormats = presetBank === 'UFU' ? UFU_BLOCK_FORMATS : ENEM_BLOCK_FORMATS
+  const evolutionLegend = pageBankFilter === 'Todas'
+    ? (['ENEM', 'UFU', 'Todas'] as const)
+    : ([pageBankFilter] as const)
+  const subjectLegend = pageBankFilter === 'Todas'
+    ? (['Todas'] as const)
+    : ([pageBankFilter] as const)
+
+  useEffect(() => {
+    if (!subjectOptions.includes(evolutionSubject)) {
+      setEvolutionSubject('Todas')
+    }
+  }, [subjectOptions, evolutionSubject])
+
+  useEffect(() => {
+    if (!presetFormats.some((format) => format.value === enemFormat)) {
+      setEnemFormat(presetFormats[0]?.value ?? 'linguagens')
+    }
+  }, [presetFormats, enemFormat])
 
   // ── Handlers ──
   const startSimulado = async () => {
@@ -455,8 +626,16 @@ export default function SimuladoPage() {
     setLoading(true)
     try {
       const body: Record<string, unknown> = { difficulty }
-      if (mode === 'custom') { body.format = 'custom'; body.qty = qty; if (subject !== 'Todas') body.subject = subject }
-      else body.format = enemFormat
+      if (year !== 'Todos') body.year = Number(year)
+      if (mode === 'custom') {
+        body.format = 'custom'
+        body.qty = qty
+        body.bank = bank
+        if (subject !== 'Todas') body.subject = subject
+      } else {
+        body.format = enemFormat
+        body.bank = presetBank
+      }
       const res = await fetch(`${apiUrl}/api/simulado/start`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) })
       const data = await res.json()
       if (res.status === 403) { setUpsellReason(data.code || 'DAILY_SIMULADO_REACHED'); setUpsellOpen(true); setShowConfigModal(false); return }
@@ -551,6 +730,54 @@ export default function SimuladoPage() {
   const celebration = celebrationMessage(displayPct)
   const isTimeCritical = timeLeft > 0 && timeLeft <= 300
 
+  useEffect(() => {
+    if (!accessToken || !showConfigModal || mode !== 'custom') return
+
+    const controller = new AbortController()
+    const fetchAvailability = async () => {
+      setLoadingCustomCount(true)
+      try {
+        const params = new URLSearchParams({ page: '1', limit: '1', tab: 'all' })
+        if (subject !== 'Todas') params.append('subject', subject)
+        if (bank !== 'Todas') params.append('bank', bank)
+        if (year !== 'Todos') params.append('year', year)
+        if (difficulty !== 'misto') {
+          const difficultyLabel = DIFFICULTIES.find((item) => item.value === difficulty)?.label
+          if (difficultyLabel) params.append('difficulty', difficultyLabel)
+        }
+
+        const res = await fetch(`/api/proxy/questions/?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          signal: controller.signal,
+        })
+        if (!res.ok) {
+          setAvailableCustomCount(null)
+          return
+        }
+        const data = await res.json()
+        setAvailableCustomCount(typeof data?.total === 'number' ? data.total : null)
+      } catch {
+        if (!controller.signal.aborted) setAvailableCustomCount(null)
+      } finally {
+        if (!controller.signal.aborted) setLoadingCustomCount(false)
+      }
+    }
+
+    fetchAvailability()
+    return () => controller.abort()
+  }, [accessToken, showConfigModal, mode, subject, bank, year, difficulty])
+
+  useEffect(() => {
+    if (!showConfigModal) return
+    if (mode === 'custom') {
+      setBank(pageBankFilter)
+      return
+    }
+    if (pageBankFilter === 'ENEM' || pageBankFilter === 'UFU') {
+      setPresetBank(pageBankFilter)
+    }
+  }, [showConfigModal, mode, pageBankFilter])
+
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <>
@@ -606,10 +833,10 @@ export default function SimuladoPage() {
 
           {/* Mode toggle */}
           <div className="flex gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-            {(['custom', 'enem'] as const).map(m => (
+            {(['custom', 'preset'] as const).map(m => (
               <button key={m} onClick={() => setMode(m)}
                 className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${mode === m ? 'bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-                {m === 'custom' ? 'Personalizado' : 'Bloco ENEM'}
+                {m === 'custom' ? 'Personalizado' : 'Blocos por Banca'}
               </button>
             ))}
           </div>
@@ -617,6 +844,21 @@ export default function SimuladoPage() {
           <div className="space-y-5">
             {mode === 'custom' ? (
               <>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Banca</label>
+                  <div className="relative">
+                    <select
+                      className="w-full p-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800 focus:ring-2 font-semibold text-slate-700 dark:text-slate-200 appearance-none pr-10 cursor-pointer outline-none"
+                      style={{ ['--tw-ring-color' as string]: 'var(--brand-primary)' }}
+                      value={bank}
+                      onChange={e => setBank(e.target.value as 'Todas' | 'ENEM' | 'UFU')}
+                    >
+                      {BANK_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Matéria</label>
                   <div className="relative">
@@ -627,11 +869,6 @@ export default function SimuladoPage() {
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
                   </div>
-                  {(() => {
-                    const sel = CUSTOM_SUBJECTS.find(s => s.value === subject)
-                    if (!sel || sel.qty === null || sel.qty >= qty) return null
-                    return <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-500 flex items-start gap-1"><span className="shrink-0">⚠️</span><span>Essa matéria tem apenas {sel.qty} questões. Reduza a quantidade ou mude para &quot;Misto&quot;.</span></p>
-                  })()}
                 </div>
 
                 <div>
@@ -645,13 +882,44 @@ export default function SimuladoPage() {
                       </button>
                     ))}
                   </div>
+                  {loadingCustomCount ? (
+                    <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">Verificando disponibilidade real para os filtros selecionados...</p>
+                  ) : availableCustomCount != null ? (
+                    <p className={`mt-1.5 text-xs ${customCountInsufficient ? 'text-amber-600 dark:text-amber-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                      {customCountInsufficient
+                        ? `Há ${availableCustomCount} questões disponíveis para essa combinação. Reduza a quantidade ou alivie os filtros.`
+                        : `${availableCustomCount} questões disponíveis para essa combinação.`}
+                    </p>
+                  ) : null}
                 </div>
               </>
             ) : (
               <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Área de Conhecimento</label>
+                <div className="mb-4">
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Banca do Bloco</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['ENEM', 'UFU'] as const).map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => setPresetBank(option)}
+                        className={`p-2.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
+                          presetBank === option
+                            ? 'text-white border-transparent'
+                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 border-slate-200 dark:border-slate-700'
+                        }`}
+                        style={presetBank === option ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)' } : {}}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                  {presetBank === 'UFU' ? 'Bloco da 1ª Fase' : 'Área de Conhecimento'}
+                </label>
                 <div className="space-y-2">
-                  {ENEM_FORMATS.map(f => (
+                  {presetFormats.map(f => (
                     <button key={f.value} onClick={() => setEnemFormat(f.value)}
                       className={`w-full flex items-center justify-between p-3 rounded-xl border-2 text-sm font-semibold transition-all cursor-pointer ${enemFormat === f.value ? 'text-white' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
                       style={enemFormat === f.value ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)' } : {}}>
@@ -662,6 +930,21 @@ export default function SimuladoPage() {
                 </div>
               </div>
             )}
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Ano</label>
+              <div className="relative">
+                <select
+                  className="w-full p-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800 focus:ring-2 font-semibold text-slate-700 dark:text-slate-200 appearance-none pr-10 cursor-pointer outline-none"
+                  style={{ ['--tw-ring-color' as string]: 'var(--brand-primary)' }}
+                  value={year}
+                  onChange={e => setYear(e.target.value)}
+                >
+                  {SIMULADO_YEARS.map(value => <option key={value} value={value}>{value === 'Todos' ? 'Todos os anos' : value}</option>)}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
+              </div>
+            </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Dificuldade</label>
@@ -681,7 +964,8 @@ export default function SimuladoPage() {
               className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer">
               Cancelar
             </button>
-            <button onClick={startSimulado} disabled={loading || !accessToken}
+            <button onClick={startSimulado} disabled={loading || !accessToken || customCountInsufficient}
+              aria-disabled={loading || !accessToken || customCountInsufficient}
               className="flex-1 text-white font-bold py-2.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
               style={{ background: 'var(--brand-primary)' }}>
               {loading ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Gerando...</>) : (<><Play size={16} /> Iniciar Simulado</>)}
@@ -728,16 +1012,41 @@ export default function SimuladoPage() {
               </div>
             </motion.div>
 
+            <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Filtro Global</p>
+                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Aplicado aos cards, gráficos, histórico recente, ranking e configuração inicial do simulado.</p>
+                </div>
+                <div className="flex gap-2">
+                  {BANK_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => setPageBankFilter(option.value)}
+                      className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors cursor-pointer ${
+                        pageBankFilter === option.value
+                          ? 'text-white border-transparent'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                      style={pageBankFilter === option.value ? { background: 'var(--brand-primary)' } : {}}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+
             {/* KPI Cards */}
             <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {dashLoading ? (
                 Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)
               ) : (
                 <>
-                  {[
-                    { icon: <BookOpen size={15} style={{ color: 'var(--brand-primary)' }} />, bg: 'bg-[var(--brand-primary)]/10', label: 'Realizados', value: totalSimulados, sub: 'simulados no total', valueClass: 'text-slate-900 dark:text-slate-100' },
-                    { icon: <TrendingUp size={15} className="text-green-600 dark:text-green-400" />, bg: 'bg-green-50 dark:bg-green-900/30', label: 'Média Geral', value: totalSimulados > 0 ? `${avgPct}%` : '—', sub: 'de acertos', valueClass: totalSimulados > 0 ? scoreColor(avgPct) : 'text-slate-300 dark:text-slate-700' },
-                    { icon: <Trophy size={15} className="text-yellow-500" />, bg: 'bg-yellow-50 dark:bg-yellow-900/30', label: 'Melhor', value: totalSimulados > 0 ? `${bestPct}%` : '—', sub: 'melhor resultado', valueClass: totalSimulados > 0 ? scoreColor(bestPct) : 'text-slate-300 dark:text-slate-700' },
+                    {[
+                    { icon: <BookOpen size={15} style={{ color: 'var(--brand-primary)' }} />, bg: 'bg-[var(--brand-primary)]/10', label: 'Realizados', value: totalSimuladosFiltered, sub: pageBankFilter === 'Todas' ? 'simulados no total' : `simulados ${pageBankFilter}`, valueClass: 'text-slate-900 dark:text-slate-100' },
+                    { icon: <TrendingUp size={15} className="text-green-600 dark:text-green-400" />, bg: 'bg-green-50 dark:bg-green-900/30', label: 'Média Geral', value: totalSimuladosFiltered > 0 ? `${avgPct}%` : '—', sub: 'de acertos', valueClass: totalSimuladosFiltered > 0 ? scoreColor(avgPct) : 'text-slate-300 dark:text-slate-700' },
+                    { icon: <Trophy size={15} className="text-yellow-500" />, bg: 'bg-yellow-50 dark:bg-yellow-900/30', label: 'Melhor', value: totalSimuladosFiltered > 0 ? `${bestPct}%` : '—', sub: 'melhor resultado', valueClass: totalSimuladosFiltered > 0 ? scoreColor(bestPct) : 'text-slate-300 dark:text-slate-700' },
                     { icon: <Medal size={15} className="text-purple-600 dark:text-purple-400" />, bg: 'bg-purple-50 dark:bg-purple-900/30', label: 'Ranking', value: rankingPos != null ? `#${rankingPos}` : '—', sub: 'posição geral', valueClass: 'text-slate-900 dark:text-slate-100' },
                   ].map((card) => (
                     <div key={card.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-5">
@@ -754,14 +1063,14 @@ export default function SimuladoPage() {
             </motion.div>
 
             {/* First-time welcome */}
-            {!dashLoading && totalSimulados === 0 && (
+            {!dashLoading && totalSimuladosFiltered === 0 && (
               <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-8 sm:p-10 text-center">
                 <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5" style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}>
                   <Trophy size={32} style={{ color: 'var(--brand-primary)' }} />
                 </div>
                 <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mb-2">Bem-vindo aos Simulados!</h2>
                 <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6 text-sm leading-relaxed">
-                  Teste seus conhecimentos com questões reais do ENEM. Acompanhe sua evolução e mire na nota dos seus sonhos.
+                  Monte simulados com questões reais de ENEM e UFU. Acompanhe sua evolução por matéria e por banca.
                 </p>
                 <button onClick={() => setShowConfigModal(true)}
                   className="inline-flex items-center gap-2 text-white font-bold px-8 py-3.5 rounded-xl transition-all shadow cursor-pointer"
@@ -780,7 +1089,7 @@ export default function SimuladoPage() {
             )}
 
             {/* Charts */}
-            {!dashLoading && totalSimulados > 0 && (
+            {!dashLoading && totalSimuladosFiltered > 0 && (
               <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Evolution */}
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
@@ -799,6 +1108,19 @@ export default function SimuladoPage() {
                       </div>
                     )}
                   </div>
+                  <div className="flex items-center gap-3 mb-4 flex-wrap">
+                    {evolutionLegend.map((bankKey) => (
+                      <div key={bankKey} className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span
+                          className="inline-block w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: BANK_VISUALS[bankKey].color }}
+                        />
+                        <span className="font-semibold">
+                          {bankKey === 'Todas' ? 'Tendência geral' : BANK_VISUALS[bankKey].label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                   {evolutionData.length < 2 ? (
                     <div className="h-48 flex flex-col items-center justify-center gap-2 text-center">
                       <BarChart3 size={28} className="text-slate-200 dark:text-slate-700" />
@@ -811,8 +1133,26 @@ export default function SimuladoPage() {
                         <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={v => `${v}%`} />
                         <Tooltip content={<ChartTooltip />} />
-                        <Line type="monotone" dataKey="pct" stroke="#22c55e" strokeWidth={2.5}
-                          dot={{ r: 4, fill: '#22c55e', strokeWidth: 0 }} activeDot={{ r: 6, fill: '#22c55e' }} />
+                        <Line
+                          type="monotone"
+                          dataKey="pct"
+                          stroke={pageBankFilter === 'Todas' ? BANK_VISUALS.Todas.color : BANK_VISUALS[pageBankFilter].color}
+                          strokeWidth={2.5}
+                          dot={(props) => {
+                            const bank = props.payload?.bank as keyof typeof BANK_VISUALS
+                            const color = pageBankFilter === 'Todas'
+                              ? BANK_VISUALS[bank || 'Todas'].color
+                              : BANK_VISUALS[pageBankFilter].color
+                            return <circle cx={props.cx} cy={props.cy} r={4} fill={color} stroke="white" strokeWidth={1.5} />
+                          }}
+                          activeDot={(props) => {
+                            const bank = props.payload?.bank as keyof typeof BANK_VISUALS
+                            const color = pageBankFilter === 'Todas'
+                              ? BANK_VISUALS[bank || 'Todas'].color
+                              : BANK_VISUALS[pageBankFilter].color
+                            return <circle cx={props.cx} cy={props.cy} r={6} fill={color} stroke="white" strokeWidth={2} />
+                          }}
+                        />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
@@ -823,6 +1163,22 @@ export default function SimuladoPage() {
                   <div className="flex items-center gap-2 mb-5">
                     <BarChart3 size={17} className="text-slate-400" />
                     <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Desempenho por Matéria</h2>
+                  </div>
+                  <div className="flex items-center gap-3 mb-4 flex-wrap">
+                    {subjectLegend.map((bankKey) => (
+                      <div key={bankKey} className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span
+                          className="inline-block w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: BANK_VISUALS[bankKey].color }}
+                        />
+                        <span className="font-semibold">{BANK_VISUALS[bankKey].label}</span>
+                      </div>
+                    ))}
+                    {pageBankFilter === 'Todas' ? (
+                      <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                        desempenho agregado das sessões ENEM e UFU
+                      </span>
+                    ) : null}
                   </div>
                   {subjectPerfData.length === 0 ? (
                     <div className="h-48 flex items-center justify-center">
@@ -837,7 +1193,7 @@ export default function SimuladoPage() {
                         <Tooltip content={<ChartTooltip />} />
                         <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
                           {subjectPerfData.map((entry, i) => (
-                            <Cell key={`cell-${i}`} fill={entry.total === 0 ? '#cbd5e1' : scoreBarColor(entry.pct)} />
+                            <Cell key={`cell-${i}`} fill={entry.total === 0 ? '#cbd5e1' : entry.fill} />
                           ))}
                         </Bar>
                       </BarChart>
@@ -847,9 +1203,37 @@ export default function SimuladoPage() {
               </motion.div>
             )}
 
+            {!dashLoading && bankPerfData.length > 0 && (
+              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+                <div className="flex items-center gap-2 mb-5">
+                  <Target size={17} className="text-slate-400" />
+                  <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Desempenho por Banca</h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {bankPerfData.map((entry) => (
+                    <div key={entry.bank} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{entry.bank}</p>
+                          <p className={`mt-1 text-2xl font-black ${scoreColor(entry.pct)}`}>{entry.pct}%</p>
+                        </div>
+                        <div className="text-right text-xs text-slate-400">
+                          <p>{entry.sessions} simulados</p>
+                          <p>{entry.total} questões</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                        <div className="h-2 rounded-full" style={{ width: `${entry.pct}%`, backgroundColor: scoreBarColor(entry.pct) }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
             {/* Recent simulados */}
             {dashLoading && <Skeleton className="h-72 w-full rounded-2xl" />}
-            {!dashLoading && totalSimulados > 0 && (
+            {!dashLoading && totalSimuladosFiltered > 0 && (
               <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-2">
@@ -859,8 +1243,8 @@ export default function SimuladoPage() {
                   <Link href={`/partners/${slug}/student/simulado/historico`} className="text-xs font-bold text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">Ver todos →</Link>
                 </div>
                 <div className="space-y-3">
-                  {sessions.slice(0, 5).map(session => {
-                    const pct = session.percentage ?? 0
+                  {pageFilteredSessions.slice(0, 5).map(session => {
+                    const pct = getSessionScopedStats(session, pageBankFilter)?.percentage ?? session.percentage ?? 0
                     return (
                       <div key={session.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
                         <div className="flex-1 min-w-0">
@@ -892,9 +1276,15 @@ export default function SimuladoPage() {
             <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
               <div className="flex items-center gap-2 mb-1">
                 <Trophy size={17} className="text-yellow-500" />
-                <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Ranking Geral</h2>
+                <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                  {pageBankFilter === 'Todas' ? 'Ranking Geral' : `Ranking ${pageBankFilter}`}
+                </h2>
               </div>
-              <p className="text-xs text-slate-400 mb-5">Melhores resultados de todos os tempos</p>
+              <p className="text-xs text-slate-400 mb-5">
+                {pageBankFilter === 'Todas'
+                  ? 'Melhores resultados de todos os tempos'
+                  : `Melhores resultados de ${pageBankFilter} de todos os tempos`}
+              </p>
               {dashLoading ? (
                 <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}</div>
               ) : !rankingData?.ranking?.length ? (
@@ -986,6 +1376,21 @@ export default function SimuladoPage() {
                   <span className="text-xs font-bold px-3 py-1 rounded-full text-white" style={{ background: 'var(--brand-primary)' }}>
                     {questions[currentIdx].subject}
                   </span>
+                  {questions[currentIdx].bank && (
+                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                      {questions[currentIdx].bank}
+                    </span>
+                  )}
+                  {questions[currentIdx].exam_year && (
+                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                      {questions[currentIdx].exam_year}
+                    </span>
+                  )}
+                  {questions[currentIdx].difficulty && (
+                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
+                      {questions[currentIdx].difficulty}
+                    </span>
+                  )}
                   {questions[currentIdx].topic && (
                     <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
                       {questions[currentIdx].topic}
@@ -1013,9 +1418,11 @@ export default function SimuladoPage() {
 
               {/* Context */}
               {questions[currentIdx].context && (
-                <div className="prose prose-slate dark:prose-invert max-w-none mb-5 text-slate-600 dark:text-slate-300 border-l-4 pl-4 text-sm leading-relaxed" style={{ borderColor: 'var(--brand-primary)' }}>
-                  <ReactMarkdown>{formatScientificText(stripMarkdownImages(questions[currentIdx].context))}</ReactMarkdown>
-                </div>
+                <QuestionRichText
+                  text={stripMarkdownImages(questions[currentIdx].context)}
+                  className="prose prose-slate dark:prose-invert max-w-none mb-5 text-slate-600 dark:text-slate-300 border-l-4 pl-4 text-sm leading-relaxed"
+                  style={{ borderColor: 'var(--brand-primary)' }}
+                />
               )}
 
               {/* Imagens de apoio */}
@@ -1030,9 +1437,10 @@ export default function SimuladoPage() {
               ))}
 
               {/* Statement */}
-              <div className="prose prose-slate dark:prose-invert max-w-none text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed">
-                <ReactMarkdown>{formatScientificText(stripMarkdownImages(questions[currentIdx].statement))}</ReactMarkdown>
-              </div>
+              <QuestionRichText
+                text={stripMarkdownImages(questions[currentIdx].statement)}
+                className="prose prose-slate dark:prose-invert max-w-none text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed"
+              />
 
               {/* Alternatives */}
               <div className="space-y-3">
@@ -1061,10 +1469,11 @@ export default function SimuladoPage() {
                           </div>
                         )}
                         {alt.text ? (
-                          <span className={`text-sm leading-snug ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
-                            style={isSelected ? { color: 'var(--brand-primary)' } : {}}>
-                            {formatScientificText(alt.text)}
-                          </span>
+                          <QuestionRichText
+                            text={alt.text}
+                            className={`text-sm leading-snug ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
+                            style={isSelected ? { color: 'var(--brand-primary)' } : undefined}
+                          />
                         ) : !alt.image ? (
                           <span className="text-sm italic text-slate-400 dark:text-slate-500">
                             Conteúdo da alternativa indisponível.
@@ -1263,6 +1672,34 @@ export default function SimuladoPage() {
                           initial={{ width: 0 }}
                           animate={{ width: `${res.percentage}%` }}
                           transition={{ duration: 0.8, ease: 'easeOut', delay: 0.3 }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {finishResult?.results_by_bank && Object.keys(finishResult.results_by_bank).length > 0 && (
+              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2 mb-5">
+                  <Target size={18} className="text-slate-400 dark:text-slate-500" />
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100">Desempenho por Banca</h3>
+                </div>
+                <div className="space-y-4">
+                  {Object.entries(finishResult.results_by_bank).map(([bankLabel, res]) => (
+                    <div key={bankLabel}>
+                      <div className="flex justify-between text-sm mb-1.5">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">{bankLabel}</span>
+                        <span className={`font-bold ${scoreColor(res.percentage)}`}>{res.correct}/{res.total} ({res.percentage}%)</span>
+                      </div>
+                      <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-2 rounded-full"
+                          style={{ backgroundColor: scoreBarColor(res.percentage) }}
+                          initial={{ width: 0 }}
+                          animate={{ width: `${res.percentage}%` }}
+                          transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
                         />
                       </div>
                     </div>

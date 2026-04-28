@@ -499,7 +499,7 @@ export default function AulasFounderClient({ slug, initialData }: AulasFounderCl
         LibraryId: String(info.library_id),
       },
       metadata: { filetype: file.type, title: file.name },
-      onProgress(uploaded, total) {
+      onProgress(uploaded: number, total: number) {
         if (!total) return;
         const pct = Math.round((uploaded / total) * 100);
         setUploadProgress((prev) => ({ ...prev, [lessonId]: pct }));
@@ -511,13 +511,13 @@ export default function AulasFounderClient({ slug, initialData }: AulasFounderCl
       onSuccess() {
         markComplete();
       },
-      onError(err) {
+      onError(err: Error) {
         if (completionTimer) { clearTimeout(completionTimer); completionTimer = null; }
         setUploadProgress((prev) => { const n = { ...prev }; delete n[lessonId]; return n; });
         toast.error('Erro no upload. Tente novamente.');
         console.error('[TUS]', err);
       },
-      onShouldRetry(err) {
+      onShouldRetry(err: Error) {
         const status = (err as any)?.originalResponse?.getStatus?.() ?? 0;
         if (status === 401 || status === 403) return false;
         return true;

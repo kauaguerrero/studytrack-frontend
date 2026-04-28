@@ -1,8 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { CheckCircle2, XCircle, BrainCircuit, ImageIcon, Flag } from 'lucide-react';
+import { CheckCircle2, XCircle, BrainCircuit, Flag } from 'lucide-react';
 import { reportError } from '@/lib/reportError';
-import { formatScientificText } from '@/lib/scientific-text';
+import { QuestionRichText } from '@/components/questions/QuestionRichText';
 import { createClient } from '@/lib/supabase/client';
 
 interface Alternative {
@@ -82,6 +81,7 @@ interface Question {
   id: string;
   external_id: string;
   year: number;
+  bank?: string;
   subject: string;
   difficulty: string;
   context: string; 
@@ -213,9 +213,16 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
   return (
     <div className="bg-card dark:bg-card p-6 md:p-8 rounded-3xl shadow-sm border border-border transition-all">
       <div className="flex justify-between items-center mb-6">
-        <span className="bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-            {question.subject}
-        </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+              {question.subject}
+          </span>
+          {question.bank && (
+            <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border border-slate-200 dark:border-slate-700">
+              {question.bank}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {onReportError && (
             <button
@@ -229,15 +236,16 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
             </button>
           )}
           <span className="text-muted-foreground text-xs font-bold">
-            {question.year} • {question.difficulty}
+            {[question.year, question.difficulty].filter(Boolean).join(' • ')}
           </span>
         </div>
       </div>
 
       {contextText && (
-        <div className="prose prose-slate dark:prose-invert prose-sm max-w-none mb-6 text-muted-foreground border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed">
-          <ReactMarkdown>{formatScientificText(contextText)}</ReactMarkdown>
-        </div>
+        <QuestionRichText
+          text={contextText}
+          className="prose prose-slate dark:prose-invert prose-sm max-w-none mb-6 text-muted-foreground border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed"
+        />
       )}
 
       {supportImages.map((img, i) => (
@@ -246,9 +254,10 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
           </div>
       ))}
 
-      <div className="font-medium text-card-foreground text-lg mb-8 leading-relaxed">
-        <ReactMarkdown>{formatScientificText(statementText)}</ReactMarkdown>
-      </div>
+      <QuestionRichText
+        text={statementText}
+        className="font-medium text-card-foreground text-lg mb-8 leading-relaxed"
+      />
 
       <div className="space-y-3">
         {question.alternatives.map((alt) => {
@@ -297,9 +306,10 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
                       </div>
                   )}
                   {alternativeText ? (
-                      <span className={`text-base leading-snug ${showAnswer && isCorrect ? 'text-green-900 dark:text-green-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}>
-                          {formatScientificText(alternativeText)}
-                      </span>
+                      <QuestionRichText
+                        text={alternativeText}
+                        className={`text-base leading-snug ${showAnswer && isCorrect ? 'text-green-900 dark:text-green-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}
+                      />
                   ) : alternativeImages.length === 0 && (
                       <span className="text-slate-400 dark:text-slate-500 italic text-sm">(Imagem indisponível)</span>
                   )}
