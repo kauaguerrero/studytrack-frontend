@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { type EssayType } from '@/lib/essay-types';
 import DesempenhoClient, {
   type AnalyticsResponse,
   type DashboardState,
@@ -26,7 +27,7 @@ export default async function DesempenhoPage({
     try {
       const [analyticsRes, essaysRes, summaryRes, rankingRes, simuladoRes] = await Promise.all([
         fetch(`${API}/api/student/analytics/dashboard`, { headers: hdrs, cache: 'no-store' }),
-        fetch(`${API}/api/partners/${slug}/essays?status=all&page=1&limit=60`, { headers: hdrs, cache: 'no-store' }),
+        fetch(`${API}/api/partners/${slug}/essays?status=all&essay_type=enem&page=1&limit=200`, { headers: hdrs, cache: 'no-store' }),
         fetch(`${API}/api/partner/gamification/summary`, { headers: hdrs, cache: 'no-store' }),
         fetch(`${API}/api/partner/gamification/ranking?limit=10`, { headers: hdrs, cache: 'no-store' }),
         fetch(`${API}/api/simulado/history?page=1&limit=12`, { headers: hdrs, cache: 'no-store' }),
@@ -44,6 +45,7 @@ export default async function DesempenhoPage({
       const essays: EssayListItem[] = (essaysPayload.items || []).map((item: {
         id: string;
         status: EssayListItem['status'];
+        essay_type?: string | null;
         submitted_at: string;
         corrected_at: string | null;
         total_score: number | null;
@@ -51,6 +53,11 @@ export default async function DesempenhoPage({
       }) => ({
         id: String(item.id),
         status: item.status,
+        essay_type: String(item.essay_type || '').toLowerCase() === 'ufu'
+          ? 'ufu'
+          : String(item.essay_type || '').toLowerCase() === 'ueg'
+            ? 'ueg'
+            : 'enem',
         submitted_at: String(item.submitted_at),
         corrected_at: item.corrected_at ? String(item.corrected_at) : null,
         total_score: typeof item.total_score === 'number' ? item.total_score : null,
@@ -59,8 +66,7 @@ export default async function DesempenhoPage({
 
       const correctedRecent = essays
         .filter((item) => item.total_score != null && (item.status === 'corrected' || item.status === 'seen'))
-        .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())
-        .slice(-8);
+        .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
 
       const detailResponses = await Promise.all(
         correctedRecent.map(async (essay) => {
@@ -70,9 +76,25 @@ export default async function DesempenhoPage({
         }),
       );
 
+      const detailsById = new Map(
+        detailResponses
+          .filter((item): item is EssayDetail => Boolean(item))
+          .map((item) => [item.id, item]),
+      );
+
+      const essaysWithNormalizedType = essays.map((essay) => {
+        const detailType = String(detailsById.get(essay.id)?.essay_type || '').toLowerCase();
+        const normalizedType: EssayType = detailType === 'ufu'
+          ? 'ufu'
+          : detailType === 'ueg'
+            ? 'ueg'
+            : essay.essay_type;
+        return { ...essay, essay_type: normalizedType };
+      });
+
       initialState = {
         analytics,
-        essays,
+        essays: essaysWithNormalizedType,
         essayDetails: detailResponses
           .filter((item): item is EssayDetail => Boolean(item))
           .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime()),

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 
 type ProfileRow = {
   role: string | null;
@@ -268,6 +269,7 @@ export async function GET(
   return NextResponse.json({
     id: String(essay.id),
     status: (essay.status as string) || 'pending',
+    essay_type: (essay.essay_type as string) || 'enem',
     theme: resolveTheme(essay),
     text: String(essay.text || ''),
     submitted_at: String(essay.submitted_at || ''),
@@ -298,27 +300,6 @@ export async function POST(
   }));
 
   const rawScores = Array.isArray(payload.competency_scores) ? payload.competency_scores : [];
-  if (rawScores.length !== 5) {
-    return NextResponse.json({ error: 'Envie as 5 competências para correção.' }, { status: 400 });
-  }
-
-  const competencyScores: Array<{ competency: number; score: number; comment: string; expected: number }> = rawScores.map((item: { competency: number; score: number; comment?: string }, idx: number) => {
-    const competency = Number(item?.competency);
-    const score = Number(item?.score);
-    const comment = typeof item?.comment === 'string' ? item.comment.trim().slice(0, MAX_COMP_COMMENT_LEN) : '';
-    return { competency, score, comment, expected: idx + 1 };
-  });
-
-  const invalidScore = competencyScores.find((item: { competency: number; score: number; comment: string; expected: number }) => {
-    const validComp = Number.isInteger(item.competency) && item.competency === item.expected;
-    const validScore = Number.isFinite(item.score) && item.score >= 0 && item.score <= 200;
-    return !validComp || !validScore;
-  });
-  if (invalidScore) {
-    return NextResponse.json({ error: 'Notas inválidas. Use competências 1-5 e notas entre 0 e 200.' }, { status: 400 });
-  }
-
-  const totalScore = competencyScores.reduce((sum: number, item: { score: number }) => sum + Number(item.score || 0), 0);
   const safeGeneralComment = typeof payload.general_comment === 'string'
     ? payload.general_comment.trim().slice(0, MAX_GENERAL_COMMENT_LEN)
     : '';
@@ -336,6 +317,42 @@ export async function POST(
   if (String(essay.status || '').toLowerCase() !== 'pending') {
     return NextResponse.json({ error: 'A redação não está pendente para correção.' }, { status: 400 });
   }
+
+  const rawType = String(essay.essay_type || 'enem').toLowerCase();
+  const essayType: EssayType = rawType === 'ufu' || rawType === 'ueg' ? rawType : 'enem';
+  const typeConfig = ESSAY_TYPE_CONFIGS[essayType] ?? ESSAY_TYPE_CONFIGS.enem;
+  const compMaxes = typeConfig.score_options.map((opts) =>
+    Array.isArray(opts) && opts.length > 0 ? Math.max(...opts) : 200,
+  );
+  const expectedCount = compMaxes.length;
+
+  if (rawScores.length !== expectedCount) {
+    return NextResponse.json(
+      { error: `Envie as ${expectedCount} competências para correção (tipo ${essayType.toUpperCase()}).` },
+      { status: 400 },
+    );
+  }
+
+  const competencyScores: Array<{ competency: number; score: number; comment: string; expected: number }> = rawScores.map((item: { competency: number; score: number; comment?: string }, idx: number) => {
+    const competency = Number(item?.competency);
+    const score = Number(item?.score);
+    const comment = typeof item?.comment === 'string' ? item.comment.trim().slice(0, MAX_COMP_COMMENT_LEN) : '';
+    return { competency, score, comment, expected: idx + 1 };
+  });
+
+  const invalidScore = competencyScores.find((item: { competency: number; score: number; comment: string; expected: number }, idx: number) => {
+    const validComp = Number.isInteger(item.competency) && item.competency === item.expected;
+    const validScore = Number.isFinite(item.score) && item.score >= 0 && item.score <= (compMaxes[idx] ?? 200);
+    return !validComp || !validScore;
+  });
+  if (invalidScore) {
+    return NextResponse.json(
+      { error: `Notas inválidas para o tipo ${essayType.toUpperCase()}. Verifique os limites por competência.` },
+      { status: 400 },
+    );
+  }
+
+  const totalScore = competencyScores.reduce((sum: number, item: { score: number }) => sum + Number(item.score || 0), 0);
 
   const updatePayload: Record<string, unknown> = {
     status: 'corrected',
