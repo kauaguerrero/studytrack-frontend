@@ -193,6 +193,14 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const navItems = variant === 'student'
     ? studentNavItems
     : (isAssociate ? associateNavItems : founderNavItems);
+  const founderBottomHrefs = new Set([
+    `/partners/${org.slug}/dashboard`,
+    `/partners/${org.slug}/ranking`,
+    `/partners/${org.slug}/alunos`,
+    `/partners/${org.slug}/redacoes`,
+    `/partners/${org.slug}/configuracoes`,
+  ]);
+
   const mobileBottomNavItems = isPartnerStudent
     ? studentNavItems.filter((item) => (
       item.href === `/partners/${org.slug}/student/dashboard`
@@ -200,7 +208,9 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
       || item.href === `/partners/${org.slug}/student/redacoes`
       || item.href === `/partners/${org.slug}/student/ranking`
     ))
-    : navItems;
+    : isAssociate
+      ? navItems
+      : navItems.filter((item) => founderBottomHrefs.has(item.href));
 
   const initials = userProfile.fullName
     .split(' ')
@@ -212,7 +222,8 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    window.location.href = `/partners/${org.slug}/login?next=/partners/${org.slug}/student/dashboard`;
+    const loginBase = `/partners/${org.slug}/login`;
+    window.location.href = loginBase;
   }
 
   const handleMouseEnter = () => {
@@ -392,7 +403,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
               </span>
             </div>
 
-            {isPartnerStudent ? (
+            {(isPartnerStudent || !isAssociate) ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -452,7 +463,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
         </nav>
       )}
 
-      {isPartnerStudent && (
+      {(isPartnerStudent || !isAssociate) && (
         <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
           <SheetContent
             side="right"

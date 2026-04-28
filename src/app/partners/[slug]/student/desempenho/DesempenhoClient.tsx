@@ -23,6 +23,7 @@ import {
   BarChart3,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   FilePenLine,
   Flame,
@@ -34,6 +35,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { useOrg } from '@/contexts/OrgContext';
+import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -63,6 +65,7 @@ export interface AnalyticsResponse {
 export interface EssayListItem {
   id: string;
   status: 'pending' | 'corrected' | 'seen';
+  essay_type: EssayType;
   submitted_at: string;
   corrected_at: string | null;
   total_score: number | null;
@@ -73,6 +76,7 @@ interface EssayListResponse {
   items?: Array<{
     id: string;
     status: EssayListItem['status'];
+    essay_type?: string | null;
     submitted_at: string;
     corrected_at: string | null;
     total_score: number | null;
@@ -90,6 +94,7 @@ interface EssayListResponse {
 export interface EssayDetail {
   id: string;
   status: EssayListItem['status'];
+  essay_type?: string | null;
   total_score: number | null;
   submitted_at: string;
   corrected_at: string | null;
@@ -157,19 +162,12 @@ interface CompetencyAggregate {
   competency: number;
   label: string;
   average: number;
+  maxScore: number;
   count: number;
   latest: number | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const COMPETENCY_LABELS = {
-  1: 'Norma culta',
-  2: 'Compreensão do tema',
-  3: 'Argumentação',
-  4: 'Coesão',
-  5: 'Proposta de intervenção',
-} as const;
 
 const MIN_SUBJECT_SAMPLE = 8;
 const MIN_SIMULADO_SUBJECT_SAMPLE = 2;
@@ -270,16 +268,21 @@ function buildActivityChart(
   });
 }
 
-function buildEssayCompetencies(essayDetails: EssayDetail[]): CompetencyAggregate[] {
-  return [1, 2, 3, 4, 5].map((competency) => {
+function buildEssayCompetencies(essayDetails: EssayDetail[], essayType: EssayType): CompetencyAggregate[] {
+  const config = ESSAY_TYPE_CONFIGS[essayType] ?? ESSAY_TYPE_CONFIGS.enem;
+  return config.competencies.map((label, idx) => {
+    const competency = idx + 1;
+    const options = config.score_options[idx] || [];
+    const maxScore = options.length ? Math.max(...options) : 200;
     const rows = essayDetails
       .map((essay) => essay.competency_scores.find((item) => item.competency === competency))
       .filter((row): row is NonNullable<typeof row> => Boolean(row));
 
     return {
       competency,
-      label: COMPETENCY_LABELS[competency as keyof typeof COMPETENCY_LABELS],
+      label,
       average: rows.length ? Number(average(rows.map((row) => row.score)).toFixed(1)) : 0,
+      maxScore,
       count: rows.length,
       latest: rows.length ? rows[rows.length - 1].score : null,
     };
@@ -340,11 +343,12 @@ function buildHabits(history: AnalyticsResponse['activity_history']) {
   };
 }
 
-function getScoreTone(score: number | null | undefined) {
+function getScoreTone(score: number | null | undefined, totalMax: number) {
   const value = Number(score || 0);
-  if (value >= 800) return 'text-emerald-600 dark:text-emerald-300';
-  if (value >= 650) return 'text-sky-600 dark:text-sky-300';
-  if (value >= 500) return 'text-amber-600 dark:text-amber-300';
+  const ratio = totalMax > 0 ? value / totalMax : 0;
+  if (ratio >= 0.8) return 'text-emerald-600 dark:text-emerald-300';
+  if (ratio >= 0.65) return 'text-sky-600 dark:text-sky-300';
+  if (ratio >= 0.5) return 'text-amber-600 dark:text-amber-300';
   return 'text-rose-600 dark:text-rose-300';
 }
 
@@ -465,9 +469,11 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
   ]);
   const [habitsPeriod, setHabitsPeriod] = useState<7 | 14 | 30>(14);
   const [visibleHabitsMetrics, setVisibleHabitsMetrics] = useState<Array<'questions' | 'simulados'>>(['questions', 'simulados']);
+  const [essayTypeFilter, setEssayTypeFilter] = useState<EssayType>('enem');
+  const [essayTypeFilterOpen, setEssayTypeFilterOpen] = useState(false);
 
   useEffect(() => {
-    if (initialState !== null) return; // server pre-fetched successfully
+    if (initialState !== null && essayTypeFilter === 'enem') return; // server pre-fetched successfully for default filter
 
     let active = true;
 
@@ -486,7 +492,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
       try {
         const [analyticsRes, essaysRes, summaryRes, rankingRes, simuladoRes] = await Promise.all([
           fetch(`${apiUrl}/api/student/analytics/dashboard`, { headers: hdrs, cache: 'no-store' }),
-          fetch(`${apiUrl}/api/partners/${slug}/essays?status=all&page=1&limit=60`, { headers: hdrs, cache: 'no-store' }),
+          fetch(`${apiUrl}/api/partners/${slug}/essays?status=all&essay_type=${essayTypeFilter}&page=1&limit=200`, { headers: hdrs, cache: 'no-store' }),
           fetch(`${apiUrl}/api/partner/gamification/summary`, { headers: hdrs, cache: 'no-store' }),
           fetch(`${apiUrl}/api/partner/gamification/ranking?limit=10`, { headers: hdrs, cache: 'no-store' }),
           fetch(`${apiUrl}/api/simulado/history?page=1&limit=12`, { headers: hdrs, cache: 'no-store' }),
@@ -504,6 +510,11 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
         const simuladoPayload: SimuladoHistoryResponse = simuladoRes.ok ? await simuladoRes.json() : { sessions: [] };
 
         const essays: EssayListItem[] = (essaysPayload.items || []).map((item) => ({
+          essay_type: String(item.essay_type || '').toLowerCase() === 'ufu'
+            ? 'ufu'
+            : String(item.essay_type || '').toLowerCase() === 'ueg'
+              ? 'ueg'
+              : 'enem',
           id: String(item.id),
           status: item.status,
           submitted_at: String(item.submitted_at),
@@ -514,8 +525,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
 
         const correctedRecent = essays
           .filter((item) => item.total_score != null && (item.status === 'corrected' || item.status === 'seen'))
-          .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())
-          .slice(-8);
+          .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
 
         const detailResponses = await Promise.all(
           correctedRecent.map(async (essay) => {
@@ -527,9 +537,25 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
 
         if (!active) return;
 
+        const detailsById = new Map(
+          detailResponses
+            .filter((item): item is EssayDetail => Boolean(item))
+            .map((item) => [item.id, item]),
+        );
+
+        const essaysWithNormalizedType = essays.map((essay) => {
+          const detailType = String(detailsById.get(essay.id)?.essay_type || '').toLowerCase();
+          const normalizedType: EssayType = detailType === 'ufu'
+            ? 'ufu'
+            : detailType === 'ueg'
+              ? 'ueg'
+              : essay.essay_type;
+          return { ...essay, essay_type: normalizedType };
+        });
+
         setState({
           analytics,
-          essays,
+          essays: essaysWithNormalizedType,
           essayDetails: detailResponses
             .filter((item): item is EssayDetail => Boolean(item))
             .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime()),
@@ -563,18 +589,20 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
     void load();
     return () => { active = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug]);
+  }, [slug, essayTypeFilter, initialState]);
 
   const derived = useMemo(() => {
     if (!state) return null;
 
     const { analytics, essays, essayDetails, summary, simuladoSessions } = state;
-    const correctedEssays = essays
+    const essayTypeConfig = ESSAY_TYPE_CONFIGS[essayTypeFilter] ?? ESSAY_TYPE_CONFIGS.enem;
+    const essaysByType = essays.filter((item) => item.essay_type === essayTypeFilter);
+    const correctedEssays = essaysByType
       .filter((item) => item.total_score != null && (item.status === 'corrected' || item.status === 'seen'))
       .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
     const latestEssay = correctedEssays[correctedEssays.length - 1] || null;
     const bestEssay = [...correctedEssays].sort((a, b) => (b.total_score || 0) - (a.total_score || 0))[0] || null;
-    const pendingEssays = essays.filter((item) => item.status === 'pending');
+    const pendingEssays = essaysByType.filter((item) => item.status === 'pending');
     const essayAverage = correctedEssays.length
       ? Number(average(correctedEssays.map((item) => item.total_score || 0)).toFixed(1))
       : null;
@@ -582,13 +610,30 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
       ? Number(median(correctedEssays.map((item) => item.total_score || 0)).toFixed(1))
       : null;
     const essayTrendDelta = compareWindowTrend(correctedEssays.map((item) => item.total_score || 0), 2);
-    const competencyStats = buildEssayCompetencies(essayDetails);
-    const latestEssayDetail = latestEssay ? essayDetails.find((item) => item.id === latestEssay.id) || null : null;
-    const latestEssayCompetencies = [...(latestEssayDetail?.competency_scores || [])].sort((a, b) => a.score - b.score);
-    const weakestCompetency = latestEssayCompetencies[0] || null;
-    const strongestCompetency = latestEssayCompetencies[latestEssayCompetencies.length - 1] || null;
+    const correctedIds = new Set(correctedEssays.map((item) => item.id));
+    const essayDetailsByType = essayDetails.filter((item) => correctedIds.has(item.id));
+    const competencyStats = buildEssayCompetencies(essayDetailsByType, essayTypeFilter);
+    const latestEssayDetail = latestEssay ? essayDetailsByType.find((item) => item.id === latestEssay.id) || null : null;
+    const latestEssayCompetencies = (latestEssayDetail?.competency_scores || [])
+      .map((item) => {
+        const options = essayTypeConfig.score_options[item.competency - 1] || [];
+        const maxScore = options.length ? Math.max(...options) : 200;
+        const ratio = maxScore > 0 ? item.score / maxScore : 0;
+        return {
+          ...item,
+          maxScore,
+          ratio,
+          label: essayTypeConfig.competencies[item.competency - 1] ?? `Critério ${item.competency}`,
+        };
+      });
+    const weakestCompetency = latestEssayCompetencies.length
+      ? latestEssayCompetencies.reduce((min, cur) => (cur.ratio < min.ratio ? cur : min))
+      : null;
+    const strongestCompetency = latestEssayCompetencies.length
+      ? latestEssayCompetencies.reduce((max, cur) => (cur.ratio > max.ratio ? cur : max))
+      : null;
 
-    const activityChart = buildActivityChart(analytics.activity_history, essays);
+    const activityChart = buildActivityChart(analytics.activity_history, essaysByType);
     const simuladoSubjectStats = buildSimuladoSubjectStats(simuladoSessions);
     const bestSimuladoTri = Math.max(...simuladoSessions.map((item) => item.tri_score || 0), 0) || null;
     const recentSimuladoAvg = simuladoSessions.length
@@ -600,6 +645,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
 
     return {
       correctedEssays,
+      essayTypeConfig,
       latestEssay,
       bestEssay,
       pendingEssays,
@@ -618,7 +664,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
       habits,
       summary,
     };
-  }, [state]);
+  }, [state, essayTypeFilter]);
 
   if (loading) return <LoadingState />;
 
@@ -657,6 +703,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
     mostConsistentArea,
     habits,
     summary,
+    essayTypeConfig,
   } = derived;
 
   const subjectRows = analytics.performance_by_subject.slice().sort((a, b) => b.total - a.total).slice(0, 6);
@@ -735,7 +782,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
             <KPI
               className="lg:col-span-4"
               label="Redação"
-              value={essayAverage ? `${essayAverage.toFixed(0)} / 1000` : 'Sem nota ainda'}
+              value={essayAverage ? `${essayAverage.toFixed(0)} / ${essayTypeConfig.total_max}` : 'Sem nota ainda'}
               hint={latestEssay
                 ? <span className="block">Última {latestEssay.total_score} • melhor {bestEssay?.total_score ?? '—'}</span>
                 : 'Sem correção'}
@@ -781,7 +828,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                   {correctedEssays.slice(-4).map((essay) => (
                     <div key={essay.id} className={cn(SOFT_CARD_CLASS, 'px-4 py-3')}>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Redação</p>
-                      <p className={cn('mt-2 text-2xl font-semibold', getScoreTone(essay.total_score))}>{essay.total_score}</p>
+                      <p className={cn('mt-2 text-2xl font-semibold', getScoreTone(essay.total_score, essayTypeConfig.total_max))}>{essay.total_score}</p>
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{formatDateShort(essay.corrected_at || essay.submitted_at)}</p>
                     </div>
                   ))}
@@ -895,19 +942,54 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Redação em profundidade</p>
                   <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Análise Detalhada</h2>
                 </div>
-                <Link
-                  href={`/partners/${slug}/student/redacoes`}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:text-slate-950 dark:border-white/15 dark:bg-slate-900/70 dark:text-slate-100 dark:hover:text-white"
-                >
-                  Ver redações
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setEssayTypeFilterOpen((v) => !v)}
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:text-slate-950 dark:border-white/15 dark:bg-slate-900/70 dark:text-slate-100 dark:hover:text-white"
+                    >
+                      {essayTypeConfig.label}
+                      <ChevronDown className={cn('h-4 w-4 transition-transform', essayTypeFilterOpen && 'rotate-180')} />
+                    </button>
+                    {essayTypeFilterOpen && (
+                      <div className="absolute right-0 z-20 mt-1.5 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                        {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => {
+                              setEssayTypeFilter(key);
+                              setEssayTypeFilterOpen(false);
+                            }}
+                            className={cn(
+                              'flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm transition',
+                              essayTypeFilter === key
+                                ? 'bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-white'
+                                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60',
+                            )}
+                          >
+                            <span>{cfg.label}</span>
+                            <span className="text-[11px] opacity-70">/{cfg.total_max}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <Link
+                    href={`/partners/${slug}/student/redacoes`}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:text-slate-950 dark:border-white/15 dark:bg-slate-900/70 dark:text-slate-100 dark:hover:text-white"
+                  >
+                    Ver redações
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <div className={SOFT_CARD_CLASS}>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Média</p>
-                  <p className={cn('mt-2 text-3xl font-semibold tracking-tight', getScoreTone(essayAverage))}>
+                  <p className={cn('mt-2 text-3xl font-semibold tracking-tight', getScoreTone(essayAverage, essayTypeConfig.total_max))}>
                     {essayAverage ? essayAverage.toFixed(0) : '—'}
                   </p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Mediana {essayMedian ? essayMedian.toFixed(0) : '—'}</p>
@@ -915,7 +997,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
 
                 <div className={SOFT_CARD_CLASS}>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Última nota</p>
-                  <p className={cn('mt-2 text-3xl font-semibold tracking-tight', getScoreTone(latestEssay?.total_score))}>
+                  <p className={cn('mt-2 text-3xl font-semibold tracking-tight', getScoreTone(latestEssay?.total_score, essayTypeConfig.total_max))}>
                     {latestEssay?.total_score ?? '—'}
                   </p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{formatDateShort(latestEssay?.corrected_at || latestEssay?.submitted_at)}</p>
@@ -923,7 +1005,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
 
                 <div className={SOFT_CARD_CLASS}>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Melhor nota</p>
-                  <p className={cn('mt-2 text-3xl font-semibold tracking-tight', getScoreTone(bestEssay?.total_score))}>
+                  <p className={cn('mt-2 text-3xl font-semibold tracking-tight', getScoreTone(bestEssay?.total_score, essayTypeConfig.total_max))}>
                     {bestEssay?.total_score ?? '—'}
                   </p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{bestEssay?.theme || 'Tema indisponível'}</p>
@@ -943,7 +1025,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                       >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,0.22)" />
                         <XAxis dataKey="label" tickLine={false} axisLine={false} stroke="#94a3b8" fontSize={12} minTickGap={24} interval="preserveStartEnd" />
-                        <YAxis domain={[0, 1000]} tickLine={false} axisLine={false} stroke="#94a3b8" fontSize={12} />
+                        <YAxis domain={[0, essayTypeConfig.total_max]} tickLine={false} axisLine={false} stroke="#94a3b8" fontSize={12} />
                         <Tooltip
                           content={({ active: isActive, payload }) => {
                             if (!isActive || !payload?.length) return null;
@@ -951,7 +1033,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                             return (
                               <div className="rounded-2xl border border-slate-800 bg-slate-950/95 px-4 py-3 text-xs text-white shadow-2xl">
                                 <p className="mb-1 text-slate-300">{row.label}</p>
-                                <p className="font-semibold">{row.score} / 1000</p>
+                                <p className="font-semibold">{row.score} / {essayTypeConfig.total_max}</p>
                               </div>
                             );
                           }}
@@ -968,7 +1050,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
 
                 <div className="space-y-3">
                   {competencyStats.map((item) => {
-                    const width = `${Math.max(8, (item.average / 200) * 100)}%`;
+                    const width = `${Math.max(8, (item.average / item.maxScore) * 100)}%`;
                     return (
                       <div key={item.competency} className={WHITE_CARD_CLASS}>
                         <div className="flex items-center justify-between gap-3">
@@ -978,7 +1060,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                           </div>
                           <div className="shrink-0 text-right">
                             <p className="text-xl font-semibold text-slate-950 dark:text-white">{item.count ? item.average.toFixed(0) : '—'}</p>
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">/200</p>
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">/{item.maxScore}</p>
                           </div>
                         </div>
                         <div className="mt-3 h-2 rounded-full bg-slate-100 dark:bg-white/10">
@@ -1005,11 +1087,11 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Competência mais fraca</p>
                   <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
                     {weakestCompetency
-                      ? `C${weakestCompetency.competency} · ${COMPETENCY_LABELS[weakestCompetency.competency as keyof typeof COMPETENCY_LABELS]}`
+                      ? `C${weakestCompetency.competency} · ${weakestCompetency.label}`
                       : 'Você ainda não fez nenhuma redação'}
                   </p>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                    {weakestCompetency ? `${weakestCompetency.score} / 200 na redação mais recente` : 'Assim que houver uma correção, este bloco aparece.'}
+                    {weakestCompetency ? `${weakestCompetency.score} / ${weakestCompetency.maxScore} na redação mais recente` : 'Assim que houver uma correção, este bloco aparece.'}
                   </p>
                 </div>
 
@@ -1017,11 +1099,11 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Competência mais forte</p>
                   <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
                     {strongestCompetency
-                      ? `C${strongestCompetency.competency} · ${COMPETENCY_LABELS[strongestCompetency.competency as keyof typeof COMPETENCY_LABELS]}`
+                      ? `C${strongestCompetency.competency} · ${strongestCompetency.label}`
                       : 'Você ainda não fez nenhuma redação'}
                   </p>
                   <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                    {strongestCompetency ? `${strongestCompetency.score} / 200 na redação mais recente` : 'Assim que houver uma correção, este bloco aparece.'}
+                    {strongestCompetency ? `${strongestCompetency.score} / ${strongestCompetency.maxScore} na redação mais recente` : 'Assim que houver uma correção, este bloco aparece.'}
                   </p>
                 </div>
               </div>

@@ -734,6 +734,7 @@ function OrgCard({
   const [collapsed, setCollapsed] = useState(true);
   const billingStatus = getBillingStatus(org);
   const billingBadge = BILLING_BADGE[billingStatus];
+  const hasBillingContext = Boolean(org.monthly_value || org.plan_renewal_date || org.last_paid_at);
 
   // Video tool state
   const [videoToolEnabled, setVideoToolEnabled] = useState(Boolean((org.permissions as Record<string, unknown> | null)?.video_lessons_enabled));
@@ -1046,14 +1047,18 @@ function OrgCard({
                   Sem prazo definido — renovação solicitada toda virada de mês.
                 </p>
               )}
-              {org.monthly_value && (
+              {hasBillingContext && (
                 <button
                   onClick={handleMarkPaid}
                   disabled={markingPaid}
                   className="w-full mt-1 flex items-center justify-center gap-1.5 text-xs font-semibold py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  {markingPaid ? 'Registrando...' : 'Marcar como pago'}
+                  {markingPaid
+                    ? 'Registrando...'
+                    : billingStatus === 'active'
+                      ? 'Marcar como pago novamente'
+                      : 'Marcar como pago'}
                 </button>
               )}
             </div>

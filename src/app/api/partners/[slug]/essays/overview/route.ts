@@ -63,6 +63,9 @@ export async function GET(
 ) {
   const { slug } = await context.params;
   const url = new URL(request.url);
+  const essayTypeFilter = url.searchParams.get('essay_type') ?? 'all';
+  const validTypes = ['enem', 'ufu', 'ueg'];
+  const filterByType = validTypes.includes(essayTypeFilter) ? essayTypeFilter : null;
   const pendingPage = parsePageParam(url.searchParams.get('pending_page'), 1, 1000);
   const pendingLimit = parsePageParam(url.searchParams.get('pending_limit'), 10, 50);
   const correctedPage = parsePageParam(url.searchParams.get('corrected_page'), 1, 1000);
@@ -93,33 +96,45 @@ export async function GET(
     return NextResponse.json({ error: 'Acesso negado à organização.' }, { status: 403 });
   }
 
-  const essayFields = 'id, student_id, status, submitted_at, corrected_at, total_score, text, theme';
+  const essayFields = 'id, student_id, status, essay_type, submitted_at, corrected_at, total_score, text, theme';
   const pendingFrom = (pendingPage - 1) * pendingLimit;
   const pendingTo = pendingFrom + pendingLimit - 1;
   const correctedFrom = (correctedPage - 1) * correctedLimit;
   const correctedTo = correctedFrom + correctedLimit - 1;
 
   const [essaysMetricsRes, pendingRes, correctedRes] = await Promise.all([
-    admin
-      .from('essays')
-      .select('*')
-      .eq('org_id', org.id)
-      .order('submitted_at', { ascending: false })
-      .limit(500),
-    admin
-      .from('essays')
-      .select(essayFields, { count: 'exact' })
-      .eq('org_id', org.id)
-      .eq('status', 'pending')
-      .order('submitted_at', { ascending: true })
-      .range(pendingFrom, pendingTo),
-    admin
-      .from('essays')
-      .select(essayFields, { count: 'exact' })
-      .eq('org_id', org.id)
-      .in('status', ['corrected', 'seen'])
-      .order('submitted_at', { ascending: false })
-      .range(correctedFrom, correctedTo),
+    (() => {
+      let q = (admin as any)
+        .from('essays')
+        .select('*')
+        .eq('org_id', org.id)
+        .order('submitted_at', { ascending: false })
+        .limit(500);
+      if (filterByType) q = q.eq('essay_type', filterByType);
+      return q;
+    })(),
+    (() => {
+      let query = (admin as any)
+        .from('essays')
+        .select(essayFields, { count: 'exact' })
+        .eq('org_id', org.id);
+      if (filterByType) query = query.eq('essay_type', filterByType);
+      return query
+        .eq('status', 'pending')
+        .order('submitted_at', { ascending: true })
+        .range(pendingFrom, pendingTo);
+    })(),
+    (() => {
+      let query = (admin as any)
+        .from('essays')
+        .select(essayFields, { count: 'exact' })
+        .eq('org_id', org.id);
+      if (filterByType) query = query.eq('essay_type', filterByType);
+      return query
+        .in('status', ['corrected', 'seen'])
+        .order('submitted_at', { ascending: false })
+        .range(correctedFrom, correctedTo);
+    })(),
   ]);
 
   if (essaysMetricsRes.error) {
@@ -280,6 +295,7 @@ export async function GET(
   };
 
   return NextResponse.json({
+    essay_type_filter: essayTypeFilter,
     metrics: {
       received_week: receivedWeek,
       pending_count: pendingCount,

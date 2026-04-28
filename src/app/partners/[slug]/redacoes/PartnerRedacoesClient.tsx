@@ -7,6 +7,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import {
   Archive,
   BarChart2,
@@ -26,6 +27,7 @@ import {
 interface EssayListItem {
   id: string;
   status: 'pending' | 'corrected' | 'seen';
+  essay_type?: string | null;
   theme?: string | null;
   essay_theme?: string | null;
   tema?: string | null;
@@ -77,6 +79,7 @@ interface EssayPrompt {
   support_items: SupportItem[];
   is_active: boolean;
   created_at: string;
+  essay_type?: string | null;
 }
 
 interface EssaysMetrics {
@@ -93,6 +96,7 @@ interface EssaysMetrics {
 }
 
 type EssaysOverviewPayload = {
+  essay_type_filter?: string;
   metrics: EssaysMetrics;
   pending_items: EssayListItem[];
   corrected_items: EssayListItem[];
@@ -105,14 +109,6 @@ type EssaysOverviewPayload = {
 export type { EssaysOverviewPayload };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const COMPETENCY_NAMES = [
-  'Domínio da norma culta',
-  'Compreensão da proposta',
-  'Organização das informações',
-  'Mecanismos linguísticos',
-  'Proposta de intervenção',
-];
 
 const DEFAULT_METRICS: EssaysMetrics = {
   received_week: 0,
@@ -323,9 +319,16 @@ function EssayQueueCard({
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Enviada {relativeTimeFromNow(item.submitted_at)}
           </p>
-          <p className="text-sm text-slate-600 break-words [overflow-wrap:anywhere] dark:text-slate-300">
-            <span className="font-semibold">Tema:</span> {essayTheme || 'Não informado'}
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm text-slate-600 break-words [overflow-wrap:anywhere] dark:text-slate-300">
+              <span className="font-semibold">Tema:</span> {essayTheme || 'Não informado'}
+            </p>
+            {item.essay_type && item.essay_type !== 'enem' && (
+              <span className="shrink-0 rounded border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                {ESSAY_TYPE_CONFIGS[(item.essay_type as EssayType)]?.label ?? item.essay_type.toUpperCase()}
+              </span>
+            )}
+          </div>
           {credit && (
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Plano: {normalizePlanLabel(credit.plan_name)} • {
@@ -341,7 +344,7 @@ function EssayQueueCard({
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {mode === 'corrected' && item.total_score !== null && (
             <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-sm font-bold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
-              {item.total_score}/1000
+              {item.total_score}/{ESSAY_TYPE_CONFIGS[(item.essay_type as EssayType) ?? 'enem']?.total_max ?? 1000}
             </span>
           )}
           <Link
@@ -418,6 +421,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
 
   const [metricsLoading, setMetricsLoading] = useState(initialOverview === null);
   const [queueLoading, setQueueLoading] = useState(initialOverview === null);
+  const [activeTypeFilter, setActiveTypeFilter] = useState<EssayType>('enem');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'corrected' | 'seen'>('all');
   const [studentFilterId, setStudentFilterId] = useState<string | null>(null);
@@ -434,12 +438,20 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     title: string;
     description: string;
     support_items: SupportItem[];
+    essay_type: string;
   } | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [savingPrompt, setSavingPrompt] = useState(false);
   const queueSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [queueInitDone, setQueueInitDone] = useState(initialOverview !== null);
+  const activeConfig = ESSAY_TYPE_CONFIGS[activeTypeFilter];
+  const competencyNames = activeConfig.competencies;
+  const getCompetencyMax = (idx: number): number => {
+    const options = activeConfig.score_options[idx] || [];
+    const max = options.length ? Math.max(...options) : 200;
+    return Number.isFinite(max) ? max : 200;
+  };
 
   const loadOverview = useCallback(async () => {
     setMetricsLoading(true);
@@ -451,6 +463,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
         corrected_page: String(correctedPage),
         corrected_limit: '10',
       });
+      params.set('essay_type', activeTypeFilter);
       const res = await fetch(`/api/partners/${slug}/essays/overview?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) {
         const payload = await res.json().catch(() => null) as { error?: string; details?: string } | null;
@@ -473,7 +486,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
       setMetricsLoading(false);
       setQueueLoading(false);
     }
-  }, [slug, pendingPage, correctedPage]);
+  }, [slug, pendingPage, correctedPage, activeTypeFilter]);
 
   // Reset pagination when slug changes
   useEffect(() => {
@@ -486,11 +499,13 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
 
   // Skip first fetch if server pre-loaded data; fire on pagination/slug changes
   useEffect(() => {
-    if (isFirstMount.current && initialOverview !== null) {
+    if (isFirstMount.current) {
       isFirstMount.current = false;
-      return;
+      const initialFilter = initialOverview?.essay_type_filter;
+      if (initialOverview !== null && initialFilter === activeTypeFilter) {
+        return;
+      }
     }
-    isFirstMount.current = false;
 
     let mounted = true;
     void (async () => {
@@ -499,7 +514,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     })();
     return () => { mounted = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, loadOverview]);
+  }, [slug, loadOverview, initialOverview, activeTypeFilter]);
 
   useEffect(() => {
     if (queueInitDone) return;
@@ -560,6 +575,23 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     return base;
   }, [correctedEssays, statusFilter, matchesSearch, studentFilterId]);
 
+  const weakestCompetency = useMemo(() => {
+    const scored = metrics.competency_scores
+      .filter((c) => c.avg !== null)
+      .map((c) => {
+        const compMax = getCompetencyMax(c.competency - 1);
+        return {
+          competency: c.competency,
+          avg: c.avg as number,
+          compMax,
+          ratio: compMax > 0 ? (c.avg as number) / compMax : 1,
+        };
+      });
+
+    if (scored.length === 0) return null;
+    return scored.reduce((min, cur) => (cur.ratio < min.ratio ? cur : min));
+  }, [metrics.competency_scores, activeTypeFilter]);
+
   async function handleArchive(item: EssayListItem) {
     if (item.status === 'pending') return;
     setArchivingId(item.id);
@@ -608,7 +640,10 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(promptForm),
+        body: JSON.stringify({
+          ...promptForm,
+          essay_type: promptForm.essay_type || 'enem',
+        }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -647,12 +682,13 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     } : f);
   }
 
+  const totalMax = activeConfig?.total_max ?? 1000;
   const avgScoreLabel = metrics.avg_score !== null
-    ? `${Math.round(metrics.avg_score)} / 1000`
+    ? `${Math.round(metrics.avg_score)} / ${totalMax}`
     : '—';
 
   const rangeLabel = metrics.lowest_score !== null && metrics.highest_score !== null
-    ? `${metrics.lowest_score} – ${metrics.highest_score}`
+    ? `${metrics.lowest_score} – ${metrics.highest_score} (máx ${totalMax})`
     : '—';
 
   return (
@@ -734,10 +770,15 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
                               {p.title}
                             </p>
-                            <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                              {p.support_items.length} item(s) de apoio ·{' '}
-                              {p.is_active ? 'Ativa' : 'Inativa'}
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="rounded border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                {ESSAY_TYPE_CONFIGS[(p.essay_type as EssayType) || 'enem']?.label ?? 'ENEM'}
+                              </span>
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                {p.support_items.length} item(s) de apoio ·{' '}
+                                {p.is_active ? 'Ativa' : 'Inativa'}
+                              </span>
+                            </div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button
@@ -748,6 +789,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                                   title: p.title,
                                   description: p.description ?? '',
                                   support_items: p.support_items,
+                                  essay_type: p.essay_type || 'enem',
                                 });
                               }}
                               className="rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-colors"
@@ -782,6 +824,29 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                         placeholder="Título do tema (ex: Mobilidade Urbana no Brasil)"
                         className="h-10 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[var(--brand-primary)]"
                       />
+
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Tipo de redação
+                        </p>
+                        <div className="flex gap-2">
+                          {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => setPromptForm((f) => f ? { ...f, essay_type: key } : f)}
+                              className={cn(
+                                'flex-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition',
+                                promptForm.essay_type === key
+                                  ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                                  : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-[var(--brand-primary)]',
+                              )}
+                            >
+                              {cfg.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       <textarea
                         value={promptForm.description}
                         onChange={(e) => setPromptForm((f) => f ? { ...f, description: e.target.value } : f)}
@@ -884,7 +949,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setPromptForm({ title: '', description: '', support_items: [] })}
+                      onClick={() => setPromptForm({ title: '', description: '', support_items: [], essay_type: 'enem' })}
                       className="w-full rounded-xl border border-dashed border-slate-300 dark:border-slate-600 py-2.5 text-sm font-semibold text-slate-500 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-colors"
                     >
                       + Nova coletânea
@@ -894,6 +959,39 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               </div>
             </div>
           )}
+
+          {/* Seletor de tipo */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0">
+              Métricas por tipo:
+            </span>
+            <div className="flex gap-1.5 flex-wrap">
+              {([
+                { key: 'enem', label: 'ENEM', sub: '/ 1000' },
+                { key: 'ufu', label: 'UFU', sub: '/ 80' },
+                { key: 'ueg', label: 'UEG', sub: '/ 100' },
+              ] as const).map(({ key, label, sub }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveTypeFilter(key as EssayType)}
+                  className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${
+                    activeTypeFilter === key
+                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-[var(--brand-primary)]/40'
+                  }`}
+                >
+                  {label}
+                  {sub && (
+                    <span className="ml-1 font-normal opacity-60">{sub}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            {metricsLoading && (
+              <span className="text-[11px] text-slate-400 animate-pulse">Carregando...</span>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KpiCard
@@ -975,16 +1073,16 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
             </div>
 
             {/* Competência mais fraca */}
-            {!metricsLoading && metrics.weakest_competency && (
+            {!metricsLoading && weakestCompetency && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
                 <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
                   Foco pedagógico
                 </p>
                 <p className="mt-2 text-base font-extrabold text-amber-900 dark:text-amber-200">
-                  C{metrics.weakest_competency.competency} — {COMPETENCY_NAMES[metrics.weakest_competency.competency - 1]}
+                  C{weakestCompetency.competency} — {competencyNames[weakestCompetency.competency - 1] ?? `Critério ${weakestCompetency.competency}`}
                 </p>
                 <p className="mt-0.5 text-sm font-bold text-amber-700 dark:text-amber-300">
-                  Média: {metrics.weakest_competency.avg} / 200
+                  Média: {weakestCompetency.avg} / {weakestCompetency.compMax}
                 </p>
                 <p className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-400">
                   Competência com menor desempenho da turma
@@ -1001,8 +1099,9 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               </h2>
               <div className="space-y-2.5">
                 {metrics.competency_scores.map((c) => {
-                  const pct = c.avg !== null ? Math.round((c.avg / 200) * 100) : 0;
-                  const isWeakest = metrics.weakest_competency?.competency === c.competency;
+                  const compMax = getCompetencyMax(c.competency - 1);
+                  const pct = c.avg !== null ? Math.round((c.avg / compMax) * 100) : 0;
+                  const isWeakest = weakestCompetency?.competency === c.competency;
                   const barColor = pct >= 70
                     ? '#16a34a'
                     : pct >= 50
@@ -1018,10 +1117,10 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                       <div className="min-w-0 flex-1">
                         <div className="mb-0.5 flex items-center justify-between gap-2">
                           <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-300">
-                            {COMPETENCY_NAMES[c.competency - 1]}
+                            {competencyNames[c.competency - 1] ?? `Critério ${c.competency}`}
                           </p>
                           <span className="shrink-0 text-xs font-bold tabular-nums text-slate-700 dark:text-slate-300">
-                            {c.avg !== null ? `${c.avg}/200` : '—'}
+                            {c.avg !== null ? `${c.avg}/${compMax}` : '—'}
                           </span>
                         </div>
                         <div className={`h-2 overflow-hidden rounded-full ${
@@ -1087,7 +1186,9 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                               {row.full_name || 'Aluno'}
                             </Link>
                           </div>
-                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{Math.round(row.avg_score)} / 1000</span>
+                          <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            {activeConfig ? `${Math.round(row.avg_score)} / ${activeConfig.total_max}` : Math.round(row.avg_score)}
+                          </span>
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                           {pendingForStudent
@@ -1147,7 +1248,9 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                               </Link>
                             </div>
                           </td>
-                          <td className="py-2 pr-2 font-semibold">{Math.round(row.avg_score)} / 1000</td>
+                          <td className="py-2 pr-2 font-semibold">
+                            {activeConfig ? `${Math.round(row.avg_score)} / ${activeConfig.total_max}` : Math.round(row.avg_score)}
+                          </td>
                           <td className="py-2 pr-2 text-slate-600 dark:text-slate-300">
                             {pendingForStudent
                               ? `Enviada em ${formatDateBR(pendingForStudent.submitted_at)} (pendente)`

@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import FloatingActionMenu from '@/components/ui/floating-action-menu';
 import { cn } from '@/lib/utils';
+import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { ArrowLeft, ChevronLeft, ChevronRight, Info, MessageCircle, PenLine, PencilLine, Send, X } from 'lucide-react';
 
 type Annotation = {
@@ -28,6 +29,7 @@ type CompetencyScore = {
 type EssayDetail = {
   id: string;
   status: 'pending' | 'corrected' | 'seen';
+  essay_type?: string | null;
   theme?: string | null;
   text: string;
   submitted_at: string;
@@ -62,16 +64,6 @@ type Segment = {
   annotation: Annotation | null;
 };
 
-const COMPETENCY_NAMES = [
-  'Domínio da norma culta da língua escrita',
-  'Compreensão da proposta e aplicação de conceitos',
-  'Seleção e organização das informações',
-  'Conhecimento dos mecanismos linguísticos',
-  'Proposta de intervenção',
-];
-
-const SCORE_OPTIONS = [0, 40, 80, 120, 160, 200];
-
 function formatDateBR(value: string | null | undefined): string {
   if (!value) return '-';
   const d = new Date(value);
@@ -79,9 +71,10 @@ function formatDateBR(value: string | null | undefined): string {
   return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 }
 
-function getTotalColorClass(total: number): string {
-  if (total >= 700) return 'text-emerald-400';
-  if (total >= 500) return 'text-amber-300';
+function getTotalColorClass(total: number, max: number): string {
+  const pct = max > 0 ? total / max : 0;
+  if (pct >= 0.7) return 'text-emerald-400';
+  if (pct >= 0.5) return 'text-amber-300';
   return 'text-rose-400';
 }
 
@@ -248,7 +241,8 @@ export default function CorrecaoRedacaoPage() {
           })),
         );
 
-        const normalizedScores = Array.from({ length: 5 }, (_, idx) => {
+        const loadedTypeConfig = ESSAY_TYPE_CONFIGS[(data.essay_type as EssayType) || 'enem'] ?? ESSAY_TYPE_CONFIGS.enem;
+        const normalizedScores = Array.from({ length: loadedTypeConfig.competencies.length }, (_, idx) => {
           const comp = idx + 1;
           const existing = (data.competency_scores || []).find((s) => s.competency === comp);
           return {
@@ -461,17 +455,20 @@ export default function CorrecaoRedacaoPage() {
     });
   }
 
+  const essayType = (essay?.essay_type || 'enem') as EssayType;
+  const typeConfig = ESSAY_TYPE_CONFIGS[essayType] ?? ESSAY_TYPE_CONFIGS.enem;
+
   const competencyPanelContent = (
     <>
       <div className="space-y-4">
         {scores.map((item, idx) => (
           <div key={item.competency} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
             <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
-              Competência {item.competency} — {COMPETENCY_NAMES[idx]}
+              Competência {item.competency} — {typeConfig.competencies[idx]}
             </p>
 
             <div className="mb-2 flex flex-wrap gap-1.5">
-              {SCORE_OPTIONS.map((option) => (
+              {typeConfig.score_options[idx].map((option) => (
                 <button
                   key={option}
                   type="button"
@@ -497,7 +494,7 @@ export default function CorrecaoRedacaoPage() {
             </div>
 
             <p className="mb-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
-              Nota selecionada: <span className="text-slate-900 dark:text-white">{item.score} / 200</span>
+              Nota selecionada: <span className="text-slate-900 dark:text-white">{item.score} / {typeConfig.score_options[idx].at(-1)}</span>
             </p>
 
             <textarea
@@ -521,8 +518,8 @@ export default function CorrecaoRedacaoPage() {
 
       <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-800 dark:bg-slate-950">
         <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Total</p>
-        <p className={cn('text-3xl font-extrabold', getTotalColorClass(totalScore))}>
-          {totalScore} / 1000
+        <p className={cn('text-3xl font-extrabold', getTotalColorClass(totalScore, typeConfig.total_max))}>
+          {totalScore} / {typeConfig.total_max}
         </p>
       </div>
 
@@ -596,15 +593,22 @@ export default function CorrecaoRedacaoPage() {
             <ArrowLeft className="h-4 w-4" />
             Voltar para fila
           </Link>
-          <div className="relative z-10 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
-            style={{
-              color: 'var(--brand-primary)',
-              borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
-              background: 'rgba(255,255,255,0.56)',
-            }}
-          >
-            <PenLine className="h-3.5 w-3.5" />
-            Mesa de correção
+          <div className="relative z-10 flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
+              style={{
+                color: 'var(--brand-primary)',
+                borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
+                background: 'rgba(255,255,255,0.56)',
+              }}
+            >
+              <PenLine className="h-3.5 w-3.5" />
+              Mesa de correção
+            </div>
+            {essay && (
+              <span className="inline-flex items-center rounded-full border border-slate-300/60 bg-white/70 px-2.5 py-1 text-xs font-bold text-slate-700 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200">
+                {typeConfig.label}
+              </span>
+            )}
           </div>
           <h1 className="relative z-10 text-2xl font-extrabold text-slate-900 dark:text-white">
             Correção da Redação - {formatDateBR(essay.submitted_at)}
@@ -849,14 +853,14 @@ export default function CorrecaoRedacaoPage() {
         )}
 
         <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--brand-primary)_16%,transparent)] bg-white p-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-          A correção exige nota nas 5 competências (incluindo 0) e comentário geral com no mínimo 20 caracteres.
+          A correção exige nota nas {typeConfig.competencies.length} competências (incluindo 0) e comentário geral com no mínimo 20 caracteres.
         </div>
 
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950 lg:hidden">
           <div className="mx-auto flex w-full max-w-5xl items-center gap-3">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Total</p>
-              <p className={cn('text-lg font-extrabold', getTotalColorClass(totalScore))}>{totalScore} / 1000</p>
+              <p className={cn('text-lg font-extrabold', getTotalColorClass(totalScore, typeConfig.total_max))}>{totalScore} / {typeConfig.total_max}</p>
             </div>
             <button
               type="button"

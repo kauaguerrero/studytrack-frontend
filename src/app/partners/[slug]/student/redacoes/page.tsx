@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getApiBaseUrl } from '@/lib/api-base';
 import { cn } from '@/lib/utils';
+import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { useOrg } from '@/contexts/OrgContext';
 import { ArrowDown, ArrowUp, CalendarDays, ChevronDown, Eye, FileText, Minus, Plus, TrendingUp, BarChart3, CheckCircle2, Clock, Target } from 'lucide-react';
 import {
@@ -16,6 +17,7 @@ import {
 interface Essay {
   id: string;
   status: 'pending' | 'corrected' | 'seen';
+  essay_type: EssayType;
   submitted_at: string;
   corrected_at: string | null;
   total_score: number | null;
@@ -30,6 +32,7 @@ type SortOption = 'date' | 'score_best' | 'score_worst';
 interface RawEssay {
   id: string;
   status: Essay['status'];
+  essay_type?: string | null;
   submitted_at: string;
   corrected_at: string | null;
   total_score: number | null;
@@ -60,18 +63,11 @@ function formatDateBR(value: string | null | undefined): string {
   return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 }
 
-const COMPETENCY_NAMES = [
-  'Domínio da norma culta',
-  'Compreensão da proposta',
-  'Organização de informações',
-  'Mecanismos linguísticos',
-  'Proposta de intervenção',
-];
-
-function getScoreColorClass(score: number | null): string {
+function getScoreColorClass(score: number | null, totalMax: number): string {
   if (score === null) return 'text-slate-400';
-  if (score >= 700) return 'text-emerald-600 dark:text-emerald-400';
-  if (score >= 500) return 'text-amber-600 dark:text-amber-400';
+  const ratio = totalMax > 0 ? score / totalMax : 0;
+  if (ratio >= 0.7) return 'text-emerald-600 dark:text-emerald-400';
+  if (ratio >= 0.5) return 'text-amber-600 dark:text-amber-400';
   return 'text-red-600 dark:text-red-400';
 }
 
@@ -96,8 +92,10 @@ export default function StudentRedacoesPage() {
   const [competencyScores, setCompetencyScores] = useState<{ essay_id: string; competency: number; score: number }[]>([]);
   const [competencyOpen, setCompetencyOpen] = useState(true);
   const [page, setPage] = useState(0);
+  const [essayTypeFilter, setEssayTypeFilter] = useState<EssayType>('enem');
   const competencySectionRef = useRef<HTMLElement>(null);
   const essaysListRef = useRef<HTMLDivElement>(null);
+  const activeConfig = ESSAY_TYPE_CONFIGS[essayTypeFilter];
 
   function scrollToCompetency() {
     setCompetencyOpen(true);
@@ -144,9 +142,12 @@ export default function StudentRedacoesPage() {
         const mapped: Essay[] = items.map((row) => {
           const rawText = String(row.text || row.text_preview || '');
           const preview = rawText.length > 120 ? `${rawText.slice(0, 120)}...` : rawText;
+          const rawType = String(row.essay_type || '').toLowerCase();
+          const essayType: EssayType = rawType === 'ufu' || rawType === 'ueg' ? rawType : 'enem';
           return {
             id: String(row.id),
             status: row.status,
+            essay_type: essayType,
             submitted_at: String(row.submitted_at),
             corrected_at: row.corrected_at ? String(row.corrected_at) : null,
             total_score: typeof row.total_score === 'number' ? row.total_score : null,
@@ -203,14 +204,19 @@ export default function StudentRedacoesPage() {
 
   useEffect(() => { setPage(0); }, [filter, sortOption]);
 
+  const essaysByType = useMemo(
+    () => essays.filter((e) => e.essay_type === essayTypeFilter),
+    [essays, essayTypeFilter],
+  );
+
   const metrics = useMemo(() => {
-    const corrected = essays.filter((e) => e.total_score !== null);
+    const corrected = essaysByType.filter((e) => e.total_score !== null);
     const scores = corrected.map((e) => e.total_score as number);
     const avg = scores.length
       ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
       : null;
     const best = scores.length ? Math.max(...scores) : null;
-    const pending = essays.filter((e) => e.status === 'pending').length;
+    const pending = essaysByType.filter((e) => e.status === 'pending').length;
 
     const chartData = corrected
       .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())
@@ -242,7 +248,7 @@ export default function StudentRedacoesPage() {
       }
     }
 
-    const withCorrectionTime = essays.filter(
+    const withCorrectionTime = essaysByType.filter(
       (e) => e.corrected_at !== null && e.submitted_at
     );
     const avgCorrectionDays = withCorrectionTime.length
@@ -262,28 +268,41 @@ export default function StudentRedacoesPage() {
       && lastCorrected.total_score === best
       && corrected.length > 1;
 
-    return { total: essays.length, correctedCount: corrected.length, avg, best, pending, chartData, trend, trendDelta, avgCorrectionDays, isRecord };
-  }, [essays]);
+    return { total: essaysByType.length, correctedCount: corrected.length, avg, best, pending, chartData, trend, trendDelta, avgCorrectionDays, isRecord };
+  }, [essaysByType]);
+
+  const filteredCompetencyScores = useMemo(() => {
+    const correctedEssayIds = new Set(
+      essaysByType
+        .filter((e) => e.status === 'corrected' || e.status === 'seen')
+        .map((e) => e.id),
+    );
+    return competencyScores.filter((row) => correctedEssayIds.has(row.essay_id));
+  }, [competencyScores, essaysByType]);
 
   const { competencyMetrics, weakestCompetency } = useMemo(() => {
-    const items = [1, 2, 3, 4, 5].map((c) => {
-      const scores = competencyScores.filter((s) => s.competency === c).map((s) => s.score);
+    const maxCompetencies = activeConfig.competencies.length;
+    const items = Array.from({ length: maxCompetencies }, (_, idx) => idx + 1).map((c) => {
+      const scores = filteredCompetencyScores.filter((s) => s.competency === c).map((s) => s.score);
       const avg = scores.length
         ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
         : null;
-      return { competency: c, name: COMPETENCY_NAMES[c - 1], avg, count: scores.length };
+      const options = activeConfig.score_options[c - 1] || [];
+      const maxScore = options.length ? Math.max(...options) : 200;
+      const ratio = avg !== null && maxScore > 0 ? avg / maxScore : null;
+      return { competency: c, name: activeConfig.competencies[c - 1], avg, count: scores.length, maxScore, ratio };
     });
 
-    const withScores = items.filter((i) => i.avg !== null);
+    const withScores = items.filter((i) => i.avg !== null && i.ratio !== null);
     const weakest = withScores.length >= 2
-      ? withScores.reduce((min, cur) => (cur.avg as number) < (min.avg as number) ? cur : min)
+      ? withScores.reduce((min, cur) => (cur.ratio as number) < (min.ratio as number) ? cur : min)
       : null;
 
     return { competencyMetrics: items, weakestCompetency: weakest };
-  }, [competencyScores]);
+  }, [filteredCompetencyScores, activeConfig]);
 
   const filteredAndSorted = useMemo(() => {
-    let data = [...essays];
+    let data = [...essaysByType];
 
     if (filter === 'pending') {
       data = data.filter((e) => e.status === 'pending');
@@ -305,7 +324,7 @@ export default function StudentRedacoesPage() {
 
     data.sort((a, b) => (b.total_score ?? -1) - (a.total_score ?? -1));
     return data;
-  }, [essays, filter, sortBy, sortOption]);
+  }, [essaysByType, filter, sortBy, sortOption]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -325,6 +344,35 @@ export default function StudentRedacoesPage() {
             Nova Redação
           </Link>
         </header>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Tipo de redação:
+            </span>
+            <div className="flex gap-1.5 flex-wrap">
+              {([
+                { key: 'enem', label: 'ENEM', sub: '/ 1000' },
+                { key: 'ufu', label: 'UFU', sub: '/ 80' },
+                { key: 'ueg', label: 'UEG', sub: '/ 100' },
+              ] as const).map(({ key, label, sub }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setEssayTypeFilter(key)}
+                  className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${
+                    essayTypeFilter === key
+                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-[var(--brand-primary)]/40'
+                  }`}
+                >
+                  {label}
+                  <span className="ml-1 font-normal opacity-60">{sub}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
 
         {!loading && essays.length > 0 && (
           <section className="space-y-4">
@@ -360,9 +408,9 @@ export default function StudentRedacoesPage() {
                   label: 'Nota média',
                   value: metrics.avg !== null ? `${metrics.avg}` : '—',
                   icon: TrendingUp,
-                  color: metrics.avg !== null && metrics.avg >= 700
+                  color: metrics.avg !== null && metrics.avg >= activeConfig.total_max * 0.7
                     ? 'text-emerald-600 dark:text-emerald-400'
-                    : metrics.avg !== null && metrics.avg >= 500
+                    : metrics.avg !== null && metrics.avg >= activeConfig.total_max * 0.5
                       ? 'text-amber-600 dark:text-amber-400'
                       : metrics.avg !== null
                         ? 'text-red-600 dark:text-red-400'
@@ -372,7 +420,7 @@ export default function StudentRedacoesPage() {
                   deltaLabel: metrics.trendDelta !== null
                     ? `${metrics.trendDelta > 0 ? '+' : ''}${metrics.trendDelta} pts vs 3 anteriores`
                     : null,
-                  context: 'Sobre 1000 pts',
+                  context: `Sobre ${activeConfig.total_max} pts`,
                 },
                 {
                   label: 'Melhor nota',
@@ -382,7 +430,7 @@ export default function StudentRedacoesPage() {
                   bg: 'bg-orange-50 dark:bg-orange-500/10',
                   delta: null as number | null,
                   deltaLabel: metrics.isRecord ? 'recorde pessoal ✓' : null,
-                  context: 'Sobre 1000 pts',
+                  context: `Sobre ${activeConfig.total_max} pts`,
                 },
               ]).map(({ label, value, icon: Icon, color, bg, delta, deltaLabel, context }) => (
                 <div key={label} className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -422,7 +470,7 @@ export default function StudentRedacoesPage() {
                   <LineChart data={metrics.chartData} margin={{ top: 4, right: 8, bottom: 0, left: -16 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.18)" />
                     <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
-                    <YAxis domain={[0, 1000]} tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                    <YAxis domain={[0, activeConfig.total_max]} tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
                     <Tooltip
                       contentStyle={{ background: 'var(--background)', border: '1px solid rgba(148,163,184,0.25)', borderRadius: 12, fontSize: 12 }}
                       formatter={(v) => [`${v} pts`, 'Nota']}
@@ -511,13 +559,13 @@ export default function StudentRedacoesPage() {
               </p>
               <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
                 Sua média nesta competência é{' '}
-                <span className="font-bold">{weakestCompetency.avg} / 200</span>
+                <span className="font-bold">{weakestCompetency.avg} / {weakestCompetency.maxScore}</span>
                 {' '}— a mais baixa do seu histórico. Peça feedback específico ao professor na próxima redação.
               </p>
             </div>
             <div className="shrink-0 text-right">
               <p className="text-xl font-extrabold text-amber-700 dark:text-amber-300">{weakestCompetency.avg}</p>
-              <p className="text-[10px] font-medium text-amber-500 dark:text-amber-400">/ 200</p>
+              <p className="text-[10px] font-medium text-amber-500 dark:text-amber-400">/ {weakestCompetency.maxScore}</p>
             </div>
             <ChevronDown className="h-4 w-4 shrink-0 -rotate-90 text-amber-500 dark:text-amber-400" />
           </button>
@@ -602,7 +650,8 @@ export default function StudentRedacoesPage() {
               const isCorrected = essay.status === 'corrected';
               const isSeen = essay.status === 'seen';
               const showScore = isCorrected || isSeen;
-              const scoreClass = getScoreColorClass(essay.total_score);
+              const essayConfig = ESSAY_TYPE_CONFIGS[essay.essay_type];
+              const scoreClass = getScoreColorClass(essay.total_score, essayConfig.total_max);
 
               return (
                 <article
@@ -618,18 +667,23 @@ export default function StudentRedacoesPage() {
                 >
                   <div className="flex flex-col gap-4">
                     <div className="space-y-2">
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold',
-                          essay.status === 'pending' && 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
-                          essay.status === 'corrected' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
-                          essay.status === 'seen' && 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
-                        )}
-                      >
-                        {essay.status === 'pending' && 'Aguardando correção'}
-                        {essay.status === 'corrected' && 'Corrigida ✓'}
-                        {essay.status === 'seen' && 'Vista'}
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold',
+                            essay.status === 'pending' && 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+                            essay.status === 'corrected' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+                            essay.status === 'seen' && 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
+                          )}
+                        >
+                          {essay.status === 'pending' && 'Aguardando correção'}
+                          {essay.status === 'corrected' && 'Corrigida ✓'}
+                          {essay.status === 'seen' && 'Vista'}
+                        </span>
+                        <span className="inline-flex items-center rounded-full border border-slate-200 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                          {essayConfig.label}
+                        </span>
+                      </div>
 
                       <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                         <CalendarDays className="h-4 w-4" />
@@ -642,7 +696,7 @@ export default function StudentRedacoesPage() {
                       {showScore && (
                         <>
                           <p className={cn('text-3xl font-extrabold tracking-tight', scoreClass)}>
-                            {essay.total_score ?? '-'} / 1000
+                            {essay.total_score ?? '-'} / {essayConfig.total_max}
                           </p>
                           <p className="text-sm text-slate-500 dark:text-slate-400">Corrigida em {formatDateBR(essay.corrected_at)}</p>
                         </>
@@ -696,7 +750,7 @@ export default function StudentRedacoesPage() {
           </div>
         )}
 
-        {competencyScores.length > 0 && (
+        {filteredCompetencyScores.length > 0 && (
           <section ref={competencySectionRef} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <button
               onClick={() => setCompetencyOpen((v) => !v)}
@@ -707,7 +761,7 @@ export default function StudentRedacoesPage() {
                   Desempenho por competência
                 </p>
                 <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
-                  Média acumulada de todas as redações corrigidas
+                  Média acumulada das redações {activeConfig.label} corrigidas
                 </p>
               </div>
               <ChevronDown
@@ -723,13 +777,17 @@ export default function StudentRedacoesPage() {
               <div className="divide-y divide-slate-100 border-t border-slate-100 dark:divide-slate-800 dark:border-slate-800">
                 {competencyMetrics.map(({ competency, name, avg }) => {
                   const isWeakest = weakestCompetency?.competency === competency;
-                  const pct = avg !== null ? (avg / 200) * 100 : 0;
-                  const barColor = avg === null ? '#94a3b8' : avg >= 160 ? '#10b981' : avg >= 120 ? '#f59e0b' : '#ef4444';
+                  const maxScore = activeConfig.score_options[competency - 1]?.length
+                    ? Math.max(...activeConfig.score_options[competency - 1])
+                    : 200;
+                  const ratio = avg !== null && maxScore > 0 ? avg / maxScore : 0;
+                  const pct = ratio * 100;
+                  const barColor = avg === null ? '#94a3b8' : ratio >= 0.8 ? '#10b981' : ratio >= 0.6 ? '#f59e0b' : '#ef4444';
                   const scoreClass = avg === null
                     ? 'text-slate-400'
-                    : avg >= 160
+                    : ratio >= 0.8
                       ? 'text-emerald-600 dark:text-emerald-400'
-                      : avg >= 120
+                      : ratio >= 0.6
                         ? 'text-amber-600 dark:text-amber-400'
                         : 'text-red-600 dark:text-red-400';
                   return (
@@ -759,7 +817,7 @@ export default function StudentRedacoesPage() {
                         <p className={`text-sm font-extrabold tabular-nums ${scoreClass}`}>
                           {avg !== null ? avg : '—'}
                         </p>
-                        <p className="text-[10px] text-slate-400">/ 200</p>
+                        <p className="text-[10px] text-slate-400">/ {maxScore}</p>
                       </div>
                     </div>
                   );
@@ -767,8 +825,8 @@ export default function StudentRedacoesPage() {
               </div>
               <div className="border-t border-slate-100 px-5 py-3 dark:border-slate-800">
                 <p className="text-xs text-slate-400">
-                  Média sobre {new Set(competencyScores.map((s) => s.essay_id)).size}{' '}
-                  {new Set(competencyScores.map((s) => s.essay_id)).size === 1 ? 'redação corrigida' : 'redações corrigidas'}
+                  Média sobre {new Set(filteredCompetencyScores.map((s) => s.essay_id)).size}{' '}
+                  {new Set(filteredCompetencyScores.map((s) => s.essay_id)).size === 1 ? 'redação corrigida' : 'redações corrigidas'}
                 </p>
               </div>
             </div>

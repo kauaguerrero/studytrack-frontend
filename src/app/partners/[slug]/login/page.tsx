@@ -75,8 +75,14 @@ export default function PartnerLoginPage() {
       if (cancelled) return;
 
       const next = searchParams.get('next');
-      if (next && next.startsWith('/') && !next.startsWith('//')) {
-        router.replace(next);
+      const safeNextRedirect = (next && next.startsWith('/') && !next.startsWith('//')) ? next : null;
+
+      const isManagementRole = profile?.role === 'founder' || profile?.role === 'admin'
+        || profile?.role === 'associate' || profile?.role === 'teacher';
+      const nextIsStudentPath = safeNextRedirect?.includes('/student/');
+
+      if (safeNextRedirect && !(isManagementRole && nextIsStudentPath)) {
+        router.replace(safeNextRedirect);
         return;
       }
 
@@ -165,7 +171,10 @@ export default function PartnerLoginPage() {
             ? `/partners/${slug}/redacoes`
             : `/partners/${slug}/student/dashboard`;
 
-      const target = safeNext ?? roleTarget;
+      const isManagementRole = role === 'founder' || role === 'admin' || role === 'associate' || role === 'teacher';
+      const nextIsStudentPath = safeNext?.includes('/student/');
+      // Impede que um founder/associate caia em rota de aluno via ?next stale
+      const target = (safeNext && !(isManagementRole && nextIsStudentPath)) ? safeNext : roleTarget;
       router.refresh();
       router.push(target);
     } catch (err: unknown) {

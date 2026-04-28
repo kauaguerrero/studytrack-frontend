@@ -33,6 +33,12 @@ export async function PATCH(
   if (body.description !== undefined) update.description = body.description?.trim() || null;
   if (body.support_items !== undefined) update.support_items = Array.isArray(body.support_items) ? body.support_items : [];
   if (body.is_active !== undefined) update.is_active = Boolean(body.is_active);
+  if (body.essay_type !== undefined) {
+    const VALID_TYPES = ['enem', 'ufu', 'ueg'];
+    update.essay_type = VALID_TYPES.includes(String(body.essay_type).toLowerCase())
+      ? String(body.essay_type).toLowerCase()
+      : 'enem';
+  }
 
   const { data, error } = await (admin as any)
     .from('essay_prompts')

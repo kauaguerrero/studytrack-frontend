@@ -7,6 +7,7 @@ import { ArrowLeft, CalendarDays, MessageSquare, PenLine } from 'lucide-react';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 
 type EssayStatus = 'pending' | 'corrected' | 'seen';
 
@@ -29,6 +30,7 @@ interface CompetencyScore {
 interface EssayDetail {
   id: string;
   status: EssayStatus;
+  essay_type?: string | null;
   theme?: string | null;
   text: string;
   submitted_at: string;
@@ -40,14 +42,6 @@ interface EssayDetail {
   corrector_name?: string | null;
   corrector_avatar_url?: string | null;
 }
-
-const COMPETENCY_LABELS = [
-  'Domínio da norma culta da língua escrita',
-  'Compreensão da proposta e aplicação de conceitos',
-  'Seleção e organização das informações',
-  'Conhecimento dos mecanismos linguísticos',
-  'Proposta de intervenção',
-];
 
 function formatDateBR(value: string | null | undefined): string {
   if (!value) return '-';
@@ -62,9 +56,10 @@ function getStatusLabel(status: EssayStatus): string {
   return 'Vista';
 }
 
-function progressColor(score: number): string {
-  if (score >= 160) return 'bg-emerald-500';
-  if (score >= 120) return 'bg-amber-500';
+function progressColor(score: number, max: number): string {
+  const ratio = max > 0 ? score / max : 0;
+  if (ratio >= 0.8) return 'bg-emerald-500';
+  if (ratio >= 0.6) return 'bg-amber-500';
   return 'bg-red-500';
 }
 
@@ -220,6 +215,8 @@ export default function RedacaoDetailPage() {
   const [expandedCompetencies, setExpandedCompetencies] = useState<Record<number, boolean>>({});
   const [activeComment, setActiveComment] = useState<{ id: string; comment: string; excerpt: string } | null>(null);
   const activeCommentRef = useRef<HTMLDivElement>(null);
+  const essayType = ((essay?.essay_type || 'enem') as EssayType);
+  const typeConfig = ESSAY_TYPE_CONFIGS[essayType] ?? ESSAY_TYPE_CONFIGS.enem;
 
   const handleCommentClick = (payload: { id: string; comment: string; excerpt: string }) => {
     setActiveComment(payload);
@@ -280,9 +277,17 @@ export default function RedacaoDetailPage() {
   }, [slug, id, refresh]);
 
   const orderedScores = useMemo(() => {
-    if (!essay?.competency_scores) return [];
-    return [...essay.competency_scores].sort((a, b) => a.competency - b.competency);
-  }, [essay?.competency_scores]);
+    const incoming = essay?.competency_scores || [];
+    return Array.from({ length: typeConfig.competencies.length }, (_, idx) => {
+      const comp = idx + 1;
+      const found = incoming.find((item) => item.competency === comp);
+      return {
+        competency: comp,
+        score: found?.score ?? 0,
+        comment: found?.comment ?? null,
+      };
+    });
+  }, [essay?.competency_scores, typeConfig.competencies.length]);
 
   const scoreSum = useMemo(
     () => orderedScores.reduce((acc, item) => acc + (item.score || 0), 0),
@@ -343,6 +348,9 @@ export default function RedacaoDetailPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              <span className="rounded-full border border-slate-300 px-2.5 py-1 text-xs font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                {typeConfig.label}
+              </span>
               <span
                 className={cn(
                   'rounded-full px-3 py-1 text-xs font-semibold',
@@ -356,7 +364,7 @@ export default function RedacaoDetailPage() {
 
               {showCorrectionPanels && (
                 <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-300">
-                  {essay.total_score ?? scoreSum} / 1000
+                  {essay.total_score ?? scoreSum} / {typeConfig.total_max}
                 </p>
               )}
             </div>
@@ -367,7 +375,7 @@ export default function RedacaoDetailPage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5 dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Notas por competência</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Soma: {scoreSum} / 1000</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Soma: {scoreSum} / {typeConfig.total_max}</p>
             </div>
 
             <div className="space-y-4">
@@ -376,20 +384,23 @@ export default function RedacaoDetailPage() {
                 const isLong = fullComment.length > 80;
                 const expanded = !!expandedCompetencies[item.competency];
                 const visibleComment = isLong && !expanded ? `${fullComment.slice(0, 80)}...` : fullComment;
+                const compMax = (typeConfig.score_options[item.competency - 1] || []).length > 0
+                  ? Math.max(...typeConfig.score_options[item.competency - 1])
+                  : 200;
 
                 return (
                   <div key={item.competency} className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-950">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        Competência {item.competency} — {COMPETENCY_LABELS[item.competency - 1]}
+                        Competência {item.competency} — {typeConfig.competencies[item.competency - 1] ?? `Critério ${item.competency}`}
                       </p>
-                      <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{item.score} / 200</p>
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{item.score} / {compMax}</p>
                     </div>
 
                     <Progress
-                      value={(item.score / 200) * 100}
+                      value={compMax > 0 ? (item.score / compMax) * 100 : 0}
                       className="h-2.5 bg-slate-200 dark:bg-slate-800"
-                      indicatorClassName={progressColor(item.score)}
+                      indicatorClassName={progressColor(item.score, compMax)}
                     />
 
                     {fullComment && (

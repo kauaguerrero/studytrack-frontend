@@ -12,6 +12,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import { EssayRewardPopup } from '@/components/partners/gamification/EssayRewardPopup';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 
 interface EssayRewardState {
   points_awarded: number;
@@ -33,6 +34,7 @@ interface EssayPrompt {
   description: string | null;
   support_items: SupportItem[];
   is_active?: boolean;
+  essay_type?: string;
 }
 
 export default function NovaRedacaoPage() {
@@ -42,6 +44,8 @@ export default function NovaRedacaoPage() {
   const router = useRouter();
   const { org } = useOrg();
 
+  const [essayType, setEssayType] = useState<EssayType>('enem');
+  const [essayTypeLocked, setEssayTypeLocked] = useState(false);
   const [theme, setTheme] = useState('');
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -111,6 +115,10 @@ export default function NovaRedacaoPage() {
           setPrompt(found);
           setSelectedPromptId(found.id);
           setTheme(found.title);
+          if (found.essay_type && found.essay_type !== 'enem') {
+            setEssayType(found.essay_type as EssayType);
+            setEssayTypeLocked(true);
+          }
         }
       })
       .catch(() => {})
@@ -152,6 +160,7 @@ export default function NovaRedacaoPage() {
         body: JSON.stringify({
           theme,
           text,
+          essay_type: essayType,
           ...(selectedPromptId ? { prompt_id: selectedPromptId } : {}),
         }),
       });
@@ -232,11 +241,20 @@ export default function NovaRedacaoPage() {
                   if (!nextId) {
                     setPrompt(null);
                     setTheme('');
+                    setEssayType('enem');
+                    setEssayTypeLocked(false);
                     return;
                   }
                   const chosen = availablePrompts.find((p) => p.id === nextId) || null;
                   setPrompt(chosen);
                   setTheme(chosen?.title || '');
+                  if (chosen?.essay_type) {
+                    setEssayType(chosen.essay_type as EssayType);
+                    setEssayTypeLocked(true);
+                  } else {
+                    setEssayType('enem');
+                    setEssayTypeLocked(false);
+                  }
                 }}
                 className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
@@ -312,6 +330,36 @@ export default function NovaRedacaoPage() {
               )}
             </div>
           )}
+
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Tipo de redação
+            </p>
+            <div className="flex gap-2">
+              {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => (
+                <button
+                  key={key}
+                  type="button"
+                  disabled={essayTypeLocked}
+                  onClick={() => setEssayType(key)}
+                  className={cn(
+                    'flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition',
+                    essayType === key
+                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300',
+                    essayTypeLocked && 'cursor-default opacity-70',
+                  )}
+                >
+                  {cfg.label}
+                </button>
+              ))}
+            </div>
+            {essayTypeLocked && (
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                Tipo definido pela coletânea.
+              </p>
+            )}
+          </div>
 
           <div className="space-y-1">
             <label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Tema da Redação</label>

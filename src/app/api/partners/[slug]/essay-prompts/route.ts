@@ -39,7 +39,7 @@ export async function GET(
   const { org, admin } = ctx;
   const { data, error } = await (admin as any)
     .from('essay_prompts')
-    .select('id, title, description, support_items, is_active, created_at, updated_at, created_by')
+    .select('id, title, description, support_items, is_active, essay_type, created_at, updated_at, created_by')
     .eq('org_id', org.id)
     .order('created_at', { ascending: false });
 
@@ -61,11 +61,16 @@ export async function POST(
   }
 
   const body = await request.json();
-  const { title, description, support_items } = body;
+  const { title, description, support_items, essay_type } = body;
 
   if (!title?.trim()) {
     return NextResponse.json({ error: 'Título obrigatório' }, { status: 400 });
   }
+
+  const VALID_TYPES = ['enem', 'ufu', 'ueg'];
+  const resolvedType = VALID_TYPES.includes(String(essay_type || '').toLowerCase())
+    ? String(essay_type).toLowerCase()
+    : 'enem';
 
   const admin = (ctx as any).admin;
   const { data, error } = await admin
@@ -76,6 +81,7 @@ export async function POST(
       description: description?.trim() || null,
       support_items: Array.isArray(support_items) ? support_items : [],
       is_active: true,
+      essay_type: resolvedType,
       created_by: user.id,
     })
     .select()

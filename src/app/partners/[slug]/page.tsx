@@ -25,7 +25,7 @@ interface OrgLandingProps {
   params: Promise<{ slug: string }>;
 }
 
-export default async function OrgLandingPage({ params }: OrgLandingProps) {
+export default async function Page({ params }: OrgLandingProps) {
   const { slug } = await params;
 
   // Busca dados públicos da org (nome, branding)
