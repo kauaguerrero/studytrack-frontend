@@ -21,7 +21,6 @@ import {
   Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
-import { UpsellModal } from '@/components/modals/UpsellModal'
 import { ReportDialog } from '@/components/questions/ReportDialog'
 import { SimuladoRewardPopup } from '@/components/partners/gamification/SimuladoRewardPopup'
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext'
@@ -76,6 +75,9 @@ interface RankingData {
   ranking: RankEntry[]; user_position?: number | null; user_best?: { percentage: number } | null
 }
 
+type BankLabel = 'Todas' | 'ENEM' | 'UFU' | 'UEG'
+type PresetBank = 'ENEM' | 'UFU' | 'UEG'
+
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const ENEM_BLOCK_FORMATS = [
@@ -96,10 +98,19 @@ const UFU_BLOCK_FORMATS = [
   { value: 'completo',    label: 'UFU Completo',                 emoji: '🎯', qty: 88 },
 ]
 
+const UEG_BLOCK_FORMATS = [
+  { value: 'linguagens',  label: 'Linguagens',                   emoji: '📖', qty: 13 },
+  { value: 'humanas',     label: 'Ciências Humanas',             emoji: '🏛️', qty: 13 },
+  { value: 'natureza',    label: 'Ciências da Natureza',         emoji: '🧪', qty: 13 },
+  { value: 'matematica',  label: 'Matemática',                   emoji: '📐', qty: 13 },
+  { value: 'completo',    label: 'UEG Completo',                 emoji: '🎯', qty: 52 },
+]
+
 const BANK_OPTIONS = [
   { value: 'Todas', label: 'Todas as bancas' },
   { value: 'ENEM', label: 'ENEM' },
   { value: 'UFU', label: 'UFU' },
+  { value: 'UEG', label: 'UEG' },
 ] as const
 
 const SIMULADO_YEARS = ['Todos', ...Array.from({ length: 18 }, (_, i) => String(new Date().getFullYear() - i))]
@@ -244,7 +255,8 @@ function scoreRingColor(pct: number) { return perfColorHex(pct) }
 const BANK_VISUALS = {
   ENEM: { label: 'ENEM', color: '#22c55e', bgClass: 'bg-green-500' },
   UFU: { label: 'UFU', color: '#f59e0b', bgClass: 'bg-amber-500' },
-  Todas: { label: 'ENEM + UFU', color: '#64748b', bgClass: 'bg-slate-500' },
+  UEG: { label: 'UEG', color: '#0f766e', bgClass: 'bg-teal-600' },
+  Todas: { label: 'ENEM + UFU + UEG', color: '#64748b', bgClass: 'bg-slate-500' },
 } as const
 
 function celebrationMessage(pct: number): { emoji: string; title: string; sub: string } {
@@ -254,14 +266,15 @@ function celebrationMessage(pct: number): { emoji: string; title: string; sub: s
   return { emoji: '💪', title: 'Continue praticando!', sub: 'A persistência é o que separa os aprovados.' }
 }
 
-function normalizeBank(value?: string | null): 'ENEM' | 'UFU' | 'Todas' {
+function normalizeBank(value?: string | null): BankLabel {
   const normalized = String(value || '').trim().toUpperCase()
   if (normalized === 'UFU' || normalized === 'UFU_VEST') return 'UFU'
+  if (normalized === 'UEG' || normalized === 'UEG_VEST') return 'UEG'
   if (normalized === 'ENEM' || normalized === 'INEP_ENEM' || normalized === 'ENEM_OFICIAL') return 'ENEM'
   return 'Todas'
 }
 
-function inferSessionBank(config?: SessionConfig): 'ENEM' | 'UFU' | 'Todas' {
+function inferSessionBank(config?: SessionConfig): BankLabel {
   const explicit = normalizeBank(config?.bank)
   if (explicit !== 'Todas') return explicit
 
@@ -274,7 +287,11 @@ function getConfigLabel(session: SimuladoSession): string {
   const c = session.config || {}
   if (c.format && c.format !== 'custom') {
     const bankLabel = inferSessionBank(c)
-    const formatList = bankLabel === 'UFU' ? UFU_BLOCK_FORMATS : ENEM_BLOCK_FORMATS
+    const formatList = bankLabel === 'UFU'
+      ? UFU_BLOCK_FORMATS
+      : bankLabel === 'UEG'
+        ? UEG_BLOCK_FORMATS
+        : ENEM_BLOCK_FORMATS
     const fmt = formatList.find(f => f.value === c.format)
     return fmt ? `${fmt.label}${bankLabel !== 'Todas' ? ` · ${bankLabel}` : ''}` : c.format
   }
@@ -302,7 +319,7 @@ function aggregateSubjectPerf(sessions: SimuladoSession[]) {
     .sort((a, b) => b.pct - a.pct)
 }
 
-function getSessionScopedStats(session: SimuladoSession, bankFilter: 'Todas' | 'ENEM' | 'UFU') {
+function getSessionScopedStats(session: SimuladoSession, bankFilter: BankLabel) {
   if (bankFilter === 'Todas') {
     return {
       score: session.score || 0,
@@ -332,7 +349,7 @@ function getSessionScopedStats(session: SimuladoSession, bankFilter: 'Todas' | '
   return null
 }
 
-function aggregateBankPerf(sessions: SimuladoSession[], bankFilter: 'Todas' | 'ENEM' | 'UFU' = 'Todas') {
+function aggregateBankPerf(sessions: SimuladoSession[], bankFilter: BankLabel = 'Todas') {
   const acc: Record<string, { correct: number; total: number; sessions: number }> = {}
   for (const session of sessions) {
     const storedBreakdown = session.results_by_bank || session.config?.results_by_bank
@@ -399,14 +416,14 @@ export default function SimuladoPage() {
 
   // Config
   const [mode, setMode] = useState<'custom' | 'preset'>('custom')
-  const [pageBankFilter, setPageBankFilter] = useState<'Todas' | 'ENEM' | 'UFU'>('Todas')
-  const [bank, setBank] = useState<'Todas' | 'ENEM' | 'UFU'>('Todas')
+  const [pageBankFilter, setPageBankFilter] = useState<BankLabel>('Todas')
+  const [bank, setBank] = useState<BankLabel>('Todas')
   const [subject, setSubject] = useState('Todas')
   const [year, setYear] = useState('Todos')
   const [qty, setQty] = useState(10)
   const [difficulty, setDifficulty] = useState('misto')
   const [enemFormat, setEnemFormat] = useState('linguagens')
-  const [presetBank, setPresetBank] = useState<'ENEM' | 'UFU'>('ENEM')
+  const [presetBank, setPresetBank] = useState<PresetBank>('ENEM')
   const [availableCustomCount, setAvailableCustomCount] = useState<number | null>(null)
   const [loadingCustomCount, setLoadingCustomCount] = useState(false)
 
@@ -430,8 +447,6 @@ export default function SimuladoPage() {
   // Auth
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [upsellOpen, setUpsellOpen] = useState(false)
-  const [upsellReason, setUpsellReason] = useState<'DAILY_SIMULADO_REACHED' | 'TRIAL_EXPIRED'>('DAILY_SIMULADO_REACHED')
   const [finishDialogOpen, setFinishDialogOpen] = useState(false)
 
   // Dashboard data
@@ -566,16 +581,20 @@ export default function SimuladoPage() {
   })()
   const heroSubtitle = totalSimuladosFiltered === 0
     ? 'Faça seu primeiro simulado e descubra seu nível'
-    : `Sua próxima meta: superar ${nextTarget}% em ${pageBankFilter === 'Todas' ? 'ENEM e UFU' : pageBankFilter}`
+    : `Sua próxima meta: superar ${nextTarget}% em ${pageBankFilter === 'Todas' ? 'ENEM, UFU e UEG' : pageBankFilter}`
 
   const simuladoCtxHint = mode === 'preset'
     ? (() => {
-        const presetFormats = presetBank === 'UFU' ? UFU_BLOCK_FORMATS : ENEM_BLOCK_FORMATS
+        const presetFormats = presetBank === 'UFU'
+          ? UFU_BLOCK_FORMATS
+          : presetBank === 'UEG'
+            ? UEG_BLOCK_FORMATS
+            : ENEM_BLOCK_FORMATS
         const fmt = presetFormats.find(f => f.value === enemFormat)
         const q = fmt?.qty ?? 45
         return `${presetBank} · ~${Math.round(q * 1.5)} min · ${q} questões${presetBank === 'ENEM' ? ' · TRI' : ''}`
       })()
-    : `${bank === 'Todas' ? 'ENEM + UFU' : bank} · ~${qty * 3} min · ${qty} questões${bank === 'ENEM' ? ' · TRI' : ''}`
+    : `${bank === 'Todas' ? 'ENEM + UFU + UEG' : bank} · ~${qty * 3} min · ${qty} questões${bank === 'ENEM' ? ' · TRI' : ''}`
 
   // ── Chart data ──
   const subjectOptions = ['Todas', ...Array.from(new Set(pageFilteredSessions.flatMap(s => Object.keys(s.results_by_subject || {}))))]
@@ -592,7 +611,7 @@ export default function SimuladoPage() {
         bank: pageBankFilter === 'Todas' ? inferSessionBank(session.config) : pageBankFilter,
       }
     })
-    .filter((item): item is { name: string; pct: number; date: string; bank: 'ENEM' | 'UFU' | 'Todas' } => item != null)
+    .filter((item): item is { name: string; pct: number; date: string; bank: BankLabel } => item != null)
   const subjectPerfData = aggregateSubjectPerf(pageFilteredSessions)
     .map((entry) => ({
       ...entry,
@@ -600,9 +619,13 @@ export default function SimuladoPage() {
     }))
   const bankPerfData = aggregateBankPerf(pageFilteredSessions, pageBankFilter)
   const customCountInsufficient = mode === 'custom' && availableCustomCount !== null && availableCustomCount < qty
-  const presetFormats = presetBank === 'UFU' ? UFU_BLOCK_FORMATS : ENEM_BLOCK_FORMATS
+  const presetFormats = presetBank === 'UFU'
+    ? UFU_BLOCK_FORMATS
+    : presetBank === 'UEG'
+      ? UEG_BLOCK_FORMATS
+      : ENEM_BLOCK_FORMATS
   const evolutionLegend = pageBankFilter === 'Todas'
-    ? (['ENEM', 'UFU', 'Todas'] as const)
+    ? (['ENEM', 'UFU', 'UEG', 'Todas'] as const)
     : ([pageBankFilter] as const)
   const subjectLegend = pageBankFilter === 'Todas'
     ? (['Todas'] as const)
@@ -638,7 +661,7 @@ export default function SimuladoPage() {
       }
       const res = await fetch(`${apiUrl}/api/simulado/start`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) })
       const data = await res.json()
-      if (res.status === 403) { setUpsellReason(data.code || 'DAILY_SIMULADO_REACHED'); setUpsellOpen(true); setShowConfigModal(false); return }
+      if (res.status === 403) { toast.error('Acesso indisponível', { description: 'Seu acesso ao simulado está suspenso. Entre em contato com o administrador da sua organização.' }); setShowConfigModal(false); return }
       if (res.status === 404) { toast.error('Nenhuma questão encontrada', { description: 'Tente reduzir a quantidade ou mudar a dificuldade para "Misto".', duration: 6000 }); return }
       if (!res.ok) { toast.error('Erro ao iniciar simulado', { description: data.error || 'Tente novamente em instantes.' }); return }
       setShowConfigModal(false)
@@ -773,7 +796,7 @@ export default function SimuladoPage() {
       setBank(pageBankFilter)
       return
     }
-    if (pageBankFilter === 'ENEM' || pageBankFilter === 'UFU') {
+    if (pageBankFilter === 'ENEM' || pageBankFilter === 'UFU' || pageBankFilter === 'UEG') {
       setPresetBank(pageBankFilter)
     }
   }, [showConfigModal, mode, pageBankFilter])
@@ -781,7 +804,6 @@ export default function SimuladoPage() {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <>
-      <UpsellModal isOpen={upsellOpen} onClose={() => setUpsellOpen(false)} reason={upsellReason} />
       <ReportDialog
         open={reportDialogOpen}
         onOpenChange={setReportDialogOpen}
@@ -851,7 +873,7 @@ export default function SimuladoPage() {
                       className="w-full p-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800 focus:ring-2 font-semibold text-slate-700 dark:text-slate-200 appearance-none pr-10 cursor-pointer outline-none"
                       style={{ ['--tw-ring-color' as string]: 'var(--brand-primary)' }}
                       value={bank}
-                      onChange={e => setBank(e.target.value as 'Todas' | 'ENEM' | 'UFU')}
+                      onChange={e => setBank(e.target.value as BankLabel)}
                     >
                       {BANK_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
@@ -898,7 +920,7 @@ export default function SimuladoPage() {
                 <div className="mb-4">
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Banca do Bloco</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(['ENEM', 'UFU'] as const).map((option) => (
+                    {(['ENEM', 'UFU', 'UEG'] as const).map((option) => (
                       <button
                         key={option}
                         onClick={() => setPresetBank(option)}
@@ -916,7 +938,7 @@ export default function SimuladoPage() {
                 </div>
 
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                  {presetBank === 'UFU' ? 'Bloco da 1ª Fase' : 'Área de Conhecimento'}
+                  {presetBank === 'UFU' || presetBank === 'UEG' ? 'Bloco da Prova' : 'Área de Conhecimento'}
                 </label>
                 <div className="space-y-2">
                   {presetFormats.map(f => (
@@ -1070,7 +1092,7 @@ export default function SimuladoPage() {
                 </div>
                 <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mb-2">Bem-vindo aos Simulados!</h2>
                 <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6 text-sm leading-relaxed">
-                  Monte simulados com questões reais de ENEM e UFU. Acompanhe sua evolução por matéria e por banca.
+                  Monte simulados com questões reais de ENEM, UFU e UEG. Acompanhe sua evolução por matéria e por banca.
                 </p>
                 <button onClick={() => setShowConfigModal(true)}
                   className="inline-flex items-center gap-2 text-white font-bold px-8 py-3.5 rounded-xl transition-all shadow cursor-pointer"
@@ -1176,7 +1198,7 @@ export default function SimuladoPage() {
                     ))}
                     {pageBankFilter === 'Todas' ? (
                       <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                        desempenho agregado das sessões ENEM e UFU
+                        desempenho agregado das sessões ENEM, UFU e UEG
                       </span>
                     ) : null}
                   </div>

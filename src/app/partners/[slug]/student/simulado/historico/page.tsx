@@ -78,7 +78,7 @@ function formatConfig(cfg: SimuladoSession['config']) {
         matematica: 'Matemática',
         dia1: 'Dia 1',
         dia2: 'Dia 2',
-        completo: bank === 'UFU' ? 'UFU Completo' : 'ENEM Completo',
+        completo: bank === 'UFU' ? 'UFU Completo' : bank === 'UEG' ? 'UEG Completo' : 'ENEM Completo',
     }
     return `${labels[fmt] ?? fmt} · ${bank}`
 }

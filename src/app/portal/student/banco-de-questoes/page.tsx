@@ -30,7 +30,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 2008 }, (_, i) => (CURRENT_YEAR - i).toString());
 
 const DIFFICULTIES = ["Fácil", "Médio", "Difícil"];
-const BANKS = ["ENEM", "UFU"];
+const BANKS = ["ENEM", "UFU", "UEG"];
 const TOTAL_QUESTIONS = 5000;
 
 // --- COMPONENTS: SKELETON UI (UX Improvement) ---

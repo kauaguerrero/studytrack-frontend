@@ -422,7 +422,7 @@ export default function AdminReportsPage() {
                             <div className="space-y-2">
                               <p className="text-xs font-bold text-slate-500 uppercase">Alternativas</p>
                               {q.alternatives.map((alt) => {
-                                const isCorrect = alt.letter === q.correct_alternative || alt.isCorrect;
+                                const isCorrect = alt.letter === q.correct_alternative;
                                 return (
                                   <div
                                     key={alt.letter}

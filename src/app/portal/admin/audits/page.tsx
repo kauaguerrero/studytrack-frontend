@@ -630,7 +630,7 @@ function QuestionPreview({ question }: { question?: QuestionFull | null }) {
       {question.alternatives && question.alternatives.length > 0 ? (
         <div className="space-y-3">
           {question.alternatives.map((alternative) => {
-            const isCorrect = alternative.letter === question.correct_alternative || alternative.isCorrect;
+            const isCorrect = alternative.letter === question.correct_alternative;
             const alternativeImages = extractAlternativeImageUrls(alternative.image);
             return (
               <div

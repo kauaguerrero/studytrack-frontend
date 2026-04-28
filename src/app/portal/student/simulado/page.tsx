@@ -288,7 +288,7 @@ export default function SimuladoPage() {
     const [accessToken, setAccessToken] = useState<string | null>(null)
     const [currentUserId, setCurrentUserId] = useState<string | null>(null)
     const [upsellOpen, setUpsellOpen] = useState(false)
-    const [upsellReason, setUpsellReason] = useState<'DAILY_SIMULADO_REACHED' | 'TRIAL_EXPIRED'>('DAILY_SIMULADO_REACHED')
+    const [upsellReason, setUpsellReason] = useState<'DAILY_SIMULADO_REACHED' | 'TRIAL_EXPIRED' | 'GENERIC_UPSELL'>('DAILY_SIMULADO_REACHED')
     const [finishDialogOpen, setFinishDialogOpen] = useState(false)
 
     // Dashboard data
@@ -412,7 +412,9 @@ export default function SimuladoPage() {
             })
             const data = await res.json()
             if (res.status === 403) {
-                setUpsellReason(data.code || 'DAILY_SIMULADO_REACHED')
+                const VALID_REASONS = ['DAILY_SIMULADO_REACHED', 'TRIAL_EXPIRED', 'GENERIC_UPSELL'] as const
+                const code = VALID_REASONS.includes(data.code) ? data.code : 'GENERIC_UPSELL'
+                setUpsellReason(code)
                 setUpsellOpen(true)
                 setShowConfigModal(false)
                 return
