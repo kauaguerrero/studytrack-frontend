@@ -20,6 +20,9 @@ import {
   Search,
   Trash2,
   TrendingUp,
+  Upload,
+  Link as LinkIcon,
+  X,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -442,6 +445,8 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   } | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [savingPrompt, setSavingPrompt] = useState(false);
+  const [imageUploadMode, setImageUploadMode] = useState<Map<number, 'url' | 'upload'>>(new Map());
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const queueSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [queueInitDone, setQueueInitDone] = useState(initialOverview !== null);
@@ -682,6 +687,64 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     } : f);
   }
 
+  async function resizeImageFile(file: File, maxPx = 1920, quality = 0.85): Promise<File> {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const { naturalWidth: w, naturalHeight: h } = img;
+        const scale = w > maxPx || h > maxPx ? maxPx / Math.max(w, h) : 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(w * scale);
+        canvas.height = Math.round(h * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(file); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const outType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { resolve(file); return; }
+            resolve(new File([blob], file.name, { type: outType }));
+          },
+          outType,
+          quality,
+        );
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Falha ao carregar imagem')); };
+      img.src = url;
+    });
+  }
+
+  async function handleImageUpload(index: number, file: File) {
+    setUploadingIndex(index);
+    try {
+      const resized = await resizeImageFile(file);
+      const fd = new FormData();
+      fd.append('file', resized);
+      const res = await fetch(`/api/partners/${slug}/essay-prompts/upload-image`, {
+        method: 'POST',
+        body: fd,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? 'Falha no upload da imagem');
+        return;
+      }
+      setPromptForm((f) => {
+        if (!f) return f;
+        const items = [...f.support_items];
+        items[index] = { ...items[index], content: json.url };
+        return { ...f, support_items: items };
+      });
+      toast.success('Imagem enviada com sucesso');
+    } catch {
+      toast.error('Erro ao fazer upload da imagem');
+    } finally {
+      setUploadingIndex(null);
+    }
+  }
+
   const totalMax = activeConfig?.total_max ?? 1000;
   const avgScoreLabel = metrics.avg_score !== null
     ? `${Math.round(metrics.avg_score)} / ${totalMax}`
@@ -747,8 +810,8 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               </button>
 
               <div
-                className="overflow-hidden transition-all duration-300 ease-in-out"
-                style={{ maxHeight: promptsOpen ? '1200px' : '0px', opacity: promptsOpen ? 1 : 0 }}
+                className="transition-all duration-300 ease-in-out"
+                style={{ display: promptsOpen ? 'block' : 'none' }}
               >
                 <div className="space-y-3 border-t border-[var(--brand-primary)]/15 bg-white/80 p-4 dark:bg-slate-900/60">
                   {prompts.length === 0 ? (
@@ -791,6 +854,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                                   support_items: p.support_items,
                                   essay_type: p.essay_type || 'enem',
                                 });
+                                setImageUploadMode(new Map());
                               }}
                               className="rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-colors"
                             >
@@ -857,11 +921,13 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
 
                       <div className="space-y-2">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Textos de apoio</p>
-                        {promptForm.support_items.map((item, i) => (
+                        {promptForm.support_items.map((item, i) => {
+                          const imgMode = imageUploadMode.get(i) ?? 'url';
+                          return (
                           <div key={i} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-[10px] font-bold uppercase text-slate-400">
-                                {item.type === 'text' ? 'Texto' : item.type === 'image' ? 'Imagem (URL)' : 'Link'}
+                                {item.type === 'text' ? 'Texto' : item.type === 'image' ? 'Imagem' : 'Link'}
                               </span>
                               <button
                                 type="button"
@@ -898,6 +964,108 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                                 rows={3}
                                 className="w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-xs outline-none resize-none"
                               />
+                            ) : item.type === 'image' ? (
+                              <div className="space-y-2">
+                                {/* Toggle URL / Upload */}
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setImageUploadMode((m) => { const n = new Map(m); n.set(i, 'url'); return n; })}
+                                    className={cn(
+                                      'flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-semibold transition',
+                                      imgMode === 'url'
+                                        ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                                        : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-400',
+                                    )}
+                                  >
+                                    <LinkIcon className="h-2.5 w-2.5" /> URL
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setImageUploadMode((m) => { const n = new Map(m); n.set(i, 'upload'); return n; })}
+                                    className={cn(
+                                      'flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-semibold transition',
+                                      imgMode === 'upload'
+                                        ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                                        : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-400',
+                                    )}
+                                  >
+                                    <Upload className="h-2.5 w-2.5" /> Upload
+                                  </button>
+                                </div>
+
+                                {imgMode === 'url' ? (
+                                  <input
+                                    value={item.content}
+                                    onChange={(e) => setPromptForm((f) => {
+                                      if (!f) return f;
+                                      const items = [...f.support_items];
+                                      items[i] = { ...items[i], content: e.target.value };
+                                      return { ...f, support_items: items };
+                                    })}
+                                    placeholder="URL da imagem (https://...)"
+                                    className="h-8 w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 text-xs outline-none"
+                                  />
+                                ) : (
+                                  <label className={cn(
+                                    'flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-3 py-4 text-center transition',
+                                    uploadingIndex === i
+                                      ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/5'
+                                      : 'border-slate-300 dark:border-slate-700 hover:border-[var(--brand-primary)]/50 hover:bg-slate-50 dark:hover:bg-slate-800/50',
+                                  )}>
+                                    {uploadingIndex === i ? (
+                                      <span className="text-[11px] text-[var(--brand-primary)] animate-pulse">Enviando...</span>
+                                    ) : (
+                                      <>
+                                        <Upload className="h-4 w-4 text-slate-400" />
+                                        <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                          Clique para selecionar
+                                        </span>
+                                        <span className="text-[10px] text-slate-400">JPG, PNG, WebP ou GIF • máx 10 MB</span>
+                                      </>
+                                    )}
+                                    <input
+                                      type="file"
+                                      accept="image/jpeg,image/png,image/webp,image/gif"
+                                      className="sr-only"
+                                      disabled={uploadingIndex !== null}
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) void handleImageUpload(i, file);
+                                        e.target.value = '';
+                                      }}
+                                    />
+                                  </label>
+                                )}
+
+                                {/* Preview da imagem se tiver URL */}
+                                {item.content && (
+                                  <div className="relative mt-1 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+                                    <div className="relative h-28 w-full bg-slate-100 dark:bg-slate-800">
+                                      <Image
+                                        src={item.content}
+                                        alt="Preview"
+                                        fill
+                                        className="object-contain"
+                                        onError={() => {}}
+                                      />
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPromptForm((f) => {
+                                        if (!f) return f;
+                                        const items = [...f.support_items];
+                                        items[i] = { ...items[i], content: '' };
+                                        return { ...f, support_items: items };
+                                      })}
+                                      className="absolute right-1 top-1 rounded-full bg-black/50 p-0.5 text-white hover:bg-black/70"
+                                      title="Remover imagem"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             ) : (
                               <input
                                 value={item.content}
@@ -907,12 +1075,13 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                                   items[i] = { ...items[i], content: e.target.value };
                                   return { ...f, support_items: items };
                                 })}
-                                placeholder={item.type === 'image' ? 'URL da imagem' : 'URL do link'}
+                                placeholder="URL do link"
                                 className="h-8 w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 text-xs outline-none"
                               />
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                         <div className="flex gap-2">
                           {(['text', 'image', 'link'] as const).map((type) => (
                             <button
@@ -939,7 +1108,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                         </button>
                         <button
                           type="button"
-                          onClick={() => { setPromptForm(null); setEditingPromptId(null); }}
+                          onClick={() => { setPromptForm(null); setEditingPromptId(null); setImageUploadMode(new Map()); }}
                           className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                         >
                           Cancelar
@@ -949,7 +1118,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setPromptForm({ title: '', description: '', support_items: [], essay_type: 'enem' })}
+                      onClick={() => { setPromptForm({ title: '', description: '', support_items: [], essay_type: 'enem' }); setImageUploadMode(new Map()); }}
                       className="w-full rounded-xl border border-dashed border-slate-300 dark:border-slate-600 py-2.5 text-sm font-semibold text-slate-500 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-colors"
                     >
                       + Nova coletânea
