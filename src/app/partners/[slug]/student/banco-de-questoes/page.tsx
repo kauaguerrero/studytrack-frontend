@@ -17,8 +17,8 @@ import {
 } from 'lucide-react';
 import { QuestionCard } from '@/components/questions/QuestionCard';
 import { ReportDialog } from '@/components/questions/ReportDialog';
-import { UpsellModal } from '@/components/modals/UpsellModal';
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
+import { toast } from 'sonner';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -124,10 +124,6 @@ export default function BancoDeQuestoes() {
   // ── State: Pagination & Upsell ──────────────────────────────────────────────
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [isUpsellOpen, setIsUpsellOpen] = useState(false);
-  const [upsellReason, setUpsellReason] = useState<
-    'DAILY_QUOTA_REACHED' | 'TRIAL_EXPIRED' | 'GENERIC_UPSELL'
-  >('DAILY_QUOTA_REACHED');
   const [isLockedByQuota, setIsLockedByQuota] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportQuestionId, setReportQuestionId] = useState<string | null>(null);
@@ -332,14 +328,13 @@ export default function BancoDeQuestoes() {
   }, [currentIdx, questions.length, hasMore, loadingMore, page, fetchQuestions]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
-  const handleQuotaLimitReached = (reasonCode: string) => {
+  const handleQuotaLimitReached = (_reasonCode: string) => {
     setIsLockedByQuota(true);
-    setUpsellReason((reasonCode as any) || 'DAILY_QUOTA_REACHED');
-    setIsUpsellOpen(true);
+    toast.info('Limite de questões atingido', { description: 'Entre em contato com o administrador da sua organização para liberar o acesso.' });
   };
 
   const handleNext = () => {
-    if (isLockedByQuota) { setUpsellReason('DAILY_QUOTA_REACHED'); setIsUpsellOpen(true); return; }
+    if (isLockedByQuota) { toast.info('Limite de questões atingido', { description: 'Entre em contato com o administrador da sua organização.' }); return; }
     if (loadingMore && currentIdx >= questions.length - 1) return;
     if (currentIdx < questions.length - 1) {
       setCurrentIdx((prev) => prev + 1);
@@ -424,14 +419,6 @@ export default function BancoDeQuestoes() {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div className="bg-[#F5F5F7] dark:bg-slate-950/50 overscroll-none">
-
-      {/* Modals — logic unchanged */}
-      <UpsellModal
-        isOpen={isUpsellOpen}
-        onClose={() => setIsUpsellOpen(false)}
-        reason={upsellReason}
-        userName={userProfile?.full_name}
-      />
 
       <ReportDialog
         open={reportDialogOpen}
@@ -859,18 +846,15 @@ export default function BancoDeQuestoes() {
               {/* Locked overlay */}
               {isLockedByQuota && (
                 <div className="absolute inset-0 flex items-center justify-center z-20">
-                  <button
-                    onClick={() => setIsUpsellOpen(true)}
-                    className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-6 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center gap-3 hover:scale-105 transition-transform cursor-pointer"
-                  >
+                  <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-6 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col items-center gap-3">
                     <div className="bg-amber-50 dark:bg-amber-900/30 p-3 rounded-full text-amber-500">
                       <Lock size={28} />
                     </div>
                     <div className="text-center">
-                      <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">Conteúdo Exclusivo</h3>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Toque para desbloquear</p>
+                      <h3 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">Limite atingido</h3>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Contacte o administrador da organização</p>
                     </div>
-                  </button>
+                  </div>
                 </div>
               )}
             </div>
