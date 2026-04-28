@@ -124,10 +124,77 @@ function formatChemicalFormulaSegments(text: string): string {
   });
 }
 
+function normalizeLatexArtifacts(text: string): string {
+  return text
+    .replace(/\$\s*\\mathrm\{R\}\s*\\\$\s*([\d.]+(?:,\d+)?)\s*\$/g, 'R$ $1')
+    .replace(/\$\$\s*([\s\S]*?)\s*\$\$\s*0(?=\s|$)/g, '$$$$ $1 $$$$')
+    .replace(/\\mathrm\{([^}]+)\}/g, '$1')
+    .replace(/\\text\{([^}]+)\}/g, '$1')
+    .replace(/\\%/g, '%')
+    .replace(/\\\$/g, '$')
+    .replace(/\\&/g, '&')
+    .replace(/\\#/g, '#')
+    .replace(/\\_/g, '_')
+    .replace(/\\\?/g, '?')
+    .replace(/\\!/g, '!')
+    .replace(/\\:/g, ':')
+    .replace(/\\;/g, ';')
+    .replace(/\\,/g, ',');
+}
+
+function normalizeInlineHtmlFormatting(text: string): string {
+  return text
+    .replace(/<\s*(strong|b)\s*>/gi, '**')
+    .replace(/<\s*\/\s*(strong|b)\s*>/gi, '**');
+}
+
+function isStructuredMarkdownBlock(block: string): boolean {
+  const trimmed = block.trim();
+  if (!trimmed) return false;
+
+  return /(^|\n)\s*(#{1,6}\s|>|\|.*\||[-*+]\s|\d+\.\s|!\[|[IVXLCDM]+\.\s)/m.test(trimmed);
+}
+
+function normalizeParagraphBreaks(text: string): string {
+  const normalized = text.replace(/\r\n?/g, '\n');
+  const blocks = normalized.split(/\n{2,}/);
+
+  return blocks
+    .map((block) => {
+      const trimmed = block.trim();
+      if (!trimmed || isStructuredMarkdownBlock(trimmed)) {
+        return trimmed;
+      }
+
+      const lines = trimmed
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      if (lines.length <= 1) {
+        return trimmed;
+      }
+
+      const averageLineLength =
+        lines.reduce((total, line) => total + line.length, 0) / lines.length;
+
+      // Preserve verse-like content and short broken lines; collapse wrapped prose.
+      if (averageLineLength < 70) {
+        return trimmed;
+      }
+
+      return lines.join(' ');
+    })
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 export function formatScientificText(text?: string | null): string {
   if (!text) return '';
 
-  let formatted = text.replace(
+  let formatted = normalizeParagraphBreaks(
+    normalizeInlineHtmlFormatting(normalizeLatexArtifacts(text))
+  ).replace(
     UNIT_EXPONENT_RE,
     (_match, prefix: string, unit: string, spacing: string, exponent: string) =>
       `${prefix}${unit}${toSuperscriptDigits(exponent)}`

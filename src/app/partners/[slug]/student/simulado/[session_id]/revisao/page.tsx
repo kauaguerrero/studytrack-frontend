@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, XCircle, Brain, Loader2, Flag } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import { formatScientificText } from '@/lib/scientific-text'
+import { QuestionRichText } from '@/components/questions/QuestionRichText'
 import { createClient } from '@/lib/supabase/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -13,6 +12,9 @@ interface QuestionContent {
     id: string
     subject: string
     topic?: string
+    bank?: string
+    difficulty?: string
+    exam_year?: number
     context: string
     statement: string
     images?: unknown
@@ -327,6 +329,9 @@ export default function RevisaoPage() {
                                         }
                                         <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Questão {idx + 1}</span>
                                         <span className="text-xs text-slate-400 dark:text-slate-500">{q.subject}</span>
+                                        {q.bank && <span className="text-xs text-slate-400 dark:text-slate-500">· {q.bank}</span>}
+                                        {q.exam_year && <span className="text-xs text-slate-400 dark:text-slate-500">· {q.exam_year}</span>}
+                                        {q.difficulty && <span className="text-xs text-slate-400 dark:text-slate-500">· {q.difficulty}</span>}
                                         {q.topic && <span className="text-xs text-slate-400 dark:text-slate-500">· {q.topic}</span>}
                                         {q.is_annulled && <span className="text-xs font-bold text-amber-700 dark:text-amber-300">Anulada</span>}
                                     </div>
@@ -334,9 +339,10 @@ export default function RevisaoPage() {
                                     <div className="p-5">
                                         {/* Context */}
                                         {contextText && (
-                                            <div className="prose prose-sm prose-slate dark:prose-invert max-w-none mb-4 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-3">
-                                                <ReactMarkdown>{formatScientificText(contextText)}</ReactMarkdown>
-                                            </div>
+                                            <QuestionRichText
+                                                text={contextText}
+                                                className="prose prose-sm prose-slate dark:prose-invert max-w-none mb-4 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-3"
+                                            />
                                         )}
 
                                         {/* Support images */}
@@ -355,9 +361,10 @@ export default function RevisaoPage() {
 
                                         {/* Statement */}
                                         {statementText && (
-                                            <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-800 dark:text-slate-100 font-medium mb-4 leading-relaxed">
-                                                <ReactMarkdown>{formatScientificText(statementText)}</ReactMarkdown>
-                                            </div>
+                                            <QuestionRichText
+                                                text={statementText}
+                                                className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-800 dark:text-slate-100 font-medium mb-4 leading-relaxed"
+                                            />
                                         )}
 
                                         {/* Alternatives */}
@@ -396,15 +403,15 @@ export default function RevisaoPage() {
                                                                 </div>
                                                             )}
                                                             {alt.text ? (
-                                                                <span className={`leading-snug ${
+                                                                <div className={`leading-snug ${
                                                                     isCorrect 
                                                                         ? 'text-green-800 dark:text-green-300 font-medium' 
                                                                         : isUserWrong 
                                                                             ? 'text-red-800 dark:text-red-300' 
                                                                             : 'text-slate-600 dark:text-slate-300'
                                                                 }`}>
-                                                                    {formatScientificText(alt.text)}
-                                                                </span>
+                                                                    <QuestionRichText text={alt.text} />
+                                                                </div>
                                                             ) : !alt.image ? (
                                                                 <span className="text-sm italic text-slate-400 dark:text-slate-500">
                                                                     Conteúdo da alternativa indisponível.
@@ -444,7 +451,7 @@ export default function RevisaoPage() {
                                                     </span>
                                                 </div>
                                                 <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200">
-                                                    <ReactMarkdown>{q.explanation}</ReactMarkdown>
+                                                    <QuestionRichText text={q.explanation} />
                                                 </div>
                                             </div>
                                         )}

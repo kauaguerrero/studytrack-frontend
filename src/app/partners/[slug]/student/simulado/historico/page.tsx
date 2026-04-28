@@ -12,6 +12,8 @@ interface SimuladoSession {
         subject?: string
         difficulty: string
         qty?: number
+        bank?: string
+        year?: number | null
     }
     score: number
     total_questions: number
@@ -64,8 +66,11 @@ function scoreBarBg(pct: number) {
 function formatConfig(cfg: SimuladoSession['config']) {
     const fmt = cfg.format
     if (fmt === 'custom') {
-        return cfg.subject ? cfg.subject : 'Personalizado'
+        const bank = cfg.bank && cfg.bank !== 'Todas' ? ` · ${cfg.bank}` : ''
+        const year = cfg.year ? ` · ${cfg.year}` : ''
+        return cfg.subject ? `${cfg.subject}${bank}${year}` : `Personalizado${bank}${year}`
     }
+    const bank = cfg.bank && cfg.bank !== 'Todas' ? cfg.bank : 'ENEM'
     const labels: Record<string, string> = {
         linguagens: 'Linguagens',
         humanas: 'Ciências Humanas',
@@ -73,9 +78,9 @@ function formatConfig(cfg: SimuladoSession['config']) {
         matematica: 'Matemática',
         dia1: 'Dia 1',
         dia2: 'Dia 2',
-        completo: 'ENEM Completo',
+        completo: bank === 'UFU' ? 'UFU Completo' : 'ENEM Completo',
     }
-    return labels[fmt] ?? fmt
+    return `${labels[fmt] ?? fmt} · ${bank}`
 }
 
 export default function SimuladoHistoricoPage() {
