@@ -372,7 +372,7 @@ function GlassCard({ children, className = '' }: { children: React.ReactNode; cl
 
 export default function FounderRankingPage() {
   const shouldReduce = useReducedMotion();
-  const TOP_LIMIT = 50;
+  const TOP_LIMIT = 5;
   const { org } = useOrg();
 
   const { summary, ranking, isLoading, refreshRanking } = usePartnerGamification({

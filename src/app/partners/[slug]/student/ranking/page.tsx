@@ -658,7 +658,7 @@ function HistoryRow({ item }: { item: MonthlyHistoryEntry }) {
 
 export default function RankingPage() {
   const shouldReduce = useReducedMotion();
-  const TOP_LIMIT = 10;
+  const TOP_LIMIT = 5;
 
   const { summary, ranking, isLoading, refreshRanking } = usePartnerGamification({
     fetchPopupStateOnMount: false,
@@ -989,7 +989,7 @@ export default function RankingPage() {
               <div className="flex items-center gap-2">
                 <Flame className="h-3.5 w-3.5 text-orange-500/60" />
                 <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">
-                  Top 10
+                  Top 5
                 </p>
               </div>
               <span className="text-[10px] font-semibold text-slate-400 dark:text-white/20 tabular-nums">
@@ -999,7 +999,7 @@ export default function RankingPage() {
 
             <div className="p-2 space-y-0.5">
               {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
+                Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-3 px-3 py-2.5">
                     <Skeleton className="h-7 w-7 rounded-lg" />
                     <Skeleton className="h-9 w-9 rounded-full" />
@@ -1032,7 +1032,6 @@ export default function RankingPage() {
                 <>
                   {visibleList.map((entry, i) => (
                     <div key={entry.user_id}>
-                      {/* Insert prize divider after the cutoff */}
                       {hasTopDivider && i === topCutoff && (
                         <PrizeZoneDivider cutoff={topCutoff} />
                       )}
@@ -1044,6 +1043,25 @@ export default function RankingPage() {
                       />
                     </div>
                   ))}
+
+                  {/* Posição do próprio aluno se estiver fora do top 5 */}
+                  {selfEntry && !visibleList.some((e) => e.user_id === selfEntry.user_id) && (
+                    <>
+                      <div className="relative my-2 flex items-center gap-3 px-3">
+                        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-300/40 to-transparent dark:via-white/10" />
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-white/25">
+                          sua posição
+                        </span>
+                        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-300/40 to-transparent dark:via-white/10" />
+                      </div>
+                      <RankRow
+                        entry={selfEntry}
+                        isSelf
+                        isPrize={selfEntry.rank <= topCutoff}
+                        index={TOP_LIMIT}
+                      />
+                    </>
+                  )}
                 </>
               )}
             </div>
