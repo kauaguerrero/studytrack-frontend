@@ -508,7 +508,7 @@ export default function SimuladoPage() {
           const scheduledData = await scheduledRes.json()
           setScheduledSimulados(
             (scheduledData.scheduled_simulados ?? []).filter(
-              (s: { status: string }) => s.status === 'active'
+              (s: { status: string }) => s.status === 'active' || s.status === 'scheduled'
             )
           )
         }

@@ -60,8 +60,27 @@ const DIFFICULTY_LABELS: Record<string, string> = {
 const FORMAT_LABELS: Record<string, string> = {
   custom: 'Personalizado', linguagens: 'Linguagens', humanas: 'Humanas',
   natureza: 'Ciências da Natureza', matematica: 'Matemática',
-  dia1: 'Dia 1', dia2: 'Dia 2', completo: 'Completo',
+  dia1: 'Dia 1 ENEM', dia2: 'Dia 2 ENEM', completo: 'Completo',
 };
+
+// Formatos disponíveis por banca
+const FORMATS_BY_BANK: Record<string, string[]> = {
+  ENEM:  ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'dia1', 'dia2', 'completo'],
+  UFU:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
+  UEG:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
+  Todas: ['custom'],
+};
+
+// Quantidade fixa de questões por banca/formato (espelha o backend)
+const BLOCK_QTY: Record<string, Record<string, number>> = {
+  ENEM: { linguagens: 45, humanas: 45, natureza: 45, matematica: 45, dia1: 90, dia2: 90, completo: 180 },
+  UFU:  { linguagens: 20, humanas: 20, natureza: 15, matematica: 10, completo: 65 },
+  UEG:  { linguagens: 13, humanas: 13, natureza: 13, matematica: 13, completo: 52 },
+};
+
+function resolveQty(bank: string, format: string): number | null {
+  return BLOCK_QTY[bank]?.[format] ?? null; // null = custom, qty editável
+}
 
 function formatDateTime(value: string): string {
   return new Date(value).toLocaleString('pt-BR', {
@@ -283,7 +302,17 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 {/* Banca */}
                 <div>
                   <label className={labelCls}>Banca</label>
-                  <select value={form.bank} onChange={(e) => setForm((f) => ({ ...f, bank: e.target.value }))} className={inputCls}>
+                  <select
+                    value={form.bank}
+                    onChange={(e) => {
+                      const bank = e.target.value;
+                      const formats = FORMATS_BY_BANK[bank] ?? ['custom'];
+                      const fmt = formats.includes(form.format) ? form.format : 'custom';
+                      const fixed = resolveQty(bank, fmt);
+                      setForm((f) => ({ ...f, bank, format: fmt, qty: fixed ?? f.qty }));
+                    }}
+                    className={inputCls}
+                  >
                     {Object.entries(BANK_LABELS).map(([k, v]) => (
                       <option key={k} value={k}>{v}</option>
                     ))}
@@ -293,9 +322,17 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 {/* Formato */}
                 <div>
                   <label className={labelCls}>Formato</label>
-                  <select value={form.format} onChange={(e) => setForm((f) => ({ ...f, format: e.target.value }))} className={inputCls}>
-                    {Object.entries(FORMAT_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
+                  <select
+                    value={form.format}
+                    onChange={(e) => {
+                      const fmt = e.target.value;
+                      const fixed = resolveQty(form.bank, fmt);
+                      setForm((f) => ({ ...f, format: fmt, qty: fixed ?? f.qty }));
+                    }}
+                    className={inputCls}
+                  >
+                    {(FORMATS_BY_BANK[form.bank] ?? ['custom']).map((k) => (
+                      <option key={k} value={k}>{FORMAT_LABELS[k]}</option>
                     ))}
                   </select>
                 </div>
@@ -310,15 +347,24 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                   </select>
                 </div>
 
-                {/* Quantidade */}
+                {/* Quantidade — bloqueada para formatos com qty fixa */}
                 <div>
-                  <label className={labelCls}>Questões</label>
+                  <label className={labelCls}>
+                    Questões
+                    {resolveQty(form.bank, form.format) !== null && (
+                      <span className="ml-1 normal-case font-normal text-slate-400">(fixo pela banca)</span>
+                    )}
+                  </label>
                   <input
                     type="number"
                     min={5} max={180}
                     value={form.qty}
-                    onChange={(e) => setForm((f) => ({ ...f, qty: Number(e.target.value) }))}
-                    className={inputCls}
+                    readOnly={resolveQty(form.bank, form.format) !== null}
+                    onChange={(e) => {
+                      if (resolveQty(form.bank, form.format) !== null) return;
+                      setForm((f) => ({ ...f, qty: Number(e.target.value) }));
+                    }}
+                    className={`${inputCls} ${resolveQty(form.bank, form.format) !== null ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
                   />
                 </div>
               </div>
