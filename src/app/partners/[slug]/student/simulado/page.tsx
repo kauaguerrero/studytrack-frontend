@@ -455,6 +455,16 @@ export default function SimuladoPage() {
   const [dashLoading, setDashLoading] = useState(true)
   const [dashVersion, setDashVersion] = useState(0)
   const [evolutionSubject, setEvolutionSubject] = useState('Todas')
+  const [scheduledSimulados, setScheduledSimulados] = useState<{
+    id: string;
+    title: string;
+    config: Record<string, unknown>;
+    status: string;
+    starts_at: string;
+    ends_at: string | null;
+    already_completed: boolean;
+    metrics: { total_sessions: number; unique_students: number; avg_score_pct: number | null };
+  }[]>([])
 
   // UI: result animation
   const [animatedScore, setAnimatedScore] = useState(0)
@@ -485,14 +495,23 @@ export default function SimuladoPage() {
     const fetchDashboard = async () => {
       setDashLoading(true)
       try {
-        const [histRes, rankRes] = await Promise.all([
+        const [histRes, rankRes, scheduledRes] = await Promise.all([
           fetch(`${apiUrl}/api/simulado/history?page=1&limit=20`, { headers: { Authorization: `Bearer ${accessToken}` } }),
           fetch(`${apiUrl}/api/simulado/ranking?bank=${pageBankFilter}`, { headers: { Authorization: `Bearer ${accessToken}` } }),
+          fetch(`${apiUrl}/api/partners/${slug}/scheduled-simulados`, { headers: { Authorization: `Bearer ${accessToken}` } }),
         ])
         const histData = histRes.ok ? await histRes.json() : { sessions: [] }
         const rankJson = rankRes.ok ? await rankRes.json() : { ranking: [], user_position: null }
         setSessions(histData.sessions || [])
         setRankingData(rankJson)
+        if (scheduledRes.ok) {
+          const scheduledData = await scheduledRes.json()
+          setScheduledSimulados(
+            (scheduledData.scheduled_simulados ?? []).filter(
+              (s: { status: string }) => s.status === 'active'
+            )
+          )
+        }
       } catch {
         setSessions([]); setRankingData(null)
       } finally {
@@ -644,7 +663,7 @@ export default function SimuladoPage() {
   }, [presetFormats, enemFormat])
 
   // ── Handlers ──
-  const startSimulado = async () => {
+  const startSimulado = async (scheduledId?: string) => {
     if (!accessToken) return
     setLoading(true)
     try {
@@ -659,6 +678,7 @@ export default function SimuladoPage() {
         body.format = enemFormat
         body.bank = presetBank
       }
+      if (scheduledId) body.scheduled_simulado_id = scheduledId
       const res = await fetch(`${apiUrl}/api/simulado/start`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) })
       const data = await res.json()
       if (res.status === 403) { toast.error('Acesso indisponível', { description: 'Seu acesso ao simulado está suspenso. Entre em contato com o administrador da sua organização.' }); setShowConfigModal(false); return }
@@ -667,7 +687,7 @@ export default function SimuladoPage() {
       setShowConfigModal(false)
       setSessionId(data.session_id)
       setQuestions(data.questions)
-      setTimeLeft(data.questions.length * 3 * 60)
+      setTimeLeft(data.time_limit_secs || data.questions.length * 3 * 60)
       startTimeRef.current = Date.now()
       setUserAnswers({}); setCurrentIdx(0); setFinishResult(null)
       setReportedQuestionIds(new Set())
@@ -986,7 +1006,7 @@ export default function SimuladoPage() {
               className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer">
               Cancelar
             </button>
-            <button onClick={startSimulado} disabled={loading || !accessToken || customCountInsufficient}
+            <button onClick={() => startSimulado()} disabled={loading || !accessToken || customCountInsufficient}
               aria-disabled={loading || !accessToken || customCountInsufficient}
               className="flex-1 text-white font-bold py-2.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
               style={{ background: 'var(--brand-primary)' }}>
@@ -1058,6 +1078,59 @@ export default function SimuladoPage() {
                 </div>
               </div>
             </motion.div>
+
+            {/* Simulados da Turma */}
+            {scheduledSimulados.length > 0 && (
+              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="space-y-3">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                  Simulados da Turma
+                </p>
+                {scheduledSimulados.map((sim) => (
+                  <div
+                    key={sim.id}
+                    className="overflow-hidden rounded-2xl border border-emerald-300/60 dark:border-emerald-500/30 bg-white dark:bg-slate-900 p-5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-emerald-100 dark:bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                            Ativo
+                          </span>
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                            {sim.title}
+                          </h3>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 text-xs text-slate-500 dark:text-slate-400">
+                          <span>{String(sim.config.bank ?? 'ENEM')} · {String(sim.config.qty ?? 10)} questões · {String(sim.config.difficulty ?? 'misto')}</span>
+                          {Boolean(sim.config.time_limit_secs) && (
+                            <span>⏱ {Math.round(Number(sim.config.time_limit_secs) / 60)} min</span>
+                          )}
+                          {sim.ends_at && (
+                            <span>Até {new Date(sim.ends_at).toLocaleDateString('pt-BR')}</span>
+                          )}
+                        </div>
+                        {(sim.metrics.unique_students > 0) && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            {sim.metrics.unique_students} aluno(s) já realizaram
+                            {sim.metrics.avg_score_pct != null && ` · Média da turma: ${sim.metrics.avg_score_pct}%`}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => startSimulado(sim.id)}
+                        disabled={loading}
+                        className="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50"
+                        style={{ backgroundColor: 'var(--brand-primary)' }}
+                      >
+                        {sim.already_completed ? 'Refazer' : 'Iniciar'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="h-px bg-slate-100 dark:bg-slate-800" />
+              </motion.div>
+            )}
 
             {/* KPI Cards */}
             <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1353,44 +1426,46 @@ export default function SimuladoPage() {
       {step === 'quiz' && (
         <div className="min-h-dvh bg-[#F5F5F7] dark:bg-slate-950/50 flex flex-col">
 
-          {/* Sticky header */}
-          <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 py-3 sticky top-0 z-10 shadow-sm flex justify-between items-center gap-2">
-            {/* Progress counter */}
-            <div className="text-xs sm:text-sm font-extrabold text-slate-500 dark:text-slate-400 shrink-0 tabular-nums">
-              {currentIdx + 1}
-              <span className="text-slate-300 dark:text-slate-600"> / {questions.length}</span>
+          {/* Sticky header + progress bar — grouped so both stay fixed on scroll */}
+          <div className="sticky top-0 z-10 shrink-0">
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 py-3 shadow-sm flex justify-between items-center gap-2">
+              {/* Progress counter */}
+              <div className="text-xs sm:text-sm font-extrabold text-slate-500 dark:text-slate-400 shrink-0 tabular-nums">
+                {currentIdx + 1}
+                <span className="text-slate-300 dark:text-slate-600"> / {questions.length}</span>
+              </div>
+
+              {/* Timer — shakes when entering critical zone */}
+              <motion.div animate={timerShakeControls}>
+                <div className={`font-mono font-black tabular-nums px-3 py-1.5 rounded-xl border-2 transition-all text-base sm:text-lg ${
+                  isTimeCritical
+                    ? 'bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-400 border-red-400 dark:border-red-800 animate-pulse scale-110'
+                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                }`}>
+                  {isTimeCritical && <span className="mr-1 text-sm">⏰</span>}
+                  {formatTime(timeLeft)}
+                </div>
+              </motion.div>
+
+              {/* Finish button */}
+              <button onClick={() => setFinishDialogOpen(true)}
+                className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer shrink-0 min-h-[44px] transition-colors text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40">
+                Finalizar
+              </button>
             </div>
 
-            {/* Timer — shakes when entering critical zone */}
-            <motion.div animate={timerShakeControls}>
-              <div className={`font-mono font-black tabular-nums px-3 py-1.5 rounded-xl border-2 transition-all text-base sm:text-lg ${
-                isTimeCritical
-                  ? 'bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-400 border-red-400 dark:border-red-800 animate-pulse scale-110'
-                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-              }`}>
-                {isTimeCritical && <span className="mr-1 text-sm">⏰</span>}
-                {formatTime(timeLeft)}
-              </div>
-            </motion.div>
-
-            {/* Finish button */}
-            <button onClick={() => setFinishDialogOpen(true)}
-              className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer shrink-0 min-h-[44px] transition-colors text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40">
-              Finalizar
-            </button>
-          </div>
-
-          {/* Progress bar */}
-          <div className="h-1 bg-slate-200 dark:bg-slate-800 shrink-0">
-            <motion.div className="h-1"
-              style={{ background: 'var(--brand-primary)' }}
-              animate={{ width: `${((currentIdx + 1) / questions.length) * 100}%` }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-            />
+            {/* Progress bar */}
+            <div className="h-1 bg-slate-200 dark:bg-slate-800">
+              <motion.div className="h-1"
+                style={{ background: 'var(--brand-primary)' }}
+                animate={{ width: `${((currentIdx + 1) / questions.length) * 100}%` }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+              />
+            </div>
           </div>
 
           {/* Question */}
-          <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-6 pb-40">
+          <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-6">
             <div ref={questionTopRef} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
               {/* Tags */}
               <div className="mb-5 flex items-start justify-between gap-3">
@@ -1527,8 +1602,8 @@ export default function SimuladoPage() {
             </div>
           </main>
 
-          {/* Nav bar */}
-          <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 p-4 fixed bottom-0 left-0 right-0 z-20"
+          {/* Nav bar — sticky bottom so it doesn't scroll away */}
+          <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 p-4 sticky bottom-0 z-10 shrink-0"
             style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
             <div className="max-w-3xl mx-auto w-full flex items-center gap-3">
               <button onClick={() => setCurrentIdx(prev => Math.max(0, prev - 1))} disabled={currentIdx === 0}
