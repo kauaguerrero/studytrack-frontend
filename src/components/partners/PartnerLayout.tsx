@@ -27,6 +27,7 @@ import {
   LifeBuoy,
   Video,
   FlaskConical,
+  GraduationCap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';

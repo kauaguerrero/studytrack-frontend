@@ -21,6 +21,7 @@ interface SimuladoConfig {
   time_limit_secs: number | null;
   weights?: Record<string, number> | null;
   allow_retry?: boolean;
+  same_for_all_students?: boolean;
   ueg_weight_group?: 'I' | 'II' | 'III' | null;
   instructions?: string | null;
 }
@@ -201,6 +202,7 @@ const EMPTY_FORM = {
   ends_at: '',
   weights: {} as Record<string, number>,
   allow_retry: true,
+  same_for_all_students: false,
   ueg_weight_group: null as 'I' | 'II' | 'III' | null,
   instructions: '',
 };
@@ -347,6 +349,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
             )
           : null,
         allow_retry: form.allow_retry,
+        same_for_all_students: form.same_for_all_students,
         ueg_weight_group: form.bank === 'UEG' ? (form.ueg_weight_group ?? null) : null,
         instructions: form.instructions?.trim() ? form.instructions.trim() : null,
       };
@@ -444,6 +447,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         ends_at: sim.ends_at ? sim.ends_at.slice(0, 16) : '',
         weights: sim.config.weights ?? {},
         allow_retry: sim.config.allow_retry ?? true,
+        same_for_all_students: sim.config.same_for_all_students ?? false,
         ueg_weight_group: (sim.config.ueg_weight_group as 'I' | 'II' | 'III' | null) ?? null,
         instructions: sim.config.instructions ?? '',
       });
@@ -619,6 +623,28 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                   >
                     <span
                       className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${form.allow_retry ? 'translate-x-6' : 'translate-x-1'}`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Mesmo simulado para toda a turma</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Ativado: todos recebem o mesmo conjunto de questões. Desativado: cada aluno recebe um conjunto próprio.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={Boolean(form.same_for_all_students)}
+                    onClick={() => setForm((f) => ({ ...f, same_for_all_students: !f.same_for_all_students }))}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none ${form.same_for_all_students ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${form.same_for_all_students ? 'translate-x-6' : 'translate-x-1'}`}
                     />
                   </button>
                 </div>
@@ -1338,6 +1364,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               <p><span className="font-semibold">Início:</span> {form.starts_at || '—'}</p>
               <p><span className="font-semibold">Fim:</span> {form.ends_at || '—'}</p>
               <p><span className="font-semibold">Refazer:</span> {form.allow_retry ? 'Permitido' : 'Desativado'}</p>
+              <p><span className="font-semibold">Distribuição:</span> {form.same_for_all_students ? 'Mesmo simulado para todos' : 'Simulado individual por aluno'}</p>
               {form.bank === 'UEG' && (
                 <p><span className="font-semibold">Grupo UEG:</span> {form.ueg_weight_group ?? 'Não definido'}</p>
               )}
