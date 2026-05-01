@@ -39,6 +39,8 @@ export async function PATCH(
       ? String(body.essay_type).toLowerCase()
       : 'enem';
   }
+  if ('starts_at' in body) update.starts_at = body.starts_at || null;
+  if ('ends_at' in body) update.ends_at = body.ends_at || null;
 
   const { data, error } = await (admin as any)
     .from('essay_prompts')

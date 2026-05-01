@@ -83,6 +83,8 @@ interface EssayPrompt {
   is_active: boolean;
   created_at: string;
   essay_type?: string | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
 }
 
 interface EssaysMetrics {
@@ -133,6 +135,29 @@ function formatDateBR(value: string | null | undefined): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '-';
   return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+}
+
+function formatDateTimeBR(value: string | null | undefined): string {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function isoToLocalInputValue(value: string | null | undefined): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const tzOffsetMinutes = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - tzOffsetMinutes * 60_000);
+  return localDate.toISOString().slice(0, 16);
 }
 
 function relativeTimeFromNow(isoDate: string): string {
@@ -442,6 +467,8 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     description: string;
     support_items: SupportItem[];
     essay_type: string;
+    starts_at: string;
+    ends_at: string;
   } | null>(null);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [savingPrompt, setSavingPrompt] = useState(false);
@@ -648,6 +675,8 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
         body: JSON.stringify({
           ...promptForm,
           essay_type: promptForm.essay_type || 'enem',
+          starts_at: promptForm.starts_at ? new Date(promptForm.starts_at).toISOString() : null,
+          ends_at: promptForm.ends_at ? new Date(promptForm.ends_at).toISOString() : null,
         }),
       });
       const json = await res.json();
@@ -841,6 +870,16 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                                 {p.support_items.length} item(s) de apoio ·{' '}
                                 {p.is_active ? 'Ativa' : 'Inativa'}
                               </span>
+                              {(p.starts_at || p.ends_at) && (
+                                <span className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                                  {p.starts_at && (
+                                    <span>Início: {formatDateTimeBR(p.starts_at)}</span>
+                                  )}
+                                  {p.ends_at && (
+                                    <span>· Prazo: {formatDateTimeBR(p.ends_at)}</span>
+                                  )}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
@@ -853,6 +892,8 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                                   description: p.description ?? '',
                                   support_items: p.support_items,
                                   essay_type: p.essay_type || 'enem',
+                                  starts_at: isoToLocalInputValue(p.starts_at),
+                                  ends_at: isoToLocalInputValue(p.ends_at),
                                 });
                                 setImageUploadMode(new Map());
                               }}
@@ -918,6 +959,49 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                         rows={2}
                         className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[var(--brand-primary)] resize-none"
                       />
+
+                      {/* Agendamento — início e prazo */}
+                      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 space-y-2.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Agendamento (opcional)
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                              Início das entregas
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={promptForm.starts_at}
+                              onChange={(e) => setPromptForm((f) => f ? { ...f, starts_at: e.target.value } : f)}
+                              className="h-9 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[var(--brand-primary)]"
+                            />
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              Alunos só poderão enviar a partir deste horário.
+                            </p>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                              Prazo final de entrega
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={promptForm.ends_at}
+                              onChange={(e) => setPromptForm((f) => f ? { ...f, ends_at: e.target.value } : f)}
+                              min={promptForm.starts_at || undefined}
+                              className="h-9 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[var(--brand-primary)]"
+                            />
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              Após este prazo, a coletânea fecha automaticamente.
+                            </p>
+                          </div>
+                        </div>
+                        {promptForm.starts_at && promptForm.ends_at && new Date(promptForm.ends_at) <= new Date(promptForm.starts_at) && (
+                          <p className="text-[11px] font-semibold text-red-500">
+                            O prazo final deve ser após o início.
+                          </p>
+                        )}
+                      </div>
 
                       <div className="space-y-2">
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Textos de apoio</p>
@@ -1118,7 +1202,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                   ) : (
                     <button
                       type="button"
-                      onClick={() => { setPromptForm({ title: '', description: '', support_items: [], essay_type: 'enem' }); setImageUploadMode(new Map()); }}
+                      onClick={() => { setPromptForm({ title: '', description: '', support_items: [], essay_type: 'enem', starts_at: '', ends_at: '' }); setImageUploadMode(new Map()); }}
                       className="w-full rounded-xl border border-dashed border-slate-300 dark:border-slate-600 py-2.5 text-sm font-semibold text-slate-500 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-colors"
                     >
                       + Nova coletânea

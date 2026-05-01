@@ -14,9 +14,7 @@ import {
   UserPlus,
   Settings,
   LogOut,
-  GraduationCap,
   BookOpen,
-  FileText,
   ClipboardCheck,
   PenLine,
   BarChart3,
@@ -29,6 +27,7 @@ import {
   LifeBuoy,
   Video,
   FlaskConical,
+  GraduationCap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -166,7 +165,8 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/ranking`,          icon: Trophy,         label: 'Ranking',          shortLabel: 'Ranking' },
     { href: `/partners/${org.slug}/alunos`,          icon: Users,           label: 'Alunos',            shortLabel: 'Alunos' },
     { href: `/partners/${org.slug}/planos`,          icon: WalletCards,     label: 'Planos',            shortLabel: 'Planos' },
-    { href: `/partners/${org.slug}/redacoes`,        icon: FileText,        label: 'Redações',          shortLabel: 'Redações' },
+    { href: `/partners/${org.slug}/redacoes`,        icon: PenLine,         label: 'Redações',          shortLabel: 'Redações' },
+    { href: `/partners/${org.slug}/simulados`,       icon: ClipboardCheck,  label: 'Simulados',         shortLabel: 'Simulados' },
     ...(isVideoToolEnabled ? [{ href: `/partners/${org.slug}/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
     { href: `/partners/${org.slug}/suporte`,          icon: LifeBuoy,        label: 'Suporte',           shortLabel: 'Suporte' },
@@ -187,7 +187,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   ];
 
   const associateNavItems: NavItemDef[] = [
-    { href: `/partners/${org.slug}/redacoes`, icon: FileText, label: 'Redações', shortLabel: 'Redações' },
+    { href: `/partners/${org.slug}/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redações' },
   ];
 
   const navItems = variant === 'student'
