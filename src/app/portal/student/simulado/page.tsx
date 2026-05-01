@@ -450,10 +450,13 @@ export default function SimuladoPage() {
         if (!sessionId || !accessToken || submitting) return
         setSubmitting(true)
         try {
+            const supabase = createClient()
+            const { data: { session: freshSession } } = await supabase.auth.getSession()
+            const token = freshSession?.access_token || accessToken
             const timeTaken = Math.floor((Date.now() - startTimeRef.current) / 1000)
             const res = await fetch(`${apiUrl}/api/simulado/${sessionId}/finish`, {
                 method: 'POST',
-                headers: apiHeaders(),
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ answers, time_taken_secs: timeTaken }),
             })
             const data = await res.json()
