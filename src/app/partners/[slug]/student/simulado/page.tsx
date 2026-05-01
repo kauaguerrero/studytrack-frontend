@@ -671,10 +671,13 @@ export default function SimuladoPage() {
     const fetchDashboard = async () => {
       setDashLoading(true)
       try {
+        const supabase = createClient()
+        const { data: { session: freshSession } } = await supabase.auth.getSession()
+        const token = freshSession?.access_token || accessToken
         const [histRes, rankRes, scheduledRes] = await Promise.all([
-          fetch(`${apiUrl}/api/simulado/history?page=1&limit=20`, { headers: { Authorization: `Bearer ${accessToken}` } }),
-          fetch(`${apiUrl}/api/simulado/ranking?bank=${pageBankFilter}`, { headers: { Authorization: `Bearer ${accessToken}` } }),
-          fetch(`${apiUrl}/api/partners/${slug}/scheduled-simulados`, { headers: { Authorization: `Bearer ${accessToken}` } }),
+          fetch(`${apiUrl}/api/simulado/history?page=1&limit=20`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${apiUrl}/api/simulado/ranking?bank=${pageBankFilter}`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${apiUrl}/api/partners/${slug}/scheduled-simulados`, { headers: { Authorization: `Bearer ${token}` } }),
         ])
         const histData = histRes.ok ? await histRes.json() : { sessions: [] }
         const rankJson = rankRes.ok ? await rankRes.json() : { ranking: [], user_position: null }
@@ -954,6 +957,7 @@ export default function SimuladoPage() {
     if (!sessionId || !accessToken || submitting) return
     setSubmitting(true)
     let finishSucceeded = false
+    let finishBlockedByMinAnswers = false
     try {
       const supabase = createClient()
       const { data: { session: freshSession } } = await supabase.auth.getSession()
@@ -1006,11 +1010,18 @@ export default function SimuladoPage() {
           }
           break
         }
+        if (data?.code === 'MIN_ANSWERS_NOT_REACHED') {
+          toast.error('Mínimo de respostas não atingido', {
+            description: `Responda pelo menos ${data.minimum_required ?? '50%'} de ${data.total_questions ?? questions.length} questões para finalizar.`,
+          })
+          finishBlockedByMinAnswers = true
+          break
+        }
         lastErrorMessage = data?.error || lastErrorMessage
         if (res.status < 500 && res.status !== 409) break
         if (attempt < 2) await wait(700 * (attempt + 1))
       }
-      if (!finishSucceeded) {
+      if (!finishSucceeded && !finishBlockedByMinAnswers) {
         toast.error('Falha ao finalizar simulado', { description: lastErrorMessage })
       }
     } catch {
