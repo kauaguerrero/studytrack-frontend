@@ -823,11 +823,36 @@ export default function SimuladoPage() {
   const submitFinish = async (answers: Record<string, string>) => {
     if (!sessionId || !accessToken || submitting) return
     setSubmitting(true)
+    let finishSaved = false
     try {
       const timeTaken = Math.floor((Date.now() - startTimeRef.current) / 1000)
-      const res = await fetch(`${apiUrl}/api/simulado/${sessionId}/finish`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify({ answers, time_taken_secs: timeTaken }) })
-      const data = await res.json()
+      let res: Response | null = null
+      let data: any = null
+      let lastError: unknown = null
+
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          res = await fetch(`${apiUrl}/api/simulado/${sessionId}/finish`, {
+            method: 'POST',
+            headers: apiHeaders(),
+            body: JSON.stringify({ answers, time_taken_secs: timeTaken }),
+          })
+          data = await res.json().catch(() => ({}))
+          if (res.ok) break
+        } catch (err) {
+          lastError = err
+        }
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 600))
+        }
+      }
+
+      if (!res) {
+        throw lastError || new Error('Falha ao finalizar simulado')
+      }
+
       if (res.ok) {
+        finishSaved = true
         setFinishResult({ ...data, session_id: sessionId })
         console.log('finish response:', data)
         if (data.gamification?.shield_awarded) {
@@ -866,12 +891,21 @@ export default function SimuladoPage() {
           })
         }
       } else {
-        toast.warning('Resultado calculado localmente', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
+        toast.error('Não foi possível finalizar no servidor', {
+          description: data?.error || 'Tente novamente para registrar o resultado.',
+        })
       }
     } catch {
-      toast.warning('Resultado calculado localmente', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
+      toast.error('Erro de conexão ao finalizar', {
+        description: 'Confira sua conexão e tente finalizar novamente.',
+      })
     }
-    finally { setSubmitting(false); setStep('result') }
+    finally {
+      setSubmitting(false)
+      if (finishSaved) {
+        setStep('result')
+      }
+    }
   }
 
   const handleTimeExpired = () => submitFinish(userAnswers)
