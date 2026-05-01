@@ -516,6 +516,8 @@ export default function SimuladoPage() {
   // UI: result animation
   const [animatedScore, setAnimatedScore] = useState(0)
   const [showConfetti, setShowConfetti] = useState(false)
+  const lastAutosavedRef = useRef<string>('')
+  const resumeAttemptedRef = useRef(false)
 
   // UI: timer warning animation
   const timerShakeControls = useAnimation()
@@ -523,6 +525,9 @@ export default function SimuladoPage() {
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000'
   const apiHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` })
+  const getDraftStorageKey = (sid: string) => `simulado-draft:${slug}:${currentUserId ?? 'anon'}:${sid}`
+  const getActiveSessionStorageKey = () => `simulado-active:${slug}:${currentUserId ?? 'anon'}`
+  const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
   const getScheduledRemainingLabel = (startsAt: string) => {
     const start = new Date(startsAt).getTime()
@@ -552,6 +557,113 @@ export default function SimuladoPage() {
     const t = setInterval(() => setNowTs(Date.now()), 30000)
     return () => clearInterval(t)
   }, [])
+
+  useEffect(() => {
+    if (!accessToken || !currentUserId || resumeAttemptedRef.current || step === 'quiz') return
+    resumeAttemptedRef.current = true
+
+    const resumeSession = async () => {
+      let rawDraft: string | null = null
+      try {
+        rawDraft = window.localStorage.getItem(getActiveSessionStorageKey())
+      } catch {
+        rawDraft = null
+      }
+      if (!rawDraft) return
+
+      let draft: {
+        sessionId?: string
+        currentIdx?: number
+        timeLeft?: number
+        savedAt?: number
+        scheduledEndsAt?: string | null
+      } | null = null
+      try {
+        draft = JSON.parse(rawDraft)
+      } catch {
+        draft = null
+      }
+
+      if (!draft?.sessionId) {
+        try { window.localStorage.removeItem(getActiveSessionStorageKey()) } catch {}
+        return
+      }
+
+      try {
+        const res = await fetch(`${apiUrl}/api/simulado/${draft.sessionId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+        if (!res.ok) {
+          try {
+            window.localStorage.removeItem(getActiveSessionStorageKey())
+            window.localStorage.removeItem(getDraftStorageKey(draft.sessionId))
+          } catch {}
+          return
+        }
+
+        const sessionData = await res.json()
+        if (sessionData?.status === 'completed') {
+          try {
+            window.localStorage.removeItem(getActiveSessionStorageKey())
+            window.localStorage.removeItem(getDraftStorageKey(draft.sessionId))
+          } catch {}
+          return
+        }
+
+        const restoredQuestions = Array.isArray(sessionData?.questions) ? sessionData.questions : []
+        const savedAnswers = sessionData?.answers && typeof sessionData.answers === 'object' ? sessionData.answers : {}
+        const localDraftAnswers = (() => {
+          try {
+            const raw = window.localStorage.getItem(getDraftStorageKey(draft!.sessionId!))
+            return raw ? JSON.parse(raw) as Record<string, string> : {}
+          } catch {
+            return {}
+          }
+        })()
+        const restoredAnswers = { ...savedAnswers, ...localDraftAnswers }
+        const restoredIdx = Math.min(
+          Math.max(Number.isFinite(draft.currentIdx) ? Number(draft.currentIdx) : 0, 0),
+          Math.max(restoredQuestions.length - 1, 0),
+        )
+
+        const restoredScheduledEndsAt = draft.scheduledEndsAt ? new Date(draft.scheduledEndsAt) : null
+        scheduledEndsAtRef.current = restoredScheduledEndsAt && !Number.isNaN(restoredScheduledEndsAt.getTime())
+          ? restoredScheduledEndsAt
+          : null
+
+        const elapsedSinceSave = draft.savedAt ? Math.max(0, Math.floor((Date.now() - draft.savedAt) / 1000)) : 0
+        let restoredTimeLeft = Math.max(0, Number(draft.timeLeft ?? 0) - elapsedSinceSave)
+        if (scheduledEndsAtRef.current) {
+          restoredTimeLeft = Math.max(0, Math.floor((scheduledEndsAtRef.current.getTime() - Date.now()) / 1000))
+        }
+        if (restoredTimeLeft <= 0) {
+          restoredTimeLeft = restoredQuestions.length * 3 * 60
+        }
+
+        const startedAtMs = sessionData?.started_at ? new Date(sessionData.started_at).getTime() : Date.now()
+        startTimeRef.current = Number.isNaN(startedAtMs) ? Date.now() : startedAtMs
+        lastAutosavedRef.current = JSON.stringify(restoredAnswers)
+        setSessionId(draft.sessionId)
+        setQuestions(restoredQuestions)
+        setUserAnswers(restoredAnswers)
+        setCurrentIdx(restoredIdx)
+        setFinishResult(null)
+        setReportedQuestionIds(new Set())
+        setHasTimeLimit(Boolean(sessionData?.config?.time_limit_secs))
+        setTimeLeft(restoredTimeLeft)
+        prevTimeLeftRef.current = restoredTimeLeft
+        setStep('quiz')
+
+        toast.info('Sessão retomada', {
+          description: 'Você voltou para a mesma questão do simulado em andamento.',
+        })
+      } catch {
+        try { window.localStorage.removeItem(getActiveSessionStorageKey()) } catch {}
+      }
+    }
+
+    void resumeSession()
+  }, [accessToken, currentUserId, apiUrl, step])
 
   // ── Dashboard fetch ──
   useEffect(() => {
@@ -808,9 +920,27 @@ export default function SimuladoPage() {
 
       setTimeLeft(initialTime)
       startTimeRef.current = Date.now()
-      setUserAnswers({}); setCurrentIdx(0); setFinishResult(null)
+      const restoredAnswers = (() => {
+        const serverAnswers = data.saved_answers ?? {}
+        if (!data.session_id) return serverAnswers
+        try {
+          const raw = window.localStorage.getItem(getDraftStorageKey(data.session_id))
+          if (!raw) return serverAnswers
+          const localAnswers = JSON.parse(raw) as Record<string, string>
+          return { ...serverAnswers, ...localAnswers }
+        } catch {
+          return serverAnswers
+        }
+      })()
+      lastAutosavedRef.current = JSON.stringify(restoredAnswers)
+      setUserAnswers(restoredAnswers); setCurrentIdx(0); setFinishResult(null)
       setReportedQuestionIds(new Set())
       prevTimeLeftRef.current = initialTime
+      if (data.resumed) {
+        toast.info('Sessão retomada', {
+          description: 'Reabrimos sua tentativa em andamento desse simulado agendado.',
+        })
+      }
       setStep('quiz')
     } catch { toast.error('Erro de conexão', { description: 'Não foi possível conectar ao servidor.' }) }
     finally {
@@ -823,55 +953,70 @@ export default function SimuladoPage() {
   const submitFinish = async (answers: Record<string, string>) => {
     if (!sessionId || !accessToken || submitting) return
     setSubmitting(true)
+    let finishSucceeded = false
     try {
       const timeTaken = Math.floor((Date.now() - startTimeRef.current) / 1000)
-      const res = await fetch(`${apiUrl}/api/simulado/${sessionId}/finish`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify({ answers, time_taken_secs: timeTaken }) })
-      const data = await res.json()
-      if (res.ok) {
-        setFinishResult({ ...data, session_id: sessionId })
-        console.log('finish response:', data)
-        if (data.gamification?.shield_awarded) {
-          sessionStorage.setItem('shield_earned_pending', '1')
-        }
-        if (data.streak_updated && (data.new_streak ?? 0) >= 1) {
-          enqueuePopup({
-            kind: 'streak',
-            routeScope: 'dashboard',
-            streak: data.new_streak,
-            dedupeKey: `streak:${data.new_streak}`,
-          })
-        }
-        if (data.gamification?.points_awarded > 0) {
-          let rankPosition: number | null = null
-          let pointsToTop3: number | null = null
-          try {
-            const summaryRes = await fetch(`${apiUrl}/api/partner/gamification/summary`, {
-              headers: { Authorization: `Bearer ${accessToken}` },
+      let lastErrorMessage = 'Não foi possível salvar o simulado no servidor. Tente enviar novamente.'
+      for (let attempt = 0; attempt < 3 && !finishSucceeded; attempt += 1) {
+        const res = await fetch(`${apiUrl}/api/simulado/${sessionId}/finish`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify({ answers, time_taken_secs: timeTaken }) })
+        const data = await res.json().catch(() => ({}))
+        if (res.ok) {
+          finishSucceeded = true
+          try { window.localStorage.removeItem(getDraftStorageKey(sessionId)) } catch {}
+          try { window.localStorage.removeItem(getActiveSessionStorageKey()) } catch {}
+          setFinishResult({ ...data, session_id: sessionId })
+          console.log('finish response:', data)
+          if (data.gamification?.shield_awarded) {
+            sessionStorage.setItem('shield_earned_pending', '1')
+          }
+          if (data.streak_updated && (data.new_streak ?? 0) >= 1) {
+            enqueuePopup({
+              kind: 'streak',
+              routeScope: 'dashboard',
+              streak: data.new_streak,
+              dedupeKey: `streak:${data.new_streak}`,
             })
-            if (summaryRes.ok) {
-              const summaryData = await summaryRes.json()
-              rankPosition = summaryData.rank_position
-              pointsToTop3 = summaryData.points_to_top3
-            }
-          } catch { /* non-critical */ }
-          enqueuePopup({
-            kind: 'simulado_reward',
-            routeScope: 'simulado',
-            pointsAwarded: data.gamification.points_awarded,
-            newMonthlyPoints: data.gamification.new_monthly_points,
-            rankPosition,
-            pointsToTop3,
-            slug,
-            dedupeKey: `simulado-reward:${sessionId}`,
-          })
+          }
+          if (data.gamification?.points_awarded > 0) {
+            let rankPosition: number | null = null
+            let pointsToTop3: number | null = null
+            try {
+              const summaryRes = await fetch(`${apiUrl}/api/partner/gamification/summary`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              })
+              if (summaryRes.ok) {
+                const summaryData = await summaryRes.json()
+                rankPosition = summaryData.rank_position
+                pointsToTop3 = summaryData.points_to_top3
+              }
+            } catch { /* non-critical */ }
+            enqueuePopup({
+              kind: 'simulado_reward',
+              routeScope: 'simulado',
+              pointsAwarded: data.gamification.points_awarded,
+              newMonthlyPoints: data.gamification.new_monthly_points,
+              rankPosition,
+              pointsToTop3,
+              slug,
+              dedupeKey: `simulado-reward:${sessionId}`,
+            })
+          }
+          break
         }
-      } else {
-        toast.warning('Resultado calculado localmente', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
+        lastErrorMessage = data?.error || lastErrorMessage
+        if (res.status < 500 && res.status !== 409) break
+        if (attempt < 2) await wait(700 * (attempt + 1))
+      }
+      if (!finishSucceeded) {
+        toast.error('Falha ao finalizar simulado', { description: lastErrorMessage })
       }
     } catch {
-      toast.warning('Resultado calculado localmente', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
+      toast.error('Falha ao finalizar simulado', { description: 'Não foi possível salvar o simulado no servidor. Tente enviar novamente.' })
     }
-    finally { setSubmitting(false); setStep('result') }
+    finally {
+      setSubmitting(false)
+      if (finishSucceeded) setStep('result')
+    }
   }
 
   const handleTimeExpired = () => submitFinish(userAnswers)
@@ -884,6 +1029,10 @@ export default function SimuladoPage() {
     setStep('setup'); setQuestions([]); setCurrentIdx(0); setUserAnswers({}); setTimeLeft(0)
     setHasTimeLimit(false); setQuestionElapsed(0); scheduledEndsAtRef.current = null
     setSessionId(null); setFinishResult(null); setDashVersion(v => v + 1)
+    lastAutosavedRef.current = ''
+    try {
+      if (currentUserId) window.localStorage.removeItem(getActiveSessionStorageKey())
+    } catch {}
     setReportedQuestionIds(new Set()); setReportDialogOpen(false); setReportQuestionId(null)
     if (openModal) setShowConfigModal(true)
   }
@@ -959,6 +1108,75 @@ export default function SimuladoPage() {
       setPresetBank(pageBankFilter)
     }
   }, [showConfigModal, mode, pageBankFilter])
+
+  useEffect(() => {
+    if (step !== 'quiz' || !sessionId || !accessToken) return
+    if (Object.keys(userAnswers).length === 0) return
+
+    const serialized = JSON.stringify(userAnswers)
+    if (serialized === lastAutosavedRef.current) return
+
+    try {
+      window.localStorage.setItem(getDraftStorageKey(sessionId), serialized)
+    } catch {
+      // Ignore local quota/storage issues.
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`${apiUrl}/api/simulado/${sessionId}/progress`, {
+          method: 'POST',
+          headers: apiHeaders(),
+          body: JSON.stringify({ answers: userAnswers }),
+        })
+        if (res.ok) lastAutosavedRef.current = serialized
+      } catch {
+        // Best-effort autosave; o finish continua sendo a confirmação final.
+      }
+    }, 800)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [step, sessionId, accessToken, userAnswers, apiUrl, slug, currentUserId])
+
+  useEffect(() => {
+    if (step !== 'quiz' || !sessionId || !currentUserId) return
+    try {
+      window.localStorage.setItem(getActiveSessionStorageKey(), JSON.stringify({
+        sessionId,
+        currentIdx,
+        timeLeft,
+        savedAt: Date.now(),
+        scheduledEndsAt: scheduledEndsAtRef.current?.toISOString() ?? null,
+      }))
+    } catch {
+      // Ignore storage failures; backend autosave remains the primary fallback.
+    }
+  }, [step, sessionId, currentUserId, currentIdx, timeLeft, slug])
+
+  useEffect(() => {
+    if (step !== 'quiz' || !sessionId || !accessToken) return
+
+    const flushProgress = () => {
+      if (Object.keys(userAnswers).length === 0) return
+      void fetch(`${apiUrl}/api/simulado/${sessionId}/progress`, {
+        method: 'POST',
+        headers: apiHeaders(),
+        body: JSON.stringify({ answers: userAnswers }),
+        keepalive: true,
+      }).catch(() => undefined)
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flushProgress()
+    }
+
+    window.addEventListener('pagehide', flushProgress)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      window.removeEventListener('pagehide', flushProgress)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [step, sessionId, accessToken, userAnswers, apiUrl])
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
