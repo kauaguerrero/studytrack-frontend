@@ -48,6 +48,23 @@ interface BankResult { correct: number; total: number; percentage: number }
 interface FinishResult {
   score: number; total: number; percentage: number; tri_score: number | null
   time_taken_secs: number; results_by_subject: Record<string, SubjectResult>; results_by_bank?: Record<string, BankResult>; session_id: string
+  config?: SessionConfig;
+  weighted_result?: {
+    applied: boolean;
+    raw_percentage: number;
+    weighted_percentage: number | null;
+    weighted_points?: number | null;
+    weighted_max_points?: number | null;
+    mode?: 'ueg_objective_points' | 'weighted_percentage' | 'none';
+    weights: Record<string, number>;
+    breakdown: Record<string, {
+      weight: number;
+      questions: number;
+      weighted_total: number;
+      weighted_correct: number;
+      percentage: number;
+    }>;
+  };
   annulled_question_ids?: string[];
   annulled_questions_count?: number;
   new_streak?: number;
@@ -129,6 +146,24 @@ const CUSTOM_SUBJECTS = [
   { value: 'Espanhol',          label: 'Espanhol',          qty: 64   },
   { value: 'Inglês',            label: 'Inglês',            qty: 42   },
 ]
+
+const DIFFICULTY_LABELS: Record<string, string> = {
+  facil: 'Fácil',
+  medio: 'Médio',
+  dificil: 'Difícil',
+  misto: 'Misto',
+}
+
+function formatDateTimeBR(value: string): string {
+  return new Date(value).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Sao_Paulo',
+  })
+}
 
 const DIFFICULTIES = [
   { value: 'misto',   label: 'Misto'   },
@@ -433,6 +468,10 @@ export default function SimuladoPage() {
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({})
   const questionTopRef = useRef<HTMLDivElement>(null)
   const [timeLeft, setTimeLeft] = useState(0)
+  const [hasTimeLimit, setHasTimeLimit] = useState(false)
+  const [questionElapsed, setQuestionElapsed] = useState(0)
+  const questionStartRef = useRef<number>(Date.now())
+  const scheduledEndsAtRef = useRef<Date | null>(null)
   const [loading, setLoading] = useState(false)
 
   // Session
@@ -465,6 +504,7 @@ export default function SimuladoPage() {
     already_completed: boolean;
     metrics: { total_sessions: number; unique_students: number; avg_score_pct: number | null };
   }[]>([])
+  const [nowTs, setNowTs] = useState<number>(Date.now())
 
   // UI: result animation
   const [animatedScore, setAnimatedScore] = useState(0)
@@ -477,6 +517,18 @@ export default function SimuladoPage() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000'
   const apiHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` })
 
+  const getScheduledRemainingLabel = (startsAt: string) => {
+    const start = new Date(startsAt).getTime()
+    const diffMs = Math.max(0, start - nowTs)
+    const totalMinutes = Math.ceil(diffMs / 60000)
+    const days = Math.floor(totalMinutes / (60 * 24))
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60)
+    const minutes = totalMinutes % 60
+    if (days > 0) return `Restam ${days}d ${hours}h`
+    if (hours > 0) return `Restam ${hours}h ${minutes}min`
+    return `Restam ${minutes} min`
+  }
+
   // ── Auth ──
   useEffect(() => {
     const init = async () => {
@@ -487,6 +539,11 @@ export default function SimuladoPage() {
       setCurrentUserId(session.user.id)
     }
     init()
+  }, [])
+
+  useEffect(() => {
+    const t = setInterval(() => setNowTs(Date.now()), 30000)
+    return () => clearInterval(t)
   }, [])
 
   // ── Dashboard fetch ──
@@ -547,6 +604,17 @@ export default function SimuladoPage() {
   useEffect(() => {
     if (step !== 'quiz') return
     questionTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [currentIdx, step])
+
+  // ── Per-question elapsed timer (resets on question change) ──
+  useEffect(() => {
+    if (step !== 'quiz') return
+    questionStartRef.current = Date.now()
+    setQuestionElapsed(0)
+    const id = setInterval(() => {
+      setQuestionElapsed(Math.floor((Date.now() - questionStartRef.current) / 1000))
+    }, 1000)
+    return () => clearInterval(id)
   }, [currentIdx, step])
 
   // ── Result: count-up score animation ──
@@ -681,17 +749,55 @@ export default function SimuladoPage() {
       if (scheduledId) body.scheduled_simulado_id = scheduledId
       const res = await fetch(`${apiUrl}/api/simulado/start`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) })
       const data = await res.json()
-      if (res.status === 403) { toast.error('Acesso indisponível', { description: 'Seu acesso ao simulado está suspenso. Entre em contato com o administrador da sua organização.' }); setShowConfigModal(false); return }
+      if (res.status === 403) {
+        if (data?.code === 'SCHEDULED_SIMULADO_NOT_STARTED') {
+          toast.warning('Simulado ainda não começou', {
+            description: 'Aguarde o horário de início definido pela turma.',
+          })
+          return
+        }
+        if (data?.code === 'SCHEDULED_SIMULADO_ENDED') {
+          toast.warning('Simulado encerrado', {
+            description: 'O período de realização desse simulado já foi encerrado.',
+          })
+          return
+        }
+        if (data?.code === 'SCHEDULED_SIMULADO_RETRY_DISABLED') {
+          toast.warning('Refazer indisponível', {
+            description: 'Este simulado permite apenas uma tentativa por aluno.',
+          })
+          return
+        }
+        toast.error('Acesso indisponível', { description: 'Seu acesso ao simulado está suspenso. Entre em contato com o administrador da sua organização.' }); setShowConfigModal(false); return
+      }
       if (res.status === 404) { toast.error('Nenhuma questão encontrada', { description: 'Tente reduzir a quantidade ou mudar a dificuldade para "Misto".', duration: 6000 }); return }
       if (!res.ok) { toast.error('Erro ao iniciar simulado', { description: data.error || 'Tente novamente em instantes.' }); return }
       setShowConfigModal(false)
       setSessionId(data.session_id)
       setQuestions(data.questions)
-      setTimeLeft(data.time_limit_secs || data.questions.length * 3 * 60)
+      setHasTimeLimit(!!data.time_limit_secs)
+      scheduledEndsAtRef.current = null
+
+      let initialTime: number
+      if (data.time_limit_secs) {
+        initialTime = data.time_limit_secs
+      } else if (scheduledId) {
+        const sel = scheduledSimulados.find(s => s.id === scheduledId)
+        if (sel?.ends_at) {
+          scheduledEndsAtRef.current = new Date(sel.ends_at)
+          initialTime = Math.max(0, Math.floor((new Date(sel.ends_at).getTime() - Date.now()) / 1000))
+        } else {
+          initialTime = data.questions.length * 3 * 60
+        }
+      } else {
+        initialTime = data.questions.length * 3 * 60
+      }
+
+      setTimeLeft(initialTime)
       startTimeRef.current = Date.now()
       setUserAnswers({}); setCurrentIdx(0); setFinishResult(null)
       setReportedQuestionIds(new Set())
-      prevTimeLeftRef.current = data.questions.length * 3 * 60
+      prevTimeLeftRef.current = initialTime
       setStep('quiz')
     } catch { toast.error('Erro de conexão', { description: 'Não foi possível conectar ao servidor.' }) }
     finally { setLoading(false) }
@@ -759,6 +865,7 @@ export default function SimuladoPage() {
   }
   const resetSimulado = (openModal = false) => {
     setStep('setup'); setQuestions([]); setCurrentIdx(0); setUserAnswers({}); setTimeLeft(0)
+    setHasTimeLimit(false); setQuestionElapsed(0); scheduledEndsAtRef.current = null
     setSessionId(null); setFinishResult(null); setDashVersion(v => v + 1)
     setReportedQuestionIds(new Set()); setReportDialogOpen(false); setReportQuestionId(null)
     if (openModal) setShowConfigModal(true)
@@ -769,6 +876,21 @@ export default function SimuladoPage() {
   const displayScore = finishResult?.score ?? localScore
   const displayTotal = finishResult?.total ?? questions.length
   const displayPct = finishResult?.percentage ?? Math.round((localScore / Math.max(questions.length, 1)) * 100)
+  const weightedResult = finishResult?.weighted_result
+  const hasWeighted = Boolean(weightedResult?.applied && weightedResult?.weighted_percentage != null)
+  const noteFromPct = (pct: number) => Number((pct * 10).toFixed(1))
+  const isUegPointsMode = weightedResult?.mode === 'ueg_objective_points'
+  const weightedNote = hasWeighted
+    ? (isUegPointsMode
+      ? Number((weightedResult?.weighted_points ?? 0).toFixed(1))
+      : noteFromPct(weightedResult!.weighted_percentage ?? displayPct))
+    : null
+  const rawNote = isUegPointsMode
+    ? Number((((weightedResult?.raw_percentage ?? displayPct) / 100) * (weightedResult?.weighted_max_points ?? 130)).toFixed(1))
+    : noteFromPct(weightedResult?.raw_percentage ?? displayPct)
+  const resultBank = normalizeBank(finishResult?.config?.bank as string | undefined)
+  const showTri = Boolean(finishResult?.tri_score != null && resultBank === 'ENEM')
+  const triValue = finishResult?.tri_score ?? null
   const annulledCount = finishResult?.annulled_questions_count ?? reportedQuestionIds.size
   const celebration = celebrationMessage(displayPct)
   const isTimeCritical = timeLeft > 0 && timeLeft <= 300
@@ -1088,25 +1210,49 @@ export default function SimuladoPage() {
                 {scheduledSimulados.map((sim) => (
                   <div
                     key={sim.id}
-                    className="overflow-hidden rounded-2xl border border-emerald-300/60 dark:border-emerald-500/30 bg-white dark:bg-slate-900 p-5"
+                    className={`overflow-hidden rounded-2xl border p-5 ${
+                      sim.status === 'scheduled'
+                        ? 'border-amber-300/70 dark:border-amber-500/40 bg-amber-50/30 dark:bg-amber-500/5'
+                        : 'border-emerald-300/60 dark:border-emerald-500/30 bg-white dark:bg-slate-900'
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="rounded-full bg-emerald-100 dark:bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                            Ativo
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                              sim.status === 'scheduled'
+                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
+                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                            }`}
+                          >
+                            {sim.status === 'scheduled' ? 'Agendado' : 'Ativo'}
                           </span>
                           <h3 className="text-base font-bold text-slate-900 dark:text-white">
                             {sim.title}
                           </h3>
                         </div>
                         <div className="mt-1.5 flex flex-wrap gap-x-3 text-xs text-slate-500 dark:text-slate-400">
-                          <span>{String(sim.config.bank ?? 'ENEM')} · {String(sim.config.qty ?? 10)} questões · {String(sim.config.difficulty ?? 'misto')}</span>
+                          <span>
+                            {String(sim.config.bank ?? 'ENEM')} · {String(sim.config.qty ?? 10)} questões · {DIFFICULTY_LABELS[String(sim.config.difficulty ?? 'misto').toLowerCase()] ?? String(sim.config.difficulty ?? 'Misto')}
+                          </span>
+                          <span>Início: {formatDateTimeBR(sim.starts_at)}</span>
                           {Boolean(sim.config.time_limit_secs) && (
                             <span>⏱ {Math.round(Number(sim.config.time_limit_secs) / 60)} min</span>
                           )}
                           {sim.ends_at && (
-                            <span>Até {new Date(sim.ends_at).toLocaleDateString('pt-BR')}</span>
+                            <span>Término: {formatDateTimeBR(sim.ends_at)}</span>
+                          )}
+                          {sim.status === 'scheduled' && (
+                            <span className="inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-300">
+                              <Timer size={12} />
+                              {getScheduledRemainingLabel(sim.starts_at)}
+                            </span>
+                          )}
+                          {sim.already_completed && sim.config?.allow_retry === false && (
+                            <span className="font-semibold text-rose-600 dark:text-rose-300">
+                              Tentativa única concluída
+                            </span>
                           )}
                         </div>
                         {(sim.metrics.unique_students > 0) && (
@@ -1119,11 +1265,15 @@ export default function SimuladoPage() {
                       <button
                         type="button"
                         onClick={() => startSimulado(sim.id)}
-                        disabled={loading}
+                        disabled={loading || sim.status === 'scheduled' || (sim.already_completed && sim.config?.allow_retry === false)}
                         className="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50"
                         style={{ backgroundColor: 'var(--brand-primary)' }}
                       >
-                        {sim.already_completed ? 'Refazer' : 'Iniciar'}
+                        {sim.status === 'scheduled'
+                          ? 'Aguardando início'
+                          : (sim.already_completed && sim.config?.allow_retry === false)
+                            ? 'Tentativa concluída'
+                          : sim.already_completed ? 'Refazer' : 'Iniciar'}
                       </button>
                     </div>
                   </div>
@@ -1424,34 +1574,47 @@ export default function SimuladoPage() {
 
       {/* ══════════════════════════ QUIZ ═════════════════════════════════════ */}
       {step === 'quiz' && (
-        <div className="min-h-dvh bg-[#F5F5F7] dark:bg-slate-950/50 flex flex-col">
+        <div className="fixed inset-0 z-50 bg-[#F5F5F7] dark:bg-slate-950 flex flex-col">
 
-          {/* Sticky header + progress bar — grouped so both stay fixed on scroll */}
-          <div className="sticky top-0 z-10 shrink-0">
-            <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 py-3 shadow-sm flex justify-between items-center gap-2">
-              {/* Progress counter */}
-              <div className="text-xs sm:text-sm font-extrabold text-slate-500 dark:text-slate-400 shrink-0 tabular-nums">
-                {currentIdx + 1}
-                <span className="text-slate-300 dark:text-slate-600"> / {questions.length}</span>
+          {/* Header + progress bar — shrink-0 flex child, never scrolls */}
+          <div className="shrink-0">
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-4 py-2 shadow-sm flex justify-between items-center gap-3">
+
+              {/* Left: question counter + per-question timer */}
+              <div className="shrink-0 flex flex-col items-start gap-0.5">
+                <div className="text-xs sm:text-sm font-extrabold text-slate-500 dark:text-slate-400 tabular-nums leading-none">
+                  {currentIdx + 1}
+                  <span className="text-slate-300 dark:text-slate-600"> / {questions.length}</span>
+                </div>
+                <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500 tabular-nums leading-none">
+                  <Timer className="w-3 h-3" />
+                  {formatTime(questionElapsed)} nesta questão
+                </div>
               </div>
 
-              {/* Timer — shakes when entering critical zone */}
-              <motion.div animate={timerShakeControls}>
-                <div className={`font-mono font-black tabular-nums px-3 py-1.5 rounded-xl border-2 transition-all text-base sm:text-lg ${
-                  isTimeCritical
-                    ? 'bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-400 border-red-400 dark:border-red-800 animate-pulse scale-110'
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                }`}>
-                  {isTimeCritical && <span className="mr-1 text-sm">⏰</span>}
-                  {formatTime(timeLeft)}
-                </div>
-              </motion.div>
+              {/* Right: global timer + Finalizar */}
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Global timer — shakes when entering critical zone */}
+                <motion.div animate={timerShakeControls}>
+                  <div className={`flex flex-col items-center font-mono font-black tabular-nums px-3 py-1.5 rounded-xl border-2 transition-all ${
+                    isTimeCritical
+                      ? 'bg-red-50 dark:bg-red-900/40 text-red-600 dark:text-red-400 border-red-400 dark:border-red-800 animate-pulse scale-110'
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                  }`}>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide leading-none mb-0.5 opacity-60">
+                      {isTimeCritical ? '⏰' : (hasTimeLimit ? 'Restam' : scheduledEndsAtRef.current ? 'Encerra em' : 'Tempo')}
+                    </span>
+                    <span className="text-base sm:text-lg leading-none">
+                      {formatTime(timeLeft)}
+                    </span>
+                  </div>
+                </motion.div>
 
-              {/* Finish button */}
-              <button onClick={() => setFinishDialogOpen(true)}
-                className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer shrink-0 min-h-[44px] transition-colors text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40">
-                Finalizar
-              </button>
+                <button onClick={() => setFinishDialogOpen(true)}
+                  className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer min-h-[44px] transition-colors text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40">
+                  Finalizar
+                </button>
+              </div>
             </div>
 
             {/* Progress bar */}
@@ -1464,8 +1627,9 @@ export default function SimuladoPage() {
             </div>
           </div>
 
-          {/* Question */}
-          <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-6">
+          {/* Question — único elemento que scrolla */}
+          <main className="flex-1 overflow-y-auto overscroll-y-contain">
+            <div className="max-w-3xl mx-auto w-full px-4 py-6">
             <div ref={questionTopRef} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
               {/* Tags */}
               <div className="mb-5 flex items-start justify-between gap-3">
@@ -1600,10 +1764,11 @@ export default function SimuladoPage() {
                 </button>
               ))}
             </div>
+            </div>
           </main>
 
-          {/* Nav bar — sticky bottom so it doesn't scroll away */}
-          <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 p-4 sticky bottom-0 z-10 shrink-0"
+          {/* Nav bar — shrink-0 flex child, nunca scrolla */}
+          <div className="shrink-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 p-4"
             style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
             <div className="max-w-3xl mx-auto w-full flex items-center gap-3">
               <button onClick={() => setCurrentIdx(prev => Math.max(0, prev - 1))} disabled={currentIdx === 0}
@@ -1711,9 +1876,29 @@ export default function SimuladoPage() {
                     <div className={`text-2xl font-black ${scoreColor(displayPct)}`}>{displayPct}%</div>
                     <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-1">Acertos</div>
                   </div>
-                  {finishResult?.tri_score != null && (
+                  {hasWeighted && (
                     <div className="text-center">
-                      <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{finishResult.tri_score.toFixed(1)}</div>
+                      <div className="text-2xl font-black text-[var(--brand-primary)]">
+                        {weightedNote}{isUegPointsMode ? `/${weightedResult?.weighted_max_points ?? 130}` : ''}
+                      </div>
+                      <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-1">
+                        {isUegPointsMode ? 'Pontuação Objetiva UEG (Pesos)' : 'Nota Estimada (Pesos)'}
+                      </div>
+                    </div>
+                  )}
+                  {hasWeighted && (
+                    <div className="text-center">
+                      <div className={`text-2xl font-black ${scoreColor(weightedResult!.raw_percentage)}`}>
+                        {rawNote}{isUegPointsMode ? `/${weightedResult?.weighted_max_points ?? 130}` : ''}
+                      </div>
+                      <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-1">
+                        {isUegPointsMode ? 'Pontuação Bruta Objetiva' : 'Nota Bruta'}
+                      </div>
+                    </div>
+                  )}
+                  {showTri && (
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{triValue?.toFixed(1)}</div>
                       <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-1">Nota TRI</div>
                     </div>
                   )}
@@ -1757,7 +1942,9 @@ export default function SimuladoPage() {
                   <h3 className="font-bold text-slate-900 dark:text-slate-100">Desempenho por Matéria</h3>
                 </div>
                 <div className="space-y-4">
-                  {Object.entries(finishResult.results_by_subject).map(([subj, res]) => (
+                  {Object.entries(finishResult.results_by_subject)
+                    .sort(([, a], [, b]) => b.percentage - a.percentage)
+                    .map(([subj, res]) => (
                     <div key={subj}>
                       <div className="flex justify-between text-sm mb-1.5">
                         <span className="font-semibold text-slate-700 dark:text-slate-300">{subj}</span>
@@ -1799,6 +1986,32 @@ export default function SimuladoPage() {
                           transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
                         />
                       </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {hasWeighted && weightedResult && (
+              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2 mb-5">
+                  <Target size={18} className="text-slate-400 dark:text-slate-500" />
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100">Pesos Aplicados</h3>
+                </div>
+                <div className="space-y-3">
+                  {Object.entries(weightedResult.breakdown || {}).map(([bucket, info]) => (
+                    <div key={bucket} className="rounded-xl border border-slate-100 dark:border-slate-800 p-3">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                          {bucket} · peso {info.weight}
+                        </span>
+                        <span className={`font-bold ${scoreColor(info.percentage)}`}>
+                          {info.percentage}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Questões: {info.questions} · Pontos ponderados: {info.weighted_correct.toFixed(1)}/{info.weighted_total.toFixed(1)}
+                      </p>
                     </div>
                   ))}
                 </div>

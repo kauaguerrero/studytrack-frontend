@@ -39,7 +39,7 @@ export async function GET(
   const { org, admin } = ctx;
   const { data, error } = await (admin as any)
     .from('essay_prompts')
-    .select('id, title, description, support_items, is_active, essay_type, created_at, updated_at, created_by')
+    .select('id, title, description, support_items, is_active, essay_type, starts_at, ends_at, created_at, updated_at, created_by')
     .eq('org_id', org.id)
     .order('created_at', { ascending: false });
 
@@ -61,7 +61,7 @@ export async function POST(
   }
 
   const body = await request.json();
-  const { title, description, support_items, essay_type } = body;
+  const { title, description, support_items, essay_type, starts_at, ends_at } = body;
 
   if (!title?.trim()) {
     return NextResponse.json({ error: 'Título obrigatório' }, { status: 400 });
@@ -82,6 +82,8 @@ export async function POST(
       support_items: Array.isArray(support_items) ? support_items : [],
       is_active: true,
       essay_type: resolvedType,
+      starts_at: starts_at || null,
+      ends_at: ends_at || null,
       created_by: user.id,
     })
     .select()
