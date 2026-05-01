@@ -1023,6 +1023,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           const subjectRates = Array.from(bySubject.entries())
                             .map(([name, v]) => ({
                               name,
+                              correct: v.correct,
+                              total: v.total,
                               pct: v.total > 0 ? Number(((v.correct / v.total) * 100).toFixed(1)) : 0,
                             }))
                             .sort((a, b) => a.pct - b.pct);
@@ -1052,11 +1054,15 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         <div className="flex flex-wrap gap-2">
                           <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm">
                             <span className="font-semibold text-red-700 dark:text-red-300">Ponto de atenção:</span>{' '}
-                            <span className="font-bold text-slate-900 dark:text-slate-100">{lowest ? `${lowest.name} (${lowest.pct}%)` : '—'}</span>
+                            <span className="font-bold text-slate-900 dark:text-slate-100">
+                              {lowest ? `${lowest.name} (${lowest.pct}% · ${lowest.correct}/${lowest.total})` : '—'}
+                            </span>
                           </div>
                           <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-sm">
-                            <span className="font-semibold text-emerald-700 dark:text-emerald-300">Melhor desempenho:</span>{' '}
-                            <span className="font-bold text-slate-900 dark:text-slate-100">{highest ? `${highest.name} (${highest.pct}%)` : '—'}</span>
+                            <span className="font-semibold text-emerald-700 dark:text-emerald-300">Melhor desempenho (por matéria):</span>{' '}
+                            <span className="font-bold text-slate-900 dark:text-slate-100">
+                              {highest ? `${highest.name} (${highest.pct}% · ${highest.correct}/${highest.total})` : '—'}
+                            </span>
                           </div>
                         </div>
                         </div>
@@ -1102,16 +1108,22 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       <div>
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Desempenho detalhado por aluno</p>
                         <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                          {(() => {
+                            const weighted = Boolean(analyticsMap[sim.id].weighted_applied);
+                            const isUegWeighted = weighted && sim.config.bank === 'UEG';
+                            return (
                           <table className="min-w-full text-sm">
                             <thead className="bg-slate-50 dark:bg-slate-800/70 text-slate-500">
                               <tr>
                                 <th className="px-3 py-2 text-left">#</th>
                                 <th className="px-3 py-2 text-left">Aluno</th>
                                 <th className="px-3 py-2 text-left">
-                                  {analyticsMap[sim.id].weighted_applied ? 'Acerto (Ponderado)' : 'Acerto'}
+                                  {weighted ? 'Acerto (Ponderado)' : 'Acerto'}
                                 </th>
-                                {analyticsMap[sim.id].weighted_applied && (
-                                  <th className="px-3 py-2 text-left">Pontuação Ponderada (pts)</th>
+                                {weighted && (
+                                  <th className="px-3 py-2 text-left">
+                                    {isUegWeighted ? 'Nota Objetiva (0-130)' : 'Pontuação Ponderada (pts)'}
+                                  </th>
                                 )}
                                 <th className="px-3 py-2 text-left">Score</th>
                                 <th className="px-3 py-2 text-left">Tempo</th>
@@ -1124,13 +1136,17 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                                   <td className="px-3 py-2 text-slate-800 dark:text-slate-100">{s.full_name ?? 'Aluno'}</td>
                                   <td className="px-3 py-2 font-semibold">
                                     {s.score_pct}%
-                                    {analyticsMap[sim.id].weighted_applied && s.raw_score_pct != null && (
-                                      <span className="ml-1 text-xs font-normal text-slate-500">(bruto {pctToPoints(s.raw_score_pct)} pts)</span>
+                                    {weighted && s.raw_score_pct != null && (
+                                      <span className="ml-1 text-xs font-normal text-slate-500">
+                                        {isUegWeighted ? `(bruto ${s.raw_score_pct}%)` : `(bruto ${pctToPoints(s.raw_score_pct)} pts)`}
+                                      </span>
                                     )}
                                   </td>
-                                  {analyticsMap[sim.id].weighted_applied && (
+                                  {weighted && (
                                     <td className="px-3 py-2 font-semibold text-[var(--brand-primary)]">
-                                      {pctToPoints(s.weighted_score_pct ?? s.score_pct)} pts
+                                      {isUegWeighted
+                                        ? `${pctToUegPoints(s.weighted_score_pct ?? s.score_pct)}/130`
+                                        : `${pctToPoints(s.weighted_score_pct ?? s.score_pct)} pts`}
                                     </td>
                                   )}
                                   <td className="px-3 py-2">{s.score}/{s.total_questions}</td>
@@ -1139,6 +1155,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                               ))}
                             </tbody>
                           </table>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>

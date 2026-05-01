@@ -449,24 +449,33 @@ export default function SimuladoPage() {
     const submitFinish = async (answers: Record<string, string>) => {
         if (!sessionId || !accessToken || submitting) return
         setSubmitting(true)
+        let finishSucceeded = false
         try {
+            const supabase = createClient()
+            const { data: { session: freshSession } } = await supabase.auth.getSession()
+            const token = freshSession?.access_token || accessToken
             const timeTaken = Math.floor((Date.now() - startTimeRef.current) / 1000)
             const res = await fetch(`${apiUrl}/api/simulado/${sessionId}/finish`, {
                 method: 'POST',
-                headers: apiHeaders(),
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ answers, time_taken_secs: timeTaken }),
             })
             const data = await res.json()
             if (res.ok) {
                 setFinishResult({ ...data, session_id: sessionId })
+                finishSucceeded = true
+            } else if (data?.code === 'MIN_ANSWERS_NOT_REACHED') {
+                toast.error('Mínimo de respostas não atingido', {
+                    description: `Responda pelo menos ${data.minimum_required ?? '50%'} de ${data.total_questions ?? questions.length} questões para finalizar.`,
+                })
             } else {
-                toast.warning('Resultado calculado localmente', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
+                toast.warning('Falha ao finalizar', { description: data?.error || 'Não foi possível finalizar o simulado.' })
             }
         } catch {
-            toast.warning('Resultado calculado localmente', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
+            toast.warning('Falha ao finalizar', { description: 'Não foi possível salvar o simulado no servidor. Verifique sua conexão.' })
         } finally {
             setSubmitting(false)
-            setStep('result')
+            if (finishSucceeded) setStep('result')
         }
     }
 
