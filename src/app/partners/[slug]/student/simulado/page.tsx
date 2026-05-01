@@ -517,6 +517,7 @@ export default function SimuladoPage() {
   const [animatedScore, setAnimatedScore] = useState(0)
   const [showConfetti, setShowConfetti] = useState(false)
   const lastAutosavedRef = useRef<string>('')
+  const resumeAttemptedRef = useRef(false)
 
   // UI: timer warning animation
   const timerShakeControls = useAnimation()
@@ -525,6 +526,7 @@ export default function SimuladoPage() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000'
   const apiHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` })
   const getDraftStorageKey = (sid: string) => `simulado-draft:${slug}:${currentUserId ?? 'anon'}:${sid}`
+  const getActiveSessionStorageKey = () => `simulado-active:${slug}:${currentUserId ?? 'anon'}`
   const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
   const getScheduledRemainingLabel = (startsAt: string) => {
@@ -555,6 +557,113 @@ export default function SimuladoPage() {
     const t = setInterval(() => setNowTs(Date.now()), 30000)
     return () => clearInterval(t)
   }, [])
+
+  useEffect(() => {
+    if (!accessToken || !currentUserId || resumeAttemptedRef.current || step === 'quiz') return
+    resumeAttemptedRef.current = true
+
+    const resumeSession = async () => {
+      let rawDraft: string | null = null
+      try {
+        rawDraft = window.localStorage.getItem(getActiveSessionStorageKey())
+      } catch {
+        rawDraft = null
+      }
+      if (!rawDraft) return
+
+      let draft: {
+        sessionId?: string
+        currentIdx?: number
+        timeLeft?: number
+        savedAt?: number
+        scheduledEndsAt?: string | null
+      } | null = null
+      try {
+        draft = JSON.parse(rawDraft)
+      } catch {
+        draft = null
+      }
+
+      if (!draft?.sessionId) {
+        try { window.localStorage.removeItem(getActiveSessionStorageKey()) } catch {}
+        return
+      }
+
+      try {
+        const res = await fetch(`${apiUrl}/api/simulado/${draft.sessionId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+        if (!res.ok) {
+          try {
+            window.localStorage.removeItem(getActiveSessionStorageKey())
+            window.localStorage.removeItem(getDraftStorageKey(draft.sessionId))
+          } catch {}
+          return
+        }
+
+        const sessionData = await res.json()
+        if (sessionData?.status === 'completed') {
+          try {
+            window.localStorage.removeItem(getActiveSessionStorageKey())
+            window.localStorage.removeItem(getDraftStorageKey(draft.sessionId))
+          } catch {}
+          return
+        }
+
+        const restoredQuestions = Array.isArray(sessionData?.questions) ? sessionData.questions : []
+        const savedAnswers = sessionData?.answers && typeof sessionData.answers === 'object' ? sessionData.answers : {}
+        const localDraftAnswers = (() => {
+          try {
+            const raw = window.localStorage.getItem(getDraftStorageKey(draft!.sessionId!))
+            return raw ? JSON.parse(raw) as Record<string, string> : {}
+          } catch {
+            return {}
+          }
+        })()
+        const restoredAnswers = { ...savedAnswers, ...localDraftAnswers }
+        const restoredIdx = Math.min(
+          Math.max(Number.isFinite(draft.currentIdx) ? Number(draft.currentIdx) : 0, 0),
+          Math.max(restoredQuestions.length - 1, 0),
+        )
+
+        const restoredScheduledEndsAt = draft.scheduledEndsAt ? new Date(draft.scheduledEndsAt) : null
+        scheduledEndsAtRef.current = restoredScheduledEndsAt && !Number.isNaN(restoredScheduledEndsAt.getTime())
+          ? restoredScheduledEndsAt
+          : null
+
+        const elapsedSinceSave = draft.savedAt ? Math.max(0, Math.floor((Date.now() - draft.savedAt) / 1000)) : 0
+        let restoredTimeLeft = Math.max(0, Number(draft.timeLeft ?? 0) - elapsedSinceSave)
+        if (scheduledEndsAtRef.current) {
+          restoredTimeLeft = Math.max(0, Math.floor((scheduledEndsAtRef.current.getTime() - Date.now()) / 1000))
+        }
+        if (restoredTimeLeft <= 0) {
+          restoredTimeLeft = restoredQuestions.length * 3 * 60
+        }
+
+        const startedAtMs = sessionData?.started_at ? new Date(sessionData.started_at).getTime() : Date.now()
+        startTimeRef.current = Number.isNaN(startedAtMs) ? Date.now() : startedAtMs
+        lastAutosavedRef.current = JSON.stringify(restoredAnswers)
+        setSessionId(draft.sessionId)
+        setQuestions(restoredQuestions)
+        setUserAnswers(restoredAnswers)
+        setCurrentIdx(restoredIdx)
+        setFinishResult(null)
+        setReportedQuestionIds(new Set())
+        setHasTimeLimit(Boolean(sessionData?.config?.time_limit_secs))
+        setTimeLeft(restoredTimeLeft)
+        prevTimeLeftRef.current = restoredTimeLeft
+        setStep('quiz')
+
+        toast.info('Sessão retomada', {
+          description: 'Você voltou para a mesma questão do simulado em andamento.',
+        })
+      } catch {
+        try { window.localStorage.removeItem(getActiveSessionStorageKey()) } catch {}
+      }
+    }
+
+    void resumeSession()
+  }, [accessToken, currentUserId, apiUrl, step])
 
   // ── Dashboard fetch ──
   useEffect(() => {
@@ -854,6 +963,7 @@ export default function SimuladoPage() {
         if (res.ok) {
           finishSucceeded = true
           try { window.localStorage.removeItem(getDraftStorageKey(sessionId)) } catch {}
+          try { window.localStorage.removeItem(getActiveSessionStorageKey()) } catch {}
           setFinishResult({ ...data, session_id: sessionId })
           console.log('finish response:', data)
           if (data.gamification?.shield_awarded) {
@@ -920,6 +1030,9 @@ export default function SimuladoPage() {
     setHasTimeLimit(false); setQuestionElapsed(0); scheduledEndsAtRef.current = null
     setSessionId(null); setFinishResult(null); setDashVersion(v => v + 1)
     lastAutosavedRef.current = ''
+    try {
+      if (currentUserId) window.localStorage.removeItem(getActiveSessionStorageKey())
+    } catch {}
     setReportedQuestionIds(new Set()); setReportDialogOpen(false); setReportQuestionId(null)
     if (openModal) setShowConfigModal(true)
   }
@@ -1024,6 +1137,21 @@ export default function SimuladoPage() {
 
     return () => window.clearTimeout(timeoutId)
   }, [step, sessionId, accessToken, userAnswers, apiUrl, slug, currentUserId])
+
+  useEffect(() => {
+    if (step !== 'quiz' || !sessionId || !currentUserId) return
+    try {
+      window.localStorage.setItem(getActiveSessionStorageKey(), JSON.stringify({
+        sessionId,
+        currentIdx,
+        timeLeft,
+        savedAt: Date.now(),
+        scheduledEndsAt: scheduledEndsAtRef.current?.toISOString() ?? null,
+      }))
+    } catch {
+      // Ignore storage failures; backend autosave remains the primary fallback.
+    }
+  }, [step, sessionId, currentUserId, currentIdx, timeLeft, slug])
 
   useEffect(() => {
     if (step !== 'quiz' || !sessionId || !accessToken) return
