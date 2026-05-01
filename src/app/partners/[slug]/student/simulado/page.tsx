@@ -437,6 +437,12 @@ const ITEM_VARIANTS = {
   hidden: { opacity: 0, y: 16 },
   show: { opacity: 1, y: 0, transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1] as const } },
 }
+const START_STAGES = [
+  'Preparando prova',
+  'Sincronizando turma',
+  'Carregando questões',
+  'Finalizando ambiente',
+]
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
@@ -473,6 +479,7 @@ export default function SimuladoPage() {
   const questionStartRef = useRef<number>(Date.now())
   const scheduledEndsAtRef = useRef<Date | null>(null)
   const [loading, setLoading] = useState(false)
+  const [startStage, setStartStage] = useState(0)
 
   // Session
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -734,6 +741,12 @@ export default function SimuladoPage() {
   const startSimulado = async (scheduledId?: string) => {
     if (!accessToken) return
     setLoading(true)
+    setStartStage(0)
+    const stageTimers: ReturnType<typeof setTimeout>[] = [
+      setTimeout(() => setStartStage(1), 450),
+      setTimeout(() => setStartStage(2), 1200),
+      setTimeout(() => setStartStage(3), 2100),
+    ]
     try {
       const body: Record<string, unknown> = { difficulty }
       if (year !== 'Todos') body.year = Number(year)
@@ -800,7 +813,11 @@ export default function SimuladoPage() {
       prevTimeLeftRef.current = initialTime
       setStep('quiz')
     } catch { toast.error('Erro de conexão', { description: 'Não foi possível conectar ao servidor.' }) }
-    finally { setLoading(false) }
+    finally {
+      stageTimers.forEach((t) => clearTimeout(t))
+      setLoading(false)
+      setStartStage(0)
+    }
   }
 
   const submitFinish = async (answers: Record<string, string>) => {
@@ -1132,7 +1149,7 @@ export default function SimuladoPage() {
               aria-disabled={loading || !accessToken || customCountInsufficient}
               className="flex-1 text-white font-bold py-2.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
               style={{ background: 'var(--brand-primary)' }}>
-              {loading ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Gerando...</>) : (<><Play size={16} /> Iniciar Simulado</>)}
+              {loading ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {START_STAGES[startStage] ?? 'Preparando...'}</>) : (<><Play size={16} /> Iniciar Simulado</>)}
             </button>
           </DialogFooter>
         </DialogContent>
@@ -1141,6 +1158,35 @@ export default function SimuladoPage() {
       {/* ══════════════════════════ SETUP ════════════════════════════════════ */}
       {step === 'setup' && (
         <div className="min-h-dvh bg-[#F5F5F7] dark:bg-slate-950/50">
+          {loading && (
+            <div className="fixed inset-0 z-[70] bg-black/35 backdrop-blur-[1px] flex items-center justify-center px-4">
+              <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{START_STAGES[startStage] ?? 'Preparando prova'}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Isso pode levar alguns segundos.</p>
+                  </div>
+                </div>
+                <div className="mt-4 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, ((startStage + 1) / START_STAGES.length) * 100)}%`, background: 'var(--brand-primary)' }}
+                  />
+                </div>
+                <div className="mt-4 space-y-2">
+                  {START_STAGES.map((stage, idx) => (
+                    <div key={stage} className="flex items-center justify-between text-xs">
+                      <span className={`${idx <= startStage ? 'text-slate-700 dark:text-slate-200 font-semibold' : 'text-slate-400 dark:text-slate-500'}`}>{stage}</span>
+                      <span className={`${idx < startStage ? 'text-emerald-600 dark:text-emerald-400' : idx === startStage ? 'text-[var(--brand-primary)]' : 'text-slate-300 dark:text-slate-600'}`}>
+                        {idx < startStage ? 'Concluído' : idx === startStage ? 'Em andamento' : 'Pendente'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
           <motion.div
             className="max-w-6xl mx-auto px-4 py-6 md:py-8 space-y-5"
             variants={shouldReduce ? {} : CONTAINER_VARIANTS}
