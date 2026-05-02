@@ -1138,9 +1138,12 @@ export default function SimuladoPage() {
 
     const timeoutId = window.setTimeout(async () => {
       try {
+        const supabase = createClient()
+        const { data: { session: freshSession } } = await supabase.auth.getSession()
+        const token = freshSession?.access_token || accessToken
         const res = await fetch(`${apiUrl}/api/simulado/${sessionId}/progress`, {
           method: 'POST',
-          headers: apiHeaders(),
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({ answers: userAnswers }),
         })
         if (res.ok) lastAutosavedRef.current = serialized
@@ -1170,14 +1173,21 @@ export default function SimuladoPage() {
   useEffect(() => {
     if (step !== 'quiz' || !sessionId || !accessToken) return
 
-    const flushProgress = () => {
+    const flushProgress = async () => {
       if (Object.keys(userAnswers).length === 0) return
-      void fetch(`${apiUrl}/api/simulado/${sessionId}/progress`, {
-        method: 'POST',
-        headers: apiHeaders(),
-        body: JSON.stringify({ answers: userAnswers }),
-        keepalive: true,
-      }).catch(() => undefined)
+      try {
+        const supabase = createClient()
+        const { data: { session: freshSession } } = await supabase.auth.getSession()
+        const token = freshSession?.access_token || accessToken
+        void fetch(`${apiUrl}/api/simulado/${sessionId}/progress`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ answers: userAnswers }),
+          keepalive: true,
+        }).catch(() => undefined)
+      } catch {
+        // Ignore token refresh errors on page unload.
+      }
     }
 
     const onVisibilityChange = () => {
