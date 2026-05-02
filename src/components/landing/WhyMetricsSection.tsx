@@ -35,7 +35,7 @@ const blocks = [
 
 export function WhyMetricsSection() {
   return (
-    <section className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "#070E1F" }}>
+    <section className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "#1A1A2E" }}>
       {/* Gradient border top */}
       <div
         className="absolute top-0 left-0 right-0 h-px pointer-events-none"

@@ -32,10 +32,10 @@ const steps = [
 
 export function HowItWorksSection() {
   return (
-    <section id="como-funciona" className="py-16 sm:py-24 bg-[#0F172A] relative overflow-hidden">
+    <section id="como-funciona" className="py-16 sm:py-24 bg-white relative overflow-hidden">
       <div
         className="absolute top-0 left-0 right-0 h-px pointer-events-none"
-        style={{ background: "linear-gradient(90deg, transparent, rgba(59,130,246,0.3), transparent)" }}
+        style={{ background: "linear-gradient(90deg, transparent, rgba(99,102,241,0.25), transparent)" }}
         aria-hidden
       />
 
@@ -48,13 +48,13 @@ export function HowItWorksSection() {
           viewport={{ once: true, margin: "-60px" }}
           transition={{ duration: 0.6 }}
         >
-          <span className="inline-block text-xs font-semibold tracking-[0.12em] uppercase text-blue-400 mb-3">
+          <span className="inline-block text-xs font-semibold tracking-[0.12em] uppercase text-[#6366F1] mb-3">
             Onboarding institucional
           </span>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-4">
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#1A1A2E] tracking-tight mb-4">
             Como funciona
           </h2>
-          <p className="text-white/50 text-sm sm:text-base max-w-md mx-auto">
+          <p className="text-[#4A5568] text-sm sm:text-base max-w-md mx-auto">
             Do primeiro contato ao lançamento para seus alunos em poucos dias.
           </p>
         </motion.div>
@@ -70,7 +70,7 @@ export function HowItWorksSection() {
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
             style={{
-              background: "linear-gradient(90deg, rgba(59,130,246,0.4), rgba(129,140,248,0.4))",
+              background: "linear-gradient(90deg, #6366F1, #06B6D4)",
               transformOrigin: "left",
             }}
             aria-hidden
@@ -84,7 +84,7 @@ export function HowItWorksSection() {
             viewport={{ once: true, margin: "-40px" }}
             transition={{ duration: 0.9, delay: 0.2, ease: "easeOut" }}
             style={{
-              background: "linear-gradient(180deg, rgba(59,130,246,0.4), rgba(129,140,248,0.35), rgba(52,211,153,0.3))",
+              background: "linear-gradient(180deg, #6366F1, #3B82F6, #06B6D4)",
               transformOrigin: "top",
             }}
             aria-hidden
@@ -114,7 +114,7 @@ export function HowItWorksSection() {
                 </motion.div>
                 <span
                   className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white"
-                  style={{ background: "linear-gradient(135deg, #3B82F6, #4F46E5)" }}
+                  style={{ background: "linear-gradient(135deg, #6366F1, #3B82F6)" }}
                 >
                   {i + 1}
                 </span>
@@ -124,8 +124,8 @@ export function HowItWorksSection() {
                 <p className="text-xs font-bold tracking-widest mb-2" style={{ color: `${color}80` }}>
                   {number}
                 </p>
-                <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
-                <p className="text-sm text-white/50 leading-relaxed">{description}</p>
+                <h3 className="text-lg font-bold text-[#1A1A2E] mb-2">{title}</h3>
+                <p className="text-sm text-[#4A5568] leading-relaxed">{description}</p>
               </div>
             </motion.div>
           ))}

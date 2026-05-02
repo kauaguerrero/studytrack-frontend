@@ -31,7 +31,7 @@ const partners = [
     logo: "/marketing/LOGO-EDIFICAR.png",
     logoWidth: 140,
     logoHeight: 56,
-    location: "Franca, SP",
+    location: "São Joaquim da Barra, SP",
     type: "Curso Preparatório",
     description:
       "O Edificar adotou a StudyTrack com identidade visual própria, entregando para seus alunos uma plataforma que parece 100% da escola. Simulados semanais, banco de questões personalizado e correção de redações transformaram a preparação para o ENEM em um processo estruturado e mensurável.",
@@ -41,11 +41,7 @@ const partners = [
 
 export function PartnersSection() {
   return (
-    <section id="parceiros" className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "#0B1326" }}>
-      <div className="absolute inset-0 pointer-events-none" aria-hidden>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] rounded-full blur-[100px]"
-          style={{ background: "radial-gradient(ellipse, rgba(59,130,246,0.07) 0%, transparent 70%)" }} />
-      </div>
+    <section id="parceiros" className="py-20 sm:py-28 relative overflow-hidden" style={{ background: "#F8F9FA" }}>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
@@ -56,15 +52,15 @@ export function PartnersSection() {
           viewport={{ once: true, margin: "-60px" }}
           transition={{ duration: 0.6 }}
         >
-          <span className="inline-block text-xs font-semibold tracking-[0.12em] uppercase text-blue-400 mb-3">
+          <span className="inline-block text-xs font-semibold tracking-[0.12em] uppercase text-[#6366F1] mb-3">
             Casos de sucesso
           </span>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-4">
+          <h2 className="text-3xl sm:text-4xl font-bold text-[#1A1A2E] tracking-tight mb-4">
             Veja alguns de nossos parceiros
           </h2>
-          <p className="text-white/50 text-base max-w-md mx-auto">
+          <p className="text-[#4A5568] text-base max-w-md mx-auto">
             Instituições que transformaram sua gestão pedagógica com{" "}
-            <span className="text-yellow-300/80 font-semibold">metrificação de desempenho</span> real.
+            <span className="text-[#4F46E5] font-semibold">metrificação de desempenho</span> real.
           </p>
         </motion.div>
 
@@ -74,8 +70,8 @@ export function PartnersSection() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.7, delay: 0.15 }}
-          className="flex items-center justify-center gap-12 sm:gap-20 mb-14 py-5 rounded-2xl border border-white/8"
-          style={{ background: "rgba(255,255,255,0.02)" }}
+          className="flex items-center justify-center gap-12 sm:gap-20 mb-14 py-5 rounded-2xl border border-[#E2E8F0]"
+          style={{ background: "#FFFFFF" }}
         >
           {partners.map(({ slug, name, logo, logoWidth, logoHeight }) => (
             <div key={slug} className="opacity-60 hover:opacity-100 transition-opacity duration-300">
@@ -101,15 +97,15 @@ export function PartnersSection() {
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.6, delay: i * 0.1, ease: [0.16, 1, 0.3, 1] }}
               whileHover={{ y: -4 }}
-              className="relative rounded-2xl p-7 border border-white/10 transition-colors duration-300 hover:border-blue-500/30"
-              style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(12px)", boxShadow: "0 1px 0 rgba(255,255,255,0.06) inset" }}
+              className="relative rounded-2xl p-7 border border-[#E2E8F0] transition-colors duration-300 hover:border-[#6366F1]/40 bg-white"
+              style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)" }}
             >
               {/* Header */}
               <div className="flex items-start justify-between gap-4 mb-5">
                 <div className="flex items-center gap-4">
                   <div
                     className="rounded-xl p-2.5 flex items-center justify-center shrink-0"
-                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)" }}
+                    style={{ background: "#F8F9FA", border: "1px solid #E2E8F0" }}
                   >
                     <Image
                       src={logo}
@@ -121,9 +117,9 @@ export function PartnersSection() {
                     />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">{name}</h3>
+                    <h3 className="text-lg font-bold text-[#1A1A2E]">{name}</h3>
                     <div className="flex items-center gap-3 mt-0.5">
-                      <span className="flex items-center gap-1 text-xs text-white/40">
+                      <span className="flex items-center gap-1 text-xs text-[#9CA3AF]">
                         <MapPin className="w-3 h-3" /> {location}
                       </span>
                       <span
@@ -137,17 +133,17 @@ export function PartnersSection() {
                 </div>
               </div>
 
-              <p className="text-white/55 text-sm leading-relaxed mb-5">{description}</p>
+              <p className="text-[#4A5568] text-sm leading-relaxed mb-5">{description}</p>
 
               {/* Divider */}
-              <div className="h-px bg-white/6 mb-5" />
+              <div className="h-px bg-[#E2E8F0] mb-5" />
 
               {/* Benefits */}
-              <p className="text-xs font-semibold text-white/35 uppercase tracking-widest mb-3">O que a plataforma oferece</p>
+              <p className="text-xs font-semibold text-[#9CA3AF] uppercase tracking-widest mb-3">O que a plataforma oferece</p>
               <ul className="space-y-2">
                 {benefits.slice(0, 3).map((b) => (
-                  <li key={b} className="flex items-start gap-2 text-xs text-white/55">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                  <li key={b} className="flex items-start gap-2 text-xs text-[#4A5568]">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#6366F1] shrink-0 mt-0.5" />
                     {b}
                   </li>
                 ))}
@@ -162,17 +158,17 @@ export function PartnersSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="rounded-2xl p-6 border border-white/8"
-          style={{ background: "rgba(255,255,255,0.02)" }}
+          className="rounded-2xl p-6 border border-[#E2E8F0] bg-white"
+          style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
         >
-          <p className="text-xs font-semibold text-white/30 uppercase tracking-widest text-center mb-5">
+          <p className="text-xs font-semibold text-[#9CA3AF] uppercase tracking-widest text-center mb-5">
             Benefícios disponíveis para todos os parceiros
           </p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
             {benefits.map((b) => (
               <div key={b} className="flex items-start gap-2">
-                <CheckCircle2 className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
-                <span className="text-xs text-white/50 leading-tight">{b}</span>
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#6366F1] shrink-0 mt-0.5" />
+                <span className="text-xs text-[#4A5568] leading-tight">{b}</span>
               </div>
             ))}
           </div>

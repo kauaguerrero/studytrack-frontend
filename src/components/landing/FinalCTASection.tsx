@@ -8,20 +8,13 @@ export function FinalCTASection() {
   const { url: whatsappUrl, onBeforeNavigate } = useWhatsAppContact();
 
   return (
-    <section className="py-20 sm:py-32 relative overflow-hidden" style={{ background: "#0B1326" }}>
-      {/* Glows */}
-      <div className="absolute inset-0 pointer-events-none" aria-hidden>
-        <motion.div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] rounded-full"
-          style={{ background: "radial-gradient(ellipse, rgba(59,130,246,0.12) 0%, transparent 70%)" }}
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-        />
-      </div>
-
+    <section
+      className="py-20 sm:py-32 relative overflow-hidden"
+      style={{ background: "linear-gradient(135deg, #EEF2FF 0%, #DBEAFE 60%, #ECFEFF 100%)" }}
+    >
       <div
         className="absolute top-0 left-0 right-0 h-px pointer-events-none"
-        style={{ background: "linear-gradient(90deg, transparent, rgba(59,130,246,0.45), transparent)" }}
+        style={{ background: "linear-gradient(90deg, transparent, rgba(99,102,241,0.35), transparent)" }}
         aria-hidden
       />
 
@@ -32,15 +25,15 @@ export function FinalCTASection() {
           viewport={{ once: true, margin: "-60px" }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         >
-          <span className="inline-block text-xs font-semibold tracking-[0.12em] uppercase text-blue-400 mb-4">
+          <span className="inline-block text-xs font-semibold tracking-[0.12em] uppercase text-[#6366F1] mb-4">
             Pronto para começar?
           </span>
 
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight mb-6 leading-[1.08]">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#1A1A2E] tracking-tight mb-6 leading-[1.08]">
             Sua instituição também{" "}
             <span
               style={{
-                background: "linear-gradient(135deg, #60A5FA 0%, #818CF8 60%, #A5B4FC 100%)",
+                background: "linear-gradient(135deg, #6366F1 0%, #3B82F6 60%, #06B6D4 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
@@ -50,12 +43,12 @@ export function FinalCTASection() {
             </span>
           </h2>
 
-          <p className="text-lg text-white/50 leading-relaxed mb-3 max-w-xl mx-auto">
+          <p className="text-lg text-[#4A5568] leading-relaxed mb-3 max-w-xl mx-auto">
             Leve{" "}
-            <span className="text-yellow-300/80 font-semibold">metrificação de desempenho</span>,
+            <span className="text-[#4F46E5] font-semibold">metrificação de desempenho</span>,
             identidade visual exclusiva e simulados automáticos para seus alunos.
           </p>
-          <p className="text-base text-white/35 mb-10 max-w-md mx-auto">
+          <p className="text-base text-[#6B7280] mb-10 max-w-md mx-auto">
             Fale com nossa equipe e veja como funciona na prática.
           </p>
 
@@ -81,14 +74,14 @@ export function FinalCTASection() {
               href="https://wa.me/5562994735412?text=Olá%2C%20quero%20agendar%20uma%20demonstração%20do%20StudyTrack%20para%20minha%20instituição"
               target="_blank"
               rel="noopener noreferrer"
-              whileHover={{ backgroundColor: "rgba(255,255,255,0.07)" }}
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl text-white/75 font-semibold text-base border border-white/12 transition-colors duration-200 w-full sm:w-auto"
+              whileHover={{ scale: 1.01 }}
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl text-[#4A5568] font-semibold text-base border border-[#C7D2FE] transition-colors duration-200 w-full sm:w-auto hover:border-[#6366F1] hover:text-[#6366F1]"
             >
               Agendar uma demonstração <ArrowRight className="w-4 h-4" />
             </motion.a>
           </div>
 
-          <p className="mt-8 text-xs text-white/20">
+          <p className="mt-8 text-xs text-[#9CA3AF]">
             Resposta em até 24 horas · Sem burocracia · Onboarding assistido pela equipe
           </p>
         </motion.div>

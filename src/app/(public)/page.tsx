@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, ArrowRight, ExternalLink } from "lucide-react";
+import { Menu, X, ArrowRight, LogIn } from "lucide-react";
 import { HeroSection } from "@/components/landing/HeroSection";
 import { FeaturesSection } from "@/components/landing/FeaturesSection";
 import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
@@ -31,7 +31,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0F172A] font-sans text-white overflow-x-hidden">
+    <div className="min-h-screen bg-white font-sans text-[#1A1A2E] overflow-x-hidden">
 
       {/* ══ NAVBAR ══ */}
       <motion.header
@@ -40,11 +40,11 @@ export default function Home() {
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
         className="fixed top-0 w-full z-50 transition-all duration-300"
         style={{
-          background: isScrolled ? "rgba(11,19,38,0.88)" : "transparent",
-          backdropFilter: isScrolled ? "blur(16px)" : "none",
-          borderBottom: isScrolled ? "1px solid rgba(255,255,255,0.06)" : "none",
-          paddingTop: isScrolled ? "0.5rem" : "1rem",
-          paddingBottom: isScrolled ? "0.5rem" : "1rem",
+          background: "rgba(255,255,255,0.95)",
+          backdropFilter: "blur(16px)",
+          borderBottom: "1px solid #E2E8F0",
+          paddingTop: isScrolled ? "0.5rem" : "0.75rem",
+          paddingBottom: isScrolled ? "0.5rem" : "0.75rem",
         }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
@@ -53,7 +53,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="flex items-center gap-1 font-extrabold text-xl tracking-tight text-white hover:opacity-80 transition-opacity"
+            className="flex items-center gap-1 font-extrabold text-xl tracking-tight text-[#1A1A2E] hover:opacity-80 transition-opacity"
           >
             <Image
               src="/logost-transparente-sombra.png"
@@ -70,7 +70,7 @@ export default function Home() {
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-7 text-sm font-medium">
             {navLinks.map(({ label, href }) => (
-              <a key={label} href={href} className="text-white/55 hover:text-white transition-colors">
+              <a key={label} href={href} className="text-[#4A5568] hover:text-[#6366F1] transition-colors">
                 {label}
               </a>
             ))}
@@ -81,19 +81,19 @@ export default function Home() {
             {/* Partner login */}
             <a
               href="/auth/login"
-              className="inline-flex items-center gap-1.5 text-sm text-white/50 font-medium hover:text-white/80 transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm text-[#4A5568] font-medium hover:text-[#6366F1] transition-colors"
             >
-              Já é parceiro? Acessar <ExternalLink className="w-3.5 h-3.5" />
+              Já tenho uma conta — Acessar <LogIn className="w-3.5 h-3.5" />
             </a>
-            <div className="w-px h-4 bg-white/15" />
+            <div className="w-px h-4 bg-[#E2E8F0]" />
             {/* Demo CTA */}
             <a
               href={demoUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={onBeforeNavigate}
-              className="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-white font-semibold text-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(59,130,246,0.4)]"
-              style={{ background: "linear-gradient(135deg, #3B82F6, #4F46E5)" }}
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-white font-semibold text-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(99,102,241,0.4)]"
+              style={{ background: "linear-gradient(135deg, #6366F1, #3B82F6)" }}
             >
               Quero uma demonstração <ArrowRight className="w-3.5 h-3.5" />
             </a>
@@ -103,7 +103,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="md:hidden w-10 h-10 flex items-center justify-center rounded-lg text-white/70 hover:text-white transition-colors"
+            className="md:hidden w-10 h-10 flex items-center justify-center rounded-lg text-[#4A5568] hover:text-[#1A1A2E] transition-colors"
             aria-label={mobileOpen ? "Fechar menu" : "Abrir menu"}
           >
             {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -118,25 +118,25 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2 }}
-              className="md:hidden border-t border-white/8 flex flex-col p-4 gap-1"
-              style={{ background: "rgba(11,19,38,0.97)", backdropFilter: "blur(16px)" }}
+              className="md:hidden border-t border-[#E2E8F0] flex flex-col p-4 gap-1"
+              style={{ background: "rgba(255,255,255,0.97)", backdropFilter: "blur(16px)" }}
             >
               {navLinks.map(({ label, href }) => (
                 <a
                   key={label}
                   href={href}
                   onClick={() => setMobileOpen(false)}
-                  className="text-white/70 font-medium min-h-[44px] flex items-center px-3 rounded-lg hover:bg-white/[0.06]"
+                  className="text-[#4A5568] font-medium min-h-[44px] flex items-center px-3 rounded-lg hover:bg-[#F8F9FA]"
                 >
                   {label}
                 </a>
               ))}
-              <div className="h-px bg-white/8 my-1" />
+              <div className="h-px bg-[#E2E8F0] my-1" />
               <a
                 href="/auth/login"
-                className="text-white/55 font-medium min-h-[44px] flex items-center gap-2 px-3 rounded-lg hover:bg-white/[0.06]"
+                className="text-[#4A5568] font-medium min-h-[44px] flex items-center gap-2 px-3 rounded-lg hover:bg-[#F8F9FA]"
               >
-                Já é parceiro? Acessar plataforma <ExternalLink className="w-3.5 h-3.5" />
+                Já tenho uma conta — Acessar <LogIn className="w-3.5 h-3.5" />
               </a>
               <a
                 href={demoUrl}
@@ -144,7 +144,7 @@ export default function Home() {
                 rel="noopener noreferrer"
                 onClick={onBeforeNavigate}
                 className="mt-1 flex items-center justify-center gap-2 min-h-[48px] rounded-xl text-white font-bold text-sm"
-                style={{ background: "linear-gradient(135deg, #3B82F6, #4F46E5)" }}
+                style={{ background: "linear-gradient(135deg, #6366F1, #3B82F6)" }}
               >
                 Quero uma demonstração <ArrowRight className="w-4 h-4" />
               </a>
@@ -164,17 +164,17 @@ export default function Home() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.7 }}
-          className="py-5 border-y border-white/7"
-          style={{ background: "rgba(255,255,255,0.015)" }}
+          className="py-5 border-y border-[#E2E8F0]"
+          style={{ background: "#F8F9FA" }}
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-10">
-            <span className="text-xs font-semibold tracking-widest text-white/25 uppercase">
+            <span className="text-xs font-semibold tracking-widest text-[#9CA3AF] uppercase">
               Instituições que confiam
             </span>
             <div className="flex items-center gap-10 sm:gap-14">
               {[
                 { logo: "/marketing/logo%20opus.png", name: "Opus", sub: "Goiânia, GO", w: 80 },
-                { logo: "/marketing/LOGO-EDIFICAR.png", name: "Edificar", sub: "Franca, SP", w: 100 },
+                { logo: "/marketing/LOGO-EDIFICAR.png", name: "Edificar", sub: "São Joaquim da Barra, SP", w: 100 },
               ].map(({ logo, name, sub, w }) => (
                 <div key={name} className="flex items-center gap-3 opacity-50 hover:opacity-90 transition-opacity duration-300">
                   <Image
@@ -186,7 +186,7 @@ export default function Home() {
                     unoptimized
                   />
                   <div>
-                    <p className="text-xs text-white/40">{sub}</p>
+                    <p className="text-xs text-[#9CA3AF]">{sub}</p>
                   </div>
                 </div>
               ))}
@@ -214,7 +214,7 @@ export default function Home() {
       </main>
 
       {/* ══ FOOTER ══ */}
-      <footer className="py-10 border-t border-white/6" style={{ background: "#060E20" }}>
+      <footer className="py-10 border-t border-[#2D2D40]" style={{ background: "#1A1A2E" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-5">
             {/* Logo */}
@@ -231,23 +231,23 @@ export default function Home() {
             </div>
 
             {/* Center */}
-            <p className="text-xs text-white/20 text-center">
+            <p className="text-xs text-white/40 text-center">
               © 2025 StudyTrack. Todos os direitos reservados.
             </p>
 
             {/* Right links */}
-            <div className="flex items-center gap-6 text-xs text-white/35">
-              <a href="#funcionalidades" className="hover:text-white/65 transition-colors">
+            <div className="flex items-center gap-6 text-xs text-white/50">
+              <a href="#funcionalidades" className="hover:text-white transition-colors">
                 Funcionalidades
               </a>
-              <a href="#parceiros" className="hover:text-white/65 transition-colors">
+              <a href="#parceiros" className="hover:text-white transition-colors">
                 Parceiros
               </a>
               <a
                 href="/auth/login"
-                className="inline-flex items-center gap-1.5 text-blue-400/70 hover:text-blue-400 transition-colors font-medium"
+                className="inline-flex items-center gap-1.5 text-blue-400/80 hover:text-blue-400 transition-colors font-medium"
               >
-                Já é parceiro? Acessar plataforma <ArrowRight className="w-3 h-3" />
+                Já tenho uma conta — Acessar <LogIn className="w-3 h-3" />
               </a>
             </div>
           </div>
