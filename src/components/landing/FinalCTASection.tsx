@@ -5,7 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { useWhatsAppContact } from "./useWhatsAppContact";
 
 export function FinalCTASection() {
-  const { url: whatsappUrl } = useWhatsAppContact();
+  const { url: whatsappUrl, onBeforeNavigate } = useWhatsAppContact();
 
   return (
     <section className="py-20 sm:py-32 relative overflow-hidden" style={{ background: "#0B1326" }}>
@@ -65,6 +65,7 @@ export function FinalCTASection() {
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={onBeforeNavigate}
               whileHover={{ scale: 1.02, boxShadow: "0 0 40px rgba(37,211,102,0.35)" }}
               whileTap={{ scale: 0.98 }}
               className="inline-flex items-center justify-center gap-3 px-8 py-4 rounded-xl text-white font-bold text-base w-full sm:w-auto"

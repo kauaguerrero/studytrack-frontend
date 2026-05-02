@@ -647,7 +647,7 @@ function MobileDashboardCard() {
 // ─── HeroSection ─────────────────────────────────────────────────────────────
 
 export function HeroSection() {
-  const { url: whatsappUrl } = useWhatsAppContact();
+  const { url: whatsappUrl, onBeforeNavigate } = useWhatsAppContact();
 
   return (
     <section className="relative min-h-screen flex items-center justify-center pt-20 sm:pt-24 pb-16 overflow-hidden">
@@ -733,6 +733,7 @@ export function HeroSection() {
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={onBeforeNavigate}
                 className="inline-flex items-center justify-center gap-2.5 px-6 sm:px-7 py-3.5 rounded-xl text-white font-bold text-base transition-all duration-200 hover:-translate-y-0.5"
                 style={{
                   background: "linear-gradient(135deg, #3B82F6, #4F46E5)",

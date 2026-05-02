@@ -11,6 +11,7 @@ import { WhyMetricsSection } from "@/components/landing/WhyMetricsSection";
 import { PartnersSection } from "@/components/landing/PartnersSection";
 import { TestimonialsSection } from "@/components/landing/TestimonialsSection";
 import { FinalCTASection } from "@/components/landing/FinalCTASection";
+import { useWhatsAppContact } from "@/components/landing/useWhatsAppContact";
 
 const navLinks = [
   { label: "Funcionalidades", href: "#funcionalidades" },
@@ -18,12 +19,10 @@ const navLinks = [
   { label: "Parceiros", href: "#parceiros" },
 ];
 
-const DEMO_WA =
-  "https://wa.me/5562994735412?text=Olá%2C%20quero%20agendar%20uma%20demonstração%20do%20StudyTrack";
-
 export default function Home() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { url: demoUrl, onBeforeNavigate } = useWhatsAppContact();
 
   useEffect(() => {
     const fn = () => setIsScrolled(window.scrollY > 20);
@@ -89,9 +88,10 @@ export default function Home() {
             <div className="w-px h-4 bg-white/15" />
             {/* Demo CTA */}
             <a
-              href={DEMO_WA}
+              href={demoUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={onBeforeNavigate}
               className="inline-flex items-center gap-2 px-5 py-2 rounded-lg text-white font-semibold text-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(59,130,246,0.4)]"
               style={{ background: "linear-gradient(135deg, #3B82F6, #4F46E5)" }}
             >
@@ -139,9 +139,10 @@ export default function Home() {
                 Já é parceiro? Acessar plataforma <ExternalLink className="w-3.5 h-3.5" />
               </a>
               <a
-                href={DEMO_WA}
+                href={demoUrl}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={onBeforeNavigate}
                 className="mt-1 flex items-center justify-center gap-2 min-h-[48px] rounded-xl text-white font-bold text-sm"
                 style={{ background: "linear-gradient(135deg, #3B82F6, #4F46E5)" }}
               >

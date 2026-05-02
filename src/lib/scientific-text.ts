@@ -152,7 +152,7 @@ function isStructuredMarkdownBlock(block: string): boolean {
   const trimmed = block.trim();
   if (!trimmed) return false;
 
-  return /(^|\n)\s*(#{1,6}\s|>|\|.*\||[-*+]\s|\d+\.\s|!\[|[IVXLCDM]+\.\s)/m.test(trimmed);
+  return /(^|\n)\s*(#{1,6}\s|>|\|.*\||[-*+]\s|\d+\.\s|!\[|[IVXLCDM]+[\.\)]\s|[IVXLCDM]+\s*[–—]\s?|[•·‣⁃]\s?)/m.test(trimmed);
 }
 
 function normalizeParagraphBreaks(text: string): string {
