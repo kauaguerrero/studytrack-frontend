@@ -38,7 +38,6 @@ function StudentThemeShellContent({
   const [showPasswordModal, setShowPasswordModal] = useState(mustChangePassword)
 
   useEffect(() => {
-    if (!org.permissions?.monthly_identity_titles_v1) return
     if (!pathname) return
     if (pathname.includes('/student/dashboard')) return
 
@@ -63,7 +62,7 @@ function StudentThemeShellContent({
 
     void enforceMonthlyCheckIn()
     return () => { cancelled = true }
-  }, [org.permissions?.monthly_identity_titles_v1, pathname, slug])
+  }, [pathname, slug])
 
   // Ao sair do banco de questões lê os dois sinais e enfileira os popups
   useEffect(() => {

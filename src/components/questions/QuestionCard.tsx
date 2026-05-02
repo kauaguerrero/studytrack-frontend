@@ -2,12 +2,18 @@ import React, { useMemo, useState } from 'react';
 import { CheckCircle2, XCircle, BrainCircuit, Flag } from 'lucide-react';
 import { reportError } from '@/lib/reportError';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
+import {
+  extractAlternativeImageUrls,
+  extractDetachedQuestionImageUrls,
+  splitQuestionContextAndSource,
+} from '@/components/questions/rendering';
 import { createClient } from '@/lib/supabase/client';
 
 interface Alternative {
   letter: string;
   text: string;
   image?: string | string[] | null;
+  file?: string | string[] | null;
 }
 
 function AlternativeImage({ src, letter }: { src: string; letter: string }) {
@@ -17,64 +23,10 @@ function AlternativeImage({ src, letter }: { src: string; letter: string }) {
     <img
       src={src}
       alt={`Opção ${letter}`}
-      className="max-h-32 rounded border border-slate-200"
+      className="max-h-28 md:max-h-32 w-auto max-w-full rounded border border-slate-200 bg-white object-contain"
       onError={() => setFailed(true)}
     />
   );
-}
-
-const markdownImageRegex = /!\[[^\]]*]\((.*?)\)/g;
-
-function normalizeUrl(raw: string): string | null {
-  const cleaned = String(raw || '')
-    .trim()
-    .replace(/^<|>$/g, '')
-    .replace(/^['"]|['"]$/g, '');
-  if (!cleaned) return null;
-  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned;
-  if (cleaned.startsWith('/storage/v1/object/public/')) return cleaned;
-  return null;
-}
-
-function extractMarkdownImageUrls(text: string): string[] {
-  if (!text) return [];
-  const matches = Array.from(text.matchAll(markdownImageRegex));
-  return matches
-    .map((m) => normalizeUrl(m[1] || ''))
-    .filter((url): url is string => Boolean(url));
-}
-
-function stripMarkdownImages(text: string): string {
-  if (!text) return '';
-  return text.replace(markdownImageRegex, '').trim();
-}
-
-function extractImageUrls(value: unknown): string[] {
-  if (!value) return [];
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => normalizeUrl(String(item)))
-      .filter((url): url is string => Boolean(url));
-  }
-
-  if (typeof value !== 'string') return [];
-  const raw = value.trim();
-  if (!raw) return [];
-
-  if (raw.startsWith('[') && raw.endsWith(']')) {
-    try {
-      const parsed = JSON.parse(raw);
-      return extractImageUrls(parsed);
-    } catch {
-      // segue para os parsers abaixo
-    }
-  }
-
-  const mdUrls = extractMarkdownImageUrls(raw);
-  if (mdUrls.length > 0) return mdUrls;
-
-  const direct = normalizeUrl(raw);
-  return direct ? [direct] : [];
 }
 
 interface Question {
@@ -109,22 +61,17 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
   const [selected, setSelected] = useState<string | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const contextMarkdownImages = useMemo(() => extractMarkdownImageUrls(question.context || ''), [question.context]);
-  const statementMarkdownImages = useMemo(() => extractMarkdownImageUrls(question.statement || ''), [question.statement]);
 
   const supportImages = useMemo(() => {
-    const fromImagesField = extractImageUrls(question.images);
-    const combined = [...fromImagesField, ...contextMarkdownImages, ...statementMarkdownImages];
-    return Array.from(new Set(combined));
-  }, [question.images, contextMarkdownImages, statementMarkdownImages]);
-
-  const contextText = useMemo(
-    () => stripMarkdownImages(question.context || ''),
+    return extractDetachedQuestionImageUrls(
+      question.images,
+      question.context,
+      question.statement,
+    );
+  }, [question.images, question.context, question.statement]);
+  const contextSegments = useMemo(
+    () => splitQuestionContextAndSource(question.context),
     [question.context],
-  );
-  const statementText = useMemo(
-    () => stripMarkdownImages(question.statement || ''),
-    [question.statement],
   );
 
   const handleSelect = (letter: string) => {
@@ -241,21 +188,32 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
         </div>
       </div>
 
-      {contextText && (
+      {contextSegments.body && (
         <QuestionRichText
-          text={contextText}
+          text={contextSegments.body}
           className="prose prose-slate dark:prose-invert prose-sm max-w-none mb-6 text-muted-foreground border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed"
         />
       )}
 
-      {supportImages.map((img, i) => (
-          <div key={i} className="mb-6 flex justify-center bg-muted p-4 rounded-xl border border-border">
-              <img src={img} alt="Material de apoio" className="max-h-80 object-contain rounded-lg" />
-          </div>
-      ))}
+      {contextSegments.source && (
+        <QuestionRichText
+          text={contextSegments.source}
+          className="prose prose-slate dark:prose-invert prose-xs max-w-none -mt-3 mb-5 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
+        />
+      )}
+
+      {supportImages.length > 0 && (
+        <div className="mb-6">
+          {supportImages.map((img, i) => (
+            <div key={i} className="mb-6 flex justify-center bg-muted p-4 rounded-xl border border-border">
+              <img src={img} alt="Material de apoio" className="max-h-40 md:max-h-52 w-auto max-w-full object-contain rounded-lg" />
+            </div>
+          ))}
+        </div>
+      )}
 
       <QuestionRichText
-        text={statementText}
+        text={question.statement}
         className="font-medium text-card-foreground text-lg mb-8 leading-relaxed"
       />
 
@@ -263,8 +221,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
         {question.alternatives.map((alt) => {
           const isSelected = selected === alt.letter;
           const isCorrect = String(alt.letter).toUpperCase() === String(question.correct_option).toUpperCase();
-          const alternativeImages = extractImageUrls(alt.image);
-          const alternativeText = stripMarkdownImages(alt.text || '');
+          const alternativeImages = extractAlternativeImageUrls(alt);
           
           let style = "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-blue-200 dark:hover:border-blue-700 cursor-pointer";
           let circleStyle = "bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-300 border-slate-200 dark:border-slate-600";
@@ -305,9 +262,9 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
                           ))}
                       </div>
                   )}
-                  {alternativeText ? (
+                  {alt.text ? (
                       <QuestionRichText
-                        text={alternativeText}
+                        text={alt.text}
                         className={`text-base leading-snug ${showAnswer && isCorrect ? 'text-green-900 dark:text-green-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}
                       />
                   ) : alternativeImages.length === 0 && (
@@ -338,7 +295,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
                 </div>
                 <div>
                     <h4 className="font-bold text-blue-900 dark:text-blue-100 mb-2">Comentário do Professor</h4>
-                    <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">{question.explanation}</p>
+                    <QuestionRichText text={question.explanation} className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed" />
                 </div>
              </div>
         )}

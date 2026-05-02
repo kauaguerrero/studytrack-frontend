@@ -17,6 +17,11 @@ import {
 } from 'lucide-react'
 import { QuestionRichText } from '@/components/questions/QuestionRichText'
 import {
+  extractAlternativeImageUrls,
+  extractDetachedQuestionImageUrls,
+  splitQuestionContextAndSource,
+} from '@/components/questions/rendering'
+import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
@@ -196,64 +201,6 @@ function formatDuration(secs: number) {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', timeZone: 'America/Sao_Paulo' })
-}
-
-const QUESTION_MD_IMAGE_REGEX = /!\[[^\]]*]\((.*?)\)/g
-
-function normalizeImageUrl(value: string): string | null {
-  const cleaned = String(value || '').trim().replace(/^<|>$/g, '').replace(/^['"]|['"]$/g, '')
-  if (!cleaned) return null
-  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned
-  if (cleaned.startsWith('/storage/v1/object/public/')) return cleaned
-  return null
-}
-
-function extractMarkdownImageUrls(text?: string): string[] {
-  if (!text) return []
-  return Array.from(text.matchAll(QUESTION_MD_IMAGE_REGEX))
-    .map((m) => normalizeImageUrl(m[1] || ''))
-    .filter((url): url is string => Boolean(url))
-}
-
-function stripMarkdownImages(text?: string): string {
-  if (!text) return ''
-  return text.replace(QUESTION_MD_IMAGE_REGEX, '').trim()
-}
-
-function extractQuestionImageUrls(images: unknown, context?: string, statement?: string): string[] {
-  const fromImages = (() => {
-    if (!images) return []
-    if (Array.isArray(images)) {
-      return images
-        .map((img) => normalizeImageUrl(String(img)))
-        .filter((url): url is string => Boolean(url))
-    }
-    if (typeof images !== 'string') return []
-
-    const raw = images.trim()
-    if (!raw) return []
-    if (raw.startsWith('[') && raw.endsWith(']')) {
-      try {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed)) {
-          return parsed
-            .map((img) => normalizeImageUrl(String(img)))
-            .filter((url): url is string => Boolean(url))
-        }
-      } catch {
-        // fallback para markdown/url direta
-      }
-    }
-    const markdownUrls = extractMarkdownImageUrls(raw)
-    if (markdownUrls.length > 0) return markdownUrls
-    const direct = normalizeImageUrl(raw)
-    return direct ? [direct] : []
-  })()
-
-  if (fromImages.length > 0) return Array.from(new Set(fromImages))
-
-  const fromText = [...extractMarkdownImageUrls(context), ...extractMarkdownImageUrls(statement)]
-  return Array.from(new Set(fromText))
 }
 
 // ── Smooth color scale — anchors: red @0 %, yellow @20–60 %, green @60 % ──────
@@ -1966,28 +1913,43 @@ export default function SimuladoPage() {
               </div>
 
               {/* Context */}
-              {questions[currentIdx].context && (
+              {splitQuestionContextAndSource(questions[currentIdx].context).body && (
                 <QuestionRichText
-                  text={stripMarkdownImages(questions[currentIdx].context)}
+                  text={splitQuestionContextAndSource(questions[currentIdx].context).body}
                   className="prose prose-slate dark:prose-invert max-w-none mb-5 text-slate-600 dark:text-slate-300 border-l-4 pl-4 text-sm leading-relaxed"
                   style={{ borderColor: 'var(--brand-primary)' }}
                 />
               )}
 
+              {splitQuestionContextAndSource(questions[currentIdx].context).source && (
+                <QuestionRichText
+                  text={splitQuestionContextAndSource(questions[currentIdx].context).source}
+                  className="prose prose-slate dark:prose-invert max-w-none -mt-3 mb-5 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
+                />
+              )}
+
               {/* Imagens de apoio */}
-              {extractQuestionImageUrls(
-                questions[currentIdx].images,
-                questions[currentIdx].context,
-                questions[currentIdx].statement,
-              ).map((img, i) => (
-                <div key={`${questions[currentIdx].id}-img-${i}`} className="mb-5 flex justify-center bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                  <img src={img} alt="Imagem de apoio da questão" className="max-h-80 object-contain rounded-lg" />
-                </div>
-              ))}
+              {(() => {
+                const supportImages = extractDetachedQuestionImageUrls(
+                  questions[currentIdx].images,
+                  questions[currentIdx].context,
+                  questions[currentIdx].statement,
+                )
+                if (supportImages.length === 0) return null
+                return (
+                  <div className="mb-5">
+                    {supportImages.map((img, i) => (
+                      <div key={`${questions[currentIdx].id}-img-${i}`} className="mb-5 flex justify-center bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <img src={img} alt="Imagem de apoio da questão" className="max-h-40 md:max-h-52 w-auto max-w-full object-contain rounded-lg" />
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
 
               {/* Statement */}
               <QuestionRichText
-                text={stripMarkdownImages(questions[currentIdx].statement)}
+                text={questions[currentIdx].statement}
                 className="prose prose-slate dark:prose-invert max-w-none text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed"
               />
 
@@ -1996,6 +1958,7 @@ export default function SimuladoPage() {
                 {questions[currentIdx].alternatives?.map(alt => {
                   const isSelected = userAnswers[questions[currentIdx].id] === alt.letter
                   const isAnnulled = reportedQuestionIds.has(questions[currentIdx].id)
+                  const alternativeImages = extractAlternativeImageUrls(alt)
                   return (
                     <button key={alt.letter} onClick={() => handleSelectOption(alt.letter)} disabled={isAnnulled}
                       className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start active:scale-[0.99] ${isAnnulled ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40' : isSelected ? 'shadow-sm cursor-pointer' : 'bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-pointer'}`}
@@ -2008,13 +1971,16 @@ export default function SimuladoPage() {
                         {alt.letter}
                       </span>
                       <div className="flex-1 pt-1">
-                        {alt.image && (
+                        {alternativeImages.length > 0 && (
                           <div className="mb-2">
-                            <img
-                              src={alt.image}
-                              alt={`Alternativa ${alt.letter}`}
-                              className="max-h-40 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white"
-                            />
+                            {alternativeImages.map((imageUrl, imageIndex) => (
+                              <img
+                                key={`${alt.letter}-img-${imageIndex}`}
+                                src={imageUrl}
+                                alt={`Alternativa ${alt.letter}`}
+                                className={`max-h-32 md:max-h-36 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white ${imageIndex > 0 ? 'mt-2' : ''}`}
+                              />
+                            ))}
                           </div>
                         )}
                         {alt.text ? (
@@ -2023,7 +1989,7 @@ export default function SimuladoPage() {
                             className={`text-sm leading-snug ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
                             style={isSelected ? { color: 'var(--brand-primary)' } : undefined}
                           />
-                        ) : !alt.image ? (
+                        ) : alternativeImages.length === 0 ? (
                           <span className="text-sm italic text-slate-400 dark:text-slate-500">
                             Conteúdo da alternativa indisponível.
                           </span>

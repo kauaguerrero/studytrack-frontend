@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { formatScientificText } from '@/lib/scientific-text'
+import { QuestionRichText } from '@/components/questions/QuestionRichText'
 import {
     LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
     Tooltip, ResponsiveContainer, Cell,
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { stripMarkdownImages, extractMarkdownImageUrls, extractImageUrls } from '@/components/questions/rendering'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -144,63 +146,6 @@ function formatDuration(secs: number) {
 
 function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
-}
-
-const QUESTION_MD_IMAGE_REGEX = /!\[[^\]]*]\((.*?)\)/g
-
-function normalizeImageUrl(value: string): string | null {
-    const cleaned = String(value || '').trim().replace(/^<|>$/g, '').replace(/^['"]|['"]$/g, '')
-    if (!cleaned) return null
-    if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned
-    if (cleaned.startsWith('/storage/v1/object/public/')) return cleaned
-    return null
-}
-
-function extractMarkdownImageUrls(text?: string): string[] {
-    if (!text) return []
-    return Array.from(text.matchAll(QUESTION_MD_IMAGE_REGEX))
-        .map((m) => normalizeImageUrl(m[1] || ''))
-        .filter((url): url is string => Boolean(url))
-}
-
-function stripMarkdownImages(text?: string): string {
-    if (!text) return ''
-    return text.replace(QUESTION_MD_IMAGE_REGEX, '').trim()
-}
-
-function extractQuestionImageUrls(images: unknown, context?: string, statement?: string): string[] {
-    const fromImages = (() => {
-        if (!images) return []
-        if (Array.isArray(images)) {
-            return images
-                .map((img) => normalizeImageUrl(String(img)))
-                .filter((url): url is string => Boolean(url))
-        }
-        if (typeof images !== 'string') return []
-
-        const raw = images.trim()
-        if (!raw) return []
-        if (raw.startsWith('[') && raw.endsWith(']')) {
-            try {
-                const parsed = JSON.parse(raw)
-                if (Array.isArray(parsed)) {
-                    return parsed
-                        .map((img) => normalizeImageUrl(String(img)))
-                        .filter((url): url is string => Boolean(url))
-                }
-            } catch {
-                // fallback para markdown/url direta
-            }
-        }
-        const markdownUrls = extractMarkdownImageUrls(raw)
-        if (markdownUrls.length > 0) return markdownUrls
-        const direct = normalizeImageUrl(raw)
-        return direct ? [direct] : []
-    })()
-
-    if (fromImages.length > 0) return Array.from(new Set(fromImages))
-    const fromText = [...extractMarkdownImageUrls(context), ...extractMarkdownImageUrls(statement)]
-    return Array.from(new Set(fromText))
 }
 
 function scoreColor(pct: number) {
@@ -1058,24 +1003,36 @@ export default function SimuladoPage() {
                             </div>
 
                             {questions[currentIdx].context && (
-                                <div className="prose prose-slate dark:prose-invert max-w-none mb-6 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-4 text-sm">
-                                    <ReactMarkdown>{formatScientificText(stripMarkdownImages(questions[currentIdx].context))}</ReactMarkdown>
-                                </div>
+                                <QuestionRichText
+                                    text={stripMarkdownImages(questions[currentIdx].context)}
+                                    className="prose prose-slate dark:prose-invert max-w-none mb-6 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-4 text-sm"
+                                />
                             )}
 
-                            {extractQuestionImageUrls(
-                                questions[currentIdx].images,
-                                questions[currentIdx].context,
-                                questions[currentIdx].statement,
-                            ).map((img, i) => (
-                                <div key={`${questions[currentIdx].id}-img-${i}`} className="mb-5 flex justify-center bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                                    <img src={img} alt="Imagem de apoio da questão" className="max-h-80 object-contain rounded-lg" />
-                                </div>
-                            ))}
+                            {(() => {
+                                const fromImages = extractImageUrls(questions[currentIdx].images)
+                                const supportImages = fromImages.length > 0
+                                    ? fromImages
+                                    : Array.from(new Set([
+                                        ...extractMarkdownImageUrls(questions[currentIdx].context),
+                                        ...extractMarkdownImageUrls(questions[currentIdx].statement),
+                                    ]))
+                                if (supportImages.length === 0) return null
+                                return (
+                                    <div className="mb-5">
+                                        {supportImages.map((img, i) => (
+                                            <div key={`${questions[currentIdx].id}-img-${i}`} className="mb-5 flex justify-center bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                <img src={img} alt="Imagem de apoio da questão" className="max-h-40 md:max-h-52 w-auto max-w-full object-contain rounded-lg" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )
+                            })()}
 
-                            <div className="prose prose-slate dark:prose-invert max-w-none text-lg md:text-xl text-slate-900 dark:text-slate-50 font-medium mb-8 leading-relaxed">
-                                <ReactMarkdown>{formatScientificText(stripMarkdownImages(questions[currentIdx].statement))}</ReactMarkdown>
-                            </div>
+                            <QuestionRichText
+                                text={stripMarkdownImages(questions[currentIdx].statement)}
+                                className="prose prose-slate dark:prose-invert max-w-none text-lg md:text-xl text-slate-900 dark:text-slate-50 font-medium mb-8 leading-relaxed"
+                            />
 
                             <div className="space-y-3">
                                 {questions[currentIdx].alternatives?.map(alt => {
@@ -1095,14 +1052,15 @@ export default function SimuladoPage() {
                                                         <img
                                                             src={alt.image}
                                                             alt={`Alternativa ${alt.letter}`}
-                                                            className="max-h-40 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white"
+                                                            className="max-h-32 md:max-h-36 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white"
                                                         />
                                                     </div>
                                                 )}
                                                 {alt.text ? (
-                                                    <span className={`text-base leading-snug ${isSelected ? 'text-blue-900 dark:text-blue-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}>
-                                                        {formatScientificText(alt.text)}
-                                                    </span>
+                                                    <QuestionRichText
+                                                        text={alt.text}
+                                                        className={`text-base leading-snug ${isSelected ? 'text-blue-900 dark:text-blue-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}
+                                                    />
                                                 ) : !alt.image ? (
                                                     <span className="text-sm italic text-slate-400 dark:text-slate-500">
                                                         Conteúdo da alternativa indisponível.

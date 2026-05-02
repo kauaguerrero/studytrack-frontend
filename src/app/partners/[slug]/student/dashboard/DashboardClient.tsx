@@ -193,7 +193,6 @@ export function DashboardClient({
   useEffect(() => {
     const forceCheckIn = searchParams.get('forceCheckIn') === '1';
     if (!forceCheckIn) return;
-    if (!org.permissions?.monthly_identity_titles_v1) return;
 
     enqueuePopup({
       kind: 'onboarding',
@@ -202,7 +201,7 @@ export function DashboardClient({
       organizationName: orgName,
       dedupeKey: 'dashboard-onboarding',
     });
-  }, [enqueuePopup, firstName, org.permissions?.monthly_identity_titles_v1, orgName, searchParams]);
+  }, [enqueuePopup, firstName, orgName, searchParams]);
 
   // Caminho sem escudo: aplica decay e enfileira StreakPointsLostPopup
   const handleStreakBrokenDismiss = useCallback(async (): Promise<void> => {

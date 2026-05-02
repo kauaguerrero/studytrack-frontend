@@ -4,6 +4,11 @@ import { Fragment, useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
+import {
+  extractAlternativeImageUrls,
+  extractDetachedQuestionImageUrls,
+  splitQuestionContextAndSource,
+} from '@/components/questions/rendering';
 import ReactMarkdown from 'react-markdown';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -11,7 +16,6 @@ import { formatScientificText } from '@/lib/scientific-text';
 import {
   CheckCircle2,
   Trash2,
-  Inbox,
   Filter,
   Bot,
   Calendar,
@@ -21,7 +25,12 @@ import {
   Layers,
   Edit3,
   X,
-  Save
+  Save,
+  LoaderCircle,
+  ImagePlus,
+  ShieldCheck,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -29,6 +38,8 @@ import { toast } from 'sonner';
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -62,8 +73,9 @@ interface AdminQuestion {
   images: string[];
   is_ai_generated?: boolean;
   ai_reasoning?: {
-    thought: string;
-  };
+    thought?: string;
+    explanation?: string;
+  } | null;
   metadata?: any;
   is_verified?: boolean;
   status?: string;
@@ -79,6 +91,36 @@ interface AuditQuestionItem {
   latest_run_version?: string | null;
   latest_report?: any;
   question: AdminQuestion;
+}
+
+interface ValidationCheck {
+  key: string;
+  label: string;
+  weight: number;
+  score: number;
+  status: 'pass' | 'warning' | 'fail';
+  summary: string;
+  issues: string[];
+}
+
+interface QuestionCurationValidation {
+  available: boolean;
+  source?: string;
+  exam_id?: string;
+  question_number?: number;
+  variant?: string;
+  score: number;
+  status: 'green' | 'yellow' | 'red';
+  reasons: string[];
+  checks: ValidationCheck[];
+  parser_snapshot: {
+    chunk_excerpt?: string;
+    parser_context?: string | null;
+    parser_alternatives_intro?: string | null;
+    chunk_image_urls: string[];
+    official_answer?: string | null;
+  };
+  reason?: string;
 }
 
 const markdownImageRegex = /!\[[^\]]*]\((.*?)\)/g;
@@ -209,6 +251,49 @@ function normalizeQuestionText(text?: string | null): string {
   return formatScientificText(text || '');
 }
 
+function getQuestionComment(question?: AdminQuestion | null): string {
+  const aiReasoning = question?.ai_reasoning;
+
+  if (aiReasoning && typeof aiReasoning === 'object') {
+    const thought = typeof aiReasoning.thought === 'string' ? aiReasoning.thought.trim() : '';
+    if (thought) return thought;
+
+    const explanation = typeof aiReasoning.explanation === 'string' ? aiReasoning.explanation.trim() : '';
+    if (explanation) return explanation;
+  }
+
+  return '';
+}
+
+function getValidationTone(status?: 'green' | 'yellow' | 'red') {
+  switch (status) {
+    case 'green':
+      return {
+        badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+        bar: 'bg-emerald-500',
+        track: 'bg-emerald-100',
+      };
+    case 'yellow':
+      return {
+        badge: 'border-amber-200 bg-amber-50 text-amber-700',
+        bar: 'bg-amber-500',
+        track: 'bg-amber-100',
+      };
+    case 'red':
+      return {
+        badge: 'border-rose-200 bg-rose-50 text-rose-700',
+        bar: 'bg-rose-500',
+        track: 'bg-rose-100',
+      };
+    default:
+      return {
+        badge: 'border-amber-200 bg-amber-50 text-amber-700',
+        bar: 'bg-amber-500',
+        track: 'bg-amber-100',
+      };
+  }
+}
+
 function splitMarkdownTableRow(row: string): string[] {
   return row
     .trim()
@@ -272,28 +357,40 @@ function renderInlineRichText(text: string, keyPrefix: string) {
       isLikelyMathSegment(segment);
 
     if (!isMath) {
-      const plainText =
-        segment.startsWith('$') && segment.endsWith('$')
-          ? normalizePlainLatexText(segment)
-          : segment.replace(/\n+/g, ' ');
+      if (segment.startsWith('$') && segment.endsWith('$')) {
+        const plainText = normalizePlainLatexText(segment);
+        return (
+          <span
+            key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`}
+            className="whitespace-pre-wrap"
+          >
+            <ReactMarkdown components={{ p: ({ children }) => <Fragment>{children}</Fragment> }}>
+              {plainText}
+            </ReactMarkdown>
+          </span>
+        );
+      }
 
+      const lines = segment.split('\n');
       return (
         <span
           key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`}
           className="whitespace-pre-wrap"
         >
-          <ReactMarkdown
-            components={{
-              p: ({ children }) => <Fragment>{children}</Fragment>,
-            }}
-          >
-            {plainText}
-          </ReactMarkdown>
+          {lines.map((line, lineIndex) => (
+            <Fragment key={lineIndex}>
+              {lineIndex > 0 && <br />}
+              <ReactMarkdown components={{ p: ({ children }) => <Fragment>{children}</Fragment> }}>
+                {line}
+              </ReactMarkdown>
+            </Fragment>
+          ))}
         </span>
       );
     }
 
-    const latex = normalizeLatexForKatex(segment);
+    const rawLatex = normalizeLatexForKatex(segment);
+    const latex = rawLatex.replace(/(?<!\\)%/g, '\\%');
     const needsLeadingSpace = /\s$/.test(previousSegment);
     const needsTrailingSpace = /^\s/.test(nextSegment);
     try {
@@ -386,7 +483,22 @@ function RichText({ text, className }: { text?: string | null; className?: strin
         }
 
         if (isMarkdownBlock(paragraph)) {
-          return <ReactMarkdown key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>{paragraph}</ReactMarkdown>;
+          return (
+            <ReactMarkdown
+              key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}
+              components={{
+                img: ({ src, alt }) => (
+                  <img
+                    src={src || ''}
+                    alt={alt || 'Imagem da questão'}
+                    className="my-4 h-auto max-h-40 md:max-h-52 w-auto max-w-full rounded-lg border border-slate-200 bg-white object-contain shadow-sm"
+                  />
+                ),
+              }}
+            >
+              {paragraph}
+            </ReactMarkdown>
+          );
         }
 
         const segments = paragraph.split(mathSegmentRegex).filter(Boolean);
@@ -408,7 +520,7 @@ export default function AdminQuestionApproval() {
   const [auditLoading, setAuditLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [auditProcessingId, setAuditProcessingId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'curation' | 'audit'>('curation');
+  const [mode, setMode] = useState<'curation' | 'audit' | 'archived'>('curation');
   const [auditType, setAuditType] = useState<'media' | 'data' | 'classification' | 'render'>('media');
   const [auditSummary, setAuditSummary] = useState<{ totalAudited: number; flagged: number }>({ totalAudited: 0, flagged: 0 });
 
@@ -416,12 +528,23 @@ export default function AdminQuestionApproval() {
   const [filterSource, setFilterSource] = useState<string>('all');
   const [filterSubject, setFilterSubject] = useState<string>('all');
   const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
+  const [filterYear, setFilterYear] = useState<string>('all');
 
   // Controle de Edição
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editForm, setEditForm] = useState<AdminQuestion | null>(null);
+  const [validation, setValidation] = useState<QuestionCurationValidation | null>(null);
+  const [validationLoading, setValidationLoading] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [questionPublishingAction, setQuestionPublishingAction] = useState<'approve' | 'delete' | 'archive' | 'unarchive' | null>(null);
+  const [archivedQuestions, setArchivedQuestions] = useState<AdminQuestion[]>([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [alternativeImageInputs, setAlternativeImageInputs] = useState<Record<string, string>>({});
+  const [alternativeImageUploading, setAlternativeImageUploading] = useState<string | null>(null);
 
   const supabase = createClient();
+  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
 
   const parseQuestionRow = (q: any): AdminQuestion => {
     let parsedAlternatives = [];
@@ -437,9 +560,15 @@ export default function AdminQuestionApproval() {
     let parsedReasoning = null;
     try {
       if (q.ai_reasoning) {
-        parsedReasoning = typeof q.ai_reasoning === 'string'
-          ? JSON.parse(q.ai_reasoning)
-          : q.ai_reasoning;
+        if (typeof q.ai_reasoning === 'string') {
+          try {
+            parsedReasoning = JSON.parse(q.ai_reasoning);
+          } catch {
+            parsedReasoning = { thought: q.ai_reasoning };
+          }
+        } else {
+          parsedReasoning = q.ai_reasoning;
+        }
       }
     } catch (e) {
       console.error(`Erro ao fazer parse do ai_reasoning na questão ${q.id}`, e);
@@ -469,19 +598,28 @@ export default function AdminQuestionApproval() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
-        .from('questions')
-        .select('*')
-        .eq('is_verified', false)
-        .neq('status', 'rejected')
-        .order('created_at', { ascending: true })
-        .limit(100);
+      const PAGE_SIZE = 1000;
+      const allData: any[] = [];
+      let from = 0;
 
-      if (error) throw error;
+      while (true) {
+        const { data, error } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('is_verified', false)
+          .neq('status', 'rejected')
+          .neq('status', 'archived')
+          .order('created_at', { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
 
-      const sanitizedData: AdminQuestion[] = (data || []).map((q: any) => parseQuestionRow(q));
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData.push(...data);
+        if (data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
 
-      setQuestions(sanitizedData);
+      setQuestions(allData.map((q: any) => parseQuestionRow(q)));
     } catch (error) {
       console.error("Erro Supabase:", error);
       void reportError("AdminQuestionsFetchError", String(error));
@@ -495,8 +633,12 @@ export default function AdminQuestionApproval() {
     setAuditLoading(true);
 
     try {
-      const [{ data, error }, auditedCountRes, flaggedCountRes] = await Promise.all([
-        supabase
+      const PAGE_SIZE = 1000;
+      const allAuditData: any[] = [];
+      let from = 0;
+
+      while (true) {
+        const { data: page, error: pageError } = await supabase
           .from('question_audit_results')
           .select(`
             id,
@@ -512,7 +654,16 @@ export default function AdminQuestionApproval() {
           .eq('audit_type', auditType)
           .neq('status', 'pass')
           .order('updated_at', { ascending: false })
-          .limit(100),
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (pageError) throw pageError;
+        if (!page || page.length === 0) break;
+        allAuditData.push(...page);
+        if (page.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+
+      const [auditedCountRes, flaggedCountRes] = await Promise.all([
         supabase
           .from('question_audit_results')
           .select('id', { count: 'exact', head: true })
@@ -524,9 +675,7 @@ export default function AdminQuestionApproval() {
           .neq('status', 'pass'),
       ]);
 
-      if (error) throw error;
-
-      const mapped: AuditQuestionItem[] = (data || [])
+      const mapped: AuditQuestionItem[] = allAuditData
         .filter((row: any) => row.questions)
         .map((row: any) => ({
           id: row.id,
@@ -554,6 +703,89 @@ export default function AdminQuestionApproval() {
     }
   };
 
+  const fetchArchived = async () => {
+    setArchivedLoading(true);
+    try {
+      const PAGE_SIZE = 1000;
+      const allData: any[] = [];
+      let from = 0;
+
+      while (true) {
+        const { data, error } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('status', 'archived')
+          .order('created_at', { ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData.push(...data);
+        if (data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+
+      setArchivedQuestions(allData.map((q: any) => parseQuestionRow(q)));
+    } catch (error) {
+      console.error("Erro ao buscar arquivadas:", error);
+      void reportError("AdminQuestionsArchivedFetchError", String(error));
+      toast.error("Erro ao carregar questões arquivadas.");
+    } finally {
+      setArchivedLoading(false);
+    }
+  };
+
+  const handleArchive = async (id: string) => {
+    const previousQuestions = [...questions];
+    setQuestions(prev => prev.filter(q => q.id !== id));
+    setCurrentIndex(0);
+    setQuestionPublishingAction('archive');
+
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .update({ status: 'archived' })
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success("Questão arquivada.");
+      setArchivedQuestions(prev => {
+        const archived = previousQuestions.find(q => q.id === id);
+        return archived ? [{ ...archived, status: 'archived' }, ...prev] : prev;
+      });
+    } catch (err: any) {
+      setQuestions(previousQuestions);
+      void reportError("AdminQuestionsArchiveError", String(err));
+      toast.error(`Falha ao arquivar: ${err?.message || 'Erro desconhecido'}`);
+    } finally {
+      setQuestionPublishingAction(null);
+    }
+  };
+
+  const handleUnarchive = async (id: string) => {
+    const previousArchived = [...archivedQuestions];
+    setArchivedQuestions(prev => prev.filter(q => q.id !== id));
+    setCurrentIndex(0);
+    setQuestionPublishingAction('unarchive');
+
+    try {
+      const { error } = await supabase
+        .from('questions')
+        .update({ status: 'active', is_verified: false })
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success("Questão devolvida à curadoria.");
+      fetchPending();
+    } catch (err: any) {
+      setArchivedQuestions(previousArchived);
+      void reportError("AdminQuestionsUnarchiveError", String(err));
+      toast.error(`Falha ao desarquivar: ${err?.message || 'Erro desconhecido'}`);
+    } finally {
+      setQuestionPublishingAction(null);
+    }
+  };
+
   useEffect(() => {
     fetchPending();
     fetchAuditQueue();
@@ -562,6 +794,8 @@ export default function AdminQuestionApproval() {
   useEffect(() => {
     if (mode === 'audit') {
       fetchAuditQueue();
+    } else if (mode === 'archived') {
+      fetchArchived();
     }
   }, [auditType, mode]);
 
@@ -618,17 +852,24 @@ export default function AdminQuestionApproval() {
       toast.error(`Falha: ${errorMessage}`);
     } finally {
       setProcessingId(null);
+      setQuestionPublishingAction(null);
     }
   };
 
   const startEditing = () => {
     if (!activeQuestion) return;
-    setEditForm(JSON.parse(JSON.stringify(activeQuestion))); // Deep copy
+    setEditForm(JSON.parse(JSON.stringify(activeQuestion)));
+    setAlternativeImageInputs({});
+    setAlternativeImageUploading(null);
+    setNewImageUrl('');
     setIsEditing(true);
   };
 
   const cancelEditing = () => {
     setEditForm(null);
+    setAlternativeImageInputs({});
+    setAlternativeImageUploading(null);
+    setNewImageUrl('');
     setIsEditing(false);
   };
 
@@ -645,7 +886,10 @@ export default function AdminQuestionApproval() {
         title: editForm.title,
         alternatives_intro: editForm.alternatives_intro,
         context: editForm.context,
-        alternatives: editForm.alternatives,
+        alternatives: editForm.alternatives.map(alt => ({
+          ...alt,
+          isCorrect: alt.letter === editForm.correct_alternative,
+        })),
         correct_alternative: editForm.correct_alternative,
         images: editForm.images,
         ai_reasoning: editForm.ai_reasoning,
@@ -660,15 +904,77 @@ export default function AdminQuestionApproval() {
 
       // Update local state directly
       setQuestions(prev => prev.map(q => q.id === editForm.id ? { ...q, ...payload } : q));
+      setAuditItems(prev => prev.map(item => (
+        item.question.id === editForm.id
+          ? { ...item, question: { ...item.question, ...payload } }
+          : item
+      )));
       toast.success("Edições salvas! Revise e aprove a questão.");
       setIsEditing(false);
       setEditForm(null);
+      setAlternativeImageInputs({});
+      setAlternativeImageUploading(null);
+      setNewImageUrl('');
     } catch (err: any) {
       console.error("Erro ao salvar edição:", err);
       void reportError("AdminQuestionsEditError", String(err));
       toast.error(`Falha ao salvar: ${err.message}`);
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const importAlternativeImage = async (alternativeIndex: number) => {
+    if (!editForm || !activeQuestion) return;
+    const alternative = editForm.alternatives[alternativeIndex];
+    if (!alternative) return;
+
+    const imageUrl = (alternativeImageInputs[alternative.letter] || '').trim();
+    if (!imageUrl) {
+      toast.error('Informe a URL da imagem da alternativa.');
+      return;
+    }
+
+    setAlternativeImageUploading(alternative.letter);
+    try {
+      const response = await fetch('/api/admin/question-audits/upload-alternative-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl,
+          questionId: editForm.id,
+          externalId: activeQuestion.external_id || editForm.id,
+          alternativeLetter: alternative.letter,
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Falha ao importar imagem da alternativa');
+      }
+
+      const publicUrl = String(payload?.publicUrl || '').trim();
+      if (!publicUrl) throw new Error('URL pública da imagem não retornada.');
+
+      setEditForm(current => {
+        if (!current) return current;
+        return {
+          ...current,
+          alternatives: current.alternatives.map((item, currentIndex) => (
+            currentIndex === alternativeIndex
+              ? { ...item, image: publicUrl }
+              : item
+          )),
+        };
+      });
+      setAlternativeImageInputs(current => ({ ...current, [alternative.letter]: '' }));
+      toast.success(`Imagem vinculada à alternativa ${alternative.letter}.`);
+    } catch (error: any) {
+      console.error('Erro ao importar imagem da alternativa:', error);
+      void reportError('AdminQuestionsAlternativeImageImportError', String(error));
+      toast.error(String(error?.message || error));
+    } finally {
+      setAlternativeImageUploading(null);
     }
   };
 
@@ -679,9 +985,10 @@ export default function AdminQuestionApproval() {
       const matchSource = filterSource === 'all' || source === filterSource;
       const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
       const matchDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
-      return matchSource && matchSubject && matchDifficulty;
+      const matchYear = filterYear === 'all' || String(q.exam_year) === filterYear;
+      return matchSource && matchSubject && matchDifficulty && matchYear;
     });
-  }, [questions, filterSource, filterSubject, filterDifficulty]);
+  }, [questions, filterSource, filterSubject, filterDifficulty, filterYear]);
 
   const filteredAuditItems = useMemo(() => {
     return auditItems.filter(item => {
@@ -690,70 +997,154 @@ export default function AdminQuestionApproval() {
       const matchSource = filterSource === 'all' || source === filterSource;
       const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
       const matchDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
-      return matchSource && matchSubject && matchDifficulty;
+      const matchYear = filterYear === 'all' || String(q.exam_year) === filterYear;
+      return matchSource && matchSubject && matchDifficulty && matchYear;
     });
-  }, [auditItems, filterSource, filterSubject, filterDifficulty]);
+  }, [auditItems, filterSource, filterSubject, filterDifficulty, filterYear]);
+
+  const filteredArchived = useMemo(() => {
+    return archivedQuestions.filter(q => {
+      const source = q.metadata?.source || 'UNKNOWN';
+      const matchSource = filterSource === 'all' || source === filterSource;
+      const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
+      const matchDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
+      const matchYear = filterYear === 'all' || String(q.exam_year) === filterYear;
+      return matchSource && matchSubject && matchDifficulty && matchYear;
+    });
+  }, [archivedQuestions, filterSource, filterSubject, filterDifficulty, filterYear]);
+
+  const activeList = mode === 'audit' ? auditItems.map(i => i.question) : mode === 'archived' ? archivedQuestions : questions;
 
   const sources = Array.from(
-    new Set(
-      (mode === 'audit'
-        ? auditItems.map(item => item.question.metadata?.source || 'UNKNOWN')
-        : questions.map(q => q.metadata?.source || 'UNKNOWN'))
-    )
+    new Set(activeList.map(q => q.metadata?.source || 'UNKNOWN'))
   ).filter(Boolean).sort();
 
   const subjects = Array.from(
-    new Set(
-      (mode === 'audit'
-        ? auditItems.map(item => item.question.subject)
-        : questions.map(q => q.subject))
-    )
+    new Set(activeList.map(q => q.subject))
   ).filter(Boolean).sort();
+
+  const years = Array.from(
+    new Set(activeList.map(q => q.exam_year))
+  ).filter(Boolean).sort((a, b) => b - a);
 
   // Índice para navegação por setas (seta esq/dir)
   const [currentIndex, setCurrentIndex] = useState(0);
-  const currentItems = mode === 'audit' ? filteredAuditItems : filteredQuestions;
+  const currentItems = mode === 'audit' ? filteredAuditItems : mode === 'archived' ? filteredArchived : filteredQuestions;
   const activeAuditItem = filteredAuditItems.length
     ? filteredAuditItems[Math.min(currentIndex, filteredAuditItems.length - 1)]
     : undefined;
   const activeQuestion = mode === 'audit'
     ? activeAuditItem?.question
-    : filteredQuestions.length
-      ? filteredQuestions[Math.min(currentIndex, filteredQuestions.length - 1)]
-      : undefined;
+    : mode === 'archived'
+      ? (filteredArchived.length ? filteredArchived[Math.min(currentIndex, filteredArchived.length - 1)] : undefined)
+      : (filteredQuestions.length ? filteredQuestions[Math.min(currentIndex, filteredQuestions.length - 1)] : undefined);
   const activeQuestionContextText = useMemo(
-    () => stripDuplicatedIntroFromContext(activeQuestion?.context || '', activeQuestion?.alternatives_intro || ''),
-    [activeQuestion?.context, activeQuestion?.alternatives_intro],
+    () => splitQuestionContextAndSource(activeQuestion?.context || '').body,
+    [activeQuestion?.context],
+  );
+  const activeQuestionSourceText = useMemo(
+    () => splitQuestionContextAndSource(activeQuestion?.context || '').source || '',
+    [activeQuestion?.context],
   );
   const activeQuestionStatementText = useMemo(
-    () => stripMarkdownImages(activeQuestion?.alternatives_intro || ''),
+    () => activeQuestion?.alternatives_intro || '',
     [activeQuestion?.alternatives_intro],
   );
   const activeQuestionDisplayTitle = useMemo(
     () => getDisplayTitle(activeQuestion),
     [activeQuestion],
   );
+  const activeQuestionComment = useMemo(
+    () => getQuestionComment(activeQuestion),
+    [activeQuestion],
+  );
   const activeQuestionSupportImages = useMemo(() => {
     if (!activeQuestion) return [];
-    const fromImagesField = extractImageUrls(activeQuestion.images);
-    const fromContext = extractMarkdownImageUrls(activeQuestion.context || '');
-    const fromIntro = extractMarkdownImageUrls(activeQuestion.alternatives_intro || '');
-    return Array.from(new Set([...fromImagesField, ...fromContext, ...fromIntro]));
+    return extractDetachedQuestionImageUrls(
+      activeQuestion.images,
+      activeQuestion.context,
+      activeQuestion.alternatives_intro,
+    );
   }, [activeQuestion]);
+  const activeValidationStatus = validation?.status || 'red';
+  const activeValidationScore = typeof validation?.score === 'number' ? validation.score : 0;
+  const activeValidationTone = getValidationTone(activeValidationStatus);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchValidation = async () => {
+      if (!activeQuestion?.id || isEditing) {
+        setValidation(null);
+        setValidationError(null);
+        setValidationLoading(false);
+        return;
+      }
+
+      setValidationLoading(true);
+      setValidationError(null);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: HeadersInit = session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {};
+        const response = await fetch(`${apiUrl}/api/enterprise/assessment/admin/questions/${activeQuestion.id}/curation-validation`, {
+          headers,
+        });
+        const payload = await response.json().catch(() => null);
+        if (cancelled) return;
+
+        if (!response.ok) {
+          const message = payload?.error || payload?.message || `Falha ao carregar validação (HTTP ${response.status}).`;
+          setValidation(null);
+          setValidationError(message);
+          return;
+        }
+
+        const nextValidation = payload?.validation || null;
+        setValidation(nextValidation);
+        if (!nextValidation?.available) {
+          setValidationError(nextValidation?.reasons?.[0] || payload?.error || 'Validação estrutural indisponível para esta questão.');
+        }
+      } catch (error: any) {
+        if (cancelled) return;
+        setValidation(null);
+        setValidationError(error?.message || 'Falha ao carregar validação estrutural.');
+      } finally {
+        if (!cancelled) setValidationLoading(false);
+      }
+    };
+
+    void fetchValidation();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeQuestion?.id, isEditing, apiUrl, supabase]);
 
   useEffect(() => {
     setCurrentIndex(0);
     setIsEditing(false);
     setEditForm(null);
+    setAlternativeImageInputs({});
+    setAlternativeImageUploading(null);
+    setNewImageUrl('');
   }, [mode]);
 
   // --- KEYBOARD SHORTCUTS (UX/UI B2B Flow) ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!activeQuestion || processingId || auditProcessingId || isEditing) return;
+      const isTyping = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
+      const isSaveShortcut = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's';
 
-      // Ignora atalhos se o usuário estiver digitando em algum input global
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (isSaveShortcut && isEditing && editForm && !processingId) {
+        e.preventDefault();
+        void saveEditing();
+        return;
+      }
+
+      if (!activeQuestion || processingId || auditProcessingId || questionPublishingAction !== null) return;
+
+      if (isTyping || isEditing) return;
 
       if (e.key === 'ArrowRight') {
         e.preventDefault();
@@ -763,16 +1154,21 @@ export default function AdminQuestionApproval() {
         setCurrentIndex(i => Math.max(0, i - 1));
       } else if (mode === 'curation' && e.key === 'Enter') {
         e.preventDefault();
+        setQuestionPublishingAction('approve');
         handleDecision(activeQuestion.id, 'approve');
       } else if (mode === 'curation' && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault();
+        setQuestionPublishingAction('delete');
         handleDecision(activeQuestion.id, 'reject');
+      } else if (mode === 'curation' && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        void handleArchive(activeQuestion.id);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeQuestion, processingId, auditProcessingId, isEditing, currentItems.length, mode]);
+  }, [activeQuestion, processingId, auditProcessingId, isEditing, editForm, currentItems.length, mode, questionPublishingAction]);
 
   const moveQuestionToCuration = async (questionId: string) => {
     setAuditProcessingId(questionId);
@@ -823,7 +1219,7 @@ export default function AdminQuestionApproval() {
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900 flex flex-col">
-      <div className="max-w-4xl mx-auto w-full space-y-6 flex-1 flex flex-col">
+      <div className="w-full max-w-[1920px] mx-auto space-y-6 flex-1 flex flex-col">
 
         {/* --- HEADER & TOOLBAR --- */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm shrink-0">
@@ -836,9 +1232,9 @@ export default function AdminQuestionApproval() {
 
             <div>
               <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
-                {mode === 'curation' ? 'Curadoria' : 'Auditoria'}
+                {mode === 'curation' ? 'Curadoria' : mode === 'audit' ? 'Auditoria' : 'Arquivados'}
                 <Badge variant="secondary" className="text-xs px-2 py-0.5 font-medium bg-slate-100 text-slate-600">
-                  {mode === 'curation' ? 'Modo Foco' : 'Qualidade'}
+                  {mode === 'curation' ? 'Modo Foco' : mode === 'audit' ? 'Qualidade' : 'Arquivo'}
                 </Badge>
               </h1>
             </div>
@@ -859,6 +1255,14 @@ export default function AdminQuestionApproval() {
                 onClick={() => setMode('audit')}
               >
                 Auditoria
+              </Button>
+              <Button
+                variant={mode === 'archived' ? 'default' : 'outline'}
+                className={mode === 'archived' ? 'bg-slate-500 hover:bg-slate-600 text-white' : ''}
+                onClick={() => setMode('archived')}
+              >
+                <Archive className="w-4 h-4 mr-2" />
+                Arquivados
               </Button>
             </div>
 
@@ -949,13 +1353,23 @@ export default function AdminQuestionApproval() {
                   <SelectItem value="Difícil">Difícil</SelectItem>
                 </SelectContent>
               </Select>
+
+              <Select value={filterYear} onValueChange={setFilterYear} disabled={isEditing}>
+                <SelectTrigger className="w-[100px] md:w-[115px] bg-white h-9 text-sm">
+                  <SelectValue placeholder="Ano" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Anos</SelectItem>
+                  {years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
 
         {/* --- CONTENT AREA: THE QUEUE --- */}
         <div className="flex-1 flex flex-col justify-center">
-          {(mode === 'curation' ? loading : auditLoading) ? (
+          {(mode === 'curation' ? loading : mode === 'archived' ? archivedLoading : auditLoading) ? (
             <Card className="w-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden h-[600px] flex flex-col">
               <CardHeader className="border-b border-slate-100 p-6">
                 <Skeleton className="h-6 w-1/3 mb-2" />
@@ -972,21 +1386,31 @@ export default function AdminQuestionApproval() {
             </Card>
           ) : !activeQuestion ? (
             <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-dashed border-slate-300 shadow-sm animate-in fade-in zoom-in duration-300">
-              <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6 ring-8 ring-emerald-50/50">
-                <CheckCircle2 size={40} className="text-emerald-500" />
+              <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 ring-8 ${mode === 'archived' ? 'bg-slate-50 ring-slate-50/50' : 'bg-emerald-50 ring-emerald-50/50'}`}>
+                {mode === 'archived'
+                  ? <Archive size={40} className="text-slate-400" />
+                  : <CheckCircle2 size={40} className="text-emerald-500" />}
               </div>
-              <h3 className="text-2xl font-bold text-slate-900">{mode === 'curation' ? 'Fila Limpa!' : 'Auditoria Limpa!'}</h3>
+              <h3 className="text-2xl font-bold text-slate-900">
+                {mode === 'curation' ? 'Fila Limpa!' : mode === 'audit' ? 'Auditoria Limpa!' : 'Arquivo Vazio'}
+              </h3>
               <p className="text-slate-500 mt-2 max-w-sm text-center">
                 {mode === 'curation'
                   ? 'Nenhuma questão pendente para os filtros atuais. A curadoria está em dia.'
-                  : 'Nenhum achado aberto para os filtros atuais. A auditoria está em dia.'}
+                  : mode === 'audit'
+                    ? 'Nenhum achado aberto para os filtros atuais. A auditoria está em dia.'
+                    : 'Nenhuma questão arquivada para os filtros atuais.'}
               </p>
-              {(filterSource !== 'all' || filterSubject !== 'all' || filterDifficulty !== 'all') && (
-                <Button variant="link" onClick={() => { setFilterSource('all'); setFilterSubject('all'); setFilterDifficulty('all'); }} className="mt-4 text-blue-600">
+              {(filterSource !== 'all' || filterSubject !== 'all' || filterDifficulty !== 'all' || filterYear !== 'all') && (
+                <Button variant="link" onClick={() => { setFilterSource('all'); setFilterSubject('all'); setFilterDifficulty('all'); setFilterYear('all'); }} className="mt-4 text-blue-600">
                   Limpar filtros e ver tudo
                 </Button>
               )}
-              <Button onClick={mode === 'curation' ? fetchPending : fetchAuditQueue} variant="outline" className="mt-6 border-slate-300 text-slate-600">
+              <Button
+                onClick={mode === 'curation' ? fetchPending : mode === 'archived' ? fetchArchived : fetchAuditQueue}
+                variant="outline"
+                className="mt-6 border-slate-300 text-slate-600"
+              >
                 Recarregar Base
               </Button>
             </div>
@@ -994,7 +1418,7 @@ export default function AdminQuestionApproval() {
             /* ACTIVE QUESTION CARD */
             <Card
               key={activeQuestion.id}
-              className="w-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col max-h-[85vh] animate-in slide-in-from-right-8 fade-in duration-300 relative group"
+              className="w-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col max-h-[calc(100vh-13rem)] animate-in slide-in-from-right-8 fade-in duration-300 relative group"
             >
 
               {/* HEADER DA QUESTÃO */}
@@ -1049,33 +1473,27 @@ export default function AdminQuestionApproval() {
 
               {/* CONTEÚDO (MUDANÇA ENTRE MODO DE EXIBIÇÃO E EDIÇÃO) */}
               {isEditing && editForm ? (
-                <div className="overflow-y-auto flex-1 p-6 md:p-8 space-y-6 custom-scrollbar bg-slate-50/30">
-                  {/* Metadados Básicos */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="overflow-y-auto flex-1 space-y-6 bg-slate-50/40 p-6 md:p-8 custom-scrollbar">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                    <p className="font-semibold text-slate-900">Editor de curadoria</p>
+                    <p className="mt-1">Use `Ctrl/Cmd + S` para salvar. Clique na letra da alternativa para definir o gabarito.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase">Matéria</label>
-                      <input
-                        type="text"
-                        value={editForm.subject || ''}
-                        onChange={e => setEditForm({ ...editForm, subject: e.target.value })}
-                        className="w-full border border-slate-300 rounded-md p-2 mt-1 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                      />
+                      <label className="text-xs font-bold uppercase text-slate-500">Matéria</label>
+                      <Input value={editForm.subject || ''} onChange={e => setEditForm({ ...editForm, subject: e.target.value })} className="mt-1 bg-white" />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase">Disciplina</label>
-                      <input
-                        type="text"
-                        value={editForm.discipline || ''}
-                        onChange={e => setEditForm({ ...editForm, discipline: e.target.value })}
-                        className="w-full border border-slate-300 rounded-md p-2 mt-1 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                      />
+                      <label className="text-xs font-bold uppercase text-slate-500">Disciplina</label>
+                      <Input value={editForm.discipline || ''} onChange={e => setEditForm({ ...editForm, discipline: e.target.value })} className="mt-1 bg-white" />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase">Dificuldade</label>
+                      <label className="text-xs font-bold uppercase text-slate-500">Dificuldade</label>
                       <select
                         value={editForm.difficulty || ''}
                         onChange={e => setEditForm({ ...editForm, difficulty: e.target.value })}
-                        className="w-full border border-slate-300 rounded-md p-2 mt-1 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        className="mt-1 w-full rounded-md border border-slate-300 bg-white p-2 text-sm outline-none focus:border-slate-500"
                       >
                         <option value="Fácil">Fácil</option>
                         <option value="Médio">Médio</option>
@@ -1083,118 +1501,166 @@ export default function AdminQuestionApproval() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase">Ano</label>
-                      <input
-                        type="number"
-                        value={editForm.exam_year || ''}
-                        onChange={e => setEditForm({ ...editForm, exam_year: parseInt(e.target.value) || 0 })}
-                        className="w-full border border-slate-300 rounded-md p-2 mt-1 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                      />
+                      <label className="text-xs font-bold uppercase text-slate-500">Ano</label>
+                      <Input type="number" value={editForm.exam_year || ''} onChange={e => setEditForm({ ...editForm, exam_year: parseInt(e.target.value) || 0 })} className="mt-1 bg-white" />
                     </div>
                   </div>
 
-                  {/* Contexto */}
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><BookOpen size={14} /> Contexto / Texto Base</label>
+                    <label className="text-xs font-bold uppercase text-slate-500">Contexto / Texto Base</label>
                     <textarea
                       value={editForm.context || ''}
                       onChange={e => setEditForm({ ...editForm, context: e.target.value })}
-                      rows={4}
-                      className="w-full border border-slate-300 rounded-md p-3 mt-1 text-sm custom-scrollbar outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                      rows={6}
+                      className="mt-1 min-h-[140px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-sm outline-none focus:border-slate-500"
                     />
                   </div>
 
-                  {/* Enunciado Principal */}
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase">Enunciado Principal (Título)</label>
+                    <label className="text-xs font-bold uppercase text-slate-500">Título</label>
                     <textarea
                       value={editForm.title || ''}
                       onChange={e => setEditForm({ ...editForm, title: e.target.value })}
                       rows={3}
-                      className="w-full border border-slate-300 rounded-md p-3 mt-1 text-sm custom-scrollbar outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                      className="mt-1 min-h-[88px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-sm outline-none focus:border-slate-500"
                     />
                   </div>
 
-                  {/* Intro Alternativas */}
                   <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase">Comando da Questão / Introdução às Alternativas</label>
+                    <label className="text-xs font-bold uppercase text-slate-500">Comando / Introdução das alternativas</label>
                     <textarea
                       value={editForm.alternatives_intro || ''}
                       onChange={e => setEditForm({ ...editForm, alternatives_intro: e.target.value })}
-                      rows={2}
-                      className="w-full border border-slate-300 rounded-md p-3 mt-1 text-sm custom-scrollbar outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-mono"
+                      rows={3}
+                      className="mt-1 min-h-[88px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-sm outline-none focus:border-slate-500"
                     />
                   </div>
 
-                  {/* Imagens (Deleção apenas) */}
-                  {editForm.images && editForm.images.length > 0 && (
-                    <div className="p-4 bg-white border border-slate-200 rounded-xl">
-                      <label className="text-xs font-bold text-slate-500 uppercase mb-3 block">Imagens da Questão (Clique no X para remover)</label>
-                      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <label className="text-xs font-bold uppercase text-slate-500">Imagens da questão</label>
+                    <div className="mt-3 flex flex-col gap-3 md:flex-row">
+                      <Input value={newImageUrl} onChange={e => setNewImageUrl(e.target.value)} placeholder="Adicionar URL de imagem" className="bg-white md:flex-1" />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="bg-white"
+                        onClick={() => {
+                          const value = newImageUrl.trim();
+                          if (!value) return;
+                          setEditForm({ ...editForm, images: [...(editForm.images || []), value] });
+                          setNewImageUrl('');
+                        }}
+                      >
+                        Adicionar imagem
+                      </Button>
+                    </div>
+                    {editForm.images?.length ? (
+                      <div className="mt-4 flex gap-4 overflow-x-auto pb-2">
                         {editForm.images.map((img, i) => (
-                          <div key={i} className="relative shrink-0 group/img">
-                            <img src={img} className="h-32 w-auto rounded-lg border border-slate-200 object-cover" alt="Suporte" />
+                          <div key={img + i} className="relative shrink-0">
+                            <img src={img} className="h-32 w-auto rounded-lg border border-slate-200 object-contain" alt={`Imagem ${i + 1}`} />
                             <button
                               type="button"
                               onClick={() => setEditForm({ ...editForm, images: editForm.images.filter((_, idx) => idx !== i) })}
-                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-md opacity-0 group-hover/img:opacity-100 transition-opacity"
+                              className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white shadow-sm hover:bg-red-600"
                             >
                               <X size={14} />
                             </button>
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <p className="mt-3 text-sm text-slate-500">Nenhuma imagem vinculada.</p>
+                    )}
+                  </div>
 
-                  {/* Alternativas */}
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Alternativas (Clique na Letra para definir como Correta)</label>
-                    <div className="space-y-3">
-                      {editForm.alternatives?.map((alt, i) => {
-                        const isSelected = editForm.correct_alternative === alt.letter;
-                        return (
-                          <div key={alt.letter} className={`flex items-start gap-3 p-3 border rounded-xl transition-all ${isSelected ? 'border-emerald-400 bg-emerald-50/50 ring-1 ring-emerald-200' : 'border-slate-200 bg-white'}`}>
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold uppercase text-slate-500">Alternativas</label>
+                    {editForm.alternatives?.map((alt, i) => {
+                      const isSelected = editForm.correct_alternative === alt.letter;
+                      const alternativeImages = extractAlternativeImageUrls(alt);
+                      const isUploading = alternativeImageUploading === alt.letter;
+                      return (
+                        <div key={alt.letter} className={`rounded-2xl border p-4 ${isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                          <div className="flex items-start gap-3">
                             <button
                               type="button"
                               onClick={() => {
-                                const newAlts = editForm.alternatives.map(a => ({ ...a, isCorrect: a.letter === alt.letter }));
-                                setEditForm({ ...editForm, correct_alternative: alt.letter, alternatives: newAlts });
+                                const nextAlternatives = editForm.alternatives.map(item => ({ ...item, isCorrect: item.letter === alt.letter }));
+                                setEditForm({ ...editForm, correct_alternative: alt.letter, alternatives: nextAlternatives });
                               }}
-                              className={`shrink-0 w-9 h-9 rounded-lg font-bold flex items-center justify-center border shadow-sm transition-colors ${isSelected ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 border-slate-300'}`}
+                              className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm font-bold ${isSelected ? 'border-emerald-600 bg-emerald-500 text-white' : 'border-slate-300 bg-slate-100 text-slate-700'}`}
                             >
                               {alt.letter}
                             </button>
                             <textarea
                               value={alt.text}
                               onChange={e => {
-                                const newAlts = [...editForm.alternatives];
-                                newAlts[i].text = e.target.value;
-                                setEditForm({ ...editForm, alternatives: newAlts });
+                                const nextAlternatives = [...editForm.alternatives];
+                                nextAlternatives[i].text = e.target.value;
+                                setEditForm({ ...editForm, alternatives: nextAlternatives });
                               }}
-                              rows={2}
-                              className="flex-1 border-none bg-transparent outline-none resize-none text-[15px] leading-snug custom-scrollbar placeholder:text-slate-300 font-mono"
+                              rows={3}
+                              className="min-h-[84px] flex-1 rounded-xl border border-slate-200 bg-white p-3 font-mono text-sm outline-none focus:border-slate-400"
                               placeholder={`Texto da alternativa ${alt.letter}`}
                             />
                           </div>
-                        );
-                      })}
-                    </div>
+
+                          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                            <div className="flex flex-col gap-3 md:flex-row">
+                              <Input
+                                value={alternativeImageInputs[alt.letter] || ''}
+                                onChange={e => setAlternativeImageInputs(current => ({ ...current, [alt.letter]: e.target.value }))}
+                                placeholder={`URL da imagem da alternativa ${alt.letter}`}
+                                className="bg-white md:flex-1"
+                              />
+                              <Button type="button" variant="outline" className="bg-white" disabled={isUploading} onClick={() => void importAlternativeImage(i)}>
+                                {isUploading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
+                                Inserir imagem
+                              </Button>
+                            </div>
+                            {alternativeImages.length > 0 ? (
+                              <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+                                {alternativeImages.map((img, index) => (
+                                  <div key={`${alt.letter}-${img}-${index}`} className="relative shrink-0">
+                                    <img src={img} alt={`Alternativa ${alt.letter}`} className="h-28 w-auto rounded-lg border border-slate-200 object-contain" />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const nextAlternatives = [...editForm.alternatives];
+                                        nextAlternatives[i] = { ...nextAlternatives[i], image: null, file: null };
+                                        setEditForm({ ...editForm, alternatives: nextAlternatives });
+                                      }}
+                                      className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white shadow-sm hover:bg-red-600"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="mt-3 text-sm text-slate-500">Nenhuma imagem vinculada a esta alternativa.</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {/* Comentário Professor/IA */}
                   <div>
-                    <label className="text-xs font-bold text-purple-600 uppercase flex items-center gap-2"><Bot size={14} /> Comentário / Raciocínio (Aparece pro Aluno)</label>
+                    <label className="text-xs font-bold uppercase text-purple-600">Comentário do professor (`ai_reasoning`)</label>
                     <textarea
                       value={editForm.ai_reasoning?.thought || ''}
                       onChange={e => setEditForm({ ...editForm, ai_reasoning: { ...editForm.ai_reasoning, thought: e.target.value } })}
-                      rows={4}
-                      className="w-full border border-purple-200 rounded-md p-3 mt-1 text-sm custom-scrollbar bg-purple-50/30 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 font-mono"
+                      rows={5}
+                      className="mt-1 min-h-[128px] w-full rounded-xl border border-purple-200 bg-purple-50/40 p-3 font-mono text-sm outline-none focus:border-purple-400"
                     />
                   </div>
                 </div>
               ) : (
-                <div className="overflow-y-auto flex-1 p-6 md:p-8 space-y-8 custom-scrollbar">
+                <div className="overflow-y-auto flex-1 p-6 md:p-8 custom-scrollbar">
+                  <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.1fr)_minmax(540px,0.9fr)] xl:grid-cols-[minmax(0,1fr)_500px] gap-8 xl:gap-10 items-start">
+                    <div className="space-y-8 min-w-0">
 
                   {mode === 'audit' && activeAuditItem && (
                     <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 space-y-3">
@@ -1228,6 +1694,12 @@ export default function AdminQuestionApproval() {
                     </div>
                   )}
 
+                  {activeQuestionSourceText && (
+                    <div className="-mt-4 prose prose-slate max-w-none text-[12px] leading-relaxed text-slate-500">
+                      <RichText text={activeQuestionSourceText} />
+                    </div>
+                  )}
+
                   {/* Imagens de Apoio */}
                   {activeQuestionSupportImages.length > 0 && (
                     <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
@@ -1236,7 +1708,7 @@ export default function AdminQuestionApproval() {
                           <img
                             src={img}
                             alt={`Apoio ${i}`}
-                            className="h-48 w-auto rounded-xl border border-slate-200 object-cover shadow-sm hover:shadow-md transition-all cursor-zoom-in"
+                            className="max-h-40 md:max-h-52 w-auto max-w-full rounded-xl border border-slate-200 object-contain shadow-sm hover:shadow-md transition-all cursor-zoom-in"
                           />
                         </div>
                       ))}
@@ -1249,19 +1721,6 @@ export default function AdminQuestionApproval() {
                     <RichText text={activeQuestionStatementText} />
                   </div>
 
-                  {/* Raciocínio da IA (Audit View) */}
-                  {activeQuestion.is_ai_generated && activeQuestion.ai_reasoning?.thought && (
-                    <div className="mt-6 p-4 bg-purple-50/50 border border-purple-100 rounded-xl">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Bot size={16} className="text-purple-600" />
-                        <span className="text-sm font-bold text-purple-900 uppercase tracking-wider">Raciocínio da IA</span>
-                      </div>
-                      <p className="text-sm text-purple-800 leading-relaxed italic">
-                        "{activeQuestion.ai_reasoning.thought}"
-                      </p>
-                    </div>
-                  )}
-
                   {/* Bloco de Alternativas */}
                   <div className="space-y-3 pt-4 border-t border-slate-100">
                     <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Alternativas</h4>
@@ -1272,12 +1731,8 @@ export default function AdminQuestionApproval() {
                         const isCorrect = normalizedCorrect
                           ? String(alt.letter || '').toUpperCase() === normalizedCorrect
                           : (fallbackCorrect.length === 1 && fallbackCorrect[0].letter === alt.letter);
-                        const alternativeImages = [
-                          ...extractImageUrls(alt.image),
-                          ...extractImageUrls(alt.file),
-                          ...extractMarkdownImageUrls(alt.text || ''),
-                        ];
-                        const alternativeText = stripMarkdownImages(alt.text || '');
+                        const alternativeImages = extractAlternativeImageUrls(alt);
+                        const alternativeText = alt.text || '';
 
                         return (
                           <div
@@ -1307,7 +1762,7 @@ export default function AdminQuestionApproval() {
                                       key={`${alt.letter}-${index}-${img}`}
                                       src={img}
                                       alt={`Alternativa ${alt.letter}`}
-                                      className="max-h-40 rounded-lg border border-slate-200"
+                                      className="max-h-32 md:max-h-36 rounded-lg border border-slate-200 object-contain bg-white"
                                     />
                                   ))}
                                 </div>
@@ -1328,6 +1783,140 @@ export default function AdminQuestionApproval() {
                         <span className="font-medium">ATENÇÃO:</span> Esta questão foi importada sem alternativas ou houve falha no parsing.
                       </div>
                     )}
+                  </div>
+
+                  {activeQuestionComment && (
+                    <div className="mt-6 p-4 bg-purple-50/50 border border-purple-100 rounded-xl">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Bot size={16} className="text-purple-600" />
+                        <span className="text-sm font-bold text-purple-900 uppercase tracking-wider">Comentário do professor</span>
+                      </div>
+                      <div className="text-sm text-purple-800 leading-relaxed italic">
+                        <RichText text={activeQuestionComment} />
+                      </div>
+                    </div>
+                  )}
+                    </div>
+
+                    <aside className="xl:sticky xl:top-0 min-w-0 space-y-4">
+                      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/80">
+                        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <ShieldCheck size={16} className="text-slate-600" />
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">Confiabilidade editorial</p>
+                              <p className="text-xs text-slate-500">Comparação direta entre banco, chunk/parser, gabarito e imagens.</p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className={activeValidationTone.badge}>
+                            {activeValidationStatus.toUpperCase()} • {activeValidationScore.toFixed(0)}%
+                          </Badge>
+                        </div>
+
+                        <div className="space-y-4 p-4">
+                          {validationLoading ? (
+                            <div className="space-y-3">
+                              <Skeleton className="h-8 w-36" />
+                              <Skeleton className="h-4 w-full" />
+                              <Skeleton className="h-36 w-full rounded-xl" />
+                            </div>
+                          ) : (
+                            <>
+                              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                                <div className="mb-3 flex items-end justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Score</p>
+                                    <p className="text-3xl font-bold text-slate-900">{activeValidationScore.toFixed(1)}%</p>
+                                  </div>
+                                  <div className="text-right text-xs text-slate-500">
+                                    <p>{validation?.source || activeQuestion.metadata?.source || 'UNKNOWN'}</p>
+                                    <p>{validation?.exam_id || activeQuestion.external_id}</p>
+                                  </div>
+                                </div>
+                                <Progress value={activeValidationScore} className={activeValidationTone.track + ' h-3'} indicatorClassName={activeValidationTone.bar} />
+                                <p className="mt-3 text-xs text-slate-500">Verde a partir de 85%. Amarelo entre 60% e 84,9%. Vermelho abaixo disso.</p>
+                              </div>
+
+                              {validationError && (
+                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                                  {validationError}
+                                </div>
+                              )}
+
+                              {validation?.checks?.length ? (
+                                <div className="space-y-3">
+                                  {validation.checks.map((check) => (
+                                    <div key={check.key} className="rounded-xl border border-slate-200 bg-white p-4">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                          <p className="text-sm font-semibold text-slate-900">{check.label}</p>
+                                          <p className="mt-1 text-xs text-slate-500">{check.summary}</p>
+                                        </div>
+                                        <Badge
+                                          variant="outline"
+                                          className={check.status === 'pass'
+                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                            : check.status === 'warning'
+                                              ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                              : 'border-rose-200 bg-rose-50 text-rose-700'}
+                                        >
+                                          {check.score.toFixed(0)}%
+                                        </Badge>
+                                      </div>
+                                      <Progress
+                                        value={check.score}
+                                        className="mt-3 h-2 bg-slate-100"
+                                        indicatorClassName={check.status === 'pass' ? 'bg-emerald-500' : check.status === 'warning' ? 'bg-amber-500' : 'bg-rose-500'}
+                                      />
+                                      {check.issues.length > 0 && (
+                                        <div className="mt-3 space-y-1 text-xs text-slate-600">
+                                          {check.issues.map((issue, index) => (
+                                            <p key={`${check.key}-${index}`}>• {issue}</p>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
+
+                              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                                <p className="text-sm font-semibold text-slate-900">Motivos principais</p>
+                                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                                  {(validation?.reasons || []).map((reason, index) => (
+                                    <p key={`${activeQuestion.id}-validation-reason-${index}`}>• {reason}</p>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
+                                <p className="font-semibold text-slate-900">Referência do parser</p>
+                                {validation?.parser_snapshot?.official_answer ? (
+                                  <p className="mt-2">
+                                    Gabarito oficial: <span className="font-semibold text-slate-900">{normalizeQuestionText(validation.parser_snapshot.official_answer)}</span>
+                                  </p>
+                                ) : null}
+                                <p className="mt-2">
+                                  Imagens encontradas no chunk/parser: <span className="font-semibold text-slate-900">{validation?.parser_snapshot?.chunk_image_urls?.length || 0}</span>
+                                </p>
+                                {validation?.parser_snapshot?.parser_alternatives_intro ? (
+                                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                    <p className="mb-2 font-medium text-slate-800">Comando reconstruído pelo parser</p>
+                                    <RichText text={validation.parser_snapshot.parser_alternatives_intro} className="text-slate-600" />
+                                  </div>
+                                ) : null}
+                                {validation?.parser_snapshot?.chunk_excerpt ? (
+                                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                    <p className="mb-2 font-medium text-slate-800">Bloco completo do chunk</p>
+                                    <RichText text={validation.parser_snapshot.chunk_excerpt} className="text-slate-600" />
+                                  </div>
+                                ) : null}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </aside>
                   </div>
                 </div>
               )}
@@ -1350,14 +1939,11 @@ export default function AdminQuestionApproval() {
                     disabled={!!processingId}
                   >
                     {processingId === activeQuestion?.id ? (
-                      <div className="flex items-center gap-2">
-                        <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Salvando...
-                      </div>
+                      <><LoaderCircle className="w-5 h-5 mr-2 animate-spin" />Salvando...</>
                     ) : (
                       <>
                         <Save className="w-5 h-5 mr-2" />
-                        Salvar Alterações
+                        Salvar Alterações (`Ctrl/Cmd+S`)
                       </>
                     )}
                   </Button>
@@ -1390,26 +1976,68 @@ export default function AdminQuestionApproval() {
                     {auditProcessingId === activeQuestion.id ? 'Movendo...' : (activeQuestion.is_verified === false ? 'Já está na Curadoria' : 'Mover para Curadoria')}
                   </Button>
                 </div>
+              ) : mode === 'archived' ? (
+                <div className="bg-slate-50/90 backdrop-blur-md border-t border-slate-200 p-5 shrink-0 flex flex-wrap gap-4 rounded-b-3xl relative">
+                  <Button
+                    variant="outline"
+                    className="flex-1 min-w-[180px] h-14 text-base font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900 rounded-xl transition-colors"
+                    onClick={fetchArchived}
+                    disabled={!!questionPublishingAction}
+                  >
+                    Recarregar Arquivo
+                  </Button>
+
+                  <Button
+                    className="flex-[2] min-w-[220px] h-14 text-base font-semibold bg-slate-700 hover:bg-slate-800 text-white rounded-xl shadow-lg shadow-slate-700/20 transition-all hover:translate-y-[-1px]"
+                    onClick={() => void handleUnarchive(activeQuestion.id)}
+                    disabled={!!questionPublishingAction}
+                  >
+                    {questionPublishingAction === 'unarchive' ? (
+                      <><LoaderCircle className="w-5 h-5 mr-2 animate-spin" />Desarquivando...</>
+                    ) : (
+                      <>
+                        <ArchiveRestore className="w-5 h-5 mr-2" />
+                        Desarquivar (volta à curadoria)
+                      </>
+                    )}
+                  </Button>
+                </div>
               ) : (
                 <div className="bg-slate-50/90 backdrop-blur-md border-t border-slate-200 p-5 shrink-0 flex flex-wrap gap-4 rounded-b-3xl relative">
                   {/* Dicas de Teclado Flutuantes */}
-                  <div className="absolute -top-8 left-0 right-0 flex justify-center gap-8 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <div className="absolute -top-8 left-0 right-0 flex justify-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                     <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
-                      Atalho: DELETE ou BACKSPACE
+                      DELETE = Deletar
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
-                      Atalho: ENTER
+                      A = Arquivar
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
+                      ENTER = Aprovar
                     </span>
                   </div>
 
                   <Button
                     variant="outline"
                     className="flex-1 min-w-[120px] h-14 text-base font-semibold border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 rounded-xl transition-colors"
-                    onClick={() => handleDecision(activeQuestion.id, 'reject')}
-                    disabled={!!processingId}
+                    onClick={() => {
+                      setQuestionPublishingAction('delete');
+                      void handleDecision(activeQuestion.id, 'reject');
+                    }}
+                    disabled={!!processingId || questionPublishingAction !== null}
                   >
-                    <Trash2 className="w-5 h-5 mr-2" />
-                    Descartar
+                    {questionPublishingAction === 'delete' ? <LoaderCircle className="w-5 h-5 mr-2 animate-spin" /> : <Trash2 className="w-5 h-5 mr-2" />}
+                    Deletar
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className="flex-1 min-w-[120px] h-14 text-base font-semibold border-slate-300 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-xl transition-colors"
+                    onClick={() => void handleArchive(activeQuestion.id)}
+                    disabled={!!processingId || questionPublishingAction !== null}
+                  >
+                    {questionPublishingAction === 'archive' ? <LoaderCircle className="w-5 h-5 mr-2 animate-spin" /> : <Archive className="w-5 h-5 mr-2" />}
+                    Arquivar
                   </Button>
 
                   <Button
@@ -1424,14 +2052,14 @@ export default function AdminQuestionApproval() {
 
                   <Button
                     className="flex-[2] min-w-[200px] h-14 text-base font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-lg shadow-slate-900/10 transition-all hover:translate-y-[-1px]"
-                    onClick={() => handleDecision(activeQuestion.id, 'approve')}
-                    disabled={!!processingId}
+                    onClick={() => {
+                      setQuestionPublishingAction('approve');
+                      void handleDecision(activeQuestion.id, 'approve');
+                    }}
+                    disabled={!!processingId || questionPublishingAction !== null}
                   >
-                    {processingId === activeQuestion.id ? (
-                      <div className="flex items-center gap-2">
-                        <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Processando...
-                      </div>
+                    {processingId === activeQuestion.id || questionPublishingAction === 'approve' ? (
+                      <><LoaderCircle className="w-5 h-5 mr-2 animate-spin" />Processando...</>
                     ) : (
                       <>
                         <CheckCircle2 className="w-5 h-5 mr-2" />

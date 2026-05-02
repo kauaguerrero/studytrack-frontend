@@ -3,6 +3,7 @@
 import { Fragment, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import ReactMarkdown from 'react-markdown'
+import type { Components } from 'react-markdown'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { formatScientificText } from '@/lib/scientific-text'
@@ -100,6 +101,43 @@ function isMarkdownBlock(text: string): boolean {
   return /^\s*(#{1,6}\s|>|\|.*\||[-*+]\s|\d+\.\s|!\[)/m.test(text)
 }
 
+const markdownComponents: Components = {
+  p: ({ children }) => <p className="my-3 leading-relaxed">{children}</p>,
+  h1: ({ children }) => <h1 className="mt-5 mb-3 text-xl font-bold leading-tight">{children}</h1>,
+  h2: ({ children }) => <h2 className="mt-5 mb-3 text-lg font-bold leading-tight">{children}</h2>,
+  h3: ({ children }) => <h3 className="mt-4 mb-2 text-base font-semibold leading-tight">{children}</h3>,
+  h4: ({ children }) => <h4 className="mt-4 mb-2 text-sm font-semibold uppercase tracking-wide">{children}</h4>,
+  ul: ({ children }) => <ul className="my-3 list-disc space-y-1 pl-5">{children}</ul>,
+  ol: ({ children }) => <ol className="my-3 list-decimal space-y-1 pl-5">{children}</ol>,
+  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  blockquote: ({ children }) => (
+    <blockquote className="my-4 border-l-4 border-slate-300 pl-4 italic text-slate-600 dark:border-slate-700 dark:text-slate-300">
+      {children}
+    </blockquote>
+  ),
+  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+  img: ({ src, alt }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src || ''}
+      alt={alt || 'Imagem da questão'}
+      className="my-4 h-auto max-h-40 md:max-h-52 w-auto max-w-full rounded-lg border border-slate-200 bg-white object-contain shadow-sm dark:border-slate-700"
+      loading="lazy"
+    />
+  ),
+  a: ({ href, children }) => (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="break-all text-blue-700 underline underline-offset-2 dark:text-blue-300"
+    >
+      {children}
+    </a>
+  ),
+}
+
 function renderInlineRichText(text: string, keyPrefix: string) {
   const segments = text.split(mathSegmentRegex).filter(Boolean)
 
@@ -111,25 +149,48 @@ function renderInlineRichText(text: string, keyPrefix: string) {
       isLikelyMathSegment(segment)
 
     if (!isMath) {
-      const plainText =
-        segment.startsWith('$') && segment.endsWith('$')
-          ? normalizePlainLatexText(segment)
-          : segment.replace(/\n+/g, ' ')
+      if (segment.startsWith('$') && segment.endsWith('$')) {
+        const plainText = normalizePlainLatexText(segment)
+        return (
+          <span key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`} className="whitespace-pre-wrap">
+            <ReactMarkdown
+              components={{
+                p: ({ children }) => <Fragment>{children}</Fragment>,
+                ul: ({ children }) => <Fragment>{children}</Fragment>,
+                ol: ({ children }) => <Fragment>{children}</Fragment>,
+                li: ({ children }) => <Fragment>{children} </Fragment>,
+              }}
+            >
+              {plainText}
+            </ReactMarkdown>
+          </span>
+        )
+      }
 
+      const lines = segment.split('\n')
       return (
         <span key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`} className="whitespace-pre-wrap">
-          <ReactMarkdown
-            components={{
-              p: ({ children }) => <Fragment>{children}</Fragment>,
-            }}
-          >
-            {plainText}
-          </ReactMarkdown>
+          {lines.map((line, lineIndex) => (
+            <Fragment key={lineIndex}>
+              {lineIndex > 0 && <br />}
+              <ReactMarkdown
+                components={{
+                  p: ({ children }) => <Fragment>{children}</Fragment>,
+                  ul: ({ children }) => <Fragment>{children}</Fragment>,
+                  ol: ({ children }) => <Fragment>{children}</Fragment>,
+                  li: ({ children }) => <Fragment>{children} </Fragment>,
+                }}
+              >
+                {line}
+              </ReactMarkdown>
+            </Fragment>
+          ))}
         </span>
       )
     }
 
-    const latex = normalizeLatexForKatex(segment)
+    const rawLatex = normalizeLatexForKatex(segment)
+    const latex = rawLatex.replace(/(?<!\\)%/g, '\\%')
     const needsLeadingSpace = /\s$/.test(previousSegment)
     const needsTrailingSpace = /^\s/.test(nextSegment)
     try {
@@ -220,7 +281,14 @@ export function QuestionRichText({ text, className, style }: { text?: string | n
         }
 
         if (isMarkdownBlock(paragraph)) {
-          return <ReactMarkdown key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>{paragraph}</ReactMarkdown>
+          return (
+            <ReactMarkdown
+              key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}
+              components={markdownComponents}
+            >
+              {paragraph}
+            </ReactMarkdown>
+          )
         }
 
         return (

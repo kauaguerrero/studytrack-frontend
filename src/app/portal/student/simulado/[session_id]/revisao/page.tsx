@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown'
 import { formatScientificText } from '@/lib/scientific-text'
 import { createClient } from '@/lib/supabase/client'
 import { UpsellModal } from '@/components/modals/UpsellModal'
+import { QuestionRichText } from '@/components/questions/QuestionRichText'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -341,30 +342,36 @@ export default function RevisaoPage() {
                                         <div className="p-5">
                                             {/* Context */}
                                             {contextText && (
-                                                <div className="prose prose-sm prose-slate dark:prose-invert max-w-none mb-4 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-3">
-                                                    <ReactMarkdown>{formatScientificText(contextText)}</ReactMarkdown>
-                                                </div>
+                                                <QuestionRichText
+                                                    text={contextText}
+                                                    className="prose prose-sm prose-slate dark:prose-invert max-w-none mb-4 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-3"
+                                                />
                                             )}
 
                                             {/* Support images */}
-                                            {supportImages.map((img, imageIndex) => (
-                                                <div
-                                                    key={`${q.id}-support-image-${imageIndex}`}
-                                                    className="mb-4 flex justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4"
-                                                >
-                                                    <img
-                                                        src={img}
-                                                        alt="Material de apoio"
-                                                        className="max-h-80 rounded-lg object-contain"
-                                                    />
+                                            {supportImages.length > 0 && (
+                                                <div className="mb-4">
+                                                    {supportImages.map((img, imageIndex) => (
+                                                        <div
+                                                            key={`${q.id}-support-image-${imageIndex}`}
+                                                            className="mb-4 flex justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4"
+                                                        >
+                                                            <img
+                                                                src={img}
+                                                                alt="Material de apoio"
+                                                                className="max-h-40 md:max-h-52 w-auto max-w-full rounded-lg object-contain"
+                                                            />
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            ))}
+                                            )}
 
                                             {/* Statement */}
                                             {statementText && (
-                                                <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-800 dark:text-slate-200 font-medium mb-4 leading-relaxed">
-                                                    <ReactMarkdown>{formatScientificText(statementText)}</ReactMarkdown>
-                                                </div>
+                                                <QuestionRichText
+                                                    text={statementText}
+                                                    className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-800 dark:text-slate-200 font-medium mb-4 leading-relaxed"
+                                                />
                                             )}
 
                                             {/* Alternatives */}
@@ -386,14 +393,15 @@ export default function RevisaoPage() {
                                                                         <img
                                                                             src={alt.image}
                                                                             alt={`Alternativa ${alt.letter}`}
-                                                                            className="max-h-40 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white"
+                                                                            className="max-h-32 md:max-h-36 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white"
                                                                         />
                                                                     </div>
                                                                 )}
                                                                 {alt.text ? (
-                                                                    <span className={`leading-snug ${isCorrect ? 'text-green-800 dark:text-green-200 font-medium' : isUserWrong ? 'text-red-800 dark:text-red-200' : 'text-slate-600 dark:text-slate-300'}`}>
-                                                                        {formatScientificText(alt.text)}
-                                                                    </span>
+                                                                    <QuestionRichText
+                                                                        text={alt.text}
+                                                                        className={`leading-snug ${isCorrect ? 'text-green-800 dark:text-green-200 font-medium' : isUserWrong ? 'text-red-800 dark:text-red-200' : 'text-slate-600 dark:text-slate-300'}`}
+                                                                    />
                                                                 ) : !alt.image ? (
                                                                     <span className="text-sm italic text-slate-400 dark:text-slate-500">
                                                                         Conteúdo da alternativa indisponível.
@@ -421,9 +429,7 @@ export default function RevisaoPage() {
                                                         <Brain size={14} className="text-indigo-500" />
                                                         <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Explicação IA</span>
                                                     </div>
-                                                    <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300">
-                                                        <ReactMarkdown>{q.explanation}</ReactMarkdown>
-                                                    </div>
+                                                    <QuestionRichText text={q.explanation} className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-300" />
                                                 </div>
                                             )}
                                         </div>

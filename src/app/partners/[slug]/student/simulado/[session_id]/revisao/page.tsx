@@ -4,6 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, XCircle, Brain, Loader2, Flag } from 'lucide-react'
 import { QuestionRichText } from '@/components/questions/QuestionRichText'
+import {
+    extractAlternativeImageUrls,
+    extractDetachedQuestionImageUrls,
+    splitQuestionContextAndSource,
+} from '@/components/questions/rendering'
 import { createClient } from '@/lib/supabase/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -54,66 +59,6 @@ function scoreColor(pct: number) {
     if (pct >= 70) return 'text-green-600 dark:text-green-400'
     if (pct >= 45) return 'text-yellow-600 dark:text-yellow-400'
     return 'text-red-600 dark:text-red-400'
-}
-
-const QUESTION_MD_IMAGE_REGEX = /!\[[^\]]*]\((.*?)\)/g
-
-function normalizeImageUrl(value: string): string | null {
-    const cleaned = String(value || '').trim().replace(/^<|>$/g, '').replace(/^['"]|['"]$/g, '')
-    if (!cleaned) return null
-    if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) return cleaned
-    if (cleaned.startsWith('/storage/v1/object/public/')) return cleaned
-    return null
-}
-
-function extractMarkdownImageUrls(text?: string): string[] {
-    if (!text) return []
-    return Array.from(text.matchAll(QUESTION_MD_IMAGE_REGEX))
-        .map((m) => normalizeImageUrl(m[1] || ''))
-        .filter((url): url is string => Boolean(url))
-}
-
-function stripMarkdownImages(text?: string): string {
-    if (!text) return ''
-    return text.replace(QUESTION_MD_IMAGE_REGEX, '').trim()
-}
-
-function extractQuestionImageUrls(images: unknown, context?: string, statement?: string): string[] {
-    const fromImages = (() => {
-        if (!images) return []
-        if (Array.isArray(images)) {
-            return images
-                .map((img) => normalizeImageUrl(String(img)))
-                .filter((url): url is string => Boolean(url))
-        }
-        if (typeof images !== 'string') return []
-
-        const raw = images.trim()
-        if (!raw) return []
-        if (raw.startsWith('[') && raw.endsWith(']')) {
-            try {
-                const parsed = JSON.parse(raw)
-                if (Array.isArray(parsed)) {
-                    return parsed
-                        .map((img) => normalizeImageUrl(String(img)))
-                        .filter((url): url is string => Boolean(url))
-                }
-            } catch {
-                // fallback para markdown/url direta
-            }
-        }
-
-        const markdownUrls = extractMarkdownImageUrls(raw)
-        if (markdownUrls.length > 0) return markdownUrls
-
-        const direct = normalizeImageUrl(raw)
-        return direct ? [direct] : []
-    })()
-
-    if (fromImages.length > 0) return Array.from(new Set(fromImages))
-
-    const fromText = [...extractMarkdownImageUrls(context), ...extractMarkdownImageUrls(statement)]
-    return Array.from(new Set(fromText))
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -298,9 +243,11 @@ export default function RevisaoPage() {
                         <div className="space-y-4">
                             {visibleQuestions.map((q, idx) => (
                                 (() => {
-                                    const contextText = stripMarkdownImages(q.context)
-                                    const statementText = stripMarkdownImages(q.statement)
-                                    const supportImages = extractQuestionImageUrls(q.images, q.context, q.statement)
+                                    const contextSegments = splitQuestionContextAndSource(q.context)
+                                    const contextText = contextSegments.body
+                                    const sourceText = contextSegments.source
+                                    const statementText = q.statement
+                                    const supportImages = extractDetachedQuestionImageUrls(q.images, q.context, q.statement)
 
                                     return (
                                 <div
@@ -345,19 +292,30 @@ export default function RevisaoPage() {
                                             />
                                         )}
 
+                                        {sourceText && (
+                                            <QuestionRichText
+                                                text={sourceText}
+                                                className="prose prose-slate dark:prose-invert max-w-none -mt-2 mb-4 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
+                                            />
+                                        )}
+
                                         {/* Support images */}
-                                        {supportImages.map((img, imageIndex) => (
-                                            <div
-                                                key={`${q.id}-support-image-${imageIndex}`}
-                                                className="mb-4 flex justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4"
-                                            >
-                                                <img
-                                                    src={img}
-                                                    alt="Material de apoio"
-                                                    className="max-h-80 rounded-lg object-contain"
-                                                />
+                                        {supportImages.length > 0 && (
+                                            <div className="mb-4">
+                                                {supportImages.map((img, imageIndex) => (
+                                                    <div
+                                                        key={`${q.id}-support-image-${imageIndex}`}
+                                                        className="mb-4 flex justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4"
+                                                    >
+                                                        <img
+                                                            src={img}
+                                                            alt="Material de apoio"
+                                                            className="max-h-40 md:max-h-52 w-auto max-w-full rounded-lg object-contain"
+                                                        />
+                                                    </div>
+                                                ))}
                                             </div>
-                                        ))}
+                                        )}
 
                                         {/* Statement */}
                                         {statementText && (
@@ -393,13 +351,16 @@ export default function RevisaoPage() {
                                                             {alt.letter}
                                                         </span>
                                                         <div className="flex-1">
-                                                            {alt.image && (
+                                                            {extractAlternativeImageUrls(alt).length > 0 && (
                                                                 <div className="mb-2">
-                                                                    <img
-                                                                        src={alt.image}
-                                                                        alt={`Alternativa ${alt.letter}`}
-                                                                        className="max-h-40 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white"
-                                                                    />
+                                                                    {extractAlternativeImageUrls(alt).map((imageUrl, imageIndex) => (
+                                                                        <img
+                                                                            key={`${alt.letter}-img-${imageIndex}`}
+                                                                            src={imageUrl}
+                                                                            alt={`Alternativa ${alt.letter}`}
+                                                                            className={`max-h-32 md:max-h-36 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white ${imageIndex > 0 ? 'mt-2' : ''}`}
+                                                                        />
+                                                                    ))}
                                                                 </div>
                                                             )}
                                                             {alt.text ? (
@@ -412,7 +373,7 @@ export default function RevisaoPage() {
                                                                 }`}>
                                                                     <QuestionRichText text={alt.text} />
                                                                 </div>
-                                                            ) : !alt.image ? (
+                                                            ) : extractAlternativeImageUrls(alt).length === 0 ? (
                                                                 <span className="text-sm italic text-slate-400 dark:text-slate-500">
                                                                     Conteúdo da alternativa indisponível.
                                                                 </span>
