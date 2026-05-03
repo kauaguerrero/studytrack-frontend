@@ -16,9 +16,33 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "StudyTrack",
-  description: "Plano de estudos inteligente para o ENEM",
-};
+  metadataBase: new URL('https://studytrack.com.br'),
+  title: {
+    default: 'StudyTrack — Plataforma de estudos para o ENEM',
+    template: '%s | StudyTrack',
+  },
+  description: 'Banco de questões, simulados personalizados e dashboard de desempenho para estudantes do ENEM e vestibulares. Estude de forma inteligente com a StudyTrack.',
+  keywords: ['ENEM', 'vestibular', 'questões ENEM', 'simulado ENEM', 'plataforma de estudos', 'StudyTrack'],
+  authors: [{ name: 'StudyTrack' }],
+  creator: 'StudyTrack',
+  openGraph: {
+    type: 'website',
+    locale: 'pt_BR',
+    url: 'https://studytrack.com.br',
+    siteName: 'StudyTrack',
+    title: 'StudyTrack — Plataforma de estudos para o ENEM',
+    description: 'Banco de questões, simulados personalizados e dashboard de desempenho para o ENEM e vestibulares.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'StudyTrack — Plataforma de estudos para o ENEM',
+    description: 'Banco de questões, simulados personalizados e dashboard de desempenho para o ENEM e vestibulares.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+}
 
 export const viewport: Viewport = {
   width: "device-width",
