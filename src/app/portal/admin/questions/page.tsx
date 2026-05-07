@@ -811,7 +811,6 @@ export default function AdminQuestionApproval() {
 
   useEffect(() => {
     fetchPending();
-    fetchAuditQueue();
   }, []);
 
   useEffect(() => {
@@ -1357,13 +1356,6 @@ export default function AdminQuestionApproval() {
                   onClick={() => setMode('curation')}
                 >
                   Curadoria
-                </Button>
-                <Button
-                  variant={mode === 'audit' ? 'default' : 'outline'}
-                  className={mode === 'audit' ? 'h-9 rounded-xl bg-slate-900 px-3 text-sm text-white hover:bg-slate-800' : 'h-9 rounded-xl bg-white px-3 text-sm'}
-                  onClick={() => setMode('audit')}
-                >
-                  Auditoria
                 </Button>
                 <Button
                   variant={mode === 'archived' ? 'default' : 'outline'}
