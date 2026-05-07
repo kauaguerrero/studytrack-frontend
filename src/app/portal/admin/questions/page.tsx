@@ -22,7 +22,6 @@ import {
   BookOpen,
   AlertCircle,
   ArrowLeft,
-  Layers,
   Edit3,
   X,
   Save,
@@ -35,7 +34,7 @@ import {
 import { toast } from 'sonner';
 
 // UI Components
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,6 +100,7 @@ interface ValidationCheck {
   status: 'pass' | 'warning' | 'fail';
   summary: string;
   issues: string[];
+  hard_block?: boolean;
 }
 
 interface QuestionCurationValidation {
@@ -109,11 +109,34 @@ interface QuestionCurationValidation {
   exam_id?: string;
   question_number?: number;
   variant?: string;
-  score: number;
-  status: 'green' | 'yellow' | 'red';
-  reasons: string[];
-  checks: ValidationCheck[];
-  parser_snapshot: {
+  editorial_score?: number;
+  editorial_status?: 'green' | 'yellow' | 'red';
+  parser_score?: number;
+  parser_status?: 'green' | 'yellow' | 'red';
+  comparison_confidence?: 'high' | 'reduced' | 'low';
+  summary?: string;
+  editorial_reasons?: string[];
+  parser_reasons?: string[];
+  editorial_checks?: ValidationCheck[];
+  parser_checks?: ValidationCheck[];
+  evidence?: {
+    source?: string;
+    exam_id?: string;
+    question_number?: number;
+    variant?: string;
+    official_answer?: string | null;
+    parser_context?: string | null;
+    parser_alternatives_intro?: string | null;
+    chunk_image_urls: string[];
+    chunk_excerpt?: string;
+    detected_flags: string[];
+    parser_metrics?: Record<string, number>;
+  };
+  score?: number;
+  status?: 'green' | 'yellow' | 'red';
+  reasons?: string[];
+  checks?: ValidationCheck[];
+  parser_snapshot?: {
     chunk_excerpt?: string;
     parser_context?: string | null;
     parser_alternatives_intro?: string | null;
@@ -1066,9 +1089,31 @@ export default function AdminQuestionApproval() {
       activeQuestion.alternatives_intro,
     );
   }, [activeQuestion]);
-  const activeValidationStatus = validation?.status || 'red';
-  const activeValidationScore = typeof validation?.score === 'number' ? validation.score : 0;
+  const activeValidationStatus = validation?.editorial_status || validation?.status || 'red';
+  const activeValidationScore = typeof validation?.editorial_score === 'number'
+    ? validation.editorial_score
+    : typeof validation?.score === 'number'
+      ? validation.score
+      : 0;
+  const validationAvailable = validation?.available ?? false;
   const activeValidationTone = getValidationTone(activeValidationStatus);
+  const activeParserStatus = validation?.parser_status || 'red';
+  const activeParserScore = typeof validation?.parser_score === 'number' ? validation.parser_score : 0;
+  const activeParserTone = getValidationTone(activeParserStatus);
+  const comparisonConfidence = validation?.comparison_confidence || (validation?.available ? 'high' : 'low');
+  const editorialChecks = validation?.editorial_checks || validation?.checks || [];
+  const parserChecks = validation?.parser_checks || [];
+  const editorialReasons = validation?.editorial_reasons || validation?.reasons || [];
+  const parserReasons = validation?.parser_reasons || [];
+  const validationEvidenceSource = validation?.evidence?.source || activeQuestion?.metadata?.source || 'UNKNOWN';
+  const validationEvidenceExamId = validation?.evidence?.exam_id || activeQuestion?.external_id;
+  const validationOfficialAnswer = validation?.evidence?.official_answer || validation?.parser_snapshot?.official_answer || null;
+  const validationChunkImageUrls = validation?.evidence?.chunk_image_urls || validation?.parser_snapshot?.chunk_image_urls || [];
+  const validationParserIntro = validation?.evidence?.parser_alternatives_intro || validation?.parser_snapshot?.parser_alternatives_intro || null;
+  const validationParserContext = validation?.evidence?.parser_context || validation?.parser_snapshot?.parser_context || null;
+  const validationChunkExcerpt = validation?.evidence?.chunk_excerpt || validation?.parser_snapshot?.chunk_excerpt || '';
+  const validationDetectedFlags = validation?.evidence?.detected_flags || [];
+  const validationParserMetrics = validation?.evidence?.parser_metrics || null;
 
   useEffect(() => {
     let cancelled = false;
@@ -1104,7 +1149,13 @@ export default function AdminQuestionApproval() {
         const nextValidation = payload?.validation || null;
         setValidation(nextValidation);
         if (!nextValidation?.available) {
-          setValidationError(nextValidation?.reasons?.[0] || payload?.error || 'Validação estrutural indisponível para esta questão.');
+          setValidationError(
+            nextValidation?.reason
+            || nextValidation?.editorial_reasons?.[0]
+            || nextValidation?.reasons?.[0]
+            || payload?.error
+            || 'Validação estrutural indisponível para esta questão.'
+          );
         }
       } catch (error: any) {
         if (cancelled) return;
@@ -1217,158 +1268,191 @@ export default function AdminQuestionApproval() {
     }
   };
 
+  const queueLabel = currentItems.length > 0
+    ? `${currentIndex + 1} de ${currentItems.length} na fila`
+    : '0 na fila';
+  const activeSource = activeQuestion?.metadata?.source || 'UNKNOWN';
+  const activeQuestionVariant = activeQuestion?.metadata?.tipo || validation?.variant || '';
+  const modeTitle = mode === 'curation' ? 'Curadoria' : mode === 'audit' ? 'Auditoria' : 'Arquivados';
+  const modeBadge = mode === 'curation' ? 'Workspace Editorial' : mode === 'audit' ? 'Qualidade & Diagnóstico' : 'Histórico';
+  const modeDescription = mode === 'curation'
+    ? 'Revise questões com foco em leitura, edição e publicação rápida.'
+    : mode === 'audit'
+      ? 'Inspecione achados automatizados antes de devolver ou publicar.'
+      : 'Recupere itens arquivados sem perder o contexto editorial.';
+
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900 flex flex-col">
-      <div className="w-full max-w-[1920px] mx-auto space-y-6 flex-1 flex flex-col">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-2 font-sans text-slate-900 md:p-4 xl:p-6">
+      <div className="mx-auto flex w-full max-w-[1760px] flex-col gap-4">
 
         {/* --- HEADER & TOOLBAR --- */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm shrink-0">
-          <div className="flex items-center gap-4">
-            <Link href="/portal/admin">
-              <Button variant="outline" size="icon" className="shrink-0 h-10 w-10 rounded-xl border-slate-200 hover:bg-slate-50 hover:text-slate-900">
-                <ArrowLeft size={20} />
-              </Button>
-            </Link>
+        <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white/90 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur">
+          <div className="border-b border-slate-200/80 bg-[linear-gradient(135deg,_rgba(15,23,42,0.04),_rgba(59,130,246,0.06))] px-3 py-4 md:px-5 lg:px-6">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div className="flex items-start gap-4">
+                <Link href="/portal/admin">
+                  <Button variant="outline" size="icon" className="mt-0.5 h-10 w-10 shrink-0 rounded-xl border-slate-200 bg-white/90 hover:bg-white hover:text-slate-900">
+                    <ArrowLeft size={20} />
+                  </Button>
+                </Link>
 
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-3">
-                {mode === 'curation' ? 'Curadoria' : mode === 'audit' ? 'Auditoria' : 'Arquivados'}
-                <Badge variant="secondary" className="text-xs px-2 py-0.5 font-medium bg-slate-100 text-slate-600">
-                  {mode === 'curation' ? 'Modo Foco' : mode === 'audit' ? 'Qualidade' : 'Arquivo'}
-                </Badge>
-              </h1>
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white hover:bg-slate-900">
+                      Portal Admin
+                    </Badge>
+                    <Badge variant="secondary" className="rounded-full border border-sky-100 bg-sky-50 px-2.5 py-1 text-[10px] font-semibold text-sky-700">
+                      {modeBadge}
+                    </Badge>
+                  </div>
+
+                  <div>
+                    <h1 className="text-[1.65rem] font-bold tracking-tight text-slate-950 md:text-[2rem]">
+                      {modeTitle}
+                    </h1>
+                    <p className="mt-1 max-w-2xl text-[13px] leading-5 text-slate-600 md:text-sm">
+                      {modeDescription}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:min-w-[400px]">
+                <div className="rounded-xl border border-slate-200 bg-white/90 px-3.5 py-2.5 shadow-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Posição Atual</p>
+                  <div className="mt-2 flex items-center gap-2 text-slate-900">
+                    <div className={`h-2.5 w-2.5 rounded-full ${currentItems.length > 0 ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`} />
+                    <p className="text-base font-semibold">{queueLabel}</p>
+                  </div>
+                </div>
+
+                <div className={`rounded-xl border px-3.5 py-2.5 shadow-sm ${
+                  mode === 'audit'
+                    ? 'border-amber-200 bg-amber-50/80'
+                    : mode === 'archived'
+                      ? 'border-slate-200 bg-slate-100/80'
+                      : 'border-emerald-200 bg-emerald-50/80'
+                }`}>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    {mode === 'audit' ? 'Cobertura da Auditoria' : mode === 'archived' ? 'Arquivo' : 'Ritmo da Curadoria'}
+                  </p>
+                  <p className="mt-2 text-base font-semibold text-slate-900">
+                    {mode === 'audit'
+                      ? `${auditSummary.flagged} achado(s) em ${auditSummary.totalAudited}`
+                      : mode === 'archived'
+                        ? `${filteredArchived.length} item(ns) visíveis`
+                        : `${filteredQuestions.length} pendente(s) nos filtros`}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-            <div className="flex gap-2 w-full md:w-auto">
-              <Button
-                variant={mode === 'curation' ? 'default' : 'outline'}
-                className={mode === 'curation' ? 'bg-slate-900 hover:bg-slate-800 text-white' : ''}
-                onClick={() => setMode('curation')}
-              >
-                Curadoria
-              </Button>
-              <Button
-                variant={mode === 'audit' ? 'default' : 'outline'}
-                className={mode === 'audit' ? 'bg-slate-900 hover:bg-slate-800 text-white' : ''}
-                onClick={() => setMode('audit')}
-              >
-                Auditoria
-              </Button>
-              <Button
-                variant={mode === 'archived' ? 'default' : 'outline'}
-                className={mode === 'archived' ? 'bg-slate-500 hover:bg-slate-600 text-white' : ''}
-                onClick={() => setMode('archived')}
-              >
-                <Archive className="w-4 h-4 mr-2" />
-                Arquivados
-              </Button>
-            </div>
+          <div className="px-3 py-3 md:px-5 lg:px-6">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant={mode === 'curation' ? 'default' : 'outline'}
+                  className={mode === 'curation' ? 'h-9 rounded-xl bg-slate-900 px-3 text-sm text-white hover:bg-slate-800' : 'h-9 rounded-xl bg-white px-3 text-sm'}
+                  onClick={() => setMode('curation')}
+                >
+                  Curadoria
+                </Button>
+                <Button
+                  variant={mode === 'audit' ? 'default' : 'outline'}
+                  className={mode === 'audit' ? 'h-9 rounded-xl bg-slate-900 px-3 text-sm text-white hover:bg-slate-800' : 'h-9 rounded-xl bg-white px-3 text-sm'}
+                  onClick={() => setMode('audit')}
+                >
+                  Auditoria
+                </Button>
+                <Button
+                  variant={mode === 'archived' ? 'default' : 'outline'}
+                  className={mode === 'archived' ? 'h-9 rounded-xl bg-slate-500 px-3 text-sm text-white hover:bg-slate-600' : 'h-9 rounded-xl bg-white px-3 text-sm'}
+                  onClick={() => setMode('archived')}
+                >
+                  <Archive className="mr-2 h-4 w-4" />
+                  Arquivados
+                </Button>
+              </div>
 
-            {/* Stats Pill: posição atual na fila */}
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
-              <div className={`w-2 h-2 rounded-full ${currentItems.length > 0 ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`} />
-              <span className="font-semibold text-slate-700 text-sm flex items-center gap-1">
-                <Layers size={14} className="text-slate-400" />
-                {currentItems.length > 0
-                  ? `${currentIndex + 1} de ${currentItems.length} na fila`
-                  : '0 na fila'}
-              </span>
-            </div>
-
-            {mode === 'audit' && (
-              <>
-                <div className="flex gap-2 w-full md:w-auto">
-                  <Button
-                    variant={auditType === 'media' ? 'default' : 'outline'}
-                    className={auditType === 'media' ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''}
-                    onClick={() => setAuditType('media')}
-                  >
+              {mode === 'audit' && (
+                <div className="flex flex-wrap gap-2">
+                  <Button variant={auditType === 'media' ? 'default' : 'outline'} className={auditType === 'media' ? 'h-9 rounded-xl bg-amber-600 px-3 text-sm text-white hover:bg-amber-700' : 'h-9 rounded-xl bg-white px-3 text-sm'} onClick={() => setAuditType('media')}>
                     Asset Audit
                   </Button>
-                  <Button
-                    variant={auditType === 'data' ? 'default' : 'outline'}
-                    className={auditType === 'data' ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''}
-                    onClick={() => setAuditType('data')}
-                  >
+                  <Button variant={auditType === 'data' ? 'default' : 'outline'} className={auditType === 'data' ? 'h-9 rounded-xl bg-amber-600 px-3 text-sm text-white hover:bg-amber-700' : 'h-9 rounded-xl bg-white px-3 text-sm'} onClick={() => setAuditType('data')}>
                     Data Audit
                   </Button>
-                  <Button
-                    variant={auditType === 'classification' ? 'default' : 'outline'}
-                    className={auditType === 'classification' ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''}
-                    onClick={() => setAuditType('classification')}
-                  >
+                  <Button variant={auditType === 'classification' ? 'default' : 'outline'} className={auditType === 'classification' ? 'h-9 rounded-xl bg-amber-600 px-3 text-sm text-white hover:bg-amber-700' : 'h-9 rounded-xl bg-white px-3 text-sm'} onClick={() => setAuditType('classification')}>
                     Classification Audit
                   </Button>
-                  <Button
-                    variant={auditType === 'render' ? 'default' : 'outline'}
-                    className={auditType === 'render' ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''}
-                    onClick={() => setAuditType('render')}
-                  >
+                  <Button variant={auditType === 'render' ? 'default' : 'outline'} className={auditType === 'render' ? 'h-9 rounded-xl bg-amber-600 px-3 text-sm text-white hover:bg-amber-700' : 'h-9 rounded-xl bg-white px-3 text-sm'} onClick={() => setAuditType('render')}>
                     Render Audit
                   </Button>
                 </div>
+              )}
 
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-200">
-                  <AlertCircle size={14} className="text-amber-600" />
-                  <span className="font-semibold text-amber-800 text-sm">
-                    {auditSummary.flagged} {auditSummary.flagged === 1 ? 'achado' : 'achados'} em {auditSummary.totalAudited} {auditSummary.totalAudited === 1 ? 'questão auditada' : 'questões auditadas'}
-                  </span>
+              <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+                  <Select value={filterSubject} onValueChange={setFilterSubject} disabled={isEditing}>
+                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-sm">
+                      <Filter className="mr-2 h-3.5 w-3.5 text-slate-400" />
+                      <SelectValue placeholder="Matéria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Matérias</SelectItem>
+                      {subjects.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterSource} onValueChange={setFilterSource} disabled={isEditing}>
+                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-sm">
+                      <SelectValue placeholder="Origem" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Origens</SelectItem>
+                      {sources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterDifficulty} onValueChange={setFilterDifficulty} disabled={isEditing}>
+                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-sm">
+                      <SelectValue placeholder="Dificuldade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas Dific.</SelectItem>
+                      <SelectItem value="Fácil">Fácil</SelectItem>
+                      <SelectItem value="Médio">Médio</SelectItem>
+                      <SelectItem value="Difícil">Difícil</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterYear} onValueChange={setFilterYear} disabled={isEditing}>
+                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-sm">
+                      <SelectValue placeholder="Ano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos Anos</SelectItem>
+                      {years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </>
-            )}
 
-            {/* Filters */}
-            <div className="flex gap-2 w-full md:w-auto">
-              <Select value={filterSubject} onValueChange={setFilterSubject} disabled={isEditing}>
-                <SelectTrigger className="w-[140px] md:w-[160px] bg-white h-9 text-sm">
-                  <Filter className="w-3.5 h-3.5 mr-2 text-slate-400" />
-                  <SelectValue placeholder="Matéria" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas Matérias</SelectItem>
-                  {subjects.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-
-              <Select value={filterSource} onValueChange={setFilterSource} disabled={isEditing}>
-                <SelectTrigger className="w-[130px] md:w-[150px] bg-white h-9 text-sm">
-                  <SelectValue placeholder="Origem" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas Origens</SelectItem>
-                  {sources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-
-              <Select value={filterDifficulty} onValueChange={setFilterDifficulty} disabled={isEditing}>
-                <SelectTrigger className="w-[120px] md:w-[140px] bg-white h-9 text-sm">
-                  <SelectValue placeholder="Dificuldade" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas Dific.</SelectItem>
-                  <SelectItem value="Fácil">Fácil</SelectItem>
-                  <SelectItem value="Médio">Médio</SelectItem>
-                  <SelectItem value="Difícil">Difícil</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={filterYear} onValueChange={setFilterYear} disabled={isEditing}>
-                <SelectTrigger className="w-[100px] md:w-[115px] bg-white h-9 text-sm">
-                  <SelectValue placeholder="Ano" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos Anos</SelectItem>
-                  {years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
-                </SelectContent>
-              </Select>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 shadow-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Atalhos</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Navegue com <span className="font-semibold text-slate-800">←</span> e <span className="font-semibold text-slate-800">→</span>.
+                    {mode === 'curation' ? ' Aprove aprovação com Enter, delete com Delete e arquivo com A.' : ''}
+                    {isEditing ? ' Salve rapidamente com Ctrl/Cmd + S.' : ''}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
 
         {/* --- CONTENT AREA: THE QUEUE --- */}
-        <div className="flex-1 flex flex-col justify-center">
+        <div className="flex flex-col">
           {(mode === 'curation' ? loading : mode === 'archived' ? archivedLoading : auditLoading) ? (
             <Card className="w-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden h-[600px] flex flex-col">
               <CardHeader className="border-b border-slate-100 p-6">
@@ -1418,62 +1502,90 @@ export default function AdminQuestionApproval() {
             /* ACTIVE QUESTION CARD */
             <Card
               key={activeQuestion.id}
-              className="w-full bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col max-h-[calc(100vh-13rem)] animate-in slide-in-from-right-8 fade-in duration-300 relative group"
+              className="group relative flex w-full animate-in flex-col rounded-[24px] border border-slate-200/80 bg-white shadow-[0_24px_72px_-36px_rgba(15,23,42,0.42)] slide-in-from-right-8 fade-in duration-300"
             >
 
               {/* HEADER DA QUESTÃO */}
-              <div className="bg-slate-50/80 border-b border-slate-100 p-5 shrink-0">
-                <div className="flex justify-between items-start gap-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none uppercase tracking-wider text-xs px-2.5 py-0.5 font-semibold rounded-md">
-                      {activeQuestion.subject}
-                    </Badge>
-                    <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 uppercase tracking-wider text-[10px] px-2 py-0.5 rounded-md">
-                      {activeQuestion.metadata?.source || 'UNKNOWN'}
-                    </Badge>
-                    {activeQuestion.metadata?.tipo && (
-                      <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 uppercase tracking-wider text-[10px] px-2 py-0.5 rounded-md">
-                        {activeQuestion.metadata.tipo}
-                      </Badge>
-                    )}
-                    {activeQuestion.discipline && (
-                      <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 uppercase tracking-wider text-[10px] px-2 py-0.5 rounded-md">
-                        {activeQuestion.discipline}
-                      </Badge>
-                    )}
-                    <Badge variant="outline" className={`border uppercase tracking-wider text-xs px-2.5 py-0.5 font-semibold rounded-md ${getDifficultyColor(activeQuestion.difficulty)}`}>
-                      {activeQuestion.difficulty}
-                    </Badge>
-                    {activeQuestion.exam_year && (
-                      <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 gap-1.5 px-2.5 py-0.5 rounded-md">
-                        <Calendar size={12} /> {activeQuestion.exam_year}
-                      </Badge>
-                    )}
-                    {activeQuestion.is_ai_generated && (
-                      <Badge className="bg-purple-100 text-purple-700 border border-purple-200 gap-1.5 hover:bg-purple-200 px-2.5 py-0.5 rounded-md">
-                        <Bot size={12} /> IA Gerada
-                      </Badge>
-                    )}
-                    {mode === 'audit' && activeAuditItem && (
-                      <>
-                        <Badge variant="outline" className={getSeverityColor(activeAuditItem.severity)}>
-                          Auditoria {activeAuditItem.severity}
+              <div className="border-b border-slate-200 bg-[linear-gradient(135deg,_rgba(248,250,252,0.95),_rgba(239,246,255,0.9))] px-3 py-4 md:px-5 lg:px-6">
+                <div className="flex flex-col gap-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge className="rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white hover:bg-blue-700">
+                          {activeQuestion.subject}
                         </Badge>
-                        <Badge variant="outline" className="bg-white text-slate-600 border-slate-200">
-                          {activeAuditItem.issue_codes.length} achado(s)
+                        <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-slate-600">
+                          {activeSource}
                         </Badge>
-                      </>
-                    )}
+                        {activeQuestionVariant && (
+                          <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-slate-600">
+                            {activeQuestionVariant}
+                          </Badge>
+                        )}
+                        {activeQuestion.discipline && (
+                          <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-slate-600">
+                            {activeQuestion.discipline}
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${getDifficultyColor(activeQuestion.difficulty)}`}>
+                          {activeQuestion.difficulty}
+                        </Badge>
+                        {activeQuestion.exam_year && (
+                          <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-2.5 py-1 text-[10px] text-slate-600">
+                            <Calendar size={12} className="mr-1" /> {activeQuestion.exam_year}
+                          </Badge>
+                        )}
+                        {activeQuestion.is_ai_generated && (
+                          <Badge className="rounded-full border border-purple-200 bg-purple-100 px-2.5 py-1 text-[10px] text-purple-700 hover:bg-purple-200">
+                            <Bot size={12} className="mr-1" /> IA Gerada
+                          </Badge>
+                        )}
+                        {mode === 'audit' && activeAuditItem && (
+                          <>
+                            <Badge variant="outline" className={`rounded-full ${getSeverityColor(activeAuditItem.severity)}`}>
+                              Auditoria {activeAuditItem.severity}
+                            </Badge>
+                            <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-slate-600">
+                              {activeAuditItem.issue_codes.length} achado(s)
+                            </Badge>
+                          </>
+                        )}
+                      </div>
+
+                      <div>
+                        <h2 className="text-lg font-bold tracking-tight text-slate-950 md:text-[1.35rem]">
+                          {activeQuestionDisplayTitle || activeQuestion.alternatives_intro || 'Questão em revisão'}
+                        </h2>
+                        <p className="mt-1 text-[13px] leading-5 text-slate-600">
+                          Leia, edite e publique sem perder o contexto da prova e do parser.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-white/90 px-3.5 py-3 shadow-sm lg:min-w-[220px]">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Identificador</p>
+                      <p className="mt-2 break-all font-mono text-xs text-slate-600">
+                        {activeQuestion.external_id || activeQuestion.id.substring(0, 8)}
+                      </p>
+                      <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Fila</p>
+                          <p className="mt-1 font-semibold text-slate-900">{queueLabel}</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Modo</p>
+                          <p className="mt-1 font-semibold text-slate-900">{modeTitle}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
-                    {activeQuestion.external_id || activeQuestion.id.substring(0, 8)}
-                  </span>
+
                 </div>
               </div>
 
               {/* CONTEÚDO (MUDANÇA ENTRE MODO DE EXIBIÇÃO E EDIÇÃO) */}
               {isEditing && editForm ? (
-                <div className="overflow-y-auto flex-1 space-y-6 bg-slate-50/40 p-6 md:p-8 custom-scrollbar">
+                <div className="space-y-5 bg-slate-50/40 px-3 py-5 md:px-5 lg:px-6">
                   <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
                     <p className="font-semibold text-slate-900">Editor de curadoria</p>
                     <p className="mt-1">Use `Ctrl/Cmd + S` para salvar. Clique na letra da alternativa para definir o gabarito.</p>
@@ -1658,8 +1770,8 @@ export default function AdminQuestionApproval() {
                   </div>
                 </div>
               ) : (
-                <div className="overflow-y-auto flex-1 p-6 md:p-8 custom-scrollbar">
-                  <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1.1fr)_minmax(540px,0.9fr)] xl:grid-cols-[minmax(0,1fr)_500px] gap-8 xl:gap-10 items-start">
+                <div className="px-3 py-5 md:px-5 lg:px-6">
+                  <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)] 2xl:grid-cols-[minmax(0,1.1fr)_minmax(390px,0.9fr)] xl:gap-6">
                     <div className="space-y-8 min-w-0">
 
                   {mode === 'audit' && activeAuditItem && (
@@ -1684,10 +1796,11 @@ export default function AdminQuestionApproval() {
 
                   {/* Contexto */}
                   {activeQuestionContextText && (
-                    <div className="relative pl-5 border-l-4 border-slate-200 py-1">
-                      <div className="absolute -left-[30px] -top-1 bg-white text-slate-400 p-1.5 rounded-full border border-slate-200 shadow-sm">
+                    <div className="relative rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4 md:px-5">
+                      <div className="absolute -left-3 top-5 bg-white text-slate-400 p-1.5 rounded-full border border-slate-200 shadow-sm">
                         <BookOpen size={16} />
                       </div>
+                      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Contexto</p>
                       <div className="prose prose-slate max-w-none text-slate-600 italic leading-relaxed text-[15px]">
                         <RichText text={activeQuestionContextText} />
                       </div>
@@ -1716,14 +1829,21 @@ export default function AdminQuestionApproval() {
                   )}
 
                   {/* Comando da Questão */}
-                  <div className="prose prose-slate prose-lg max-w-none text-slate-900 font-medium leading-relaxed">
-                    {activeQuestionDisplayTitle && <h3 className="text-xl font-bold mb-2 text-slate-800">{activeQuestionDisplayTitle}</h3>}
-                    <RichText text={activeQuestionStatementText} />
+                  <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Enunciado</p>
+                    <div className="prose prose-slate prose-lg max-w-none text-slate-900 font-medium leading-relaxed">
+                      <RichText text={activeQuestionStatementText} />
+                    </div>
                   </div>
 
                   {/* Bloco de Alternativas */}
-                  <div className="space-y-3 pt-4 border-t border-slate-100">
-                    <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Alternativas</h4>
+                  <div className="space-y-3 rounded-[24px] border border-slate-200 bg-slate-50/70 p-4 md:p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Alternativas</h4>
+                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500">
+                        {activeQuestion.alternatives?.length || 0} opção(ões)
+                      </span>
+                    </div>
                     {activeQuestion.alternatives && activeQuestion.alternatives.length > 0 ? (
                       activeQuestion.alternatives.map((alt) => {
                         const normalizedCorrect = String(activeQuestion.correct_alternative || '').toUpperCase();
@@ -1786,7 +1906,7 @@ export default function AdminQuestionApproval() {
                   </div>
 
                   {activeQuestionComment && (
-                    <div className="mt-6 p-4 bg-purple-50/50 border border-purple-100 rounded-xl">
+                    <div className="mt-6 rounded-[24px] border border-purple-100 bg-purple-50/50 p-4">
                       <div className="flex items-center gap-2 mb-2">
                         <Bot size={16} className="text-purple-600" />
                         <span className="text-sm font-bold text-purple-900 uppercase tracking-wider">Comentário do professor</span>
@@ -1798,8 +1918,8 @@ export default function AdminQuestionApproval() {
                   )}
                     </div>
 
-                    <aside className="xl:sticky xl:top-0 min-w-0 space-y-4">
-                      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/80">
+                    <aside className="min-w-0 space-y-4 xl:sticky xl:top-6">
+                      <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50/90 shadow-sm">
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                           <div className="flex items-center gap-2">
                             <ShieldCheck size={16} className="text-slate-600" />
@@ -1808,9 +1928,9 @@ export default function AdminQuestionApproval() {
                               <p className="text-xs text-slate-500">Comparação direta entre banco, chunk/parser, gabarito e imagens.</p>
                             </div>
                           </div>
-                          <Badge variant="outline" className={activeValidationTone.badge}>
-                            {activeValidationStatus.toUpperCase()} • {activeValidationScore.toFixed(0)}%
-                          </Badge>
+                                  <Badge variant="outline" className={activeValidationTone.badge}>
+                                    {validationAvailable ? `${activeValidationStatus.toUpperCase()} • ${activeValidationScore.toFixed(0)}%` : 'INDISPONÍVEL'}
+                                  </Badge>
                         </div>
 
                         <div className="space-y-4 p-4">
@@ -1825,16 +1945,58 @@ export default function AdminQuestionApproval() {
                               <div className="rounded-xl border border-slate-200 bg-white p-4">
                                 <div className="mb-3 flex items-end justify-between gap-3">
                                   <div>
-                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Score</p>
-                                    <p className="text-3xl font-bold text-slate-900">{activeValidationScore.toFixed(1)}%</p>
+                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Confiabilidade Editorial</p>
+                                    <p className="text-3xl font-bold text-slate-900">
+                                      {validationAvailable ? `${activeValidationScore.toFixed(1)}%` : 'Indisponível'}
+                                    </p>
                                   </div>
                                   <div className="text-right text-xs text-slate-500">
-                                    <p>{validation?.source || activeQuestion.metadata?.source || 'UNKNOWN'}</p>
-                                    <p>{validation?.exam_id || activeQuestion.external_id}</p>
+                                    <p>{validationEvidenceSource}</p>
+                                    <p>{validationEvidenceExamId}</p>
                                   </div>
                                 </div>
-                                <Progress value={activeValidationScore} className={activeValidationTone.track + ' h-3'} indicatorClassName={activeValidationTone.bar} />
-                                <p className="mt-3 text-xs text-slate-500">Verde a partir de 85%. Amarelo entre 60% e 84,9%. Vermelho abaixo disso.</p>
+                                <Progress
+                                  value={validationAvailable ? activeValidationScore : 0}
+                                  className={activeValidationTone.track + ' h-3'}
+                                  indicatorClassName={activeValidationTone.bar}
+                                />
+                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                  <p className="text-xs text-slate-500">
+                                    {validationAvailable
+                                      ? 'Verde a partir de 85%. Amarelo entre 60% e 84,9%. Vermelho abaixo disso.'
+                                      : 'Validação estrutural indisponível para esta fonte ou para esta questão.'}
+                                  </p>
+                                  {comparisonConfidence !== 'high' ? (
+                                    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                                      Confiança {comparisonConfidence === 'reduced' ? 'reduzida' : 'baixa'}
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                                {validation?.summary ? (
+                                  <p className="mt-3 text-sm text-slate-600">{validation.summary}</p>
+                                ) : null}
+                              </div>
+
+                              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                                <div className="mb-3 flex items-end justify-between gap-3">
+                                  <div>
+                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Saúde do Parser</p>
+                                    <p className="text-2xl font-bold text-slate-900">{activeParserScore.toFixed(1)}%</p>
+                                  </div>
+                                  <Badge variant="outline" className={activeParserTone.badge}>
+                                    {activeParserStatus.toUpperCase()}
+                                  </Badge>
+                                </div>
+                                <Progress value={activeParserScore} className={activeParserTone.track + ' h-2'} indicatorClassName={activeParserTone.bar} />
+                                {validationDetectedFlags.length ? (
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {validationDetectedFlags.map((flag) => (
+                                      <Badge key={flag} variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
+                                        {flag}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                ) : null}
                               </div>
 
                               {validationError && (
@@ -1843,9 +2005,12 @@ export default function AdminQuestionApproval() {
                                 </div>
                               )}
 
-                              {validation?.checks?.length ? (
+                              {editorialChecks.length ? (
                                 <div className="space-y-3">
-                                  {validation.checks.map((check) => (
+                                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                                    <p className="text-sm font-semibold text-slate-900">Checks editoriais</p>
+                                  </div>
+                                  {editorialChecks.map((check) => (
                                     <div key={check.key} className="rounded-xl border border-slate-200 bg-white p-4">
                                       <div className="flex items-start justify-between gap-3">
                                         <div>
@@ -1880,35 +2045,115 @@ export default function AdminQuestionApproval() {
                                 </div>
                               ) : null}
 
+                              {parserChecks.length ? (
+                                <div className="space-y-3">
+                                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                                    <p className="text-sm font-semibold text-slate-900">Checks técnicos do parser</p>
+                                  </div>
+                                  {parserChecks.map((check) => (
+                                    <div key={`parser-${check.key}`} className="rounded-xl border border-slate-200 bg-white p-4">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                          <p className="text-sm font-semibold text-slate-900">{check.label}</p>
+                                          <p className="mt-1 text-xs text-slate-500">{check.summary}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {check.hard_block ? (
+                                            <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
+                                              Hard block
+                                            </Badge>
+                                          ) : null}
+                                          <Badge
+                                            variant="outline"
+                                            className={check.status === 'pass'
+                                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                              : check.status === 'warning'
+                                                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                                : 'border-rose-200 bg-rose-50 text-rose-700'}
+                                          >
+                                            {check.score.toFixed(0)}%
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                      <Progress
+                                        value={check.score}
+                                        className="mt-3 h-2 bg-slate-100"
+                                        indicatorClassName={check.status === 'pass' ? 'bg-emerald-500' : check.status === 'warning' ? 'bg-amber-500' : 'bg-rose-500'}
+                                      />
+                                      {check.issues.length > 0 && (
+                                        <div className="mt-3 space-y-1 text-xs text-slate-600">
+                                          {check.issues.map((issue, index) => (
+                                            <p key={`parser-${check.key}-${index}`}>• {issue}</p>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
+
                               <div className="rounded-xl border border-slate-200 bg-white p-4">
                                 <p className="text-sm font-semibold text-slate-900">Motivos principais</p>
-                                <div className="mt-3 space-y-2 text-sm text-slate-600">
-                                  {(validation?.reasons || []).map((reason, index) => (
-                                    <p key={`${activeQuestion.id}-validation-reason-${index}`}>• {reason}</p>
-                                  ))}
+                                <div className="mt-3 space-y-4 text-sm text-slate-600">
+                                  <div>
+                                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Motivos editoriais</p>
+                                    <div className="space-y-2">
+                                      {editorialReasons.map((reason, index) => (
+                                        <p key={`${activeQuestion.id}-editorial-reason-${index}`}>• {reason}</p>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Alertas técnicos do parser</p>
+                                    <div className="space-y-2">
+                                      {parserReasons.length ? parserReasons.map((reason, index) => (
+                                        <p key={`${activeQuestion.id}-parser-reason-${index}`}>• {reason}</p>
+                                      )) : (
+                                        <p>• Nenhum alerta técnico relevante.</p>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
 
                               <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
-                                <p className="font-semibold text-slate-900">Referência do parser</p>
-                                {validation?.parser_snapshot?.official_answer ? (
+                                <p className="font-semibold text-slate-900">Evidências</p>
+                                {validationOfficialAnswer ? (
                                   <p className="mt-2">
-                                    Gabarito oficial: <span className="font-semibold text-slate-900">{normalizeQuestionText(validation.parser_snapshot.official_answer)}</span>
+                                    Gabarito oficial: <span className="font-semibold text-slate-900">{normalizeQuestionText(validationOfficialAnswer)}</span>
                                   </p>
                                 ) : null}
                                 <p className="mt-2">
-                                  Imagens encontradas no chunk/parser: <span className="font-semibold text-slate-900">{validation?.parser_snapshot?.chunk_image_urls?.length || 0}</span>
+                                  Imagens encontradas no chunk/parser: <span className="font-semibold text-slate-900">{validationChunkImageUrls.length}</span>
                                 </p>
-                                {validation?.parser_snapshot?.parser_alternatives_intro ? (
+                                {validationParserIntro ? (
                                   <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                                     <p className="mb-2 font-medium text-slate-800">Comando reconstruído pelo parser</p>
-                                    <RichText text={validation.parser_snapshot.parser_alternatives_intro} className="text-slate-600" />
+                                    <RichText text={validationParserIntro} className="text-slate-600" />
                                   </div>
                                 ) : null}
-                                {validation?.parser_snapshot?.chunk_excerpt ? (
+                                {validationParserContext ? (
+                                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                    <p className="mb-2 font-medium text-slate-800">Contexto reconstruído pelo parser</p>
+                                    <RichText text={validationParserContext} className="text-slate-600" />
+                                  </div>
+                                ) : null}
+                                {validationChunkExcerpt ? (
                                   <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                                     <p className="mb-2 font-medium text-slate-800">Bloco completo do chunk</p>
-                                    <RichText text={validation.parser_snapshot.chunk_excerpt} className="text-slate-600" />
+                                    <RichText text={validationChunkExcerpt} className="text-slate-600" />
+                                  </div>
+                                ) : null}
+                                {validationParserMetrics ? (
+                                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                    <p className="mb-2 font-medium text-slate-800">Métricas do parser</p>
+                                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
+                                      {Object.entries(validationParserMetrics).map(([key, value]) => (
+                                        <p key={key}>
+                                          <span className="font-medium text-slate-800">{key}:</span> {String(value)}
+                                        </p>
+                                      ))}
+                                    </div>
                                   </div>
                                 ) : null}
                               </div>
@@ -1923,10 +2168,11 @@ export default function AdminQuestionApproval() {
 
               {/* STICKY FOOTER ACTIONS (Decision Layer) */}
               {isEditing ? (
-                <div className="bg-white border-t border-slate-200 p-5 shrink-0 flex gap-4 rounded-b-3xl relative">
+                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-white/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6">
+                  <div className="flex flex-col gap-3 md:flex-row">
                   <Button
                     variant="outline"
-                    className="flex-1 h-14 text-base font-semibold border-slate-300 text-slate-600 hover:bg-slate-100 hover:text-slate-900 rounded-xl transition-colors"
+                    className="h-12 flex-1 rounded-xl border-slate-300 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
                     onClick={cancelEditing}
                     disabled={!!processingId}
                   >
@@ -1934,7 +2180,7 @@ export default function AdminQuestionApproval() {
                   </Button>
 
                   <Button
-                    className="flex-[2] h-14 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg shadow-blue-600/20 transition-all hover:translate-y-[-1px]"
+                    className="h-12 flex-[2] rounded-xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all hover:translate-y-[-1px] hover:bg-blue-700"
                     onClick={saveEditing}
                     disabled={!!processingId}
                   >
@@ -1948,11 +2194,13 @@ export default function AdminQuestionApproval() {
                     )}
                   </Button>
                 </div>
+                </div>
               ) : mode === 'audit' ? (
-                <div className="bg-slate-50/90 backdrop-blur-md border-t border-slate-200 p-5 shrink-0 flex flex-wrap gap-4 rounded-b-3xl relative">
+                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6">
+                  <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
                   <Button
                     variant="outline"
-                    className="flex-1 min-w-[180px] h-14 text-base font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900 rounded-xl transition-colors"
+                    className="h-12 min-w-[160px] flex-1 rounded-xl border-slate-300 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
                     onClick={fetchAuditQueue}
                     disabled={!!auditProcessingId}
                   >
@@ -1960,7 +2208,7 @@ export default function AdminQuestionApproval() {
                   </Button>
 
                   <Button
-                    className="flex-[2] min-w-[220px] h-14 text-base font-semibold bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-lg shadow-amber-600/20 transition-all hover:translate-y-[-1px]"
+                    className="h-12 min-w-[200px] flex-[2] rounded-xl bg-amber-600 text-sm font-semibold text-white shadow-lg shadow-amber-600/20 transition-all hover:translate-y-[-1px] hover:bg-amber-700"
                     onClick={() => handleDecision(activeQuestion.id, 'approve')}
                     disabled={!!auditProcessingId || activeQuestion.is_verified === true}
                   >
@@ -1969,18 +2217,20 @@ export default function AdminQuestionApproval() {
 
                   <Button
                     variant="outline"
-                    className="flex-[2] min-w-[220px] h-14 text-base font-semibold border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800 rounded-xl transition-colors"
+                    className="h-12 min-w-[200px] flex-[2] rounded-xl border-amber-300 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-50 hover:text-amber-800"
                     onClick={() => moveQuestionToCuration(activeQuestion.id)}
                     disabled={!!auditProcessingId || activeQuestion.is_verified === false}
                   >
                     {auditProcessingId === activeQuestion.id ? 'Movendo...' : (activeQuestion.is_verified === false ? 'Já está na Curadoria' : 'Mover para Curadoria')}
                   </Button>
                 </div>
+                </div>
               ) : mode === 'archived' ? (
-                <div className="bg-slate-50/90 backdrop-blur-md border-t border-slate-200 p-5 shrink-0 flex flex-wrap gap-4 rounded-b-3xl relative">
+                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6">
+                  <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
                   <Button
                     variant="outline"
-                    className="flex-1 min-w-[180px] h-14 text-base font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900 rounded-xl transition-colors"
+                    className="h-12 min-w-[160px] flex-1 rounded-xl border-slate-300 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
                     onClick={fetchArchived}
                     disabled={!!questionPublishingAction}
                   >
@@ -1988,7 +2238,7 @@ export default function AdminQuestionApproval() {
                   </Button>
 
                   <Button
-                    className="flex-[2] min-w-[220px] h-14 text-base font-semibold bg-slate-700 hover:bg-slate-800 text-white rounded-xl shadow-lg shadow-slate-700/20 transition-all hover:translate-y-[-1px]"
+                    className="h-12 min-w-[200px] flex-[2] rounded-xl bg-slate-700 text-sm font-semibold text-white shadow-lg shadow-slate-700/20 transition-all hover:translate-y-[-1px] hover:bg-slate-800"
                     onClick={() => void handleUnarchive(activeQuestion.id)}
                     disabled={!!questionPublishingAction}
                   >
@@ -2002,8 +2252,20 @@ export default function AdminQuestionApproval() {
                     )}
                   </Button>
                 </div>
+                </div>
               ) : (
-                <div className="bg-slate-50/90 backdrop-blur-md border-t border-slate-200 p-5 shrink-0 flex flex-wrap gap-4 rounded-b-3xl relative">
+                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6">
+                  <div className="mb-3 flex flex-wrap gap-2 md:hidden">
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 shadow-sm">
+                      Delete = Deletar
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 shadow-sm">
+                      A = Arquivar
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 shadow-sm">
+                      Enter = Aprovar
+                    </span>
+                  </div>
                   {/* Dicas de Teclado Flutuantes */}
                   <div className="absolute -top-8 left-0 right-0 flex justify-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                     <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
@@ -2017,9 +2279,10 @@ export default function AdminQuestionApproval() {
                     </span>
                   </div>
 
+                  <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
                   <Button
                     variant="outline"
-                    className="flex-1 min-w-[120px] h-14 text-base font-semibold border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 rounded-xl transition-colors"
+                    className="h-12 min-w-[110px] flex-1 rounded-xl border-red-200 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700"
                     onClick={() => {
                       setQuestionPublishingAction('delete');
                       void handleDecision(activeQuestion.id, 'reject');
@@ -2032,7 +2295,7 @@ export default function AdminQuestionApproval() {
 
                   <Button
                     variant="outline"
-                    className="flex-1 min-w-[120px] h-14 text-base font-semibold border-slate-300 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-xl transition-colors"
+                    className="h-12 min-w-[110px] flex-1 rounded-xl border-slate-300 text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                     onClick={() => void handleArchive(activeQuestion.id)}
                     disabled={!!processingId || questionPublishingAction !== null}
                   >
@@ -2042,7 +2305,7 @@ export default function AdminQuestionApproval() {
 
                   <Button
                     variant="outline"
-                    className="flex-1 min-w-[120px] h-14 text-base font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 hover:text-slate-900 rounded-xl transition-colors"
+                    className="h-12 min-w-[110px] flex-1 rounded-xl border-slate-300 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
                     onClick={startEditing}
                     disabled={!!processingId}
                   >
@@ -2051,7 +2314,7 @@ export default function AdminQuestionApproval() {
                   </Button>
 
                   <Button
-                    className="flex-[2] min-w-[200px] h-14 text-base font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-lg shadow-slate-900/10 transition-all hover:translate-y-[-1px]"
+                    className="h-12 min-w-[180px] flex-[2] rounded-xl bg-slate-900 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 transition-all hover:translate-y-[-1px] hover:bg-slate-800"
                     onClick={() => {
                       setQuestionPublishingAction('approve');
                       void handleDecision(activeQuestion.id, 'approve');
@@ -2068,24 +2331,12 @@ export default function AdminQuestionApproval() {
                     )}
                   </Button>
                 </div>
+                </div>
               )}
             </Card>
           )}
         </div>
       </div>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background-color: #cbd5e1;
-          border-radius: 20px;
-        }
-      `}</style>
     </div>
   );
 }
