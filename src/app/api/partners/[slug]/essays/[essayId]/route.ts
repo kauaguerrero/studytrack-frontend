@@ -266,6 +266,24 @@ export async function GET(
   const competencyScores = relationalCompetencyScores.length > 0 ? relationalCompetencyScores : jsonCompetencyScores;
   const annotations = relationalAnnotations.length > 0 ? relationalAnnotations : jsonAnnotations;
 
+  // Gerar URL assinada para imagem original (falha silenciosa — imagem é referência opcional)
+  let signedImageUrl: string | null = null;
+  const rawImageUrl = essay.image_url as string | null;
+  if (rawImageUrl) {
+    try {
+      const storagePathMatch = rawImageUrl.match(/essay-images\/(.+)$/);
+      if (storagePathMatch) {
+        const storagePath = storagePathMatch[1];
+        const { data: signedUrlData } = await admin.storage
+          .from('essay-images')
+          .createSignedUrl(storagePath, 3600);
+        signedImageUrl = signedUrlData?.signedUrl ?? null;
+      }
+    } catch (e) {
+      console.error('[EssayRoute] Falha ao gerar URL assinada para imagem:', e);
+    }
+  }
+
   return NextResponse.json({
     id: String(essay.id),
     status: (essay.status as string) || 'pending',
@@ -279,6 +297,7 @@ export async function GET(
     competency_scores: competencyScores,
     annotations,
     student,
+    signed_image_url: signedImageUrl,
   });
 }
 
