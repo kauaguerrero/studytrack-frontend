@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { reportError } from '@/lib/reportError';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
@@ -35,7 +36,60 @@ interface ReportDialogProps {
   onOpenChange: (open: boolean) => void;
   questionId: string;
   authToken: string | null;
+  questionSnapshot?: unknown;
   onSuccess?: () => void;
+}
+
+function compactQuestionSnapshot(snapshot: unknown) {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    return snapshot ?? null;
+  }
+
+  const source = snapshot as Record<string, unknown>;
+  return {
+    id: source.id ?? null,
+    external_id: source.external_id ?? null,
+    subject: source.subject ?? null,
+    discipline: source.discipline ?? null,
+    exam_year: source.exam_year ?? null,
+    difficulty: source.difficulty ?? null,
+    bank: source.bank ?? null,
+    statement: source.statement ?? source.alternatives_intro ?? null,
+    correct_option: source.correct_option ?? source.correct_alternative ?? null,
+    alternatives: Array.isArray(source.alternatives)
+      ? source.alternatives.map((alternative) => {
+          if (!alternative || typeof alternative !== 'object') return alternative;
+          const alt = alternative as Record<string, unknown>;
+          return {
+            letter: alt.letter ?? alt.label ?? null,
+            text: alt.text ?? null,
+            image: alt.image ?? alt.file ?? null,
+          };
+        })
+      : null,
+  };
+}
+
+function buildTechnicalContext(questionSnapshot: unknown, pathname: string, searchParams: ReturnType<typeof useSearchParams>) {
+  const query = searchParams.toString();
+  const route = query ? `${pathname}?${query}` : pathname;
+  const element = document.documentElement;
+  const resolvedTheme = element.classList.contains('dark') ? 'dark' : 'light';
+
+  return {
+    route,
+    viewport: {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      devicePixelRatio: window.devicePixelRatio || 1,
+    },
+    userAgent: navigator.userAgent,
+    theme: {
+      resolved: resolvedTheme,
+      preferredColorScheme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+    },
+    payload_snapshot: compactQuestionSnapshot(questionSnapshot),
+  };
 }
 
 export function ReportDialog({
@@ -43,8 +97,11 @@ export function ReportDialog({
   onOpenChange,
   questionId,
   authToken,
+  questionSnapshot,
   onSuccess,
 }: ReportDialogProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [category, setCategory] = useState<ReportErrorCategory | null>(null);
   const [description, setDescription] = useState('');
@@ -99,6 +156,7 @@ export function ReportDialog({
           question_id: questionId,
           error_category: category,
           description: description.trim() || undefined,
+          technical_context: buildTechnicalContext(questionSnapshot, pathname, searchParams),
         }),
       });
 

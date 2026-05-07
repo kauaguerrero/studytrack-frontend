@@ -79,6 +79,7 @@ interface QuestionReportRow {
   user_id: string;
   error_category: string;
   description: string | null;
+  technical_context?: Record<string, unknown> | null;
   status: string;
   created_at: string;
   resolved_at: string | null;
@@ -349,6 +350,15 @@ export default function AdminReportsPage() {
                           <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">
                             {report.description}
                           </p>
+                        </div>
+                      )}
+
+                      {report.technical_context && (
+                        <div>
+                          <p className="text-xs font-bold text-slate-500 uppercase mb-1">Contexto técnico</p>
+                          <pre className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
+                            {JSON.stringify(report.technical_context, null, 2)}
+                          </pre>
                         </div>
                       )}
 

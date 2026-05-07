@@ -50,6 +50,10 @@ function isLikelyMathSegment(segment: string): boolean {
   return false
 }
 
+function isStandaloneOrderedListMarker(text: string): boolean {
+  return /^\d+[.)]\s*$/.test(text.trim())
+}
+
 function splitMarkdownTableRow(row: string): string[] {
   return row
     .trim()
@@ -173,16 +177,20 @@ function renderInlineRichText(text: string, keyPrefix: string) {
           {lines.map((line, lineIndex) => (
             <Fragment key={lineIndex}>
               {lineIndex > 0 && <br />}
-              <ReactMarkdown
-                components={{
-                  p: ({ children }) => <Fragment>{children}</Fragment>,
-                  ul: ({ children }) => <Fragment>{children}</Fragment>,
-                  ol: ({ children }) => <Fragment>{children}</Fragment>,
-                  li: ({ children }) => <Fragment>{children} </Fragment>,
-                }}
-              >
-                {line}
-              </ReactMarkdown>
+              {isStandaloneOrderedListMarker(line) ? (
+                line
+              ) : (
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => <Fragment>{children}</Fragment>,
+                    ul: ({ children }) => <Fragment>{children}</Fragment>,
+                    ol: ({ children }) => <Fragment>{children}</Fragment>,
+                    li: ({ children }) => <Fragment>{children} </Fragment>,
+                  }}
+                >
+                  {line}
+                </ReactMarkdown>
+              )}
             </Fragment>
           ))}
         </span>
