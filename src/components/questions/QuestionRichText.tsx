@@ -231,7 +231,7 @@ function renderInlineRichText(text: string, keyPrefix: string) {
         <Fragment key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}>
           {needsLeadingSpace ? ' ' : null}
           <span
-            className={isDisplayMath ? 'katex-fragment my-3 block max-w-full overflow-x-auto overflow-y-hidden' : 'katex-fragment inline-block max-w-full align-baseline overflow-x-auto overflow-y-hidden'}
+            className={isDisplayMath ? 'katex-fragment katex-display-wrap my-3 block max-w-full' : 'katex-fragment inline-block max-w-full align-baseline'}
             dangerouslySetInnerHTML={{ __html: html }}
           />
           {needsTrailingSpace ? ' ' : null}

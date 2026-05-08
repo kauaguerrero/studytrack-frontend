@@ -145,6 +145,20 @@
   }
 }
 
+.katex-display-wrap .katex-display {
+  margin: 0;
+  max-width: 100%;
+}
+
+.katex-display-wrap .katex-display > .katex {
+  white-space: normal;
+  max-width: 100%;
+}
+
+.katex-display-wrap .katex-display > .katex > .katex-html {
+  max-width: 100%;
+}
+
 .partner-founder-scope[data-partner-slug="edificar"] {
   --edificar-shell-bg:
     radial-gradient(circle at top left, color-mix(in srgb, var(--brand-secondary) 28%, transparent) 0%, transparent 36%),
