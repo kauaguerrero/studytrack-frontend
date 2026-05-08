@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useState, useEffect, useMemo } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
@@ -416,10 +417,11 @@ function renderInlineRichText(text: string, keyPrefix: string) {
     const latex = rawLatex.replace(/(?<!\\)%/g, '\\%');
     const needsLeadingSpace = /\s$/.test(previousSegment);
     const needsTrailingSpace = /^\s/.test(nextSegment);
+    const isDisplayMath = segment.startsWith('$$');
     try {
       const html = katex.renderToString(latex, {
         throwOnError: false,
-        displayMode: segment.startsWith('$$'),
+        displayMode: isDisplayMath,
         output: 'html',
       } as Parameters<typeof katex.renderToString>[1] & {
         output?: 'html' | 'mathml' | 'htmlAndMathml'
@@ -428,7 +430,7 @@ function renderInlineRichText(text: string, keyPrefix: string) {
         <Fragment key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}>
           {needsLeadingSpace ? ' ' : null}
           <span
-            className="katex-fragment inline-block align-baseline"
+            className={isDisplayMath ? 'katex-fragment my-3 block max-w-full overflow-x-auto overflow-y-hidden' : 'katex-fragment inline-block max-w-full align-baseline overflow-x-auto overflow-y-hidden'}
             dangerouslySetInnerHTML={{ __html: html }}
           />
           {needsTrailingSpace ? ' ' : null}
@@ -445,6 +447,62 @@ function renderInlineRichText(text: string, keyPrefix: string) {
       );
     }
   });
+}
+
+function applyInlineFormattingShortcut(
+  event: ReactKeyboardEvent<HTMLTextAreaElement>,
+  apply: (nextValue: string) => void,
+) {
+  const isModifierPressed = event.ctrlKey || event.metaKey;
+  if (!isModifierPressed) return false;
+
+  const target = event.currentTarget;
+  const start = target.selectionStart ?? target.value.length;
+  const end = target.selectionEnd ?? target.value.length;
+  const hasSelection = end > start;
+  const selectedText = target.value.slice(start, end);
+
+  const wrapSelection = (prefix: string, suffix: string, placeholder: string) => {
+    event.preventDefault();
+    const wrappedText = `${prefix}${hasSelection ? selectedText : placeholder}${suffix}`;
+    const nextValue = target.value.slice(0, start) + wrappedText + target.value.slice(end);
+    apply(nextValue);
+    window.requestAnimationFrame(() => {
+      if (hasSelection) {
+        target.selectionStart = start;
+        target.selectionEnd = start + wrappedText.length;
+        return;
+      }
+      target.selectionStart = start + prefix.length;
+      target.selectionEnd = start + wrappedText.length - suffix.length;
+    });
+  };
+
+  const key = event.key.toLowerCase();
+  if (key === 'b') {
+    wrapSelection('**', '**', 'texto em negrito');
+    return true;
+  }
+  if (key === 'i') {
+    wrapSelection('*', '*', 'texto em itálico');
+    return true;
+  }
+  if (key === 'u') {
+    wrapSelection('<u>', '</u>', 'texto sublinhado');
+    return true;
+  }
+  if (key === 'enter') {
+    event.preventDefault();
+    const nextValue = target.value.slice(0, start) + '\n\n' + target.value.slice(end);
+    apply(nextValue);
+    window.requestAnimationFrame(() => {
+      target.selectionStart = start + 2;
+      target.selectionEnd = start + 2;
+    });
+    return true;
+  }
+
+  return false;
 }
 
 function RichText({ text, className }: { text?: string | null; className?: string }) {
@@ -1113,6 +1171,15 @@ export default function AdminQuestionApproval() {
   const validationChunkExcerpt = validation?.evidence?.chunk_excerpt || validation?.parser_snapshot?.chunk_excerpt || '';
   const validationDetectedFlags = validation?.evidence?.detected_flags || [];
   const validationParserMetrics = validation?.evidence?.parser_metrics || null;
+  const bankImageCount = activeQuestionSupportImages.length;
+  const parserImageCount = validationChunkImageUrls.length;
+  const imageCountMismatch = validationAvailable && bankImageCount !== parserImageCount;
+  const imageCountDelta = parserImageCount - bankImageCount;
+  const imageCountAlertLabel = imageCountMismatch
+    ? imageCountDelta > 0
+      ? `Atenção: parser detectou ${Math.abs(imageCountDelta)} imagem(ns) a mais que o banco`
+      : `Atenção: banco tem ${Math.abs(imageCountDelta)} imagem(ns) a mais que o parser`
+    : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -1184,9 +1251,9 @@ export default function AdminQuestionApproval() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isTyping = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
-      const isSaveShortcut = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's';
+      const isModifierPressed = e.ctrlKey || e.metaKey;
 
-      if (isSaveShortcut && isEditing && editForm && !processingId) {
+      if (isModifierPressed && e.key.toLowerCase() === 's' && isEditing && editForm && !processingId) {
         e.preventDefault();
         void saveEditing();
         return;
@@ -1210,9 +1277,12 @@ export default function AdminQuestionApproval() {
         e.preventDefault();
         setQuestionPublishingAction('delete');
         handleDecision(activeQuestion.id, 'reject');
-      } else if (mode === 'curation' && e.key.toLowerCase() === 'a') {
+      } else if (mode === 'curation' && isModifierPressed && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         void handleArchive(activeQuestion.id);
+      } else if (mode === 'curation' && isModifierPressed && e.key.toLowerCase() === 'q') {
+        e.preventDefault();
+        startEditing();
       }
     };
 
@@ -1434,8 +1504,8 @@ export default function AdminQuestionApproval() {
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Atalhos</p>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
                     Navegue com <span className="font-semibold text-slate-800">←</span> e <span className="font-semibold text-slate-800">→</span>.
-                    {mode === 'curation' ? ' Aprove aprovação com Enter, delete com Delete e arquivo com A.' : ''}
-                    {isEditing ? ' Salve rapidamente com Ctrl/Cmd + S.' : ''}
+                    {mode === 'curation' ? ' Aprove com Enter, remova com Delete, arquive com Ctrl/Cmd + A e edite com Ctrl/Cmd + Q.' : ''}
+                    {isEditing ? ' Na edição: Ctrl/Cmd + B negrito, Ctrl/Cmd + I itálico, Ctrl/Cmd + U sublinhado, Ctrl/Cmd + Enter parágrafo e Ctrl/Cmd + S salvar.' : ''}
                   </p>
                 </div>
               </div>
@@ -1545,9 +1615,21 @@ export default function AdminQuestionApproval() {
                       </div>
 
                       <div>
-                        <h2 className="text-lg font-bold tracking-tight text-slate-950 md:text-[1.35rem]">
-                          {activeQuestionDisplayTitle || activeQuestion.alternatives_intro || 'Questão em revisão'}
-                        </h2>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="text-lg font-bold tracking-tight text-slate-950 md:text-[1.35rem]">
+                            {activeQuestionDisplayTitle || activeQuestion.alternatives_intro || 'Questão em revisão'}
+                          </h2>
+                          {imageCountAlertLabel && (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-300 bg-amber-50 text-amber-800"
+                              title={`${imageCountAlertLabel}. Banco: ${bankImageCount}. Parser: ${parserImageCount}.`}
+                            >
+                              <AlertCircle size={12} className="mr-1" />
+                              Imagens divergentes
+                            </Badge>
+                          )}
+                        </div>
                         <p className="mt-1 text-[13px] leading-5 text-slate-600">
                           Leia, edite e publique sem perder o contexto da prova e do parser.
                         </p>
@@ -1580,7 +1662,7 @@ export default function AdminQuestionApproval() {
                 <div className="space-y-5 bg-slate-50/40 px-3 py-5 md:px-5 lg:px-6">
                   <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
                     <p className="font-semibold text-slate-900">Editor de curadoria</p>
-                    <p className="mt-1">Use `Ctrl/Cmd + S` para salvar. Clique na letra da alternativa para definir o gabarito.</p>
+                    <p className="mt-1">Use `Ctrl/Cmd + B` para negrito, `Ctrl/Cmd + I` para itálico, `Ctrl/Cmd + U` para sublinhado, `Ctrl/Cmd + Enter` para parágrafo e `Ctrl/Cmd + S` para salvar. Clique na letra da alternativa para definir o gabarito.</p>
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
@@ -1615,6 +1697,7 @@ export default function AdminQuestionApproval() {
                     <textarea
                       value={editForm.context || ''}
                       onChange={e => setEditForm({ ...editForm, context: e.target.value })}
+                      onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => setEditForm({ ...editForm, context: nextValue }))}
                       rows={6}
                       className="mt-1 min-h-[140px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-sm outline-none focus:border-slate-500"
                     />
@@ -1625,6 +1708,7 @@ export default function AdminQuestionApproval() {
                     <textarea
                       value={editForm.title || ''}
                       onChange={e => setEditForm({ ...editForm, title: e.target.value })}
+                      onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => setEditForm({ ...editForm, title: nextValue }))}
                       rows={3}
                       className="mt-1 min-h-[88px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-sm outline-none focus:border-slate-500"
                     />
@@ -1635,6 +1719,7 @@ export default function AdminQuestionApproval() {
                     <textarea
                       value={editForm.alternatives_intro || ''}
                       onChange={e => setEditForm({ ...editForm, alternatives_intro: e.target.value })}
+                      onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => setEditForm({ ...editForm, alternatives_intro: nextValue }))}
                       rows={3}
                       className="mt-1 min-h-[88px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-sm outline-none focus:border-slate-500"
                     />
@@ -1704,6 +1789,11 @@ export default function AdminQuestionApproval() {
                                 nextAlternatives[i].text = e.target.value;
                                 setEditForm({ ...editForm, alternatives: nextAlternatives });
                               }}
+                              onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => {
+                                const nextAlternatives = [...editForm.alternatives];
+                                nextAlternatives[i].text = nextValue;
+                                setEditForm({ ...editForm, alternatives: nextAlternatives });
+                              })}
                               rows={3}
                               className="min-h-[84px] flex-1 rounded-xl border border-slate-200 bg-white p-3 font-mono text-sm outline-none focus:border-slate-400"
                               placeholder={`Texto da alternativa ${alt.letter}`}
@@ -1756,6 +1846,7 @@ export default function AdminQuestionApproval() {
                     <textarea
                       value={editForm.ai_reasoning?.thought || ''}
                       onChange={e => setEditForm({ ...editForm, ai_reasoning: { ...editForm.ai_reasoning, thought: e.target.value } })}
+                      onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => setEditForm({ ...editForm, ai_reasoning: { ...editForm.ai_reasoning, thought: nextValue } }))}
                       rows={5}
                       className="mt-1 min-h-[128px] w-full rounded-xl border border-purple-200 bg-purple-50/40 p-3 font-mono text-sm outline-none focus:border-purple-400"
                     />
@@ -2181,7 +2272,7 @@ export default function AdminQuestionApproval() {
                     ) : (
                       <>
                         <Save className="w-5 h-5 mr-2" />
-                        Salvar Alterações (`Ctrl/Cmd+S`)
+                        Salvar Alterações
                       </>
                     )}
                   </Button>

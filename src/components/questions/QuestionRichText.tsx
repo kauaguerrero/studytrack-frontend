@@ -220,17 +220,18 @@ function renderInlineRichText(text: string, keyPrefix: string) {
     const latex = rawLatex.replace(/(?<!\\)%/g, '\\%')
     const needsLeadingSpace = /\s$/.test(previousSegment)
     const needsTrailingSpace = /^\s/.test(nextSegment)
+    const isDisplayMath = segment.startsWith('$$')
     try {
       const html = katex.renderToString(latex, {
         throwOnError: false,
-        displayMode: segment.startsWith('$$'),
+        displayMode: isDisplayMath,
         output: 'html',
       } as KatexRenderOptions)
       return (
         <Fragment key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}>
           {needsLeadingSpace ? ' ' : null}
           <span
-            className="katex-fragment inline-block align-baseline"
+            className={isDisplayMath ? 'katex-fragment my-3 block max-w-full overflow-x-auto overflow-y-hidden' : 'katex-fragment inline-block max-w-full align-baseline overflow-x-auto overflow-y-hidden'}
             dangerouslySetInnerHTML={{ __html: html }}
           />
           {needsTrailingSpace ? ' ' : null}
