@@ -91,6 +91,8 @@ interface StudentAnalyticsItem {
   weighted_score_pct?: number | null;
   time_taken_secs: number | null;
   completed_at: string | null;
+  best_subject?: { name: string; correct: number; total: number; pct: number } | null;
+  worst_subject?: { name: string; correct: number; total: number; pct: number } | null;
 }
 
 interface SimuladoAnalytics {
@@ -251,6 +253,12 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   const [weightsModalOpen, setWeightsModalOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [noQuestionsError, setNoQuestionsError] = useState(false);
+  const [distributionShortfall, setDistributionShortfall] = useState<{
+    expected: number;
+    found: number;
+    by_subject?: Record<string, { expected: number; found: number }>;
+  } | null>(null);
 
   async function fetchWithAuth(url: string, options: RequestInit = {}) {
     const supabase = createClient();
@@ -327,20 +335,33 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     }
   }
 
-  async function handleSave() {
+  async function handleSaveWithAutoQuestions() {
+    setNoQuestionsError(false);
+    setDistributionShortfall(null);
+    setForm((f) => ({ ...f, subject: '', difficulty: 'misto' }));
+    await handleSave({ overrideSubject: '', overrideDifficulty: 'misto' });
+  }
+
+  async function handleSaveWithPartial() {
+    setDistributionShortfall(null);
+    await handleSave({ forcePartial: true });
+  }
+
+  async function handleSave(overrides?: { overrideSubject?: string; overrideDifficulty?: string; forcePartial?: boolean }) {
     if (!form.title.trim() || !form.starts_at) {
       toast.error('Título e data de início são obrigatórios');
       return;
     }
+    setNoQuestionsError(false);
+    setDistributionShortfall(null);
     setSaving(true);
-    setSaveProgressLabel('Validando configuração...');
+    setSaveProgressLabel(form.same_for_all_students && !overrides ? 'Selecionando questões para a turma...' : 'Salvando simulado...');
     try {
-      setSaveProgressLabel('Salvando simulado...');
       const config: SimuladoConfig = {
         format: form.format,
         bank: form.bank,
-        subject: form.subject || null,
-        difficulty: form.difficulty,
+        subject: overrides?.overrideSubject !== undefined ? (overrides.overrideSubject || null) : (form.subject || null),
+        difficulty: overrides?.overrideDifficulty ?? form.difficulty,
         qty: Number(form.qty),
         time_limit_secs: form.time_limit_secs ? Number(form.time_limit_secs) * 60 : null,
         weights: Object.keys(form.weights || {}).length > 0
@@ -359,6 +380,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         config,
         starts_at: new Date(form.starts_at).toISOString(),
         ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
+        ...(overrides?.forcePartial ? { force_partial: true } : {}),
       };
 
       const url = editingId
@@ -368,7 +390,18 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
 
       const res = await fetchWithAuth(url, { method, body: JSON.stringify(body) });
       const json = await res.json();
-      if (!res.ok) { toast.error(json.error ?? 'Erro ao salvar'); return; }
+      if (!res.ok) {
+        if (json.code === 'NO_QUESTIONS_FOUND_FOR_SAME_FOR_ALL') {
+          setNoQuestionsError(true);
+          return;
+        }
+        if (json.code === 'INSUFFICIENT_QUESTIONS_FOR_DISTRIBUTION') {
+          setDistributionShortfall(json.shortfall ?? { expected: 0, found: 0 });
+          return;
+        }
+        toast.error(json.error ?? 'Erro ao salvar');
+        return;
+      }
 
       toast.success(editingId ? 'Simulado atualizado' : 'Simulado criado');
       setSaveProgressLabel('Concluído.');
@@ -1071,6 +1104,75 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       </div>
 
                       <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Desempenho detalhado por aluno</p>
+                        <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                          {(() => {
+                            const weighted = Boolean(analyticsMap[sim.id].weighted_applied);
+                            const isUegWeighted = weighted && sim.config.bank === 'UEG';
+                            return (
+                          <table className="min-w-full text-sm">
+                            <thead className="bg-slate-50 dark:bg-slate-800/70 text-slate-500">
+                              <tr>
+                                <th className="px-3 py-2 text-left">#</th>
+                                <th className="px-3 py-2 text-left">Aluno</th>
+                                <th className="px-3 py-2 text-left">
+                                  {weighted ? 'Acerto (Ponderado)' : 'Acerto'}
+                                </th>
+                                {weighted && (
+                                  <th className="px-3 py-2 text-left">
+                                    {isUegWeighted ? 'Nota Objetiva (0-130)' : 'Pontuação Ponderada (pts)'}
+                                  </th>
+                                )}
+                                <th className="px-3 py-2 text-left">Score</th>
+                                <th className="px-3 py-2 text-left">Tempo</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {analyticsMap[sim.id].students.map((s) => (
+                                <tr key={s.student_id} className="border-t border-slate-100 dark:border-slate-800">
+                                  <td className="px-3 py-2 font-bold text-slate-600">#{s.position}</td>
+                                  <td className="px-3 py-2 text-slate-800 dark:text-slate-100">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <span className="font-medium">{s.full_name ?? 'Aluno'}</span>
+                                      {s.worst_subject && (
+                                        <span className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-300">
+                                          Ponto Fraco: {s.worst_subject.name} ({s.worst_subject.pct}%)
+                                        </span>
+                                      )}
+                                      {s.best_subject && (
+                                        <span className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                                          Ponto Forte: {s.best_subject.name} ({s.best_subject.pct}%)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-2 font-semibold">
+                                    {s.score_pct}%
+                                    {weighted && s.raw_score_pct != null && (
+                                      <span className="ml-1 text-xs font-normal text-slate-500">
+                                        {isUegWeighted ? `(bruto ${s.raw_score_pct}%)` : `(bruto ${pctToPoints(s.raw_score_pct)} pts)`}
+                                      </span>
+                                    )}
+                                  </td>
+                                  {weighted && (
+                                    <td className="px-3 py-2 font-semibold text-[var(--brand-primary)]">
+                                      {isUegWeighted
+                                        ? `${pctToUegPoints(s.weighted_score_pct ?? s.score_pct)}/130`
+                                        : `${pctToPoints(s.weighted_score_pct ?? s.score_pct)} pts`}
+                                    </td>
+                                  )}
+                                  <td className="px-3 py-2">{s.score}/{s.total_questions}</td>
+                                  <td className="px-3 py-2">{s.time_taken_secs ? formatDuration(s.time_taken_secs) : '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      <div>
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Distribuição de acertos por questão</p>
                         <div className="mt-2 space-y-2">
                           {[...analyticsMap[sim.id].question_distribution]
@@ -1102,61 +1204,6 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                               </p>
                             </button>
                           ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Desempenho detalhado por aluno</p>
-                        <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                          {(() => {
-                            const weighted = Boolean(analyticsMap[sim.id].weighted_applied);
-                            const isUegWeighted = weighted && sim.config.bank === 'UEG';
-                            return (
-                          <table className="min-w-full text-sm">
-                            <thead className="bg-slate-50 dark:bg-slate-800/70 text-slate-500">
-                              <tr>
-                                <th className="px-3 py-2 text-left">#</th>
-                                <th className="px-3 py-2 text-left">Aluno</th>
-                                <th className="px-3 py-2 text-left">
-                                  {weighted ? 'Acerto (Ponderado)' : 'Acerto'}
-                                </th>
-                                {weighted && (
-                                  <th className="px-3 py-2 text-left">
-                                    {isUegWeighted ? 'Nota Objetiva (0-130)' : 'Pontuação Ponderada (pts)'}
-                                  </th>
-                                )}
-                                <th className="px-3 py-2 text-left">Score</th>
-                                <th className="px-3 py-2 text-left">Tempo</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {analyticsMap[sim.id].students.map((s) => (
-                                <tr key={s.student_id} className="border-t border-slate-100 dark:border-slate-800">
-                                  <td className="px-3 py-2 font-bold text-slate-600">#{s.position}</td>
-                                  <td className="px-3 py-2 text-slate-800 dark:text-slate-100">{s.full_name ?? 'Aluno'}</td>
-                                  <td className="px-3 py-2 font-semibold">
-                                    {s.score_pct}%
-                                    {weighted && s.raw_score_pct != null && (
-                                      <span className="ml-1 text-xs font-normal text-slate-500">
-                                        {isUegWeighted ? `(bruto ${s.raw_score_pct}%)` : `(bruto ${pctToPoints(s.raw_score_pct)} pts)`}
-                                      </span>
-                                    )}
-                                  </td>
-                                  {weighted && (
-                                    <td className="px-3 py-2 font-semibold text-[var(--brand-primary)]">
-                                      {isUegWeighted
-                                        ? `${pctToUegPoints(s.weighted_score_pct ?? s.score_pct)}/130`
-                                        : `${pctToPoints(s.weighted_score_pct ?? s.score_pct)} pts`}
-                                    </td>
-                                  )}
-                                  <td className="px-3 py-2">{s.score}/{s.total_questions}</td>
-                                  <td className="px-3 py-2">{s.time_taken_secs ? formatDuration(s.time_taken_secs) : '—'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                            );
-                          })()}
                         </div>
                       </div>
                     </div>
@@ -1366,61 +1413,156 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               </div>
               <button
                 type="button"
-                onClick={() => setShowReviewApproval(false)}
+                onClick={() => { setShowReviewApproval(false); setNoQuestionsError(false); setDistributionShortfall(null); }}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-4 space-y-2 text-sm">
-              <p><span className="font-semibold">Título:</span> {form.title || '—'}</p>
-              <p><span className="font-semibold">Banca:</span> {BANK_LABELS[form.bank] ?? form.bank}</p>
-              <p><span className="font-semibold">Formato:</span> {FORMAT_LABELS[form.format] ?? form.format}</p>
-              <p><span className="font-semibold">Questões:</span> {form.qty}</p>
-              <p><span className="font-semibold">Dificuldade:</span> {DIFFICULTY_LABELS[form.difficulty] ?? form.difficulty}</p>
-              <p><span className="font-semibold">Início:</span> {form.starts_at || '—'}</p>
-              <p><span className="font-semibold">Fim:</span> {form.ends_at || '—'}</p>
-              <p><span className="font-semibold">Refazer:</span> {form.allow_retry ? 'Permitido' : 'Desativado'}</p>
-              <p><span className="font-semibold">Distribuição:</span> {form.same_for_all_students ? 'Mesmo simulado para todos' : 'Simulado individual por aluno'}</p>
-              {form.bank === 'UEG' && (
-                <p><span className="font-semibold">Grupo UEG:</span> {form.ueg_weight_group ?? 'Não definido'}</p>
-              )}
-              {form.instructions?.trim() && (
-                <p><span className="font-semibold">Instruções:</span> {form.instructions.trim()}</p>
-              )}
-              {Object.keys(form.weights || {}).filter((k) => Number(form.weights?.[k]) > 0).length > 0 && (
-                <div className="pt-1">
-                  <p className="font-semibold">Pesos aplicados:</p>
-                  <div className="mt-1 space-y-1">
-                    {Object.entries(form.weights || {})
-                      .filter(([, v]) => Number(v) > 0)
-                      .map(([k, v]) => (
-                        <p key={k} className="text-xs text-slate-600 dark:text-slate-300">• {k}: {v}</p>
-                      ))}
+            {saving ? (
+              <div className="mt-4 space-y-3 animate-pulse">
+                {form.same_for_all_students && (
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-[var(--brand-primary)] animate-ping" />
+                    {saveProgressLabel || 'Selecionando questões para a turma...'}
                   </div>
+                )}
+                {[80, 60, 70, 50, 65, 55].map((w, i) => (
+                  <div key={i} className={`h-4 rounded-lg bg-slate-200 dark:bg-slate-700`} style={{ width: `${w}%` }} />
+                ))}
+              </div>
+            ) : noQuestionsError ? (
+              <div className="mt-4 space-y-4">
+                <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                    Nenhuma questão encontrada para esse filtro
+                  </p>
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                    A banca <strong>{BANK_LABELS[form.bank] ?? form.bank}</strong>
+                    {form.subject ? `, matéria "${form.subject}"` : ''}, dificuldade{' '}
+                    <strong>{DIFFICULTY_LABELS[form.difficulty] ?? form.difficulty}</strong> não retornou questões suficientes.
+                  </p>
                 </div>
-              )}
-            </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  Quer preencher com questões de outro filtro ou automáticas?
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setNoQuestionsError(false); setShowReviewApproval(false); }}
+                    className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    Alterar filtros
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveWithAutoQuestions}
+                    className="rounded-xl px-4 py-2 text-sm font-bold text-white"
+                    style={{ backgroundColor: 'var(--brand-primary)' }}
+                  >
+                    Usar questões automáticas
+                  </button>
+                </div>
+              </div>
+            ) : distributionShortfall ? (
+              <div className="mt-4 space-y-4">
+                <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                    Questões insuficientes para a distribuição oficial
+                  </p>
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                    O formato <strong>{FORMAT_LABELS[form.format] ?? form.format}</strong> ({BANK_LABELS[form.bank] ?? form.bank}) exige{' '}
+                    <strong>{distributionShortfall.expected} questões</strong>, mas o banco tem apenas{' '}
+                    <strong>{distributionShortfall.found}</strong> disponíveis com esses filtros.
+                  </p>
+                  {distributionShortfall.by_subject && Object.keys(distributionShortfall.by_subject).length > 0 && (
+                    <div className="mt-3 space-y-1">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Matérias com lacuna:</p>
+                      {Object.entries(distributionShortfall.by_subject).map(([subj, counts]) => (
+                        <div key={subj} className="flex items-center justify-between text-xs text-amber-700 dark:text-amber-300">
+                          <span>{subj}</span>
+                          <span className="font-semibold tabular-nums">
+                            {counts.found}/{counts.expected}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  Quer preencher com questões de outro filtro ou automáticas?
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setDistributionShortfall(null); setShowReviewApproval(false); }}
+                    className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    Alterar filtros
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveWithPartial}
+                    className="rounded-xl px-4 py-2 text-sm font-bold text-white"
+                    style={{ backgroundColor: 'var(--brand-primary)' }}
+                  >
+                    Criar com {distributionShortfall.found} questões disponíveis
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-2 text-sm">
+                <p><span className="font-semibold">Título:</span> {form.title || '—'}</p>
+                <p><span className="font-semibold">Banca:</span> {BANK_LABELS[form.bank] ?? form.bank}</p>
+                <p><span className="font-semibold">Formato:</span> {FORMAT_LABELS[form.format] ?? form.format}</p>
+                <p><span className="font-semibold">Questões:</span> {form.qty}</p>
+                <p><span className="font-semibold">Dificuldade:</span> {DIFFICULTY_LABELS[form.difficulty] ?? form.difficulty}</p>
+                <p><span className="font-semibold">Início:</span> {form.starts_at || '—'}</p>
+                <p><span className="font-semibold">Fim:</span> {form.ends_at || '—'}</p>
+                <p><span className="font-semibold">Refazer:</span> {form.allow_retry ? 'Permitido' : 'Desativado'}</p>
+                <p><span className="font-semibold">Distribuição:</span> {form.same_for_all_students ? 'Mesmo simulado para todos' : 'Simulado individual por aluno'}</p>
+                {form.bank === 'UEG' && (
+                  <p><span className="font-semibold">Grupo UEG:</span> {form.ueg_weight_group ?? 'Não definido'}</p>
+                )}
+                {form.instructions?.trim() && (
+                  <p><span className="font-semibold">Instruções:</span> {form.instructions.trim()}</p>
+                )}
+                {Object.keys(form.weights || {}).filter((k) => Number(form.weights?.[k]) > 0).length > 0 && (
+                  <div className="pt-1">
+                    <p className="font-semibold">Pesos aplicados:</p>
+                    <div className="mt-1 space-y-1">
+                      {Object.entries(form.weights || {})
+                        .filter(([, v]) => Number(v) > 0)
+                        .map(([k, v]) => (
+                          <p key={k} className="text-xs text-slate-600 dark:text-slate-300">• {k}: {v}</p>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
-            <div className="mt-5 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowReviewApproval(false)}
-                className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300"
-              >
-                Voltar para edição
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
-                style={{ backgroundColor: 'var(--brand-primary)' }}
-              >
-                {saving ? 'Aprovando...' : editingId ? 'Aprovar e salvar' : 'Aprovar e criar'}
-              </button>
-            </div>
+            {!saving && !noQuestionsError && (
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowReviewApproval(false); setNoQuestionsError(false); setDistributionShortfall(null); }}
+                  className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300"
+                >
+                  Voltar para edição
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSave()}
+                  disabled={saving}
+                  className="rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--brand-primary)' }}
+                >
+                  {editingId ? 'Aprovar e salvar' : 'Aprovar e criar'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

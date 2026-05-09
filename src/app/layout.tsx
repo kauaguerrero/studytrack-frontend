@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL('https://studytrack.com.br'),
   title: {
-    default: 'StudyTrack — Plataforma de estudos para o ENEM',
+    default: 'StudyTrack - Estude direcionado',
     template: '%s | StudyTrack',
   },
   description: 'Banco de questões, simulados personalizados e dashboard de desempenho para estudantes do ENEM e vestibulares. Estude de forma inteligente com a StudyTrack.',

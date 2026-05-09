@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -78,6 +78,27 @@ interface StudentDetail {
     competency: number;
     avg: number | null;
     count: number;
+  }[];
+  essay_by_type?: {
+    type: string;
+    delivered_count: number;
+    corrected_count: number;
+    avg_score: number | null;
+    best_score: number | null;
+    trend: 'up' | 'down' | 'neutral' | null;
+    trend_delta: number | null;
+    evolution: {
+      id: string;
+      status: 'pending' | 'corrected' | 'seen';
+      submitted_at: string;
+      corrected_at: string | null;
+      total_score: number | null;
+    }[];
+    competency_avgs: {
+      competency: number;
+      avg: number | null;
+      count: number;
+    }[];
   }[];
 }
 
@@ -176,9 +197,17 @@ export default function StudentProfilePage() {
   const [updatingPlan, setUpdatingPlan] = useState(false);
   type EvolutionGranularity = 'daily' | 'weekly' | 'monthly';
   const [evolutionGranularity, setEvolutionGranularity] = useState<EvolutionGranularity>('daily');
+  const [rangedays, setRangedays] = useState(28);
 
-  useEffect(() => {
-    async function fetchProfile() {
+  const RANGE_OPTIONS: { label: string; days: number }[] = [
+    { label: '7d', days: 7 },
+    { label: '14d', days: 14 },
+    { label: '28d', days: 28 },
+    { label: '60d', days: 60 },
+    { label: '90d', days: 90 },
+  ];
+
+  const fetchProfile = useCallback(async (days: number) => {
       // Rejeita IDs com formato inválido antes de qualquer chamada de rede
       if (!UUID_RE.test(studentId)) {
         toast.error('Aluno não encontrado.');
@@ -193,7 +222,7 @@ export default function StudentProfilePage() {
       const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
       try {
         const [resProfile, resEssays, resPlans] = await Promise.all([
-          fetch(`${api}/api/partners/${org.slug}/students/${studentId}`, {
+          fetch(`${api}/api/partners/${org.slug}/students/${studentId}?days=${days}`, {
             headers: { Authorization: `Bearer ${session.access_token}` },
           }),
           fetch(`${api}/api/partners/${org.slug}/essays?status=all&page=1&limit=500`, {
@@ -266,9 +295,13 @@ export default function StudentProfilePage() {
       } finally {
         setLoading(false);
       }
-    }
-    fetchProfile();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org.slug, studentId]);
+
+  useEffect(() => {
+    fetchProfile(rangedays);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchProfile, rangedays]);
 
   async function handlePlanChange(newPlanId: string) {
     if (!data) return;
@@ -593,108 +626,163 @@ export default function StudentProfilePage() {
           </div>
         </div>
 
-        {/* Tendência de redações — só se houver dados */}
-        {!loading && data?.essay_stats?.trend && (
-          <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${
-            data.essay_stats.trend === 'up'
-              ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10'
-              : data.essay_stats.trend === 'down'
-                ? 'border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10'
-                : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50'
-          }`}>
-            {data.essay_stats.trend === 'up' && <TrendingUp className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />}
-            {data.essay_stats.trend === 'down' && <TrendingDown className="h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />}
-            {data.essay_stats.trend === 'neutral' && <BarChart2 className="h-4 w-4 shrink-0 text-slate-500" />}
-            <div>
-              <p className={`text-sm font-semibold ${getTrendColor(data.essay_stats.trend)}`}>
-                {getTrendLabel(data.essay_stats.trend, data.essay_stats.trend_delta)}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Comparando as últimas 3 redações com as 3 anteriores
-              </p>
-            </div>
-          </div>
-        )}
+        {/* ── Redações por tipo ─────────────────────────── */}
+        {!loading && (data?.essay_by_type ?? []).map((et) => {
+          const typeLabel: Record<string, string> = { enem: 'ENEM', ufu: 'UFU', ueg: 'UEG' };
+          const label = typeLabel[et.type] ?? et.type.toUpperCase();
+          const isEnem = et.type === 'enem';
+          const correctedEvol = et.evolution.filter((e) => e.total_score !== null);
+          const chartData = correctedEvol.map((e) => ({
+            date: formatIsoToBrtMonthDay(e.submitted_at),
+            score: e.total_score as number,
+          }));
+          const hasCompetencies = isEnem && et.competency_avgs.some((c) => c.avg !== null);
 
-        {/* ── Redações ─────────────────────────────────── */}
-        {(deliveredCount > 0 || correctedEssayEvolution.length > 0) && (
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Gráfico de evolução de notas */}
-            {correctedEssayEvolution.length >= 2 && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <p className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  Evolução das notas de redação
+          return (
+            <div key={et.type} className="space-y-4">
+              {/* Header do tipo */}
+              <div className="flex items-center gap-3">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                  Redações {label}
                 </p>
-                <ResponsiveContainer width="100%" height={160}>
-                  <LineChart data={essayEvolutionChart}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                    <YAxis domain={[0, 1000]} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(v) => [`${v} / 1000`, 'Nota']} />
-                    <Line type="monotone" dataKey="score" stroke="var(--brand-primary)" strokeWidth={2.5} dot={{ r: 3, fill: 'var(--brand-primary)', strokeWidth: 0 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            {/* Competências C1-C5 */}
-            {(data?.essay_competency_avgs ?? []).some((c) => c.avg !== null) && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <p className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  Média por competência ENEM
-                </p>
-                <div className="space-y-2.5">
-                  {(data!.essay_competency_avgs ?? []).map((c) => {
-                    const pct = c.avg !== null ? Math.round((c.avg / 200) * 100) : 0;
-                    const barColor = pct >= 70 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
-                    return (
-                      <div key={c.competency} className="flex items-center gap-3">
-                        <span className="w-5 shrink-0 text-xs font-black text-slate-400">
-                          C{c.competency}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="mb-0.5 flex items-center justify-between gap-2">
-                            <p className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
-                              {COMPETENCY_NAMES[c.competency - 1]}
-                            </p>
-                            <span className="shrink-0 text-xs font-bold tabular-nums text-slate-700 dark:text-slate-300">
-                              {c.avg !== null ? `${c.avg}/200` : '—'}
-                            </span>
-                          </div>
-                          <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                            <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{ width: `${pct}%`, backgroundColor: barColor }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">{et.delivered_count}</span> entregues
+                  <span>·</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">{et.corrected_count}</span> corrigidas
+                  {et.avg_score !== null && (
+                    <>
+                      <span>·</span>
+                      <span>média <span className="font-semibold text-slate-700 dark:text-slate-300">{et.avg_score}{isEnem ? '/1000' : ''}</span></span>
+                    </>
+                  )}
                 </div>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* Tendência */}
+              {et.trend && (
+                <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${
+                  et.trend === 'up'
+                    ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10'
+                    : et.trend === 'down'
+                      ? 'border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10'
+                      : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50'
+                }`}>
+                  {et.trend === 'up' && <TrendingUp className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />}
+                  {et.trend === 'down' && <TrendingDown className="h-4 w-4 shrink-0 text-red-500 dark:text-red-400" />}
+                  {et.trend === 'neutral' && <BarChart2 className="h-4 w-4 shrink-0 text-slate-500" />}
+                  <div>
+                    <p className={`text-sm font-semibold ${getTrendColor(et.trend)}`}>
+                      {getTrendLabel(et.trend, et.trend_delta)}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Comparando as últimas 3 redações {label} com as 3 anteriores
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Gráfico de evolução + Competências */}
+              {(chartData.length >= 2 || hasCompetencies) && (
+                <div className="grid gap-6 lg:grid-cols-2">
+                  {chartData.length >= 2 && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                      <p className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        Evolução das notas — {label}
+                      </p>
+                      <ResponsiveContainer width="100%" height={160}>
+                        <LineChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                          <YAxis domain={isEnem ? [0, 1000] : ['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                          <Tooltip formatter={(v) => [isEnem ? `${v} / 1000` : String(v), 'Nota']} />
+                          <Line type="monotone" dataKey="score" stroke="var(--brand-primary)" strokeWidth={2.5} dot={{ r: 3, fill: 'var(--brand-primary)', strokeWidth: 0 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  {hasCompetencies && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                      <p className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        Média por competência ENEM
+                      </p>
+                      <div className="space-y-2.5">
+                        {et.competency_avgs.map((c) => {
+                          const pct = c.avg !== null ? Math.round((c.avg / 200) * 100) : 0;
+                          const barColor = pct >= 70 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
+                          return (
+                            <div key={c.competency} className="flex items-center gap-3">
+                              <span className="w-5 shrink-0 text-xs font-black text-slate-400">C{c.competency}</span>
+                              <div className="min-w-0 flex-1">
+                                <div className="mb-0.5 flex items-center justify-between gap-2">
+                                  <p className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
+                                    {COMPETENCY_NAMES[c.competency - 1]}
+                                  </p>
+                                  <span className="shrink-0 text-xs font-bold tabular-nums text-slate-700 dark:text-slate-300">
+                                    {c.avg !== null ? `${c.avg}/200` : '—'}
+                                  </span>
+                                </div>
+                                <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                                  <div
+                                    className="h-full rounded-full transition-all duration-500"
+                                    style={{ width: `${pct}%`, backgroundColor: barColor }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {/* Evolução de acertos + Volume + Acertos por matéria */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs font-semibold text-slate-500 dark:text-white/40 uppercase tracking-wide">Evolução temporal</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Range */}
+            <div className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-0.5">
+              {RANGE_OPTIONS.map(({ label, days }) => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => { setRangedays(days); setLoading(true); }}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                    rangedays === days
+                      ? 'bg-[var(--brand-primary)] text-white shadow-sm'
+                      : 'text-slate-500 dark:text-white/40 hover:text-slate-800 dark:hover:text-white/70'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {/* Granularity */}
+            <Select
+              value={evolutionGranularity}
+              onValueChange={(v) => setEvolutionGranularity(v as EvolutionGranularity)}
+            >
+              <SelectTrigger className="h-7 w-28 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Diária</SelectItem>
+                <SelectItem value="weekly">Semanal</SelectItem>
+                <SelectItem value="monthly">Mensal</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm">Evolução de acertos</CardTitle>
-              <Select
-                value={evolutionGranularity}
-                onValueChange={(v) => setEvolutionGranularity(v as EvolutionGranularity)}
-              >
-                <SelectTrigger className="h-7 w-28 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Diária</SelectItem>
-                  <SelectItem value="weekly">Semanal</SelectItem>
-                  <SelectItem value="monthly">Mensal</SelectItem>
-                </SelectContent>
-              </Select>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -705,10 +793,10 @@ export default function StudentProfilePage() {
                 <ResponsiveContainer width="100%" height={160}>
                   <LineChart data={evolutionChartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                     <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
                     <Tooltip formatter={(v) => [`${v}%`, 'Acertos']} />
-                    <Line type="monotone" dataKey="accuracy_pct" stroke="var(--brand-primary)" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="accuracy_pct" stroke="var(--brand-primary)" strokeWidth={2} dot={rangedays <= 28 ? { r: 3 } : false} />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -728,10 +816,10 @@ export default function StudentProfilePage() {
                 <ResponsiveContainer width="100%" height={160}>
                   <LineChart data={volumeChartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
                     <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                     <Tooltip formatter={(v) => [`${v}`, 'Questões']} />
-                    <Line type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={2} dot={rangedays <= 28 ? { r: 3 } : false} />
                   </LineChart>
                 </ResponsiveContainer>
               )}

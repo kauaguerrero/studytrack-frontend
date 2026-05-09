@@ -357,34 +357,13 @@ function renderInlineRichText(text: string, keyPrefix: string) {
       isLikelyMathSegment(segment);
 
     if (!isMath) {
-      if (segment.startsWith('$') && segment.endsWith('$')) {
-        const plainText = normalizePlainLatexText(segment);
-        return (
-          <span
-            key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`}
-            className="whitespace-pre-wrap"
-          >
-            <ReactMarkdown components={{ p: ({ children }) => <Fragment>{children}</Fragment> }}>
-              {plainText}
-            </ReactMarkdown>
-          </span>
-        );
-      }
-
-      const lines = segment.split('\n');
+      const plainText = normalizePlainLatexText(segment);
       return (
         <span
-          key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`}
+          key={`${keyPrefix}-${segmentIndex}-${plainText.slice(0, 20)}`}
           className="whitespace-pre-wrap"
         >
-          {lines.map((line, lineIndex) => (
-            <Fragment key={lineIndex}>
-              {lineIndex > 0 && <br />}
-              <ReactMarkdown components={{ p: ({ children }) => <Fragment>{children}</Fragment> }}>
-                {line}
-              </ReactMarkdown>
-            </Fragment>
-          ))}
+          {plainText}
         </span>
       );
     }
@@ -504,9 +483,9 @@ function RichText({ text, className }: { text?: string | null; className?: strin
         const segments = paragraph.split(mathSegmentRegex).filter(Boolean);
 
         return (
-          <p key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>
+          <div key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>
             {renderInlineRichText(paragraph, `${paragraphIndex}`)}
-          </p>
+          </div>
         );
       })}
     </div>
@@ -1067,7 +1046,8 @@ export default function AdminQuestionApproval() {
     );
   }, [activeQuestion]);
   const activeValidationStatus = validation?.status || 'red';
-  const activeValidationScore = typeof validation?.score === 'number' ? validation.score : 0;
+  const isValidationAvailable = Boolean(validation?.available);
+  const activeValidationScore = isValidationAvailable && typeof validation?.score === 'number' ? validation.score : null;
   const activeValidationTone = getValidationTone(activeValidationStatus);
 
   useEffect(() => {
@@ -1809,7 +1789,7 @@ export default function AdminQuestionApproval() {
                             </div>
                           </div>
                           <Badge variant="outline" className={activeValidationTone.badge}>
-                            {activeValidationStatus.toUpperCase()} • {activeValidationScore.toFixed(0)}%
+                            {activeValidationStatus.toUpperCase()} • {activeValidationScore !== null ? `${activeValidationScore.toFixed(0)}%` : 'N/A'}
                           </Badge>
                         </div>
 
@@ -1826,14 +1806,14 @@ export default function AdminQuestionApproval() {
                                 <div className="mb-3 flex items-end justify-between gap-3">
                                   <div>
                                     <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Score</p>
-                                    <p className="text-3xl font-bold text-slate-900">{activeValidationScore.toFixed(1)}%</p>
+                                    <p className="text-3xl font-bold text-slate-900">{activeValidationScore !== null ? `${activeValidationScore.toFixed(1)}%` : 'N/A'}</p>
                                   </div>
                                   <div className="text-right text-xs text-slate-500">
                                     <p>{validation?.source || activeQuestion.metadata?.source || 'UNKNOWN'}</p>
                                     <p>{validation?.exam_id || activeQuestion.external_id}</p>
                                   </div>
                                 </div>
-                                <Progress value={activeValidationScore} className={activeValidationTone.track + ' h-3'} indicatorClassName={activeValidationTone.bar} />
+                                <Progress value={activeValidationScore ?? 0} className={activeValidationTone.track + ' h-3'} indicatorClassName={activeValidationTone.bar} />
                                 <p className="mt-3 text-xs text-slate-500">Verde a partir de 85%. Amarelo entre 60% e 84,9%. Vermelho abaixo disso.</p>
                               </div>
 

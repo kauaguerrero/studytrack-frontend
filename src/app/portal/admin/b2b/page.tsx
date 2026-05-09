@@ -8,6 +8,10 @@ import {
   DollarSign, Calendar, CheckCircle2, AlertCircle, Clock,
   TrendingUp, TrendingDown, Video, Loader2, Power
 } from 'lucide-react';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +32,15 @@ interface TestAccountProfile {
 }
 
 type StatsPeriod = 'today' | 'week' | 'month' | 'year' | 'lifetime';
+
+interface TimeSeriesPoint {
+  label: string;
+  active: number;
+  questions: number;
+  accuracy: number | null;
+  simulados: number;
+  essays: number;
+}
 
 const PERIOD_LABELS: Record<StatsPeriod, string> = {
   today: 'Hoje',
@@ -1207,6 +1220,9 @@ export default function AdminB2BPage() {
   const [stats, setStats] = useState<B2BStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [period, setPeriod] = useState<StatsPeriod>('week');
+  const [chartSeries, setChartSeries] = useState<TimeSeriesPoint[]>([]);
+  const [chartLoading, setChartLoading] = useState(true);
+  const [hiddenLines, setHiddenLines] = useState<Set<string>>(new Set());
   const [error, setError] = useState('');
   const [orgModal, setOrgModal] = useState<{ open: boolean; org: Organization | null }>({
     open: false,
@@ -1229,6 +1245,19 @@ export default function AdminB2BPage() {
     }
   }, []);
 
+  const fetchTimeSeries = useCallback(async (p: StatsPeriod) => {
+    setChartLoading(true);
+    try {
+      const res = await fetch(`/api/admin/b2b/timeseries?period=${p}`);
+      if (res.ok) {
+        const json = await res.json();
+        setChartSeries(json.series ?? []);
+      }
+    } finally {
+      setChartLoading(false);
+    }
+  }, []);
+
   const fetchOrgs = useCallback(async () => {
     setLoading(true); setError('');
     try {
@@ -1246,11 +1275,22 @@ export default function AdminB2BPage() {
   useEffect(() => {
     fetchOrgs();
     fetchStats('week');
-  }, [fetchOrgs, fetchStats]);
+    fetchTimeSeries('week');
+  }, [fetchOrgs, fetchStats, fetchTimeSeries]);
 
   function handlePeriodChange(p: StatsPeriod) {
     setPeriod(p);
     fetchStats(p);
+    fetchTimeSeries(p);
+  }
+
+  function toggleLine(key: string) {
+    setHiddenLines((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   }
 
   function closeOrgModal() { setOrgModal({ open: false, org: null }); }
@@ -1359,6 +1399,139 @@ export default function AdminB2BPage() {
           })}
         </div>
       </div>
+
+      {/* Time-series chart */}
+      {(() => {
+        const LINES: { key: keyof TimeSeriesPoint; label: string; color: string; yAxisId: string }[] = [
+          { key: 'active',    label: 'Alunos ativos',    color: '#10b981', yAxisId: 'left' },
+          { key: 'questions', label: 'Questões',         color: '#f59e0b', yAxisId: 'left' },
+          { key: 'simulados', label: 'Simulados',        color: '#3b82f6', yAxisId: 'left' },
+          { key: 'essays',    label: 'Redações',         color: '#ec4899', yAxisId: 'left' },
+          { key: 'accuracy',  label: '% Acertos',        color: '#6366f1', yAxisId: 'right' },
+        ];
+
+        const formatLabel = (label: string) => {
+          if (/^\d{2}:\d{2}$/.test(label)) return label;
+          if (/^\d{4}-\d{2}$/.test(label)) {
+            const [y, m] = label.split('-');
+            return `${m}/${y.slice(2)}`;
+          }
+          const [, m, d] = label.split('-');
+          return `${d}/${m}`;
+        };
+
+        const hasData = chartSeries.some((p) => p.questions > 0 || p.simulados > 0 || p.essays > 0);
+
+        return (
+          <div className="mb-6 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/[0.06] rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-slate-800 dark:text-white">Evolução Geral B2B</h2>
+                <p className="text-xs text-slate-400 dark:text-zinc-500 mt-0.5">
+                  {PERIOD_LABELS[period]} — clique nas séries para mostrar/ocultar
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {LINES.map(({ key, label, color }) => {
+                  const hidden = hiddenLines.has(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => toggleLine(key)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all"
+                      style={{
+                        borderColor: hidden ? 'rgb(226 232 240)' : color,
+                        background: hidden ? 'transparent' : `${color}18`,
+                        color: hidden ? 'rgb(148 163 184)' : color,
+                      }}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ background: hidden ? 'rgb(203 213 225)' : color }}
+                      />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {chartLoading ? (
+              <div className="h-[280px] w-full bg-slate-100 dark:bg-zinc-800 rounded-xl animate-pulse" />
+            ) : !hasData ? (
+              <div className="h-[280px] flex items-center justify-center text-slate-400 dark:text-zinc-500 text-sm">
+                Sem dados no período selecionado
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={chartSeries} margin={{ top: 4, right: 48, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgb(226 232 240 / 0.6)" strokeWidth={1} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 10, fill: 'rgb(148 163 184)' }}
+                    tickFormatter={formatLabel}
+                    interval="preserveStartEnd"
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    yAxisId="left"
+                    tick={{ fontSize: 10, fill: 'rgb(148 163 184)' }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={40}
+                    allowDecimals={false}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    domain={[0, 100]}
+                    tick={{ fontSize: 10, fill: '#6366f1' }}
+                    tickFormatter={(v) => `${v}%`}
+                    axisLine={false}
+                    tickLine={false}
+                    width={40}
+                    hide={hiddenLines.has('accuracy')}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'rgb(255 255 255 / 0.98)',
+                      border: '1px solid rgb(226 232 240)',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      color: '#0f172a',
+                    }}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    labelFormatter={(label: any) => formatLabel(String(label ?? ''))}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    formatter={(value: any, name: any) => {
+                      if (name === '% Acertos') return value != null ? [`${value}%`, name] : ['—', name];
+                      return [typeof value === 'number' ? value.toLocaleString('pt-BR') : '—', name];
+                    }}
+                  />
+                  {LINES.map(({ key, label, color, yAxisId }) =>
+                    hiddenLines.has(key) ? null : (
+                      <Line
+                        key={key}
+                        yAxisId={yAxisId}
+                        type="monotone"
+                        dataKey={key}
+                        name={label}
+                        stroke={color}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4, fill: color, strokeWidth: 0 }}
+                        connectNulls={false}
+                      />
+                    )
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Error */}
       {error && (

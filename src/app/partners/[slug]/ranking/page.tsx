@@ -280,7 +280,7 @@ function RankRow({ entry, isPrize, index }: { entry: PartnerRankingEntry; isPriz
 
       <div className="flex-1 min-w-0">
         <div className="min-w-0 flex items-center">
-          <p className="truncate text-xs sm:text-sm font-semibold text-slate-800 dark:text-white/90">
+          <p className="min-w-0 break-words leading-tight line-clamp-2 sm:line-clamp-1 text-[12px] sm:text-sm font-semibold text-slate-800 dark:text-white/90">
             {getRankingDisplayName(entry)}
           </p>
           {hasActiveStreak && (
@@ -307,6 +307,25 @@ function RankRow({ entry, isPrize, index }: { entry: PartnerRankingEntry; isPriz
             ))}
           </div>
         )}
+        {(entry.has_questions_leader_badge || entry.has_accuracy_leader_badge || entry.has_streak_leader_badge) && (
+          <div className="mt-1 flex flex-wrap items-center gap-1 sm:hidden">
+            {entry.has_questions_leader_badge && (
+              <span className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)' }}>
+                Questões
+              </span>
+            )}
+            {entry.has_accuracy_leader_badge && (
+              <span className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #22C55E, #15803D)' }}>
+                Acerto
+              </span>
+            )}
+            {entry.has_streak_leader_badge && (
+              <span className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #EF4444, #B91C1C)' }}>
+                Sequência
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex shrink-0 flex-col items-end gap-1">
@@ -318,7 +337,7 @@ function RankRow({ entry, isPrize, index }: { entry: PartnerRankingEntry; isPriz
           </span>
         </div>
         {(entry.has_questions_leader_badge || entry.has_accuracy_leader_badge || entry.has_streak_leader_badge) ? (
-          <div className="flex flex-wrap items-center justify-end gap-1">
+          <div className="hidden sm:flex flex-wrap items-center justify-end gap-1">
             {entry.has_questions_leader_badge && (
               <span className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white" style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)' }}>
                 Mais questões feitas
