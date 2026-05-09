@@ -8,8 +8,6 @@ import {
     Trophy, BookOpen, History, Brain, ChevronDown, ChevronLeft, TrendingUp,
     Medal, BarChart3, Plus, Clock, Zap,
 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import { formatScientificText } from '@/lib/scientific-text'
 import { QuestionRichText } from '@/components/questions/QuestionRichText'
 import {
     LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,

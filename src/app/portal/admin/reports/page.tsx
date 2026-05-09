@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import ReactMarkdown from 'react-markdown';
+import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import { formatScientificText } from '@/lib/scientific-text';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
@@ -406,14 +406,14 @@ export default function AdminReportsPage() {
                           {q.context && (
                             <div className="relative pl-5 border-l-4 border-slate-200 py-1">
                               <div className="prose prose-slate max-w-none text-slate-600 italic text-sm leading-relaxed">
-                                <ReactMarkdown>{formatScientificText(q.context)}</ReactMarkdown>
+                                <SafeMarkdown>{formatScientificText(q.context)}</SafeMarkdown>
                               </div>
                             </div>
                           )}
                           {(q.title || q.alternatives_intro) && (
                             <div className="prose prose-slate max-w-none text-slate-800 text-sm font-medium leading-relaxed">
                               {q.title && <h5 className="text-base font-bold mb-2">{q.title}</h5>}
-                              <ReactMarkdown>{formatScientificText(q.alternatives_intro ?? '')}</ReactMarkdown>
+                              <SafeMarkdown>{formatScientificText(q.alternatives_intro ?? '')}</SafeMarkdown>
                             </div>
                           )}
                           {q.images && q.images.length > 0 && (

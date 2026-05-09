@@ -6,7 +6,7 @@ import { reportError } from '@/lib/reportError';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import ReactMarkdown from 'react-markdown';
+import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import {
   DollarSign, TrendingDown, TrendingUp, Brain, MessageCircle,
   Package, Plus, RefreshCw, Sparkles, X, Loader2, FlaskConical, Check,
@@ -696,7 +696,7 @@ export default function FinancialPanel() {
               </div>
             ) : (
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{analysisText}</ReactMarkdown>
+                <SafeMarkdown>{analysisText}</SafeMarkdown>
               </div>
             )}
           </div>

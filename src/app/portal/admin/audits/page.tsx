@@ -1,7 +1,7 @@
 'use client';
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { formatScientificText } from '@/lib/scientific-text';
@@ -602,7 +602,7 @@ function QuestionPreview({ question }: { question?: QuestionFull | null }) {
       {question.context ? (
         <div className="relative border-l-4 border-slate-200 py-1 pl-5">
           <div className="prose prose-slate max-w-none text-sm italic leading-relaxed text-slate-600">
-            <ReactMarkdown>{formatScientificText(question.context)}</ReactMarkdown>
+            <SafeMarkdown>{formatScientificText(question.context)}</SafeMarkdown>
           </div>
         </div>
       ) : null}
@@ -610,7 +610,7 @@ function QuestionPreview({ question }: { question?: QuestionFull | null }) {
       {question.title || question.statement || question.alternatives_intro ? (
         <div className="prose prose-slate max-w-none text-sm leading-relaxed text-slate-800">
           {question.title ? <h3 className="mb-2 text-base font-bold">{question.title}</h3> : null}
-          <ReactMarkdown>{formatScientificText(question.statement || question.alternatives_intro || '')}</ReactMarkdown>
+          <SafeMarkdown>{formatScientificText(question.statement || question.alternatives_intro || '')}</SafeMarkdown>
         </div>
       ) : null}
 
@@ -1903,7 +1903,7 @@ export default function AdminAuditCenterPage() {
                       <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4">
                         <p className="mb-2 text-xs font-bold uppercase text-emerald-700">Trecho que será inserido</p>
                         <div className="prose prose-sm max-w-none text-emerald-950">
-                          <ReactMarkdown>{normalizeSuggestedFixSnippet(detail.suggested_fix.missing_body_text)}</ReactMarkdown>
+                          <SafeMarkdown>{normalizeSuggestedFixSnippet(detail.suggested_fix.missing_body_text)}</SafeMarkdown>
                         </div>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">

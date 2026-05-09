@@ -1,4 +1,4 @@
-import ReactMarkdown from 'react-markdown';
+import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import { notFound } from 'next/navigation';
 import { formatScientificText } from '@/lib/scientific-text';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -150,12 +150,12 @@ export default async function AuditQuestionPreview({
 
         {data.context && (
           <div className="prose prose-slate mb-6 max-w-none border-l-4 border-slate-200 pl-4 text-sm text-slate-600">
-            <ReactMarkdown>{formatScientificText(data.context)}</ReactMarkdown>
+            <SafeMarkdown>{formatScientificText(data.context)}</SafeMarkdown>
           </div>
         )}
 
         <div className="prose prose-slate mb-8 max-w-none text-lg">
-          <ReactMarkdown>{formatScientificText(data.alternatives_intro || data.statement || data.title || '')}</ReactMarkdown>
+          <SafeMarkdown>{formatScientificText(data.alternatives_intro || data.statement || data.title || '')}</SafeMarkdown>
         </div>
 
         <div className="space-y-3">

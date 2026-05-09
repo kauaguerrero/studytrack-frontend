@@ -10,7 +10,7 @@ import {
   extractDetachedQuestionImageUrls,
   splitQuestionContextAndSource,
 } from '@/components/questions/rendering';
-import ReactMarkdown from 'react-markdown';
+import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { formatScientificText } from '@/lib/scientific-text';
@@ -544,7 +544,7 @@ function RichText({ text, className }: { text?: string | null; className?: strin
 
         if (isMarkdownBlock(paragraph)) {
           return (
-            <ReactMarkdown
+            <SafeMarkdown
               key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}
               components={{
                 img: ({ src, alt }) => (
@@ -557,7 +557,7 @@ function RichText({ text, className }: { text?: string | null; className?: strin
               }}
             >
               {paragraph}
-            </ReactMarkdown>
+            </SafeMarkdown>
           );
         }
 

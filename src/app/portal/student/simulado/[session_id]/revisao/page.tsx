@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, XCircle, Brain, Lock, Loader2 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import { formatScientificText } from '@/lib/scientific-text'
 import { createClient } from '@/lib/supabase/client'
 import { UpsellModal } from '@/components/modals/UpsellModal'
 import { QuestionRichText } from '@/components/questions/QuestionRichText'
