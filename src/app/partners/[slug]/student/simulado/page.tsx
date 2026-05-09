@@ -19,7 +19,6 @@ import { QuestionRichText } from '@/components/questions/QuestionRichText'
 import {
   extractAlternativeImageUrls,
   extractDetachedQuestionImageUrls,
-  splitQuestionContextAndSource,
 } from '@/components/questions/rendering'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -474,6 +473,25 @@ export default function SimuladoPage() {
   const apiHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` })
   const getDraftStorageKey = (sid: string) => `simulado-draft:${slug}:${currentUserId ?? 'anon'}:${sid}`
   const getActiveSessionStorageKey = () => `simulado-active:${slug}:${currentUserId ?? 'anon'}`
+
+  const clearSimuladoLocalDrafts = () => {
+    if (!currentUserId) return
+    try {
+      const activeKey = getActiveSessionStorageKey()
+      window.localStorage.removeItem(activeKey)
+      const draftPrefix = `simulado-draft:${slug}:${currentUserId}:`
+      const keysToRemove: string[] = []
+      for (let i = 0; i < window.localStorage.length; i += 1) {
+        const key = window.localStorage.key(i)
+        if (key && key.startsWith(draftPrefix)) {
+          keysToRemove.push(key)
+        }
+      }
+      keysToRemove.forEach((key) => window.localStorage.removeItem(key))
+    } catch {
+      // noop
+    }
+  }
   const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
   const getScheduledRemainingLabel = (startsAt: string) => {
@@ -504,6 +522,13 @@ export default function SimuladoPage() {
     const t = setInterval(() => setNowTs(Date.now()), 30000)
     return () => clearInterval(t)
   }, [])
+
+  useEffect(() => {
+    if (!currentUserId || step !== 'setup') return
+    clearSimuladoLocalDrafts()
+    resumeAttemptedRef.current = true
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId, slug, step])
 
   useEffect(() => {
     if (!accessToken || !currentUserId || resumeAttemptedRef.current || step === 'quiz') return
@@ -1914,18 +1939,11 @@ export default function SimuladoPage() {
               </div>
 
               {/* Context */}
-              {splitQuestionContextAndSource(questions[currentIdx].context).body && (
+              {questions[currentIdx].context && (
                 <QuestionRichText
-                  text={splitQuestionContextAndSource(questions[currentIdx].context).body}
+                  text={questions[currentIdx].context}
                   className="prose prose-slate dark:prose-invert max-w-none mb-5 text-slate-600 dark:text-slate-300 border-l-4 pl-4 text-sm leading-relaxed"
                   style={{ borderColor: 'var(--brand-primary)' }}
-                />
-              )}
-
-              {splitQuestionContextAndSource(questions[currentIdx].context).source && (
-                <QuestionRichText
-                  text={splitQuestionContextAndSource(questions[currentIdx].context).source}
-                  className="prose prose-slate dark:prose-invert max-w-none -mt-3 mb-5 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
                 />
               )}
 

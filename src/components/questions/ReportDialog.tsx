@@ -54,7 +54,9 @@ function compactQuestionSnapshot(snapshot: unknown) {
     exam_year: source.exam_year ?? null,
     difficulty: source.difficulty ?? null,
     bank: source.bank ?? null,
+    context: source.context ?? null,
     statement: source.statement ?? source.alternatives_intro ?? null,
+    images: source.images ?? null,
     correct_option: source.correct_option ?? source.correct_alternative ?? null,
     alternatives: Array.isArray(source.alternatives)
       ? source.alternatives.map((alternative) => {

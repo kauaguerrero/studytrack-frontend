@@ -111,6 +111,14 @@ function renderMarkdownChildren(children: ReactNode, keyPrefix: string): ReactNo
       return renderInlineRichText(child, `${keyPrefix}-${childIndex}`)
     }
 
+    if (typeof child === 'number' || typeof child === 'bigint') {
+      return String(child)
+    }
+
+    if (child == null || typeof child === 'boolean') {
+      return null
+    }
+
     if (isValidElement(child)) {
       const childElement = child as React.ReactElement<{ children?: ReactNode }>
       const childProps = childElement.props
@@ -120,7 +128,8 @@ function renderMarkdownChildren(children: ReactNode, keyPrefix: string): ReactNo
       })
     }
 
-    return child
+    // Defensive fallback: never pass raw objects as JSX children.
+    return String(child)
   })
 }
 
@@ -183,9 +192,8 @@ function renderInlineRichText(text: string, keyPrefix: string) {
                 ol: ({ children }) => <Fragment>{children}</Fragment>,
                 li: ({ children }) => <Fragment>{children} </Fragment>,
               }}
-            >
-              {plainText}
-            </ReactMarkdown>
+              children={String(plainText ?? '')}
+            />
           </span>
         )
       }
@@ -206,9 +214,8 @@ function renderInlineRichText(text: string, keyPrefix: string) {
                     ol: ({ children }) => <Fragment>{children}</Fragment>,
                     li: ({ children }) => <Fragment>{children} </Fragment>,
                   }}
-                >
-                  {line}
-                </ReactMarkdown>
+                  children={String(line ?? '')}
+                />
               )}
             </Fragment>
           ))}
@@ -251,7 +258,8 @@ function renderInlineRichText(text: string, keyPrefix: string) {
 }
 
 export function QuestionRichText({ text, className, style }: { text?: string | null; className?: string; style?: CSSProperties }) {
-  const normalized = formatScientificText(text || '')
+  const safeText = typeof text === 'string' ? text : text == null ? '' : String(text)
+  const normalized = formatScientificText(safeText)
   const paragraphs = useMemo(
     () => normalized.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean),
     [normalized],
@@ -313,9 +321,8 @@ export function QuestionRichText({ text, className, style }: { text?: string | n
             <ReactMarkdown
               key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}
               components={markdownComponents}
-            >
-              {paragraph}
-            </ReactMarkdown>
+              children={String(paragraph ?? '')}
+            />
           )
         }
 

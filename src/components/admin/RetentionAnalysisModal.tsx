@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import ReactMarkdown from "react-markdown";
+import { SafeMarkdown } from "@/components/ui/SafeMarkdown";
 import { Badge } from "@/components/ui/badge";
 import { X, ArrowLeft, Loader2, FlaskConical, History, Clock, Users } from "lucide-react";
 
@@ -375,9 +375,9 @@ export default function RetentionAnalysisModal({ open, onClose, health, apiUrl }
             <div>
               <AnalysisResultHeader analysis={viewingAnalysis} />
               <div className="space-y-0.5">
-                <ReactMarkdown components={mdComponents}>
+                <SafeMarkdown components={mdComponents}>
                   {viewingAnalysis.analysis_text}
-                </ReactMarkdown>
+                </SafeMarkdown>
               </div>
             </div>
           )}
