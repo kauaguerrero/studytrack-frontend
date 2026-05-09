@@ -1125,11 +1125,6 @@ export default function AdminQuestionApproval() {
       activeQuestion.alternatives_intro,
     );
   }, [activeQuestion]);
-<<<<<<< HEAD
-  const activeValidationStatus = validation?.status || 'red';
-  const isValidationAvailable = Boolean(validation?.available);
-  const activeValidationScore = isValidationAvailable && typeof validation?.score === 'number' ? validation.score : null;
-=======
   const activeValidationStatus = validation?.editorial_status || validation?.status || 'red';
   const activeValidationScore = typeof validation?.editorial_score === 'number'
     ? validation.editorial_score
@@ -1137,7 +1132,6 @@ export default function AdminQuestionApproval() {
       ? validation.score
       : 0;
   const validationAvailable = validation?.available ?? false;
->>>>>>> b647e27a88b81159961d9f26959a2cc669cfea48
   const activeValidationTone = getValidationTone(activeValidationStatus);
   const activeParserStatus = validation?.parser_status || 'red';
   const activeParserScore = typeof validation?.parser_score === 'number' ? validation.parser_score : 0;
@@ -1996,15 +1990,9 @@ export default function AdminQuestionApproval() {
                               <p className="text-xs text-slate-500">Comparação direta entre banco, chunk/parser, gabarito e imagens.</p>
                             </div>
                           </div>
-<<<<<<< HEAD
                           <Badge variant="outline" className={activeValidationTone.badge}>
-                            {activeValidationStatus.toUpperCase()} • {activeValidationScore !== null ? `${activeValidationScore.toFixed(0)}%` : 'N/A'}
+                            {validationAvailable ? `${activeValidationStatus.toUpperCase()} • ${activeValidationScore.toFixed(0)}%` : 'INDISPONÍVEL'}
                           </Badge>
-=======
-                                  <Badge variant="outline" className={activeValidationTone.badge}>
-                                    {validationAvailable ? `${activeValidationStatus.toUpperCase()} • ${activeValidationScore.toFixed(0)}%` : 'INDISPONÍVEL'}
-                                  </Badge>
->>>>>>> b647e27a88b81159961d9f26959a2cc669cfea48
                         </div>
 
                         <div className="space-y-4 p-4">
@@ -2019,25 +2007,16 @@ export default function AdminQuestionApproval() {
                               <div className="rounded-xl border border-slate-200 bg-white p-4">
                                 <div className="mb-3 flex items-end justify-between gap-3">
                                   <div>
-<<<<<<< HEAD
-                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Score</p>
-                                    <p className="text-3xl font-bold text-slate-900">{activeValidationScore !== null ? `${activeValidationScore.toFixed(1)}%` : 'N/A'}</p>
-=======
                                     <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Confiabilidade Editorial</p>
                                     <p className="text-3xl font-bold text-slate-900">
                                       {validationAvailable ? `${activeValidationScore.toFixed(1)}%` : 'Indisponível'}
                                     </p>
->>>>>>> b647e27a88b81159961d9f26959a2cc669cfea48
                                   </div>
                                   <div className="text-right text-xs text-slate-500">
                                     <p>{validationEvidenceSource}</p>
                                     <p>{validationEvidenceExamId}</p>
                                   </div>
                                 </div>
-<<<<<<< HEAD
-                                <Progress value={activeValidationScore ?? 0} className={activeValidationTone.track + ' h-3'} indicatorClassName={activeValidationTone.bar} />
-                                <p className="mt-3 text-xs text-slate-500">Verde a partir de 85%. Amarelo entre 60% e 84,9%. Vermelho abaixo disso.</p>
-=======
                                 <Progress
                                   value={validationAvailable ? activeValidationScore : 0}
                                   className={activeValidationTone.track + ' h-3'}
@@ -2080,7 +2059,6 @@ export default function AdminQuestionApproval() {
                                     ))}
                                   </div>
                                 ) : null}
->>>>>>> b647e27a88b81159961d9f26959a2cc669cfea48
                               </div>
 
                               {validationError && (
