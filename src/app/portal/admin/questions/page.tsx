@@ -381,34 +381,13 @@ function renderInlineRichText(text: string, keyPrefix: string) {
       isLikelyMathSegment(segment);
 
     if (!isMath) {
-      if (segment.startsWith('$') && segment.endsWith('$')) {
-        const plainText = normalizePlainLatexText(segment);
-        return (
-          <span
-            key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`}
-            className="whitespace-pre-wrap"
-          >
-            <ReactMarkdown components={{ p: ({ children }) => <Fragment>{children}</Fragment> }}>
-              {plainText}
-            </ReactMarkdown>
-          </span>
-        );
-      }
-
-      const lines = segment.split('\n');
+      const plainText = normalizePlainLatexText(segment);
       return (
         <span
-          key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`}
+          key={`${keyPrefix}-${segmentIndex}-${plainText.slice(0, 20)}`}
           className="whitespace-pre-wrap"
         >
-          {lines.map((line, lineIndex) => (
-            <Fragment key={lineIndex}>
-              {lineIndex > 0 && <br />}
-              <ReactMarkdown components={{ p: ({ children }) => <Fragment>{children}</Fragment> }}>
-                {line}
-              </ReactMarkdown>
-            </Fragment>
-          ))}
+          {plainText}
         </span>
       );
     }
@@ -585,9 +564,9 @@ function RichText({ text, className }: { text?: string | null; className?: strin
         const segments = paragraph.split(mathSegmentRegex).filter(Boolean);
 
         return (
-          <p key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>
+          <div key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>
             {renderInlineRichText(paragraph, `${paragraphIndex}`)}
-          </p>
+          </div>
         );
       })}
     </div>
@@ -2011,9 +1990,9 @@ export default function AdminQuestionApproval() {
                               <p className="text-xs text-slate-500">Comparação direta entre banco, chunk/parser, gabarito e imagens.</p>
                             </div>
                           </div>
-                                  <Badge variant="outline" className={activeValidationTone.badge}>
-                                    {validationAvailable ? `${activeValidationStatus.toUpperCase()} • ${activeValidationScore.toFixed(0)}%` : 'INDISPONÍVEL'}
-                                  </Badge>
+                          <Badge variant="outline" className={activeValidationTone.badge}>
+                            {validationAvailable ? `${activeValidationStatus.toUpperCase()} • ${activeValidationScore.toFixed(0)}%` : 'INDISPONÍVEL'}
+                          </Badge>
                         </div>
 
                         <div className="space-y-4 p-4">

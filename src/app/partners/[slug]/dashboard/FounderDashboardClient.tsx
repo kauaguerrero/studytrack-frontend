@@ -13,10 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import {
   Users, Activity, BookOpen, FileText, TrendingUp, TrendingDown, ArrowUpRight,
-  Trophy, Award, Star, Eye, EyeOff, AlertTriangle, Video,
+  Trophy, Award, Star, Video, Target, Zap,
 } from 'lucide-react';
 import {
-  PieChart, Pie, Cell,
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
 
@@ -78,37 +78,6 @@ interface Student {
 type MetricWindow = 'today' | 'week' | 'month' | 'total';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const PLAN_COLORS = [
-  'var(--brand-primary)',
-  'var(--brand-secondary)',
-  '#22c55e',
-  '#f59e0b',
-  '#e11d48',
-  '#0ea5e9',
-  '#a855f7',
-  '#14b8a6',
-  '#f97316',
-  '#334155',
-];
-
-function normalizePlanLabel(raw: string): string {
-  if (raw === 'b2b_student' || raw === 'b2b_pro' || raw === 'b2b_test' || raw === 'free' || raw === 'none' || raw === 'null') {
-    return 'Sem plano vinculado';
-  }
-  return raw;
-}
-
-function formatMoney(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-function parseIsoDate(value?: string | null): Date | null {
-  if (!value) return null;
-  const dt = new Date(value);
-  if (Number.isNaN(dt.getTime())) return null;
-  return dt;
-}
 
 function toBrtDateKey(date: Date): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -344,6 +313,12 @@ interface VideoAdoptionKpi {
   den: number;
 }
 
+interface AnalyticsData {
+  questions_series: { date: string; total: number }[];
+  accuracy_series: { date: string; accuracy_pct: number | null }[];
+  subjects: { subject: string; total: number; correct: number; accuracy_pct: number }[];
+}
+
 function filterOutTestAccounts(list: Student[]): Student[] {
   return (list ?? []).filter((s) => s.plan_tier !== 'b2b_test');
 }
@@ -376,12 +351,12 @@ export default function FounderDashboardClient({
   const [rankingStudents, setRankingStudents] = useState<Student[]>(filterOutTestAccounts(initialStudents));
   const [essaysCounts, setEssaysCounts] = useState(initialEssaysCounts);
   const [metricWindow, setMetricWindow] = useState<MetricWindow>('week');
-  const [activePlanIndex, setActivePlanIndex] = useState<number | null>(null);
-  const [showRevenueValue, setShowRevenueValue] = useState(false);
   const [associatesCount, setAssociatesCount] = useState<number | null>(null);
   const [videoAdoption, setVideoAdoption] = useState<VideoAdoptionKpi | null>(null);
   const [videoAdoptionLoading, setVideoAdoptionLoading] = useState(isVideoToolEnabled);
   const [loading, setLoading] = useState(initialStats === null);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchMissing() {
@@ -470,46 +445,30 @@ export default function FounderDashboardClient({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, userProfile.role, isVideoToolEnabled]);
 
-  // ── Derived ─────────────────────────────────────────────────────────────────
-
-  const planChartData = useMemo(() => {
-    if (!stats) return [];
-    const grouped: Record<string, number> = {};
-    for (const [rawKey, count] of Object.entries(stats.plan_distribution)) {
-      const label = normalizePlanLabel(rawKey);
-      grouped[label] = (grouped[label] || 0) + count;
+  useEffect(() => {
+    async function fetchAnalytics() {
+      setAnalyticsLoading(true);
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+        const res = await fetch(
+          `${api}/api/partners/${slug}/analytics?window=${metricWindow}`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } },
+        );
+        if (res.ok) setAnalyticsData(await res.json());
+      } catch {
+        // ignore
+      } finally {
+        setAnalyticsLoading(false);
+      }
     }
-    return Object.entries(grouped).map(([name, value]) => ({ name, value }));
-  }, [stats]);
+    fetchAnalytics();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, metricWindow]);
 
-  const projectedRevenueCents = useMemo(
-    () => students.reduce((acc, student) => (
-      acc + (student.plan_id ? Number(student.plan_price_cents || 0) : 0)
-    ), 0),
-    [students],
-  );
-
-  const studentsNearExpiry = useMemo(() => {
-    const now = Date.now();
-    const dayMs = 24 * 60 * 60 * 1000;
-    return students
-      .map((student) => {
-        if (!student.plan_id || !student.plan_last_payment_at || !student.plan_duration_days) return null;
-        const lastPayment = parseIsoDate(student.plan_last_payment_at);
-        if (!lastPayment) return null;
-        const expiresAtMs = lastPayment.getTime() + Number(student.plan_duration_days) * dayMs;
-        const daysLeft = Math.ceil((expiresAtMs - now) / dayMs);
-        if (daysLeft < 0 || daysLeft > 7) return null;
-        return {
-          id: student.id,
-          full_name: student.full_name,
-          plan_name: student.plan_name || 'Plano',
-          daysLeft,
-        };
-      })
-      .filter((item): item is { id: string; full_name: string; plan_name: string; daysLeft: number } => Boolean(item))
-      .sort((a, b) => a.daysLeft - b.daysLeft);
-  }, [students]);
+  // ── Derived ─────────────────────────────────────────────────────────────────
 
   const metricLabel = {
     today: 'Hoje',
@@ -842,131 +801,176 @@ export default function FounderDashboardClient({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <CardTitle className="text-sm text-slate-700 dark:text-white/80 font-bold">
-                    Projeção de receita com planos
+                    Evolução da Turma
                   </CardTitle>
-                  <p className="text-xs text-slate-500 dark:text-white/35">Valor estimado: preço do plano x alunos vinculados</p>
+                  <p className="text-xs text-slate-500 dark:text-white/35">Volume de questões e % de acertos • {metricLabel}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowRevenueValue((prev) => !prev)}
-                  className="relative inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-slate-300/80 dark:border-white/15 bg-white/90 dark:bg-slate-900/70 text-slate-700 dark:text-white/80 transition hover:brightness-105"
-                  aria-label={showRevenueValue ? 'Ocultar receita' : 'Mostrar receita'}
-                  title={showRevenueValue ? 'Ocultar receita' : 'Mostrar receita'}
-                >
-                  <BrandLiquidGlass accentColor="var(--brand-secondary)" intensity={14} />
-                  {showRevenueValue ? <Eye className="relative z-10 h-4 w-4" /> : <EyeOff className="relative z-10 h-4 w-4" />}
-                </button>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="mb-4 rounded-xl border border-emerald-200 dark:border-emerald-500/35 bg-emerald-50/70 dark:bg-emerald-900/10 p-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Receita projetada</p>
-                <p
-                  className={cn(
-                    'mt-1 text-xl font-black tracking-tight text-emerald-700 dark:text-emerald-300 transition',
-                    !showRevenueValue && 'blur-sm select-none',
-                  )}
-                >
-                  {formatMoney(projectedRevenueCents)}
-                </p>
-              </div>
-
-              {studentsNearExpiry.length > 0 && (
-                <Link
-                  href={`/partners/${org.slug}/planos?expiring=1`}
-                  className="mb-4 flex items-start gap-2 rounded-xl border border-amber-300/60 bg-amber-50 p-3 text-amber-900 transition hover:bg-amber-100 dark:border-amber-600/40 dark:bg-amber-500/10 dark:text-amber-200 dark:hover:bg-amber-500/15"
-                >
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <div className="text-xs">
-                    <p className="font-bold">{studentsNearExpiry.length} aluno(s) próximo(s) do vencimento</p>
-                    <p className="opacity-80">Clique para abrir a página de planos e marcar como pago.</p>
+            <CardContent className="space-y-5">
+              {analyticsLoading ? (
+                <div className="space-y-4">
+                  <div className="h-[120px] w-full bg-slate-200 dark:bg-white/10 rounded-xl animate-pulse" />
+                  <div className="h-[120px] w-full bg-slate-200 dark:bg-white/10 rounded-xl animate-pulse" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="h-20 bg-slate-200 dark:bg-white/10 rounded-xl animate-pulse" />
+                    <div className="h-20 bg-slate-200 dark:bg-white/10 rounded-xl animate-pulse" />
                   </div>
-                </Link>
-              )}
-
-              {loading ? (
-                <div className="h-40 w-full bg-slate-200 dark:bg-white/10 rounded-xl animate-pulse" />
-              ) : planChartData.length > 0 ? (
-                <>
-                  <p className="mb-2 text-xs text-slate-500 dark:text-white/35">Distribuição de planos</p>
-                  <ResponsiveContainer width="100%" height={140}>
-                    <PieChart>
-                      <Pie
-                        data={planChartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={38}
-                        outerRadius={65}
-                        paddingAngle={4}
-                        dataKey="value"
-                        onMouseEnter={(_, index) => setActivePlanIndex(index)}
-                        onMouseLeave={() => setActivePlanIndex(null)}
-                      >
-                        {planChartData.map((_, i) => {
-                          const isActive = activePlanIndex === i;
-                          return (
-                            <Cell
-                              key={i}
-                              fill={PLAN_COLORS[i % PLAN_COLORS.length]}
-                              stroke={isActive ? '#0f172a' : 'transparent'}
-                              strokeWidth={isActive ? 2 : 0}
-                              fillOpacity={activePlanIndex === null || isActive ? 1 : 0.45}
-                            />
-                          );
-                        })}
-                      </Pie>
-                      <Tooltip
-                        formatter={(v) => [`${v} alunos`]}
-                        contentStyle={TOOLTIP_STYLE}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-
-                  <div className="flex flex-col gap-2.5 mt-4 px-1">
-                    {planChartData.map((entry, i) => (
-                      <button
-                        key={entry.name}
-                        type="button"
-                        className={cn(
-                          'flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left transition-all',
-                          activePlanIndex === i
-                            ? 'bg-slate-100 dark:bg-white/10'
-                            : 'hover:bg-slate-50 dark:hover:bg-white/5',
-                        )}
-                        onMouseEnter={() => setActivePlanIndex(i)}
-                        onMouseLeave={() => setActivePlanIndex(null)}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div
-                            className="w-2.5 h-2.5 rounded-full shrink-0"
-                            style={{ backgroundColor: PLAN_COLORS[i % PLAN_COLORS.length] }}
-                          />
-                          <span
-                            className={cn(
-                              'text-sm transition-all',
-                              activePlanIndex === i
-                                ? 'font-black text-slate-900 dark:text-white'
-                                : 'font-semibold text-slate-700 dark:text-white/75',
-                            )}
-                          >
-                            {entry.name}
-                          </span>
-                        </div>
-                        <span
-                          className={cn(
-                            'text-sm tabular-nums transition-all',
-                            activePlanIndex === i ? 'font-black' : 'font-bold',
-                          )}
-                          style={{ color: PLAN_COLORS[i % PLAN_COLORS.length] }}
-                        >
-                          {entry.value}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </>
+                </div>
               ) : (
-                <p className="text-center text-sm text-slate-400 dark:text-white/30 py-10">Nenhum aluno ainda</p>
+                <>
+                  {/* Gráfico 1: Volume de questões */}
+                  <div>
+                    <p className="mb-1.5 text-[11px] font-semibold text-slate-600 dark:text-white/50 uppercase tracking-wide">
+                      Questões respondidas
+                    </p>
+                    {(analyticsData?.questions_series ?? []).every((d) => d.total === 0) ? (
+                      <p className="text-center text-xs text-slate-400 dark:text-white/25 py-6">Sem dados no período</p>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={120}>
+                        <LineChart data={analyticsData?.questions_series ?? []} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgb(148 163 184 / 0.2)" />
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 9, fill: 'rgb(100 116 139)' }}
+                            tickFormatter={(v: string) => {
+                              if (metricWindow === 'today') return v;
+                              if (metricWindow === 'total') {
+                                const [y, m] = v.split('-');
+                                return `${m}/${y?.slice(2)}`;
+                              }
+                              const [, m, d] = v.split('-');
+                              return `${d}/${m}`;
+                            }}
+                            interval="preserveStartEnd"
+                          />
+                          <YAxis tick={{ fontSize: 9, fill: 'rgb(100 116 139)' }} allowDecimals={false} />
+                          <Tooltip
+                            contentStyle={TOOLTIP_STYLE}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            formatter={(v: any) => [`${v} questões`, 'Volume']}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            labelFormatter={(label: any) => {
+                              const l = String(label ?? '');
+                              if (metricWindow === 'today') return `Hora: ${l}`;
+                              if (metricWindow === 'total') {
+                                const [y, m] = l.split('-');
+                                return `${m}/${y}`;
+                              }
+                              const [y, m, d] = l.split('-');
+                              return `${d}/${m}/${y}`;
+                            }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="total"
+                            stroke="var(--brand-primary)"
+                            strokeWidth={2}
+                            dot={false}
+                            activeDot={{ r: 4, fill: 'var(--brand-primary)' }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                  {/* Gráfico 2: % de acertos */}
+                  <div>
+                    <p className="mb-1.5 text-[11px] font-semibold text-slate-600 dark:text-white/50 uppercase tracking-wide">
+                      % de acertos
+                    </p>
+                    {(analyticsData?.accuracy_series ?? []).every((d) => d.accuracy_pct === null) ? (
+                      <p className="text-center text-xs text-slate-400 dark:text-white/25 py-6">Sem dados no período</p>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={120}>
+                        <LineChart data={analyticsData?.accuracy_series ?? []} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgb(148 163 184 / 0.2)" />
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 9, fill: 'rgb(100 116 139)' }}
+                            tickFormatter={(v: string) => {
+                              if (metricWindow === 'today') return v;
+                              if (metricWindow === 'total') {
+                                const [y, m] = v.split('-');
+                                return `${m}/${y?.slice(2)}`;
+                              }
+                              const [, m, d] = v.split('-');
+                              return `${d}/${m}`;
+                            }}
+                            interval="preserveStartEnd"
+                          />
+                          <YAxis tick={{ fontSize: 9, fill: 'rgb(100 116 139)' }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                          <Tooltip
+                            contentStyle={TOOLTIP_STYLE}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            formatter={(v: any) => [v != null ? `${v}%` : '—', 'Acertos']}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            labelFormatter={(label: any) => {
+                              const l = String(label ?? '');
+                              if (metricWindow === 'today') return `Hora: ${l}`;
+                              if (metricWindow === 'total') {
+                                const [y, m] = l.split('-');
+                                return `${m}/${y}`;
+                              }
+                              const [y, m, d] = l.split('-');
+                              return `${d}/${m}/${y}`;
+                            }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="accuracy_pct"
+                            stroke="#22c55e"
+                            strokeWidth={2}
+                            dot={false}
+                            activeDot={{ r: 4, fill: '#22c55e' }}
+                            connectNulls={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                  {/* Ponto fraco + Ponto forte */}
+                  {(() => {
+                    const subjects = analyticsData?.subjects ?? [];
+                    const pontoFraco = subjects[0];
+                    const pontoForte = subjects[subjects.length - 1];
+                    return (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50/70 dark:bg-red-900/10 p-3">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <Target className="h-3.5 w-3.5 text-red-500 dark:text-red-400 shrink-0" />
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-red-600 dark:text-red-400">Ponto Fraco</p>
+                          </div>
+                          {pontoFraco && pontoFraco !== pontoForte ? (
+                            <>
+                              <p className="text-xs font-black text-red-700 dark:text-red-300 leading-tight line-clamp-2">{pontoFraco.subject}</p>
+                              <p className="text-[10px] text-red-500 dark:text-red-400/80 mt-0.5">{pontoFraco.accuracy_pct}% de acertos</p>
+                              <p className="text-[10px] text-red-400 dark:text-red-500/60">{pontoFraco.total} questões</p>
+                            </>
+                          ) : (
+                            <p className="text-[10px] text-red-400 dark:text-red-500/60 mt-1">Sem dados suficientes</p>
+                          )}
+                        </div>
+                        <div className="rounded-xl border border-green-200 dark:border-green-500/30 bg-green-50/70 dark:bg-green-900/10 p-3">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <Zap className="h-3.5 w-3.5 text-green-500 dark:text-green-400 shrink-0" />
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-green-600 dark:text-green-400">Ponto Forte</p>
+                          </div>
+                          {pontoForte && pontoFraco !== pontoForte ? (
+                            <>
+                              <p className="text-xs font-black text-green-700 dark:text-green-300 leading-tight line-clamp-2">{pontoForte.subject}</p>
+                              <p className="text-[10px] text-green-500 dark:text-green-400/80 mt-0.5">{pontoForte.accuracy_pct}% de acertos</p>
+                              <p className="text-[10px] text-green-400 dark:text-green-500/60">{pontoForte.total} questões</p>
+                            </>
+                          ) : (
+                            <p className="text-[10px] text-green-400 dark:text-green-500/60 mt-1">Sem dados suficientes</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </>
               )}
             </CardContent>
           </TintedCard>
