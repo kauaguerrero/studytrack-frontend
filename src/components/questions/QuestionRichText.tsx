@@ -1,6 +1,6 @@
 'use client'
 
-import { Children, Fragment, cloneElement, isValidElement, useMemo } from 'react'
+import { Children, Fragment, isValidElement, useMemo } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
@@ -120,12 +120,7 @@ function renderMarkdownChildren(children: ReactNode, keyPrefix: string): ReactNo
     }
 
     if (isValidElement(child)) {
-      const childElement = child as React.ReactElement<{ children?: ReactNode }>
-      const childProps = childElement.props
-      if (childProps.children == null) return child
-      return cloneElement(childElement, {
-        children: renderMarkdownChildren(childProps.children, `${keyPrefix}-${childIndex}`),
-      })
+      return child
     }
 
     // Defensive fallback: never pass raw objects as JSX children.
