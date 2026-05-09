@@ -425,6 +425,7 @@ export default function BancoDeQuestoes() {
         onOpenChange={setReportDialogOpen}
         questionId={reportQuestionId || ''}
         authToken={authTokenRef.current}
+        questionSnapshot={questions.find((q) => q.id === reportQuestionId) ?? null}
         onSuccess={() => {
           const id = reportQuestionId;
           if (!id) return;

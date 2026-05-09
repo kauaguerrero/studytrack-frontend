@@ -1157,6 +1157,7 @@ export default function SimuladoPage() {
         onOpenChange={setReportDialogOpen}
         questionId={reportQuestionId || ''}
         authToken={accessToken}
+        questionSnapshot={questions.find((q) => q.id === reportQuestionId) ?? null}
         onSuccess={() => {
           if (!reportQuestionId) return
           setReportedQuestionIds(prev => new Set(prev).add(reportQuestionId))

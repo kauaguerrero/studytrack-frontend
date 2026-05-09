@@ -1,7 +1,7 @@
 'use client'
 
-import { Fragment, useMemo } from 'react'
-import type { CSSProperties } from 'react'
+import { Children, Fragment, cloneElement, isValidElement, useMemo } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 import katex from 'katex'
@@ -48,6 +48,10 @@ function isLikelyMathSegment(segment: string): boolean {
   if (/^[A-Za-z](?:[A-Za-z0-9]{0,2})?$/.test(latex)) return true
   if (/^[A-Za-z0-9]+(?:\s*[=+\-*/<>]\s*[A-Za-z0-9]+)+$/.test(latex)) return true
   return false
+}
+
+function isStandaloneOrderedListMarker(text: string): boolean {
+  return /^\d+[.)]\s*$/.test(text.trim())
 }
 
 function splitMarkdownTableRow(row: string): string[] {
@@ -101,22 +105,41 @@ function isMarkdownBlock(text: string): boolean {
   return /^\s*(#{1,6}\s|>|\|.*\||[-*+]\s|\d+\.\s|!\[)/m.test(text)
 }
 
+function renderMarkdownChildren(children: ReactNode, keyPrefix: string): ReactNode {
+  return Children.map(children, (child, childIndex) => {
+    if (typeof child === 'string') {
+      return renderInlineRichText(child, `${keyPrefix}-${childIndex}`)
+    }
+
+    if (isValidElement(child)) {
+      const childElement = child as React.ReactElement<{ children?: ReactNode }>
+      const childProps = childElement.props
+      if (childProps.children == null) return child
+      return cloneElement(childElement, {
+        children: renderMarkdownChildren(childProps.children, `${keyPrefix}-${childIndex}`),
+      })
+    }
+
+    return child
+  })
+}
+
 const markdownComponents: Components = {
-  p: ({ children }) => <p className="my-3 leading-relaxed">{children}</p>,
-  h1: ({ children }) => <h1 className="mt-5 mb-3 text-xl font-bold leading-tight">{children}</h1>,
-  h2: ({ children }) => <h2 className="mt-5 mb-3 text-lg font-bold leading-tight">{children}</h2>,
-  h3: ({ children }) => <h3 className="mt-4 mb-2 text-base font-semibold leading-tight">{children}</h3>,
-  h4: ({ children }) => <h4 className="mt-4 mb-2 text-sm font-semibold uppercase tracking-wide">{children}</h4>,
+  p: ({ children }) => <p className="my-3 leading-relaxed">{renderMarkdownChildren(children, 'md-p')}</p>,
+  h1: ({ children }) => <h1 className="mt-5 mb-3 text-xl font-bold leading-tight">{renderMarkdownChildren(children, 'md-h1')}</h1>,
+  h2: ({ children }) => <h2 className="mt-5 mb-3 text-lg font-bold leading-tight">{renderMarkdownChildren(children, 'md-h2')}</h2>,
+  h3: ({ children }) => <h3 className="mt-4 mb-2 text-base font-semibold leading-tight">{renderMarkdownChildren(children, 'md-h3')}</h3>,
+  h4: ({ children }) => <h4 className="mt-4 mb-2 text-sm font-semibold uppercase tracking-wide">{renderMarkdownChildren(children, 'md-h4')}</h4>,
   ul: ({ children }) => <ul className="my-3 list-disc space-y-1 pl-5">{children}</ul>,
   ol: ({ children }) => <ol className="my-3 list-decimal space-y-1 pl-5">{children}</ol>,
-  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  li: ({ children }) => <li className="leading-relaxed">{renderMarkdownChildren(children, 'md-li')}</li>,
   blockquote: ({ children }) => (
     <blockquote className="my-4 border-l-4 border-slate-300 pl-4 italic text-slate-600 dark:border-slate-700 dark:text-slate-300">
-      {children}
+      {renderMarkdownChildren(children, 'md-blockquote')}
     </blockquote>
   ),
-  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-  em: ({ children }) => <em className="italic">{children}</em>,
+  strong: ({ children }) => <strong className="font-semibold">{renderMarkdownChildren(children, 'md-strong')}</strong>,
+  em: ({ children }) => <em className="italic">{renderMarkdownChildren(children, 'md-em')}</em>,
   img: ({ src, alt }) => (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -133,7 +156,7 @@ const markdownComponents: Components = {
       rel="noreferrer"
       className="break-all text-blue-700 underline underline-offset-2 dark:text-blue-300"
     >
-      {children}
+      {renderMarkdownChildren(children, 'md-link')}
     </a>
   ),
 }
@@ -173,16 +196,20 @@ function renderInlineRichText(text: string, keyPrefix: string) {
           {lines.map((line, lineIndex) => (
             <Fragment key={lineIndex}>
               {lineIndex > 0 && <br />}
-              <ReactMarkdown
-                components={{
-                  p: ({ children }) => <Fragment>{children}</Fragment>,
-                  ul: ({ children }) => <Fragment>{children}</Fragment>,
-                  ol: ({ children }) => <Fragment>{children}</Fragment>,
-                  li: ({ children }) => <Fragment>{children} </Fragment>,
-                }}
-              >
-                {line}
-              </ReactMarkdown>
+              {isStandaloneOrderedListMarker(line) ? (
+                line
+              ) : (
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => <Fragment>{children}</Fragment>,
+                    ul: ({ children }) => <Fragment>{children}</Fragment>,
+                    ol: ({ children }) => <Fragment>{children}</Fragment>,
+                    li: ({ children }) => <Fragment>{children} </Fragment>,
+                  }}
+                >
+                  {line}
+                </ReactMarkdown>
+              )}
             </Fragment>
           ))}
         </span>
@@ -193,17 +220,18 @@ function renderInlineRichText(text: string, keyPrefix: string) {
     const latex = rawLatex.replace(/(?<!\\)%/g, '\\%')
     const needsLeadingSpace = /\s$/.test(previousSegment)
     const needsTrailingSpace = /^\s/.test(nextSegment)
+    const isDisplayMath = segment.startsWith('$$')
     try {
       const html = katex.renderToString(latex, {
         throwOnError: false,
-        displayMode: segment.startsWith('$$'),
+        displayMode: isDisplayMath,
         output: 'html',
       } as KatexRenderOptions)
       return (
         <Fragment key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}>
           {needsLeadingSpace ? ' ' : null}
           <span
-            className="katex-fragment inline-block align-baseline"
+            className={isDisplayMath ? 'katex-fragment katex-display-wrap my-3 block max-w-full' : 'katex-fragment inline-block max-w-full align-baseline'}
             dangerouslySetInnerHTML={{ __html: html }}
           />
           {needsTrailingSpace ? ' ' : null}

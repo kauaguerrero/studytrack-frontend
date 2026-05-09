@@ -50,6 +50,7 @@ type EssayDetail = {
     original_text: string | null;
     corrected_text: string | null;
   }>;
+  signed_image_url?: string | null;
 };
 
 type SelectedTextState = { start: number; end: number; text: string };
@@ -659,6 +660,22 @@ export default function CorrecaoRedacaoPage() {
             </div>
           </div>
         </header>
+
+        {essay.signed_image_url && (
+          <details className="rounded-xl border border-slate-200 dark:border-slate-800">
+            <summary className="cursor-pointer px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 select-none">
+              Ver redação manuscrita original
+            </summary>
+            <div className="p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={essay.signed_image_url}
+                alt="Redação manuscrita original"
+                className="max-w-full rounded-lg border border-slate-200 dark:border-slate-800"
+              />
+            </div>
+          </details>
+        )}
 
         <div className={cn('grid grid-cols-1 gap-4', showCompetencyPanel ? 'lg:grid-cols-5' : 'lg:grid-cols-1')}>
           <section className={cn(

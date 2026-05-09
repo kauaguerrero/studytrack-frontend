@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client';
 import { getApiBaseUrl } from '@/lib/api-base';
 import { useOrg } from '@/contexts/OrgContext';
 import { EssayRewardPopup } from '@/components/partners/gamification/EssayRewardPopup';
+import { PhotoEssayUploader } from '@/components/partners/essays/PhotoEssayUploader';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
@@ -44,6 +45,7 @@ export default function NovaRedacaoPage() {
   const router = useRouter();
   const { org } = useOrg();
 
+  const [mode, setMode] = useState<'text' | 'photo'>('text');
   const [essayType, setEssayType] = useState<EssayType>('enem');
   const [essayTypeLocked, setEssayTypeLocked] = useState(false);
   const [theme, setTheme] = useState('');
@@ -213,15 +215,34 @@ export default function NovaRedacaoPage() {
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Nova Redação</h1>
         </header>
 
-        <form id="essay-create-form" onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
-          {creditStatus && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
-              Plano: <span className="font-semibold">{creditStatus.plan_name || 'Customizado'}</span> • Créditos:
-              <span className="font-semibold"> {creditStatus.remaining ?? '∞'} / {creditStatus.limit ?? '∞'}</span>
-              {' '}{creditStatus.period === 'week' ? 'na semana' : 'no mês'}
-            </div>
-          )}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setMode('text')}
+            className={cn(
+              'flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold transition',
+              mode === 'text'
+                ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300',
+            )}
+          >
+            Texto
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('photo')}
+            className={cn(
+              'flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold transition',
+              mode === 'photo'
+                ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300',
+            )}
+          >
+            Foto
+          </button>
+        </div>
 
+        <div className="space-y-4">
           {promptLoading && (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
               Carregando coletânea...
@@ -376,6 +397,26 @@ export default function NovaRedacaoPage() {
             />
             <p className="text-xs text-slate-500 dark:text-slate-400">Esse tema será exibido para o professor na correção.</p>
           </div>
+        </div>
+
+        {mode === 'photo' && (
+          <PhotoEssayUploader
+            slug={slug}
+            theme={theme}
+            essayType={essayType}
+            promptId={selectedPromptId || undefined}
+            onSuccess={() => router.push(`/partners/${slug}/student/redacoes`)}
+          />
+        )}
+
+        {mode === 'text' && <form id="essay-create-form" onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
+          {creditStatus && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
+              Plano: <span className="font-semibold">{creditStatus.plan_name || 'Customizado'}</span> • Créditos:
+              <span className="font-semibold"> {creditStatus.remaining ?? '∞'} / {creditStatus.limit ?? '∞'}</span>
+              {' '}{creditStatus.period === 'week' ? 'na semana' : 'no mês'}
+            </div>
+          )}
 
           <div className="flex items-center justify-end">
             <span className={`text-sm font-medium ${counterClass}`}>
@@ -405,7 +446,7 @@ export default function NovaRedacaoPage() {
               {submitting ? 'Enviando...' : 'Enviar Redação'}
             </button>
           </div>
-        </form>
+        </form>}
         </div>
       </div>
 
