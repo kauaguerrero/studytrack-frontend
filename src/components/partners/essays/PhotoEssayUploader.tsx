@@ -16,6 +16,62 @@ interface PhotoEssayUploaderProps {
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const VALID_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const UPLOAD_TARGET_BYTES = 3.5 * 1024 * 1024; // margem segura abaixo do limite de 4.5MB do Vercel
+const MAX_DIMENSION = 1920;
+
+async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    if (file.size <= UPLOAD_TARGET_BYTES) {
+      resolve(file);
+      return;
+    }
+
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      let { width, height } = img;
+      if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+        const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
+
+      // tenta qualidade 0.85 primeiro, se ainda for grande usa 0.70
+      canvas.toBlob(
+        (blob85) => {
+          if (blob85 && blob85.size <= UPLOAD_TARGET_BYTES) {
+            resolve(new File([blob85], 'redacao.jpg', { type: 'image/jpeg' }));
+            return;
+          }
+          canvas.toBlob(
+            (blob70) => {
+              resolve(new File([blob70 ?? blob85 ?? file], 'redacao.jpg', { type: 'image/jpeg' }));
+            },
+            'image/jpeg',
+            0.70,
+          );
+        },
+        'image/jpeg',
+        0.85,
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file); // fallback: envia o arquivo original
+    };
+
+    img.src = objectUrl;
+  });
+}
 
 const SCENES = [
   {
@@ -198,8 +254,9 @@ export function PhotoEssayUploader({
     if (!selectedFile) return;
     setUploadState('transcribing');
 
+    const fileToUpload = await compressImage(selectedFile);
     const formData = new FormData();
-    formData.append('file', selectedFile);
+    formData.append('file', fileToUpload);
     formData.append('theme', theme);
     formData.append('essay_type', essayType);
 
@@ -229,8 +286,9 @@ export function PhotoEssayUploader({
     if (!selectedFile || !isValidText) return;
     setUploadState('confirming');
 
+    const fileToUpload = await compressImage(selectedFile);
     const formData = new FormData();
-    formData.append('file', selectedFile);
+    formData.append('file', fileToUpload);
     formData.append('theme', theme);
     formData.append('essay_type', essayType);
     formData.append('confirmed_text', transcription.trim());
@@ -482,7 +540,7 @@ export function PhotoEssayUploader({
               Tire uma foto clara da sua redação e faça upload
             </span>
             <span className="text-xs text-slate-400 dark:text-slate-500">
-              JPG, PNG ou WEBP · máximo 15 MB
+              JPG, PNG ou WEBP · a imagem será otimizada automaticamente
             </span>
             <input
               ref={inputRef}
