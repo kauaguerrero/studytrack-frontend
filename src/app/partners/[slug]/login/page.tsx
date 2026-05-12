@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,7 +37,7 @@ interface OrgPublicInfo {
 export default function PartnerLoginPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
-  const router = useRouter();
+
   const searchParams = useSearchParams();
   const supabase = createClient();
 
@@ -82,24 +82,24 @@ export default function PartnerLoginPage() {
       const nextIsStudentPath = safeNextRedirect?.includes('/student/');
 
       if (safeNextRedirect && !(isManagementRole && nextIsStudentPath)) {
-        router.replace(safeNextRedirect);
+        window.location.replace(safeNextRedirect);
         return;
       }
 
       if (profile?.role === 'founder' || profile?.role === 'admin') {
-        router.replace(`/partners/${slug}/dashboard`);
+        window.location.replace(`/partners/${slug}/dashboard`);
         return;
       }
       if (profile?.role === 'associate' || profile?.role === 'teacher') {
-        router.replace(`/partners/${slug}/redacoes`);
+        window.location.replace(`/partners/${slug}/redacoes`);
         return;
       }
-      router.replace(`/partners/${slug}/student/dashboard`);
+      window.location.replace(`/partners/${slug}/student/dashboard`);
     }
 
     void redirectIfAuthenticated();
     return () => { cancelled = true; };
-  }, [router, searchParams, slug, supabase]);
+  }, [searchParams, slug, supabase]);
 
   useEffect(() => {
     const errorMsg = searchParams.get('error');
@@ -175,8 +175,7 @@ export default function PartnerLoginPage() {
       const nextIsStudentPath = safeNext?.includes('/student/');
       // Impede que um founder/associate caia em rota de aluno via ?next stale
       const target = (safeNext && !(isManagementRole && nextIsStudentPath)) ? safeNext : roleTarget;
-      router.refresh();
-      router.push(target);
+      window.location.href = target;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '';
       if (message.includes('Invalid login credentials') || message.includes('Email not confirmed')) {
