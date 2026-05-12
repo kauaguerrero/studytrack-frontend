@@ -32,7 +32,7 @@ interface Topic {
 const SUBJECTS = [
   'Matemática', 'Física', 'Química', 'Biologia', 'História',
   'Geografia', 'Filosofia', 'Sociologia', 'Língua Portuguesa',
-  'Inglês', 'Espanhol',
+  'Inglês', 'Espanhol', 'Francês',
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();

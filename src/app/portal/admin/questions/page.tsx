@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState, useEffect, useMemo } from 'react';
+import { Children, Fragment, useState, useEffect, useMemo } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -61,6 +61,7 @@ interface Alternative {
 interface AdminQuestion {
   id: string;
   external_id: string;
+  bank?: string | null;
   exam_year: number;
   subject: string;
   discipline?: string;
@@ -150,6 +151,46 @@ interface QuestionCurationValidation {
 const markdownImageRegex = /!\[[^\]]*]\((.*?)\)/g;
 const mathSegmentRegex = /(\$\$[\s\S]+?(?<!\\)\$\$|\$(?!\$)[\s\S]+?(?<!\\)\$)/g;
 const ufuSyntheticTitleRegex = /^Questão\s+\d+\s*-\s*UFU Vestibular\s+\d{4}\/[12]\s*$/i;
+
+function normalizeSourceLabel(value: string | null | undefined): string | null {
+  const normalized = String(value || '').trim().toUpperCase();
+  if (!normalized) return null;
+  if (normalized === 'ENEM' || normalized === 'INEP_ENEM' || normalized === 'ENEM_OFICIAL') return 'ENEM';
+  if (normalized === 'UFU' || normalized === 'UFU_VEST') return 'UFU_VEST';
+  if (normalized === 'UEG' || normalized === 'UEG_VEST') return 'UEG_VEST';
+  if (normalized === 'UNESP' || normalized === 'UNESP_VEST') return 'UNESP_VEST';
+  return normalized;
+}
+
+function resolveQuestionSource(question: Partial<AdminQuestion> | null | undefined): string {
+  if (!question) return 'UNKNOWN';
+
+  const bankSource = normalizeSourceLabel(question.bank);
+  if (bankSource) return bankSource;
+
+  const metadataSource = normalizeSourceLabel(question.metadata?.source);
+  if (metadataSource) return metadataSource;
+
+  const examIdSource = normalizeSourceLabel(question.metadata?.exam_id);
+  if (examIdSource?.startsWith('UFU_')) return 'UFU_VEST';
+  if (examIdSource?.startsWith('UEG_')) return 'UEG_VEST';
+  if (examIdSource?.startsWith('UNESP_')) return 'UNESP_VEST';
+  if (examIdSource?.startsWith('ENEM')) return 'ENEM';
+
+  const externalId = String(question.external_id || '').trim().toUpperCase();
+  if (externalId.startsWith('UFU_')) return 'UFU_VEST';
+  if (externalId.startsWith('UEG_')) return 'UEG_VEST';
+  if (externalId.startsWith('UNESP_')) return 'UNESP_VEST';
+  if (externalId.startsWith('ENEM')) return 'ENEM';
+
+  const title = String(question.title || '').trim().toUpperCase();
+  if (title.includes('ENEM')) return 'ENEM';
+  if (title.includes('UFU')) return 'UFU_VEST';
+  if (title.includes('UEG')) return 'UEG_VEST';
+  if (title.includes('UNESP')) return 'UNESP_VEST';
+
+  return 'UNKNOWN';
+}
 
 function normalizeUrl(raw: string): string | null {
   const cleaned = String(raw || '')
@@ -381,13 +422,18 @@ function renderInlineRichText(text: string, keyPrefix: string) {
       isLikelyMathSegment(segment);
 
     if (!isMath) {
-      const plainText = normalizePlainLatexText(segment);
+      const lines = segment.split('\n');
       return (
         <span
-          key={`${keyPrefix}-${segmentIndex}-${plainText.slice(0, 20)}`}
+          key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`}
           className="whitespace-pre-wrap"
         >
-          {plainText}
+          {lines.map((line, lineIndex) => (
+            <Fragment key={lineIndex}>
+              {lineIndex > 0 && <br />}
+              {normalizePlainLatexText(line)}
+            </Fragment>
+          ))}
         </span>
       );
     }
@@ -543,10 +589,31 @@ function RichText({ text, className }: { text?: string | null; className?: strin
         }
 
         if (isMarkdownBlock(paragraph)) {
+          const renderMdChildren = (children: React.ReactNode, prefix: string) =>
+            Children.map(children, (child, i) =>
+              typeof child === 'string'
+                ? renderInlineRichText(child, `${prefix}-${i}`)
+                : child
+            );
           return (
             <SafeMarkdown
               key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}
               components={{
+                p: ({ children }) => (
+                  <p className="my-2 leading-relaxed">
+                    {renderMdChildren(children, `${paragraphIndex}-p`)}
+                  </p>
+                ),
+                strong: ({ children }) => (
+                  <strong className="font-semibold">
+                    {renderMdChildren(children, `${paragraphIndex}-strong`)}
+                  </strong>
+                ),
+                em: ({ children }) => (
+                  <em className="italic">
+                    {renderMdChildren(children, `${paragraphIndex}-em`)}
+                  </em>
+                ),
                 img: ({ src, alt }) => (
                   <img
                     src={src || ''}
@@ -600,6 +667,7 @@ export default function AdminQuestionApproval() {
   const [archivedQuestions, setArchivedQuestions] = useState<AdminQuestion[]>([]);
   const [archivedLoading, setArchivedLoading] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
+  const [questionImageUploading, setQuestionImageUploading] = useState(false);
   const [alternativeImageInputs, setAlternativeImageInputs] = useState<Record<string, string>>({});
   const [alternativeImageUploading, setAlternativeImageUploading] = useState<string | null>(null);
 
@@ -1040,7 +1108,7 @@ export default function AdminQuestionApproval() {
   // --- FILTERING LOGIC ---
   const filteredQuestions = useMemo(() => {
     return questions.filter(q => {
-      const source = q.metadata?.source || 'UNKNOWN';
+      const source = resolveQuestionSource(q);
       const matchSource = filterSource === 'all' || source === filterSource;
       const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
       const matchDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
@@ -1052,7 +1120,7 @@ export default function AdminQuestionApproval() {
   const filteredAuditItems = useMemo(() => {
     return auditItems.filter(item => {
       const q = item.question;
-      const source = q.metadata?.source || 'UNKNOWN';
+      const source = resolveQuestionSource(q);
       const matchSource = filterSource === 'all' || source === filterSource;
       const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
       const matchDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
@@ -1063,7 +1131,7 @@ export default function AdminQuestionApproval() {
 
   const filteredArchived = useMemo(() => {
     return archivedQuestions.filter(q => {
-      const source = q.metadata?.source || 'UNKNOWN';
+      const source = resolveQuestionSource(q);
       const matchSource = filterSource === 'all' || source === filterSource;
       const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
       const matchDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
@@ -1075,7 +1143,7 @@ export default function AdminQuestionApproval() {
   const activeList = mode === 'audit' ? auditItems.map(i => i.question) : mode === 'archived' ? archivedQuestions : questions;
 
   const sources = Array.from(
-    new Set(activeList.map(q => q.metadata?.source || 'UNKNOWN'))
+    new Set(activeList.map(q => resolveQuestionSource(q)))
   ).filter(Boolean).sort();
 
   const subjects = Array.from(
@@ -1141,7 +1209,7 @@ export default function AdminQuestionApproval() {
   const parserChecks = validation?.parser_checks || [];
   const editorialReasons = validation?.editorial_reasons || validation?.reasons || [];
   const parserReasons = validation?.parser_reasons || [];
-  const validationEvidenceSource = validation?.evidence?.source || activeQuestion?.metadata?.source || 'UNKNOWN';
+  const validationEvidenceSource = normalizeSourceLabel(validation?.evidence?.source) || resolveQuestionSource(activeQuestion);
   const validationEvidenceExamId = validation?.evidence?.exam_id || activeQuestion?.external_id;
   const validationOfficialAnswer = validation?.evidence?.official_answer || validation?.parser_snapshot?.official_answer || null;
   const validationChunkImageUrls = validation?.evidence?.chunk_image_urls || validation?.parser_snapshot?.chunk_image_urls || [];
@@ -1319,7 +1387,7 @@ export default function AdminQuestionApproval() {
   const queueLabel = currentItems.length > 0
     ? `${currentIndex + 1} de ${currentItems.length} na fila`
     : '0 na fila';
-  const activeSource = activeQuestion?.metadata?.source || 'UNKNOWN';
+  const activeSource = resolveQuestionSource(activeQuestion);
   const activeQuestionVariant = activeQuestion?.metadata?.tipo || validation?.variant || '';
   const modeTitle = mode === 'curation' ? 'Curadoria' : mode === 'audit' ? 'Auditoria' : 'Arquivados';
   const modeBadge = mode === 'curation' ? 'Workspace Editorial' : mode === 'audit' ? 'Qualidade & Diagnóstico' : 'Histórico';
@@ -1712,14 +1780,36 @@ export default function AdminQuestionApproval() {
                         type="button"
                         variant="outline"
                         className="bg-white"
-                        onClick={() => {
+                        disabled={questionImageUploading}
+                        onClick={async () => {
                           const value = newImageUrl.trim();
                           if (!value) return;
-                          setEditForm({ ...editForm, images: [...(editForm.images || []), value] });
-                          setNewImageUrl('');
+                          setQuestionImageUploading(true);
+                          try {
+                            const res = await fetch('/api/admin/question-audits/upload-question-image', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                imageUrl: value,
+                                questionId: editForm.id,
+                                externalId: activeQuestion?.external_id || editForm.id,
+                              }),
+                            });
+                            const json = await res.json();
+                            if (!res.ok) {
+                              alert(json.error || 'Falha ao fazer upload da imagem.');
+                              return;
+                            }
+                            setEditForm({ ...editForm, images: [...(editForm.images || []), json.publicUrl] });
+                            setNewImageUrl('');
+                          } catch {
+                            alert('Erro ao conectar ao servidor de upload.');
+                          } finally {
+                            setQuestionImageUploading(false);
+                          }
                         }}
                       >
-                        Adicionar imagem
+                        {questionImageUploading ? 'Enviando…' : 'Adicionar imagem'}
                       </Button>
                     </div>
                     {editForm.images?.length ? (

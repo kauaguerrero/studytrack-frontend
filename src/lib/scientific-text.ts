@@ -148,43 +148,11 @@ function normalizeInlineHtmlFormatting(text: string): string {
     .replace(/<\s*\/\s*(strong|b)\s*>/gi, '**');
 }
 
-function isStructuredMarkdownBlock(block: string): boolean {
-  const trimmed = block.trim();
-  if (!trimmed) return false;
-
-  return /(^|\n)\s*(#{1,6}\s|>|\|.*\||[-*+]\s|\d+\.\s|!\[|[IVXLCDM]+[\.\)]\s|[IVXLCDM]+\s*[–—]\s?|[•·‣⁃]\s?)/m.test(trimmed);
-}
-
 function normalizeParagraphBreaks(text: string): string {
-  const normalized = text.replace(/\r\n?/g, '\n');
-  const blocks = normalized.split(/\n{2,}/);
-
-  return blocks
-    .map((block) => {
-      const trimmed = block.trim();
-      if (!trimmed || isStructuredMarkdownBlock(trimmed)) {
-        return trimmed;
-      }
-
-      const lines = trimmed
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean);
-
-      if (lines.length <= 1) {
-        return trimmed;
-      }
-
-      const averageLineLength =
-        lines.reduce((total, line) => total + line.length, 0) / lines.length;
-
-      // Preserve verse-like content and short broken lines; collapse wrapped prose.
-      if (averageLineLength < 70) {
-        return trimmed;
-      }
-
-      return lines.join(' ');
-    })
+  return text
+    .replace(/\r\n?/g, '\n')
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
     .filter(Boolean)
     .join('\n\n');
 }

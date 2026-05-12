@@ -149,6 +149,7 @@ const CUSTOM_SUBJECTS = [
   { value: 'Filosofia',         label: 'Filosofia',         qty: 83   },
   { value: 'Espanhol',          label: 'Espanhol',          qty: 64   },
   { value: 'Inglês',            label: 'Inglês',            qty: 42   },
+  { value: 'Francês',           label: 'Francês',           qty: null },
 ]
 
 const DIFFICULTY_LABELS: Record<string, string> = {

@@ -140,7 +140,7 @@ const BLOCK_QTY: Record<string, Record<string, number>> = {
 
 const COMPLETE_DISTRIBUTION_HINTS: Record<string, string[]> = {
   UFU: [
-    'Português 10, Literatura 5, Língua Estrangeira 5',
+    'Português 10, Literatura 5, Língua Estrangeira 5 (Inglês, Espanhol e Francês)',
     'Matemática 10',
     'Biologia 5, Física 5, Química 5',
     'Geografia 5, História 5, Filosofia 5, Sociologia 5',
