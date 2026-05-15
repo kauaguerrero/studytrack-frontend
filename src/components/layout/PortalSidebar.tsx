@@ -29,7 +29,6 @@ import {
   Flag,
   ScanSearch,
   Github,
-  Building2,
   Monitor,
   ShieldCheck,
   ArrowLeft,
@@ -345,10 +344,7 @@ export function SidebarContent({
             <NavItem href="/portal/admin/audits" icon={ScanSearch} label="Audit Center" />
             <NavItem href="/portal/admin/social-media" icon={Sparkles} label="Social Media IA" />
             <NavItem href="/portal/admin/questions" icon={BookOpen} label="Curadoria" />
-            <SectionTitle>Parceiros</SectionTitle>
-            <NavItem href="/portal/admin/b2b" icon={Building2} label="Parceiros B2B" />
             <SectionTitle>Reports</SectionTitle>
-            <NavItem href="/portal/admin/reengagement" icon={Target} label="Reengajamento" />
             <NavItem href="/portal/admin/reports" icon={Flag} label="Reports" />
             <SectionTitle>Plataforma</SectionTitle>
             <NavItem href="/portal/student/dashboard" icon={Monitor} label="Visão de Student" />

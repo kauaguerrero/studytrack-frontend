@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient();
   const db = admin as any;
 
-  const { data: orgs } = await db.from('organizations').select('id');
+  const { data: orgs } = await db.from('organizations').select('id').eq('is_mock', false);
   const orgIds: string[] = (orgs ?? []).map((o: any) => o.id);
   const total_orgs = orgIds.length;
 
@@ -184,49 +184,94 @@ export async function GET(request: NextRequest) {
   let questions_period = 0;
   let simulados_period = 0;
 
-  if (profileIds.length > 0) {
-    let answersRowsQuery = db
-      .from('user_answers')
-      .select('user_id')
-      .in('user_id', profileIds);
-    if (periodStartUtc) answersRowsQuery = answersRowsQuery.gte('created_at', periodStartUtc);
+  const PAGE = 1000;
 
-    let simsRowsQuery = db
+  const paginateRows = async (
+    table: string,
+    selectFields: string,
+    filters: (q: any) => any,
+    safetyLimit: number,
+  ): Promise<any[]> => {
+    const rows: any[] = [];
+    let offset = 0;
+    while (rows.length < safetyLimit) {
+      const { data: batchData } = await filters(
+        db.from(table).select(selectFields).range(offset, offset + PAGE - 1)
+      );
+      const batch = batchData ?? [];
+      rows.push(...batch);
+      if (batch.length < PAGE) break;
+      offset += PAGE;
+    }
+    return rows;
+  };
+
+  if (profileIds.length > 0) {
+    // COUNT queries for exact KPI totals (no row transfer — very fast)
+    let answersCountQ = db
+      .from('user_answers')
+      .select('*', { count: 'exact', head: true })
+      .in('user_id', profileIds);
+    if (periodStartUtc) answersCountQ = answersCountQ.gte('created_at', periodStartUtc);
+
+    let simsCountQ = db
       .from('simulado_sessions')
-      .select('user_id')
+      .select('*', { count: 'exact', head: true })
       .in('user_id', profileIds)
       .eq('status', 'completed');
-    if (periodStartUtc) simsRowsQuery = simsRowsQuery.gte('completed_at', periodStartUtc);
+    if (periodStartUtc) simsCountQ = simsCountQ.gte('completed_at', periodStartUtc);
 
-    const [{ data: answersRows }, { data: simsRows }] = await Promise.all([
-      answersRowsQuery,
-      simsRowsQuery,
+    // Paginated row fetch for per-org breakdown
+    const answersRowsP = paginateRows(
+      'user_answers', 'user_id',
+      (q) => { let r = q.in('user_id', profileIds); if (periodStartUtc) r = r.gte('created_at', periodStartUtc); return r; },
+      100_000,
+    );
+    const simsRowsP = paginateRows(
+      'simulado_sessions', 'user_id',
+      (q) => { let r = q.in('user_id', profileIds).eq('status', 'completed'); if (periodStartUtc) r = r.gte('completed_at', periodStartUtc); return r; },
+      50_000,
+    );
+
+    const [{ count: answersCount }, { count: simsCount }, answersRows, simsRows] = await Promise.all([
+      answersCountQ,
+      simsCountQ,
+      answersRowsP,
+      simsRowsP,
     ]);
 
-    questions_period = answersRows?.length ?? 0;
-    for (const row of answersRows ?? []) {
+    questions_period = answersCount ?? 0;
+    for (const row of answersRows) {
       const orgId = profileOrgById.get(row.user_id as string);
       if (!orgId) continue;
       perOrgQuestionsMap.set(orgId, (perOrgQuestionsMap.get(orgId) ?? 0) + 1);
     }
 
-    simulados_period = simsRows?.length ?? 0;
-    for (const row of simsRows ?? []) {
+    simulados_period = simsCount ?? 0;
+    for (const row of simsRows) {
       const orgId = profileOrgById.get(row.user_id as string);
       if (!orgId) continue;
       perOrgSimuladosMap.set(orgId, (perOrgSimuladosMap.get(orgId) ?? 0) + 1);
     }
   }
 
-  let essaysRowsQuery = db
+  // COUNT for essays total + paginated rows for per-org breakdown
+  let essaysCountQ = db
     .from('essays')
-    .select('org_id')
+    .select('*', { count: 'exact', head: true })
     .in('org_id', orgIds);
-  if (periodStartUtc) essaysRowsQuery = essaysRowsQuery.gte('submitted_at', periodStartUtc);
-  const { data: essaysRows } = await essaysRowsQuery;
-  const essays_period = essaysRows?.length ?? 0;
+  if (periodStartUtc) essaysCountQ = essaysCountQ.gte('submitted_at', periodStartUtc);
 
-  for (const row of essaysRows ?? []) {
+  const essaysRowsP = paginateRows(
+    'essays', 'org_id',
+    (q) => { let r = q.in('org_id', orgIds); if (periodStartUtc) r = r.gte('submitted_at', periodStartUtc); return r; },
+    20_000,
+  );
+
+  const [{ count: essaysCount }, essaysRows] = await Promise.all([essaysCountQ, essaysRowsP]);
+  const essays_period = essaysCount ?? 0;
+
+  for (const row of essaysRows) {
     const orgId = row.org_id as string | null;
     if (!orgId) continue;
     perOrgEssaysMap.set(orgId, (perOrgEssaysMap.get(orgId) ?? 0) + 1);

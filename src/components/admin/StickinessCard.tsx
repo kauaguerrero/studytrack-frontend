@@ -107,14 +107,14 @@ export default function StickinessCard({ health, apiUrl }: Props) {
             <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/40 p-3 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-red-700 dark:text-red-300 font-medium">Trials expirados</p>
+                <p className="text-xs text-red-700 dark:text-red-300 font-medium">Inativos 7d (B2B)</p>
                 <p className="text-xl font-bold text-red-800 dark:text-red-200">{health.expired_trials ?? 0}</p>
               </div>
             </div>
             <div className="rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-100 dark:border-orange-900/40 p-3 flex items-center gap-2">
               <Activity className="w-4 h-4 text-orange-500 shrink-0" />
               <div className="min-w-0">
-                <p className="text-xs text-orange-700 dark:text-orange-300 font-medium">Risco de churn (+30d)</p>
+                <p className="text-xs text-orange-700 dark:text-orange-300 font-medium">Inativos 30d (B2B)</p>
                 <p className="text-xl font-bold text-orange-800 dark:text-orange-200">{health.churn_risk_users ?? 0}</p>
               </div>
             </div>
