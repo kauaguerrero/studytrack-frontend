@@ -4,7 +4,6 @@ import { usePathname } from 'next/navigation';
 import { ReactNode, useState } from 'react';
 import { PortalSidebar } from '@/components/layout/PortalSidebar';
 import { PortalHeader } from '@/components/layout/PortalHeader';
-import { PortalBottomNav } from '@/components/layout/PortalBottomNav';
 import { PortalRoleProvider } from '@/contexts/PortalRoleContext';
 import { SidebarProvider } from '@/contexts/SidebarContext';
 import { UserRole } from '@/types/roles';
@@ -28,30 +27,9 @@ export function PortalLayoutWrapper({
   avatarUrl,
   initialSidebarCollapsed = true,
 }: PortalLayoutWrapperProps) {
-  const pathname = usePathname();
-  const isOnboardingRoute = pathname?.includes('/portal/onboarding');
-  const resolvedRole: UserRole = pathname.startsWith('/portal/secretariat')
-    ? 'secretariat'
-    : pathname.startsWith('/portal/teacher')
-      ? 'teacher'
-      : pathname.startsWith('/portal/manager')
-        ? 'manager'
-        : pathname.startsWith('/portal/student')
-          ? 'student'
-          : role;
+  const resolvedRole: UserRole = role;
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isStudent = resolvedRole === 'student';
-
-  if (isOnboardingRoute) {
-    return (
-      <PortalRoleProvider role={role}>
-        <div className="min-h-screen w-full bg-background text-foreground">
-          {children}
-        </div>
-      </PortalRoleProvider>
-    );
-  }
 
   const sidebarProps = {
     role,
@@ -71,14 +49,9 @@ export function PortalLayoutWrapper({
               onOpenMobileMenu={() => setMobileMenuOpen(true)}
             />
 
-            <div className="flex-1 p-4 md:p-8 max-w-[1600px] w-full mx-auto animate-in fade-in duration-150 pb-20 md:pb-8">
+            <div className="flex-1 p-4 md:p-8 max-w-[1600px] w-full mx-auto animate-in fade-in duration-150 pb-8">
               {children}
             </div>
-
-            {/* Bottom Nav — apenas aluno, mobile */}
-            {isStudent && (
-              <PortalBottomNav onOpenMoreMenu={() => setMobileMenuOpen(true)} />
-            )}
           </main>
         </div>
 

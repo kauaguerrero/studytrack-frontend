@@ -44,7 +44,6 @@ interface ProfileData {
   id: string
   full_name: string | null
   email: string | null
-  cpf: string | null
   whatsapp_phone: string | null
   phone: string | null
   avatar_url: string | null
@@ -52,14 +51,12 @@ interface ProfileData {
   plan_tier: string
   subscription_status: string
   subscription_plan: string
-  subscription_id: string | null
   trial_start_date: string | null
   focus_area: string | null
   study_pace: string | null
   study_period: string | null
   days_per_week: number | null
   hours_per_day: number | null
-  free_hours: string | null
   birth_date: string | null
   target_course: string | null
   target_university: string | null
@@ -154,8 +151,6 @@ export default function PerfilPage() {
   const [studyPeriod, setStudyPeriod] = useState('')
   const [daysPerWeek, setDaysPerWeek] = useState<number>(5)
   const [hoursPerDay, setHoursPerDay] = useState<number>(2)
-  const [freeHoursStart, setFreeHoursStart] = useState('19:00')
-  const [freeHoursEnd, setFreeHoursEnd] = useState('21:00')
   const [savingRoutine, setSavingRoutine] = useState(false)
 
   // States - Segurança
@@ -257,14 +252,6 @@ export default function PerfilPage() {
     setStudyPeriod(p.study_period ?? '')
     setDaysPerWeek(typeof p.days_per_week === 'number' ? Math.min(7, Math.max(1, p.days_per_week)) : 5)
     setHoursPerDay(typeof p.hours_per_day === 'number' ? Math.min(12, Math.max(1, p.hours_per_day)) : 2)
-    if (p.free_hours) {
-      const firstWindow = p.free_hours.split(',')[0].trim()
-      const parts = firstWindow.split('-')
-      if (parts.length === 2) {
-        setFreeHoursStart(parts[0].trim())
-        setFreeHoursEnd(parts[1].trim())
-      }
-    }
   }, [profileResponse])
 
   useEffect(() => {
@@ -521,13 +508,11 @@ export default function PerfilPage() {
   }, setSavingJourney)
 
   const handleSaveRoutine = () => {
-    const freeHours = freeHoursStart && freeHoursEnd ? `${freeHoursStart}-${freeHoursEnd}` : null
     handleUpdateProfile({
       study_pace: studyPace || 'moderate',
       study_period: studyPeriod || null,
       days_per_week: daysPerWeek,
       hours_per_day: hoursPerDay,
-      free_hours: freeHours,
     }, setSavingRoutine)
   }
 
@@ -1102,47 +1087,6 @@ export default function PerfilPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <Label className="text-slate-700 dark:text-slate-200 font-bold flex items-center gap-2">
-                          <Clock className="h-4 w-4" style={{ color: BRAND }} />
-                          Horário livre para estudar
-                        </Label>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          Defina a janela de horário disponível. Os lembretes de WhatsApp serão enviados nesse período.
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/40">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-xs text-slate-500 dark:text-slate-400 font-medium">Das</Label>
-                          <input
-                            type="time"
-                            value={freeHoursStart}
-                            onChange={(e) => setFreeHoursStart(e.target.value)}
-                            className="flex h-10 w-full rounded-xl border border-input bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                            style={{ ['--tw-ring-color' as string]: BRAND } as React.CSSProperties}
-                          />
-                        </div>
-                        <div className="text-center text-sm font-medium text-slate-500 select-none sm:pt-5">até</div>
-                        <div className="flex-1 space-y-1">
-                          <Label className="text-xs text-slate-500 dark:text-slate-400 font-medium">Às</Label>
-                          <input
-                            type="time"
-                            value={freeHoursEnd}
-                            onChange={(e) => setFreeHoursEnd(e.target.value)}
-                            className="flex h-10 w-full rounded-xl border border-input bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-                            style={{ ['--tw-ring-color' as string]: BRAND } as React.CSSProperties}
-                          />
-                        </div>
-                      </div>
-                      </div>
-                      {freeHoursStart && freeHoursEnd && (
-                        <p className="text-xs font-medium" style={{ color: BRAND }}>
-                          ⏰ Lembretes ativados: {freeHoursStart} às {freeHoursEnd}
-                        </p>
-                      )}
                     </div>
                   </CardContent>
                   <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-5 py-4 sm:px-8 sm:py-5 flex justify-end">

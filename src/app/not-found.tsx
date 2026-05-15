@@ -5,7 +5,7 @@ export default async function NotFound() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  let homeLink = '/portal/student/dashboard'; // Default fallback
+  let homeLink = '/'; // Default fallback
 
   if (user) {
     const { data: profile } = await supabase
@@ -16,9 +16,7 @@ export default async function NotFound() {
 
     const role = profile?.role || user.user_metadata?.role || 'student';
 
-    if (role === 'teacher') homeLink = '/portal/teacher';
-    else if (role === 'manager') homeLink = '/portal/manager';
-    else if (role === 'admin') homeLink = '/portal/manager';
+    if (role === 'admin') homeLink = '/portal/admin';
   } else {
       homeLink = '/';
   }

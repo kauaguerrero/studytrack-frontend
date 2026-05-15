@@ -514,7 +514,7 @@ export default function AdminReengagementPage() {
               </div>
               <div className="p-3 bg-sky-50 dark:bg-sky-950/40 rounded-lg"><Snowflake className="w-6 h-6 text-sky-600" /></div>
             </div>
-            <p className="text-sm text-slate-500 mt-4">Ainda não concluiu onboarding/handshake.</p>
+            <p className="text-sm text-slate-500 mt-4">Ainda não concluiu onboarding.</p>
           </CardContent>
         </Card>
       </div>
@@ -1056,4 +1056,3 @@ export default function AdminReengagementPage() {
     </div>
   );
 }
-

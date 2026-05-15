@@ -4,21 +4,16 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { reportError } from '@/lib/reportError';
-import MarketingBroadcastModal from "@/components/admin/MarketingBroadcastModal";
-import PeakHoursCard from "@/components/admin/PeakHoursCard";
-import FinancialPanel from "@/components/admin/FinancialPanel";
-import SubscribersModal from "@/components/admin/SubscribersModal";
 import CreateAnnouncementModal from "@/components/admin/CreateAnnouncementModal";
-import StickinessCard from "@/components/admin/StickinessCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  Activity, Users, DollarSign, Brain, Target,
+  Users, Brain, Target,
   Database, ArrowUpRight, Zap, GraduationCap,
   School, AlertOctagon, BarChart3,
   Calculator, ListChecks,
-  Flag, ClipboardList, Megaphone, Bell
+  Flag, ClipboardList, Bell
 } from "lucide-react";
 
 export default function SuperAdminDashboard() {
@@ -26,8 +21,6 @@ export default function SuperAdminDashboard() {
   const [dist, setDist] = useState<any>(null);
   const [orgCount, setOrgCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [marketingOpen, setMarketingOpen] = useState(false);
-  const [subscribersOpen, setSubscribersOpen] = useState(false);
   const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
   const supabase = createClient();
 
@@ -77,7 +70,7 @@ export default function SuperAdminDashboard() {
 
   if (!stats) return <div className="p-10 text-red-500 text-center">Erro ao carregar dados. Verifique a API.</div>;
 
-  const { health, product, financial, infrastructure, education, b2b } = stats || {};
+  const { health, product, financial, infrastructure, education } = stats || {};
 
   const dbUsagePercent = infrastructure?.db_size_bytes
     ? (infrastructure.db_size_bytes / SUPABASE_FREE_LIMIT) * 100
@@ -88,8 +81,6 @@ export default function SuperAdminDashboard() {
 
   return (
     <div className="p-4 md:p-8 space-y-6 md:space-y-8 bg-slate-50/50 dark:bg-slate-900/50 min-h-screen font-sans text-slate-900 dark:text-slate-100 overflow-x-hidden">
-      <MarketingBroadcastModal isOpen={marketingOpen} onClose={() => setMarketingOpen(false)} />
-      <SubscribersModal isOpen={subscribersOpen} onClose={() => setSubscribersOpen(false)} />
       <CreateAnnouncementModal isOpen={announcementModalOpen} onClose={() => setAnnouncementModalOpen(false)} />
 
       {/* --- HEADER --- */}
@@ -116,13 +107,6 @@ export default function SuperAdminDashboard() {
             </Link>
             <button
                 type="button"
-                onClick={() => setMarketingOpen(true)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-            >
-                <Megaphone className="w-4 h-4 text-rose-500" /> Marketing
-            </button>
-            <button
-                type="button"
                 onClick={() => setAnnouncementModalOpen(true)}
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
@@ -139,145 +123,102 @@ export default function SuperAdminDashboard() {
       {/* ================================================================================== */}
       {/* SEÇÃO 1: BIG NUMBERS (KPIs) */}
       {/* ================================================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-        <Card className="border-l-4 border-l-blue-500 hover:shadow-lg transition-all">
-            <CardContent className="p-6">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <p className="text-sm font-medium text-slate-500 uppercase">Total de Usuários</p>
-                        <h3 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-100 mt-2">{health?.total_users || 0}</h3>
-                    </div>
-                    <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-lg"><Users className="w-6 h-6 text-blue-600" /></div>
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                    <span className="font-semibold text-blue-600">{health?.onboarding_rate}%</span> completaram cadastro
-                </div>
-            </CardContent>
-        </Card>
-
-        <Card
-          className="border-l-4 border-l-emerald-500 hover:shadow-lg transition-all cursor-pointer"
-          onClick={() => setSubscribersOpen(true)}
-        >
-            <CardContent className="p-6">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <p className="text-sm font-medium text-slate-500 uppercase">Assinantes Pro</p>
-                        <h3 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-100 mt-2">{product?.active_pros || 0}</h3>
-                    </div>
-                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-lg"><DollarSign className="w-6 h-6 text-emerald-600" /></div>
-                </div>
-                <div className="mt-4 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                    <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 border-emerald-200">
-                        Plano Pro ativo
-                    </Badge>
-                </div>
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1">
-                    <Users className="w-3 h-3" /> Clique para ver detalhes
-                </p>
-            </CardContent>
-        </Card>
-      </div>
+      <Card className="border-l-4 border-l-blue-500 hover:shadow-lg transition-all">
+          <CardContent className="p-6">
+              <div className="flex justify-between items-start">
+                  <div>
+                      <p className="text-sm font-medium text-slate-500 uppercase">Total de Usuários</p>
+                      <h3 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-slate-100 mt-2">{health?.total_users || 0}</h3>
+                  </div>
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-lg"><Users className="w-6 h-6 text-blue-600" /></div>
+              </div>
+              <div className="mt-4 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                  <span className="font-semibold text-blue-600">{health?.onboarding_rate}%</span> completaram cadastro
+              </div>
+          </CardContent>
+      </Card>
 
       {/* ================================================================================== */}
-      {/* SEÇÃO 1.5: PAINEL FINANCEIRO REAL */}
+      {/* SEÇÃO 2: PERFORMANCE DO PRODUTO */}
       {/* ================================================================================== */}
-      <FinancialPanel />
-
-      {/* ================================================================================== */}
-      {/* SEÇÃO 2: SAÚDE & ENGAJAMENTO */}
-      {/* ================================================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-        <StickinessCard
-            health={health}
-            apiUrl={(process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "")}
-        />
-
-        <Card className="hover:border-slate-300 transition-colors">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                    <Target className="w-5 h-5 text-purple-500" /> Performance do Produto
-                </CardTitle>
-                <CardDescription>
-                    Aderência baseada em {product?.active_users_in_adherence ?? 0} usuários ativos nos últimos 7 dias.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                <div>
-                    <div className="flex justify-between mb-2">
-                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Aderência aos Planos (Semanal)</span>
-                        <span className={`text-sm font-bold ${product?.plan_adherence > 60 ? 'text-green-600' : 'text-red-500'}`}>
-                            {product?.plan_adherence || 0}%
-                        </span>
-                    </div>
-                    <Progress value={product?.plan_adherence || 0} className="h-2" />
-                </div>
-                <div className="flex items-center gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
-                    <div className="flex-1">
-                        <p className="text-xs text-slate-500 font-bold uppercase">Fila de Redação</p>
-                        <div className="flex items-center gap-2 mt-1">
-                            <div className={`w-3 h-3 rounded-full ${product?.stuck_essays > 0 ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
-                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                {product?.stuck_essays > 0 ? `${product.stuck_essays} Travados` : "Operacional"}
-                            </span>
-                        </div>
-                    </div>
-                    <div className="flex-1">
-                          <p className="text-xs text-slate-500 font-bold uppercase">Custo IA</p>
-                          <div className="flex items-center gap-1 mt-1">
-                            <Brain className="w-4 h-4 text-slate-400" />
-                            <span className="text-lg font-bold text-slate-700 dark:text-slate-300">R$ {financial?.ai_cost_brl || 0}</span>
-                          </div>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-      </div>
-
-      {/* ================================================================================== */}
-      {/* SEÇÃO 2.5: HORÁRIOS DE PICO */}
-      {/* ================================================================================== */}
-      <PeakHoursCard />
+      <Card className="hover:border-slate-300 transition-colors">
+          <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                  <Target className="w-5 h-5 text-purple-500" /> Performance do Produto
+              </CardTitle>
+              <CardDescription>
+                  Aderência baseada em {product?.active_users_in_adherence ?? 0} usuários ativos nos últimos 7 dias.
+              </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+              <div>
+                  <div className="flex justify-between mb-2">
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Aderência aos Planos (Semanal)</span>
+                      <span className={`text-sm font-bold ${product?.plan_adherence > 60 ? 'text-green-600' : 'text-red-500'}`}>
+                          {product?.plan_adherence || 0}%
+                      </span>
+                  </div>
+                  <Progress value={product?.plan_adherence || 0} className="h-2" />
+              </div>
+              <div className="flex items-center gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex-1">
+                      <p className="text-xs text-slate-500 font-bold uppercase">Fila de Redação</p>
+                      <div className="flex items-center gap-2 mt-1">
+                          <div className={`w-3 h-3 rounded-full ${product?.stuck_essays > 0 ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                              {product?.stuck_essays > 0 ? `${product.stuck_essays} Travados` : "Operacional"}
+                          </span>
+                      </div>
+                  </div>
+                  <div className="flex-1">
+                      <p className="text-xs text-slate-500 font-bold uppercase">Custo IA</p>
+                      <div className="flex items-center gap-1 mt-1">
+                          <Brain className="w-4 h-4 text-slate-400" />
+                          <span className="text-lg font-bold text-slate-700 dark:text-slate-300">R$ {financial?.ai_cost_brl || 0}</span>
+                      </div>
+                  </div>
+              </div>
+          </CardContent>
+      </Card>
 
       {/* CONSUMO DE TOKENS E CUSTO IA */}
-        <Card className="hover:border-slate-300 transition-colors lg:col-span-1 border-t-4 border-t-purple-600">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                    <Brain className="w-5 h-5 text-purple-600" /> Consumo de IA (30d)
-                </CardTitle>
-                <CardDescription>Gastos e volume de processamento.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="flex flex-col gap-4">
-                    <div className="flex justify-between items-end border-b border-slate-200 dark:border-slate-700 pb-2">
-                        <div>
-                            <p className="text-xs font-bold uppercase text-slate-400">Tokens Totais</p>
-                            <p className="text-2xl font-mono font-bold text-slate-800 dark:text-slate-200">
-                                {financial?.ai_total_tokens ? financial.ai_total_tokens.toLocaleString() : 0}
-                            </p>
-                        </div>
-                        <Calculator className="w-5 h-5 text-slate-300 mb-1" />
-                    </div>
+      <Card className="hover:border-slate-300 transition-colors border-t-4 border-t-purple-600">
+          <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                  <Brain className="w-5 h-5 text-purple-600" /> Consumo de IA (30d)
+              </CardTitle>
+              <CardDescription>Gastos e volume de processamento.</CardDescription>
+          </CardHeader>
+          <CardContent>
+              <div className="flex flex-col gap-4">
+                  <div className="flex justify-between items-end border-b border-slate-200 dark:border-slate-700 pb-2">
+                      <div>
+                          <p className="text-xs font-bold uppercase text-slate-400">Tokens Totais</p>
+                          <p className="text-2xl font-mono font-bold text-slate-800 dark:text-slate-200">
+                              {financial?.ai_total_tokens ? financial.ai_total_tokens.toLocaleString() : 0}
+                          </p>
+                      </div>
+                      <Calculator className="w-5 h-5 text-slate-300 mb-1" />
+                  </div>
+                  <div className="flex justify-between items-end">
+                      <div>
+                          <p className="text-xs font-bold uppercase text-slate-400">Custo Estimado</p>
+                          <p className="text-2xl font-bold text-purple-700">
+                              R$ {financial?.ai_cost_brl || "0.00"}
+                          </p>
+                      </div>
+                      <div className="text-right">
+                          <p className="text-xs text-slate-400">Baseado em uso real</p>
+                      </div>
+                  </div>
+              </div>
+          </CardContent>
+      </Card>
 
-                    <div className="flex justify-between items-end">
-                        <div>
-                            <p className="text-xs font-bold uppercase text-slate-400">Custo Estimado</p>
-                            <p className="text-2xl font-bold text-purple-700">
-                                R$ {financial?.ai_cost_brl || "0.00"}
-                            </p>
-                        </div>
-                        <div className="text-right">
-                             <p className="text-xs text-slate-400">Baseado em uso real</p>
-                        </div>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-
+      {/* ================================================================================== */}
       {/* SEÇÃO 3: EDUCAÇÃO & B2B */}
-
+      {/* ================================================================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-        {/* Ponto Fraco */}
         <Card className="bg-red-50 dark:bg-red-950/30 border-red-100 dark:border-red-900/40 md:col-span-1">
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-lg text-red-900 dark:text-red-200">
@@ -299,7 +240,6 @@ export default function SuperAdminDashboard() {
             </CardContent>
         </Card>
 
-        {/* B2B */}
         <Card className="bg-white dark:bg-slate-900 hover:border-indigo-300 transition-colors md:col-span-1">
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -314,7 +254,7 @@ export default function SuperAdminDashboard() {
                         <p className="text-sm text-slate-500 font-medium">Organizações</p>
                     </div>
                     <div className="h-12 w-12 bg-indigo-50 dark:bg-indigo-950/40 rounded-full flex items-center justify-center">
-                         <GraduationCap className="w-6 h-6 text-indigo-600" />
+                        <GraduationCap className="w-6 h-6 text-indigo-600" />
                     </div>
                 </div>
                 <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -325,7 +265,6 @@ export default function SuperAdminDashboard() {
             </CardContent>
         </Card>
 
-        {/* Infra DB — já é dark por padrão, não mexer */}
         <Card className="bg-slate-900 text-slate-50 md:col-span-1 border-t-4 border-t-cyan-400">
              <CardContent className="p-6">
                  <div className="flex justify-between items-center mb-4">
@@ -356,7 +295,6 @@ export default function SuperAdminDashboard() {
                  <h2 className="text-2xl font-bold flex items-center gap-2">
                     <BarChart3 className="w-6 h-6 text-slate-600 dark:text-slate-400" /> Raio-X do Conteúdo ({dist.total} questões)
                  </h2>
-
                  <div className="flex flex-wrap items-center gap-2">
                     <Link href="/portal/admin/reports" prefetch={false}>
                         <button className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-3 md:px-4 text-sm rounded-md transition-all shadow-sm hover:shadow-md active:scale-95">
@@ -374,7 +312,6 @@ export default function SuperAdminDashboard() {
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                 {/* Por Matéria */}
                  <Card>
                      <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-bold text-slate-500 uppercase">Distribuição por Matéria</CardTitle>
@@ -391,7 +328,6 @@ export default function SuperAdminDashboard() {
                      </CardContent>
                  </Card>
 
-                 {/* Por Dificuldade e Ano */}
                  <div className="space-y-6">
                      <Card>
                         <CardHeader className="pb-2">

@@ -35,8 +35,8 @@ export default async function Page() {
       const org = orgRes.data as { slug: string } | null;
       if (org?.slug) redirect(`/partners/${org.slug}/dashboard`);
     }
-    // Founder sem org ainda — cai no dashboard de aluno como fallback
-    redirect('/portal/student/dashboard');
+    // Founder sem org ainda — redireciona para home
+    redirect('/');
   }
 
   // Aluno B2B com org vinculada → redireciona para o portal do parceiro
@@ -68,22 +68,13 @@ export default async function Page() {
 
   // Redireciona para a página inicial de cada papel
   switch (role) {
-    case 'teacher':
-      redirect('/portal/teacher');
-      break;
-    case 'manager':
-      redirect('/portal/manager');
-      break;
     case 'admin':
       redirect('/portal/admin');
       break;
     case 'dev':
       redirect('/portal/dev/tasks');
       break;
-    case 'secretariat':
-      redirect('/portal/secretariat');
-      break;
     default:
-      redirect('/portal/student/dashboard');
+      redirect('/');
   }
 }

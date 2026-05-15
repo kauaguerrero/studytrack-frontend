@@ -100,7 +100,7 @@ function ConfirmEmailForm() {
                 </div>
                 <div className="space-y-3">
                   <button
-                    onClick={() => router.push('/portal/student/profile?tab=security')}
+                    onClick={() => router.push('/portal')}
                     className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-14 rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all"
                   >
                     <span>Ir para o Perfil</span>
@@ -139,7 +139,7 @@ function ConfirmEmailForm() {
                   </ul>
                 </div>
                 <button
-                  onClick={() => router.push('/portal/student/profile?tab=security')}
+                  onClick={() => router.push('/portal')}
                   className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold h-14 rounded-2xl shadow-lg flex items-center justify-center gap-3 transition-all"
                 >
                   <span>Solicitar novo link</span>
