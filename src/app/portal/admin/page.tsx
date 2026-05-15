@@ -4,8 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { reportError } from '@/lib/reportError';
-import PeakHoursCard from "@/components/admin/PeakHoursCard";
-import FinancialPanel from "@/components/admin/FinancialPanel";
 import StickinessCard from "@/components/admin/StickinessCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -237,9 +235,6 @@ export default function SuperAdminDashboard() {
           apiUrl={(process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "")}
         />
       )}
-
-      {/* ── Horários de Pico ───────────────────────────────────────────────── */}
-      <PeakHoursCard />
 
       {/* ── Gestão de Parceiros ────────────────────────────────────────────── */}
       <div className="pt-2">
@@ -499,9 +494,6 @@ export default function SuperAdminDashboard() {
           </CardContent>
         </Card>
       </div>
-
-      {/* ── Painel Financeiro (último) ─────────────────────────────────────── */}
-      <FinancialPanel />
 
       {/* ── Modal Nova Instituição ─────────────────────────────────────────── */}
       {orgModal.open && (
