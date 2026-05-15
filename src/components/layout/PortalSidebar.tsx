@@ -6,32 +6,17 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  FileText,
   BookOpen,
-  Users,
-  School,
-  BarChart,
-  Settings,
-  GraduationCap,
   ChevronRight,
   LifeBuoy,
   Target,
-  Trophy,
-  Gamepad2,
   LogOut,
-  Library,
-  ClipboardList,
   User,
-  Map,
-  BrainCircuit,
   Sparkles,
   ListChecks,
   Flag,
   ScanSearch,
   Github,
-  Monitor,
-  ShieldCheck,
-  ArrowLeft,
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -58,28 +43,16 @@ export function SidebarContent({
   const resolvedRole: UserRole =
     role === 'dev'
       ? 'dev'
-      : pathname.startsWith('/portal/secretariat')
-        ? 'secretariat'
-        : pathname.startsWith('/portal/teacher')
-          ? 'teacher'
-          : pathname.startsWith('/portal/manager')
-            ? 'manager'
-            : pathname.startsWith('/portal/student')
-              ? 'student'
-              : pathname.startsWith('/portal/admin')
-                ? 'admin'
-                : pathname.startsWith('/portal/dev')
-                  ? 'dev'
-                : role;
-
-  if (pathname.includes('/onboarding')) {
-    return null;
-  }
+      : pathname.startsWith('/portal/admin')
+        ? 'admin'
+        : pathname.startsWith('/portal/dev')
+          ? 'dev'
+          : role;
 
   const isActive = (path: string) =>
     pathname === path || pathname.startsWith(`${path}/`);
 
-  const NavItem = ({
+  const renderNavItem = ({
     href,
     icon: Icon,
     label,
@@ -138,7 +111,7 @@ export function SidebarContent({
     return content;
   };
 
-  const SectionTitle = ({ children }: { children: React.ReactNode }) => {
+  const renderSectionTitle = (children: React.ReactNode) => {
     if (collapsed) return null;
     return (
       <div className="px-3 mt-6 mb-2">
@@ -150,28 +123,18 @@ export function SidebarContent({
   };
 
   const portalHomeHref =
-    resolvedRole === 'student'
-      ? '/portal/student/dashboard'
-      : resolvedRole === 'teacher'
-        ? '/portal/teacher'
-        : resolvedRole === 'secretariat'
-          ? '/portal/secretariat'
-      : resolvedRole === 'manager'
-        ? '/portal/manager'
-        : resolvedRole === 'dev'
+    resolvedRole === 'dev'
           ? '/portal/dev/tasks'
+        : resolvedRole === 'admin'
+          ? '/portal/admin'
         : '/portal';
 
   const roleLabel =
-    resolvedRole === 'manager'
-      ? 'Gestão'
-      : resolvedRole === 'teacher'
-        ? 'Docente'
-        : resolvedRole === 'secretariat'
-          ? 'Secretaria'
-          : resolvedRole === 'dev'
+    resolvedRole === 'dev'
             ? 'Operação'
-          : 'Área do Aluno';
+          : resolvedRole === 'admin'
+            ? 'Admin'
+            : 'Portal';
 
   return (
     <div className="flex flex-col h-full bg-sidebar dark:bg-sidebar text-slate-900 dark:text-sidebar-foreground">
@@ -225,184 +188,25 @@ export function SidebarContent({
           collapsed ? 'px-2 pb-4' : 'px-4 pb-4'
         }`}
       >
-        {/* Banner de retorno ao painel — visível APENAS para admins navegando na área do student */}
-        {role === 'admin' && resolvedRole === 'student' && (
-          <Link
-            href="/portal/admin"
-            className={cn(
-              'flex items-center gap-2 mb-3 rounded-xl border transition-colors group',
-              'bg-indigo-50 dark:bg-indigo-500/15 border-indigo-200 dark:border-indigo-500/30',
-              'text-indigo-700 dark:text-indigo-400',
-              'hover:bg-indigo-100 dark:hover:bg-indigo-500/25',
-              collapsed ? 'justify-center p-2' : 'px-3 py-2.5',
-            )}
-            title={collapsed ? 'Painel Admin' : undefined}
-          >
-            <ShieldCheck className="w-4 h-4 shrink-0" />
-            {!collapsed && (
-              <>
-                <span className="flex-1 text-sm font-semibold">Painel Admin</span>
-                <ArrowLeft className="w-3.5 h-3.5 opacity-40 group-hover:opacity-100 transition-opacity" />
-              </>
-            )}
-          </Link>
-        )}
-
-        {resolvedRole === 'student' && (
-          <div className="space-y-0.5">
-            <SectionTitle>Estudos</SectionTitle>
-            <NavItem
-              href="/portal/student/dashboard"
-              icon={LayoutDashboard}
-              label="Dashboard"
-            />
-            <NavItem
-              href="/portal/student/study-map"
-              icon={Map}
-              label="Mapa ENEM"
-            />
-            <NavItem
-              href="/portal/student/library"
-              icon={Library}
-              label="Biblioteca Digital"
-            />
-            <NavItem
-              href="/portal/student/simulado"
-              icon={FileText}
-              label="Simulados"
-            />
-            <NavItem
-              href="/portal/student/banco-de-questoes"
-              icon={BookOpen}
-              label="Banco de Questões"
-            />
-            <NavItem
-              href="/portal/student/goals"
-              icon={Trophy}
-              label="Minhas Metas"
-            />
-            <NavItem href="/jogos" icon={Gamepad2} label="Sala de Jogos" />
-            <NavItem
-              href="/portal/student/flashcards"
-              icon={BrainCircuit}
-              label="Flashcards"
-            />
-            <SectionTitle>Performance</SectionTitle>
-            <NavItem
-              href="/portal/student/analytics"
-              icon={BarChart}
-              label="Meu Desempenho"
-            />
-          </div>
-        )}
-
-        {resolvedRole === 'teacher' && (
-          <div className="space-y-0.5">
-            <SectionTitle>Sala de Aula</SectionTitle>
-            <NavItem href="/portal/teacher" icon={School} label="Minhas Turmas" />
-            <NavItem
-              href="/portal/teacher/students"
-              icon={Users}
-              label="Alunos e Notas"
-            />
-            <SectionTitle>Avaliações</SectionTitle>
-            <NavItem
-              href="/portal/teacher/assessments"
-              icon={ClipboardList}
-              label="Provas e Simulados"
-            />
-            <SectionTitle>Conteúdo</SectionTitle>
-            <NavItem
-              href="/portal/teacher/assignments"
-              icon={FileText}
-              label="Tarefas e Listas"
-            />
-            <NavItem
-              href="/portal/teacher/goals"
-              icon={Target}
-              label="Metas Criadas"
-            />
-          </div>
-        )}
-
-        {resolvedRole === 'dev' && (
-          <div className="space-y-0.5">
-            <SectionTitle>Dev</SectionTitle>
-            <NavItem href="/portal/admin/tasks" icon={ListChecks} label="Tasks" />
-            <NavItem href="/portal/admin/github" icon={Github} label="GitHub" />
-            <NavItem href="/portal/student/dashboard" icon={LayoutDashboard} label="Plataforma Completa" />
-          </div>
-        )}
-
         {resolvedRole === 'admin' && (
           <div className="space-y-0.5">
-            <SectionTitle>Visão Geral</SectionTitle>
-            <NavItem href="/portal/admin" icon={LayoutDashboard} label="Dashboard" />
-            <NavItem href="/portal/admin/tasks" icon={ListChecks} label="Tasks" />
-            <NavItem href="/portal/admin/github" icon={Github} label="GitHub" />
-            <SectionTitle>Conteúdo</SectionTitle>
-            <NavItem href="/portal/admin/audits" icon={ScanSearch} label="Audit Center" />
-            <NavItem href="/portal/admin/social-media" icon={Sparkles} label="Social Media IA" />
-            <NavItem href="/portal/admin/questions" icon={BookOpen} label="Curadoria" />
-            <SectionTitle>Reports</SectionTitle>
-            <NavItem href="/portal/admin/reports" icon={Flag} label="Reports" />
-            <SectionTitle>Plataforma</SectionTitle>
-            <NavItem href="/portal/student/dashboard" icon={Monitor} label="Visão de Student" />
+            {renderSectionTitle('Visão Geral')}
+            {renderNavItem({ href: '/portal/admin', icon: LayoutDashboard, label: 'Dashboard' })}
+            {renderNavItem({ href: '/portal/admin/tasks', icon: ListChecks, label: 'Tasks' })}
+            {renderNavItem({ href: '/portal/admin/github', icon: Github, label: 'GitHub' })}
+            {renderSectionTitle('Conteúdo')}
+            {renderNavItem({ href: '/portal/admin/audits', icon: ScanSearch, label: 'Audit Center' })}
+            {renderNavItem({ href: '/portal/admin/social-media', icon: Sparkles, label: 'Social Media IA' })}
+            {renderNavItem({ href: '/portal/admin/questions', icon: BookOpen, label: 'Curadoria' })}
+            {renderSectionTitle('Reports')}
+            {renderNavItem({ href: '/portal/admin/reports', icon: Flag, label: 'Reports' })}
           </div>
         )}
 
         {resolvedRole === 'dev' && (
           <div className="space-y-0.5">
-            <SectionTitle>Operação</SectionTitle>
-            <NavItem href="/portal/dev/tasks" icon={ListChecks} label="Tasks" />
-          </div>
-        )}
-
-        {resolvedRole === 'secretariat' && (
-          <div className="space-y-0.5">
-            <SectionTitle>Inclusão & Adaptação</SectionTitle>
-            <NavItem
-              href="/portal/secretariat"
-              icon={LayoutDashboard}
-              label="Dashboard"
-            />
-            <NavItem
-              href="/portal/secretariat/adaptation/new"
-              icon={FileText}
-              label="Nova Adaptação"
-            />
-            <NavItem
-              href="/portal/secretariat/students"
-              icon={Users}
-              label="Alunos NEE"
-            />
-          </div>
-        )}
-
-        {resolvedRole === 'manager' && (
-          <div className="space-y-0.5">
-            <SectionTitle>Administração</SectionTitle>
-            <NavItem
-              href="/portal/manager"
-              icon={BarChart}
-              label="Visão Geral"
-            />
-            <NavItem
-              href="/portal/manager/students"
-              icon={GraduationCap}
-              label="Gestão de Alunos"
-            />
-            <NavItem
-              href="/portal/manager/curriculum"
-              icon={BookOpen}
-              label="Grade Curricular"
-            />
-            <SectionTitle>Sistema</SectionTitle>
-            <NavItem
-              href="/portal/manager/settings"
-              icon={Settings}
-              label="Configurações da Escola"
-            />
+            {renderSectionTitle('Operação')}
+            {renderNavItem({ href: '/portal/dev/tasks', icon: ListChecks, label: 'Tasks' })}
           </div>
         )}
 
@@ -411,17 +215,19 @@ export function SidebarContent({
             collapsed ? 'mt-6' : 'mt-8'
           }`}
         >
-          <NavItem
-            href={resolvedRole === 'admin' ? '/portal/admin/profile' : '/portal/student/profile'}
-            icon={User}
-            label="Meu Perfil"
-          />
-          {resolvedRole !== 'admin' && (
-            <NavItem
-              href="/portal/support"
-              icon={LifeBuoy}
-              label="Ajuda e Suporte"
-            />
+          {(resolvedRole === 'admin' || resolvedRole === 'dev') && (
+            renderNavItem({
+              href: resolvedRole === 'admin' ? '/portal/admin/profile' : '/portal',
+              icon: User,
+              label: resolvedRole === 'admin' ? 'Meu Perfil' : 'Portal',
+            })
+          )}
+          {resolvedRole !== 'admin' && resolvedRole !== 'dev' && (
+            renderNavItem({
+              href: '/portal/support',
+              icon: LifeBuoy,
+              label: 'Ajuda e Suporte',
+            })
           )}
         </div>
       </nav>
@@ -452,11 +258,6 @@ export function SidebarContent({
                 <p className="text-sm font-semibold text-slate-900 dark:text-sidebar-foreground truncate">
                   {fullName}
                 </p>
-                {resolvedRole === 'student' && (
-                  <span className="text-[10px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-wider shrink-0">
-                    Aluno
-                  </span>
-                )}
               </div>
               <form action="/auth/signout" method="post">
                 <button

@@ -107,10 +107,8 @@ function LoginForm() {
       
       const role = profile?.role ?? null;
       const roleToPath: Record<string, string> = {
-        teacher: '/portal/teacher',
-        manager: '/portal/manager',
         admin: '/portal/admin',
-        secretariat: '/portal/secretariat',
+        dev: '/portal/dev/tasks',
         // 'student' omitted intentionally: /portal handles B2B routing via organization_id
       };
 

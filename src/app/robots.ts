@@ -8,10 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       disallow: [
         '/portal/',
         '/partners/',
-        '/jogos/',
         '/audit/',
-        '/simple',
-        '/test',
         '/api/',
         '/auth/',
       ],

@@ -55,7 +55,7 @@ export async function updateSession(request: NextRequest) {
   );
 
   // 3. Validação de Sessão
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (process.env.NODE_ENV === 'development') {
       console.log('[MIDDLEWARE][DEBUG] path:', path);
@@ -98,7 +98,7 @@ export async function updateSession(request: NextRequest) {
     let currentRole: UserRole = (normalizeRole(user.user_metadata?.role) ?? 'student') as UserRole;
     let profileRoleForLog: unknown = null;
 
-    if (path.startsWith('/portal/manager') || path.startsWith('/portal/teacher') || path.startsWith('/portal/secretariat') || path.startsWith('/portal/admin')) {
+    if (path.startsWith('/portal/teacher') || path.startsWith('/portal/manager') || path.startsWith('/portal/secretariat') || path.startsWith('/portal/onboarding') || path.startsWith('/portal/admin')) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('role, organization_id')
@@ -108,7 +108,7 @@ export async function updateSession(request: NextRequest) {
         const dbRole = normalizeRole(profile?.role);
         if (dbRole) currentRole = dbRole;
 
-        // Teacher legado vinculado a org parceira não acessa /portal/teacher
+        // Teacher legado vinculado a org parceira vai para a área viva de redações.
         if (path.startsWith('/portal/teacher') && dbRole === 'teacher' && profile?.organization_id) {
           const { data: org } = await supabase
             .from('organizations')
@@ -119,12 +119,15 @@ export async function updateSession(request: NextRequest) {
             return NextResponse.redirect(new URL(`/partners/${org.slug}/redacoes`, request.url));
           }
         }
-    }
 
-    // Redirects baseados em Role
-    if (path.startsWith('/portal/teacher') && currentRole !== 'teacher' && currentRole !== 'admin') {
-        const dest = currentRole === 'manager' ? '/portal/manager' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
-        return NextResponse.redirect(new URL(dest, request.url));
+        if (
+          path.startsWith('/portal/teacher') ||
+          path.startsWith('/portal/manager') ||
+          path.startsWith('/portal/secretariat') ||
+          path.startsWith('/portal/onboarding')
+        ) {
+          return NextResponse.redirect(new URL('/', request.url));
+        }
     }
 
     const isTaskDashboardPath = path === '/portal/admin/tasks/dashboard' || path.startsWith('/portal/admin/tasks/dashboard/');
@@ -148,22 +151,12 @@ export async function updateSession(request: NextRequest) {
             userId: user.id,
           });
         }
-        const dest = currentRole === 'manager' ? '/portal/manager' : currentRole === 'teacher' ? '/portal/teacher' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
+        const dest = '/';
         return NextResponse.redirect(new URL(dest, request.url));
     }
 
     if (path.startsWith('/portal/dev') && currentRole !== 'dev' && currentRole !== 'admin') {
-        const dest = currentRole === 'manager' ? '/portal/manager' : currentRole === 'teacher' ? '/portal/teacher' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
-        return NextResponse.redirect(new URL(dest, request.url));
-    }
-
-    if (path.startsWith('/portal/manager') && currentRole !== 'manager' && currentRole !== 'admin') {
-         const dest = currentRole === 'teacher' ? '/portal/teacher' : currentRole === 'secretariat' ? '/portal/secretariat' : '/portal/student/dashboard';
-         return NextResponse.redirect(new URL(dest, request.url));
-    }
-
-    if (path.startsWith('/portal/secretariat') && currentRole !== 'secretariat' && currentRole !== 'admin') {
-        const dest = currentRole === 'manager' ? '/portal/manager' : currentRole === 'teacher' ? '/portal/teacher' : '/portal/student/dashboard';
+        const dest = '/';
         return NextResponse.redirect(new URL(dest, request.url));
     }
   }

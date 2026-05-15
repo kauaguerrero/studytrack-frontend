@@ -13,7 +13,6 @@ type ProfileRow = {
   subscription_status: string | null;
   trial_start_date: string | null;
   onboarding_completed: boolean | null;
-  handshake_completed: boolean | null;
   total_points: number | null;
   current_streak: number | null;
   last_activity_date: string | null;
@@ -31,7 +30,6 @@ type UserComputed = {
   subscription_status: string | null;
   trial_start_date: string | null;
   onboarding_completed: boolean;
-  handshake_completed: boolean;
   total_points: number;
   current_streak: number;
   last_activity_date: string | null;
@@ -63,14 +61,12 @@ function parseBool(value: string | null): boolean | null {
 
 function segmentOf(u: {
   onboarding_completed: boolean | null;
-  handshake_completed: boolean | null;
   messages_total: number;
   limit_reached: boolean;
   total_points: number;
 }): Segment {
   const onboarding = !!u.onboarding_completed;
-  const handshake = !!u.handshake_completed;
-  if (!onboarding || !handshake) return 'COLD';
+  if (!onboarding) return 'COLD';
   if (u.messages_total >= 5 || u.limit_reached || u.total_points > 0) return 'HOT';
   return 'WARM';
 }
@@ -112,7 +108,6 @@ export async function GET(request: Request) {
       'whatsapp_jid',
       'plan_tier',
       'onboarding_completed',
-      'handshake_completed',
       'subscription_status',
       'trial_start_date',
       'total_points',
@@ -226,7 +221,6 @@ export async function GET(request: Request) {
       subscription_status: p.subscription_status ?? null,
       trial_start_date: p.trial_start_date ?? null,
       onboarding_completed: !!p.onboarding_completed,
-      handshake_completed: !!p.handshake_completed,
       total_points: Number(p.total_points ?? 0),
       current_streak: Number(p.current_streak ?? 0),
       last_activity_date: p.last_activity_date ?? null,
@@ -295,4 +289,3 @@ export async function GET(request: Request) {
     })),
   });
 }
-

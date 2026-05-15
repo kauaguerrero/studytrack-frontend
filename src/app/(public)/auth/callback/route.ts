@@ -7,12 +7,12 @@ type CookieSet = { name: string; value: string; options: CookieOptions }
 type CookieRemove = { name: string; options: CookieOptions }
 
 const ROLE_TO_DASHBOARD: Record<UserRole, string> = {
-  student: '/portal/student/dashboard',
-  teacher: '/portal/teacher',
-  manager: '/portal/manager',
+  student: '/',
+  teacher: '/',
+  manager: '/',
   admin: '/portal/admin',
   dev: '/portal',
-  secretariat: '/portal/secretariat',
+  secretariat: '/',
   founder: '/portal',  // /portal redireciona founder para /partners/<slug>/dashboard
   associate: '/portal',
 }
@@ -99,7 +99,7 @@ export async function GET(request: Request) {
 
         const { data: profile } = await supabase
           .from('profiles')
-          .select('whatsapp_phone, role, school_id, organization_id')
+          .select('role, school_id, organization_id')
           .eq('id', user.id)
           .single()
 
@@ -123,28 +123,8 @@ export async function GET(request: Request) {
           }
         }
 
-        if (isTeacher && profile?.school_id) {
-          redirectUrl = `${origin}/portal/teacher`
-          const res = NextResponse.redirect(redirectUrl)
-          applyCapturedCookies(res, capturedSets, capturedRemoves)
-          return res
-        }
-
-        if (!profile || !profile.whatsapp_phone) {
-          if (isTeacher) {
-            if (dbRole !== 'teacher') {
-              await supabase.from('profiles').update({ 
-                role: 'teacher',
-                full_name: user.user_metadata?.full_name
-              }).eq('id', user.id)
-            }
-            redirectUrl = `${origin}/portal/onboarding/teacher/school`
-            const res = NextResponse.redirect(redirectUrl)
-            res.cookies.delete('onboarding_role')
-            applyCapturedCookies(res, capturedSets, capturedRemoves)
-            return res
-          }
-          redirectUrl = `${origin}/portal/onboarding/objetivo`
+        if (!profile) {
+          redirectUrl = `${origin}/`
           const res = NextResponse.redirect(redirectUrl)
           applyCapturedCookies(res, capturedSets, capturedRemoves)
           return res

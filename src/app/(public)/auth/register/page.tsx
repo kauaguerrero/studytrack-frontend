@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import Image from 'next/image';
-import { 
-  Mail, Lock, Eye, EyeOff, Loader2, User, 
-  GraduationCap, School, Rocket
+import {
+  Mail, Lock, Eye, EyeOff, Loader2, User,
+  Rocket
 } from 'lucide-react';
 
 const PLANS = [
@@ -31,9 +32,6 @@ function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [userType, setUserType] = useState<'student' | 'school'>('student');
-  const [schoolRole, setSchoolRole] = useState<'teacher' | 'secretary' | null>(null);
-
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -114,18 +112,13 @@ function RegisterForm() {
   const handleSocialLogin = async (provider: 'google') => {
     try {
         // Salva role e plano nos cookies para recuperar no callback, já que não podemos passar "data" direto
-        const actualRole = userType === 'school' ? schoolRole : userType;
-        document.cookie = `onboarding_role=${actualRole}; path=/; max-age=300`;
+        document.cookie = 'onboarding_role=student; path=/; max-age=300';
         document.cookie = `onboarding_plan=${selectedPlan}; path=/; max-age=300`;
-
-        const nextPath = userType === 'school'
-            ? (schoolRole === 'teacher' ? '/portal/onboarding/teacher/school' : '/portal/onboarding/secretariat/school')
-            : '/portal/onboarding/objetivo';
 
         await supabase.auth.signInWithOAuth({
             provider,
             options: {
-                redirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+                redirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent('/portal')}`,
                 queryParams: { 
                     access_type: 'offline', 
                     prompt: 'consent' 
@@ -156,12 +149,6 @@ function RegisterForm() {
       return;
     }
 
-    if (userType === 'school' && !schoolRole) {
-      setError("Selecione seu papel na escola (Professor ou Secretaria).");
-      setIsLoading(false);
-      return;
-    }
-
     try {
       localStorage.setItem('onboarding_plan', selectedPlan);
 
@@ -171,8 +158,8 @@ function RegisterForm() {
         options: {
             data: {
                 full_name: formData.name,
-                plan_tier: userType === 'school' ? 'school_free' : selectedPlan,
-                role: userType === 'school' ? schoolRole : 'student'
+                plan_tier: selectedPlan,
+                role: 'student'
             }
         }
       });
@@ -182,44 +169,24 @@ function RegisterForm() {
       if (data.session) {
           const userId = data.session.user.id;
           router.refresh();
-
-          if (userType === 'school') {
-             if (schoolRole === 'teacher') {
-               await supabase.from('profiles').upsert({ 
-                   id: userId,
-                   role: 'teacher',
-                   email: formData.email,
-                   full_name: formData.name
-                 }, { onConflict: 'id' });
-               router.push('/portal/onboarding/teacher/school');
-             } else if (schoolRole === 'secretary') {
-               await supabase.from('profiles').upsert({ 
-                   id: userId,
-                   role: 'secretariat',
-                   email: formData.email,
-                   full_name: formData.name
-                 }, { onConflict: 'id' });
-               router.push('/portal/onboarding/secretariat/school');
-             }
-          } else {
-             await supabase.from('profiles').upsert({ 
-                 id: userId,
-                 role: 'student',
-                 email: formData.email,
-                 full_name: formData.name
-               }, { onConflict: 'id' });
-             router.push('/portal/onboarding/objetivo');
-          }
+          await supabase.from('profiles').upsert({
+              id: userId,
+              role: 'student',
+              email: formData.email,
+              full_name: formData.name
+            }, { onConflict: 'id' });
+          router.push('/portal');
       } else {
           alert("Conta criada! Verifique seu e-mail para confirmar.");
           router.push('/auth/login');
       }
 
-    } catch (err: any) {
-      if (err.message?.includes("already registered") || err.message?.includes("already exists")) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erro ao criar conta.";
+      if (message.includes("already registered") || message.includes("already exists")) {
         setError("Este e-mail já está cadastrado. Tente fazer login.");
       } else {
-        setError(err.message || "Erro ao criar conta.");
+        setError(message);
       }
     } finally {
       setIsLoading(false);
@@ -233,50 +200,9 @@ function RegisterForm() {
           Crie sua conta <Rocket className="w-8 h-8 sm:w-9 sm:h-9 text-blue-600 shrink-0" aria-hidden />
         </h1>
         <p className="text-slate-500 text-lg">
-          {userType === 'student' 
-            ? 'Comece a estudar de forma inteligente.' 
-            : 'Gerencie suas turmas e potencialize seus alunos.'}
+          {'Comece a estudar de forma inteligente.'}
         </p>
       </div>
-
-      <div className="grid grid-cols-2 gap-3 mb-6 p-1 bg-slate-100 rounded-xl">
-        <button type="button" onClick={() => { setUserType('student'); setSchoolRole(null); }} className={`flex items-center justify-center gap-2 min-h-[44px] py-3 rounded-lg text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${userType === 'student' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-          <GraduationCap size={18} aria-hidden /> Conta de Aluno
-        </button>
-        <button type="button" onClick={() => setUserType('school')} className={`flex items-center justify-center gap-2 min-h-[44px] py-3 rounded-lg text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${userType === 'school' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-          <School size={18} aria-hidden /> Vinculado à Escola
-        </button>
-      </div>
-
-      {userType === 'school' && (
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
-          <h3 className="text-sm font-bold text-blue-900 mb-3">Qual é o seu papel na escola?</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setSchoolRole('teacher')}
-              className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                schoolRole === 'teacher'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-white text-blue-600 border border-blue-200 hover:bg-blue-50'
-              }`}
-            >
-              <School size={14} /> Professor
-            </button>
-            <button
-              type="button"
-              onClick={() => setSchoolRole('secretary')}
-              className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                schoolRole === 'secretary'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-white text-blue-600 border border-blue-200 hover:bg-blue-50'
-              }`}
-            >
-              <User size={14} /> Secretaria
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-4 mb-6">
         <button onClick={() => handleSocialLogin('google')} type="button" className="flex items-center justify-center gap-3 h-12 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-200 hover:shadow-md transition-all duration-300 group">
@@ -293,30 +219,16 @@ function RegisterForm() {
       {error && (<div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-medium animate-pulse">{error}</div>)}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {userType === 'student' && (
-          <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                <div className="p-1 bg-slate-100 rounded-xl flex gap-1 overflow-x-auto no-scrollbar">
-                   {PLANS.map((plan) => (
-                      <button key={plan.id} type="button" onClick={() => !isPlanLocked && setSelectedPlan(plan.id)} disabled={isPlanLocked} className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all capitalize whitespace-nowrap ${selectedPlan === plan.id ? `bg-white shadow-sm ring-1 ring-black/5 ${plan.activeColor}` : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50'} ${isPlanLocked && selectedPlan !== plan.id ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}`}>
-                          {plan.name}
-                      </button>
-                  ))}
-              </div>
-              {isPlanLocked && (<p className="text-center text-[10px] text-slate-400 mt-2">Plano selecionado na oferta. <a href="/#planos" className="underline hover:text-blue-600 font-medium">Trocar</a></p>)}
-          </div>
-        )}
-
-        {userType === 'school' && (
-           <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
-              <div className="flex gap-3">
-                 <School className="text-amber-600 shrink-0" size={20} />
-                 <div>
-                    <h3 className="font-bold text-sm text-amber-900">Validação Necessária</h3>
-                    <p className="text-xs text-amber-800 mt-1">Após criar a conta, você precisará do <strong>Código da Escola</strong> ou aguardar aprovação da gestão.</p>
-                 </div>
-              </div>
-           </div>
-        )}
+        <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="p-1 bg-slate-100 rounded-xl flex gap-1 overflow-x-auto no-scrollbar">
+                 {PLANS.map((plan) => (
+                    <button key={plan.id} type="button" onClick={() => !isPlanLocked && setSelectedPlan(plan.id)} disabled={isPlanLocked} className={`flex-1 py-2 px-2 text-xs font-bold rounded-lg transition-all capitalize whitespace-nowrap ${selectedPlan === plan.id ? `bg-white shadow-sm ring-1 ring-black/5 ${plan.activeColor}` : 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/50'} ${isPlanLocked && selectedPlan !== plan.id ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}`}>
+                        {plan.name}
+                    </button>
+                ))}
+            </div>
+            {isPlanLocked && (<p className="text-center text-[10px] text-slate-400 mt-2">Plano selecionado na oferta. <Link href="/#planos" className="underline hover:text-blue-600 font-medium">Trocar</Link></p>)}
+        </div>
 
         <div className="space-y-1.5">
           <label className="text-sm font-bold text-slate-700 block" htmlFor="name">Nome Completo</label>
@@ -330,7 +242,7 @@ function RegisterForm() {
           <label className="text-sm font-bold text-slate-700 block" htmlFor="email">E-mail</label>
           <div className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><Mail className="w-5 h-5" /></div>
-            <input id="email" type="email" placeholder={userType === 'school' ? "prof.nome@escola.com" : "aluno@studytrack.com"} required className="w-full pl-12 pr-4 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+            <input id="email" type="email" placeholder="aluno@studytrack.com" required className="w-full pl-12 pr-4 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
           </div>
         </div>
 
@@ -390,12 +302,12 @@ function RegisterForm() {
           disabled={isLoading || !isPasswordValid || !passwordsMatch || !formData.name || !formData.email}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold min-h-[48px] h-14 rounded-2xl shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-70 transition-all mt-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
         >
-          {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (userType === 'school' ? "Iniciar Validação Escolar" : "Criar Conta de Aluno")}
+          {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Criar Conta"}
         </button>
       </form>
 
       <p className="mt-5 text-center text-sm text-slate-500">
-        Já tem conta? <a href="/auth/login" className="font-bold text-blue-600 hover:text-blue-800">Fazer Login</a>
+        Já tem conta? <Link href="/auth/login" className="font-bold text-blue-600 hover:text-blue-800">Fazer Login</Link>
       </p>
     </div>
   );

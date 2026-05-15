@@ -194,17 +194,6 @@ const SUPPORT_EMAIL_BODY = encodeURIComponent(
 const SUPPORT_GMAIL_URL = `https://mail.google.com/mail/?view=cm&fs=1&to=${SUPPORT_EMAIL_TO}&su=${SUPPORT_EMAIL_SUBJECT}&body=${SUPPORT_EMAIL_BODY}`;
 const KB_LINK = '/portal/support/kb';
 
-const DASHBOARD_URL_BY_ROLE: Record<UserRole, string> = {
-  student: '/portal/student/dashboard',
-  teacher: '/portal/teacher',
-  manager: '/portal/manager',
-  admin: '/portal/admin',
-  dev: '/portal',
-  secretariat: '/portal/secretariat',
-  founder: '/portal',
-  associate: '/portal',
-};
-
 export default function AjudaESuportePage() {
   const roleFromContext = usePortalRoleOptional();
   const currentRole: UserRole = roleFromContext ?? 'student'; // fallback apenas para evitar crash; layout sempre fornece role
