@@ -11,7 +11,6 @@ type ProfileRow = {
   whatsapp_jid: string | null;
   plan_tier: string | null;
   subscription_status: string | null;
-  trial_start_date: string | null;
   onboarding_completed: boolean | null;
   total_points: number | null;
   current_streak: number | null;
@@ -28,7 +27,6 @@ type UserComputed = {
   whatsapp_jid: string | null;
   plan_tier: string | null;
   subscription_status: string | null;
-  trial_start_date: string | null;
   onboarding_completed: boolean;
   total_points: number;
   current_streak: number;
@@ -109,7 +107,6 @@ export async function GET(request: Request) {
       'plan_tier',
       'onboarding_completed',
       'subscription_status',
-      'trial_start_date',
       'total_points',
       'current_streak',
       'last_activity_date',
@@ -117,7 +114,6 @@ export async function GET(request: Request) {
       'conversion_stage',
     ].join(','))
     .eq('role', 'student')
-    .not('trial_start_date', 'is', null)
     .limit(5000);
 
   if (profilesErr) {
@@ -199,7 +195,6 @@ export async function GET(request: Request) {
     const usage = usageByUser.get(p.id) ?? { messages: 0, limit: false };
     const logs = logByUser.get(p.id) ?? { count: 0, lastAt: null, lastInboundAt: null };
     const messagesTotal = Math.max(usage.messages, logs.count); // fallback: se daily_usage estiver vazia, usa logs
-    const trialDays = p.trial_start_date ? Math.max(0, Math.floor((now.getTime() - new Date(p.trial_start_date).getTime()) / (1000 * 60 * 60 * 24))) : null;
     const lastUserAt = logs.lastInboundAt;
     const metaWindowActive = !!(lastUserAt && new Date(lastUserAt).getTime() >= windowCutoff);
     const conversionStage = (p.conversion_stage ?? 'nao_abordado') as ConversionStage;
@@ -219,7 +214,6 @@ export async function GET(request: Request) {
       whatsapp_jid: p.whatsapp_jid ?? null,
       plan_tier: p.plan_tier ?? null,
       subscription_status: p.subscription_status ?? null,
-      trial_start_date: p.trial_start_date ?? null,
       onboarding_completed: !!p.onboarding_completed,
       total_points: Number(p.total_points ?? 0),
       current_streak: Number(p.current_streak ?? 0),
