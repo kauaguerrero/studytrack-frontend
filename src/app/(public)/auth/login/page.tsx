@@ -279,12 +279,6 @@ function LoginForm() {
         </button>
       </form>
 
-      <p className="mt-5 text-center text-sm text-slate-500 break-words min-w-0">
-        Não tem conta?{' '}
-        <a href="/auth/register?plan=free" className="font-bold text-blue-600 hover:text-blue-800">
-          Cadastre-se gratuitamente
-        </a>
-      </p>
     </div>
   );
 }

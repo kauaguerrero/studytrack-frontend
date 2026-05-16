@@ -560,37 +560,6 @@ export function DashboardClient({
             </Link>
           </motion.div>
 
-          {/* ── 4. StudyTrack CTA ───────────────────────────────────────────── */}
-          <motion.div variants={itemVariant}>
-            <Link
-              href={`/partners/${slug}/student/studytrack`}
-              className="group block rounded-xl overflow-hidden active:scale-[0.99] transition-transform duration-150"
-            >
-              <div className="relative p-4 flex items-center gap-3 bg-slate-900 dark:bg-[#111] border border-slate-800 dark:border-white/5">
-                <div
-                  className="pointer-events-none absolute -right-4 -top-4 h-24 w-24 rounded-full blur-2xl opacity-30"
-                  style={{ background: 'var(--brand-primary)' }}
-                />
-                <div
-                  className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                  style={{ background: 'color-mix(in srgb, var(--brand-primary) 15%, transparent)' }}
-                >
-                  <Trophy className="h-4 w-4" style={{ color: 'var(--brand-primary)' }} />
-                </div>
-                <div className="relative z-10 flex-1 min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-0.5">
-                    Plataforma completa
-                  </p>
-                  <p className="text-sm font-extrabold text-white leading-tight truncate">
-                    Acessar plataforma completa da StudyTrack
-                  </p>
-                </div>
-                <ArrowRight
-                  className="relative z-10 h-4 w-4 shrink-0 text-white/40 transition-transform duration-200 group-hover:translate-x-0.5"
-                />
-              </div>
-            </Link>
-          </motion.div>
         </motion.div>
       </div>
 
