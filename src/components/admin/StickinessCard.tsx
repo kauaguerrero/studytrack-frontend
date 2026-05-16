@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, AlertTriangle, Zap, FlaskConical, Flame, CornerDownLeft, CornerDownRight, CheckCircle2, XCircle } from "lucide-react";
-import RetentionAnalysisModal from "@/components/admin/RetentionAnalysisModal";
+import { Activity, AlertTriangle, Zap, Flame, CornerDownLeft, CornerDownRight, CheckCircle2, XCircle } from "lucide-react";
 
 interface WhatsappInfo {
   last_at: string | null;
@@ -69,7 +67,6 @@ function planBadgeClass(tier: string | null): string {
 }
 
 export default function StickinessCard({ health, apiUrl }: Props) {
-  const [modalOpen, setModalOpen] = useState(false);
   const profiles = health.dau_profiles ?? [];
 
   return (
@@ -184,24 +181,9 @@ export default function StickinessCard({ health, apiUrl }: Props) {
             )}
           </div>
 
-          {/* BOTÃO GEMINI */}
-          <button
-            type="button"
-            onClick={() => setModalOpen(true)}
-            disabled={profiles.length === 0}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
-          >
-            <FlaskConical className="w-4 h-4" /> Analisar com Gemini
-          </button>
         </CardContent>
       </Card>
 
-      <RetentionAnalysisModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        health={health}
-        apiUrl={apiUrl}
-      />
     </>
   );
 }
