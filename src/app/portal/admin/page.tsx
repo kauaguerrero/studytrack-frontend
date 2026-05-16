@@ -488,23 +488,24 @@ export default function SuperAdminDashboard() {
                         ))}
                       </div>
                       {/* Legenda */}
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         {banks.map((b: any) => {
-                          const pct = bankTotal > 0 ? ((b.count / bankTotal) * 100).toFixed(1) : '0';
+                          const pct = bankTotal > 0 ? (b.count / bankTotal) * 100 : 0;
+                          const pctLabel = pct.toFixed(1);
                           return (
-                            <div key={b.name}>
-                              <div className="flex justify-between items-center mb-1">
+                            <div key={b.name} className="space-y-1.5">
+                              <div className="flex justify-between items-baseline">
                                 <div className="flex items-center gap-2">
-                                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${BANK_COLORS[b.name] ?? 'bg-slate-400'}`} />
+                                  <span className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${BANK_COLORS[b.name] ?? 'bg-slate-400'}`} />
                                   <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{b.name}</span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-bold text-slate-900 dark:text-slate-100">{b.count.toLocaleString('pt-BR')}</span>
-                                  <Badge variant="outline" className="text-[10px] tabular-nums">{pct}%</Badge>
+                                <div className="flex items-baseline gap-1.5">
+                                  <span className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100">{pctLabel}%</span>
+                                  <span className="text-xs text-slate-400 tabular-nums">({b.count.toLocaleString('pt-BR')})</span>
                                 </div>
                               </div>
-                              <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                <div className={`h-full ${BANK_COLORS[b.name] ?? 'bg-slate-400'} rounded-full`} style={{ width: `${pct}%` }} />
+                              <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                <div className={`h-full ${BANK_COLORS[b.name] ?? 'bg-slate-400'} rounded-full transition-all`} style={{ width: `${pctLabel}%` }} />
                               </div>
                             </div>
                           );
