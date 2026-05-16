@@ -90,6 +90,7 @@ export default function SuperAdminDashboard() {
   const [orgPeriod, setOrgPeriod]         = useState<OrgPeriod>('month');
   const [orgMetrics, setOrgMetrics]       = useState<Record<string, OrgMetrics>>({});
   const [loadingMetrics, setLoadingMetrics] = useState(false);
+  const [distBankFilter, setDistBankFilter] = useState<string | null>(null);
   const supabaseRef = useState(() => createClient())[0];
   const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
 
@@ -400,25 +401,49 @@ export default function SuperAdminDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
             {/* Por Matéria */}
             <Card>
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-2 space-y-2">
                 <CardTitle className="text-sm font-bold text-slate-500 uppercase">Por Matéria</CardTitle>
-              </CardHeader>
-              <CardContent className="h-64 overflow-y-auto pr-2 custom-scrollbar">
-                <div className="space-y-1.5">
-                  {dist.by_subject.map((s: any) => (
-                    <div key={s.name} className="flex items-center gap-2 text-sm">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-center mb-0.5">
-                          <span className="font-medium text-slate-700 dark:text-slate-300 truncate">{s.name}</span>
-                          <span className="text-xs text-slate-400 ml-2 shrink-0">{s.count}</span>
-                        </div>
-                        <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-indigo-400 dark:bg-indigo-500 rounded-full" style={{ width: `${(s.count / dist.total) * 100}%` }} />
-                        </div>
-                      </div>
-                    </div>
+                <div className="flex flex-wrap gap-1">
+                  {[null, ...(dist.by_bank ?? []).map((b: any) => b.name)].map((bank) => (
+                    <button
+                      key={bank ?? 'all'}
+                      onClick={() => setDistBankFilter(bank)}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
+                        distBankFilter === bank
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {bank ?? 'Todas'}
+                    </button>
                   ))}
                 </div>
+              </CardHeader>
+              <CardContent className="h-60 overflow-y-auto pr-2 custom-scrollbar">
+                {(() => {
+                  const rows: { name: string; count: number }[] =
+                    distBankFilter && dist.by_bank_subject?.[distBankFilter]
+                      ? dist.by_bank_subject[distBankFilter]
+                      : dist.by_subject;
+                  const rowTotal = rows.reduce((acc: number, s: any) => acc + s.count, 0);
+                  return (
+                    <div className="space-y-1.5">
+                      {rows.map((s: any) => (
+                        <div key={s.name} className="flex items-center gap-2 text-sm">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-center mb-0.5">
+                              <span className="font-medium text-slate-700 dark:text-slate-300 truncate">{s.name}</span>
+                              <span className="text-xs text-slate-400 ml-2 shrink-0">{s.count}</span>
+                            </div>
+                            <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-indigo-400 dark:bg-indigo-500 rounded-full" style={{ width: `${rowTotal > 0 ? (s.count / rowTotal) * 100 : 0}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
 
