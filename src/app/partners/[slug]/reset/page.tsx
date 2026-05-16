@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { GraduationCap, Mail, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +26,6 @@ export default function PartnerResetPasswordPage() {
   const params = useParams<{ slug: string }>();
   const slug = params.slug;
   const router = useRouter();
-  const supabase = createClient();
 
   const [org, setOrg] = useState<OrgPublicInfo | null>(null);
   const [loadingOrg, setLoadingOrg] = useState(true);
@@ -51,15 +49,19 @@ export default function PartnerResetPasswordPage() {
     setError(null);
 
     try {
-      const redirectUrl = `${window.location.origin}/partners/${slug}/reset/confirm`;
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectUrl,
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
+      const response = await fetch(`${api}/api/partners/${slug}/password-reset/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+        }),
       });
 
-      if (resetError) throw resetError;
+      if (!response.ok) throw new Error('password-reset-request-failed');
       setSuccess(true);
     } catch {
-      setError('Não foi possível enviar o e-mail de recuperação. Verifique se o e-mail está correto.');
+      setError('Não foi possível processar sua solicitação agora. Tente novamente em alguns instantes.');
     } finally {
       setIsLoading(false);
     }
@@ -101,7 +103,7 @@ export default function PartnerResetPasswordPage() {
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-center">
                   <CheckCircle className="mx-auto mb-2 h-8 w-8 text-emerald-600" />
                   <p className="text-sm text-emerald-700">
-                    E-mail enviado. Verifique sua caixa de entrada para redefinir sua senha.
+                    Se o e-mail estiver cadastrado, você receberá instruções para redefinir sua senha.
                   </p>
                 </div>
                 <Button

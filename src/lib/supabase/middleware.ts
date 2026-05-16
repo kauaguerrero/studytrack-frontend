@@ -65,7 +65,7 @@ export async function updateSession(request: NextRequest) {
 
   // 4. Rotas Públicas e Redirect de Auth
   if (path === '/' || path.startsWith('/auth') || path.startsWith('/api')) {
-    if (user && (path === '/auth/login' || path === '/auth/register')) {
+    if (user && path === '/auth/login') {
       return NextResponse.redirect(new URL('/portal', request.url));
     }
     return supabaseResponse;

@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { ArrowLeft, Mail, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import Image from 'next/image';
 
@@ -13,29 +12,25 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const supabase = createClient();
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
     try {
-      // Detecta se está rodando localmente (localhost ou 127.0.0.1)
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const redirectUrl = isLocalhost 
-        ? `${window.location.origin}/auth/reset/confirm`
-        : 'https://studytrack-frontend.vercel.app/auth/reset/confirm';
-
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: redirectUrl,
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
+      const response = await fetch(`${api}/api/auth/password-reset/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+        }),
       });
-
-      if (error) throw error;
+      if (!response.ok) throw new Error('password-reset-request-failed');
 
       setSuccess(true);
-    } catch (err: any) {
-      setError("Não foi possível enviar o e-mail de recuperação. Verifique se o e-mail está correto.");
+    } catch {
+      setError("Não foi possível processar sua solicitação agora. Tente novamente em alguns instantes.");
     } finally {
       setIsLoading(false);
     }
@@ -67,10 +62,10 @@ export default function ResetPasswordPage() {
                   <CheckCircle className="w-8 h-8 text-green-600" />
                 </div>
                 <h1 className="text-3xl font-extrabold text-slate-900 mb-2 tracking-tight">
-                  E-mail enviado!
+                  Solicitação recebida
                 </h1>
                 <p className="text-slate-500 text-lg leading-relaxed">
-                  Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.
+                  Se o e-mail estiver cadastrado, você receberá instruções para redefinir sua senha.
                 </p>
               </div>
 

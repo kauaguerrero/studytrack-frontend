@@ -106,8 +106,8 @@ interface StudentCurrentPlan {
 
 type TabKey = 'personal' | 'plan' | 'journey' | 'routine' | 'security' | 'preferences'
 
-// Laranja Edificar
-const BRAND = '#FF8C00'
+const BRAND_PRIMARY = 'var(--brand-primary)'
+const BRAND_SECONDARY = 'var(--brand-secondary)'
 
 function formatMoney(cents?: number | null) {
   if (!cents || cents <= 0) return 'Incluso no plano da instituição'
@@ -687,8 +687,8 @@ export default function PerfilPage() {
   )
 
   // Estilos reutilizáveis com a cor brand
-  const primaryBtnStyle = { backgroundColor: BRAND, color: '#fff' }
-  const focusRingStyle = '[&:focus-visible]:ring-[#FF8C00]'
+  const primaryBtnStyle = { backgroundColor: BRAND_PRIMARY, color: '#fff' }
+  const focusRingStyle = 'focus-visible:border-[var(--brand-primary)] focus-visible:ring-[var(--brand-primary)]'
   const sectionCardClassName = 'overflow-hidden rounded-[24px] border border-slate-200/60 bg-white shadow-sm dark:border-slate-700/60 dark:bg-slate-900'
 
   return (
@@ -699,7 +699,13 @@ export default function PerfilPage() {
         <div className="mb-6 rounded-[28px] border border-slate-200/70 bg-white/90 px-4 py-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/80 sm:mb-8 sm:px-6 sm:py-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
-              <span className="inline-flex rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-orange-700 dark:bg-orange-500/15 dark:text-orange-300">
+              <span
+                className="inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em]"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--brand-primary) 14%, white)',
+                  color: 'color-mix(in srgb, var(--brand-primary) 80%, black)',
+                }}
+              >
                 Configurações da conta
               </span>
               <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl">
@@ -729,7 +735,7 @@ export default function PerfilPage() {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  style={isActive ? { backgroundColor: BRAND, color: '#fff' } : undefined}
+                  style={isActive ? { backgroundColor: BRAND_PRIMARY, color: '#fff' } : undefined}
                   className={`group flex min-w-[172px] snap-start items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition-all duration-200 md:min-w-0 ${
                     isActive
                       ? 'border-transparent shadow-md'
@@ -780,7 +786,7 @@ export default function PerfilPage() {
                               onClick={() => fileInputRef.current?.click()}
                               disabled={avatarUploading}
                               className="group relative flex h-24 w-24 shrink-0 cursor-pointer items-center justify-center rounded-full text-3xl font-bold text-white shadow-xl ring-4 ring-white transition-all duration-300 hover:scale-105 hover:shadow-2xl disabled:pointer-events-none disabled:opacity-70"
-                              style={{ background: `linear-gradient(135deg, ${BRAND}, #d97706)` }}
+                              style={{ background: `linear-gradient(135deg, ${BRAND_PRIMARY}, ${BRAND_SECONDARY})` }}
                             >
                               {avatarUploading ? (
                                 <Loader2 className="h-8 w-8 animate-spin text-white" />
@@ -798,7 +804,7 @@ export default function PerfilPage() {
                             <div className="min-w-0 flex-1 space-y-1.5">
                               <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                                 <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:truncate">{fullName || 'Aluno'}</h3>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 text-white" style={{ backgroundColor: BRAND }}>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 text-white" style={{ backgroundColor: BRAND_PRIMARY }}>
                                   Aluno
                                 </span>
                               </div>
@@ -859,7 +865,7 @@ export default function PerfilPage() {
                                 Quando ativado, seu nome e sua foto aparecem normalmente nos rankings. Quando desativado, você continua ocupando sua posição, mas aparece para outros alunos como usuário secreto, sem nome nem foto.
                               </p>
                             </div>
-                            <Switch checked={publicProfile} onCheckedChange={setPublicProfile} aria-label="Perfil público" style={{ ['--switch-checked' as string]: BRAND }} />
+                            <Switch checked={publicProfile} onCheckedChange={setPublicProfile} aria-label="Perfil público" style={{ ['--switch-checked' as string]: BRAND_PRIMARY }} />
                           </div>
                         </div>
                       </div>
@@ -878,7 +884,7 @@ export default function PerfilPage() {
                 <Card className={sectionCardClassName}>
                   <CardHeader className="border-b border-slate-100 px-5 pb-5 pt-6 dark:border-slate-800 sm:px-8 sm:pb-6 sm:pt-8">
                     <CardTitle className="flex items-center gap-2 text-xl font-bold tracking-tight dark:text-slate-50">
-                      <WalletCards className="h-5 w-5" style={{ color: BRAND }} />
+                      <WalletCards className="h-5 w-5" style={{ color: BRAND_PRIMARY }} />
                       Meu Plano
                     </CardTitle>
                     <CardDescription className="mt-1 text-sm dark:text-slate-400">
@@ -896,7 +902,7 @@ export default function PerfilPage() {
                         <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-5 dark:border-slate-700 dark:bg-slate-800/40 sm:p-6">
                           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div className="space-y-2">
-                              <div className="inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white" style={{ backgroundColor: BRAND }}>
+                              <div className="inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white" style={{ backgroundColor: BRAND_PRIMARY }}>
                                 {currentPlan.plan_assignment_status === 'active' ? 'Plano ativo' : 'Plano configurado'}
                               </div>
                               <div>
@@ -935,7 +941,7 @@ export default function PerfilPage() {
                           <div className="mt-4 grid gap-3">
                             {planBenefits.length > 0 ? planBenefits.map((benefit) => (
                               <div key={benefit} className="flex items-start gap-3 rounded-2xl bg-slate-50 px-4 py-3 dark:bg-slate-800/60">
-                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND }} />
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND_PRIMARY }} />
                                 <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{benefit}</p>
                               </div>
                             )) : (
@@ -1156,7 +1162,13 @@ export default function PerfilPage() {
                             return (
                               <div key={s.id} className="flex flex-col gap-3 border-b border-slate-100 pb-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between last:border-0 last:pb-0">
                                 <div className="flex min-w-0 items-center gap-4">
-                                  <div className={`p-2.5 rounded-full ${isCurrent ? 'text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`} style={isCurrent ? { backgroundColor: `${BRAND}20`, color: BRAND } : undefined}>
+                                  <div
+                                    className={`p-2.5 rounded-full ${isCurrent ? 'text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}
+                                    style={isCurrent ? {
+                                      backgroundColor: 'color-mix(in srgb, var(--brand-primary) 14%, transparent)',
+                                      color: BRAND_PRIMARY,
+                                    } : undefined}
+                                  >
                                     <Laptop size={18} />
                                   </div>
                                   <div className="min-w-0">
@@ -1195,7 +1207,7 @@ export default function PerfilPage() {
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="space-y-1">
                           <p className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                            <Palette size={18} style={{ color: BRAND }} />
+                            <Palette size={18} style={{ color: BRAND_PRIMARY }} />
                             Tema da Aplicação
                           </p>
                           <p className="text-sm text-slate-500 dark:text-slate-400">Substitui o padrão do sistema operacional.</p>
@@ -1316,7 +1328,7 @@ export default function PerfilPage() {
                 value={avatarCropScale}
                 onChange={(e) => setAvatarCropScale(Number(e.target.value))}
                 className="flex-1 h-2 rounded-full appearance-none bg-slate-200 dark:bg-slate-700"
-                style={{ accentColor: BRAND }}
+                style={{ accentColor: BRAND_PRIMARY }}
               />
               <span className="text-xs text-slate-500 dark:text-slate-400 w-8">{Math.round(avatarCropScale * 100)}%</span>
             </div>
