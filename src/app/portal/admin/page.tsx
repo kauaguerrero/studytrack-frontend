@@ -397,24 +397,33 @@ export default function SuperAdminDashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+            {/* Por Matéria */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-bold text-slate-500 uppercase">Por Matéria</CardTitle>
               </CardHeader>
-              <CardContent className="h-48 md:h-64 overflow-y-auto pr-2 custom-scrollbar">
-                <div className="space-y-2">
+              <CardContent className="h-64 overflow-y-auto pr-2 custom-scrollbar">
+                <div className="space-y-1.5">
                   {dist.by_subject.map((s: any) => (
-                    <div key={s.name} className="flex justify-between items-center text-sm p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded">
-                      <span className="font-medium text-slate-700 dark:text-slate-300">{s.name}</span>
-                      <Badge variant="secondary">{s.count}</Badge>
+                    <div key={s.name} className="flex items-center gap-2 text-sm">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center mb-0.5">
+                          <span className="font-medium text-slate-700 dark:text-slate-300 truncate">{s.name}</span>
+                          <span className="text-xs text-slate-400 ml-2 shrink-0">{s.count}</span>
+                        </div>
+                        <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-400 dark:bg-indigo-500 rounded-full" style={{ width: `${(s.count / dist.total) * 100}%` }} />
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
 
-            <div className="space-y-6">
+            {/* Dificuldade + Anos */}
+            <div className="space-y-4">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-bold text-slate-500 uppercase">Dificuldade</CardTitle>
@@ -433,7 +442,7 @@ export default function SuperAdminDashboard() {
 
               <Card className="overflow-hidden">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-bold text-slate-500 uppercase">Top 5 Anos Recentes</CardTitle>
+                  <CardTitle className="text-sm font-bold text-slate-500 uppercase">Top 5 Anos</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
@@ -450,6 +459,66 @@ export default function SuperAdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Por Banca */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold text-slate-500 uppercase">Por Banca</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const banks: { name: string; count: number }[] = dist.by_bank ?? [];
+                  const bankTotal = banks.reduce((acc: number, b: any) => acc + b.count, 0);
+                  const BANK_COLORS: Record<string, string> = {
+                    ENEM: 'bg-blue-500',
+                    UFU:  'bg-violet-500',
+                    UEG:  'bg-emerald-500',
+                  };
+                  return (
+                    <div className="space-y-4">
+                      {/* Stacked bar */}
+                      <div className="flex h-3 rounded-full overflow-hidden gap-0.5">
+                        {banks.map((b: any) => (
+                          <div
+                            key={b.name}
+                            className={`${BANK_COLORS[b.name] ?? 'bg-slate-400'} transition-all`}
+                            style={{ width: `${(b.count / bankTotal) * 100}%` }}
+                            title={`${b.name}: ${b.count}`}
+                          />
+                        ))}
+                      </div>
+                      {/* Legenda */}
+                      <div className="space-y-3">
+                        {banks.map((b: any) => {
+                          const pct = bankTotal > 0 ? ((b.count / bankTotal) * 100).toFixed(1) : '0';
+                          return (
+                            <div key={b.name}>
+                              <div className="flex justify-between items-center mb-1">
+                                <div className="flex items-center gap-2">
+                                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${BANK_COLORS[b.name] ?? 'bg-slate-400'}`} />
+                                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{b.name}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-bold text-slate-900 dark:text-slate-100">{b.count.toLocaleString('pt-BR')}</span>
+                                  <Badge variant="outline" className="text-[10px] tabular-nums">{pct}%</Badge>
+                                </div>
+                              </div>
+                              <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                <div className={`h-full ${BANK_COLORS[b.name] ?? 'bg-slate-400'} rounded-full`} style={{ width: `${pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-xs text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
+                        {bankTotal.toLocaleString('pt-BR')} questões com banca definida
+                        {dist.total - bankTotal > 0 && ` · ${dist.total - bankTotal} sem banca`}
+                      </p>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}
