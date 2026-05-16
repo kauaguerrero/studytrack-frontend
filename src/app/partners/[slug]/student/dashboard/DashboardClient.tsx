@@ -4,8 +4,9 @@ import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap, Shield } from 'lucide-react';
+import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap, Shield, Activity, User, Zap } from 'lucide-react';
 import { Typewriter } from '@/components/ui/typewriter';
+import { createClient } from '@/lib/supabase/client';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { useOrg } from '@/contexts/OrgContext';
 import { OnboardingDiagnosticModal } from '@/components/partners/gamification/OnboardingDiagnosticModal';
@@ -19,6 +20,31 @@ import { StreakPointsLostPopup } from '@/components/partners/gamification/Streak
 import { MonthEndScreen } from '@/components/partners/gamification/MonthEndScreen';
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
 import type { MonthlyCheckInResult } from '@/types/gamification';
+
+// ─── Types & helpers ─────────────────────────────────────────────────────────
+
+interface FeedItem {
+  type: 'question' | 'simulado' | 'essay';
+  student_id?: string | null;
+  student_name?: string | null;
+  student_avatar_url?: string | null;
+  subject?: string | null;
+  is_correct?: boolean | null;
+  total_questions?: number | null;
+  status?: string | null;
+  score?: number | null;
+  essay_type?: string | null;
+  timestamp?: string | null;
+}
+
+function timeAgo(ts?: string | null): string {
+  if (!ts) return '';
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (diff < 60) return 'agora';
+  if (diff < 3600) return `${Math.floor(diff / 60)}min atrás`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
+  return `${Math.floor(diff / 86400)}d atrás`;
+}
 
 // ─── Animation config ───────────────────────────────────────────────────────
 
@@ -80,6 +106,24 @@ export function DashboardClient({
   const itemVariant = shouldReduce ? ITEM_REDUCED : ITEM;
   const containerVariant = shouldReduce ? { hidden: {}, show: {} } : CONTAINER;
   const [effectiveCurrentStreak, setEffectiveCurrentStreak] = useState(currentStreak);
+  const [activityFeed, setActivityFeed] = useState<FeedItem[]>([]);
+  const [feedLoading, setFeedLoading] = useState(true);
+  const [feedInfoOpen, setFeedInfoOpen] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) { setFeedLoading(false); return; }
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+      fetch(`${api}/api/student/analytics/activity-feed?limit=15`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then((r) => r.ok ? r.json() : [])
+        .then((data) => { if (Array.isArray(data)) setActivityFeed(data); })
+        .catch(() => {})
+        .finally(() => setFeedLoading(false));
+    });
+  }, []);
 
   // Streak milestone progress (kept intact for hero badge)
   const { next: nextMilestone, pct: streakPct } = getStreakProgress(effectiveCurrentStreak);
@@ -286,140 +330,284 @@ export function DashboardClient({
         >
           {/* ── 1. Hero Banner ─────────────────────────────────────────────── */}
           <motion.div variants={itemVariant}>
-            <div className="relative overflow-hidden rounded-2xl p-6 sm:p-8 shadow-xl bg-white dark:bg-[#0A0A0A] border border-slate-200 dark:border-white/5">
-              {/* Glow top-right — só aparece no dark */}
+            <div
+              className="relative overflow-hidden rounded-[18px] p-6 flex flex-col gap-0"
+              style={{
+                background: '#0A0A0A',
+                border: '1px solid rgba(255,255,255,0.05)',
+                boxShadow: '0px 20px 25px -5px rgba(0,0,0,0.1), 0px 8px 10px -6px rgba(0,0,0,0.1)',
+              }}
+            >
+              {/* Large top-right glow */}
               <div
-                className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full blur-3xl opacity-0 dark:opacity-25"
-                style={{ background: 'var(--brand-primary)' }}
+                className="pointer-events-none absolute -top-8 -right-8 h-40 w-40 rounded-full z-0"
+                style={{ background: 'var(--brand-primary)', opacity: 0.25, filter: 'blur(32px)' }}
               />
+              {/* Small bottom-right glow */}
               <div
-                className="pointer-events-none absolute right-10 bottom-0 h-20 w-20 rounded-full blur-2xl opacity-0 dark:opacity-10"
-                style={{ background: 'var(--brand-primary)' }}
+                className="pointer-events-none absolute bottom-[1px] right-[41px] h-20 w-20 rounded-full z-[1]"
+                style={{ background: 'var(--brand-primary)', opacity: 0.1, filter: 'blur(20px)' }}
               />
-
-              {/* Partículas SVG — só no dark */}
-              <div className="dark:block hidden pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
-                <svg aria-hidden="true" className="absolute inset-0 w-full h-full opacity-[0.25]" xmlns="http://www.w3.org/2000/svg">
-                  <defs>
-                    <radialGradient id="hpg" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor="var(--brand-primary)" stopOpacity="1" />
-                      <stop offset="100%" stopColor="var(--brand-primary)" stopOpacity="0" />
-                    </radialGradient>
-                  </defs>
-                  {([
-                    [85, 15, 1.5], [92, 45, 1], [75, 70, 2], [60, 25, 1], [95, 80, 1.5],
-                    [50, 55, 1], [40, 10, 1.5], [30, 80, 1], [20, 40, 2], [10, 65, 1],
-                  ] as [number, number, number][]).map(([cx, cy, r], i) => (
-                    <circle key={i} cx={`${cx}%`} cy={`${cy}%`} r={r} fill="url(#hpg)">
-                      <animate
-                        attributeName="opacity"
-                        values={i % 3 === 0 ? '0.6;1;0.6' : i % 3 === 1 ? '0.3;0.8;0.3' : '0.8;0.3;0.8'}
-                        dur={`${3 + (i % 5)}s`}
-                        repeatCount="indefinite"
-                      />
-                    </circle>
-                  ))}
-                </svg>
+              {/* Particle dots */}
+              <div className="pointer-events-none absolute inset-0 z-[2]" style={{ opacity: 0.25 }}>
+                {([
+                  ['84.56%', '14.47%', 0.6], ['91.71%', '44.65%', 0.3], ['74.41%', '69.3%',  0.8],
+                  ['59.71%', '24.65%', 0.6], ['94.56%', '79.47%', 0.3], ['49.71%', '54.65%', 0.8],
+                  ['39.56%', '9.47%',  0.6], ['29.71%', '79.65%', 0.3], ['19.41%', '39.3%',  0.8],
+                  ['9.71%',  '64.65%', 0.6],
+                ] as [string, string, number][]).map(([l, t, op], i) => (
+                  <div
+                    key={i}
+                    className="absolute h-2.5 w-2.5 rounded-full -translate-x-1/2 -translate-y-1/2"
+                    style={{
+                      left: l, top: t, opacity: op,
+                      background: 'radial-gradient(50% 50% at 50% 50%, var(--brand-primary) 0%, transparent 100%)',
+                    }}
+                  />
+                ))}
               </div>
 
-              <div className="relative z-10">
-                {/* org tag */}
-                <div className="mb-4 flex items-center gap-2">
+              {/* Content */}
+              <div className="relative z-[3] flex flex-col gap-1">
+                {/* Org label */}
+                <div className="flex items-center gap-2">
                   {orgLogoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={orgLogoUrl}
                       alt={orgName}
-                      className="h-6 w-6 rounded object-contain bg-slate-100 dark:bg-white/10 p-0.5"
+                      className="h-6 w-6 rounded object-contain p-0.5"
+                      style={{ background: 'rgba(255,255,255,0.1)' }}
                     />
                   ) : (
-                    <GraduationCap className="h-5 w-5 text-slate-300 dark:opacity-40 dark:text-slate-100" />
+                    <GraduationCap className="h-[22px] w-[22px] text-white/40" />
                   )}
-                  <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 dark:text-white/50">
+                  <span className="text-[10.3px] font-bold uppercase tracking-[1.1px] text-white/50">
                     {orgName}
                   </span>
                 </div>
 
-                {/* Título */}
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-none text-slate-900 dark:text-white">
+                {/* Greeting */}
+                <h1
+                  className="font-bold text-white mt-[10px]"
+                  style={{ fontSize: '23.6px', lineHeight: '24px', letterSpacing: '-0.6px' }}
+                >
                   Olá, {firstName}!
                 </h1>
-                <p className="mt-1.5 text-sm text-slate-500 dark:text-white/50">
+
+                {/* Subtitle */}
+                <p className="text-[12.9px] leading-5 text-white/50 mt-1">
                   Cada questão te aproxima da aprovação.
                 </p>
 
                 {/* Badges */}
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
-                    <Flame className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                    {effectiveCurrentStreak} {effectiveCurrentStreak === 1 ? 'Dia' : 'Dias'} de Sequência
-                    <span
-                      className="relative ml-1 inline-flex h-5 w-5 items-center justify-center"
-                      title={
-                        hasShield
-                          ? `${shieldCount} ${shieldCount === 1 ? 'escudo disponível' : 'escudos disponíveis'}`
-                          : 'Sem escudo disponível'
-                      }
-                      aria-label={
-                        hasShield
-                          ? `${shieldCount} ${shieldCount === 1 ? 'escudo disponível' : 'escudos disponíveis'}`
-                          : 'Sem escudo disponível'
-                      }
+                <div className="mt-4 flex flex-col gap-2">
+                  {/* Row 1: streak + points */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Streak pill */}
+                    <div
+                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-[6px]"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
                     >
-                      <Shield
-                        className="h-5 w-5"
-                        strokeWidth={2.2}
-                        style={{ color: hasShield ? '#f59e0b' : '#94a3b8' }}
-                      />
-                      <span
-                        className="pointer-events-none absolute inset-0 flex items-center justify-center text-[7px] font-black leading-none"
-                        style={{ color: hasShield ? '#f59e0b' : '#94a3b8' }}
-                      >
-                        {shieldCount}
+                      <Flame className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
+                      <span className="text-[12px] font-bold text-white/80">
+                        {effectiveCurrentStreak} {effectiveCurrentStreak === 1 ? 'dia' : 'dias'}
                       </span>
-                    </span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
-                    <BookOpen className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                    {questionsCount.toLocaleString('pt-BR')} {questionsCount === 1 ? 'Questão' : 'Questões'}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white/80">
-                    <FileText className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
-                    {simuladosCount} {simuladosCount === 1 ? 'Simulado' : 'Simulados'}
-                  </span>
-                </div>
+                      <span
+                        className="inline-flex items-center gap-[3px] ml-0.5"
+                        title={hasShield ? `${shieldCount} escudo${shieldCount !== 1 ? 's' : ''}` : 'Sem escudo'}
+                      >
+                        <Shield
+                          className="h-[13px] w-[13px]"
+                          strokeWidth={2.2}
+                          style={{ color: hasShield ? '#60a5fa' : 'rgba(255,255,255,0.2)' }}
+                        />
+                        <span
+                          className="text-[10px] font-bold leading-none"
+                          style={{ color: hasShield ? '#60a5fa' : 'rgba(255,255,255,0.2)' }}
+                        >
+                          {shieldCount}
+                        </span>
+                      </span>
+                    </div>
 
-                <div className="mt-4 md:hidden">
-                  <div className="inline-flex w-full items-center rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 dark:border-white/12 dark:bg-white/5 dark:text-white/85">
-                    <span className="mr-[0.25em]">📚 Nós nascemos para</span>
+                    {/* Points pill */}
+                    <div
+                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-[6px]"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+                    >
+                      <div
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[8px]"
+                        style={{ background: 'color-mix(in srgb, var(--brand-primary) 15%, transparent)' }}
+                      >
+                        <Zap className="h-3 w-3" style={{ color: 'var(--brand-primary)' }} />
+                      </div>
+                      <span className="text-[12px] font-bold text-white/80">
+                        {monthlyPts.toLocaleString('pt-BR')} pts
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Row 2: typewriter */}
+                  <div
+                    className="flex items-center w-full rounded-[18px] px-3 py-2"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)' }}
+                  >
+                    <span className="text-[13.5px] text-white/85 whitespace-nowrap mr-1">📚 Nós nascemos para</span>
                     <Typewriter
                       text={slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
                       speed={95}
                       deleteSpeed={52}
                       waitTime={2600}
-                      className="font-extrabold text-[var(--brand-primary)] max-w-full"
-                      cursorClassName="ml-1 text-[var(--brand-primary)]"
+                      className="font-bold text-[14px] tracking-[-0.35px] text-[var(--brand-primary)]"
+                      cursorClassName="ml-0.5 text-[var(--brand-primary)]"
                     />
                   </div>
-                </div>
-              </div>
-              <div className="absolute bottom-4 right-4 z-20 hidden md:block">
-                <div className="inline-flex items-center rounded-full border border-slate-300 dark:border-white/12 bg-white dark:bg-white/5 px-4 py-2 text-sm sm:text-base text-slate-700 dark:text-white/85">
-                  <span className="mr-[0.25em]">📚 Nós nascemos para</span>
-                  <Typewriter
-                    text={slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
-                    speed={95}
-                    deleteSpeed={52}
-                    waitTime={2600}
-                    className="font-extrabold text-[var(--brand-primary)] max-w-full"
-                    cursorClassName="ml-1 text-[var(--brand-primary)]"
-                  />
                 </div>
               </div>
             </div>
           </motion.div>
 
-          {/* ── 2. Corrida para aprovação ──────────────────────────────────── */}
+          {/* ── 2. Feed de atividades ────────────────────────────────────────── */}
+          <motion.div variants={itemVariant}>
+            <div className="relative overflow-hidden rounded-[18px] p-5 flex flex-col gap-3 bg-white dark:bg-[#0F0F0F] border border-slate-200 dark:border-white/[0.06]">
+              {/* Bottom brand glow */}
+              <div
+                className="pointer-events-none absolute bottom-[1.5px] left-[1px] right-[1px] h-16 blur-xl z-0"
+                style={{
+                  background: 'linear-gradient(0deg, color-mix(in srgb, var(--brand-primary) 40%, transparent) 0%, transparent 100%)',
+                  opacity: 0.2,
+                }}
+              />
+
+              <div className="relative z-10 flex flex-col gap-3">
+                {/* Header */}
+                <div className="flex items-center gap-2">
+                  <div
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[8px]"
+                    style={{ background: 'color-mix(in srgb, var(--brand-primary) 15%, transparent)' }}
+                  >
+                    <Activity className="h-2.5 w-2.5" style={{ color: 'var(--brand-primary)' }} />
+                  </div>
+                  <span className="text-[10.3px] font-bold uppercase tracking-[1.65px] text-slate-400 dark:text-white/35">
+                    Feed de atividades
+                  </span>
+                  <div className="ml-auto relative">
+                    <button
+                      onClick={() => setFeedInfoOpen(v => !v)}
+                      className="flex h-4 w-4 items-center justify-center rounded-full border transition-colors select-none leading-none"
+                      style={{
+                        borderColor: 'color-mix(in srgb, var(--brand-primary) 40%, transparent)',
+                        color: 'var(--brand-primary)',
+                        fontSize: '9px',
+                        fontWeight: 700,
+                        paddingTop: '1px',
+                      }}
+                      aria-label="Saiba mais sobre o feed"
+                    >
+                      i
+                    </button>
+                    {feedInfoOpen && (
+                      <div className="absolute right-0 top-6 z-20 w-60 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1c] p-3 shadow-xl">
+                        <p className="text-[11px] leading-relaxed text-slate-500 dark:text-white/45">
+                          Faça questões, simulados ou entregue redações para aparecer aqui e acompanhe o que seus amigos estão fazendo.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Activity rows */}
+                {feedLoading ? (
+                  <div className="flex flex-col gap-2">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="h-[39px] rounded-[18px] bg-slate-100 dark:bg-white/5 animate-pulse" />
+                    ))}
+                  </div>
+                ) : activityFeed.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 dark:text-white/30 py-1">
+                    Nenhuma atividade ainda. Responda sua primeira questão!
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {activityFeed.slice(0, 3).map((item, i) => {
+                      const isQuestion = item.type === 'question';
+                      const isSimulado = item.type === 'simulado';
+                      const peerFirstName = (item.student_name || 'Aluno').split(' ')[0];
+                      const verb = isQuestion
+                        ? 'fez uma questão de'
+                        : isSimulado ? 'realizou um'
+                        : 'enviou uma';
+                      const actionLabel = isQuestion
+                        ? (item.subject || 'Questão')
+                        : isSimulado ? 'Simulado'
+                        : 'Redação';
+
+                      return (
+                        <div
+                          key={i}
+                          className="relative flex items-center h-[46px] rounded-[18px] border border-slate-200 dark:border-white/[0.12] bg-slate-50 dark:bg-white/[0.05] overflow-hidden"
+                        >
+                          {/* Avatar */}
+                          <div className="absolute left-[13px] h-[22px] w-[22px] rounded-full overflow-hidden shrink-0 ring-1 ring-white/10">
+                            {item.student_avatar_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={item.student_avatar_url}
+                                alt={item.student_name || ''}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div
+                                className="w-full h-full flex items-center justify-center"
+                                style={{ background: 'color-mix(in srgb, var(--brand-primary) 18%, #0f0f0f)' }}
+                              >
+                                <User
+                                  className="h-3.5 w-3.5"
+                                  style={{
+                                    color: 'var(--brand-primary)',
+                                    filter: 'drop-shadow(0 0 4px var(--brand-primary))',
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                          {/* Name + action — vertically centred */}
+                          <div className="absolute left-[43px] right-3 top-1/2 -translate-y-1/2 flex items-baseline gap-1 leading-none">
+                            <span className="text-[11px] text-slate-700 dark:text-white/85 whitespace-nowrap">
+                              {peerFirstName} {verb}
+                            </span>
+                            <span
+                              className="text-[12px] font-bold tracking-[-0.35px] truncate"
+                              style={{ color: 'var(--brand-primary)' }}
+                            >
+                              {actionLabel}
+                            </span>
+                          </div>
+                          {/* Timestamp — bottom-right corner */}
+                          <p className="absolute bottom-[7px] right-[12px] text-[6.8px] font-bold text-slate-400 dark:text-white/50 leading-none">
+                            {timeAgo(item.timestamp)}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Footer link */}
+                <Link
+                  href={`/partners/${slug}/student/desempenho`}
+                  className="flex items-center gap-1 text-[10.1px] font-medium"
+                  style={{ color: 'var(--brand-primary)' }}
+                >
+                  Ver atividade completa
+                  <ArrowRight className="h-2 w-2" />
+                </Link>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* ── 3. Corrida para aprovação ──────────────────────────────────── */}
           <motion.div variants={itemVariant}>
             <div className="relative overflow-hidden rounded-2xl p-5 bg-white dark:bg-[#0F0F0F] border border-slate-200 dark:border-white/6 shadow-sm dark:shadow-none">
               {/* Glow atrás da barra — só dark */}
@@ -560,7 +748,7 @@ export function DashboardClient({
             </Link>
           </motion.div>
 
-          {/* ── 4. StudyTrack CTA ───────────────────────────────────────────── */}
+          {/* ── 5. StudyTrack CTA ────────────────────────────────────────────── */}
           <motion.div variants={itemVariant}>
             <Link
               href={`/partners/${slug}/student/studytrack`}

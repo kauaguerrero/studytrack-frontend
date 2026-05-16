@@ -25,6 +25,7 @@ import {
   Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
+import { useOrg } from '@/contexts/OrgContext'
 import { ReportDialog } from '@/components/questions/ReportDialog'
 import { SimuladoRewardPopup } from '@/components/partners/gamification/SimuladoRewardPopup'
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext'
@@ -96,8 +97,8 @@ interface RankingData {
   ranking: RankEntry[]; user_position?: number | null; user_best?: { percentage: number } | null
 }
 
-type BankLabel = 'Todas' | 'ENEM' | 'UFU' | 'UEG'
-type PresetBank = 'ENEM' | 'UFU' | 'UEG'
+type BankLabel = 'Todas' | 'ENEM' | 'UFU' | 'UEG' | 'UNESP'
+type PresetBank = 'ENEM' | 'UFU' | 'UEG' | 'UNESP'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -127,11 +128,19 @@ const UEG_BLOCK_FORMATS = [
   { value: 'completo',    label: 'UEG Completo',                 emoji: '🎯', qty: 52 },
 ]
 
+const UNESP_BLOCK_FORMATS = [
+  { value: 'linguagens',  label: 'Linguagens e Códigos',                emoji: '📖', qty: 30 },
+  { value: 'humanas',     label: 'Ciências Humanas',                    emoji: '🏛️', qty: 30 },
+  { value: 'natureza',    label: 'Ciências da Natureza e Matemática',   emoji: '🧪', qty: 30 },
+  { value: 'completo',    label: 'UNESP 1ª Fase Completo',              emoji: '🎯', qty: 90 },
+]
+
 const BANK_OPTIONS = [
   { value: 'Todas', label: 'Todas as bancas' },
   { value: 'ENEM', label: 'ENEM' },
   { value: 'UFU', label: 'UFU' },
   { value: 'UEG', label: 'UEG' },
+  { value: 'UNESP', label: 'UNESP' },
 ] as const
 
 const SIMULADO_YEARS = ['Todos', ...Array.from({ length: 18 }, (_, i) => String(new Date().getFullYear() - i))]
@@ -238,7 +247,8 @@ const BANK_VISUALS = {
   ENEM: { label: 'ENEM', color: '#22c55e', bgClass: 'bg-green-500' },
   UFU: { label: 'UFU', color: '#f59e0b', bgClass: 'bg-amber-500' },
   UEG: { label: 'UEG', color: '#0f766e', bgClass: 'bg-teal-600' },
-  Todas: { label: 'ENEM + UFU + UEG', color: '#64748b', bgClass: 'bg-slate-500' },
+  UNESP: { label: 'UNESP', color: '#7c3aed', bgClass: 'bg-violet-600' },
+  Todas: { label: 'ENEM + UFU + UEG + UNESP', color: '#64748b', bgClass: 'bg-slate-500' },
 } as const
 
 function celebrationMessage(pct: number): { emoji: string; title: string; sub: string } {
@@ -253,7 +263,19 @@ function normalizeBank(value?: string | null): BankLabel {
   if (normalized === 'UFU' || normalized === 'UFU_VEST') return 'UFU'
   if (normalized === 'UEG' || normalized === 'UEG_VEST') return 'UEG'
   if (normalized === 'ENEM' || normalized === 'INEP_ENEM' || normalized === 'ENEM_OFICIAL') return 'ENEM'
+  if (normalized === 'UNESP') return 'UNESP'
   return 'Todas'
+}
+
+function getContrastTextColor(hex: string): string {
+  const c = hex.replace('#', '')
+  if (c.length < 6) return '#ffffff'
+  const r = parseInt(c.slice(0, 2), 16) / 255
+  const g = parseInt(c.slice(2, 4), 16) / 255
+  const b = parseInt(c.slice(4, 6), 16) / 255
+  const lin = (v: number) => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+  return L > 0.179 ? '#1e293b' : '#ffffff'
 }
 
 function inferSessionBank(config?: SessionConfig): BankLabel {
@@ -273,7 +295,9 @@ function getConfigLabel(session: SimuladoSession): string {
       ? UFU_BLOCK_FORMATS
       : bankLabel === 'UEG'
         ? UEG_BLOCK_FORMATS
-        : ENEM_BLOCK_FORMATS
+        : bankLabel === 'UNESP'
+          ? UNESP_BLOCK_FORMATS
+          : ENEM_BLOCK_FORMATS
     const fmt = formatList.find(f => f.value === c.format)
     return fmt ? `${fmt.label}${bankLabel !== 'Todas' ? ` · ${bankLabel}` : ''}` : c.format
   }
@@ -398,9 +422,12 @@ export default function SimuladoPage() {
   const { slug } = useParams<{ slug: string }>()
   const shouldReduce = useReducedMotion()
   const { currentPopup, enqueuePopup, dismissCurrentPopup, holdQueueUntilRouteChange } = usePopupQueue()
+  const { org } = useOrg()
+  const brandTextColor = getContrastTextColor(org.brand_primary)
 
   const [step, setStep] = useState<'setup' | 'quiz' | 'result'>('setup')
   const [showConfigModal, setShowConfigModal] = useState(false)
+  const [globalFilterOpen, setGlobalFilterOpen] = useState(true)
 
   // Config
   const [mode, setMode] = useState<'custom' | 'preset'>('custom')
@@ -763,7 +790,7 @@ export default function SimuladoPage() {
   })()
   const heroSubtitle = totalSimuladosFiltered === 0
     ? 'Faça seu primeiro simulado e descubra seu nível'
-    : `Sua próxima meta: superar ${nextTarget}% em ${pageBankFilter === 'Todas' ? 'ENEM, UFU e UEG' : pageBankFilter}`
+    : `Sua próxima meta: superar ${nextTarget}% em ${pageBankFilter === 'Todas' ? 'ENEM, UFU, UEG e UNESP' : pageBankFilter}`
 
   const simuladoCtxHint = mode === 'preset'
     ? (() => {
@@ -771,12 +798,14 @@ export default function SimuladoPage() {
           ? UFU_BLOCK_FORMATS
           : presetBank === 'UEG'
             ? UEG_BLOCK_FORMATS
-            : ENEM_BLOCK_FORMATS
+            : presetBank === 'UNESP'
+              ? UNESP_BLOCK_FORMATS
+              : ENEM_BLOCK_FORMATS
         const fmt = presetFormats.find(f => f.value === enemFormat)
         const q = fmt?.qty ?? 45
         return `${presetBank} · ~${Math.round(q * 1.5)} min · ${q} questões${presetBank === 'ENEM' ? ' · TRI' : ''}`
       })()
-    : `${bank === 'Todas' ? 'ENEM + UFU + UEG' : bank} · ~${qty * 3} min · ${qty} questões${bank === 'ENEM' ? ' · TRI' : ''}`
+    : `${bank === 'Todas' ? 'ENEM + UFU + UEG + UNESP' : bank} · ~${qty * 3} min · ${qty} questões${bank === 'ENEM' ? ' · TRI' : ''}`
 
   // ── Chart data ──
   const subjectOptions = ['Todas', ...Array.from(new Set(pageFilteredSessions.flatMap(s => Object.keys(s.results_by_subject || {}))))]
@@ -805,9 +834,11 @@ export default function SimuladoPage() {
     ? UFU_BLOCK_FORMATS
     : presetBank === 'UEG'
       ? UEG_BLOCK_FORMATS
-      : ENEM_BLOCK_FORMATS
+      : presetBank === 'UNESP'
+        ? UNESP_BLOCK_FORMATS
+        : ENEM_BLOCK_FORMATS
   const evolutionLegend = pageBankFilter === 'Todas'
-    ? (['ENEM', 'UFU', 'UEG', 'Todas'] as const)
+    ? (['ENEM', 'UFU', 'UEG', 'UNESP', 'Todas'] as const)
     : ([pageBankFilter] as const)
   const subjectLegend = pageBankFilter === 'Todas'
     ? (['Todas'] as const)
@@ -1091,7 +1122,7 @@ export default function SimuladoPage() {
       setBank(pageBankFilter)
       return
     }
-    if (pageBankFilter === 'ENEM' || pageBankFilter === 'UFU' || pageBankFilter === 'UEG') {
+    if (pageBankFilter === 'ENEM' || pageBankFilter === 'UFU' || pageBankFilter === 'UEG' || pageBankFilter === 'UNESP') {
       setPresetBank(pageBankFilter)
     }
   }, [showConfigModal, mode, pageBankFilter])
@@ -1209,8 +1240,8 @@ export default function SimuladoPage() {
               Continuar respondendo
             </button>
             <button onClick={confirmFinish} disabled={submitting}
-              className="px-4 py-2.5 rounded-xl text-white text-sm font-bold transition-colors disabled:opacity-70 cursor-pointer"
-              style={{ background: 'var(--brand-primary)' }}>
+              className="px-4 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-70 cursor-pointer"
+              style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
               {submitting ? 'Enviando...' : 'Entregar'}
             </button>
           </DialogFooter>
@@ -1295,16 +1326,16 @@ export default function SimuladoPage() {
                 <div className="mb-4">
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Banca do Bloco</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(['ENEM', 'UFU', 'UEG'] as const).map((option) => (
+                    {(['ENEM', 'UFU', 'UEG', 'UNESP'] as const).map((option) => (
                       <button
                         key={option}
                         onClick={() => setPresetBank(option)}
                         className={`p-2.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
                           presetBank === option
-                            ? 'text-white border-transparent'
+                            ? 'border-transparent'
                             : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 border-slate-200 dark:border-slate-700'
                         }`}
-                        style={presetBank === option ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)' } : {}}
+                        style={presetBank === option ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: brandTextColor } : {}}
                       >
                         {option}
                       </button>
@@ -1313,15 +1344,15 @@ export default function SimuladoPage() {
                 </div>
 
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                  {presetBank === 'UFU' || presetBank === 'UEG' ? 'Bloco da Prova' : 'Área de Conhecimento'}
+                  {presetBank === 'UFU' || presetBank === 'UEG' || presetBank === 'UNESP' ? 'Bloco da Prova' : 'Área de Conhecimento'}
                 </label>
                 <div className="space-y-2">
                   {presetFormats.map(f => (
                     <button key={f.value} onClick={() => setEnemFormat(f.value)}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl border-2 text-sm font-semibold transition-all cursor-pointer ${enemFormat === f.value ? 'text-white' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
-                      style={enemFormat === f.value ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)' } : {}}>
+                      className={`w-full flex items-center justify-between p-3 rounded-xl border-2 text-sm font-semibold transition-all cursor-pointer ${enemFormat === f.value ? 'border-transparent' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
+                      style={enemFormat === f.value ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: brandTextColor } : {}}>
                       <span>{f.emoji} {f.label}</span>
-                      <span className={`text-xs font-normal ${enemFormat === f.value ? 'text-white/70' : 'text-slate-400'}`}>{f.qty}q</span>
+                      <span className="text-xs font-normal" style={enemFormat === f.value ? { color: brandTextColor === '#ffffff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' } : { color: '#94a3b8' }}>{f.qty}q</span>
                     </button>
                   ))}
                 </div>
@@ -1363,8 +1394,8 @@ export default function SimuladoPage() {
             </button>
             <button onClick={() => startSimulado()} disabled={loading || !accessToken || customCountInsufficient}
               aria-disabled={loading || !accessToken || customCountInsufficient}
-              className="flex-1 text-white font-bold py-2.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
-              style={{ background: 'var(--brand-primary)' }}>
+              className="flex-1 font-bold py-2.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
+              style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
               {loading ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {START_STAGES[startStage] ?? 'Preparando...'}</>) : (<><Play size={16} /> Iniciar Simulado</>)}
             </button>
           </DialogFooter>
@@ -1429,38 +1460,81 @@ export default function SimuladoPage() {
                 </Link>
                 <div className="flex flex-col gap-0.5 flex-1 sm:flex-none">
                   <button onClick={() => setShowConfigModal(true)}
-                    className="flex items-center justify-center gap-2 text-white font-bold px-5 py-3 rounded-xl transition-all shadow-sm cursor-pointer w-full"
-                    style={{ background: 'var(--brand-primary)' }}>
+                    className="flex items-center justify-center gap-2 font-bold px-5 py-3 rounded-xl transition-all shadow-sm cursor-pointer w-full"
+                    style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
                     <Plus size={18} /> Novo Simulado
                   </button>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 text-center">{simuladoCtxHint}</span>
                 </div>
               </div>
             </motion.div>
 
-            <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Filtro Global</p>
-                  <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Aplicado aos cards, gráficos, histórico recente, ranking e configuração inicial do simulado.</p>
-                </div>
-                <div className="flex gap-2">
-                  {BANK_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      onClick={() => setPageBankFilter(option.value)}
-                      className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors cursor-pointer ${
-                        pageBankFilter === option.value
-                          ? 'text-white border-transparent'
-                          : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
-                      }`}
-                      style={pageBankFilter === option.value ? { background: 'var(--brand-primary)' } : {}}
+            <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+              {/* Header — clicável para expandir/colapsar */}
+              <button
+                onClick={() => setGlobalFilterOpen(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 shrink-0">Filtro Global</p>
+                  {pageBankFilter !== 'Todas' && (
+                    <span
+                      className="text-xs font-bold px-2.5 py-1 rounded-lg border truncate"
+                      style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)', color: 'var(--brand-primary)', borderColor: 'color-mix(in srgb, var(--brand-primary) 25%, transparent)' }}
                     >
-                      {option.label}
-                    </button>
-                  ))}
+                      {pageBankFilter}
+                    </span>
+                  )}
                 </div>
-              </div>
+                <ChevronDown
+                  size={16}
+                  className={`text-slate-400 transition-transform duration-200 shrink-0 ${globalFilterOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {/* Opções colapsáveis */}
+              <AnimatePresence initial={false}>
+                {globalFilterOpen && (
+                  <motion.div
+                    key="global-filter-options"
+                    initial={shouldReduce ? false : { height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-4 pb-4 pt-1 border-t border-slate-100 dark:border-slate-800">
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">
+                        Aplicado a cards, gráficos, histórico recente, ranking e configuração inicial do simulado.
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                        {BANK_OPTIONS.map((option) => {
+                          const isActive = pageBankFilter === option.value
+                          return (
+                            <button
+                              key={option.value}
+                              onClick={() => setPageBankFilter(option.value)}
+                              className={`relative px-3 py-3 rounded-xl text-sm font-bold border-2 transition-all cursor-pointer text-center select-none active:scale-[0.97] ${
+                                isActive
+                                  ? 'border-transparent shadow-sm'
+                                  : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                              }`}
+                              style={isActive ? { background: 'var(--brand-primary)', color: brandTextColor, borderColor: 'var(--brand-primary)' } : {}}
+                            >
+                              {option.label}
+                              {isActive && (
+                                <span
+                                  className="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900"
+                                  style={{ background: 'var(--brand-primary)' }}
+                                />
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
 
             {/* Simulados da Turma */}
@@ -1528,8 +1602,8 @@ export default function SimuladoPage() {
                         type="button"
                         onClick={() => startSimulado(sim.id)}
                         disabled={loading || sim.status === 'scheduled' || (sim.already_completed && sim.config?.allow_retry === false)}
-                        className="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50"
-                        style={{ backgroundColor: 'var(--brand-primary)' }}
+                        className="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 disabled:opacity-50"
+                        style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
                       >
                         {sim.status === 'scheduled'
                           ? 'Aguardando início'
@@ -1577,11 +1651,11 @@ export default function SimuladoPage() {
                 </div>
                 <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mb-2">Bem-vindo aos Simulados!</h2>
                 <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6 text-sm leading-relaxed">
-                  Monte simulados com questões reais de ENEM, UFU e UEG. Acompanhe sua evolução por matéria e por banca.
+                  Monte simulados com questões reais de vários vestibulares. Acompanhe sua evolução por matéria e por banca.
                 </p>
                 <button onClick={() => setShowConfigModal(true)}
-                  className="inline-flex items-center gap-2 text-white font-bold px-8 py-3.5 rounded-xl transition-all shadow cursor-pointer"
-                  style={{ background: 'var(--brand-primary)' }}>
+                  className="inline-flex items-center gap-2 font-bold px-8 py-3.5 rounded-xl transition-all shadow cursor-pointer"
+                  style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
                   <Play size={18} /> Começar meu primeiro simulado
                 </button>
               </motion.div>
@@ -1683,7 +1757,7 @@ export default function SimuladoPage() {
                     ))}
                     {pageBankFilter === 'Todas' ? (
                       <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                        desempenho agregado das sessões ENEM, UFU e UEG
+                        desempenho agregado das sessões ENEM, UFU, UEG e UNESP
                       </span>
                     ) : null}
                   </div>
@@ -1896,7 +1970,7 @@ export default function SimuladoPage() {
               {/* Tags */}
               <div className="mb-5 flex items-start justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
-                  <span className="text-xs font-bold px-3 py-1 rounded-full text-white" style={{ background: 'var(--brand-primary)' }}>
+                  <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
                     {questions[currentIdx].subject}
                   </span>
                   {questions[currentIdx].bank && (
@@ -1986,8 +2060,8 @@ export default function SimuladoPage() {
                         background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)', // transparent on dark mode mixes better
                         borderColor: 'var(--brand-primary)',
                       } : {}}>
-                      <span className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-extrabold shrink-0 transition-colors ${isSelected ? 'text-white border-transparent' : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-200 border-slate-200 dark:border-slate-600'}`}
-                        style={isSelected ? { background: 'var(--brand-primary)' } : {}}>
+                      <span className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-extrabold shrink-0 transition-colors ${isSelected ? 'border-transparent' : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-200 border-slate-200 dark:border-slate-600'}`}
+                        style={isSelected ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>
                         {alt.letter}
                       </span>
                       <div className="flex-1 pt-1">
@@ -2031,9 +2105,9 @@ export default function SimuladoPage() {
               {questions.map((q, i) => (
                 <button key={q.id} onClick={() => setCurrentIdx(i)}
                   className={`w-8 h-8 rounded-full text-xs font-extrabold transition-all cursor-pointer ${
-                    i === currentIdx ? 'text-white scale-110 shadow-sm' : userAnswers[q.id] ? 'bg-green-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                    i === currentIdx ? 'scale-110 shadow-sm' : userAnswers[q.id] ? 'bg-green-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
                   }`}
-                  style={i === currentIdx ? { background: 'var(--brand-primary)' } : {}}>
+                  style={i === currentIdx ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>
                   {i + 1}
                 </button>
               ))}
@@ -2052,8 +2126,8 @@ export default function SimuladoPage() {
 
               {currentIdx < questions.length - 1 ? (
                 <button onClick={() => setCurrentIdx(prev => prev + 1)}
-                  className="flex-[1.35] text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer min-h-[44px]"
-                  style={{ background: 'var(--brand-primary)' }}>
+                  className="flex-[1.35] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer min-h-[44px]"
+                  style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
                   Próxima <ArrowRight size={16} />
                 </button>
               ) : (
@@ -2190,8 +2264,8 @@ export default function SimuladoPage() {
                     <ChevronLeft size={18} /> Dashboard
                   </button>
                   <button onClick={() => resetSimulado(true)}
-                    className="text-white px-5 py-3 rounded-xl font-bold flex gap-2 items-center transition-colors cursor-pointer min-h-[44px] hover:opacity-90"
-                    style={{ background: 'var(--brand-primary)' }}>
+                    className="px-5 py-3 rounded-xl font-bold flex gap-2 items-center transition-colors cursor-pointer min-h-[44px] hover:opacity-90"
+                    style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
                     <RotateCcw size={18} /> Novo Simulado
                   </button>
                   {finishResult?.session_id && (
