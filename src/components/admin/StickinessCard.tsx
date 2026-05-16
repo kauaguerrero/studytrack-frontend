@@ -22,7 +22,6 @@ interface DauProfile {
   last_activity_date: string | null;
   total_points: number;
   current_streak: number;
-  trial_days: number | null;
   onboarding_completed: boolean | null;
   last_whatsapp: WhatsappInfo | null;
   last_question: QuestionInfo | null;
@@ -133,7 +132,6 @@ export default function StickinessCard({ health, apiUrl }: Props) {
                       <th className="px-3 py-2 text-left font-semibold">Plano</th>
                       <th className="px-3 py-2 text-right font-semibold">Pts</th>
                       <th className="px-3 py-2 text-right font-semibold">Streak</th>
-                      <th className="px-3 py-2 text-right font-semibold">Trial</th>
                       <th className="px-3 py-2 text-left font-semibold">Último WhatsApp</th>
                       <th className="px-3 py-2 text-left font-semibold">Última questão</th>
                     </tr>
@@ -159,9 +157,6 @@ export default function StickinessCard({ health, apiUrl }: Props) {
                           {p.current_streak > 0
                             ? <span className="inline-flex items-center gap-1 font-medium"><Flame className="w-3.5 h-3.5 text-orange-500" />{p.current_streak}d</span>
                             : <span className="text-slate-400">—</span>}
-                        </td>
-                        <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
-                          {p.trial_days != null ? `${p.trial_days}d` : "—"}
                         </td>
                         <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
                           {p.last_whatsapp
