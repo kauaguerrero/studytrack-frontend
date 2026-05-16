@@ -17,7 +17,6 @@ import {
   Flag,
   ScanSearch,
   Github,
-  Building2,
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -199,12 +198,8 @@ export function SidebarContent({
             {renderNavItem({ href: '/portal/admin/audits', icon: ScanSearch, label: 'Audit Center' })}
             {renderNavItem({ href: '/portal/admin/social-media', icon: Sparkles, label: 'Social Media IA' })}
             {renderNavItem({ href: '/portal/admin/questions', icon: BookOpen, label: 'Curadoria' })}
-            {renderSectionTitle('Parceiros')}
-            {renderNavItem({ href: '/portal/admin/b2b', icon: Building2, label: 'Parceiros B2B' })}
             {renderSectionTitle('Reports')}
-            {renderNavItem({ href: '/portal/admin/reengagement', icon: Target, label: 'Reengajamento' })}
             {renderNavItem({ href: '/portal/admin/reports', icon: Flag, label: 'Reports' })}
-            {renderSectionTitle('Plataforma')}
           </div>
         )}
 

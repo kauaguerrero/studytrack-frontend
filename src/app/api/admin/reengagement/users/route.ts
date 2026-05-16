@@ -11,7 +11,6 @@ type ProfileRow = {
   whatsapp_jid: string | null;
   plan_tier: string | null;
   subscription_status: string | null;
-  trial_start_date: string | null;
   onboarding_completed: boolean | null;
   total_points: number | null;
   current_streak: number | null;
@@ -28,7 +27,6 @@ type UserComputed = {
   whatsapp_jid: string | null;
   plan_tier: string | null;
   subscription_status: string | null;
-  trial_start_date: string | null;
   onboarding_completed: boolean;
   total_points: number;
   current_streak: number;
@@ -37,7 +35,6 @@ type UserComputed = {
   messages_total: number;
   limit_reached: boolean;
   last_whatsapp_at: string | null;
-  days_in_trial: number | null;
   segment: Segment;
   conversion_stage: ConversionStage;
   last_user_message_at: string | null;
@@ -88,8 +85,6 @@ export async function GET(request: Request) {
   const page = clampInt(url.searchParams.get('page'), 1, 1, 500);
   const pageSize = clampInt(url.searchParams.get('pageSize'), 20, 5, 100);
   const segmentFilter = (url.searchParams.get('segment') || 'ALL').toUpperCase();
-  const minTrialDays = clampInt(url.searchParams.get('minTrialDays'), 0, 0, 3650);
-  const maxTrialDays = clampInt(url.searchParams.get('maxTrialDays'), 3650, 0, 3650);
   const limitReachedFilter = parseBool(url.searchParams.get('limitReached'));
   const activeWindowOnly = url.searchParams.get('activeWindowOnly') === 'true';
   const stageFilter = (url.searchParams.get('stage') || 'ALL').toLowerCase();
@@ -109,7 +104,6 @@ export async function GET(request: Request) {
       'plan_tier',
       'onboarding_completed',
       'subscription_status',
-      'trial_start_date',
       'total_points',
       'current_streak',
       'last_activity_date',
@@ -117,7 +111,6 @@ export async function GET(request: Request) {
       'conversion_stage',
     ].join(','))
     .eq('role', 'student')
-    .not('trial_start_date', 'is', null)
     .limit(5000);
 
   if (profilesErr) {
@@ -199,7 +192,6 @@ export async function GET(request: Request) {
     const usage = usageByUser.get(p.id) ?? { messages: 0, limit: false };
     const logs = logByUser.get(p.id) ?? { count: 0, lastAt: null, lastInboundAt: null };
     const messagesTotal = Math.max(usage.messages, logs.count); // fallback: se daily_usage estiver vazia, usa logs
-    const trialDays = p.trial_start_date ? Math.max(0, Math.floor((now.getTime() - new Date(p.trial_start_date).getTime()) / (1000 * 60 * 60 * 24))) : null;
     const lastUserAt = logs.lastInboundAt;
     const metaWindowActive = !!(lastUserAt && new Date(lastUserAt).getTime() >= windowCutoff);
     const conversionStage = (p.conversion_stage ?? 'nao_abordado') as ConversionStage;
@@ -219,7 +211,6 @@ export async function GET(request: Request) {
       whatsapp_jid: p.whatsapp_jid ?? null,
       plan_tier: p.plan_tier ?? null,
       subscription_status: p.subscription_status ?? null,
-      trial_start_date: p.trial_start_date ?? null,
       onboarding_completed: !!p.onboarding_completed,
       total_points: Number(p.total_points ?? 0),
       current_streak: Number(p.current_streak ?? 0),
@@ -228,7 +219,6 @@ export async function GET(request: Request) {
       messages_total: messagesTotal,
       limit_reached: usage.limit,
       last_whatsapp_at: logs.lastAt,
-      days_in_trial: trialDays,
       conversion_stage: conversionStage,
       last_user_message_at: lastUserAt,
       meta_window_active: metaWindowActive,
@@ -252,8 +242,6 @@ export async function GET(request: Request) {
   const filtered = users.filter((u) => {
     if (segmentFilter !== 'ALL' && segmentFilter !== u.segment) return false;
     if (stageFilter !== 'all' && stageFilter !== u.conversion_stage) return false;
-    const days = u.days_in_trial ?? 0;
-    if (days < minTrialDays || days > maxTrialDays) return false;
     if (limitReachedFilter !== null && u.limit_reached !== limitReachedFilter) return false;
     if (activeWindowOnly && !u.meta_window_active) return false;
     return true;
@@ -263,7 +251,6 @@ export async function GET(request: Request) {
   const sorters: Record<string, (a: UserComputed, b: UserComputed) => number> = {
     messages_desc: (a, b) => (b.messages_total ?? 0) - (a.messages_total ?? 0),
     points_desc: (a, b) => (b.total_points ?? 0) - (a.total_points ?? 0),
-    trial_days_desc: (a, b) => (b.days_in_trial ?? 0) - (a.days_in_trial ?? 0),
   };
   filtered.sort((a, b) => {
     const primary = (sorters[sort] ?? sorters.messages_desc)(a, b);

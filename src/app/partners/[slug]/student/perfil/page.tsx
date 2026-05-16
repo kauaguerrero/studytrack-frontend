@@ -51,7 +51,6 @@ interface ProfileData {
   plan_tier: string
   subscription_status: string
   subscription_plan: string
-  trial_start_date: string | null
   focus_area: string | null
   study_pace: string | null
   study_period: string | null
