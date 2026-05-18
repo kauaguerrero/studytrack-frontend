@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
       total_orgs: 0, total_students: 0,
       active_period: 0, questions_period: 0, simulados_period: 0, essays_period: 0,
       prev_active_period: 0, prev_questions_period: 0, prev_simulados_period: 0, prev_essays_period: 0,
-      per_org: [], period, period_start: periodStart,
+      per_org: [] as any[], period, period_start: periodStart,
     };
     statsCache.set(cacheKey, { expiresAt: Date.now() + STATS_CACHE_TTL_MS, payload });
     return NextResponse.json(payload);
@@ -279,51 +279,85 @@ export async function GET(request: NextRequest) {
 
   const prevBounds = getPrevPeriodBounds(period);
 
-  // Ativos período anterior
+  // Ativos período anterior (global + per-org — grátis, profiles já carregados)
+  const perOrgPrevActiveMap = new Map<string, number>(orgIds.map((id: string) => [id, 0]));
   const prev_active_period = prevBounds
-    ? profiles.filter(
-        (p: any) =>
-          p.last_activity_date &&
-          p.last_activity_date >= prevBounds.startDate &&
-          p.last_activity_date < prevBounds.endDate
-      ).length
+    ? (() => {
+        let count = 0;
+        for (const p of profiles) {
+          if (
+            p.last_activity_date &&
+            p.last_activity_date >= prevBounds.startDate &&
+            p.last_activity_date < prevBounds.endDate
+          ) {
+            count++;
+            const orgId = p.organization_id as string;
+            perOrgPrevActiveMap.set(orgId, (perOrgPrevActiveMap.get(orgId) ?? 0) + 1);
+          }
+        }
+        return count;
+      })()
     : 0;
 
-  // Questões e simulados período anterior
+  // Questões e simulados período anterior (global count + per-org rows)
   let prev_questions_period = 0;
   let prev_simulados_period = 0;
+  const perOrgPrevQuestionsMap = new Map<string, number>(orgIds.map((id: string) => [id, 0]));
+  const perOrgPrevSimuladosMap = new Map<string, number>(orgIds.map((id: string) => [id, 0]));
 
   if (profileIds.length > 0 && prevBounds) {
-    const [{ count: prevAnswersCount }, { count: prevSimsCount }] = await Promise.all([
-      db
-        .from('user_answers')
-        .select('id', { count: 'exact', head: true })
-        .in('user_id', profileIds)
-        .gte('created_at', prevBounds.startUtc)
-        .lt('created_at', prevBounds.endUtc),
-      db
-        .from('simulado_sessions')
-        .select('id', { count: 'exact', head: true })
-        .in('user_id', profileIds)
-        .eq('status', 'completed')
-        .gte('completed_at', prevBounds.startUtc)
-        .lt('completed_at', prevBounds.endUtc),
+    const prevAnswersRowsP = paginateRows(
+      'user_answers', 'user_id',
+      (q) => q.in('user_id', profileIds).gte('created_at', prevBounds.startUtc).lt('created_at', prevBounds.endUtc),
+      100_000,
+    );
+    const prevSimsRowsP = paginateRows(
+      'simulado_sessions', 'user_id',
+      (q) => q.in('user_id', profileIds).eq('status', 'completed').gte('completed_at', prevBounds.startUtc).lt('completed_at', prevBounds.endUtc),
+      50_000,
+    );
+
+    const [{ count: prevAnswersCount }, { count: prevSimsCount }, prevAnswersRows, prevSimsRows] = await Promise.all([
+      db.from('user_answers').select('id', { count: 'exact', head: true }).in('user_id', profileIds).gte('created_at', prevBounds.startUtc).lt('created_at', prevBounds.endUtc),
+      db.from('simulado_sessions').select('id', { count: 'exact', head: true }).in('user_id', profileIds).eq('status', 'completed').gte('completed_at', prevBounds.startUtc).lt('completed_at', prevBounds.endUtc),
+      prevAnswersRowsP,
+      prevSimsRowsP,
     ]);
 
     prev_questions_period = prevAnswersCount ?? 0;
+    for (const row of prevAnswersRows) {
+      const orgId = profileOrgById.get(row.user_id as string);
+      if (!orgId) continue;
+      perOrgPrevQuestionsMap.set(orgId, (perOrgPrevQuestionsMap.get(orgId) ?? 0) + 1);
+    }
+
     prev_simulados_period = prevSimsCount ?? 0;
+    for (const row of prevSimsRows) {
+      const orgId = profileOrgById.get(row.user_id as string);
+      if (!orgId) continue;
+      perOrgPrevSimuladosMap.set(orgId, (perOrgPrevSimuladosMap.get(orgId) ?? 0) + 1);
+    }
   }
 
-  // Redações período anterior
+  // Redações período anterior (global count + per-org rows)
   let prev_essays_period = 0;
+  const perOrgPrevEssaysMap = new Map<string, number>(orgIds.map((id: string) => [id, 0]));
   if (prevBounds) {
-    const { count } = await db
-      .from('essays')
-      .select('id', { count: 'exact', head: true })
-      .in('org_id', orgIds)
-      .gte('submitted_at', prevBounds.startUtc)
-      .lt('submitted_at', prevBounds.endUtc);
-    prev_essays_period = count ?? 0;
+    const prevEssaysRowsP = paginateRows(
+      'essays', 'org_id',
+      (q) => q.in('org_id', orgIds).gte('submitted_at', prevBounds.startUtc).lt('submitted_at', prevBounds.endUtc),
+      20_000,
+    );
+    const [{ count: prevEssaysCount }, prevEssaysRows] = await Promise.all([
+      db.from('essays').select('id', { count: 'exact', head: true }).in('org_id', orgIds).gte('submitted_at', prevBounds.startUtc).lt('submitted_at', prevBounds.endUtc),
+      prevEssaysRowsP,
+    ]);
+    prev_essays_period = prevEssaysCount ?? 0;
+    for (const row of prevEssaysRows) {
+      const orgId = row.org_id as string | null;
+      if (!orgId) continue;
+      perOrgPrevEssaysMap.set(orgId, (perOrgPrevEssaysMap.get(orgId) ?? 0) + 1);
+    }
   }
 
   const per_org = orgIds.map((org_id: string) => ({
@@ -332,6 +366,10 @@ export async function GET(request: NextRequest) {
     questions_period: perOrgQuestionsMap.get(org_id) ?? 0,
     simulados_period: perOrgSimuladosMap.get(org_id) ?? 0,
     essays_period: perOrgEssaysMap.get(org_id) ?? 0,
+    prev_active_period: perOrgPrevActiveMap.get(org_id) ?? 0,
+    prev_questions_period: perOrgPrevQuestionsMap.get(org_id) ?? 0,
+    prev_simulados_period: perOrgPrevSimuladosMap.get(org_id) ?? 0,
+    prev_essays_period: perOrgPrevEssaysMap.get(org_id) ?? 0,
   }));
 
   const payload = {

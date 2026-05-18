@@ -37,8 +37,10 @@ interface Props {
 }
 
 export function StudentThemeProvider({ children, slug, initialTheme = 'system' }: Props) {
-  // Para alunos, o banco é a fonte de verdade. O localStorage é apenas cache
-  // para manter a experiência fluida entre navegações e refreshes.
+  // O banco é a fonte de verdade. O inline script do layout já gravou o valor
+  // correto em window.__pst[slug] antes da hidratação, mas como não podemos
+  // aplicar a classe dark no wrapper div antes do React montar, usamos o
+  // initialTheme do SSR diretamente para inicializar o estado sem discrepância.
   const [theme, setThemeState] = useState<StudentTheme>(initialTheme)
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolve(initialTheme))
 

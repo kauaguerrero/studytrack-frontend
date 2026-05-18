@@ -1138,6 +1138,7 @@ export default function FounderDashboardClient({
               )}
             </CardContent>
           </TintedCard>
+
         </div>
 
         {/* ── Tabela de Atividade Recente ───────────────────────────────────── */}

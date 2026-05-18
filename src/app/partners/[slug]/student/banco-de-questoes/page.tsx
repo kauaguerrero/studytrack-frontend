@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
+import { useOrg } from '@/contexts/OrgContext';
 import {
   ChevronDown, ArrowLeft, ArrowRight, Brain, Lock,
   CheckCircle2, Circle, Loader2, Sparkles, Calendar,
@@ -41,7 +42,7 @@ const YEARS = Array.from({ length: CURRENT_YEAR - 2008 }, (_, i) =>
 );
 
 const DIFFICULTIES = ['Fácil', 'Médio', 'Difícil'];
-const BANKS = ['ENEM', 'UFU', 'UEG'];
+const BANKS = ['ENEM', 'UFU', 'UEG', 'UNESP'];
 const TOTAL_QUESTIONS = 5000;
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -74,26 +75,44 @@ const selectClass =
   'hover:border-slate-300 dark:hover:border-slate-600 focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] ' +
   'disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-50 dark:disabled:bg-slate-800/50';
 
-function normalizeBankValue(value: unknown): 'ENEM' | 'UFU' | 'UEG' {
+function normalizeBankValue(value: unknown): 'ENEM' | 'UFU' | 'UEG' | 'UNESP' {
   const normalized = String(value || '').trim().toUpperCase();
   if (normalized === 'UFU' || normalized === 'UFU_VEST') return 'UFU';
   if (normalized === 'UEG' || normalized === 'UEG_VEST') return 'UEG';
+  if (normalized === 'UNESP') return 'UNESP';
   return 'ENEM';
 }
 
-function inferQuestionBank(row: any): 'ENEM' | 'UFU' | 'UEG' {
+function inferQuestionBank(row: any): 'ENEM' | 'UFU' | 'UEG' | 'UNESP' {
   if (row?.bank) return normalizeBankValue(row.bank);
   const metadata = row?.metadata && typeof row.metadata === 'object' ? row.metadata : {};
   if (metadata?.bank || metadata?.source) return normalizeBankValue(metadata.bank || metadata.source);
-  if (String(row?.external_id || '').toUpperCase().startsWith('UFU_VEST_')) return 'UFU';
-  if (String(row?.external_id || '').toUpperCase().startsWith('UEG_VEST_')) return 'UEG';
+  const extId = String(row?.external_id || '').toUpperCase();
+  if (extId.startsWith('UFU_VEST_')) return 'UFU';
+  if (extId.startsWith('UEG_VEST_')) return 'UEG';
+  if (extId.startsWith('UNESP_')) return 'UNESP';
   return 'ENEM';
+}
+
+// ─── Contrast helper ──────────────────────────────────────────────────────────
+
+function getContrastTextColor(hex: string): string {
+  const c = hex.replace('#', '');
+  if (c.length < 6) return '#ffffff';
+  const r = parseInt(c.slice(0, 2), 16) / 255;
+  const g = parseInt(c.slice(2, 4), 16) / 255;
+  const b = parseInt(c.slice(4, 6), 16) / 255;
+  const lin = (v: number) => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  return L > 0.179 ? '#1e293b' : '#ffffff';
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function BancoDeQuestoes() {
   const { enqueuePopup } = usePopupQueue();
+  const { org } = useOrg();
+  const brandTextColor = getContrastTextColor(org.brand_primary);
   // ── State: Data ─────────────────────────────────────────────────────────────
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -467,7 +486,7 @@ export default function BancoDeQuestoes() {
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isTabTodo
                         ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600'
                         : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                        }`}
+                      }`}
                     >
                       <Circle
                         size={10}
@@ -532,8 +551,8 @@ export default function BancoDeQuestoes() {
                   Filtros
                   {activeSecondaryCount > 0 && (
                     <span
-                      className="flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-black text-white"
-                      style={{ background: 'var(--brand-primary)' }}
+                      className="flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-black"
+                      style={{ background: 'var(--brand-primary)', color: brandTextColor }}
                     >
                       {activeSecondaryCount}
                     </span>
@@ -744,7 +763,7 @@ export default function BancoDeQuestoes() {
                 <span className="font-bold text-slate-800 dark:text-slate-100">
                   {totalQuestions.toLocaleString('pt-BR')} questões
                 </span>{' '}
-                entre ENEM, UFU e UEG disponíveis.{' '}
+                entre ENEM, UFU, UEG e UNESP disponíveis.{' '}
                 <span className="font-semibold">Selecione a matéria e a banca</span> acima para começar.
               </p>
               <div className="mt-6 flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded-xl px-4 py-2.5 border border-slate-100 dark:border-slate-700/50">
@@ -928,13 +947,13 @@ export default function BancoDeQuestoes() {
                     (isNextDisabled && !hasMore && !isLockedByQuota) ||
                     (loadingMore && currentIdx === questions.length - 1)
                   }
-                  className={`flex-[2] text-white font-bold py-3.5 rounded-xl shadow-sm transition-all flex justify-center items-center gap-2 group active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed ${isLockedByQuota
-                    ? 'bg-amber-500 hover:bg-amber-600'
+                  className={`flex-[2] font-bold py-3.5 rounded-xl shadow-sm transition-all flex justify-center items-center gap-2 group active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed ${isLockedByQuota
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
                     : isTabTodo
                       ? 'hover:brightness-105'
-                      : 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                     }`}
-                  style={isTabTodo && !isLockedByQuota ? { background: 'var(--brand-primary)' } : {}}
+                  style={isTabTodo && !isLockedByQuota ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}
                 >
                   {isLockedByQuota ? (
                     <><Lock size={16} /> <span className="text-sm">Destrancar</span></>

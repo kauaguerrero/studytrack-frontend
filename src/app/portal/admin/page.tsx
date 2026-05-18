@@ -6,12 +6,13 @@ import { createClient } from "@/lib/supabase/client";
 import { reportError } from '@/lib/reportError';
 import PeakHoursCard from "@/components/admin/PeakHoursCard";
 import StickinessCard from "@/components/admin/StickinessCard";
+import AIUsageRecentCard from "@/components/admin/AIUsageRecentCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Users, Brain, Database, GraduationCap, BarChart3,
   Calculator, ListChecks, Flag, ClipboardList, Plus, X,
-  ExternalLink, Target, Activity, Github,
+  ExternalLink, Target, Activity, Github, TrendingUp, TrendingDown,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -38,6 +39,18 @@ interface Org {
   created_at: string;
 }
 
+interface PerOrgStats {
+  org_id: string;
+  active_period: number;
+  questions_period: number;
+  simulados_period: number;
+  essays_period: number;
+  prev_active_period: number;
+  prev_questions_period: number;
+  prev_simulados_period: number;
+  prev_essays_period: number;
+}
+
 interface B2BStats {
   total_orgs: number;
   total_students: number;
@@ -45,6 +58,11 @@ interface B2BStats {
   questions_period: number;
   simulados_period: number;
   essays_period: number;
+  prev_active_period: number;
+  prev_questions_period: number;
+  prev_simulados_period: number;
+  prev_essays_period: number;
+  per_org: PerOrgStats[];
   period: string;
 }
 
@@ -73,6 +91,34 @@ const PLAN_LABELS: Record<string, { label: string; cls: string }> = {
 };
 
 const SUPABASE_FREE_LIMIT = 500 * 1024 * 1024;
+
+// Maps the orgPeriod selector to the stats API period param
+const STATS_PERIOD_MAP: Partial<Record<OrgPeriod, string>> = {
+  day:   'today',
+  week:  'week',
+  month: 'month',
+  year:  'year',
+  all:   'lifetime',
+  // semester is not supported by stats API — badges hidden
+};
+
+function DeltaBadge({ current, prev }: { current: number; prev: number }) {
+  const delta = current - prev;
+  if (delta === 0) return null;
+  const positive = delta > 0;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+      positive
+        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
+        : 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400'
+    }`}>
+      {positive
+        ? <TrendingUp className="w-2.5 h-2.5" />
+        : <TrendingDown className="w-2.5 h-2.5" />}
+      {positive ? '+' : ''}{delta.toLocaleString('pt-BR')}
+    </span>
+  );
+}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function SuperAdminDashboard() {
@@ -111,6 +157,16 @@ export default function SuperAdminDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const fetchB2bStats = useCallback(async (period: OrgPeriod) => {
+    const statsPeriod = STATS_PERIOD_MAP[period] ?? 'month';
+    try {
+      const res = await fetch(`/api/admin/b2b/stats?period=${statsPeriod}`);
+      if (res.ok) setB2bStats(await res.json());
+    } catch (e) {
+      console.error("Erro ao buscar b2b-stats:", e);
+    }
+  }, []);
+
   const fetchData = useCallback(async () => {
     const { data: { session } } = await supabaseRef.auth.getSession();
     if (!session) { setLoading(false); return; }
@@ -118,16 +174,14 @@ export default function SuperAdminDashboard() {
     const headers = { Authorization: `Bearer ${session.access_token}` };
 
     try {
-      const [resStats, resDist, resOrgs, resB2B] = await Promise.all([
+      const [resStats, resDist, resOrgs] = await Promise.all([
         fetch(`${apiUrl}/api/admin/stats`, { headers }),
         fetch(`${apiUrl}/api/admin/stats/distribution`, { headers }),
         fetch('/api/admin/b2b/organizations'),
-        fetch('/api/admin/b2b/stats?period=month'),
       ]);
       if (resStats.ok) setStats(await resStats.json());
       if (resDist.ok)  setDist(await resDist.json());
       if (resOrgs.ok)  setOrgs((await resOrgs.json()).organizations ?? []);
-      if (resB2B.ok)   setB2bStats(await resB2B.json());
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
       void reportError("AdminDashboardFetchError", String(error));
@@ -137,7 +191,10 @@ export default function SuperAdminDashboard() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { fetchOrgMetrics(orgPeriod); }, [orgPeriod, fetchOrgMetrics]);
+  useEffect(() => {
+    fetchOrgMetrics(orgPeriod);
+    fetchB2bStats(orgPeriod);
+  }, [orgPeriod, fetchOrgMetrics, fetchB2bStats]);
 
   function openCreate() {
     setOrgForm({ name: '', slug: '', plan_tier: 'b2b_basic', max_students: 200, contact_email: '', brand_primary: '#6366f1', brand_secondary: '#8b5cf6', brand_accent: '#f59e0b' });
@@ -214,17 +271,22 @@ export default function SuperAdminDashboard() {
       {/* ── KPI Strip B2B ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3 md:gap-4">
         {([
-          { label: 'Alunos B2B',   value: b2bStats?.total_students ?? 0,   icon: Users,        color: 'text-blue-600',    bg: 'bg-blue-50 dark:bg-blue-950/40',      border: 'border-l-blue-500'    },
-          { label: 'Parceiros',    value: orgs.length,                      icon: GraduationCap,color: 'text-indigo-600',  bg: 'bg-indigo-50 dark:bg-indigo-950/40',  border: 'border-l-indigo-500'  },
-          { label: 'Ativos (30d)', value: b2bStats?.active_period ?? 0,     icon: Activity,     color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950/40',border: 'border-l-emerald-500' },
-        ] as const).map(({ label, value, icon: Icon, color, bg, border }) => (
+          { label: 'Alunos B2B',   value: b2bStats?.total_students ?? 0,   prev: null,                                    icon: Users,        color: 'text-blue-600',    bg: 'bg-blue-50 dark:bg-blue-950/40',      border: 'border-l-blue-500'    },
+          { label: 'Parceiros',    value: orgs.length,                      prev: null,                                    icon: GraduationCap,color: 'text-indigo-600',  bg: 'bg-indigo-50 dark:bg-indigo-950/40',  border: 'border-l-indigo-500'  },
+          { label: 'Ativos',       value: b2bStats?.active_period ?? 0,     prev: b2bStats?.prev_active_period ?? null,    icon: Activity,     color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950/40',border: 'border-l-emerald-500' },
+        ] as const).map(({ label, value, prev, icon: Icon, color, bg, border }) => (
           <Card key={label} className={`border-l-4 ${border}`}>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">{label}</p>
                 <div className={`p-2 rounded-lg ${bg}`}><Icon className={`w-4 h-4 ${color}`} /></div>
               </div>
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">{value}</p>
+              <div className="flex items-end gap-2">
+                <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">{value}</p>
+                {prev !== null && STATS_PERIOD_MAP[orgPeriod] && (
+                  <DeltaBadge current={value} prev={prev} />
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -274,27 +336,22 @@ export default function SuperAdminDashboard() {
         </div>
 
         {/* Totais consolidados */}
-        {Object.keys(orgMetrics).length > 0 && (() => {
-          const totals = Object.values(orgMetrics).reduce(
-            (acc, m) => ({
-              questions:      acc.questions      + (m.questions      ?? 0),
-              simulados:      acc.simulados      + (m.simulados      ?? 0),
-              active_students:acc.active_students+ (m.active_students?? 0),
-              essays:         acc.essays         + (m.essays         ?? 0),
-            }),
-            { questions: 0, simulados: 0, active_students: 0, essays: 0 }
-          );
+        {b2bStats && (() => {
+          const hasPrev = !!STATS_PERIOD_MAP[orgPeriod];
           return (
             <div className={`grid grid-cols-4 gap-3 mb-4 transition-opacity ${loadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
               {([
-                { label: 'Questões',  value: totals.questions,       color: 'text-blue-600 dark:text-blue-400',     bg: 'bg-blue-50 dark:bg-blue-950/40',     border: 'border-blue-200 dark:border-blue-800'    },
-                { label: 'Simulados', value: totals.simulados,       color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-950/40', border: 'border-violet-200 dark:border-violet-800' },
-                { label: 'Ativos',    value: totals.active_students, color: 'text-emerald-600 dark:text-emerald-400',bg: 'bg-emerald-50 dark:bg-emerald-950/40',border: 'border-emerald-200 dark:border-emerald-800'},
-                { label: 'Redações',  value: totals.essays,          color: 'text-amber-600 dark:text-amber-400',   bg: 'bg-amber-50 dark:bg-amber-950/40',   border: 'border-amber-200 dark:border-amber-800'  },
-              ] as const).map(({ label, value, color, bg, border }) => (
+                { label: 'Questões',  value: b2bStats.questions_period,  prev: b2bStats.prev_questions_period,  color: 'text-blue-600 dark:text-blue-400',      bg: 'bg-blue-50 dark:bg-blue-950/40',      border: 'border-blue-200 dark:border-blue-800'    },
+                { label: 'Simulados', value: b2bStats.simulados_period,  prev: b2bStats.prev_simulados_period,  color: 'text-violet-600 dark:text-violet-400',  bg: 'bg-violet-50 dark:bg-violet-950/40',  border: 'border-violet-200 dark:border-violet-800' },
+                { label: 'Ativos',    value: b2bStats.active_period,     prev: b2bStats.prev_active_period,     color: 'text-emerald-600 dark:text-emerald-400',bg: 'bg-emerald-50 dark:bg-emerald-950/40',border: 'border-emerald-200 dark:border-emerald-800'},
+                { label: 'Redações',  value: b2bStats.essays_period,     prev: b2bStats.prev_essays_period,     color: 'text-amber-600 dark:text-amber-400',    bg: 'bg-amber-50 dark:bg-amber-950/40',    border: 'border-amber-200 dark:border-amber-800'  },
+              ] as const).map(({ label, value, prev, color, bg, border }) => (
                 <div key={label} className={`rounded-xl border ${border} ${bg} px-4 py-3 text-center`}>
                   <p className={`text-2xl font-bold tabular-nums ${color}`}>{value.toLocaleString('pt-BR')}</p>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">{label}</p>
+                  <div className="flex items-center justify-center gap-1 mt-1">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{label}</p>
+                    {hasPrev && <DeltaBadge current={value} prev={prev} />}
+                  </div>
                 </div>
               ))}
             </div>
@@ -306,6 +363,8 @@ export default function SuperAdminDashboard() {
             const plan = PLAN_LABELS[org.plan_tier] ?? { label: org.plan_tier, cls: 'bg-slate-100 text-slate-600' };
             const fillPct = Math.round((org.student_count / org.max_students) * 100);
             const m = orgMetrics[org.id];
+            const p = b2bStats?.per_org?.find(x => x.org_id === org.id);
+            const hasPrev = !!STATS_PERIOD_MAP[orgPeriod];
             return (
               <Card key={org.id} className="hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-colors">
                 <CardContent className="p-4">
@@ -345,14 +404,19 @@ export default function SuperAdminDashboard() {
                   {/* Métricas do período */}
                   <div className={`grid grid-cols-4 gap-1.5 mb-3 text-xs transition-opacity ${loadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
                     {[
-                      { label: 'Questões',   value: m?.questions,       color: 'text-blue-600 dark:text-blue-400'    },
-                      { label: 'Simulados',  value: m?.simulados,       color: 'text-violet-600 dark:text-violet-400'},
-                      { label: 'Ativos',     value: m?.active_students, color: 'text-emerald-600 dark:text-emerald-400'},
-                      { label: 'Redações',   value: m?.essays,          color: 'text-amber-600 dark:text-amber-400'  },
-                    ].map(({ label, value, color }) => (
+                      { label: 'Questões',  value: m?.questions,       prev: p?.prev_questions_period,  color: 'text-blue-600 dark:text-blue-400'     },
+                      { label: 'Simulados', value: m?.simulados,       prev: p?.prev_simulados_period,  color: 'text-violet-600 dark:text-violet-400' },
+                      { label: 'Ativos',    value: m?.active_students, prev: p?.prev_active_period,     color: 'text-emerald-600 dark:text-emerald-400'},
+                      { label: 'Redações',  value: m?.essays,          prev: p?.prev_essays_period,     color: 'text-amber-600 dark:text-amber-400'   },
+                    ].map(({ label, value, prev, color }) => (
                       <div key={label} className="bg-slate-50 dark:bg-zinc-800 rounded-lg px-1.5 py-1.5 text-center">
                         <p className={`font-bold text-sm ${color}`}>{value ?? '—'}</p>
                         <p className="text-slate-400 text-[10px] leading-tight mt-0.5">{label}</p>
+                        {hasPrev && value != null && prev != null && (
+                          <div className="flex justify-center mt-0.5">
+                            <DeltaBadge current={value} prev={prev} />
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -550,7 +614,7 @@ export default function SuperAdminDashboard() {
       )}
 
       {/* ── Infra + IA (compacto) ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="bg-slate-900 text-slate-50 border-t-4 border-t-cyan-400">
           <CardContent className="p-6">
             <div className="flex justify-between items-center mb-4">
@@ -592,6 +656,8 @@ export default function SuperAdminDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        <AIUsageRecentCard />
       </div>
 
       {/* ── Modal Nova Instituição ─────────────────────────────────────────── */}

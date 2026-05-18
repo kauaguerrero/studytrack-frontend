@@ -251,7 +251,13 @@ export default function PerfilPage() {
     setStudyPeriod(p.study_period ?? '')
     setDaysPerWeek(typeof p.days_per_week === 'number' ? Math.min(7, Math.max(1, p.days_per_week)) : 5)
     setHoursPerDay(typeof p.hours_per_day === 'number' ? Math.min(12, Math.max(1, p.hours_per_day)) : 2)
-  }, [profileResponse])
+    // Sincroniza o tema do contexto com o valor salvo no banco ao carregar o perfil.
+    // Garante que o SELECT reflita o que está no DB, independente do initialTheme do SSR.
+    const savedTheme = p.theme_preference as 'light' | 'dark' | 'system' | null
+    if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') {
+      setStudentTheme(savedTheme)
+    }
+  }, [profileResponse, setStudentTheme])
 
   useEffect(() => {
     if (profileError) toast.error(profileError instanceof Error ? profileError.message : 'Erro ao carregar perfil.')
@@ -539,7 +545,6 @@ export default function PerfilPage() {
 
       toast.success('Tema atualizado com sucesso.')
       await mutateProfile()
-      router.refresh()
     } catch (e) {
       setStudentTheme(previous)
       toast.error(e instanceof Error ? e.message : 'Falha ao salvar.')
