@@ -539,7 +539,6 @@ export default function PerfilPage() {
 
       toast.success('Tema atualizado com sucesso.')
       await mutateProfile()
-      router.refresh()
     } catch (e) {
       setStudentTheme(previous)
       toast.error(e instanceof Error ? e.message : 'Falha ao salvar.')
