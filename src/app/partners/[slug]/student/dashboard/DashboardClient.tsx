@@ -5,6 +5,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap, Shield, Activity, User, Zap } from 'lucide-react';
+import { ActivityHistoryModal } from '@/components/partners/ActivityHistoryModal';
 import { Typewriter } from '@/components/ui/typewriter';
 import { createClient } from '@/lib/supabase/client';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
@@ -109,6 +110,7 @@ export function DashboardClient({
   const [activityFeed, setActivityFeed] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [feedInfoOpen, setFeedInfoOpen] = useState(false);
+  const [activityModalOpen, setActivityModalOpen] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -595,14 +597,14 @@ export function DashboardClient({
                 )}
 
                 {/* Footer link */}
-                <Link
-                  href={`/partners/${slug}/student/desempenho`}
+                <button
+                  onClick={() => setActivityModalOpen(true)}
                   className="flex items-center gap-1 text-[10.1px] font-medium"
                   style={{ color: 'var(--brand-primary)' }}
                 >
                   Ver atividade completa
                   <ArrowRight className="h-2 w-2" />
-                </Link>
+                </button>
               </div>
             </div>
           </motion.div>
@@ -750,6 +752,11 @@ export function DashboardClient({
 
         </motion.div>
       </div>
+
+      {/* ── Modal histórico de atividades ──────────────────────────────── */}
+      {activityModalOpen && (
+        <ActivityHistoryModal onClose={() => setActivityModalOpen(false)} />
+      )}
 
       {/* ── Popups (Fila central) ───────────────────────────────────────── */}
       <AnimatePresence>

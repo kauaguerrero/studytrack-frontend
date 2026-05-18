@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { reportError } from '@/lib/reportError';
 import PeakHoursCard from "@/components/admin/PeakHoursCard";
 import StickinessCard from "@/components/admin/StickinessCard";
+import AIUsageRecentCard from "@/components/admin/AIUsageRecentCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -613,7 +614,7 @@ export default function SuperAdminDashboard() {
       )}
 
       {/* ── Infra + IA (compacto) ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="bg-slate-900 text-slate-50 border-t-4 border-t-cyan-400">
           <CardContent className="p-6">
             <div className="flex justify-between items-center mb-4">
@@ -655,6 +656,8 @@ export default function SuperAdminDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        <AIUsageRecentCard />
       </div>
 
       {/* ── Modal Nova Instituição ─────────────────────────────────────────── */}
