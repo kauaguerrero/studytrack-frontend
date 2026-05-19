@@ -13,6 +13,7 @@ import {
   Users, Brain, Database, GraduationCap, BarChart3,
   Calculator, ListChecks, Flag, ClipboardList, Plus, X,
   ExternalLink, Target, Activity, Github, TrendingUp, TrendingDown,
+  Settings,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -33,10 +34,13 @@ interface Org {
   founder: OrgFounder | null;
   logo_url: string | null;
   brand_primary: string;
+  brand_secondary: string;
+  brand_accent: string;
   contact_email: string | null;
   has_video_library: boolean;
   monthly_value: number | null;
   created_at: string;
+  allow_multiple_pending_essays: boolean;
 }
 
 interface PerOrgStats {
@@ -133,6 +137,14 @@ export default function SuperAdminDashboard() {
     contact_email: '', brand_primary: '#6366f1', brand_secondary: '#8b5cf6', brand_accent: '#f59e0b',
   });
   const [savingOrg, setSavingOrg]         = useState(false);
+  const [orgSettingsModal, setOrgSettingsModal] = useState<{ open: boolean; org: Org | null }>({ open: false, org: null });
+  const [settingsForm, setSettingsForm]   = useState({
+    name: '', slug: '', plan_tier: 'b2b_basic', max_students: 200,
+    contact_email: '', monthly_value: '', logo_url: '',
+    brand_primary: '#6366f1', brand_secondary: '#8b5cf6', brand_accent: '#f59e0b',
+    allow_multiple_pending_essays: false,
+  });
+  const [savingSettings, setSavingSettings] = useState(false);
   const [orgPeriod, setOrgPeriod]         = useState<OrgPeriod>('month');
   const [orgMetrics, setOrgMetrics]       = useState<Record<string, OrgMetrics>>({});
   const [loadingMetrics, setLoadingMetrics] = useState(false);
@@ -213,6 +225,54 @@ export default function SuperAdminDashboard() {
       if (res.ok) { setOrgModal({ open: false, org: null }); await fetchData(); }
     } finally {
       setSavingOrg(false);
+    }
+  }
+
+  function openOrgSettings(org: Org) {
+    setSettingsForm({
+      name: org.name,
+      slug: org.slug,
+      plan_tier: org.plan_tier,
+      max_students: org.max_students,
+      contact_email: org.contact_email ?? '',
+      monthly_value: org.monthly_value != null ? String(org.monthly_value) : '',
+      logo_url: org.logo_url ?? '',
+      brand_primary: org.brand_primary || '#6366f1',
+      brand_secondary: org.brand_secondary || '#8b5cf6',
+      brand_accent: org.brand_accent || '#f59e0b',
+      allow_multiple_pending_essays: org.allow_multiple_pending_essays ?? false,
+    });
+    setOrgSettingsModal({ open: true, org });
+  }
+
+  async function handleSaveSettings() {
+    if (!orgSettingsModal.org) return;
+    setSavingSettings(true);
+    try {
+      const payload: Record<string, unknown> = {
+        name: settingsForm.name,
+        slug: settingsForm.slug,
+        plan_tier: settingsForm.plan_tier,
+        max_students: Number(settingsForm.max_students),
+        contact_email: settingsForm.contact_email || null,
+        monthly_value: settingsForm.monthly_value ? Number(settingsForm.monthly_value) : null,
+        logo_url: settingsForm.logo_url || null,
+        brand_primary: settingsForm.brand_primary,
+        brand_secondary: settingsForm.brand_secondary,
+        brand_accent: settingsForm.brand_accent,
+        allow_multiple_pending_essays: settingsForm.allow_multiple_pending_essays,
+      };
+      const res = await fetch(`/api/admin/b2b/organizations/${orgSettingsModal.org.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        setOrgSettingsModal({ open: false, org: null });
+        await fetchData();
+      }
+    } finally {
+      setSavingSettings(false);
     }
   }
 
@@ -382,6 +442,13 @@ export default function SuperAdminDashboard() {
                       <p className="text-xs text-slate-400 dark:text-zinc-500">/{org.slug}</p>
                     </div>
                     <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${plan.cls}`}>{plan.label}</span>
+                    <button
+                      onClick={() => openOrgSettings(org)}
+                      title="Configurações da instituição"
+                      className="shrink-0 p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors"
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
                   {/* Capacidade + Mensalidade */}
@@ -659,6 +726,209 @@ export default function SuperAdminDashboard() {
 
         <AIUsageRecentCard />
       </div>
+
+      {/* ── Modal Configurações da Org ────────────────────────────────────── */}
+      {orgSettingsModal.open && orgSettingsModal.org && (() => {
+        const org = orgSettingsModal.org;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-2xl rounded-2xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 max-h-[92vh] overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-zinc-800">
+                <div className="flex items-center gap-3">
+                  {settingsForm.logo_url ? (
+                    <img src={settingsForm.logo_url} alt="" className="w-9 h-9 rounded-lg object-contain border border-slate-100 dark:border-zinc-700 bg-white" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: settingsForm.brand_primary }}>
+                      {settingsForm.name[0] ?? '?'}
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{org.name}</p>
+                    <p className="text-xs text-slate-400">Configurações da Instituição</p>
+                  </div>
+                </div>
+                <button onClick={() => setOrgSettingsModal({ open: false, org: null })} className="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Informações Básicas */}
+                <section>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Informações Básicas</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Nome</label>
+                      <input
+                        value={settingsForm.name}
+                        onChange={e => setSettingsForm(f => ({ ...f, name: e.target.value }))}
+                        className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Slug</label>
+                      <input
+                        value={settingsForm.slug}
+                        onChange={e => setSettingsForm(f => ({ ...f, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') }))}
+                        className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Plano</label>
+                      <select
+                        value={settingsForm.plan_tier}
+                        onChange={e => setSettingsForm(f => ({ ...f, plan_tier: e.target.value }))}
+                        className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400"
+                      >
+                        <option value="b2b_basic">Basic</option>
+                        <option value="b2b_pro">Pro</option>
+                        <option value="b2b_enterprise">Enterprise</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Máx. Alunos</label>
+                      <input
+                        type="number"
+                        value={settingsForm.max_students}
+                        onChange={e => setSettingsForm(f => ({ ...f, max_students: Number(e.target.value) }))}
+                        className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Email de Contato</label>
+                      <input
+                        value={settingsForm.contact_email}
+                        onChange={e => setSettingsForm(f => ({ ...f, contact_email: e.target.value }))}
+                        placeholder="contato@escola.com"
+                        className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Mensalidade (R$)</label>
+                      <input
+                        type="number"
+                        value={settingsForm.monthly_value}
+                        onChange={e => setSettingsForm(f => ({ ...f, monthly_value: e.target.value }))}
+                        placeholder="0"
+                        className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Founder */}
+                {org.founder && (
+                  <section>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Founder</p>
+                    <div className="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50 px-4 py-3">
+                      {org.founder.avatar_url ? (
+                        <img src={org.founder.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-zinc-600" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 font-bold text-sm">
+                          {(org.founder.full_name ?? org.founder.email ?? '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{org.founder.full_name ?? '—'}</p>
+                        <p className="text-xs text-slate-400 truncate">{org.founder.email ?? '—'}</p>
+                      </div>
+                    </div>
+                  </section>
+                )}
+
+                {/* Marca */}
+                <section>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Marca</p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">URL do Logo</label>
+                      <input
+                        value={settingsForm.logo_url}
+                        onChange={e => setSettingsForm(f => ({ ...f, logo_url: e.target.value }))}
+                        placeholder="https://..."
+                        className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">Cores da Marca</label>
+                      <div className="flex gap-3">
+                        {([
+                          ['brand_primary',   'Primária'  ] as const,
+                          ['brand_secondary', 'Secundária'] as const,
+                          ['brand_accent',    'Acento'    ] as const,
+                        ]).map(([key, label]) => (
+                          <div key={key} className="flex-1">
+                            <label className="block text-[10px] font-semibold text-slate-400 mb-1">{label}</label>
+                            <div className="relative">
+                              <input
+                                type="color"
+                                value={settingsForm[key]}
+                                onChange={e => setSettingsForm(f => ({ ...f, [key]: e.target.value }))}
+                                className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 cursor-pointer"
+                              />
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1 text-center font-mono">{settingsForm[key]}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Color preview strip */}
+                      <div className="mt-2 h-3 rounded-full overflow-hidden flex gap-0.5">
+                        <div className="flex-1 rounded-l-full" style={{ backgroundColor: settingsForm.brand_primary }} />
+                        <div className="flex-1" style={{ backgroundColor: settingsForm.brand_secondary }} />
+                        <div className="flex-1 rounded-r-full" style={{ backgroundColor: settingsForm.brand_accent }} />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Configurações de Redação */}
+                <section>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Redações</p>
+                  <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50 px-4 py-3 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+                    <div className="mt-0.5">
+                      <div
+                        onClick={() => setSettingsForm(f => ({ ...f, allow_multiple_pending_essays: !f.allow_multiple_pending_essays }))}
+                        className={`w-10 h-6 rounded-full relative transition-colors cursor-pointer ${
+                          settingsForm.allow_multiple_pending_essays ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-zinc-600'
+                        }`}
+                      >
+                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                          settingsForm.allow_multiple_pending_essays ? 'translate-x-5' : 'translate-x-1'
+                        }`} />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Múltiplas redações pendentes</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Quando ativo, alunos podem enviar novas redações mesmo sem correção das anteriores.
+                        Por padrão cada aluno precisa aguardar a correção antes de enviar outra.
+                      </p>
+                    </div>
+                  </label>
+                </section>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100 dark:border-zinc-800">
+                <button
+                  onClick={() => setOrgSettingsModal({ open: false, org: null })}
+                  className="px-4 py-2 text-sm text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveSettings}
+                  disabled={savingSettings || !settingsForm.name.trim() || !settingsForm.slug.trim()}
+                  className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 disabled:opacity-50 transition-all"
+                >
+                  {savingSettings ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Modal Nova Instituição ─────────────────────────────────────────── */}
       {orgModal.open && (
