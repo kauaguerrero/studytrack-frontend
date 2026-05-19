@@ -2,6 +2,61 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+const PROMPT_IMAGES_BUCKET = 'essay-prompt-images';
+
+function normalizeSupportItemType(rawType: unknown, rawContent: unknown) {
+  if (rawType === 'text' || rawType === 'image' || rawType === 'link') return rawType;
+  if (rawType === 'img' || rawType === 'photo' || rawType === 'figure') return 'image';
+  if (rawType === 'url') return 'link';
+  if (typeof rawContent === 'string' && rawContent.includes('/storage/v1/object/public/')) return 'image';
+  return null;
+}
+
+function resolveSupportItemContent(item: Record<string, unknown>, admin: ReturnType<typeof createAdminClient>) {
+  const directCandidate =
+    item.content ?? item.url ?? item.href ?? item.image_url ?? item.imageUrl ?? '';
+
+  if (typeof directCandidate === 'string' && directCandidate.trim()) {
+    return directCandidate.trim();
+  }
+
+  const storagePathCandidate =
+    item.path ?? item.storage_path ?? item.storagePath ?? item.file_path ?? item.filePath ?? '';
+
+  if (typeof storagePathCandidate !== 'string' || !storagePathCandidate.trim()) {
+    return '';
+  }
+
+  const storagePath = storagePathCandidate.trim().replace(/^\/+/, '');
+  const { data } = admin.storage.from(PROMPT_IMAGES_BUCKET).getPublicUrl(storagePath);
+  return data?.publicUrl?.trim() || '';
+}
+
+function sanitizeSupportItems(items: unknown, admin: ReturnType<typeof createAdminClient>) {
+  if (!Array.isArray(items)) return [];
+
+  return items.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+
+    const rawItem = item as Record<string, unknown>;
+    const rawType = rawItem.type ?? null;
+    const rawContent = resolveSupportItemContent(rawItem, admin);
+    const rawLabel =
+      'label' in rawItem ? rawItem.label
+      : 'caption' in rawItem ? rawItem.caption
+      : 'title' in rawItem ? rawItem.title
+      : undefined;
+
+    const type = normalizeSupportItemType(rawType, rawContent);
+    const content = typeof rawContent === 'string' ? rawContent.trim() : '';
+    const label = typeof rawLabel === 'string' ? rawLabel.trim() : undefined;
+
+    if (!type || !content) return [];
+
+    return [{ type, content, ...(label ? { label } : {}) }];
+  });
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string; id: string }> },
@@ -31,7 +86,7 @@ export async function PATCH(
 
   if (body.title !== undefined) update.title = String(body.title).trim();
   if (body.description !== undefined) update.description = body.description?.trim() || null;
-  if (body.support_items !== undefined) update.support_items = Array.isArray(body.support_items) ? body.support_items : [];
+  if (body.support_items !== undefined) update.support_items = sanitizeSupportItems(body.support_items, admin);
   if (body.is_active !== undefined) update.is_active = Boolean(body.is_active);
   if (body.essay_type !== undefined) {
     const VALID_TYPES = ['enem', 'ufu', 'ueg'];
