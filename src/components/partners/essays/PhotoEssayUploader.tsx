@@ -18,6 +18,8 @@ const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const VALID_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const UPLOAD_TARGET_BYTES = 3.5 * 1024 * 1024; // margem segura abaixo do limite de 4.5MB do Vercel
 const MAX_DIMENSION = 1920;
+const TRANSCRIPTION_TIMEOUT_MS = 90_000;
+const CONFIRM_TIMEOUT_MS = 90_000;
 
 async function compressImage(file: File): Promise<File> {
   return new Promise((resolve) => {
@@ -30,38 +32,49 @@ async function compressImage(file: File): Promise<File> {
     const objectUrl = URL.createObjectURL(file);
 
     img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
+      try {
+        URL.revokeObjectURL(objectUrl);
 
-      let { width, height } = img;
-      if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-        const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
-        width = Math.round(width * ratio);
-        height = Math.round(height * ratio);
+        let { width, height } = img;
+        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+          const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // tenta qualidade 0.85 primeiro, se ainda for grande usa 0.70
+        canvas.toBlob(
+          (blob85) => {
+            if (blob85 && blob85.size <= UPLOAD_TARGET_BYTES) {
+              resolve(new File([blob85], 'redacao.jpg', { type: 'image/jpeg' }));
+              return;
+            }
+            canvas.toBlob(
+              (blob70) => {
+                resolve(new File([blob70 ?? blob85 ?? file], 'redacao.jpg', { type: 'image/jpeg' }));
+              },
+              'image/jpeg',
+              0.70,
+            );
+          },
+          'image/jpeg',
+          0.85,
+        );
+      } catch {
+        resolve(file);
       }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
-
-      // tenta qualidade 0.85 primeiro, se ainda for grande usa 0.70
-      canvas.toBlob(
-        (blob85) => {
-          if (blob85 && blob85.size <= UPLOAD_TARGET_BYTES) {
-            resolve(new File([blob85], 'redacao.jpg', { type: 'image/jpeg' }));
-            return;
-          }
-          canvas.toBlob(
-            (blob70) => {
-              resolve(new File([blob70 ?? blob85 ?? file], 'redacao.jpg', { type: 'image/jpeg' }));
-            },
-            'image/jpeg',
-            0.70,
-          );
-        },
-        'image/jpeg',
-        0.85,
-      );
     };
 
     img.onerror = () => {
@@ -71,6 +84,20 @@ async function compressImage(file: File): Promise<File> {
 
     img.src = objectUrl;
   });
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 const SCENES = [
@@ -254,17 +281,17 @@ export function PhotoEssayUploader({
     if (!selectedFile) return;
     setUploadState('transcribing');
 
-    const fileToUpload = await compressImage(selectedFile);
-    const formData = new FormData();
-    formData.append('file', fileToUpload);
-    formData.append('theme', theme);
-    formData.append('essay_type', essayType);
-
     try {
-      const res = await fetch(`/api/partners/${slug}/essays/upload-image`, {
+      const fileToUpload = await compressImage(selectedFile);
+      const formData = new FormData();
+      formData.append('file', fileToUpload);
+      formData.append('theme', theme);
+      formData.append('essay_type', essayType);
+
+      const res = await fetchWithTimeout(`/api/partners/${slug}/essays/upload-image`, {
         method: 'POST',
         body: formData,
-      });
+      }, TRANSCRIPTION_TIMEOUT_MS);
 
       const data = await res.json().catch(() => null);
 
@@ -276,9 +303,13 @@ export function PhotoEssayUploader({
 
       setTranscription(data?.transcription ?? '');
       setUploadState('review');
-    } catch {
+    } catch (error) {
       setUploadState('error');
-      setErrorMessage('Não foi possível conectar ao servidor. Tente novamente.');
+      setErrorMessage(
+        error instanceof DOMException && error.name === 'AbortError'
+          ? 'A transcrição demorou mais do que o esperado. Tente novamente.'
+          : 'Não foi possível conectar ao servidor. Tente novamente.',
+      );
     }
   }
 
@@ -286,19 +317,19 @@ export function PhotoEssayUploader({
     if (!selectedFile || !isValidText) return;
     setUploadState('confirming');
 
-    const fileToUpload = await compressImage(selectedFile);
-    const formData = new FormData();
-    formData.append('file', fileToUpload);
-    formData.append('theme', theme);
-    formData.append('essay_type', essayType);
-    formData.append('confirmed_text', transcription.trim());
-    if (promptId) formData.append('prompt_id', promptId);
-
     try {
-      const res = await fetch(`/api/partners/${slug}/essays/upload-image/confirm`, {
+      const fileToUpload = await compressImage(selectedFile);
+      const formData = new FormData();
+      formData.append('file', fileToUpload);
+      formData.append('theme', theme);
+      formData.append('essay_type', essayType);
+      formData.append('confirmed_text', transcription.trim());
+      if (promptId) formData.append('prompt_id', promptId);
+
+      const res = await fetchWithTimeout(`/api/partners/${slug}/essays/upload-image/confirm`, {
         method: 'POST',
         body: formData,
-      });
+      }, CONFIRM_TIMEOUT_MS);
 
       const data = await res.json().catch(() => null);
 
@@ -309,9 +340,13 @@ export function PhotoEssayUploader({
       }
 
       onSuccess(data?.essay_id ?? '');
-    } catch {
+    } catch (error) {
       setUploadState('error');
-      setErrorMessage('Não foi possível conectar ao servidor. Tente novamente.');
+      setErrorMessage(
+        error instanceof DOMException && error.name === 'AbortError'
+          ? 'O envio demorou mais do que o esperado. Tente novamente.'
+          : 'Não foi possível conectar ao servidor. Tente novamente.',
+      );
     }
   }
 
@@ -589,7 +624,22 @@ export function PhotoEssayUploader({
     return (
       <>
         {modal}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
+          {previewUrl && (
+            <div className="space-y-1.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewUrl}
+                alt="Pré-visualização da redação"
+                className="max-h-52 w-full rounded-xl border border-slate-200 object-contain dark:border-slate-700"
+              />
+              {selectedFile && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {selectedFile.name} · {(selectedFile.size / 1024 / 1024).toFixed(1)} MB
+                </p>
+              )}
+            </div>
+          )}
           <div className="flex flex-col items-center justify-center gap-4 py-10 text-center">
             <Loader2 className="h-8 w-8 animate-spin text-slate-500 dark:text-slate-400" />
             <p className="text-sm font-medium text-slate-700 dark:text-slate-200">

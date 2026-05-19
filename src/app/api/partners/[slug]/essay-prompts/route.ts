@@ -2,6 +2,61 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+const PROMPT_IMAGES_BUCKET = 'essay-prompt-images';
+
+function normalizeSupportItemType(rawType: unknown, rawContent: unknown) {
+  if (rawType === 'text' || rawType === 'image' || rawType === 'link') return rawType;
+  if (rawType === 'img' || rawType === 'photo' || rawType === 'figure') return 'image';
+  if (rawType === 'url') return 'link';
+  if (typeof rawContent === 'string' && rawContent.includes('/storage/v1/object/public/')) return 'image';
+  return null;
+}
+
+function resolveSupportItemContent(item: Record<string, unknown>, admin: ReturnType<typeof createAdminClient>) {
+  const directCandidate =
+    item.content ?? item.url ?? item.href ?? item.image_url ?? item.imageUrl ?? '';
+
+  if (typeof directCandidate === 'string' && directCandidate.trim()) {
+    return directCandidate.trim();
+  }
+
+  const storagePathCandidate =
+    item.path ?? item.storage_path ?? item.storagePath ?? item.file_path ?? item.filePath ?? '';
+
+  if (typeof storagePathCandidate !== 'string' || !storagePathCandidate.trim()) {
+    return '';
+  }
+
+  const storagePath = storagePathCandidate.trim().replace(/^\/+/, '');
+  const { data } = admin.storage.from(PROMPT_IMAGES_BUCKET).getPublicUrl(storagePath);
+  return data?.publicUrl?.trim() || '';
+}
+
+function sanitizeSupportItems(items: unknown, admin: ReturnType<typeof createAdminClient>) {
+  if (!Array.isArray(items)) return [];
+
+  return items.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+
+    const rawItem = item as Record<string, unknown>;
+    const rawType = rawItem.type ?? null;
+    const rawContent = resolveSupportItemContent(rawItem, admin);
+    const rawLabel =
+      'label' in rawItem ? rawItem.label
+      : 'caption' in rawItem ? rawItem.caption
+      : 'title' in rawItem ? rawItem.title
+      : undefined;
+
+    const type = normalizeSupportItemType(rawType, rawContent);
+    const content = typeof rawContent === 'string' ? rawContent.trim() : '';
+    const label = typeof rawLabel === 'string' ? rawLabel.trim() : undefined;
+
+    if (!type || !content) return [];
+
+    return [{ type, content, ...(label ? { label } : {}) }];
+  });
+}
+
 async function getOrgAndRequester(slug: string) {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
@@ -44,7 +99,12 @@ export async function GET(
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ prompts: data ?? [] });
+  return NextResponse.json({
+    prompts: (data ?? []).map((prompt: any) => ({
+      ...prompt,
+      support_items: sanitizeSupportItems(prompt.support_items, admin),
+    })),
+  });
 }
 
 export async function POST(
@@ -79,7 +139,7 @@ export async function POST(
       org_id: org.id,
       title: title.trim(),
       description: description?.trim() || null,
-      support_items: Array.isArray(support_items) ? support_items : [],
+      support_items: sanitizeSupportItems(support_items, admin),
       is_active: true,
       essay_type: resolvedType,
       starts_at: starts_at || null,

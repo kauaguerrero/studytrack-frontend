@@ -38,6 +38,43 @@ interface EssayPrompt {
   essay_type?: string;
 }
 
+function normalizeSupportItems(items: unknown): SupportItem[] {
+  if (!Array.isArray(items)) return [];
+
+  return items.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+
+    const rawType = 'type' in item ? item.type : null;
+    const rawContent =
+      'content' in item ? item.content
+      : 'url' in item ? item.url
+      : 'href' in item ? item.href
+      : 'image_url' in item ? item.image_url
+      : 'imageUrl' in item ? item.imageUrl
+      : '';
+    const rawLabel =
+      'label' in item ? item.label
+      : 'caption' in item ? item.caption
+      : 'title' in item ? item.title
+      : undefined;
+
+    const type =
+      rawType === 'text' || rawType === 'image' || rawType === 'link'
+        ? rawType
+        : rawType === 'img' || rawType === 'photo' || rawType === 'figure'
+          ? 'image'
+          : rawType === 'url'
+            ? 'link'
+            : null;
+    const content = typeof rawContent === 'string' ? rawContent.trim() : '';
+    const label = typeof rawLabel === 'string' ? rawLabel.trim() : undefined;
+
+    if (!type || !content) return [];
+
+    return [{ type, content, ...(label ? { label } : {}) }];
+  });
+}
+
 export default function NovaRedacaoPage() {
   const { slug } = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
@@ -108,7 +145,12 @@ export default function NovaRedacaoPage() {
       .then((r) => r.json())
       .then((data) => {
         if (!mounted) return;
-        const allPrompts = Array.isArray(data?.prompts) ? data.prompts as EssayPrompt[] : [];
+        const allPrompts = Array.isArray(data?.prompts)
+          ? (data.prompts as EssayPrompt[]).map((prompt) => ({
+              ...prompt,
+              support_items: normalizeSupportItems(prompt.support_items),
+            }))
+          : [];
         const activePrompts = allPrompts.filter((p) => p.is_active !== false);
         setAvailablePrompts(activePrompts);
         if (!promptId) return;
@@ -326,7 +368,7 @@ export default function NovaRedacaoPage() {
                           {item.content}
                         </p>
                       )}
-                      {item.type === 'image' && (
+                      {item.type === 'image' && item.content && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={item.content}
@@ -334,7 +376,7 @@ export default function NovaRedacaoPage() {
                           className="rounded-xl max-w-full border border-slate-200 dark:border-slate-700"
                         />
                       )}
-                      {item.type === 'link' && (
+                      {item.type === 'link' && item.content && (
                         <a
                           href={item.content}
                           target="_blank"
