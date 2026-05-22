@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, XCircle, BrainCircuit, Flag } from 'lucide-react';
+import { ArrowUp, BookOpen, CheckCircle2, XCircle, BrainCircuit, Flag } from 'lucide-react';
 import { reportError } from '@/lib/reportError';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
 import {
@@ -55,9 +55,11 @@ interface QuestionCardProps {
     gamification?: { points_awarded: number; shield_awarded?: boolean };
   }) => void;
   onReportError?: () => void;
+  testletInfo?: { position: number; total: number };
+  suppressContext?: boolean;
 }
 
-export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onReportError }: QuestionCardProps) {
+export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onReportError, testletInfo, suppressContext = false }: QuestionCardProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -169,6 +171,11 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
               {question.bank}
             </span>
           )}
+          {testletInfo && (
+            <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider">
+              Testlet {testletInfo.position}/{testletInfo.total}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {onReportError && (
@@ -188,21 +195,35 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
         </div>
       </div>
 
-      {contextSegments.body && (
+      {testletInfo?.position === 1 && !suppressContext && (
+        <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm font-semibold text-amber-800 flex items-center gap-2">
+          <BookOpen size={16} className="shrink-0" />
+          Leia o texto a seguir para responder {testletInfo.total > 1 ? `as próximas ${testletInfo.total} questões` : 'a questão'}
+        </div>
+      )}
+
+      {testletInfo && testletInfo.position > 1 && !suppressContext && (
+        <div className="mb-4 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500 flex items-center gap-1.5">
+          <ArrowUp size={12} />
+          Referente ao texto da questão anterior
+        </div>
+      )}
+
+      {!suppressContext && contextSegments.body && (
         <QuestionRichText
           text={contextSegments.body}
           className="prose prose-slate dark:prose-invert prose-sm max-w-none mb-6 text-muted-foreground border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed"
         />
       )}
 
-      {contextSegments.source && (
+      {!suppressContext && contextSegments.source && (
         <QuestionRichText
           text={contextSegments.source}
           className="prose prose-slate dark:prose-invert prose-xs max-w-none -mt-3 mb-5 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
         />
       )}
 
-      {supportImages.length > 0 && (
+      {!suppressContext && supportImages.length > 0 && (
         <div className="mb-6">
           {supportImages.map((img, i) => (
             <div key={i} className="mb-6 flex justify-center bg-muted p-4 rounded-xl border border-border">

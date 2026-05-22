@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
+import PersonalizedSimuladoWizard from '@/app/partners/[slug]/simulados/PersonalizedSimuladoWizard';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import {
   Plus, ChevronDown, Trophy, Users, BarChart2,
   CalendarDays, Pencil, Trash2, Play, Timer, BookOpen, X, SlidersHorizontal,
+  Shuffle, ListChecks,
 } from 'lucide-react';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
@@ -237,6 +239,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   const [simulados, setSimulados] = useState<ScheduledSimulado[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [showPersonalizedWizard, setShowPersonalizedWizard] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -507,7 +511,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
             {!showForm && (
               <button
                 type="button"
-                onClick={() => { setShowForm(true); setEditingId(null); setForm(EMPTY_FORM); }}
+                onClick={() => { setShowTypeSelector(true); setEditingId(null); setForm(EMPTY_FORM); }}
                 className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:brightness-110"
                 style={{ backgroundColor: 'var(--brand-primary)' }}
               >
@@ -793,6 +797,72 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 </div>
               </div>
             </div>
+          )}
+
+          {showTypeSelector && (
+            <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px]">
+              <div className="flex h-full items-center justify-center p-4">
+                <div className="w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--brand-primary)' }}>
+                        Novo simulado
+                      </p>
+                      <h2 className="mt-1 text-xl font-extrabold text-slate-900">Escolha o tipo de criação</h2>
+                      <p className="mt-1 text-sm text-slate-500">Use o fluxo atual para sorteio automático ou monte o simulado questão por questão.</p>
+                    </div>
+                    <button type="button" onClick={() => setShowTypeSelector(false)} className="rounded-xl border border-slate-300 p-2 text-slate-600">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTypeSelector(false);
+                        setShowForm(true);
+                        setEditingId(null);
+                        setForm(EMPTY_FORM);
+                      }}
+                      className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                    >
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                        <Shuffle className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-base font-bold text-slate-900">Simulado Aleatório</h3>
+                      <p className="mt-2 text-sm text-slate-500">O sistema seleciona questões automaticamente com base nas configurações de banca, formato e dificuldade.</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowTypeSelector(false);
+                        setShowPersonalizedWizard(true);
+                      }}
+                      className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                    >
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                        <ListChecks className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-base font-bold text-slate-900">Simulado Personalizado</h3>
+                      <p className="mt-2 text-sm text-slate-500">Monte questão por questão: escolha do banco, gere com IA ou crie do zero.</p>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showPersonalizedWizard && (
+            <PersonalizedSimuladoWizard
+              slug={slug}
+              onClose={() => setShowPersonalizedWizard(false)}
+              onCreated={() => {
+                setShowPersonalizedWizard(false);
+                void loadSimulados();
+              }}
+            />
           )}
 
           {/* Lista de simulados */}

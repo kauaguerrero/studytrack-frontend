@@ -230,6 +230,12 @@ export default function NovaRedacaoPage() {
           points_to_top3: reward.points_to_top3 ?? null,
           shield_awarded: reward.shield_awarded,
         });
+      } else if (reward?.cooldown) {
+        const mins = reward.cooldown_remaining_minutes ?? 90;
+        toast.success(
+          `Redação enviada com sucesso! Porém faltam ${mins}min para sua próxima redação pontuada.`,
+        );
+        router.push(`/partners/${slug}/student/redacoes`);
       } else {
         toast.success('Redação enviada! Você será notificado quando o professor corrigir.');
         router.push(`/partners/${slug}/student/redacoes`);
