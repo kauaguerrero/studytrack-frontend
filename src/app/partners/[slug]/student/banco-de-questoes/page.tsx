@@ -6,7 +6,7 @@
  * Apenas o layout/UI foi elevado: brand colors, mobile-first, Framer Motion, Dark Mode.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
@@ -414,6 +414,28 @@ export default function BancoDeQuestoes() {
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────
   const currentQ = questions[currentIdx];
+  const testletPositionMap = useMemo(() => {
+    const map = new Map<string, { position: number; total: number }>();
+    const groupCounts = new Map<string, number>();
+    for (const q of questions) {
+      if (q.testlet_group_id) {
+        groupCounts.set(q.testlet_group_id, (groupCounts.get(q.testlet_group_id) || 0) + 1);
+      }
+    }
+    const groupCounters = new Map<string, number>();
+    for (const q of questions) {
+      if (q.testlet_group_id) {
+        const position = (groupCounters.get(q.testlet_group_id) || 0) + 1;
+        groupCounters.set(q.testlet_group_id, position);
+        map.set(q.id, {
+          position,
+          total: groupCounts.get(q.testlet_group_id) || position,
+        });
+      }
+    }
+    return map;
+  }, [questions]);
+  const currentTestletInfo = currentQ ? testletPositionMap.get(currentQ.id) : undefined;
   const isNextDisabled = currentIdx === questions.length - 1;
 
   useEffect(() => {
@@ -834,7 +856,7 @@ export default function BancoDeQuestoes() {
                 style={isTabTodo ? { background: 'var(--brand-primary)' } : {}}
               />
               <div
-                className={`relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden ${isLockedByQuota ? 'blur-[2px] pointer-events-none select-none' : ''
+                className={`relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden ${currentTestletInfo && currentTestletInfo.position > 1 ? 'border-l-4 border-l-amber-200 pl-4 -ml-4' : ''} ${isLockedByQuota ? 'blur-[2px] pointer-events-none select-none' : ''
                   }`}
               >
                 <QuestionCard
@@ -854,6 +876,8 @@ export default function BancoDeQuestoes() {
                     explanation: currentQ.explanation,
                     images: currentQ.images,
                   }}
+                  testletInfo={currentTestletInfo}
+                  suppressContext={currentTestletInfo !== undefined && currentTestletInfo.position > 1}
                   onQuotaReached={handleQuotaLimitReached}
                   onAnswer={(result) => handleAnswerResult(currentQ.id, result)}
                   onReportError={() => {

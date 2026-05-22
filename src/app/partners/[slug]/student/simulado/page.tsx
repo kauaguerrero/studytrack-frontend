@@ -11,7 +11,7 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence, useAnimation, useReducedMotion } from 'framer-motion'
 import {
-  Timer, ArrowRight, ArrowLeft, CheckCircle2, Play, RotateCcw,
+  Timer, ArrowRight, ArrowLeft, ArrowUp, CheckCircle2, Play, RotateCcw,
   Trophy, BookOpen, History, Brain, ChevronDown, ChevronLeft, TrendingUp,
   Medal, BarChart3, Plus, Clock, Zap, Flag, EyeOff, Target,
 } from 'lucide-react'
@@ -45,6 +45,7 @@ interface Question {
   bank?: string; difficulty?: string; exam_year?: number
   context: string; statement: string; images?: unknown; alternatives: Alternative[]
   correct_option: string
+  testlet_group_id?: string | null
 }
 
 interface SubjectResult { correct: number; total: number; percentage: number }
@@ -447,6 +448,9 @@ export default function SimuladoPage() {
   const [currentIdx, setCurrentIdx] = useState(0)
   const [userAnswers, setUserAnswers] = useState<Record<string, string>>({})
   const questionTopRef = useRef<HTMLDivElement>(null)
+  const quizMainRef = useRef<HTMLElement>(null)
+  const testletQuestionRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const lastScrollAnchorRef = useRef<string | null>(null)
   const [timeLeft, setTimeLeft] = useState(0)
   const [hasTimeLimit, setHasTimeLimit] = useState(false)
   const [questionElapsed, setQuestionElapsed] = useState(0)
@@ -722,11 +726,65 @@ export default function SimuladoPage() {
     }
   }, [timeLeft, step, timerShakeControls, shouldReduce])
 
+  const currentQuestion = questions[currentIdx]
+  const currentTestletInfo = (() => {
+    if (!currentQuestion?.testlet_group_id) return undefined
+    const groupQuestions = questions.filter(q => q.testlet_group_id === currentQuestion.testlet_group_id)
+    const position = groupQuestions.findIndex(q => q.id === currentQuestion.id) + 1
+    return { position, total: groupQuestions.length }
+  })()
+  const currentTestletGroupId = currentQuestion?.testlet_group_id || null
+  const currentGroupQuestions = currentTestletGroupId
+    ? questions.filter(q => q.testlet_group_id === currentTestletGroupId)
+    : currentQuestion ? [currentQuestion] : []
+  const currentGroupStartIdx = currentTestletGroupId
+    ? questions.findIndex(q => q.testlet_group_id === currentTestletGroupId)
+    : currentIdx
+  const currentGroupEndIdx = currentTestletGroupId
+    ? questions.reduce((lastIdx, q, idx) => (q.testlet_group_id === currentTestletGroupId ? idx : lastIdx), currentGroupStartIdx)
+    : currentIdx
+  const isCurrentGroupTestlet = Boolean(currentTestletGroupId && currentGroupQuestions.length > 1)
+  const currentGroupContextQuestion = currentGroupQuestions[0]
+
   // ── Scroll to top of question on navigate ──
   useEffect(() => {
     if (step !== 'quiz') return
+    const anchorKey = isCurrentGroupTestlet ? `group-${currentGroupStartIdx}` : `question-${currentIdx}`
+    if (lastScrollAnchorRef.current === anchorKey) return
+    lastScrollAnchorRef.current = anchorKey
     questionTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [currentIdx, step])
+  }, [currentGroupStartIdx, currentIdx, isCurrentGroupTestlet, step])
+
+  useEffect(() => {
+    if (step !== 'quiz' || !isCurrentGroupTestlet || !quizMainRef.current) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+        const topEntry = visible[0]
+        if (!topEntry) return
+        const nextId = topEntry.target.getAttribute('data-question-id')
+        if (!nextId) return
+        const nextIndex = questions.findIndex((q) => q.id === nextId)
+        if (nextIndex >= 0 && nextIndex !== currentIdx) {
+          setCurrentIdx(nextIndex)
+        }
+      },
+      {
+        root: quizMainRef.current,
+        threshold: [0.35, 0.6, 0.85],
+      }
+    )
+
+    currentGroupQuestions.forEach((question) => {
+      const node = testletQuestionRefs.current[question.id]
+      if (node) observer.observe(node)
+    })
+
+    return () => observer.disconnect()
+  }, [currentIdx, currentGroupQuestions, isCurrentGroupTestlet, questions, step])
 
   // ── Per-question elapsed timer (resets on question change) ──
   useEffect(() => {
@@ -1039,9 +1097,8 @@ export default function SimuladoPage() {
 
   const handleTimeExpired = () => submitFinish(userAnswers)
   const confirmFinish = () => { setFinishDialogOpen(false); submitFinish(userAnswers) }
-  const handleSelectOption = (letter: string) => {
-    const q = questions[currentIdx]
-    setUserAnswers(prev => ({ ...prev, [q.id]: letter }))
+  const handleSelectOption = (questionId: string, letter: string) => {
+    setUserAnswers(prev => ({ ...prev, [questionId]: letter }))
   }
   const resetSimulado = (openModal = false) => {
     setStep('setup'); setQuestions([]); setCurrentIdx(0); setUserAnswers({}); setTimeLeft(0)
@@ -1078,6 +1135,27 @@ export default function SimuladoPage() {
   const annulledCount = finishResult?.annulled_questions_count ?? reportedQuestionIds.size
   const celebration = celebrationMessage(displayPct)
   const isTimeCritical = timeLeft > 0 && timeLeft <= 300
+
+  const goToQuestionIndex = (nextIndex: number) => {
+    setCurrentIdx(Math.max(0, Math.min(nextIndex, questions.length - 1)))
+  }
+
+  const goToPreviousGroup = () => {
+    if (currentGroupStartIdx <= 0) return
+    const previousQuestion = questions[currentGroupStartIdx - 1]
+    if (!previousQuestion) return
+    if (previousQuestion.testlet_group_id) {
+      const previousGroupStart = questions.findIndex((q) => q.testlet_group_id === previousQuestion.testlet_group_id)
+      goToQuestionIndex(previousGroupStart >= 0 ? previousGroupStart : currentGroupStartIdx - 1)
+      return
+    }
+    goToQuestionIndex(currentGroupStartIdx - 1)
+  }
+
+  const goToNextGroup = () => {
+    if (currentGroupEndIdx >= questions.length - 1) return
+    goToQuestionIndex(currentGroupEndIdx + 1)
+  }
 
   useEffect(() => {
     if (!accessToken || !showConfigModal || mode !== 'custom') return
@@ -1964,7 +2042,7 @@ export default function SimuladoPage() {
           </div>
 
           {/* Question — único elemento que scrolla */}
-          <main className="flex-1 overflow-y-auto overscroll-y-contain">
+          <main ref={quizMainRef} className="flex-1 overflow-y-auto overscroll-y-contain">
             <div className="max-w-3xl mx-auto w-full px-4 py-6">
             <div ref={questionTopRef} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
               {/* Tags */}
@@ -1986,6 +2064,11 @@ export default function SimuladoPage() {
                   {questions[currentIdx].difficulty && (
                     <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
                       {questions[currentIdx].difficulty}
+                    </span>
+                  )}
+                  {currentTestletInfo && (
+                    <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1 rounded-full border border-amber-200">
+                      Testlet {currentTestletInfo.position}/{currentTestletInfo.total}
                     </span>
                   )}
                   {questions[currentIdx].topic && (
@@ -2014,9 +2097,15 @@ export default function SimuladoPage() {
               </div>
 
               {/* Context */}
-              {questions[currentIdx].context && (
+              {isCurrentGroupTestlet && (
+                <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm font-semibold text-amber-800 flex items-center gap-2">
+                  <BookOpen size={16} className="shrink-0" />
+                  Leia o texto a seguir para responder as próximas {currentGroupQuestions.length} questões
+                </div>
+              )}
+              {currentGroupContextQuestion?.context && (
                 <QuestionRichText
-                  text={questions[currentIdx].context}
+                  text={currentGroupContextQuestion.context}
                   className="prose prose-slate dark:prose-invert max-w-none mb-5 text-slate-600 dark:text-slate-300 border-l-4 pl-4 text-sm leading-relaxed"
                   style={{ borderColor: 'var(--brand-primary)' }}
                 />
@@ -2025,15 +2114,15 @@ export default function SimuladoPage() {
               {/* Imagens de apoio */}
               {(() => {
                 const supportImages = extractDetachedQuestionImageUrls(
-                  questions[currentIdx].images,
-                  questions[currentIdx].context,
-                  questions[currentIdx].statement,
+                  currentGroupContextQuestion?.images,
+                  currentGroupContextQuestion?.context,
+                  currentGroupContextQuestion?.statement,
                 )
                 if (supportImages.length === 0) return null
                 return (
                   <div className="mb-5">
                     {supportImages.map((img, i) => (
-                      <div key={`${questions[currentIdx].id}-img-${i}`} className="mb-5 flex justify-center bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <div key={`${currentGroupContextQuestion?.id || 'group'}-img-${i}`} className="mb-5 flex justify-center bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
                         <img src={img} alt="Imagem de apoio da questão" className="max-h-40 md:max-h-52 w-auto max-w-full object-contain rounded-lg" />
                       </div>
                     ))}
@@ -2041,76 +2130,147 @@ export default function SimuladoPage() {
                 )
               })()}
 
-              {/* Statement */}
-              <QuestionRichText
-                text={questions[currentIdx].statement}
-                className="prose prose-slate dark:prose-invert max-w-none text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed"
-              />
-
-              {/* Alternatives */}
-              <div className="space-y-3">
-                {questions[currentIdx].alternatives?.map(alt => {
-                  const isSelected = userAnswers[questions[currentIdx].id] === alt.letter
-                  const isAnnulled = reportedQuestionIds.has(questions[currentIdx].id)
-                  const alternativeImages = extractAlternativeImageUrls(alt)
-                  return (
-                    <button key={alt.letter} onClick={() => handleSelectOption(alt.letter)} disabled={isAnnulled}
-                      className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start active:scale-[0.99] ${isAnnulled ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40' : isSelected ? 'shadow-sm cursor-pointer' : 'bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-pointer'}`}
-                      style={isSelected ? {
-                        background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)', // transparent on dark mode mixes better
-                        borderColor: 'var(--brand-primary)',
-                      } : {}}>
-                      <span className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-extrabold shrink-0 transition-colors ${isSelected ? 'border-transparent' : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-200 border-slate-200 dark:border-slate-600'}`}
-                        style={isSelected ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>
-                        {alt.letter}
-                      </span>
-                      <div className="flex-1 pt-1">
-                        {alternativeImages.length > 0 && (
-                          <div className="mb-2">
-                            {alternativeImages.map((imageUrl, imageIndex) => (
-                              <img
-                                key={`${alt.letter}-img-${imageIndex}`}
-                                src={imageUrl}
-                                alt={`Alternativa ${alt.letter}`}
-                                className={`max-h-32 md:max-h-36 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white ${imageIndex > 0 ? 'mt-2' : ''}`}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        {alt.text ? (
-                          <QuestionRichText
-                            text={alt.text}
-                            className={`text-sm leading-snug ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
-                            style={isSelected ? { color: 'var(--brand-primary)' } : undefined}
-                          />
-                        ) : alternativeImages.length === 0 ? (
-                          <span className="text-sm italic text-slate-400 dark:text-slate-500">
-                            Conteúdo da alternativa indisponível.
-                          </span>
-                        ) : null}
+              <div className="space-y-6">
+                {currentGroupQuestions.map((question, groupIndex) => (
+                  <div
+                    key={question.id}
+                    ref={(node) => { testletQuestionRefs.current[question.id] = node }}
+                    data-question-id={question.id}
+                    className={`rounded-2xl border p-5 scroll-mt-24 ${isCurrentGroupTestlet ? 'border-slate-200 bg-slate-50/70' : 'border-transparent bg-transparent p-0'}`}
+                  >
+                    {isCurrentGroupTestlet && groupIndex > 0 && (
+                      <div className="mb-4 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500 flex items-center gap-1.5">
+                        <ArrowUp size={12} />
+                        Referente ao texto-base acima
                       </div>
-                    </button>
-                  )
-                })}
+                    )}
+                    {isCurrentGroupTestlet && (
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1 rounded-full border border-amber-200">
+                            Testlet {groupIndex + 1}/{currentGroupQuestions.length}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReportQuestionId(question.id)
+                            setReportDialogOpen(true)
+                          }}
+                          className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-slate-500 dark:text-slate-300 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100 shrink-0"
+                          title="Reportar erro nesta questão"
+                        >
+                          <Flag className="h-3.5 w-3.5" />
+                          Reportar erro
+                        </button>
+                      </div>
+                    )}
+
+                    <QuestionRichText
+                      text={question.statement}
+                      className="prose prose-slate dark:prose-invert max-w-none text-base md:text-lg text-slate-900 dark:text-slate-50 font-medium mb-7 leading-relaxed"
+                    />
+
+                    <div className="space-y-3">
+                      {question.alternatives?.map(alt => {
+                        const isSelected = userAnswers[question.id] === alt.letter
+                        const isAnnulled = reportedQuestionIds.has(question.id)
+                        const alternativeImages = extractAlternativeImageUrls(alt)
+                        return (
+                          <button key={`${question.id}-${alt.letter}`} onClick={() => handleSelectOption(question.id, alt.letter)} disabled={isAnnulled}
+                            className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start active:scale-[0.99] ${isAnnulled ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40' : isSelected ? 'shadow-sm cursor-pointer' : 'bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-pointer'}`}
+                            style={isSelected ? {
+                              background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)',
+                              borderColor: 'var(--brand-primary)',
+                            } : {}}>
+                            <span className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-extrabold shrink-0 transition-colors ${isSelected ? 'border-transparent' : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-200 border-slate-200 dark:border-slate-600'}`}
+                              style={isSelected ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>
+                              {alt.letter}
+                            </span>
+                            <div className="flex-1 pt-1">
+                              {alternativeImages.length > 0 && (
+                                <div className="mb-2">
+                                  {alternativeImages.map((imageUrl, imageIndex) => (
+                                    <img
+                                      key={`${question.id}-${alt.letter}-img-${imageIndex}`}
+                                      src={imageUrl}
+                                      alt={`Alternativa ${alt.letter}`}
+                                      className={`max-h-32 md:max-h-36 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white ${imageIndex > 0 ? 'mt-2' : ''}`}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                              {alt.text ? (
+                                <QuestionRichText
+                                  text={alt.text}
+                                  className={`text-sm leading-snug ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
+                                  style={isSelected ? { color: 'var(--brand-primary)' } : undefined}
+                                />
+                              ) : alternativeImages.length === 0 ? (
+                                <span className="text-sm italic text-slate-400 dark:text-slate-500">
+                                  Conteúdo da alternativa indisponível.
+                                </span>
+                              ) : null}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {reportedQuestionIds.has(question.id) && (
+                      <div className="mt-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                        Esta questão foi reportada e será desconsiderada no resultado final do simulado.
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-              {reportedQuestionIds.has(questions[currentIdx].id) && (
-                <div className="mt-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-                  Esta questão foi reportada e será desconsiderada no resultado final do simulado.
-                </div>
-              )}
             </div>
 
             {/* Question navigator */}
             <div className="flex flex-wrap justify-center gap-2 mt-5">
-              {questions.map((q, i) => (
-                <button key={q.id} onClick={() => setCurrentIdx(i)}
-                  className={`w-8 h-8 rounded-full text-xs font-extrabold transition-all cursor-pointer ${
-                    i === currentIdx ? 'scale-110 shadow-sm' : userAnswers[q.id] ? 'bg-green-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                  }`}
-                  style={i === currentIdx ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>
-                  {i + 1}
-                </button>
-              ))}
+              {(() => {
+                const groups: Array<{ key: string; label: string | null; items: Array<{ q: Question; i: number }> }> = []
+                questions.forEach((q, i) => {
+                  if (q.testlet_group_id) {
+                    const last = groups[groups.length - 1]
+                    if (last && last.key === q.testlet_group_id) {
+                      last.items.push({ q, i })
+                    } else {
+                      groups.push({
+                        key: q.testlet_group_id,
+                        label: `T${groups.filter((group) => group.label).length + 1}`,
+                        items: [{ q, i }],
+                      })
+                    }
+                  } else {
+                    groups.push({
+                      key: q.id,
+                      label: null,
+                      items: [{ q, i }],
+                    })
+                  }
+                })
+                return groups.map((group) => (
+                  <div key={group.key} className={`rounded-2xl ${group.label ? 'border border-amber-200 bg-amber-50/60 px-2 py-1' : ''}`}>
+                    {group.label && (
+                      <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                        {group.label}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {group.items.map(({ q, i }) => (
+                        <button key={q.id} onClick={() => setCurrentIdx(i)}
+                          className={`w-8 h-8 rounded-full text-xs font-extrabold transition-all cursor-pointer ${
+                            i === currentIdx ? 'scale-110 shadow-sm' : userAnswers[q.id] ? 'bg-green-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                          }`}
+                          style={i === currentIdx ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>
+                          {i + 1}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              })()}
             </div>
             </div>
           </main>
@@ -2119,16 +2279,16 @@ export default function SimuladoPage() {
           <div className="shrink-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 p-4"
             style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
             <div className="max-w-3xl mx-auto w-full flex items-center gap-3">
-              <button onClick={() => setCurrentIdx(prev => Math.max(0, prev - 1))} disabled={currentIdx === 0}
+              <button onClick={() => (isCurrentGroupTestlet ? goToPreviousGroup() : goToQuestionIndex(currentIdx - 1))} disabled={currentGroupStartIdx === 0}
                 className="flex-1 px-4 py-3 text-slate-500 dark:text-slate-400 disabled:opacity-30 font-bold flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer min-h-[44px]">
                 <ArrowLeft size={16} /> <span className="hidden sm:inline">Anterior</span>
               </button>
 
-              {currentIdx < questions.length - 1 ? (
-                <button onClick={() => setCurrentIdx(prev => prev + 1)}
+              {currentGroupEndIdx < questions.length - 1 ? (
+                <button onClick={() => (isCurrentGroupTestlet ? goToNextGroup() : goToQuestionIndex(currentIdx + 1))}
                   className="flex-[1.35] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer min-h-[44px]"
                   style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
-                  Próxima <ArrowRight size={16} />
+                  {isCurrentGroupTestlet ? 'Próximo testlet' : 'Próxima'} <ArrowRight size={16} />
                 </button>
               ) : (
                 <button onClick={() => setFinishDialogOpen(true)}
