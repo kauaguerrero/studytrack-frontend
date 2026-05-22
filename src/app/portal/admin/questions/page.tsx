@@ -17,7 +17,8 @@ import { formatScientificText } from '@/lib/scientific-text';
 import {
   CheckCircle2,
   Trash2,
-  Filter,
+  Search,
+  Images,
   Bot,
   Calendar,
   BookOpen,
@@ -63,6 +64,7 @@ interface AdminQuestion {
   external_id: string;
   bank?: string | null;
   exam_year: number;
+  created_at?: string;
   subject: string;
   discipline?: string;
   difficulty: string;
@@ -80,6 +82,24 @@ interface AdminQuestion {
   metadata?: any;
   is_verified?: boolean;
   status?: string;
+}
+
+type SortField = 'created_at' | 'exam_year' | 'external_id' | 'subject' | 'discipline' | 'difficulty' | 'status' | 'source';
+type SortDirection = 'asc' | 'desc';
+
+interface QuestionFiltersState {
+  query: string;
+  source: string;
+  subject: string;
+  discipline: string;
+  difficulty: string;
+  year: string;
+  status: string;
+  tipo: string;
+  variant: string;
+  hasImages: string;
+  sortField: SortField;
+  sortDirection: SortDirection;
 }
 
 interface AuditQuestionItem {
@@ -159,6 +179,7 @@ function normalizeSourceLabel(value: string | null | undefined): string | null {
   if (normalized === 'UFU' || normalized === 'UFU_VEST') return 'UFU_VEST';
   if (normalized === 'UEG' || normalized === 'UEG_VEST') return 'UEG_VEST';
   if (normalized === 'UNESP' || normalized === 'UNESP_VEST') return 'UNESP_VEST';
+  if (normalized === 'UFG' || normalized === 'UFG_VEST') return 'UFG_VEST';
   return normalized;
 }
 
@@ -175,12 +196,14 @@ function resolveQuestionSource(question: Partial<AdminQuestion> | null | undefin
   if (examIdSource?.startsWith('UFU_')) return 'UFU_VEST';
   if (examIdSource?.startsWith('UEG_')) return 'UEG_VEST';
   if (examIdSource?.startsWith('UNESP_')) return 'UNESP_VEST';
+  if (examIdSource?.startsWith('UFG_')) return 'UFG_VEST';
   if (examIdSource?.startsWith('ENEM')) return 'ENEM';
 
   const externalId = String(question.external_id || '').trim().toUpperCase();
   if (externalId.startsWith('UFU_')) return 'UFU_VEST';
   if (externalId.startsWith('UEG_')) return 'UEG_VEST';
   if (externalId.startsWith('UNESP_')) return 'UNESP_VEST';
+  if (externalId.startsWith('UFG_')) return 'UFG_VEST';
   if (externalId.startsWith('ENEM')) return 'ENEM';
 
   const title = String(question.title || '').trim().toUpperCase();
@@ -188,6 +211,7 @@ function resolveQuestionSource(question: Partial<AdminQuestion> | null | undefin
   if (title.includes('UFU')) return 'UFU_VEST';
   if (title.includes('UEG')) return 'UEG_VEST';
   if (title.includes('UNESP')) return 'UNESP_VEST';
+  if (title.includes('UFG')) return 'UFG_VEST';
 
   return 'UNKNOWN';
 }
@@ -237,6 +261,138 @@ function getDisplayTitle(question?: AdminQuestion): string {
     return '';
   }
   return title;
+}
+
+const DEFAULT_FILTERS: QuestionFiltersState = {
+  query: '',
+  source: 'all',
+  subject: 'all',
+  discipline: 'all',
+  difficulty: 'all',
+  year: 'all',
+  status: 'all',
+  tipo: 'all',
+  variant: 'all',
+  hasImages: 'all',
+  sortField: 'created_at',
+  sortDirection: 'asc',
+};
+
+const SORT_FIELD_LABELS: Record<SortField, string> = {
+  created_at: 'Data de criação',
+  exam_year: 'Ano da prova',
+  external_id: 'External ID',
+  subject: 'Matéria',
+  discipline: 'Disciplina',
+  difficulty: 'Dificuldade',
+  status: 'Status editorial',
+  source: 'Fonte',
+};
+
+function countActiveFilters(filters: QuestionFiltersState): number {
+  return [
+    filters.query.trim() ? 1 : 0,
+    filters.source !== 'all' ? 1 : 0,
+    filters.subject !== 'all' ? 1 : 0,
+    filters.discipline !== 'all' ? 1 : 0,
+    filters.difficulty !== 'all' ? 1 : 0,
+    filters.year !== 'all' ? 1 : 0,
+    filters.hasImages !== 'all' ? 1 : 0,
+    filters.sortField !== DEFAULT_FILTERS.sortField ? 1 : 0,
+    filters.sortDirection !== DEFAULT_FILTERS.sortDirection ? 1 : 0,
+  ].reduce((sum, item) => sum + item, 0);
+}
+
+function getQuestionTipo(question: Partial<AdminQuestion> | null | undefined): string {
+  return String(question?.metadata?.tipo || '').trim().toUpperCase();
+}
+
+function getQuestionVariant(question: Partial<AdminQuestion> | null | undefined): string {
+  return String(question?.metadata?.variant || '').trim().toUpperCase();
+}
+
+function getQuestionSearchBlob(question: AdminQuestion): string {
+  return [
+    question.external_id,
+    question.title,
+    question.subject,
+    question.discipline,
+    question.context,
+    question.alternatives_intro,
+    resolveQuestionSource(question),
+    getQuestionTipo(question),
+    getQuestionVariant(question),
+    question.status,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+function getQuestionSortValue(question: AdminQuestion, field: SortField): string | number {
+  switch (field) {
+    case 'created_at':
+      return question.created_at ? new Date(question.created_at).getTime() : 0;
+    case 'exam_year':
+      return Number(question.exam_year || 0);
+    case 'external_id':
+      return String(question.external_id || '').toUpperCase();
+    case 'subject':
+      return String(question.subject || '').toUpperCase();
+    case 'discipline':
+      return String(question.discipline || '').toUpperCase();
+    case 'difficulty':
+      return String(question.difficulty || '').toUpperCase();
+    case 'status':
+      return String(question.status || '').toUpperCase();
+    case 'source':
+      return resolveQuestionSource(question);
+    default:
+      return '';
+  }
+}
+
+function applyQuestionFilters(questions: AdminQuestion[], filters: QuestionFiltersState): AdminQuestion[] {
+  const normalizedQuery = filters.query.trim().toLowerCase();
+
+  const filtered = questions.filter((question) => {
+    const source = resolveQuestionSource(question);
+    const tipo = getQuestionTipo(question);
+    const variant = getQuestionVariant(question);
+    const hasImages = Array.isArray(question.images) && question.images.length > 0;
+
+    if (normalizedQuery && !getQuestionSearchBlob(question).includes(normalizedQuery)) return false;
+    if (filters.source !== 'all' && source !== filters.source) return false;
+    if (filters.subject !== 'all' && question.subject !== filters.subject) return false;
+    if (filters.discipline !== 'all' && (question.discipline || '') !== filters.discipline) return false;
+    if (filters.difficulty !== 'all' && question.difficulty !== filters.difficulty) return false;
+    if (filters.year !== 'all' && String(question.exam_year) !== filters.year) return false;
+    if (filters.status !== 'all' && (question.status || '') !== filters.status) return false;
+    if (filters.tipo !== 'all' && tipo !== filters.tipo) return false;
+    if (filters.variant !== 'all' && variant !== filters.variant) return false;
+    if (filters.hasImages === 'with' && !hasImages) return false;
+    if (filters.hasImages === 'without' && hasImages) return false;
+
+    return true;
+  });
+
+  return filtered.sort((left, right) => {
+    const leftValue = getQuestionSortValue(left, filters.sortField);
+    const rightValue = getQuestionSortValue(right, filters.sortField);
+
+    let comparison = 0;
+    if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+      comparison = leftValue - rightValue;
+    } else {
+      comparison = String(leftValue).localeCompare(String(rightValue), 'pt-BR', { numeric: true, sensitivity: 'base' });
+    }
+
+    if (comparison === 0) {
+      comparison = String(left.external_id || '').localeCompare(String(right.external_id || ''), 'pt-BR', { numeric: true, sensitivity: 'base' });
+    }
+
+    return filters.sortDirection === 'asc' ? comparison : -comparison;
+  });
 }
 
 function extractImageUrls(value: unknown): string[] {
@@ -651,11 +807,7 @@ export default function AdminQuestionApproval() {
   const [auditType, setAuditType] = useState<'media' | 'data' | 'classification' | 'render'>('media');
   const [auditSummary, setAuditSummary] = useState<{ totalAudited: number; flagged: number }>({ totalAudited: 0, flagged: 0 });
 
-  // Filtros Locais
-  const [filterSource, setFilterSource] = useState<string>('all');
-  const [filterSubject, setFilterSubject] = useState<string>('all');
-  const [filterDifficulty, setFilterDifficulty] = useState<string>('all');
-  const [filterYear, setFilterYear] = useState<string>('all');
+  const [filters, setFilters] = useState<QuestionFiltersState>(DEFAULT_FILTERS);
 
   // Controle de Edição
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -1106,39 +1258,34 @@ export default function AdminQuestionApproval() {
   };
 
   // --- FILTERING LOGIC ---
-  const filteredQuestions = useMemo(() => {
-    return questions.filter(q => {
-      const source = resolveQuestionSource(q);
-      const matchSource = filterSource === 'all' || source === filterSource;
-      const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
-      const matchDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
-      const matchYear = filterYear === 'all' || String(q.exam_year) === filterYear;
-      return matchSource && matchSubject && matchDifficulty && matchYear;
-    });
-  }, [questions, filterSource, filterSubject, filterDifficulty, filterYear]);
-
+  const filteredQuestions = useMemo(() => applyQuestionFilters(questions, filters), [questions, filters]);
   const filteredAuditItems = useMemo(() => {
-    return auditItems.filter(item => {
-      const q = item.question;
-      const source = resolveQuestionSource(q);
-      const matchSource = filterSource === 'all' || source === filterSource;
-      const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
-      const matchDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
-      const matchYear = filterYear === 'all' || String(q.exam_year) === filterYear;
-      return matchSource && matchSubject && matchDifficulty && matchYear;
-    });
-  }, [auditItems, filterSource, filterSubject, filterDifficulty, filterYear]);
+    const allowedIds = new Set(applyQuestionFilters(auditItems.map(item => item.question), filters).map(item => item.id));
+    return auditItems
+      .filter(item => allowedIds.has(item.question.id))
+      .sort((left, right) => {
+        const leftValue = getQuestionSortValue(left.question, filters.sortField);
+        const rightValue = getQuestionSortValue(right.question, filters.sortField);
 
-  const filteredArchived = useMemo(() => {
-    return archivedQuestions.filter(q => {
-      const source = resolveQuestionSource(q);
-      const matchSource = filterSource === 'all' || source === filterSource;
-      const matchSubject = filterSubject === 'all' || q.subject === filterSubject;
-      const matchDifficulty = filterDifficulty === 'all' || q.difficulty === filterDifficulty;
-      const matchYear = filterYear === 'all' || String(q.exam_year) === filterYear;
-      return matchSource && matchSubject && matchDifficulty && matchYear;
-    });
-  }, [archivedQuestions, filterSource, filterSubject, filterDifficulty, filterYear]);
+        let comparison = 0;
+        if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+          comparison = leftValue - rightValue;
+        } else {
+          comparison = String(leftValue).localeCompare(String(rightValue), 'pt-BR', { numeric: true, sensitivity: 'base' });
+        }
+
+        if (comparison === 0) {
+          comparison = String(left.question.external_id || '').localeCompare(
+            String(right.question.external_id || ''),
+            'pt-BR',
+            { numeric: true, sensitivity: 'base' },
+          );
+        }
+
+        return filters.sortDirection === 'asc' ? comparison : -comparison;
+      });
+  }, [auditItems, filters]);
+  const filteredArchived = useMemo(() => applyQuestionFilters(archivedQuestions, filters), [archivedQuestions, filters]);
 
   const activeList = mode === 'audit' ? auditItems.map(i => i.question) : mode === 'archived' ? archivedQuestions : questions;
 
@@ -1150,9 +1297,15 @@ export default function AdminQuestionApproval() {
     new Set(activeList.map(q => q.subject))
   ).filter(Boolean).sort();
 
+  const disciplines = Array.from(
+    new Set(activeList.map(q => q.discipline).filter(Boolean))
+  ).sort() as string[];
+
   const years = Array.from(
     new Set(activeList.map(q => q.exam_year))
   ).filter(Boolean).sort((a, b) => b - a);
+
+  const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters]);
 
   // Índice para navegação por setas (seta esq/dir)
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -1293,6 +1446,10 @@ export default function AdminQuestionApproval() {
     setAlternativeImageUploading(null);
     setNewImageUrl('');
   }, [mode]);
+
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [filters, mode]);
 
   // --- KEYBOARD SHORTCUTS (UX/UI B2B Flow) ---
   useEffect(() => {
@@ -1501,59 +1658,135 @@ export default function AdminQuestionApproval() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-                  <Select value={filterSubject} onValueChange={setFilterSubject} disabled={isEditing}>
-                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-sm">
-                      <Filter className="mr-2 h-3.5 w-3.5 text-slate-400" />
-                      <SelectValue placeholder="Matéria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas Matérias</SelectItem>
-                      {subjects.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+              <div className="grid grid-cols-1 gap-2.5">
+                <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-slate-600">
+                          {activeFilterCount > 0 ? `${activeFilterCount} filtro(s) ativo(s)` : 'Sem filtros extras'}
+                        </Badge>
+                        <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-slate-600">
+                          Ordem: {SORT_FIELD_LABELS[filters.sortField]} • {filters.sortDirection === 'asc' ? 'crescente' : 'decrescente'}
+                        </Badge>
+                      </div>
+                      {activeFilterCount > 0 ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          disabled={isEditing}
+                          className="h-8 rounded-lg px-2.5 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                          onClick={() => setFilters(DEFAULT_FILTERS)}
+                        >
+                          Limpar filtros
+                        </Button>
+                      ) : null}
+                    </div>
 
-                  <Select value={filterSource} onValueChange={setFilterSource} disabled={isEditing}>
-                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-sm">
-                      <SelectValue placeholder="Origem" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas Origens</SelectItem>
-                      {sources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                    <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,0.8fr))]">
+                      <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          value={filters.query}
+                          onChange={(event) => setFilters(current => ({ ...current, query: event.target.value }))}
+                          placeholder="Buscar por external ID, título, contexto..."
+                          className="h-10 rounded-xl border-slate-200 pl-10 text-sm"
+                          disabled={isEditing}
+                        />
+                      </div>
 
-                  <Select value={filterDifficulty} onValueChange={setFilterDifficulty} disabled={isEditing}>
-                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-sm">
-                      <SelectValue placeholder="Dificuldade" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas Dific.</SelectItem>
-                      <SelectItem value="Fácil">Fácil</SelectItem>
-                      <SelectItem value="Médio">Médio</SelectItem>
-                      <SelectItem value="Difícil">Difícil</SelectItem>
-                    </SelectContent>
-                  </Select>
+                      <Select value={filters.source} onValueChange={(value) => setFilters(current => ({ ...current, source: value }))} disabled={isEditing}>
+                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
+                          <SelectValue placeholder="Fonte" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas as fontes</SelectItem>
+                          {sources.map(source => <SelectItem key={source} value={source}>{source}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
 
-                  <Select value={filterYear} onValueChange={setFilterYear} disabled={isEditing}>
-                    <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-sm">
-                      <SelectValue placeholder="Ano" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos Anos</SelectItem>
-                      {years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                      <Select value={filters.subject} onValueChange={(value) => setFilters(current => ({ ...current, subject: value }))} disabled={isEditing}>
+                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
+                          <SelectValue placeholder="Matéria" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas as matérias</SelectItem>
+                          {subjects.map(subject => <SelectItem key={subject} value={subject}>{subject}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 shadow-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Atalhos</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Navegue com <span className="font-semibold text-slate-800">←</span> e <span className="font-semibold text-slate-800">→</span>.
-                    {mode === 'curation' ? ' Aprove com Enter, remova com Delete, arquive com Ctrl/Cmd + A e edite com Ctrl/Cmd + Q.' : ''}
-                    {isEditing ? ' Na edição: Ctrl/Cmd + B negrito, Ctrl/Cmd + I itálico, Ctrl/Cmd + U sublinhado, Ctrl/Cmd + Enter parágrafo e Ctrl/Cmd + S salvar.' : ''}
-                  </p>
+                      <Select value={filters.discipline} onValueChange={(value) => setFilters(current => ({ ...current, discipline: value }))} disabled={isEditing}>
+                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
+                          <SelectValue placeholder="Disciplina" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas as disciplinas</SelectItem>
+                          {disciplines.map(discipline => <SelectItem key={discipline} value={discipline}>{discipline}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 xl:grid-cols-5">
+                      <Select value={filters.difficulty} onValueChange={(value) => setFilters(current => ({ ...current, difficulty: value }))} disabled={isEditing}>
+                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
+                          <SelectValue placeholder="Dificuldade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Dificuldade</SelectItem>
+                          <SelectItem value="Fácil">Fácil</SelectItem>
+                          <SelectItem value="Médio">Médio</SelectItem>
+                          <SelectItem value="Difícil">Difícil</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={filters.year} onValueChange={(value) => setFilters(current => ({ ...current, year: value }))} disabled={isEditing}>
+                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
+                          <SelectValue placeholder="Ano" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os anos</SelectItem>
+                          {years.map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={filters.hasImages} onValueChange={(value) => setFilters(current => ({ ...current, hasImages: value }))} disabled={isEditing}>
+                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
+                          <SelectValue placeholder="Imagens" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas</SelectItem>
+                          <SelectItem value="with">Com imagens</SelectItem>
+                          <SelectItem value="without">Sem imagens</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={filters.sortField} onValueChange={(value) => setFilters(current => ({ ...current, sortField: value as SortField }))} disabled={isEditing}>
+                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
+                          <SelectValue placeholder="Ordenar por" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="created_at">Data de criação</SelectItem>
+                          <SelectItem value="exam_year">Ano da prova</SelectItem>
+                          <SelectItem value="external_id">External ID</SelectItem>
+                          <SelectItem value="subject">Matéria</SelectItem>
+                          <SelectItem value="discipline">Disciplina</SelectItem>
+                          <SelectItem value="difficulty">Dificuldade</SelectItem>
+                          <SelectItem value="status">Status editorial</SelectItem>
+                          <SelectItem value="source">Fonte</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={filters.sortDirection} onValueChange={(value) => setFilters(current => ({ ...current, sortDirection: value as SortDirection }))} disabled={isEditing}>
+                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
+                          <SelectValue placeholder="Direção" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="asc">Crescente</SelectItem>
+                          <SelectItem value="desc">Decrescente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1594,8 +1827,12 @@ export default function AdminQuestionApproval() {
                     ? 'Nenhum achado aberto para os filtros atuais. A auditoria está em dia.'
                     : 'Nenhuma questão arquivada para os filtros atuais.'}
               </p>
-              {(filterSource !== 'all' || filterSubject !== 'all' || filterDifficulty !== 'all' || filterYear !== 'all') && (
-                <Button variant="link" onClick={() => { setFilterSource('all'); setFilterSubject('all'); setFilterDifficulty('all'); setFilterYear('all'); }} className="mt-4 text-blue-600">
+              {activeFilterCount > 0 && (
+                <Button
+                  variant="link"
+                  onClick={() => setFilters(DEFAULT_FILTERS)}
+                  className="mt-4 text-blue-600"
+                >
                   Limpar filtros e ver tudo
                 </Button>
               )}
@@ -2488,6 +2725,7 @@ export default function AdminQuestionApproval() {
             </Card>
           )}
         </div>
+
       </div>
     </div>
   );

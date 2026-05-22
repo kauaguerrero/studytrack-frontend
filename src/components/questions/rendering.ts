@@ -57,6 +57,15 @@ export function stripMarkdownImages(text?: string | null): string {
 const sourceReferenceMarkerRegex =
   /(dispon[ií]vel em:|acesso em:|fonte:|adaptado\)?\.?$|adapted\)?\.?$)/i
 
+const citationContinuationRegex =
+  /(^by\s+\S+)|(^[A-ZÁ-Ú'’.-]+,\s)|(\beditora\b)|(\bpress\b)|(\bvol\.\b)|(\bn\.\s*\d+\b)|(\bp\.\s*\d+\b)|(\b\d{4}\b)/i
+
+function isSourceLikeLine(line: string): boolean {
+  const normalized = String(line || '').trim()
+  if (!normalized) return false
+  return sourceReferenceMarkerRegex.test(normalized) || citationContinuationRegex.test(normalized)
+}
+
 export function splitQuestionContextAndSource(text?: string | null): {
   body: string
   source: string | null
@@ -64,16 +73,35 @@ export function splitQuestionContextAndSource(text?: string | null): {
   const raw = String(text || '').trim()
   if (!raw) return { body: '', source: null }
 
-  const paragraphs = raw.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean)
-  if (paragraphs.length === 0) return { body: '', source: null }
+  const lines = raw.split('\n').map((line) => line.trim())
+  if (lines.length === 0) return { body: raw, source: null }
 
-  const lastParagraph = paragraphs[paragraphs.length - 1]
-  if (!sourceReferenceMarkerRegex.test(lastParagraph)) {
+  const markerIndexes = lines
+    .map((line, index) => (sourceReferenceMarkerRegex.test(line) ? index : -1))
+    .filter((index) => index >= 0)
+
+  if (markerIndexes.length === 0) {
     return { body: raw, source: null }
   }
 
-  const body = paragraphs.slice(0, -1).join('\n\n').trim()
-  const source = lastParagraph.trim()
+  let sourceStart = markerIndexes[0]
+  let sourceEnd = markerIndexes[markerIndexes.length - 1]
+
+  while (sourceStart > 0 && isSourceLikeLine(lines[sourceStart - 1])) {
+    sourceStart -= 1
+  }
+  while (sourceEnd + 1 < lines.length && isSourceLikeLine(lines[sourceEnd + 1])) {
+    sourceEnd += 1
+  }
+
+  const sourceLines = lines.slice(sourceStart, sourceEnd + 1).filter(Boolean)
+  if (sourceLines.length === 0) {
+    return { body: raw, source: null }
+  }
+
+  const bodyLines = [...lines.slice(0, sourceStart), ...lines.slice(sourceEnd + 1)]
+  const body = bodyLines.join('\n').trim()
+  const source = sourceLines.join('\n').trim()
   return { body, source: source || null }
 }
 
