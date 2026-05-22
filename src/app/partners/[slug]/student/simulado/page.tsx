@@ -6,7 +6,7 @@
  * UI elevado: brand colors, animações Framer Motion, resultado celebrativo, suporte a Dark Mode.
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence, useAnimation, useReducedMotion } from 'framer-motion'
@@ -211,6 +211,101 @@ function formatDuration(secs: number) {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', timeZone: 'America/Sao_Paulo' })
+}
+
+function normalizeMultilineText(text?: string | null) {
+  return String(text || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/\s+$/g, ''))
+    .join('\n')
+    .trim()
+}
+
+function deriveTestletSharedContext(groupQuestions: Question[]) {
+  const normalizedContexts = groupQuestions
+    .map((question) => normalizeMultilineText(question.context))
+    .filter(Boolean)
+
+  if (normalizedContexts.length === 0) {
+    return { sharedContext: '', perQuestionContext: {} as Record<string, string> }
+  }
+
+  const linesPerQuestion = normalizedContexts.map((context) => context.split('\n'))
+  const prefixLines: string[] = []
+  const shortestLength = Math.min(...linesPerQuestion.map((lines) => lines.length))
+
+  for (let index = 0; index < shortestLength; index += 1) {
+    const candidate = linesPerQuestion[0][index]
+    if (linesPerQuestion.every((lines) => lines[index] === candidate)) {
+      prefixLines.push(candidate)
+      continue
+    }
+    break
+  }
+
+  let sharedContext = prefixLines.join('\n').trim()
+
+  if (!sharedContext && normalizedContexts.length === 1) {
+    sharedContext = normalizedContexts[0]
+  }
+
+  if (!sharedContext) {
+    const firstContext = normalizedContexts[0]
+    const hasExplicitSharedPrompt = /responder\s+às?\s+quest(ões|ao)|texto\s+\d+|imagem\s+\d+/i.test(firstContext)
+    if (hasExplicitSharedPrompt) {
+      sharedContext = firstContext
+    }
+  }
+
+  const perQuestionContext = Object.fromEntries(
+    groupQuestions.map((question) => {
+      const context = normalizeMultilineText(question.context)
+      if (!context || !sharedContext) {
+        return [question.id, context]
+      }
+      if (context === sharedContext) {
+        return [question.id, '']
+      }
+      if (context.startsWith(`${sharedContext}\n\n`)) {
+        return [question.id, context.slice(sharedContext.length).trim()]
+      }
+      if (context.startsWith(sharedContext)) {
+        return [question.id, context.slice(sharedContext.length).trim()]
+      }
+      return [question.id, context]
+    })
+  )
+
+  return { sharedContext, perQuestionContext }
+}
+
+function buildQuestionGroups(questions: Question[]) {
+  const groups: Array<{ key: string; label: string | null; items: Array<{ q: Question; i: number }> }> = []
+
+  questions.forEach((question, index) => {
+    if (question.testlet_group_id) {
+      const last = groups[groups.length - 1]
+      if (last && last.key === question.testlet_group_id) {
+        last.items.push({ q: question, i: index })
+      } else {
+        groups.push({
+          key: question.testlet_group_id,
+          label: `T${groups.filter((group) => group.label).length + 1}`,
+          items: [{ q: question, i: index }],
+        })
+      }
+      return
+    }
+
+    groups.push({
+      key: question.id,
+      label: null,
+      items: [{ q: question, i: index }],
+    })
+  })
+
+  return groups
 }
 
 // ── Smooth color scale — anchors: red @0 %, yellow @20–60 %, green @60 % ──────
@@ -727,24 +822,28 @@ export default function SimuladoPage() {
   }, [timeLeft, step, timerShakeControls, shouldReduce])
 
   const currentQuestion = questions[currentIdx]
+  const questionGroups = useMemo(() => buildQuestionGroups(questions), [questions])
+  const currentGroup = useMemo(
+    () => questionGroups.find((group) => group.items.some(({ i }) => i === currentIdx)) ?? null,
+    [currentIdx, questionGroups],
+  )
   const currentTestletInfo = (() => {
     if (!currentQuestion?.testlet_group_id) return undefined
-    const groupQuestions = questions.filter(q => q.testlet_group_id === currentQuestion.testlet_group_id)
-    const position = groupQuestions.findIndex(q => q.id === currentQuestion.id) + 1
-    return { position, total: groupQuestions.length }
+    const groupItems = currentGroup?.items ?? []
+    const position = groupItems.findIndex(({ q }) => q.id === currentQuestion.id) + 1
+    return { position, total: groupItems.length }
   })()
-  const currentTestletGroupId = currentQuestion?.testlet_group_id || null
-  const currentGroupQuestions = currentTestletGroupId
-    ? questions.filter(q => q.testlet_group_id === currentTestletGroupId)
-    : currentQuestion ? [currentQuestion] : []
-  const currentGroupStartIdx = currentTestletGroupId
-    ? questions.findIndex(q => q.testlet_group_id === currentTestletGroupId)
-    : currentIdx
-  const currentGroupEndIdx = currentTestletGroupId
-    ? questions.reduce((lastIdx, q, idx) => (q.testlet_group_id === currentTestletGroupId ? idx : lastIdx), currentGroupStartIdx)
-    : currentIdx
-  const isCurrentGroupTestlet = Boolean(currentTestletGroupId && currentGroupQuestions.length > 1)
+  const currentGroupQuestions = useMemo(
+    () => currentGroup?.items.map(({ q }) => q) ?? (currentQuestion ? [currentQuestion] : []),
+    [currentGroup, currentQuestion],
+  )
+  const currentGroupStartIdx = currentGroup?.items[0]?.i ?? currentIdx
+  const currentGroupEndIdx = currentGroup?.items[currentGroup.items.length - 1]?.i ?? currentIdx
+  const isCurrentGroupTestlet = Boolean(currentGroup?.label && currentGroupQuestions.length > 1)
   const currentGroupContextQuestion = currentGroupQuestions[0]
+  const currentGroupContextData = deriveTestletSharedContext(currentGroupQuestions)
+  const currentGroupSharedContext = currentGroupContextData.sharedContext
+  const currentGroupQuestionContexts = currentGroupContextData.perQuestionContext
 
   // ── Scroll to top of question on navigate ──
   useEffect(() => {
@@ -1142,14 +1241,9 @@ export default function SimuladoPage() {
 
   const goToPreviousGroup = () => {
     if (currentGroupStartIdx <= 0) return
-    const previousQuestion = questions[currentGroupStartIdx - 1]
-    if (!previousQuestion) return
-    if (previousQuestion.testlet_group_id) {
-      const previousGroupStart = questions.findIndex((q) => q.testlet_group_id === previousQuestion.testlet_group_id)
-      goToQuestionIndex(previousGroupStart >= 0 ? previousGroupStart : currentGroupStartIdx - 1)
-      return
-    }
-    goToQuestionIndex(currentGroupStartIdx - 1)
+    const currentGroupIndex = questionGroups.findIndex((group) => group.items.some(({ i }) => i === currentIdx))
+    const previousGroup = currentGroupIndex > 0 ? questionGroups[currentGroupIndex - 1] : null
+    goToQuestionIndex(previousGroup?.items[0]?.i ?? currentGroupStartIdx - 1)
   }
 
   const goToNextGroup = () => {
@@ -2103,9 +2197,9 @@ export default function SimuladoPage() {
                   Leia o texto a seguir para responder as próximas {currentGroupQuestions.length} questões
                 </div>
               )}
-              {currentGroupContextQuestion?.context && (
+              {currentGroupSharedContext && (
                 <QuestionRichText
-                  text={currentGroupContextQuestion.context}
+                  text={currentGroupSharedContext}
                   className="prose prose-slate dark:prose-invert max-w-none mb-5 text-slate-600 dark:text-slate-300 border-l-4 pl-4 text-sm leading-relaxed"
                   style={{ borderColor: 'var(--brand-primary)' }}
                 />
@@ -2164,6 +2258,13 @@ export default function SimuladoPage() {
                           Reportar erro
                         </button>
                       </div>
+                    )}
+
+                    {currentGroupQuestionContexts[question.id] && (
+                      <QuestionRichText
+                        text={currentGroupQuestionContexts[question.id]}
+                        className="prose prose-slate dark:prose-invert max-w-none mb-5 text-sm text-slate-600 dark:text-slate-300 leading-relaxed"
+                      />
                     )}
 
                     <QuestionRichText
@@ -2226,31 +2327,9 @@ export default function SimuladoPage() {
               </div>
             </div>
 
-            {/* Question navigator */}
-            <div className="flex flex-wrap justify-center gap-2 mt-5">
-              {(() => {
-                const groups: Array<{ key: string; label: string | null; items: Array<{ q: Question; i: number }> }> = []
-                questions.forEach((q, i) => {
-                  if (q.testlet_group_id) {
-                    const last = groups[groups.length - 1]
-                    if (last && last.key === q.testlet_group_id) {
-                      last.items.push({ q, i })
-                    } else {
-                      groups.push({
-                        key: q.testlet_group_id,
-                        label: `T${groups.filter((group) => group.label).length + 1}`,
-                        items: [{ q, i }],
-                      })
-                    }
-                  } else {
-                    groups.push({
-                      key: q.id,
-                      label: null,
-                      items: [{ q, i }],
-                    })
-                  }
-                })
-                return groups.map((group) => (
+              {/* Question navigator */}
+              <div className="flex flex-wrap justify-center gap-2 mt-5">
+              {questionGroups.map((group) => (
                   <div key={group.key} className={`rounded-2xl ${group.label ? 'border border-amber-200 bg-amber-50/60 px-2 py-1' : ''}`}>
                     {group.label && (
                       <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-wide text-amber-700">
@@ -2269,8 +2348,7 @@ export default function SimuladoPage() {
                       ))}
                     </div>
                   </div>
-                ))
-              })()}
+                ))}
             </div>
             </div>
           </main>
