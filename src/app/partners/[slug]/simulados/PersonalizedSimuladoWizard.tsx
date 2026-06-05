@@ -52,6 +52,8 @@ interface Props {
   slug: string;
   onClose: () => void;
   onCreated: () => void;
+  printedMode?: boolean;
+  onCreatedPrinted?: (printedExamId: string) => void;
 }
 
 const methodCards: Array<{
@@ -65,7 +67,7 @@ const methodCards: Array<{
   { id: 'manual', title: 'Criar do Zero', description: 'Escreva enunciado, alternativas e gabarito manualmente.', icon: PenTool },
 ];
 
-export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated }: Props) {
+export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, printedMode, onCreatedPrinted }: Props) {
   const [method, setMethod] = useState<Method>(null);
   const [step, setStep] = useState<'pool' | 'config'>('pool');
   const [pool, setPool] = useState<SelectedQuestion[]>([]);
@@ -150,31 +152,75 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated }:
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       const api = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-      const body = {
-        title: title.trim(),
-        starts_at: new Date(startsAt).toISOString(),
-        ends_at: endsAt ? new Date(endsAt).toISOString() : undefined,
-        config: {
-          format: 'custom',
-          bank: 'CUSTOM',
-          time_limit_secs: timeLimitMins ? Number(timeLimitMins) * 60 : undefined,
-          allow_retry: false,
-        },
-        custom_question_ids: pool.map((question) => question.id),
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session?.access_token ?? ''}`,
       };
-      const res = await fetch(`${api}/api/partners/${slug}/scheduled-simulados`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token ?? ''}`,
-        },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Falha ao criar simulado.');
-      toast.success('Simulado personalizado criado.');
-      onCreated();
-      onClose();
+
+      if (printedMode) {
+        // Fluxo impresso: cria prova impressa com os IDs selecionados
+        const res = await fetch(`${api}/api/partners/${slug}/printed-exams`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            title: title.trim(),
+            question_ids: pool.map((q) => q.id),
+            config: {
+              custom_questions: pool.map((question) => ({
+                id: question.id,
+                subject: question.subject,
+                discipline: question.discipline,
+                difficulty: question.difficulty,
+                alternatives_intro: question.alternatives_intro,
+                context: question.context,
+                images: question.images,
+                alternatives: question.alternatives,
+                correct_alternative: question.correct_alternative,
+              })),
+            },
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Falha ao criar prova impressa.');
+        toast.success('Prova impressa criada. Faça o download dos PDFs.');
+        onCreatedPrinted?.(data.printed_exam_id);
+        onClose();
+      } else {
+        // Fluxo online — comportamento original inalterado
+        const body = {
+          title: title.trim(),
+          starts_at: new Date(startsAt).toISOString(),
+          ends_at: endsAt ? new Date(endsAt).toISOString() : undefined,
+          config: {
+            format: 'custom',
+            bank: 'CUSTOM',
+            time_limit_secs: timeLimitMins ? Number(timeLimitMins) * 60 : undefined,
+            allow_retry: false,
+            custom_questions: pool.map((question) => ({
+              id: question.id,
+              subject: question.subject,
+              discipline: question.discipline,
+              difficulty: question.difficulty,
+              alternatives_intro: question.alternatives_intro,
+              context: question.context,
+              images: question.images,
+              alternatives: question.alternatives,
+              correct_alternative: question.correct_alternative,
+            })),
+          },
+          custom_question_ids: pool.map((question) => question.id),
+        };
+        const res = await fetch(`${api}/api/partners/${slug}/scheduled-simulados`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Falha ao criar simulado.');
+        toast.success('Simulado personalizado criado.');
+        onCreated();
+        onClose();
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível criar o simulado.');
     } finally {

@@ -1,16 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useOrg } from '@/contexts/OrgContext';
+import { useRouter } from 'next/navigation';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
 import PersonalizedSimuladoWizard from '@/app/partners/[slug]/simulados/PersonalizedSimuladoWizard';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, ChevronDown, Trophy, Users, BarChart2,
   CalendarDays, Pencil, Trash2, Play, Timer, BookOpen, X, SlidersHorizontal,
-  Shuffle, ListChecks,
+  Shuffle, ListChecks, Monitor, Printer, FileText, ClipboardList, Download,
+  MapPin, Camera,
 } from 'lucide-react';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
@@ -21,6 +24,10 @@ interface SimuladoConfig {
   difficulty: string;
   qty: number;
   time_limit_secs: number | null;
+  question_ids?: string[] | null;
+  fixed_question_ids?: string[] | null;
+  custom_question_ids?: string[] | null;
+  pool_question_ids?: string[] | null;
   weights?: Record<string, number> | null;
   allow_retry?: boolean;
   same_for_all_students?: boolean;
@@ -36,6 +43,10 @@ interface ScheduledSimulado {
   ends_at: string | null;
   status: 'scheduled' | 'active' | 'ended';
   created_at: string;
+  fixed_question_ids?: string[] | null;
+  modality?: 'online' | 'printed' | 'hybrid';
+  location_name?: string | null;
+  location_address?: string | null;
   metrics: {
     total_sessions: number;
     completed_sessions: number;
@@ -114,7 +125,7 @@ interface SimuladoAnalytics {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const BANK_LABELS: Record<string, string> = {
-  ENEM: 'ENEM', UFU: 'UFU', UEG: 'UEG', Todas: 'Todas as bancas',
+  ENEM: 'ENEM', UFU: 'UFU', UEG: 'UEG', UFG: 'UFG', Todas: 'Todas as bancas',
 };
 const DIFFICULTY_LABELS: Record<string, string> = {
   facil: 'Fácil', medio: 'Médio', dificil: 'Difícil', misto: 'Misto',
@@ -130,6 +141,7 @@ const FORMATS_BY_BANK: Record<string, string[]> = {
   ENEM:  ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'dia1', 'dia2', 'completo'],
   UFU:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
   UEG:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
+  UFG:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
   Todas: ['custom'],
 };
 
@@ -138,6 +150,7 @@ const BLOCK_QTY: Record<string, Record<string, number>> = {
   ENEM: { linguagens: 45, humanas: 45, natureza: 45, matematica: 45, dia1: 90, dia2: 90, completo: 180 },
   UFU:  { linguagens: 20, humanas: 20, natureza: 15, matematica: 10, completo: 65 },
   UEG:  { linguagens: 13, humanas: 13, natureza: 13, matematica: 13, completo: 52 },
+  UFG:  { linguagens: 24, humanas: 24, natureza: 24, matematica: 24, completo: 96 },
 };
 
 const COMPLETE_DISTRIBUTION_HINTS: Record<string, string[]> = {
@@ -154,6 +167,13 @@ const COMPLETE_DISTRIBUTION_HINTS: Record<string, string[]> = {
     'Natureza 13 (Biologia, Física e Química)',
     'Humanas 13 (História, Geografia, Filosofia e Sociologia)',
     'Total 52 questões objetivas',
+  ],
+  UFG: [
+    'Linguagens 24 (aproximação na plataforma: Língua Portuguesa)',
+    'Matemática 24',
+    'Natureza 24 (Biologia, Física e Química)',
+    'Humanas 24 (História, Geografia, Filosofia e Sociologia)',
+    'Total 96 questões objetivas',
   ],
 };
 
@@ -209,6 +229,9 @@ const EMPTY_FORM = {
   same_for_all_students: false,
   ueg_weight_group: null as 'I' | 'II' | 'III' | null,
   instructions: '',
+  modality: 'online' as 'online' | 'printed' | 'hybrid',
+  location_name: '',
+  location_address: '',
 };
 
 const UEG_GROUP_PRESETS: Record<'I' | 'II' | 'III', Record<string, number>> = {
@@ -230,12 +253,14 @@ const WEIGHT_KEYS_BY_BANK: Record<string, string[]> = {
     'Biologia', 'Física', 'Química', 'Geografia', 'História', 'Filosofia', 'Sociologia',
   ],
   UEG: ['Linguagens', 'Matemática', 'Natureza', 'Humanas'],
+  UFG: ['Linguagens', 'Matemática', 'Natureza', 'Humanas'],
   Todas: [],
 };
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function SimuladosFounderClient({ slug }: { slug: string }) {
   const { org } = useOrg();
+  const router = useRouter();
   const [simulados, setSimulados] = useState<ScheduledSimulado[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -257,6 +282,11 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   const [weightsModalOpen, setWeightsModalOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [printingSimuladoId, setPrintingSimuladoId] = useState<string | null>(null);
+  const [deliveryMode, setDeliveryMode] = useState<'online' | 'impressa' | null>(null);
+  const [typeSelectorStep, setTypeSelectorStep] = useState<1 | 2>(1);
+  const [printedExamId, setPrintedExamId] = useState<string | null>(null);
+  const [downloadingPrint, setDownloadingPrint] = useState<'prova' | 'gabarito' | null>(null);
   const [noQuestionsError, setNoQuestionsError] = useState(false);
   const [distributionShortfall, setDistributionShortfall] = useState<{
     expected: number;
@@ -339,6 +369,143 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     }
   }
 
+  function resetTypeSelectorState() {
+    setShowTypeSelector(false);
+    setDeliveryMode(null);
+    setTypeSelectorStep(1);
+  }
+
+  async function handleSaveImpresso() {
+    if (!form.title.trim()) {
+      toast.error('Título é obrigatório');
+      return;
+    }
+    setSaving(true);
+    setSaveProgressLabel('Selecionando questões para a prova impressa...');
+    try {
+      const config = {
+        format: form.format,
+        bank: form.bank,
+        subject: form.subject || null,
+        difficulty: form.difficulty,
+        qty: Number(form.qty),
+      };
+      const res = await fetchWithAuth(`/api/partners/${slug}/printed-exams`, {
+        method: 'POST',
+        body: JSON.stringify({ title: form.title.trim(), config }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? 'Erro ao criar prova impressa');
+        return;
+      }
+      setPrintedExamId(json.printed_exam_id);
+      setShowForm(false);
+      setShowReviewApproval(false);
+      setForm(EMPTY_FORM);
+    } finally {
+      setSaving(false);
+      setSaveProgressLabel('');
+    }
+  }
+
+  async function downloadPrintedPdf(type: 'prova' | 'gabarito') {
+    if (!printedExamId) return;
+    setDownloadingPrint(type);
+    try {
+      const res = await fetchWithAuth(
+        `/api/partners/${slug}/printed-exams/${printedExamId}/${type}.pdf`,
+      );
+      if (!res.ok) {
+        toast.error('Erro ao gerar PDF');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${type}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingPrint(null);
+    }
+  }
+
+  function resolveScheduledQuestionIds(sim: ScheduledSimulado): string[] {
+    const candidates = [
+      sim.fixed_question_ids,
+      sim.config.fixed_question_ids,
+      sim.config.question_ids,
+      sim.config.custom_question_ids,
+      sim.config.pool_question_ids,
+    ];
+
+    for (const value of candidates) {
+      if (Array.isArray(value) && value.length > 0) {
+        return value.map(String).filter(Boolean);
+      }
+    }
+    return [];
+  }
+
+  function filenameFromDisposition(disposition: string | null, fallback: string): string {
+    const match = disposition?.match(/filename="?([^";]+)"?/i);
+    return match?.[1] || fallback;
+  }
+
+  async function downloadBlobResponse(res: Response, fallbackName: string) {
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filenameFromDisposition(res.headers.get('Content-Disposition'), fallbackName);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  async function handlePrintScheduledSimulado(sim: ScheduledSimulado) {
+    setPrintingSimuladoId(sim.id);
+    try {
+      const questionIds = resolveScheduledQuestionIds(sim);
+      const createBody = questionIds.length > 0
+        ? { title: sim.title, question_ids: questionIds, scheduled_simulado_id: sim.id, config: sim.config }
+        : { title: sim.title, config: sim.config, scheduled_simulado_id: sim.id };
+
+      const createRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams`, {
+        method: 'POST',
+        body: JSON.stringify(createBody),
+      });
+      const created = await createRes.json();
+      if (!createRes.ok) {
+        throw new Error(created.error || 'Erro ao criar prova impressa.');
+      }
+
+      const printedId = created.printed_exam_id;
+      if (!printedId) {
+        throw new Error('Prova impressa criada sem identificador.');
+      }
+
+      const provaRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${printedId}/prova.pdf`);
+      if (!provaRes.ok) throw new Error('Erro ao baixar PDF da prova.');
+      await downloadBlobResponse(provaRes, `prova_${sim.title}.pdf`);
+
+      const gabaritoRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${printedId}/gabarito.pdf`);
+      if (!gabaritoRes.ok) throw new Error('Erro ao baixar PDF do gabarito.');
+      await downloadBlobResponse(gabaritoRes, `gabarito_${sim.title}.pdf`);
+
+      toast.success('PDF da prova e gabarito baixados.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível imprimir o simulado.');
+    } finally {
+      setPrintingSimuladoId(null);
+    }
+  }
+
   async function handleSaveWithAutoQuestions() {
     setNoQuestionsError(false);
     setDistributionShortfall(null);
@@ -384,6 +551,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         config,
         starts_at: new Date(form.starts_at).toISOString(),
         ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
+        modality: form.modality,
+        location_name: (form.modality === 'printed' || form.modality === 'hybrid') ? (form.location_name.trim() || null) : null,
+        location_address: (form.modality === 'printed' || form.modality === 'hybrid') ? (form.location_address.trim() || null) : null,
         ...(overrides?.forcePartial ? { force_partial: true } : {}),
       };
 
@@ -487,6 +657,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         same_for_all_students: sim.config.same_for_all_students ?? false,
         ueg_weight_group: (sim.config.ueg_weight_group as 'I' | 'II' | 'III' | null) ?? null,
         instructions: sim.config.instructions ?? '',
+        modality: sim.modality ?? 'online',
+        location_name: sim.location_name ?? '',
+        location_address: sim.location_address ?? '',
       });
       setShowForm(true);
   }
@@ -698,6 +871,70 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 />
               </div>
 
+              {/* Modalidade */}
+              <div>
+                <label className={labelCls}>Modalidade</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { value: 'online',   label: 'Online',    Icon: Monitor },
+                    { value: 'printed',  label: 'Presencial', Icon: Printer },
+                    { value: 'hybrid',   label: 'Híbrido',   Icon: MapPin  },
+                  ] as const).map(({ value: m, label, Icon }) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, modality: m, ...(m === 'online' ? { location_name: '', location_address: '' } : {}) }))}
+                      className={`flex items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${form.modality === m ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5 text-[var(--brand-primary)]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
+                    >
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {form.modality === 'hybrid' && (
+                  <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    Híbrido: alunos podem realizar online OU presencialmente. O resultado presencial prevalece.
+                  </p>
+                )}
+              </div>
+
+              <AnimatePresence>
+                {(form.modality === 'printed' || form.modality === 'hybrid') && (
+                  <motion.div
+                    key="location-fields"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="grid gap-3 sm:grid-cols-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800/30 p-3">
+                      <div>
+                        <label className={labelCls}>
+                          <MapPin className="inline h-3 w-3 mr-1" />
+                          Local
+                        </label>
+                        <input
+                          value={form.location_name}
+                          onChange={(e) => setForm((f) => ({ ...f, location_name: e.target.value }))}
+                          placeholder="Ex: Sala 3 — Bloco B"
+                          className={inputCls}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Endereço (opcional)</label>
+                        <input
+                          value={form.location_address}
+                          onChange={(e) => setForm((f) => ({ ...f, location_address: e.target.value }))}
+                          placeholder="Ex: Rua das Flores, 123"
+                          className={inputCls}
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {/* Matéria — só para custom */}
                 {form.format === 'custom' && (
@@ -803,50 +1040,180 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
             <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px]">
               <div className="flex h-full items-center justify-center p-4">
                 <div className="w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+
+                  {/* ── STEP 1: Online ou Impresso? ─────────────────── */}
+                  {typeSelectorStep === 1 && (
+                    <>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--brand-primary)' }}>
+                            Novo simulado
+                          </p>
+                          <h2 className="mt-1 text-xl font-extrabold text-slate-900">Como este simulado será aplicado?</h2>
+                          <p className="mt-1 text-sm text-slate-500">Escolha o modo de aplicação antes de configurar o simulado.</p>
+                        </div>
+                        <button type="button" onClick={resetTypeSelectorState} className="rounded-xl border border-slate-300 p-2 text-slate-600">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="mt-6 grid gap-4 md:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => { setDeliveryMode('online'); setTypeSelectorStep(2); }}
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                        >
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                            <Monitor className="h-5 w-5" />
+                          </div>
+                          <h3 className="text-base font-bold text-slate-900">Online</h3>
+                          <p className="mt-2 text-sm text-slate-500">Os alunos respondem pelo app. Correção e resultados automáticos.</p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => { setDeliveryMode('impressa'); setTypeSelectorStep(2); }}
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                        >
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                            <Printer className="h-5 w-5" />
+                          </div>
+                          <h3 className="text-base font-bold text-slate-900">Impresso</h3>
+                          <p className="mt-2 text-sm text-slate-500">Gera PDF da prova e do gabarito para aplicação em sala, no papel.</p>
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── STEP 2: Aleatório ou Personalizado? (igual ao atual) ─── */}
+                  {typeSelectorStep === 2 && (
+                    <>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setTypeSelectorStep(1)}
+                              className="text-xs font-semibold text-slate-400 hover:text-slate-600"
+                            >
+                              ← Voltar
+                            </button>
+                            <span className="text-xs text-slate-300">|</span>
+                            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                              style={{ backgroundColor: deliveryMode === 'impressa' ? '#FEF3C7' : '#EFF6FF',
+                                       color: deliveryMode === 'impressa' ? '#92400E' : '#1D4ED8' }}>
+                              {deliveryMode === 'impressa' ? <Printer className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
+                              {deliveryMode === 'impressa' ? 'Impresso' : 'Online'}
+                            </span>
+                          </div>
+                          <h2 className="mt-2 text-xl font-extrabold text-slate-900">Escolha o tipo de criação</h2>
+                          <p className="mt-1 text-sm text-slate-500">Use o fluxo automático ou monte questão por questão.</p>
+                        </div>
+                        <button type="button" onClick={resetTypeSelectorState} className="rounded-xl border border-slate-300 p-2 text-slate-600">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="mt-6 grid gap-4 md:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetTypeSelectorState();
+                            setShowForm(true);
+                            setEditingId(null);
+                            setForm(EMPTY_FORM);
+                          }}
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                        >
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                            <Shuffle className="h-5 w-5" />
+                          </div>
+                          <h3 className="text-base font-bold text-slate-900">Simulado Aleatório</h3>
+                          <p className="mt-2 text-sm text-slate-500">O sistema seleciona questões automaticamente com base nas configurações de banca, formato e dificuldade.</p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetTypeSelectorState();
+                            setShowPersonalizedWizard(true);
+                          }}
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                        >
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                            <ListChecks className="h-5 w-5" />
+                          </div>
+                          <h3 className="text-base font-bold text-slate-900">Simulado Personalizado</h3>
+                          <p className="mt-2 text-sm text-slate-500">Monte questão por questão: escolha do banco, gere com IA ou crie do zero.</p>
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── PAINEL DE DOWNLOAD (impresso criado com sucesso) ───────── */}
+          {printedExamId && (
+            <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px]">
+              <div className="flex h-full items-center justify-center p-4">
+                <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--brand-primary)' }}>
-                        Novo simulado
-                      </p>
-                      <h2 className="mt-1 text-xl font-extrabold text-slate-900">Escolha o tipo de criação</h2>
-                      <p className="mt-1 text-sm text-slate-500">Use o fluxo atual para sorteio automático ou monte o simulado questão por questão.</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600">Prova gerada</p>
+                      <h2 className="mt-1 text-xl font-extrabold text-slate-900">Download dos arquivos</h2>
+                      <p className="mt-1 text-sm text-slate-500">Baixe o PDF da prova para distribuir e o gabarito para os alunos responderem.</p>
                     </div>
-                    <button type="button" onClick={() => setShowTypeSelector(false)} className="rounded-xl border border-slate-300 p-2 text-slate-600">
+                    <button
+                      type="button"
+                      onClick={() => { setPrintedExamId(null); setDeliveryMode(null); }}
+                      className="rounded-xl border border-slate-300 p-2 text-slate-600"
+                    >
                       <X className="h-4 w-4" />
                     </button>
                   </div>
 
-                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                  <div className="mt-6 space-y-3">
                     <button
                       type="button"
-                      onClick={() => {
-                        setShowTypeSelector(false);
-                        setShowForm(true);
-                        setEditingId(null);
-                        setForm(EMPTY_FORM);
-                      }}
-                      className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                      onClick={() => downloadPrintedPdf('prova')}
+                      disabled={downloadingPrint !== null}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[var(--brand-primary)] disabled:opacity-60"
                     >
-                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
-                        <Shuffle className="h-5 w-5" />
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm" style={{ color: 'var(--brand-primary)' }}>
+                        {downloadingPrint === 'prova' ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        ) : (
+                          <FileText className="h-5 w-5" />
+                        )}
                       </div>
-                      <h3 className="text-base font-bold text-slate-900">Simulado Aleatório</h3>
-                      <p className="mt-2 text-sm text-slate-500">O sistema seleciona questões automaticamente com base nas configurações de banca, formato e dificuldade.</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-slate-900">PDF da Prova</p>
+                        <p className="text-xs text-slate-500">Questões e alternativas para distribuir aos alunos</p>
+                      </div>
+                      <Download className="h-4 w-4 shrink-0 text-slate-400" />
                     </button>
 
                     <button
                       type="button"
-                      onClick={() => {
-                        setShowTypeSelector(false);
-                        setShowPersonalizedWizard(true);
-                      }}
-                      className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                      onClick={() => downloadPrintedPdf('gabarito')}
+                      disabled={downloadingPrint !== null}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[var(--brand-primary)] disabled:opacity-60"
                     >
-                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
-                        <ListChecks className="h-5 w-5" />
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm" style={{ color: 'var(--brand-primary)' }}>
+                        {downloadingPrint === 'gabarito' ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        ) : (
+                          <ClipboardList className="h-5 w-5" />
+                        )}
                       </div>
-                      <h3 className="text-base font-bold text-slate-900">Simulado Personalizado</h3>
-                      <p className="mt-2 text-sm text-slate-500">Monte questão por questão: escolha do banco, gere com IA ou crie do zero.</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-slate-900">PDF do Gabarito</p>
+                        <p className="text-xs text-slate-500">Folha de respostas com bolhas para o aluno marcar</p>
+                      </div>
+                      <Download className="h-4 w-4 shrink-0 text-slate-400" />
                     </button>
                   </div>
                 </div>
@@ -861,6 +1228,11 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               onCreated={() => {
                 setShowPersonalizedWizard(false);
                 void loadSimulados();
+              }}
+              printedMode={deliveryMode === 'impressa'}
+              onCreatedPrinted={(id) => {
+                setShowPersonalizedWizard(false);
+                setPrintedExamId(id);
               }}
             />
           )}
@@ -956,6 +1328,29 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           </div>
                         ) : (
                           <>
+                            {sim.status !== 'scheduled' && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/partners/${slug}/simulados/${sim.id}/corrigir`)}
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-emerald-600 transition-colors"
+                                title="Corrigir gabaritos"
+                              >
+                                <Camera className="h-4 w-4" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => void handlePrintScheduledSimulado(sim)}
+                              disabled={printingSimuladoId === sim.id}
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 transition-colors disabled:cursor-wait disabled:opacity-60"
+                              title="Imprimir"
+                            >
+                              {printingSimuladoId === sim.id ? (
+                                <span className="block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                              ) : (
+                                <Printer className="h-4 w-4" />
+                              )}
+                            </button>
                             <button
                               type="button"
                               onClick={() => openEdit(sim)}
@@ -1624,12 +2019,14 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleSave()}
+                  onClick={() => deliveryMode === 'impressa' ? handleSaveImpresso() : handleSave()}
                   disabled={saving}
                   className="rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
                   style={{ backgroundColor: 'var(--brand-primary)' }}
                 >
-                  {editingId ? 'Aprovar e salvar' : 'Aprovar e criar'}
+                  {deliveryMode === 'impressa'
+                    ? 'Gerar prova impressa'
+                    : editingId ? 'Aprovar e salvar' : 'Aprovar e criar'}
                 </button>
               </div>
             )}

@@ -98,8 +98,8 @@ interface RankingData {
   ranking: RankEntry[]; user_position?: number | null; user_best?: { percentage: number } | null
 }
 
-type BankLabel = 'Todas' | 'ENEM' | 'UFU' | 'UEG' | 'UNESP'
-type PresetBank = 'ENEM' | 'UFU' | 'UEG' | 'UNESP'
+type BankLabel = 'Todas' | 'ENEM' | 'UFU' | 'UEG' | 'UFG' | 'UNESP'
+type PresetBank = 'ENEM' | 'UFU' | 'UEG' | 'UFG' | 'UNESP'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -136,11 +136,20 @@ const UNESP_BLOCK_FORMATS = [
   { value: 'completo',    label: 'UNESP 1ª Fase Completo',              emoji: '🎯', qty: 90 },
 ]
 
+const UFG_BLOCK_FORMATS = [
+  { value: 'linguagens',  label: 'Linguagens',             emoji: '📖', qty: 24 },
+  { value: 'humanas',     label: 'Ciências Humanas',        emoji: '🏛️', qty: 24 },
+  { value: 'natureza',    label: 'Ciências da Natureza',    emoji: '🧪', qty: 24 },
+  { value: 'matematica',  label: 'Matemática',              emoji: '📐', qty: 24 },
+  { value: 'completo',    label: 'UFG Completo',            emoji: '🎯', qty: 96 },
+]
+
 const BANK_OPTIONS = [
   { value: 'Todas', label: 'Todas as bancas' },
-  { value: 'ENEM', label: 'ENEM' },
-  { value: 'UFU', label: 'UFU' },
-  { value: 'UEG', label: 'UEG' },
+  { value: 'ENEM',  label: 'ENEM' },
+  { value: 'UFU',   label: 'UFU' },
+  { value: 'UEG',   label: 'UEG' },
+  { value: 'UFG',   label: 'UFG' },
   { value: 'UNESP', label: 'UNESP' },
 ] as const
 
@@ -340,11 +349,12 @@ function scoreBarColor(pct: number)  { return perfColorHex(pct) }
 function scoreRingColor(pct: number) { return perfColorHex(pct) }
 
 const BANK_VISUALS = {
-  ENEM: { label: 'ENEM', color: '#22c55e', bgClass: 'bg-green-500' },
-  UFU: { label: 'UFU', color: '#f59e0b', bgClass: 'bg-amber-500' },
-  UEG: { label: 'UEG', color: '#0f766e', bgClass: 'bg-teal-600' },
+  ENEM:  { label: 'ENEM',  color: '#22c55e', bgClass: 'bg-green-500' },
+  UFU:   { label: 'UFU',   color: '#f59e0b', bgClass: 'bg-amber-500' },
+  UEG:   { label: 'UEG',   color: '#0f766e', bgClass: 'bg-teal-600' },
+  UFG:   { label: 'UFG',   color: '#3b82f6', bgClass: 'bg-blue-500' },
   UNESP: { label: 'UNESP', color: '#7c3aed', bgClass: 'bg-violet-600' },
-  Todas: { label: 'ENEM + UFU + UEG + UNESP', color: '#64748b', bgClass: 'bg-slate-500' },
+  Todas: { label: 'ENEM + UFU + UEG + UFG + UNESP', color: '#64748b', bgClass: 'bg-slate-500' },
 } as const
 
 function celebrationMessage(pct: number): { emoji: string; title: string; sub: string } {
@@ -358,6 +368,7 @@ function normalizeBank(value?: string | null): BankLabel {
   const normalized = String(value || '').trim().toUpperCase()
   if (normalized === 'UFU' || normalized === 'UFU_VEST') return 'UFU'
   if (normalized === 'UEG' || normalized === 'UEG_VEST') return 'UEG'
+  if (normalized === 'UFG' || normalized === 'UFG_VEST') return 'UFG'
   if (normalized === 'ENEM' || normalized === 'INEP_ENEM' || normalized === 'ENEM_OFICIAL') return 'ENEM'
   if (normalized === 'UNESP') return 'UNESP'
   return 'Todas'
@@ -391,9 +402,11 @@ function getConfigLabel(session: SimuladoSession): string {
       ? UFU_BLOCK_FORMATS
       : bankLabel === 'UEG'
         ? UEG_BLOCK_FORMATS
-        : bankLabel === 'UNESP'
-          ? UNESP_BLOCK_FORMATS
-          : ENEM_BLOCK_FORMATS
+        : bankLabel === 'UFG'
+          ? UFG_BLOCK_FORMATS
+          : bankLabel === 'UNESP'
+            ? UNESP_BLOCK_FORMATS
+            : ENEM_BLOCK_FORMATS
     const fmt = formatList.find(f => f.value === c.format)
     return fmt ? `${fmt.label}${bankLabel !== 'Todas' ? ` · ${bankLabel}` : ''}` : c.format
   }
@@ -582,9 +595,15 @@ export default function SimuladoPage() {
     starts_at: string;
     ends_at: string | null;
     already_completed: boolean;
+    modality?: 'online' | 'printed' | 'hybrid';
+    location_name?: string | null;
+    location_address?: string | null;
+    has_printed_submission?: boolean;
+    online_session?: { status: string; score: number | null; total_questions: number | null } | null;
     metrics: { total_sessions: number; unique_students: number; avg_score_pct: number | null };
   }[]>([])
   const [nowTs, setNowTs] = useState<number>(Date.now())
+  const [hybridConfirmSimId, setHybridConfirmSimId] = useState<string | null>(null)
 
   // UI: result animation
   const [animatedScore, setAnimatedScore] = useState(0)
@@ -1715,66 +1734,137 @@ export default function SimuladoPage() {
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
                   Simulados da Turma
                 </p>
-                {scheduledSimulados.map((sim) => (
-                  <div
-                    key={sim.id}
-                    className={`overflow-hidden rounded-2xl border p-5 ${
-                      sim.status === 'scheduled'
-                        ? 'border-amber-300/70 dark:border-amber-500/40 bg-amber-50/30 dark:bg-amber-500/5'
-                        : 'border-emerald-300/60 dark:border-emerald-500/30 bg-white dark:bg-slate-900'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                              sim.status === 'scheduled'
-                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
-                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
-                            }`}
+                {/* Modal de confirmação hybrid */}
+                <AnimatePresence>
+                  {hybridConfirmSimId && (
+                    <motion.div
+                      key="hybrid-modal"
+                      className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={() => setHybridConfirmSimId(null)}
+                    >
+                      <motion.div
+                        className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-2xl"
+                        initial={{ scale: 0.94, opacity: 0, y: 12 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.94, opacity: 0, y: 12 }}
+                        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <p className="text-base font-extrabold text-slate-900 dark:text-white mb-2">Atenção</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                          Se você já realizou ou realizará este simulado presencialmente, o resultado
+                          da versão presencial prevalecerá sobre o online. Deseja continuar mesmo assim?
+                        </p>
+                        <div className="mt-5 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setHybridConfirmSimId(null)}
+                            className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                           >
-                            {sim.status === 'scheduled' ? 'Agendado' : 'Ativo'}
-                          </span>
-                          <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                            {sim.title}
-                          </h3>
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { const id = hybridConfirmSimId; setHybridConfirmSimId(null); startSimulado(id!); }}
+                            className="flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 cursor-pointer"
+                            style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
+                          >
+                            Iniciar mesmo assim
+                          </button>
                         </div>
-                        <div className="mt-1.5 flex flex-wrap gap-x-3 text-xs text-slate-500 dark:text-slate-400">
-                          <span>
-                            {String(sim.config.bank ?? 'ENEM')} · {String(sim.config.qty ?? 10)} questões · {DIFFICULTY_LABELS[String(sim.config.difficulty ?? 'misto').toLowerCase()] ?? String(sim.config.difficulty ?? 'Misto')}
-                          </span>
-                          <span>Início: {formatDateTimeBR(sim.starts_at)}</span>
-                          {Boolean(sim.config.time_limit_secs) && (
-                            <span>⏱ {Math.round(Number(sim.config.time_limit_secs) / 60)} min</span>
-                          )}
-                          {sim.ends_at && (
-                            <span>Término: {formatDateTimeBR(sim.ends_at)}</span>
-                          )}
-                          {sim.status === 'scheduled' && (
-                            <span className="inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-300">
-                              <Timer size={12} />
-                              {getScheduledRemainingLabel(sim.starts_at)}
-                            </span>
-                          )}
-                          {sim.already_completed && sim.config?.allow_retry === false && (
-                            <span className="font-semibold text-rose-600 dark:text-rose-300">
-                              Tentativa única concluída
-                            </span>
-                          )}
-                        </div>
-                        {(sim.metrics.unique_students > 0) && (
-                          <p className="mt-1 text-xs text-slate-400">
-                            {sim.metrics.unique_students} aluno(s) já realizaram
-                            {sim.metrics.avg_score_pct != null && ` · Média da turma: ${sim.metrics.avg_score_pct}%`}
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {scheduledSimulados.map((sim) => {
+                  const isPrinted = sim.modality === 'printed'
+                  const isHybrid  = sim.modality === 'hybrid'
+                  const isPast    = sim.ends_at ? new Date(sim.ends_at).getTime() <= nowTs : false
+                  const hasPrintedSub = Boolean(sim.has_printed_submission)
+
+                  // ── badges ─────────────────────────────────────────────────
+                  let badge: React.ReactNode = null
+                  let borderCls = 'border-emerald-300/60 dark:border-emerald-500/30 bg-white dark:bg-slate-900'
+
+                  if (isPrinted || isHybrid) {
+                    if (hasPrintedSub) {
+                      badge = <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">Corrigido pelo Professor</span>
+                      borderCls = 'border-emerald-300/60 dark:border-emerald-500/30 bg-white dark:bg-slate-900'
+                    } else if (isPast) {
+                      badge = <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">Aguardando Correção</span>
+                      borderCls = 'border-amber-300/70 dark:border-amber-500/40 bg-amber-50/30 dark:bg-amber-500/5'
+                    } else {
+                      badge = <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${isHybrid ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300' : 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'}`}>{isHybrid ? 'Híbrido' : 'Simulado Presencial'}</span>
+                      borderCls = isHybrid
+                        ? 'border-indigo-300/60 dark:border-indigo-500/30 bg-indigo-50/20 dark:bg-indigo-500/5'
+                        : 'border-violet-300/60 dark:border-violet-500/30 bg-violet-50/30 dark:bg-violet-500/5'
+                    }
+                  } else {
+                    badge = <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${sim.status === 'scheduled' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'}`}>{sim.status === 'scheduled' ? 'Agendado' : 'Ativo'}</span>
+                    borderCls = sim.status === 'scheduled'
+                      ? 'border-amber-300/70 dark:border-amber-500/40 bg-amber-50/30 dark:bg-amber-500/5'
+                      : 'border-emerald-300/60 dark:border-emerald-500/30 bg-white dark:bg-slate-900'
+                  }
+
+                  // ── CTA ────────────────────────────────────────────────────
+                  let cta: React.ReactNode = null
+                  if (hasPrintedSub) {
+                    // printed_submission existe → sempre mostrar "Ver Correção"
+                    // (para printed E hybrid)
+                    cta = (
+                      <a
+                        href={`/partners/${slug}/student/exam-results/${sim.id}`}
+                        className="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110"
+                        style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
+                      >
+                        Ver Correção
+                      </a>
+                    )
+                  } else if (isPrinted) {
+                    // printed puro sem submission → sem botão
+                    cta = null
+                  } else if (isHybrid) {
+                    // hybrid sem submission
+                    const onlineCompleted = sim.online_session?.status === 'completed'
+                    if (onlineCompleted) {
+                      // Estado 3: resultado online disponível
+                      cta = (
+                        <div className="shrink-0 text-right">
+                          <p className="text-[11px] text-slate-400 mb-0.5">Online</p>
+                          <p className="text-sm font-extrabold tabular-nums" style={{ color: (sim.online_session!.score ?? 0) / (sim.online_session!.total_questions ?? 1) >= 0.5 ? '#22c55e' : '#ef4444' }}>
+                            {sim.online_session!.score ?? 0}/{sim.online_session!.total_questions ?? 0}
                           </p>
-                        )}
-                      </div>
+                        </div>
+                      )
+                    } else if (!isPast) {
+                      // Estado 1: pode iniciar online
+                      cta = (
+                        <button
+                          type="button"
+                          onClick={() => setHybridConfirmSimId(sim.id)}
+                          disabled={loading || sim.status === 'scheduled'}
+                          className="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 disabled:opacity-50 cursor-pointer"
+                          style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
+                        >
+                          {sim.status === 'scheduled' ? 'Aguardando início' : 'Iniciar Online'}
+                        </button>
+                      )
+                    } else {
+                      // Estado 2: passado, sem submission, sem online → aguardando correção (badge já cuida)
+                      cta = null
+                    }
+                  } else {
+                    // online puro — comportamento original
+                    cta = (
                       <button
                         type="button"
                         onClick={() => startSimulado(sim.id)}
                         disabled={loading || sim.status === 'scheduled' || (sim.already_completed && sim.config?.allow_retry === false)}
-                        className="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 disabled:opacity-50"
+                        className="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 disabled:opacity-50 cursor-pointer"
                         style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
                       >
                         {sim.status === 'scheduled'
@@ -1783,9 +1873,50 @@ export default function SimuladoPage() {
                             ? 'Tentativa concluída'
                           : sim.already_completed ? 'Refazer' : 'Iniciar'}
                       </button>
+                    )
+                  }
+
+                  return (
+                  <div key={sim.id} className={`overflow-hidden rounded-2xl border p-5 ${borderCls}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {badge}
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white">{sim.title}</h3>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 text-xs text-slate-500 dark:text-slate-400">
+                          <span>{String(sim.config.bank ?? 'ENEM')} · {String(sim.config.qty ?? 10)} questões · {DIFFICULTY_LABELS[String(sim.config.difficulty ?? 'misto').toLowerCase()] ?? String(sim.config.difficulty ?? 'Misto')}</span>
+                          <span>Início: {formatDateTimeBR(sim.starts_at)}</span>
+                          {Boolean(sim.config.time_limit_secs) && (
+                            <span>⏱ {Math.round(Number(sim.config.time_limit_secs) / 60)} min</span>
+                          )}
+                          {sim.ends_at && <span>Término: {formatDateTimeBR(sim.ends_at)}</span>}
+                          {(isPrinted || isHybrid) && sim.location_name && (
+                            <span className="inline-flex items-center gap-1 font-semibold text-violet-600 dark:text-violet-300">
+                              📍 {sim.location_name}
+                            </span>
+                          )}
+                          {!isPrinted && !isHybrid && sim.status === 'scheduled' && (
+                            <span className="inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-300">
+                              <Timer size={12} />{getScheduledRemainingLabel(sim.starts_at)}
+                            </span>
+                          )}
+                          {!isPrinted && !isHybrid && sim.already_completed && sim.config?.allow_retry === false && (
+                            <span className="font-semibold text-rose-600 dark:text-rose-300">Tentativa única concluída</span>
+                          )}
+                        </div>
+                        {/* Aviso discreto hybrid — estado 1 */}
+                        {isHybrid && !hasPrintedSub && !isPast && sim.status !== 'scheduled' && (
+                          <p className="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed">
+                            ℹ️ Este simulado também será aplicado presencialmente. Caso você o realize presencialmente, o resultado online será desconsiderado.
+                          </p>
+                        )}
+                      </div>
+                      {cta}
                     </div>
                   </div>
-                ))}
+                  )
+                })}
                 <div className="h-px bg-slate-100 dark:bg-slate-800" />
               </motion.div>
             )}
@@ -2457,7 +2588,7 @@ export default function SimuladoPage() {
                 )}
 
                 {/* Stats row */}
-                <div className="flex flex-wrap items-center justify-center gap-6 mb-8">
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-center gap-4 sm:gap-6 mb-8 w-full">
                   <div className="text-center">
                     <div className={`text-2xl font-black ${scoreColor(displayPct)}`}>{displayPct}%</div>
                     <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-1">Acertos</div>
@@ -2497,23 +2628,23 @@ export default function SimuladoPage() {
                 </div>
 
                 {/* Action buttons */}
-                <div className="flex flex-wrap justify-center gap-3">
-                  <button onClick={() => resetSimulado(false)} className="border border-slate-200 dark:border-slate-700 px-5 py-3 rounded-xl font-bold flex gap-2 items-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 transition-colors cursor-pointer min-h-[44px]">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:justify-center gap-3 w-full">
+                  <button onClick={() => resetSimulado(false)} className="w-full sm:w-auto border border-slate-200 dark:border-slate-700 px-5 py-3 rounded-xl font-bold flex gap-2 items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 transition-colors cursor-pointer min-h-[44px]">
                     <ChevronLeft size={18} /> Dashboard
                   </button>
                   <button onClick={() => resetSimulado(true)}
-                    className="px-5 py-3 rounded-xl font-bold flex gap-2 items-center transition-colors cursor-pointer min-h-[44px] hover:opacity-90"
+                    className="w-full sm:w-auto px-5 py-3 rounded-xl font-bold flex gap-2 items-center justify-center transition-colors cursor-pointer min-h-[44px] hover:opacity-90"
                     style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
                     <RotateCcw size={18} /> Novo Simulado
                   </button>
                   {finishResult?.session_id && (
                     <button onClick={() => router.push(`/partners/${slug}/student/simulado/${finishResult.session_id}/revisao`)}
-                      className="bg-indigo-600 text-white px-5 py-3 rounded-xl font-bold flex gap-2 items-center hover:bg-indigo-700 transition-colors cursor-pointer min-h-[44px]">
+                      className="w-full sm:w-auto bg-indigo-600 text-white px-5 py-3 rounded-xl font-bold flex gap-2 items-center justify-center hover:bg-indigo-700 transition-colors cursor-pointer min-h-[44px]">
                       <Brain size={18} /> Revisão com IA
                     </button>
                   )}
                   <button onClick={() => router.push(`/partners/${slug}/student/simulado/historico`)}
-                    className="border border-slate-200 dark:border-slate-700 px-5 py-3 rounded-xl font-bold flex gap-2 items-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 transition-colors cursor-pointer min-h-[44px]">
+                    className="w-full sm:w-auto border border-slate-200 dark:border-slate-700 px-5 py-3 rounded-xl font-bold flex gap-2 items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 transition-colors cursor-pointer min-h-[44px]">
                     <History size={18} /> Histórico
                   </button>
                 </div>
@@ -2532,9 +2663,9 @@ export default function SimuladoPage() {
                     .sort(([, a], [, b]) => b.percentage - a.percentage)
                     .map(([subj, res]) => (
                     <div key={subj}>
-                      <div className="flex justify-between text-sm mb-1.5">
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">{subj}</span>
-                        <span className={`font-bold ${scoreColor(res.percentage)}`}>{res.correct}/{res.total} ({res.percentage}%)</span>
+                      <div className="flex items-baseline justify-between gap-2 text-sm mb-1.5 min-w-0">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300 min-w-0 truncate">{subj}</span>
+                        <span className={`font-bold shrink-0 ${scoreColor(res.percentage)}`}>{res.correct}/{res.total} ({res.percentage}%)</span>
                       </div>
                       <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                         <motion.div className="h-2 rounded-full"
