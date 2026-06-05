@@ -35,12 +35,13 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [subject, setSubject] = useState('all');
+  const [bank, setBank] = useState('all');
   const [discipline, setDiscipline] = useState('all');
   const [difficulty, setDifficulty] = useState('all');
   const [preview, setPreview] = useState<QuestionItem | null>(null);
   const [varyingId, setVaryingId] = useState<string | null>(null);
 
-  const subjects = Object.keys(TAXONOMY);
+  const subjects = Object.keys(TAXONOMY).map((item) => (item === 'Linguagens' ? 'Língua Portuguesa' : item));
   const disciplines = subject !== 'all' ? [...(TAXONOMY[subject as keyof typeof TAXONOMY] ?? [])] : [];
 
   async function getToken() {
@@ -55,11 +56,13 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
       const token = await getToken();
       const api = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
       const currentPage = reset ? 1 : page;
+      const querySubject = subject === 'Linguagens' ? 'Língua Portuguesa' : subject;
       const params = new URLSearchParams({
         page: String(currentPage),
         per_page: '10',
         query,
-        subject,
+        subject: querySubject,
+        bank,
         discipline,
         difficulty,
       });
@@ -84,11 +87,17 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
   }, [subject]);
 
   useEffect(() => {
+    if (subject === 'Linguagens') {
+      setSubject('Língua Portuguesa');
+    }
+  }, [subject]);
+
+  useEffect(() => {
     const timeout = setTimeout(() => {
       void fetchQuestions(true);
     }, 300);
     return () => clearTimeout(timeout);
-  }, [slug, query, subject, discipline, difficulty]);
+  }, [slug, query, subject, bank, discipline, difficulty]);
 
   async function handleGenerateVariation(question: QuestionItem) {
     setVaryingId(question.id);
@@ -125,7 +134,7 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
   return (
     <div className="space-y-4">
       <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-5">
           <label className="relative md:col-span-2">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -138,6 +147,13 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
           <select value={subject} onChange={(e) => setSubject(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
             <option value="all">Todas as matérias</option>
             {subjects.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <select value={bank} onChange={(e) => setBank(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
+            <option value="all">Todas as bancas</option>
+            <option value="ENEM">ENEM</option>
+            <option value="UFU">UFU</option>
+            <option value="UEG">UEG</option>
+            <option value="UFG">UFG</option>
           </select>
           <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
             <option value="all">Qualquer dificuldade</option>
