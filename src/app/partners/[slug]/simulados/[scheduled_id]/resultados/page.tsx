@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { animate, motion, useMotionValue, useTransform } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
-import { toast } from 'sonner';
 import {
   ArrowRight,
   Award,
@@ -207,11 +206,6 @@ export default function PrintedExamResultsPage() {
   }
 
   async function downloadExternalReport(participant: Participant) {
-    if (participant.source === 'online') {
-      toast.info('Relatório PDF disponível apenas para alunos externos. Alunos cadastrados podem acessar seus resultados diretamente na plataforma.');
-      return;
-    }
-
     setDownloadingId(participant.id);
     try {
       const res = await fetchWithAuth(`/api/partners/${slug}/exam-results/${participant.id}/relatorio.pdf`);
@@ -474,13 +468,7 @@ export default function PrintedExamResultsPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (participant.source === 'online') {
-                              router.push(`/partners/${slug}/student/simulado/${participant.id}/revisao`);
-                              return;
-                            }
-                            router.push(`/partners/${slug}/exam-results/${participant.id}`);
-                          }}
+                          onClick={() => router.push(`/partners/${slug}/exam-results/${participant.id}`)}
                           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
                           style={{ backgroundColor: 'var(--brand-primary)' }}
                         >
