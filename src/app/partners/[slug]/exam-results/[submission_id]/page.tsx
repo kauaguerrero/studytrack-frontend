@@ -119,13 +119,13 @@ export default function ExamResultPage() {
   if (error || !submission) {
     return (
       <PartnerLayout>
-        <div className="max-w-lg mx-auto py-16 text-center">
+        <div className="mx-auto max-w-lg px-4 py-16 text-center">
           <XCircle className="mx-auto mb-3 h-10 w-10 text-red-400" />
           <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">{error ?? 'Resultado não encontrado.'}</p>
           <button
             type="button"
             onClick={() => router.back()}
-            className="mt-4 text-xs font-bold text-[var(--brand-primary)] hover:underline"
+            className="mt-4 inline-flex min-h-11 items-center justify-center rounded-lg px-4 text-xs font-bold text-[var(--brand-primary)] hover:underline"
           >
             Voltar
           </button>
@@ -146,19 +146,19 @@ export default function ExamResultPage() {
     <PartnerLayout>
       <div className="min-h-full -mx-4 -mt-4 px-4 pt-4 pb-10 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
         {/* Header */}
-        <div className="mb-6 flex items-center gap-3">
+        <div className="mb-6 flex items-start gap-3">
           <button
             type="button"
             onClick={() => router.back()}
-            className="rounded-xl border border-slate-200 dark:border-slate-700 p-2 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--brand-primary)]">
               Resultado da Prova Impressa
             </p>
-            <h1 className="text-xl font-extrabold text-slate-900 dark:text-white">
+            <h1 className="break-words text-lg font-extrabold text-slate-900 dark:text-white sm:text-xl">
               {submission.exam_title ?? 'Resultado'}
             </h1>
           </div>
@@ -171,9 +171,9 @@ export default function ExamResultPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5"
+            className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5"
           >
-            <div className="flex items-center gap-6">
+            <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
               {/* Ring */}
               <div className="relative shrink-0">
                 <svg width="120" height="120" className="-rotate-90">
@@ -196,9 +196,9 @@ export default function ExamResultPage() {
               </div>
 
               {/* Info */}
-              <div className="flex-1 space-y-3">
+              <div className="w-full min-w-0 flex-1 space-y-3 text-center sm:text-left">
                 <div>
-                  <p className="text-3xl font-black tabular-nums text-slate-900 dark:text-white">
+                  <p className="break-words text-3xl font-black tabular-nums text-slate-900 dark:text-white">
                     {submission.score}
                     <span className="text-lg font-semibold text-slate-400 dark:text-slate-500">/{submission.total_questions}</span>
                   </p>
@@ -207,17 +207,17 @@ export default function ExamResultPage() {
 
                 <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
                   {submission.student_name && (
-                    <p className="flex items-center gap-1.5">
+                    <p className="flex items-start justify-center gap-1.5 break-words sm:justify-start">
                       <User className="h-3.5 w-3.5" />
                       {submission.student_name}
                     </p>
                   )}
-                  <p className="flex items-center gap-1.5">
+                  <p className="flex items-start justify-center gap-1.5 break-words sm:justify-start">
                     <CalendarDays className="h-3.5 w-3.5" />
                     {formatDateBR(submission.graded_at)}
                   </p>
                   {submission.graded_by_name && (
-                    <p className="flex items-center gap-1.5">
+                    <p className="flex items-start justify-center gap-1.5 break-words sm:justify-start">
                       <BookOpen className="h-3.5 w-3.5" />
                       Corrigido por {submission.graded_by_name}
                     </p>
@@ -233,7 +233,7 @@ export default function ExamResultPage() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-              className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5"
+              className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5"
             >
               <div className="mb-3 flex items-center gap-2">
                 <BarChart2 className="h-4 w-4 text-[var(--brand-primary)]" />
@@ -242,8 +242,8 @@ export default function ExamResultPage() {
               <div className="space-y-2.5">
                 {Object.entries(submission.results_by_subject!).map(([subj, res]) => (
                   <div key={subj}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{subj}</span>
+                    <div className="mb-1 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="min-w-0 break-words text-xs font-semibold text-slate-700 dark:text-slate-200">{subj}</span>
                       <span className="text-xs font-bold tabular-nums" style={{ color: scoreColor(res.percentage) }}>
                         {res.correct}/{res.total} · {res.percentage}%
                       </span>
@@ -266,10 +266,10 @@ export default function ExamResultPage() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
-              className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5"
+              className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5"
             >
               <p className="mb-3 text-sm font-bold text-slate-900 dark:text-white">Gabarito</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {questionNumbers.map((key) => {
                   const correct = (correctAnswers[key] ?? '').toUpperCase();
                   const user = (userAnswers[key] ?? '').toUpperCase();
@@ -279,7 +279,7 @@ export default function ExamResultPage() {
                   return (
                     <div
                       key={key}
-                      className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 ${
+                      className={`flex min-h-11 items-center gap-2.5 rounded-xl border px-3 py-2.5 ${
                         isBlank
                           ? 'border-slate-200 dark:border-slate-700'
                           : isCorrect

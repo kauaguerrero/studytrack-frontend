@@ -276,7 +276,7 @@ export default function CorrigirGabaritoPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           >
-            <div className="rounded-3xl border border-emerald-200 dark:border-emerald-700/40 bg-white dark:bg-slate-900 p-8 shadow-xl text-center space-y-5">
+            <div className="space-y-5 rounded-3xl border border-emerald-200 bg-white p-5 text-center shadow-xl dark:border-emerald-700/40 dark:bg-slate-900 sm:p-8">
               <motion.div
                 initial={{ scale: 0.6, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -297,7 +297,7 @@ export default function CorrigirGabaritoPage() {
                 </h2>
               </div>
 
-              <div className="flex items-center justify-center gap-6 py-2">
+              <div className="flex flex-col items-center justify-center gap-4 py-2 sm:flex-row sm:gap-6">
                 <div className="text-center">
                   <p className={`text-4xl font-black tabular-nums ${scoreColor(pct)}`}>
                     {successData.score}<span className="text-xl text-slate-400">/{successData.total}</span>
@@ -315,7 +315,7 @@ export default function CorrigirGabaritoPage() {
                 <button
                   type="button"
                   onClick={handleCorrigirProximo}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white transition hover:brightness-110"
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white transition hover:brightness-110"
                   style={{ backgroundColor: 'var(--brand-primary)' }}
                 >
                   <RotateCcw className="h-4 w-4" /> Corrigir próximo
@@ -323,7 +323,7 @@ export default function CorrigirGabaritoPage() {
                 <button
                   type="button"
                   onClick={() => router.push(`/partners/${slug}/simulados/${scheduled_id}/resultados`)}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-5 py-3 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   <ArrowRight className="h-4 w-4" /> Ver todos os resultados
                 </button>
@@ -340,30 +340,30 @@ export default function CorrigirGabaritoPage() {
     <PartnerLayout>
       <div className="min-h-full -mx-4 -mt-4 px-4 pt-4 pb-10 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
         {/* Header */}
-        <div className="mb-6 flex items-center gap-3">
+        <div className="mb-6 flex items-start gap-3">
           <button
             type="button"
             onClick={() => router.push(`/partners/${slug}/simulados`)}
-            className="rounded-xl border border-slate-200 dark:border-slate-700 p-2 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--brand-primary)]">
               Correção por Câmera
             </p>
-            <h1 className="text-xl font-extrabold text-slate-900 dark:text-white">
+            <h1 className="text-lg font-extrabold text-slate-900 dark:text-white sm:text-xl">
               Lançar Nota — Gabarito Impresso
             </h1>
           </div>
         </div>
 
         {/* Step indicator */}
-        <div className="mb-6 flex items-center gap-2">
+        <div className="mb-6 flex w-full items-center overflow-x-auto pb-1">
           {(['upload', 'review', 'student'] as Step[]).map((s, i) => (
-            <div key={s} className="flex items-center gap-2">
+            <div key={s} className="flex shrink-0 items-center gap-2">
               <div
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-extrabold transition-colors ${
+                className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-extrabold transition-colors sm:h-7 sm:w-7 ${
                   step === s
                     ? 'bg-[var(--brand-primary)] text-white'
                     : s === 'upload' || (s === 'review' && step === 'student')
@@ -391,7 +391,7 @@ export default function CorrigirGabaritoPage() {
             {/* ── STEP 1: UPLOAD ──────────────────────────────────────────── */}
             {step === 'upload' && (
               <motion.div key="upload" {...SLIDE} className="space-y-4">
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5">
                   <p className="mb-1 text-sm font-bold text-slate-800 dark:text-slate-100">
                     Fotografe o gabarito preenchido pelo aluno
                   </p>
@@ -406,14 +406,14 @@ export default function CorrigirGabaritoPage() {
                       <button
                         type="button"
                         onClick={() => { setImageFile(null); setImagePreview(null); setReadError(null); }}
-                        className="absolute right-2 top-2 flex items-center gap-1.5 rounded-lg bg-white/90 dark:bg-slate-800/90 px-2.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 shadow hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                      className="absolute right-2 top-2 flex min-h-11 items-center gap-1.5 rounded-lg bg-white/90 px-3 py-2 text-xs font-semibold text-slate-600 shadow transition-colors hover:bg-white dark:bg-slate-800/90 dark:text-slate-300 dark:hover:bg-slate-800"
                       >
                         <RotateCcw className="h-3 w-3" /> Trocar foto
                       </button>
                     </div>
                   ) : (
                     <div
-                      className="flex min-h-[180px] sm:min-h-[220px] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/40 p-8 cursor-pointer transition hover:border-[var(--brand-primary)]"
+                      className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-5 transition hover:border-[var(--brand-primary)] dark:border-slate-600 dark:bg-slate-800/40 sm:min-h-[220px] sm:p-8"
                       onClick={() => fileInputRef.current?.click()}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
@@ -435,7 +435,7 @@ export default function CorrigirGabaritoPage() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                      className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                     >
                       <Upload className="h-4 w-4" /> Selecionar arquivo
                     </button>
@@ -453,7 +453,7 @@ export default function CorrigirGabaritoPage() {
                   type="button"
                   onClick={handleReadGabarito}
                   disabled={!imageFile || readingLoading}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white disabled:opacity-50 transition hover:brightness-110"
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50"
                   style={{ backgroundColor: 'var(--brand-primary)' }}
                 >
                   {readingLoading ? (
@@ -468,23 +468,23 @@ export default function CorrigirGabaritoPage() {
             {/* ── STEP 2: REVIEW ──────────────────────────────────────────── */}
             {step === 'review' && (
               <motion.div key="review" {...SLIDE} className="space-y-0">
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+                  <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
                       <p className="text-sm font-bold text-slate-900 dark:text-white">Revise as respostas lidas</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         Corrija manualmente qualquer leitura incorreta antes de continuar.
                       </p>
                     </div>
                     {nullCount > 0 && (
-                      <span className="shrink-0 flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-500/20 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
                         <AlertTriangle className="h-3 w-3" />
                         {nullCount} ilegível{nullCount > 1 ? 'is' : ''}
                       </span>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                     {Array.from({ length: totalQuestions || Object.keys(answers).length }, (_, i) => {
                       const key = String(i + 1);
                       const val = answers[key] ?? null;
@@ -492,7 +492,7 @@ export default function CorrigirGabaritoPage() {
                       return (
                         <div
                           key={key}
-                          className={`rounded-xl border p-2 ${isNull ? 'border-amber-300 dark:border-amber-500/50 bg-amber-50/50 dark:bg-amber-500/10' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'}`}
+                          className={`rounded-xl border p-2 ${isNull ? 'border-amber-300 bg-amber-50/50 dark:border-amber-500/50 dark:bg-amber-500/10' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'}`}
                         >
                           <div className="flex items-center justify-between mb-1.5">
                             <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
@@ -500,13 +500,13 @@ export default function CorrigirGabaritoPage() {
                             </p>
                             {isNull && <AlertTriangle className="h-3 w-3 text-amber-500" />}
                           </div>
-                          <div className="flex gap-0.5 flex-wrap">
+                          <div className="grid grid-cols-5 gap-1">
                             {LETTERS.map((l) => (
                               <button
                                 key={l}
                                 type="button"
                                 onClick={() => setAnswers((prev) => ({ ...prev, [key]: l }))}
-                                className={`flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-extrabold transition-colors ${
+                                className={`flex h-11 min-w-0 items-center justify-center rounded-md text-xs font-extrabold transition-colors sm:h-8 ${
                                   val === l
                                     ? 'text-white'
                                     : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -524,19 +524,19 @@ export default function CorrigirGabaritoPage() {
                 </div>
 
                 {/* Sticky footer on mobile */}
-                <div className="sticky bottom-0 sm:static bg-white/95 dark:bg-slate-950/95 sm:bg-transparent dark:sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none pt-3 pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 sm:mt-4 border-t border-slate-100 dark:border-slate-800 sm:border-0">
-                  <div className="flex gap-3">
+                <div className="sticky bottom-0 -mx-4 border-t border-slate-100 bg-white/95 px-4 pb-2 pt-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-950/95 sm:static sm:mx-0 sm:mt-4 sm:border-0 sm:bg-transparent sm:px-0 sm:pb-0 sm:backdrop-blur-none dark:sm:bg-transparent">
+                  <div className="flex flex-col gap-3 sm:flex-row">
                     <button
                       type="button"
                       onClick={() => setStep('upload')}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                      className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                     >
                       <ChevronLeft className="h-4 w-4" /> Refazer foto
                     </button>
                     <button
                       type="button"
                       onClick={() => setStep('student')}
-                      className="flex-1 flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
                       style={{ backgroundColor: 'var(--brand-primary)' }}
                     >
                       Confirmar Respostas <ChevronLeft className="h-4 w-4 rotate-180" />
@@ -549,7 +549,7 @@ export default function CorrigirGabaritoPage() {
             {/* ── STEP 3: STUDENT ─────────────────────────────────────────── */}
             {step === 'student' && (
               <motion.div key="student" {...SLIDE} className="space-y-4">
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 space-y-4">
+                <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5">
                   <div>
                     <p className="text-sm font-bold text-slate-900 dark:text-white">Selecione o aluno</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -558,13 +558,13 @@ export default function CorrigirGabaritoPage() {
                   </div>
 
                   {/* Toggle externo — pill style */}
-                  <div className="flex items-center gap-3">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <button
                       type="button"
                       role="switch"
                       aria-checked={!isExternal}
                       onClick={() => { setIsExternal(false); setExternalName(''); }}
-                      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${!isExternal ? 'text-white shadow' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold transition-colors ${!isExternal ? 'text-white shadow' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'}`}
                       style={!isExternal ? { backgroundColor: 'var(--brand-primary)' } : {}}
                     >
                       <UserCheck className="h-3.5 w-3.5" /> Aluno cadastrado
@@ -574,7 +574,7 @@ export default function CorrigirGabaritoPage() {
                       role="switch"
                       aria-checked={isExternal}
                       onClick={() => { setIsExternal(true); setSelectedStudent(null); }}
-                      className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${isExternal ? 'text-white shadow' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+                      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold transition-colors ${isExternal ? 'text-white shadow' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'}`}
                       style={isExternal ? { backgroundColor: 'var(--brand-primary)' } : {}}
                     >
                       <User className="h-3.5 w-3.5" /> Aluno externo
@@ -588,7 +588,7 @@ export default function CorrigirGabaritoPage() {
                           value={externalName}
                           onChange={(e) => setExternalName(e.target.value)}
                           placeholder="Nome completo do aluno externo"
-                          className="h-10 w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[var(--brand-primary)]"
+                          className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                         />
                       </motion.div>
                     ) : (
@@ -597,7 +597,7 @@ export default function CorrigirGabaritoPage() {
                           value={studentSearch}
                           onChange={(e) => setStudentSearch(e.target.value)}
                           placeholder="Buscar aluno pelo nome..."
-                          className="h-10 w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[var(--brand-primary)]"
+                          className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                         />
                         {studentsLoading ? (
                           <div className="flex items-center gap-2 py-3 text-xs text-slate-400">
@@ -612,7 +612,7 @@ export default function CorrigirGabaritoPage() {
                                 key={s.id}
                                 type="button"
                                 onClick={() => setSelectedStudent(s)}
-                                className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 ${selectedStudent?.id === s.id ? 'bg-slate-50 dark:bg-slate-800/80' : ''}`}
+                                className={`flex min-h-11 w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-800 ${selectedStudent?.id === s.id ? 'bg-slate-50 dark:bg-slate-800/80' : ''}`}
                               >
                                 <div
                                   className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${selectedStudent?.id === s.id ? 'text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}
@@ -633,11 +633,11 @@ export default function CorrigirGabaritoPage() {
                 </div>
 
                 {/* Resumo das respostas */}
-                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                     Respostas confirmadas
                   </p>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <span className="text-sm font-extrabold tabular-nums text-slate-900 dark:text-white">
                       {answeredCount}/{totalCount}
                     </span>
@@ -649,11 +649,11 @@ export default function CorrigirGabaritoPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row">
                   <button
                     type="button"
                     onClick={() => setStep('review')}
-                    className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
                     <ChevronLeft className="h-4 w-4" /> Voltar
                   </button>
@@ -661,7 +661,7 @@ export default function CorrigirGabaritoPage() {
                     type="button"
                     onClick={handleLancarNota}
                     disabled={submitting || (!isExternal && !selectedStudent) || (isExternal && !externalName.trim())}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50 transition hover:brightness-110"
+                    className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50"
                     style={{ backgroundColor: 'var(--brand-primary)' }}
                   >
                     {submitting ? (
@@ -676,7 +676,7 @@ export default function CorrigirGabaritoPage() {
                   <button
                     type="button"
                     onClick={() => router.push(`/partners/${slug}/simulados`)}
-                    className="text-xs font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                    className="inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-600 dark:hover:text-slate-300"
                   >
                     Ver todos os resultados
                   </button>
