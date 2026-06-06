@@ -209,7 +209,8 @@ export default function PrintedExamResultsPage() {
     try {
       const res = await fetchWithAuth(`/api/partners/${slug}/exam-results/${participant.id}/relatorio.pdf`);
       if (!res.ok) {
-        setError('Nao foi possivel gerar o relatorio PDF.');
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? 'Nao foi possivel gerar o relatorio PDF.');
         return;
       }
 
@@ -372,7 +373,6 @@ export default function PrintedExamResultsPage() {
                 const percentage = resolvePercentage(participant);
                 const subjectEntries = Object.entries(participant.results_by_subject ?? {});
                 const isPrinted = participant.source === 'printed';
-                const isExternal = isPrinted && !participant.student_id;
                 return (
                   <motion.article
                     key={participant.id}
@@ -386,7 +386,7 @@ export default function PrintedExamResultsPage() {
                         <div className="min-w-0">
                           <div className="mb-2 flex flex-wrap items-center gap-2">
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-                              {isExternal ? <Award className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                            {isPrinted && !participant.student_id ? <Award className="h-4 w-4" /> : <User className="h-4 w-4" />}
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-extrabold text-slate-900 dark:text-white">
@@ -452,31 +452,27 @@ export default function PrintedExamResultsPage() {
                       )}
 
                       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                        {isExternal && (
-                          <button
-                            type="button"
-                            onClick={() => void downloadExternalReport(participant)}
-                            disabled={downloadingId === participant.id}
-                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                          >
-                            {downloadingId === participant.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Download className="h-4 w-4" />
-                            )}
-                            Gerar Relatorio PDF
-                          </button>
-                        )}
-                        {isPrinted && (
-                          <button
-                            type="button"
-                            onClick={() => router.push(`/partners/${slug}/exam-results/${participant.id}`)}
-                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
-                            style={{ backgroundColor: 'var(--brand-primary)' }}
-                          >
-                            Ver Detalhe <ArrowRight className="h-4 w-4" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => void downloadExternalReport(participant)}
+                          disabled={downloadingId === participant.id}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                          {downloadingId === participant.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                          Gerar Relatorio PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/partners/${slug}/exam-results/${participant.id}`)}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+                          style={{ backgroundColor: 'var(--brand-primary)' }}
+                        >
+                          Ver Detalhe <ArrowRight className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
                   </motion.article>
