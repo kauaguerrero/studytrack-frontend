@@ -1417,7 +1417,7 @@ export default function SimuladoPage() {
 
       {/* ── Finish dialog ── */}
       <Dialog open={finishDialogOpen} onOpenChange={setFinishDialogOpen}>
-        <DialogContent className="dark:bg-slate-900 dark:border-slate-800">
+        <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto dark:border-slate-800 dark:bg-slate-900 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="dark:text-slate-100">Finalizar simulado?</DialogTitle>
             <DialogDescription className="dark:text-slate-400">
@@ -1426,12 +1426,12 @@ export default function SimuladoPage() {
                 : 'Todas as questões foram respondidas. Deseja entregar?'}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <button onClick={() => setFinishDialogOpen(false)} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 cursor-pointer">
+          <DialogFooter className="gap-2 sm:gap-2">
+            <button onClick={() => setFinishDialogOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer">
               Continuar respondendo
             </button>
             <button onClick={confirmFinish} disabled={submitting}
-              className="px-4 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-70 cursor-pointer"
+              className="min-h-11 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors disabled:opacity-70 cursor-pointer"
               style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
               {submitting ? 'Enviando...' : 'Entregar'}
             </button>
@@ -1441,7 +1441,7 @@ export default function SimuladoPage() {
 
       {/* ── Config modal ── */}
       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
-          <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto dark:bg-slate-900 dark:border-slate-800">
+          <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto dark:border-slate-800 dark:bg-slate-900 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 dark:text-slate-100">
               <Timer className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
@@ -1451,10 +1451,10 @@ export default function SimuladoPage() {
           </DialogHeader>
 
           {/* Mode toggle */}
-          <div className="flex gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+          <div className="grid grid-cols-1 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 sm:grid-cols-2">
             {(['custom', 'preset'] as const).map(m => (
               <button key={m} onClick={() => setMode(m)}
-                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${mode === m ? 'bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
+                className={`min-h-11 rounded-lg px-3 py-2 text-sm font-bold transition-all cursor-pointer ${mode === m ? 'bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
                 {m === 'custom' ? 'Personalizado' : 'Blocos por Banca'}
               </button>
             ))}
@@ -1521,7 +1521,7 @@ export default function SimuladoPage() {
                       <button
                         key={option}
                         onClick={() => setPresetBank(option)}
-                        className={`p-2.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${
+                        className={`min-h-11 rounded-xl border-2 p-2.5 text-sm font-bold transition-all cursor-pointer ${
                           presetBank === option
                             ? 'border-transparent'
                             : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 border-slate-200 dark:border-slate-700'
@@ -1540,9 +1540,9 @@ export default function SimuladoPage() {
                 <div className="space-y-2">
                   {presetFormats.map(f => (
                     <button key={f.value} onClick={() => setEnemFormat(f.value)}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl border-2 text-sm font-semibold transition-all cursor-pointer ${enemFormat === f.value ? 'border-transparent' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
+                      className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border-2 p-3 text-left text-sm font-semibold transition-all cursor-pointer ${enemFormat === f.value ? 'border-transparent' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
                       style={enemFormat === f.value ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: brandTextColor } : {}}>
-                      <span>{f.emoji} {f.label}</span>
+                      <span className="min-w-0 break-words">{f.emoji} {f.label}</span>
                       <span className="text-xs font-normal" style={enemFormat === f.value ? { color: brandTextColor === '#ffffff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' } : { color: '#94a3b8' }}>{f.qty}q</span>
                     </button>
                   ))}
@@ -1570,7 +1570,7 @@ export default function SimuladoPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {DIFFICULTIES.map(d => (
                   <button key={d.value} onClick={() => setDifficulty(d.value)}
-                    className={`p-2.5 rounded-xl border-2 font-bold text-xs transition-all cursor-pointer ${difficulty === d.value ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-900 dark:border-slate-100' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'}`}>
+                    className={`min-h-11 rounded-xl border-2 p-2.5 text-xs font-bold transition-all cursor-pointer ${difficulty === d.value ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-900 dark:border-slate-100' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'}`}>
                     {d.label}
                   </button>
                 ))}
@@ -1578,14 +1578,14 @@ export default function SimuladoPage() {
             </div>
           </div>
 
-          <DialogFooter className="gap-2 pt-2">
+          <DialogFooter className="gap-2 pt-2 sm:gap-2">
             <button onClick={() => setShowConfigModal(false)}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer">
+              className="min-h-11 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer">
               Cancelar
             </button>
             <button onClick={() => startSimulado()} disabled={loading || !accessToken || customCountInsufficient}
               aria-disabled={loading || !accessToken || customCountInsufficient}
-              className="flex-1 font-bold py-2.5 px-6 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
+              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all disabled:opacity-70 cursor-pointer"
               style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
               {loading ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {START_STAGES[startStage] ?? 'Preparando...'}</>) : (<><Play size={16} /> Iniciar Simulado</>)}
             </button>
@@ -1644,14 +1644,14 @@ export default function SimuladoPage() {
                   {dashLoading ? <Skeleton className="h-4 w-64" /> : heroSubtitle}
                 </div>
               </div>
-              <div className="flex gap-2 w-full sm:w-auto">
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                 <Link href={`/partners/${slug}/student/simulado/historico`}
-                  className="flex items-center justify-center gap-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-bold px-4 py-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all flex-1 sm:flex-none">
+                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 font-bold text-slate-700 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 sm:flex-none">
                   <History size={16} /> Histórico
                 </Link>
                 <div className="flex flex-col gap-0.5 flex-1 sm:flex-none">
                   <button onClick={() => setShowConfigModal(true)}
-                    className="flex items-center justify-center gap-2 font-bold px-5 py-3 rounded-xl transition-all shadow-sm cursor-pointer w-full"
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-5 py-3 font-bold shadow-sm transition-all cursor-pointer"
                     style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
                     <Plus size={18} /> Novo Simulado
                   </button>
@@ -1663,13 +1663,13 @@ export default function SimuladoPage() {
               {/* Header — clicável para expandir/colapsar */}
               <button
                 onClick={() => setGlobalFilterOpen(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                className="flex min-h-11 w-full items-center justify-between px-4 py-3.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 shrink-0">Filtro Global</p>
                   {pageBankFilter !== 'Todas' && (
                     <span
-                      className="text-xs font-bold px-2.5 py-1 rounded-lg border truncate"
+                      className="truncate rounded-lg border px-2.5 py-1 text-xs font-bold"
                       style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)', color: 'var(--brand-primary)', borderColor: 'color-mix(in srgb, var(--brand-primary) 25%, transparent)' }}
                     >
                       {pageBankFilter}
@@ -1704,7 +1704,7 @@ export default function SimuladoPage() {
                             <button
                               key={option.value}
                               onClick={() => setPageBankFilter(option.value)}
-                              className={`relative px-3 py-3 rounded-xl text-sm font-bold border-2 transition-all cursor-pointer text-center select-none active:scale-[0.97] ${
+                              className={`relative min-h-11 rounded-xl border-2 px-3 py-3 text-center text-sm font-bold transition-all cursor-pointer select-none active:scale-[0.97] ${
                                 isActive
                                   ? 'border-transparent shadow-sm'
                                   : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
@@ -1746,7 +1746,7 @@ export default function SimuladoPage() {
                       onClick={() => setHybridConfirmSimId(null)}
                     >
                       <motion.div
-                        className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 shadow-2xl"
+                        className="max-h-[calc(100vh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:p-6"
                         initial={{ scale: 0.94, opacity: 0, y: 12 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.94, opacity: 0, y: 12 }}
@@ -1758,18 +1758,18 @@ export default function SimuladoPage() {
                           Se você já realizou ou realizará este simulado presencialmente, o resultado
                           da versão presencial prevalecerá sobre o online. Deseja continuar mesmo assim?
                         </p>
-                        <div className="mt-5 flex gap-2">
+                        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                           <button
                             type="button"
                             onClick={() => setHybridConfirmSimId(null)}
-                            className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                            className="min-h-11 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
                           >
                             Cancelar
                           </button>
                           <button
                             type="button"
                             onClick={() => { const id = hybridConfirmSimId; setHybridConfirmSimId(null); startSimulado(id!); }}
-                            className="flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 cursor-pointer"
+                            className="min-h-11 flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 cursor-pointer"
                             style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
                           >
                             Iniciar mesmo assim
@@ -1818,7 +1818,7 @@ export default function SimuladoPage() {
                     cta = (
                       <a
                         href={`/partners/${slug}/student/exam-results/${sim.id}`}
-                        className="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110"
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 sm:w-auto sm:shrink-0"
                         style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
                       >
                         Ver Correção
@@ -1847,7 +1847,7 @@ export default function SimuladoPage() {
                           type="button"
                           onClick={() => setHybridConfirmSimId(sim.id)}
                           disabled={loading || sim.status === 'scheduled'}
-                          className="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 disabled:opacity-50 cursor-pointer"
+                          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 disabled:opacity-50 cursor-pointer sm:w-auto sm:shrink-0"
                           style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
                         >
                           {sim.status === 'scheduled' ? 'Aguardando início' : 'Iniciar Online'}
@@ -1864,7 +1864,7 @@ export default function SimuladoPage() {
                         type="button"
                         onClick={() => startSimulado(sim.id)}
                         disabled={loading || sim.status === 'scheduled' || (sim.already_completed && sim.config?.allow_retry === false)}
-                        className="shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 disabled:opacity-50 cursor-pointer"
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 disabled:opacity-50 cursor-pointer sm:w-auto sm:shrink-0"
                         style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
                       >
                         {sim.status === 'scheduled'
@@ -1877,15 +1877,15 @@ export default function SimuladoPage() {
                   }
 
                   return (
-                  <div key={sim.id} className={`overflow-hidden rounded-2xl border p-5 ${borderCls}`}>
-                    <div className="flex items-start justify-between gap-3">
+                  <div key={sim.id} className={`overflow-hidden rounded-2xl border p-4 sm:p-5 ${borderCls}`}>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           {badge}
-                          <h3 className="text-base font-bold text-slate-900 dark:text-white">{sim.title}</h3>
+                          <h3 className="min-w-0 break-words text-base font-bold text-slate-900 dark:text-white">{sim.title}</h3>
                         </div>
-                        <div className="mt-1.5 flex flex-wrap gap-x-3 text-xs text-slate-500 dark:text-slate-400">
-                          <span>{String(sim.config.bank ?? 'ENEM')} · {String(sim.config.qty ?? 10)} questões · {DIFFICULTY_LABELS[String(sim.config.difficulty ?? 'misto').toLowerCase()] ?? String(sim.config.difficulty ?? 'Misto')}</span>
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                          <span className="break-words">{String(sim.config.bank ?? 'ENEM')} · {String(sim.config.qty ?? 10)} questões · {DIFFICULTY_LABELS[String(sim.config.difficulty ?? 'misto').toLowerCase()] ?? String(sim.config.difficulty ?? 'Misto')}</span>
                           <span>Início: {formatDateTimeBR(sim.starts_at)}</span>
                           {Boolean(sim.config.time_limit_secs) && (
                             <span>⏱ {Math.round(Number(sim.config.time_limit_secs) / 60)} min</span>
@@ -1922,7 +1922,7 @@ export default function SimuladoPage() {
             )}
 
             {/* KPI Cards */}
-            <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
               {dashLoading ? (
                 Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)
               ) : (
@@ -1933,13 +1933,13 @@ export default function SimuladoPage() {
                     { icon: <Trophy size={15} className="text-yellow-500" />, bg: 'bg-yellow-50 dark:bg-yellow-900/30', label: 'Melhor', value: totalSimuladosFiltered > 0 ? `${bestPct}%` : '—', sub: 'melhor resultado', valueClass: totalSimuladosFiltered > 0 ? scoreColor(bestPct) : 'text-slate-300 dark:text-slate-700' },
                     { icon: <Medal size={15} className="text-purple-600 dark:text-purple-400" />, bg: 'bg-purple-50 dark:bg-purple-900/30', label: 'Ranking', value: rankingPos != null ? `#${rankingPos}` : '—', sub: 'posição geral', valueClass: 'text-slate-900 dark:text-slate-100' },
                   ].map((card) => (
-                    <div key={card.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-5">
+                    <div key={card.label} className="min-w-0 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
                       <div className="flex items-center gap-2 mb-3">
                         <div className={`${card.bg} p-1.5 rounded-lg`}>{card.icon}</div>
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">{card.label}</span>
+                        <span className="truncate text-xs font-bold uppercase tracking-wide text-slate-400">{card.label}</span>
                       </div>
-                      <div className={`text-3xl font-black ${card.valueClass}`}>{card.value}</div>
-                      <div className="text-xs text-slate-400 mt-0.5">{card.sub}</div>
+                      <div className={`truncate text-3xl font-black ${card.valueClass}`}>{card.value}</div>
+                      <div className="mt-0.5 truncate text-xs text-slate-400">{card.sub}</div>
                     </div>
                   ))}
                 </>
@@ -1957,7 +1957,7 @@ export default function SimuladoPage() {
                   Monte simulados com questões reais de vários vestibulares. Acompanhe sua evolução por matéria e por banca.
                 </p>
                 <button onClick={() => setShowConfigModal(true)}
-                  className="inline-flex items-center gap-2 font-bold px-8 py-3.5 rounded-xl transition-all shadow cursor-pointer"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-8 py-3.5 font-bold shadow transition-all cursor-pointer"
                   style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
                   <Play size={18} /> Começar meu primeiro simulado
                 </button>

@@ -488,7 +488,11 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
       if (!gabaritoRes.ok) throw new Error('Erro ao baixar PDF do gabarito.');
       await downloadBlobResponse(gabaritoRes, `gabarito_${sim.title}.pdf`);
 
-      toast.success('PDF da prova e gabarito baixados.');
+      const gabaritoOficialRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${printedId}/gabarito-oficial.pdf`);
+      if (!gabaritoOficialRes.ok) throw new Error('Erro ao baixar PDF do gabarito oficial.');
+      await downloadBlobResponse(gabaritoOficialRes, `gabarito_oficial_${sim.title}.pdf`);
+
+      toast.success('PDF da prova, gabarito e gabarito oficial baixados.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível imprimir o simulado.');
     } finally {
@@ -664,9 +668,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         <div className="edificar-page-frame space-y-6 p-3 md:p-4">
 
           {/* Header */}
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Simulados da Turma</h1>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+            <div className="min-w-0">
+              <h1 className="text-xl font-extrabold text-slate-900 dark:text-white sm:text-2xl">Simulados da Turma</h1>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Agende e acompanhe simulados para seus alunos.
               </p>
@@ -675,7 +679,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               <button
                 type="button"
                 onClick={() => { setShowTypeSelector(true); setEditingId(null); setForm(EMPTY_FORM); }}
-                className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:brightness-110"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:brightness-110 sm:w-auto"
                 style={{ backgroundColor: 'var(--brand-primary)' }}
               >
                 <Plus className="h-4 w-4" />
@@ -687,26 +691,26 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           {/* Formulário */}
           {showForm && (
             <div className="fixed inset-0 z-[95] bg-black/55 backdrop-blur-[2px]">
-              <div className="h-full w-full md:flex md:items-center md:justify-center md:p-6">
-                <div className="h-full w-full bg-white dark:bg-slate-950 md:h-[92vh] md:max-w-5xl md:rounded-3xl md:border md:border-slate-200 md:dark:border-slate-800 md:shadow-2xl overflow-hidden flex flex-col">
-                  <div className="shrink-0 border-b border-slate-200 dark:border-slate-800 px-5 py-4 md:px-6 md:py-5 flex items-start justify-between gap-3">
-                    <div>
+              <div className="h-full w-full overflow-y-auto md:flex md:items-center md:justify-center md:p-6">
+                <div className="flex min-h-full w-full flex-col overflow-hidden bg-white dark:bg-slate-950 md:min-h-0 md:max-h-[92vh] md:max-w-5xl md:rounded-3xl md:border md:border-slate-200 md:dark:border-slate-800 md:shadow-2xl">
+                  <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 dark:border-slate-800 md:px-6 md:py-5">
+                    <div className="min-w-0">
                       <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--brand-primary)' }}>
                         {editingId ? 'Editar simulado' : 'Novo simulado'}
                       </p>
-                      <h2 className="mt-1 text-xl font-extrabold text-slate-900 dark:text-white">Configuração do Simulado</h2>
+                      <h2 className="mt-1 text-lg font-extrabold text-slate-900 dark:text-white sm:text-xl">Configuração do Simulado</h2>
                       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Defina banca, formato, período e regras da turma.</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => { setShowForm(false); setEditingId(null); setForm(EMPTY_FORM); }}
-                      className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      className="min-h-11 shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                     >
                       Fechar
                     </button>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto px-5 py-4 md:px-6 space-y-4">
+                  <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 md:px-6">
 
               {/* Título */}
               <div>
@@ -790,11 +794,11 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <button
                   type="button"
                   onClick={() => setWeightsModalOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-colors"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] dark:border-slate-700 dark:text-slate-300 sm:w-auto"
                 >
                   <SlidersHorizontal className="h-3.5 w-3.5" />
                   Definir Pesos (Opcional)
@@ -807,8 +811,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               </div>
 
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
                     <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Permitir refazer simulado</p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Quando desativado, o aluno só poderá concluir este simulado uma vez.
@@ -819,18 +823,18 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     role="switch"
                     aria-checked={Boolean(form.allow_retry)}
                     onClick={() => setForm((f) => ({ ...f, allow_retry: !f.allow_retry }))}
-                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none ${form.allow_retry ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                    className={`relative inline-flex h-11 w-14 shrink-0 items-center rounded-full transition-colors focus:outline-none ${form.allow_retry ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${form.allow_retry ? 'translate-x-6' : 'translate-x-1'}`}
+                      className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${form.allow_retry ? 'translate-x-8' : 'translate-x-1.5'}`}
                     />
                   </button>
                 </div>
               </div>
 
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
                     <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Mesmo simulado para toda a turma</p>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       Ativado: todos recebem o mesmo conjunto de questões. Desativado: cada aluno recebe um conjunto próprio.
@@ -841,10 +845,10 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     role="switch"
                     aria-checked={Boolean(form.same_for_all_students)}
                     onClick={() => setForm((f) => ({ ...f, same_for_all_students: !f.same_for_all_students }))}
-                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none ${form.same_for_all_students ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                    className={`relative inline-flex h-11 w-14 shrink-0 items-center rounded-full transition-colors focus:outline-none ${form.same_for_all_students ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${form.same_for_all_students ? 'translate-x-6' : 'translate-x-1'}`}
+                      className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${form.same_for_all_students ? 'translate-x-8' : 'translate-x-1.5'}`}
                     />
                   </button>
                 </div>
@@ -864,7 +868,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               {/* Modalidade */}
               <div>
                 <label className={labelCls}>Modalidade</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {([
                     { value: 'online',   label: 'Online',    Icon: Monitor },
                     { value: 'printed',  label: 'Presencial', Icon: Printer },
@@ -874,7 +878,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       key={m}
                       type="button"
                       onClick={() => setForm((f) => ({ ...f, modality: m, ...(m === 'online' ? { location_name: '', location_address: '' } : {}) }))}
-                      className={`flex items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${form.modality === m ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5 text-[var(--brand-primary)]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
+                      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${form.modality === m ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5 text-[var(--brand-primary)]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
                     >
                       <Icon className="h-3.5 w-3.5 shrink-0" />
                       {label}
@@ -990,12 +994,12 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 </div>
               )}
 
-              <div className="flex gap-2 pt-1">
+              <div className="flex flex-col gap-2 pt-1 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => setShowReviewApproval(true)}
                   disabled={saving}
-                  className="rounded-xl px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50 transition"
+                  className="min-h-11 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition disabled:opacity-50"
                   style={{ backgroundColor: 'var(--brand-primary)' }}
                 >
                   {editingId ? 'Revisar e salvar' : 'Revisar e criar'}
@@ -1003,7 +1007,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 <button
                   type="button"
                   onClick={() => { setShowForm(false); setEditingId(null); setForm(EMPTY_FORM); }}
-                  className="rounded-xl border border-slate-200 dark:border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  className="min-h-11 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Cancelar
                 </button>
@@ -1016,9 +1020,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                   </div>
 
                   <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 px-5 py-3 md:px-6 bg-slate-50/80 dark:bg-slate-900/50">
-                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                      <span>Fluxo com revisão e aprovação antes de publicar.</span>
-                      <span>{form.bank} · {FORMAT_LABELS[form.format] ?? form.format}</span>
+                    <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="min-w-0">Fluxo com revisão e aprovação antes de publicar.</span>
+                      <span className="shrink-0">{form.bank} · {FORMAT_LABELS[form.format] ?? form.format}</span>
                     </div>
                   </div>
                 </div>
@@ -1029,7 +1033,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           {showTypeSelector && (
             <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px]">
               <div className="flex h-full items-center justify-center p-4">
-                <div className="w-full max-w-3xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+                <div className="max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6">
 
                   {/* ── STEP 1: Online ou Impresso? ─────────────────── */}
                   {typeSelectorStep === 1 && (
@@ -1042,7 +1046,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           <h2 className="mt-1 text-xl font-extrabold text-slate-900">Como este simulado será aplicado?</h2>
                           <p className="mt-1 text-sm text-slate-500">Escolha o modo de aplicação antes de configurar o simulado.</p>
                         </div>
-                        <button type="button" onClick={resetTypeSelectorState} className="rounded-xl border border-slate-300 p-2 text-slate-600">
+                        <button type="button" onClick={resetTypeSelectorState} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600">
                           <X className="h-4 w-4" />
                         </button>
                       </div>
@@ -1084,7 +1088,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             <button
                               type="button"
                               onClick={() => setTypeSelectorStep(1)}
-                              className="text-xs font-semibold text-slate-400 hover:text-slate-600"
+                              className="min-h-11 rounded-lg px-1 text-xs font-semibold text-slate-400 hover:text-slate-600"
                             >
                               ← Voltar
                             </button>
@@ -1099,7 +1103,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           <h2 className="mt-2 text-xl font-extrabold text-slate-900">Escolha o tipo de criação</h2>
                           <p className="mt-1 text-sm text-slate-500">Use o fluxo automático ou monte questão por questão.</p>
                         </div>
-                        <button type="button" onClick={resetTypeSelectorState} className="rounded-xl border border-slate-300 p-2 text-slate-600">
+                        <button type="button" onClick={resetTypeSelectorState} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600">
                           <X className="h-4 w-4" />
                         </button>
                       </div>
@@ -1149,7 +1153,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           {printedExamId && (
             <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px]">
               <div className="flex h-full items-center justify-center p-4">
-                <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+                <div className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600">Prova gerada</p>
@@ -1159,7 +1163,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     <button
                       type="button"
                       onClick={() => { setPrintedExamId(null); setDeliveryMode(null); }}
-                      className="rounded-xl border border-slate-300 p-2 text-slate-600"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -1170,7 +1174,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       type="button"
                       onClick={() => downloadPrintedPdf('prova')}
                       disabled={downloadingPrint !== null}
-                      className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[var(--brand-primary)] disabled:opacity-60"
+                      className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[var(--brand-primary)] disabled:opacity-60"
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm" style={{ color: 'var(--brand-primary)' }}>
                         {downloadingPrint === 'prova' ? (
@@ -1190,7 +1194,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       type="button"
                       onClick={() => downloadPrintedPdf('gabarito')}
                       disabled={downloadingPrint !== null}
-                      className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[var(--brand-primary)] disabled:opacity-60"
+                      className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[var(--brand-primary)] disabled:opacity-60"
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm" style={{ color: 'var(--brand-primary)' }}>
                         {downloadingPrint === 'gabarito' ? (
@@ -1254,9 +1258,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         : 'border-slate-200 dark:border-slate-700'
                   } bg-white dark:bg-slate-900`}
                 >
-                  <div className="p-5">
+                  <div className="p-4 sm:p-5">
                     {/* Header do card */}
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <StatusBadge status={sim.status} />
@@ -1293,7 +1297,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       </div>
 
                       {/* Ações */}
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                         {confirmDeleteId === sim.id ? (
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -1322,7 +1326,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                               <button
                                 type="button"
                                 onClick={() => router.push(`/partners/${slug}/simulados/${sim.id}/corrigir`)}
-                                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-emerald-600 transition-colors"
+                              className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-emerald-600 dark:hover:bg-slate-800"
                                 title="Corrigir gabaritos"
                               >
                                 <Camera className="h-4 w-4" />
@@ -1332,7 +1336,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                               type="button"
                               onClick={() => void handlePrintScheduledSimulado(sim)}
                               disabled={printingSimuladoId === sim.id}
-                              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 transition-colors disabled:cursor-wait disabled:opacity-60"
+                              className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:cursor-wait disabled:opacity-60 dark:hover:bg-slate-800"
                               title="Imprimir"
                             >
                               {printingSimuladoId === sim.id ? (
@@ -1345,7 +1349,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                               <button
                                 type="button"
                                 onClick={() => router.push(`/partners/${slug}/simulados/${sim.id}/resultados`)}
-                                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-blue-600 transition-colors"
+                                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800"
                                 title="Ver Resultados"
                               >
                                 <BarChart3 className="h-4 w-4" />
@@ -1354,7 +1358,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             <button
                               type="button"
                               onClick={() => openEdit(sim)}
-                              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 transition-colors"
+                              className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
                               title="Editar"
                             >
                               <Pencil className="h-4 w-4" />
@@ -1362,7 +1366,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             <button
                               type="button"
                               onClick={() => setConfirmDeleteId(sim.id)}
-                              className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                              className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
                               title="Excluir"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1380,12 +1384,12 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         { label: 'Média de acerto', value: sim.metrics.avg_score_pct != null ? `${sim.metrics.avg_score_pct}%` : '—', icon: BarChart2 },
                         { label: 'Melhor resultado', value: sim.metrics.best_score_pct != null ? `${sim.metrics.best_score_pct}%` : '—', icon: Trophy },
                       ].map(({ label, value, icon: Icon }) => (
-                        <div key={label} className="rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5">
+                        <div key={label} className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/50">
                           <div className="flex items-center gap-1.5 mb-1">
                             <Icon className="h-3.5 w-3.5 text-slate-400" />
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</p>
+                            <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</p>
                           </div>
-                          <p className="text-lg font-extrabold text-slate-900 dark:text-white tabular-nums">
+                          <p className="truncate text-lg font-extrabold tabular-nums text-slate-900 dark:text-white">
                             {value}
                           </p>
                         </div>
@@ -1398,7 +1402,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         <button
                           type="button"
                           onClick={() => loadRanking(sim.id)}
-                          className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-colors"
+                          className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] dark:border-slate-700 dark:text-slate-300"
                         >
                           <div className="flex items-center gap-2">
                             <Trophy className="h-4 w-4" />
@@ -1415,7 +1419,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         <button
                           type="button"
                           onClick={() => loadAnalytics(sim.id)}
-                          className="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-colors"
+                          className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] dark:border-slate-700 dark:text-slate-300"
                         >
                           <div className="flex items-center gap-2">
                             <BarChart2 className="h-4 w-4" />
@@ -1443,7 +1447,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       )}
                       <div className="divide-y divide-slate-100 dark:divide-slate-800">
                         {rankings[sim.id].map((entry) => (
-                          <div key={entry.student_id} className="flex items-center gap-3 px-5 py-3">
+                          <div key={entry.student_id} className="flex items-center gap-3 px-4 py-3 sm:px-5">
                             <span className={`w-6 shrink-0 text-sm font-black tabular-nums ${
                               entry.position === 1 ? 'text-amber-500'
                                 : entry.position === 2 ? 'text-slate-400'
@@ -1575,7 +1579,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             const weighted = Boolean(analyticsMap[sim.id].weighted_applied);
                             const isUegWeighted = weighted && sim.config.bank === 'UEG';
                             return (
-                          <table className="min-w-full text-sm">
+                          <table className="min-w-[720px] text-sm">
                             <thead className="bg-slate-50 dark:bg-slate-800/70 text-slate-500">
                               <tr>
                                 <th className="px-3 py-2 text-left">#</th>

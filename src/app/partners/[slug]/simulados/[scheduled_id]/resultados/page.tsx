@@ -46,6 +46,29 @@ interface Submission {
   results_by_subject?: Record<string, SubjectResult> | null;
 }
 
+interface RankingEntry {
+  student_id: string;
+  full_name?: string | null;
+  score: number | null;
+  total_questions: number | null;
+  score_pct?: number | null;
+  completed_at?: string | null;
+  results_by_subject?: Record<string, SubjectResult> | null;
+}
+
+interface Participant {
+  id: string;
+  source: 'printed' | 'online';
+  student_id?: string | null;
+  external_name?: string | null;
+  student_name?: string | null;
+  score: number | null;
+  total_questions: number | null;
+  percentage?: number | null;
+  graded_at?: string | null;
+  results_by_subject?: Record<string, SubjectResult> | null;
+}
+
 function formatDateBR(iso?: string | null) {
   if (!iso) return 'Data indisponivel';
   return new Date(iso).toLocaleDateString('pt-BR', {
@@ -62,10 +85,10 @@ function roundOne(value: number) {
   return Math.round(value * 10) / 10;
 }
 
-function resolvePercentage(submission: Submission) {
-  if (typeof submission.percentage === 'number') return submission.percentage;
-  const score = submission.score ?? 0;
-  const total = submission.total_questions ?? 0;
+function resolvePercentage(participant: Participant) {
+  if (typeof participant.percentage === 'number') return participant.percentage;
+  const score = participant.score ?? 0;
+  const total = participant.total_questions ?? 0;
   return total > 0 ? roundOne((score / total) * 100) : 0;
 }
 
@@ -100,7 +123,7 @@ export default function PrintedExamResultsPage() {
   const router = useRouter();
 
   const [printedExam, setPrintedExam] = useState<PrintedExam | null>(null);
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -136,20 +159,44 @@ export default function PrintedExamResultsPage() {
       const exam: PrintedExam | null = (examsData.printed_exams ?? [])[0] ?? null;
       setPrintedExam(exam);
 
-      if (!exam) {
-        setSubmissions([]);
+      let printedParticipants: Participant[] = [];
+
+      if (exam) {
+        const submissionsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${exam.id}/results`);
+        if (!submissionsRes.ok) {
+          const data = await submissionsRes.json().catch(() => ({}));
+          setError(data.error ?? 'Nao foi possivel carregar os resultados.');
+          return;
+        }
+
+        const submissionsData = await submissionsRes.json();
+        printedParticipants = (submissionsData.submissions ?? []).map((submission: Submission) => ({
+          ...submission,
+          source: 'printed' as const,
+        }));
+      }
+
+      const rankingRes = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/${scheduledId}/ranking`);
+      if (!rankingRes.ok) {
+        const data = await rankingRes.json().catch(() => ({}));
+        setError(data.error ?? 'Nao foi possivel carregar os resultados online.');
         return;
       }
 
-      const submissionsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${exam.id}/results`);
-      if (!submissionsRes.ok) {
-        const data = await submissionsRes.json().catch(() => ({}));
-        setError(data.error ?? 'Nao foi possivel carregar os resultados.');
-        return;
-      }
+      const rankingData = await rankingRes.json();
+      const onlineParticipants: Participant[] = (rankingData.ranking ?? []).map((entry: RankingEntry) => ({
+        id: `online-${entry.student_id}`,
+        source: 'online',
+        student_id: entry.student_id,
+        student_name: entry.full_name,
+        score: entry.score,
+        total_questions: entry.total_questions,
+        percentage: entry.score_pct,
+        graded_at: entry.completed_at,
+        results_by_subject: entry.results_by_subject ?? {},
+      }));
 
-      const submissionsData = await submissionsRes.json();
-      setSubmissions(submissionsData.submissions ?? []);
+      setParticipants([...printedParticipants, ...onlineParticipants]);
     } catch {
       setError('Erro de conexao. Tente novamente.');
     } finally {
@@ -157,10 +204,10 @@ export default function PrintedExamResultsPage() {
     }
   }
 
-  async function downloadExternalReport(submission: Submission) {
-    setDownloadingId(submission.id);
+  async function downloadExternalReport(participant: Participant) {
+    setDownloadingId(participant.id);
     try {
-      const res = await fetchWithAuth(`/api/partners/${slug}/exam-results/${submission.id}/relatorio.pdf`);
+      const res = await fetchWithAuth(`/api/partners/${slug}/exam-results/${participant.id}/relatorio.pdf`);
       if (!res.ok) {
         setError('Nao foi possivel gerar o relatorio PDF.');
         return;
@@ -170,7 +217,7 @@ export default function PrintedExamResultsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `relatorio_${(submission.student_name ?? 'aluno').replace(/\s+/g, '_')}.pdf`;
+      a.download = `relatorio_${(participant.student_name ?? 'aluno').replace(/\s+/g, '_')}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -181,10 +228,10 @@ export default function PrintedExamResultsPage() {
   }
 
   const stats = useMemo(() => {
-    const total = submissions.length;
-    const ranked = submissions.map((submission) => ({
-      submission,
-      percentage: resolvePercentage(submission),
+    const total = participants.length;
+    const ranked = participants.map((participant) => ({
+      participant,
+      percentage: resolvePercentage(participant),
     }));
     const average = total > 0
       ? roundOne(ranked.reduce((sum, item) => sum + item.percentage, 0) / total)
@@ -197,9 +244,12 @@ export default function PrintedExamResultsPage() {
       : null;
 
     return { total, average, best, worst };
-  }, [submissions]);
+  }, [participants]);
 
-  const latestGradedAt = submissions[0]?.graded_at;
+  const latestGradedAt = participants
+    .map((participant) => participant.graded_at)
+    .filter(Boolean)
+    .sort((a, b) => new Date(String(b)).getTime() - new Date(String(a)).getTime())[0];
 
   return (
     <PartnerLayout>
@@ -208,7 +258,7 @@ export default function PrintedExamResultsPage() {
           <button
             type="button"
             onClick={() => router.push(`/partners/${slug}/simulados`)}
-            className="mt-1 rounded-xl border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+            className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
             aria-label="Voltar"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -216,16 +266,16 @@ export default function PrintedExamResultsPage() {
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--brand-primary)]">
-                Resultados da Prova Impressa
+                Resultados do Simulado
               </p>
               <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-[11px] font-bold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
-                Presencial
+                Presencial + Online
               </span>
             </div>
             <h1 className="truncate text-xl font-extrabold text-slate-900 dark:text-white">
               {printedExam?.title ?? 'Correcoes lancadas'}
             </h1>
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <CalendarDays className="h-3.5 w-3.5" />
               {latestGradedAt ? `Ultima correcao em ${formatDateBR(latestGradedAt)}` : 'Sem correcoes lancadas'}
             </p>
@@ -243,8 +293,8 @@ export default function PrintedExamResultsPage() {
               <p className="text-sm font-semibold">{error}</p>
             </div>
           </div>
-        ) : submissions.length === 0 ? (
-          <div className="max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center dark:border-slate-700 dark:bg-slate-900">
+        ) : participants.length === 0 ? (
+          <div className="max-w-xl rounded-2xl border border-slate-200 bg-white p-5 text-center dark:border-slate-700 dark:bg-slate-900 sm:p-8">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-800">
               <ClipboardList className="h-8 w-8" />
             </div>
@@ -264,7 +314,7 @@ export default function PrintedExamResultsPage() {
                   value: stats.total,
                   suffix: '',
                   decimals: 0,
-                  sub: 'correcoes lancadas',
+                  sub: 'participantes listados',
                   Icon: Users,
                 },
                 {
@@ -280,7 +330,7 @@ export default function PrintedExamResultsPage() {
                   value: stats.best?.percentage ?? 0,
                   suffix: '%',
                   decimals: 1,
-                  sub: stats.best?.submission.student_name ?? 'Sem aluno',
+                  sub: stats.best?.participant.student_name ?? 'Sem aluno',
                   Icon: TrendingUp,
                 },
                 {
@@ -288,7 +338,7 @@ export default function PrintedExamResultsPage() {
                   value: stats.worst?.percentage ?? 0,
                   suffix: '%',
                   decimals: 1,
-                  sub: stats.worst?.submission.student_name ?? 'Sem aluno',
+                  sub: stats.worst?.participant.student_name ?? 'Sem aluno',
                   Icon: TrendingDown,
                 },
               ].map(({ label, value, suffix, decimals, sub, Icon }, index) => (
@@ -297,10 +347,10 @@ export default function PrintedExamResultsPage() {
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.25, delay: index * 0.04 }}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
+                  className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
                 >
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <p className="truncate text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       {label}
                     </p>
                     <Icon className="h-4 w-4 text-[var(--brand-primary)]" />
@@ -316,19 +366,20 @@ export default function PrintedExamResultsPage() {
             </div>
 
             <div className="max-w-4xl space-y-3">
-              {submissions.map((submission, index) => {
-                const score = submission.score ?? 0;
-                const total = submission.total_questions ?? 0;
-                const percentage = resolvePercentage(submission);
-                const subjectEntries = Object.entries(submission.results_by_subject ?? {});
-                const isExternal = !submission.student_id;
+              {participants.map((participant, index) => {
+                const score = participant.score ?? 0;
+                const total = participant.total_questions ?? 0;
+                const percentage = resolvePercentage(participant);
+                const subjectEntries = Object.entries(participant.results_by_subject ?? {});
+                const isPrinted = participant.source === 'printed';
+                const isExternal = isPrinted && !participant.student_id;
                 return (
                   <motion.article
-                    key={submission.id}
+                    key={participant.id}
                     initial={{ opacity: 0, y: 14 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.25, delay: Math.min(index * 0.05, 0.35) }}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                    className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
                   >
                     <div className="space-y-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -337,21 +388,21 @@ export default function PrintedExamResultsPage() {
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                               {isExternal ? <Award className="h-4 w-4" /> : <User className="h-4 w-4" />}
                             </div>
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-extrabold text-slate-900 dark:text-white">
-                                {submission.student_name ?? 'Aluno sem nome'}
+                                {participant.student_name ?? 'Aluno sem nome'}
                               </p>
                               <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Corrigido em {formatDateBR(submission.graded_at)}
+                                {isPrinted ? 'Corrigido em' : 'Finalizado em'} {formatDateBR(participant.graded_at)}
                               </p>
                             </div>
                           </div>
                           <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                            isExternal
+                            isPrinted
                               ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
                               : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
                           }`}>
-                            {isExternal ? 'Aluno Externo' : 'Aluno da Escola'}
+                            {isPrinted ? 'Correção Presencial' : 'Online'}
                           </span>
                         </div>
 
@@ -379,7 +430,7 @@ export default function PrintedExamResultsPage() {
                       {subjectEntries.length > 0 && (
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                           {subjectEntries.map(([subject, result]) => (
-                            <div key={subject} className="rounded-xl border border-slate-100 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-950">
+                            <div key={subject} className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-950">
                               <div className="mb-1 flex items-center justify-between gap-2">
                                 <p className="truncate text-xs font-bold text-slate-700 dark:text-slate-200">{subject}</p>
                                 <p className="text-xs font-black tabular-nums text-slate-900 dark:text-white">{result.percentage}%</p>
@@ -404,11 +455,11 @@ export default function PrintedExamResultsPage() {
                         {isExternal && (
                           <button
                             type="button"
-                            onClick={() => void downloadExternalReport(submission)}
-                            disabled={downloadingId === submission.id}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                            onClick={() => void downloadExternalReport(participant)}
+                            disabled={downloadingId === participant.id}
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                           >
-                            {downloadingId === submission.id ? (
+                            {downloadingId === participant.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <Download className="h-4 w-4" />
@@ -416,14 +467,16 @@ export default function PrintedExamResultsPage() {
                             Gerar Relatorio PDF
                           </button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/partners/${slug}/exam-results/${submission.id}`)}
-                          className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
-                          style={{ backgroundColor: 'var(--brand-primary)' }}
-                        >
-                          Ver Detalhe <ArrowRight className="h-4 w-4" />
-                        </button>
+                        {isPrinted && (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/partners/${slug}/exam-results/${participant.id}`)}
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+                            style={{ backgroundColor: 'var(--brand-primary)' }}
+                          >
+                            Ver Detalhe <ArrowRight className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </motion.article>
@@ -436,7 +489,7 @@ export default function PrintedExamResultsPage() {
         <button
           type="button"
           onClick={() => router.push(`/partners/${slug}/simulados/${scheduledId}/corrigir`)}
-          className="fixed bottom-5 right-5 z-40 inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-black text-white shadow-lg transition hover:brightness-110"
+          className="fixed bottom-5 right-5 z-40 inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-black text-white shadow-lg transition hover:brightness-110"
           style={{ backgroundColor: 'var(--brand-primary)' }}
         >
           <Plus className="h-4 w-4" />
