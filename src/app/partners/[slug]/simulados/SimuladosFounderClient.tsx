@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, ChevronDown, Trophy, Users, BarChart2,
+  Plus, ChevronDown, Trophy, Users, BarChart2, BarChart3,
   CalendarDays, Pencil, Trash2, Play, Timer, BookOpen, X, SlidersHorizontal,
   Shuffle, ListChecks, Monitor, Printer, FileText, ClipboardList, Download,
   MapPin, Camera,
@@ -435,18 +435,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   }
 
   function resolveScheduledQuestionIds(sim: ScheduledSimulado): string[] {
-    const candidates = [
-      sim.fixed_question_ids,
-      sim.config.fixed_question_ids,
-      sim.config.question_ids,
-      sim.config.custom_question_ids,
-      sim.config.pool_question_ids,
-    ];
-
-    for (const value of candidates) {
-      if (Array.isArray(value) && value.length > 0) {
-        return value.map(String).filter(Boolean);
-      }
+    if (Array.isArray(sim.fixed_question_ids) && sim.fixed_question_ids.length > 0) {
+      return sim.fixed_question_ids.map(String).filter(Boolean);
     }
     return [];
   }
@@ -1351,6 +1341,16 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                                 <Printer className="h-4 w-4" />
                               )}
                             </button>
+                            {(sim.modality === 'printed' || sim.modality === 'hybrid') && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/partners/${slug}/simulados/${sim.id}/resultados`)}
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-blue-600 transition-colors"
+                                title="Ver Resultados"
+                              >
+                                <BarChart3 className="h-4 w-4" />
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => openEdit(sim)}
