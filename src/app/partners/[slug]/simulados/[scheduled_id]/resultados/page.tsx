@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { animate, motion, useMotionValue, useTransform } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
+import { toast } from 'sonner';
 import {
   ArrowRight,
   Award,
@@ -47,6 +48,7 @@ interface Submission {
 }
 
 interface RankingEntry {
+  session_id?: string | null;
   student_id: string;
   full_name?: string | null;
   score: number | null;
@@ -185,7 +187,7 @@ export default function PrintedExamResultsPage() {
 
       const rankingData = await rankingRes.json();
       const onlineParticipants: Participant[] = (rankingData.ranking ?? []).map((entry: RankingEntry) => ({
-        id: `online-${entry.student_id}`,
+        id: entry.session_id ?? `online-${entry.student_id}`,
         source: 'online',
         student_id: entry.student_id,
         student_name: entry.full_name,
@@ -205,6 +207,11 @@ export default function PrintedExamResultsPage() {
   }
 
   async function downloadExternalReport(participant: Participant) {
+    if (participant.source === 'online') {
+      toast.info('Relatório PDF disponível apenas para alunos externos. Alunos cadastrados podem acessar seus resultados diretamente na plataforma.');
+      return;
+    }
+
     setDownloadingId(participant.id);
     try {
       const res = await fetchWithAuth(`/api/partners/${slug}/exam-results/${participant.id}/relatorio.pdf`);
@@ -467,7 +474,13 @@ export default function PrintedExamResultsPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => router.push(`/partners/${slug}/exam-results/${participant.id}`)}
+                          onClick={() => {
+                            if (participant.source === 'online') {
+                              router.push(`/partners/${slug}/student/simulado/${participant.id}/revisao`);
+                              return;
+                            }
+                            router.push(`/partners/${slug}/exam-results/${participant.id}`);
+                          }}
                           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
                           style={{ backgroundColor: 'var(--brand-primary)' }}
                         >
