@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import {
-  Camera, Upload, ChevronLeft, CheckCircle2, AlertCircle,
+  Upload, ChevronLeft, CheckCircle2, AlertCircle,
   Loader2, UserCheck, User, RotateCcw, ClipboardList, AlertTriangle,
   PartyPopper, ArrowRight,
 } from 'lucide-react';
@@ -72,7 +72,6 @@ export default function CorrigirGabaritoPage() {
   const [successData, setSuccessData] = useState<SuccessData | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // ── Auth helper ──
   async function fetchWithAuth(url: string, options: RequestInit = {}) {
@@ -143,7 +142,7 @@ export default function CorrigirGabaritoPage() {
   async function loadStudents() {
     setStudentsLoading(true);
     try {
-      const res = await fetchWithAuth(`/api/partners/${slug}/alunos`);
+      const res = await fetchWithAuth(`/api/partners/${slug}/students`);
       if (res.ok) {
         const data = await res.json();
         setStudents(data.students ?? data.alunos ?? []);
@@ -323,7 +322,7 @@ export default function CorrigirGabaritoPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => router.push(`/partners/${slug}/simulados`)}
+                  onClick={() => router.push(`/partners/${slug}/simulados/${scheduled_id}/resultados`)}
                   className="w-full flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-5 py-3 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                 >
                   <ArrowRight className="h-4 w-4" /> Ver todos os resultados
@@ -430,24 +429,15 @@ export default function CorrigirGabaritoPage() {
                     </div>
                   )}
 
-                  {/* Botões de seleção */}
-                  <div className="mt-4 grid grid-cols-2 gap-3">
+                  {/* Botão de seleção */}
+                  <div className="mt-4">
                     <input ref={fileInputRef}   type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-                    <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                     >
-                      <Upload className="h-4 w-4" /> Galeria
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => cameraInputRef.current?.click()}
-                      className="flex items-center justify-center gap-2 rounded-xl border-2 border-[var(--brand-primary)] px-4 py-2.5 text-sm font-bold transition-colors hover:opacity-90"
-                      style={{ backgroundColor: 'var(--brand-primary)', color: '#fff' }}
-                    >
-                      <Camera className="h-4 w-4" /> Usar Câmera
+                      <Upload className="h-4 w-4" /> Selecionar arquivo
                     </button>
                   </div>
 
