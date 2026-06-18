@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { Target, Upload, Download, List, LayoutGrid, Plus } from 'lucide-react';
+import { Target, MapPin, Download, List, LayoutGrid, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLeads, useLeadsStats, reloadAllLeadsData } from './hooks/useLeads';
 import { KPICards } from './components/KPICards';
@@ -16,12 +16,9 @@ import type { Lead, LeadFilters } from './types';
 const EMPTY_FILTERS: LeadFilters = {
   uf: '',
   status: '',
-  has_email: false,
   has_phone: false,
   search: '',
   temperature: '',
-  tipo: '',
-  max_anos: '',
 };
 
 type View = 'table' | 'kanban';
@@ -54,7 +51,6 @@ export default function ProspeccaoPage() {
         const name = (l.nome_fantasia ?? l.razao_social).toLowerCase();
         if (!name.includes(q)) return false;
       }
-      if (filters.has_email && !l.email) return false;
       if (filters.has_phone && !l.telefone1 && !l.telefone2) return false;
       if (filters.temperature && l.temperature !== filters.temperature) return false;
       return true;
@@ -79,7 +75,6 @@ export default function ProspeccaoPage() {
     const params = new URLSearchParams();
     if (filters.uf) params.set('uf', filters.uf);
     if (filters.status) params.set('status', filters.status);
-    if (filters.has_email) params.set('has_email', '1');
     if (filters.has_phone) params.set('has_phone', '1');
     if (filters.search) params.set('search', filters.search);
     if (filters.temperature) params.set('temperature', filters.temperature);
@@ -108,10 +103,10 @@ export default function ProspeccaoPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <button
             onClick={handleExportCSV}
-            className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-slate-600 dark:text-zinc-300 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-sm font-semibold text-slate-600 dark:text-zinc-300 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
           >
             <Download className="w-4 h-4" />
             Exportar CSV
@@ -119,7 +114,7 @@ export default function ProspeccaoPage() {
 
           <button
             onClick={() => setCreateOpen(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-semibold text-slate-600 dark:text-zinc-300 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-sm font-semibold text-slate-600 dark:text-zinc-300 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
           >
             <Plus className="w-4 h-4" />
             Novo lead
@@ -127,10 +122,10 @@ export default function ProspeccaoPage() {
 
           <button
             onClick={() => setImportOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 transition-all shadow-md"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 transition-all shadow-md"
           >
-            <Upload className="w-4 h-4" />
-            Importar Leads
+            <MapPin className="w-4 h-4" />
+            Buscar no Google Maps
           </button>
         </div>
       </div>

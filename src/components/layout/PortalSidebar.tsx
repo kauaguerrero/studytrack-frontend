@@ -9,7 +9,7 @@ import {
   BookOpen,
   ChevronRight,
   LifeBuoy,
-  Target,
+  MapPin,
   LogOut,
   User,
   Sparkles,
@@ -193,6 +193,7 @@ export function SidebarContent({
             {renderSectionTitle('Visão Geral')}
             {renderNavItem({ href: '/portal/admin', icon: LayoutDashboard, label: 'Dashboard' })}
             {renderNavItem({ href: '/portal/admin/tasks', icon: ListChecks, label: 'Tasks' })}
+            {renderNavItem({ href: '/portal/admin/prospeccao', icon: MapPin, label: 'Prospecção' })}
             {renderNavItem({ href: '/portal/admin/github', icon: Github, label: 'GitHub' })}
             {renderSectionTitle('Conteúdo')}
             {renderNavItem({ href: '/portal/admin/audits', icon: ScanSearch, label: 'Audit Center' })}

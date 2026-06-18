@@ -1,24 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import type { LeadFilters, LeadStatusCRM, LeadTemperature, LeadsStats } from '../types';
-
-const TIPO_OPTIONS = [
-  { value: '',          label: 'Tipo' },
-  { value: 'empresa',   label: 'Empresa' },
-  { value: 'pf',        label: 'Empresário Individual' },
-] as const;
-
-const MAX_ANOS_OPTIONS = [
-  { value: '',    label: 'Abertura' },
-  { value: '5',   label: 'Últimos 5 anos' },
-  { value: '10',  label: 'Últimos 10 anos' },
-  { value: '15',  label: 'Últimos 15 anos' },
-  { value: '20',  label: 'Últimos 20 anos' },
-] as const;
 
 const STATUS_OPTIONS: { value: LeadStatusCRM; label: string }[] = [
   { value: 'novo', label: 'Novo' },
@@ -37,7 +23,7 @@ const TEMP_OPTIONS: { value: LeadTemperature; label: string }[] = [
 ];
 
 const selectCls =
-  'h-8 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 text-sm text-slate-700 dark:text-zinc-200 outline-none focus:border-indigo-400 dark:focus:border-indigo-500 cursor-pointer transition-colors';
+  'h-8 w-full md:w-auto rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 text-sm text-slate-700 dark:text-zinc-200 outline-none focus:border-indigo-400 dark:focus:border-indigo-500 cursor-pointer transition-colors';
 
 interface FilterBarProps {
   filters: LeadFilters;
@@ -55,6 +41,7 @@ export function FilterBar({
   stats,
 }: FilterBarProps) {
   const [searchInput, setSearchInput] = useState(filters.search);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -79,12 +66,9 @@ export function FilterBar({
   const activeFilterCount = [
     filters.uf,
     filters.status,
-    filters.has_email,
     filters.has_phone,
     filters.search,
     filters.temperature,
-    filters.tipo,
-    filters.max_anos,
   ].filter(Boolean).length;
 
   function clearAll() {
@@ -92,12 +76,9 @@ export function FilterBar({
     onChange({
       uf: '',
       status: '',
-      has_email: false,
       has_phone: false,
       search: '',
       temperature: '',
-      tipo: '',
-      max_anos: '',
     });
   }
 
@@ -105,9 +86,9 @@ export function FilterBar({
     onChange({ ...filters, temperature: filters.temperature === t ? '' : t });
   }
 
-  return (
-    <div className="space-y-2.5">
-      <div className="flex flex-wrap items-center gap-2">
+  function renderFilterControls() {
+    return (
+      <>
         {/* UF */}
         <select
           value={filters.uf}
@@ -154,18 +135,7 @@ export function FilterBar({
           </button>
         ))}
 
-        <div className="h-5 w-px bg-slate-200 dark:bg-zinc-700 mx-0.5" />
-
-        {/* Toggle email */}
-        <label className="flex items-center gap-1.5 cursor-pointer select-none">
-          <Switch
-            checked={filters.has_email}
-            onCheckedChange={(v) => onChange({ ...filters, has_email: v })}
-          />
-          <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">
-            Com email
-          </span>
-        </label>
+        <div className="hidden md:block h-5 w-px bg-slate-200 dark:bg-zinc-700 mx-0.5" />
 
         {/* Toggle telefone */}
         <label className="flex items-center gap-1.5 cursor-pointer select-none">
@@ -177,32 +147,45 @@ export function FilterBar({
             Com telefone
           </span>
         </label>
+      </>
+    );
+  }
 
-        <div className="h-5 w-px bg-slate-200 dark:bg-zinc-700 mx-0.5" />
-
-        {/* Tipo de empresa */}
-        <select
-          value={filters.tipo}
-          onChange={(e) =>
-            onChange({ ...filters, tipo: e.target.value as 'empresa' | 'pf' | '' })
-          }
-          className={selectCls}
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-center gap-2 md:hidden">
+        {/* Busca por nome */}
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+          <input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Buscar por nome..."
+            className="h-9 w-full rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 pl-8 pr-3 text-sm text-slate-700 dark:text-zinc-200 outline-none focus:border-indigo-400 dark:focus:border-indigo-500 transition-colors"
+          />
+        </div>
+        <button
+          onClick={() => setFiltersOpen((v) => !v)}
+          className={cn(
+            'flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors',
+            filtersOpen || activeFilterCount > 0
+              ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-300'
+              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'
+          )}
         >
-          {TIPO_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          Filtros
+        </button>
+      </div>
 
-        {/* Máximo de anos desde abertura */}
-        <select
-          value={filters.max_anos}
-          onChange={(e) => onChange({ ...filters, max_anos: e.target.value })}
-          className={selectCls}
-        >
-          {MAX_ANOS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+      {filtersOpen && (
+        <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900 md:hidden">
+          {renderFilterControls()}
+        </div>
+      )}
+
+      <div className="hidden md:flex flex-wrap items-center gap-2">
+        {renderFilterControls()}
 
         {/* Busca por nome */}
         <div className="relative ml-auto">
@@ -225,6 +208,16 @@ export function FilterBar({
           </button>
         )}
       </div>
+
+      {activeFilterCount > 0 && (
+        <button
+          onClick={clearAll}
+          className="md:hidden flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white transition-colors"
+        >
+          <X className="w-3.5 h-3.5" />
+          Limpar filtros
+        </button>
+      )}
 
       <p className="text-xs text-slate-400 dark:text-zinc-500">
         Exibindo{' '}
