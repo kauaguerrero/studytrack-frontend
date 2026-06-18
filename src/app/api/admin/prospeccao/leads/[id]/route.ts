@@ -1,0 +1,71 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/app/api/admin/_utils';
+
+export const dynamic = 'force-dynamic';
+
+type Params = { params: Promise<{ id: string }> };
+
+export async function PATCH(request: NextRequest, { params }: Params) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
+  const { id } = await params;
+  const body = await request.json();
+
+  const ALLOWED = ['status_crm', 'temperature', 'observacoes', 'next_followup_at'] as const;
+  const update: Record<string, unknown> = {};
+  for (const key of ALLOWED) {
+    if (key in body) update[key] = body[key];
+  }
+
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 });
+  }
+  update.updated_at = new Date().toISOString();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = auth.supabaseAdmin as any;
+  const { data: lead, error } = await db
+    .from('leads')
+    .update(update)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ lead });
+}
+
+export async function DELETE(_request: NextRequest, { params }: Params) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return auth.response;
+
+  const { id } = await params;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = auth.supabaseAdmin as any;
+
+  // Busca lead para cleanup de mock data se necessário
+  const { data: lead } = await db
+    .from('leads')
+    .select('org_id, mock_student_ids')
+    .eq('id', id)
+    .single();
+
+  if (lead?.org_id) {
+    const mockIds: string[] = lead.mock_student_ids ?? [];
+
+    // Deleta mock users via Supabase Admin Auth
+    for (const uid of mockIds) {
+      await auth.supabaseAdmin.auth.admin.deleteUser(uid).catch(() => null);
+    }
+
+    // Remove a org mock (ON DELETE CASCADE cuida dos profiles restantes)
+    await db.from('organizations').delete().eq('id', lead.org_id);
+  }
+
+  const { error } = await db.from('leads').delete().eq('id', id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
+}

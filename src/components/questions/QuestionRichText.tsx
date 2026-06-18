@@ -9,6 +9,7 @@ import 'katex/dist/katex.min.css'
 import { formatScientificText } from '@/lib/scientific-text'
 
 const mathSegmentRegex = /(\$\$[\s\S]+?(?<!\\)\$\$|\$(?!\$)[\s\S]+?(?<!\\)\$)/g
+const underlineSegmentRegex = /<u>([\s\S]*?)<\/u>/gi
 type KatexRenderOptions = Parameters<typeof katex.renderToString>[1] & {
   output?: 'html' | 'mathml' | 'htmlAndMathml'
 }
@@ -128,6 +129,50 @@ function renderMarkdownChildren(children: ReactNode, keyPrefix: string): ReactNo
   })
 }
 
+function renderInlineMarkdown(text: string, key: string) {
+  return (
+    <ReactMarkdown
+      key={key}
+      components={{
+        p: ({ children }) => <Fragment>{children}</Fragment>,
+        ul: ({ children }) => <Fragment>{children}</Fragment>,
+        ol: ({ children }) => <Fragment>{children}</Fragment>,
+        li: ({ children }) => <Fragment>{children} </Fragment>,
+      }}
+    >
+      {String(text ?? '')}
+    </ReactMarkdown>
+  )
+}
+
+function renderInlineMarkdownWithUnderline(text: string, keyPrefix: string): ReactNode {
+  const parts: ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  underlineSegmentRegex.lastIndex = 0
+
+  while ((match = underlineSegmentRegex.exec(text)) !== null) {
+    const before = text.slice(lastIndex, match.index)
+    if (before) {
+      parts.push(renderInlineMarkdown(before, `${keyPrefix}-plain-${parts.length}`))
+    }
+
+    parts.push(
+      <u key={`${keyPrefix}-underline-${parts.length}`} className="underline underline-offset-2">
+        {renderInlineMarkdown(match[1] || '', `${keyPrefix}-underline-text-${parts.length}`)}
+      </u>
+    )
+    lastIndex = match.index + match[0].length
+  }
+
+  const after = text.slice(lastIndex)
+  if (after) {
+    parts.push(renderInlineMarkdown(after, `${keyPrefix}-plain-${parts.length}`))
+  }
+
+  return parts.length > 0 ? parts : renderInlineMarkdown(text, `${keyPrefix}-plain`)
+}
+
 const markdownComponents: Components = {
   p: ({ children }) => <p className="my-3 leading-relaxed">{renderMarkdownChildren(children, 'md-p')}</p>,
   h1: ({ children }) => <h1 className="mt-5 mb-3 text-xl font-bold leading-tight">{renderMarkdownChildren(children, 'md-h1')}</h1>,
@@ -145,13 +190,15 @@ const markdownComponents: Components = {
   strong: ({ children }) => <strong className="font-semibold">{renderMarkdownChildren(children, 'md-strong')}</strong>,
   em: ({ children }) => <em className="italic">{renderMarkdownChildren(children, 'md-em')}</em>,
   img: ({ src, alt }) => (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src || ''}
-      alt={alt || 'Imagem da questão'}
-      className="my-4 h-auto max-h-40 md:max-h-52 w-auto max-w-full rounded-lg border border-slate-200 bg-white object-contain shadow-sm dark:border-slate-700"
-      loading="lazy"
-    />
+    <span className="my-4 block max-w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/50">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src || ''}
+        alt={alt || 'Imagem da questão'}
+        className="mx-auto block h-auto max-h-[26rem] w-auto max-w-full object-contain"
+        loading="lazy"
+      />
+    </span>
   ),
   a: ({ href, children }) => (
     <a
@@ -180,15 +227,7 @@ function renderInlineRichText(text: string, keyPrefix: string) {
         const plainText = normalizePlainLatexText(segment)
         return (
           <span key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`} className="whitespace-pre-wrap">
-            <ReactMarkdown
-              components={{
-                p: ({ children }) => <Fragment>{children}</Fragment>,
-                ul: ({ children }) => <Fragment>{children}</Fragment>,
-                ol: ({ children }) => <Fragment>{children}</Fragment>,
-                li: ({ children }) => <Fragment>{children} </Fragment>,
-              }}
-              children={String(plainText ?? '')}
-            />
+            {renderInlineMarkdownWithUnderline(String(plainText ?? ''), `${keyPrefix}-${segmentIndex}-plain-latex`)}
           </span>
         )
       }
@@ -202,15 +241,7 @@ function renderInlineRichText(text: string, keyPrefix: string) {
               {isStandaloneOrderedListMarker(line) ? (
                 line
               ) : (
-                <ReactMarkdown
-                  components={{
-                    p: ({ children }) => <Fragment>{children}</Fragment>,
-                    ul: ({ children }) => <Fragment>{children}</Fragment>,
-                    ol: ({ children }) => <Fragment>{children}</Fragment>,
-                    li: ({ children }) => <Fragment>{children} </Fragment>,
-                  }}
-                  children={String(line ?? '')}
-                />
+                renderInlineMarkdownWithUnderline(String(line ?? ''), `${keyPrefix}-${segmentIndex}-${lineIndex}`)
               )}
             </Fragment>
           ))}
@@ -316,8 +347,9 @@ export function QuestionRichText({ text, className, style }: { text?: string | n
             <ReactMarkdown
               key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}
               components={markdownComponents}
-              children={String(paragraph ?? '')}
-            />
+            >
+              {String(paragraph ?? '')}
+            </ReactMarkdown>
           )
         }
 

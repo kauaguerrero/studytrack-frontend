@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/app/api/admin/_utils';
 
-// HTML generation + Puppeteer screenshot can take up to 90s for a carousel
-export const maxDuration = 120;
+// Submete job assíncrono e retorna job_id em < 3s
+export const maxDuration = 15;
 
 const BACKEND = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:5000').replace(/\/$/, '');
 
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
           'Authorization': `Bearer ${auth.token}`,
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(110_000),
+        signal: AbortSignal.timeout(10_000),
       },
     );
 

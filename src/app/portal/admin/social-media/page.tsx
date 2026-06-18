@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { ArrowLeft, Sparkles, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
@@ -42,10 +42,17 @@ const INITIAL_STATE: CreationState = {
 
 const LOADING_MESSAGES: Record<string, string> = {
   ideas:      'Analisando tendências para o seu público...',
-  post:       'Criando o seu post...',
+  post:       'Iniciando geração...',
   adjust:     'Aplicando ajustes...',
   variation:  'Gerando variação visual...',
 };
+
+const POLL_MESSAGES = [
+  'Estruturando conteúdo do post...',
+  'Criando prompt visual com Gemini...',
+  'Gerando imagens com gpt-image-2...',
+  'Finalizando e salvando slides...',
+];
 
 interface HtmlPipelineResult {
   slides:  Array<{ slide_number: number; public_url: string; storage_path: string }>;
@@ -55,14 +62,78 @@ interface HtmlPipelineResult {
 }
 
 export default function SocialMediaPage() {
-  const [state, setState] = useState<CreationState>(INITIAL_STATE);
+  const [state, setState]       = useState<CreationState>(INITIAL_STATE);
   const [uploading, setUploading] = useState(false);
   const [htmlResult, setHtmlResult] = useState<HtmlPipelineResult | null>(null);
+  const [jobId, setJobId]         = useState<string | null>(null);
+  const pollingRef                = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollMsgIdxRef             = useRef(0);
   const supabase = createClient();
 
   function set(patch: Partial<CreationState>) {
     setState((s) => ({ ...s, ...patch }));
   }
+
+  // ── Polling de job assíncrono ───────────────────────────
+  useEffect(() => {
+    if (!jobId) return;
+
+    const startTime      = Date.now();
+    const MAX_POLL_MS    = 5 * 60 * 1000; // 5 minutos
+    pollMsgIdxRef.current = 0;
+
+    const stopPolling = () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+
+    const poll = async () => {
+      // Avança mensagem de loading progressivamente
+      pollMsgIdxRef.current = Math.min(pollMsgIdxRef.current + 1, POLL_MESSAGES.length - 1);
+      setState((s) => ({ ...s, loading_message: POLL_MESSAGES[pollMsgIdxRef.current] }));
+
+      if (Date.now() - startTime > MAX_POLL_MS) {
+        stopPolling();
+        setJobId(null);
+        toast.error('Tempo limite excedido. Tente novamente.');
+        setState((s) => ({ ...s, step: s.mode === 'directed' ? 'input' : 'ideas' }));
+        return;
+      }
+
+      try {
+        const res  = await fetch(`/api/admin/social-media/jobs/${jobId}`);
+        if (!res.ok) return; // erro de rede — continua polling
+
+        const data = await res.json() as {
+          status:        'pending' | 'processing' | 'done' | 'error';
+          result?:       HtmlPipelineResult;
+          error_message?: string;
+        };
+
+        if (data.status === 'done' && data.result) {
+          stopPolling();
+          setJobId(null);
+          setHtmlResult(data.result);
+          setState((s) => ({ ...s, step: 'preview' }));
+        } else if (data.status === 'error') {
+          stopPolling();
+          setJobId(null);
+          toast.error(data.error_message ?? 'Erro ao gerar post');
+          setState((s) => ({ ...s, step: s.mode === 'directed' ? 'input' : 'ideas' }));
+        }
+        // pending | processing → continua polling
+      } catch {
+        // erro de rede transitório — continua polling
+      }
+    };
+
+    void poll(); // verificação imediata
+    pollingRef.current = setInterval(() => { void poll(); }, 4000);
+
+    return stopPolling;
+  }, [jobId]);
 
   function goTo(step: CreationStep) {
     set({ step });
@@ -138,11 +209,13 @@ export default function SocialMediaPage() {
             partner_name: undefined,
           }),
         });
-        const data = await res.json() as HtmlPipelineResult & { error?: string };
+        const data = await res.json() as { job_id?: string; error?: string };
         if (!res.ok) throw new Error(data.error ?? 'Erro ao gerar post');
+        if (!data.job_id) throw new Error('Resposta inesperada do servidor');
 
-        setHtmlResult(data);
-        set({ step: 'preview' });
+        // Backend retornou job_id — fica em 'generating' enquanto polling atualiza
+        set({ loading_message: POLL_MESSAGES[0] });
+        setJobId(data.job_id);
       } catch (e) {
         toast.error(String(e));
         set({ step: state.mode === 'directed' ? 'input' : 'ideas' });

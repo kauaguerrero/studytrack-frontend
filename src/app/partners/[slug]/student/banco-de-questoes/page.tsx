@@ -875,6 +875,7 @@ export default function BancoDeQuestoes() {
                     correct_option: currentQ.correct_option,
                     explanation: currentQ.explanation,
                     images: currentQ.images,
+                    metadata: currentQ.metadata,
                   }}
                   testletInfo={currentTestletInfo}
                   suppressContext={currentTestletInfo !== undefined && currentTestletInfo.position > 1}

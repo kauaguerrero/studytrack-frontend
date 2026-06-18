@@ -6,10 +6,12 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import {
+  getQuestionContentBlocks,
   extractAlternativeImageUrls,
   extractDetachedQuestionImageUrls,
   splitQuestionContextAndSource,
 } from '@/components/questions/rendering';
+import { AlternativeImages, QuestionContentBlocks, QuestionSupportImages } from '@/components/questions/QuestionMedia';
 import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -2183,38 +2185,34 @@ export default function AdminQuestionApproval() {
                     </div>
                   )}
 
-                  {/* Contexto */}
-                  {activeQuestionContextText && (
-                    <div className="relative rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4 md:px-5">
-                      <div className="absolute -left-3 top-5 bg-white text-slate-400 p-1.5 rounded-full border border-slate-200 shadow-sm">
-                        <BookOpen size={16} />
-                      </div>
-                      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Contexto</p>
-                      <div className="prose prose-slate max-w-none text-slate-600 italic leading-relaxed text-[15px]">
-                        <RichText text={activeQuestionContextText} />
-                      </div>
-                    </div>
-                  )}
-
-                  {activeQuestionSourceText && (
-                    <div className="-mt-4 prose prose-slate max-w-none text-[12px] leading-relaxed text-slate-500">
-                      <RichText text={activeQuestionSourceText} />
-                    </div>
-                  )}
-
-                  {/* Imagens de Apoio */}
-                  {activeQuestionSupportImages.length > 0 && (
-                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
-                      {activeQuestionSupportImages.map((img, i) => (
-                        <div key={i} className="relative shrink-0 snap-center group/img">
-                          <img
-                            src={img}
-                            alt={`Apoio ${i}`}
-                            className="max-h-40 md:max-h-52 w-auto max-w-full rounded-xl border border-slate-200 object-contain shadow-sm hover:shadow-md transition-all cursor-zoom-in"
-                          />
+                  {activeQuestion && getQuestionContentBlocks(activeQuestion.metadata).length > 0 ? (
+                    <QuestionContentBlocks metadata={activeQuestion.metadata} />
+                  ) : (
+                    <>
+                      {/* Contexto */}
+                      {activeQuestionContextText && (
+                        <div className="relative rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4 md:px-5">
+                          <div className="absolute -left-3 top-5 bg-white text-slate-400 p-1.5 rounded-full border border-slate-200 shadow-sm">
+                            <BookOpen size={16} />
+                          </div>
+                          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Contexto</p>
+                          <div className="prose prose-slate max-w-none text-slate-600 italic leading-relaxed text-[15px]">
+                            <RichText text={activeQuestionContextText} />
+                          </div>
                         </div>
-                      ))}
-                    </div>
+                      )}
+
+                      {/* Imagens de Apoio */}
+                      {activeQuestionSupportImages.length > 0 && activeQuestion && (
+                        <QuestionSupportImages images={activeQuestionSupportImages} metadata={activeQuestion.metadata} />
+                      )}
+
+                      {activeQuestionSourceText && (
+                        <div className="-mt-4 prose prose-slate max-w-none text-[12px] leading-relaxed text-slate-500">
+                          <RichText text={activeQuestionSourceText} />
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Comando da Questão */}
@@ -2265,16 +2263,7 @@ export default function AdminQuestionApproval() {
                             </div>
                             <div className={`flex-1 text-[15px] leading-snug ${isCorrect ? 'text-emerald-950 font-medium' : 'text-slate-700'}`}>
                               {alternativeImages.length > 0 && (
-                                <div className="mb-3 flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                                  {alternativeImages.map((img, index) => (
-                                    <img
-                                      key={`${alt.letter}-${index}-${img}`}
-                                      src={img}
-                                      alt={`Alternativa ${alt.letter}`}
-                                      className="max-h-32 md:max-h-36 rounded-lg border border-slate-200 object-contain bg-white"
-                                    />
-                                  ))}
-                                </div>
+                                <AlternativeImages images={alternativeImages} metadata={activeQuestion.metadata} letter={alt.letter} />
                               )}
                               {alternativeText ? <RichText text={alternativeText} /> : <span className="italic opacity-50">Conteúdo em anexo/imagem</span>}
                             </div>

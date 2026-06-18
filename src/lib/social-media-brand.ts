@@ -67,7 +67,7 @@ export const BRAND = {
 
   // ── Instagram ──────────────────────────────────────────────
   instagram: {
-    handle: "@studytrack",
+    handle: "@studytrackbr",
     hashtags: {
       // Sempre incluir
       brand:       ["#studytrack", "#studytrackbr"],

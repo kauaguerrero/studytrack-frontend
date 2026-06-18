@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowUp, BookOpen, CheckCircle2, XCircle, BrainCircuit, Flag } from 'lucide-react';
 import { reportError } from '@/lib/reportError';
+import { AlternativeImages, QuestionContentBlocks, QuestionSupportImages } from '@/components/questions/QuestionMedia';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
 import {
   extractAlternativeImageUrls,
   extractDetachedQuestionImageUrls,
+  getQuestionContentBlocks,
   splitQuestionContextAndSource,
 } from '@/components/questions/rendering';
 import { createClient } from '@/lib/supabase/client';
@@ -14,19 +16,6 @@ interface Alternative {
   text: string;
   image?: string | string[] | null;
   file?: string | string[] | null;
-}
-
-function AlternativeImage({ src, letter }: { src: string; letter: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) return <span className="text-slate-400 dark:text-slate-500 italic text-sm">(Imagem indisponível)</span>;
-  return (
-    <img
-      src={src}
-      alt={`Opção ${letter}`}
-      className="max-h-28 md:max-h-32 w-auto max-w-full rounded border border-slate-200 bg-white object-contain"
-      onError={() => setFailed(true)}
-    />
-  );
 }
 
 interface Question {
@@ -42,6 +31,7 @@ interface Question {
   correct_option: string;
   explanation: string;
   images?: unknown;
+  metadata?: unknown;
 }
 
 interface QuestionCardProps {
@@ -74,6 +64,10 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
   const contextSegments = useMemo(
     () => splitQuestionContextAndSource(question.context),
     [question.context],
+  );
+  const hasContentBlocks = useMemo(
+    () => getQuestionContentBlocks(question.metadata).length > 0,
+    [question.metadata],
   );
 
   const handleSelect = (letter: string) => {
@@ -209,28 +203,28 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
         </div>
       )}
 
-      {!suppressContext && contextSegments.body && (
-        <QuestionRichText
-          text={contextSegments.body}
-          className="prose prose-slate dark:prose-invert prose-sm max-w-none mb-6 text-muted-foreground border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed"
-        />
-      )}
+      {!suppressContext && hasContentBlocks ? (
+        <QuestionContentBlocks metadata={question.metadata} className="mb-6" />
+      ) : (
+        <>
+          {!suppressContext && contextSegments.body && (
+            <QuestionRichText
+              text={contextSegments.body}
+              className="prose prose-slate dark:prose-invert prose-sm max-w-none mb-6 text-muted-foreground border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed"
+            />
+          )}
 
-      {!suppressContext && contextSegments.source && (
-        <QuestionRichText
-          text={contextSegments.source}
-          className="prose prose-slate dark:prose-invert prose-xs max-w-none -mt-3 mb-5 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
-        />
-      )}
+          {!suppressContext && supportImages.length > 0 && (
+            <QuestionSupportImages images={supportImages} metadata={question.metadata} className="mb-6" />
+          )}
 
-      {!suppressContext && supportImages.length > 0 && (
-        <div className="mb-6">
-          {supportImages.map((img, i) => (
-            <div key={i} className="mb-6 flex justify-center bg-muted p-4 rounded-xl border border-border">
-              <img src={img} alt="Material de apoio" className="max-h-40 md:max-h-52 w-auto max-w-full object-contain rounded-lg" />
-            </div>
-          ))}
-        </div>
+          {!suppressContext && contextSegments.source && (
+            <QuestionRichText
+              text={contextSegments.source}
+              className="prose prose-slate dark:prose-invert prose-xs max-w-none -mt-3 mb-5 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
+            />
+          )}
+        </>
       )}
 
       <QuestionRichText
@@ -275,13 +269,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
               
               <div className="flex-1">
                   {alternativeImages.length > 0 && (
-                      <div className="mb-2">
-                          {alternativeImages.map((imageUrl, imageIndex) => (
-                            <div key={`${alt.letter}-img-${imageIndex}`} className={imageIndex > 0 ? 'mt-2' : ''}>
-                              <AlternativeImage src={imageUrl} letter={alt.letter} />
-                            </div>
-                          ))}
-                      </div>
+                      <AlternativeImages images={alternativeImages} metadata={question.metadata} letter={alt.letter} />
                   )}
                   {alt.text ? (
                       <QuestionRichText

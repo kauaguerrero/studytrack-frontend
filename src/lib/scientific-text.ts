@@ -126,6 +126,8 @@ function formatChemicalFormulaSegments(text: string): string {
 
 function normalizeLatexArtifacts(text: string): string {
   return text
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_match, expression: string) => `$$${expression.trim()}$$`)
+    .replace(/\\\(([\s\S]*?)\\\)/g, (_match, expression: string) => `$${expression.trim()}$`)
     .replace(/\$\s*\\mathrm\{R\}\s*\\\$\s*([\d.]+(?:,\d+)?)\s*\$/g, 'R$ $1')
     .replace(/\$\$\s*([\s\S]*?)\s*\$\$\s*0(?=\s|$)/g, '$$$$ $1 $$$$')
     .replace(/\\mathrm\{([^}]+)\}/g, '$1')
