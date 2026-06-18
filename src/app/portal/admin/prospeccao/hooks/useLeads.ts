@@ -19,12 +19,9 @@ function buildLeadsKey(filters: LeadFilters): string {
   const params = new URLSearchParams();
   if (filters.uf) params.set('uf', filters.uf);
   if (filters.status) params.set('status', filters.status);
-  if (filters.has_email) params.set('has_email', '1');
   if (filters.has_phone) params.set('has_phone', '1');
   if (filters.search) params.set('search', filters.search);
   if (filters.temperature) params.set('temperature', filters.temperature);
-  if (filters.tipo) params.set('tipo', filters.tipo);
-  if (filters.max_anos) params.set('max_anos', filters.max_anos);
   const qs = params.toString();
   return qs ? `${LEADS_BASE}?${qs}` : LEADS_BASE;
 }

@@ -1,6 +1,8 @@
 'use client';
 
-import { Calendar, Flame, Wind, Snowflake } from 'lucide-react';
+import { useState } from 'react';
+import { mutate } from 'swr';
+import { Calendar, Flame, GripVertical, LayoutGrid, Snowflake, Wind } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUpdateLead } from '../hooks/useLeads';
 import { STATUS_CONFIG } from './LeadsTable';
@@ -15,6 +17,26 @@ const ACTIVE_STATUSES: LeadStatusCRM[] = [
 ];
 
 const BOARD_STATUSES: LeadStatusCRM[] = [...ACTIVE_STATUSES, 'fechado', 'perdido'];
+
+const COLUMN_ACCENT: Record<LeadStatusCRM, string> = {
+  novo: '#64748b',
+  contatado: '#3b82f6',
+  respondeu: '#8b5cf6',
+  demo_agendada: '#f59e0b',
+  proposta_enviada: '#f97316',
+  fechado: '#10b981',
+  perdido: '#ef4444',
+};
+
+const COLUMN_GUIDANCE: Record<LeadStatusCRM, string> = {
+  novo: 'Leads recém encontrados e ainda não abordados.',
+  contatado: 'Primeira abordagem feita, aguardando retorno.',
+  respondeu: 'Houve resposta e existe conversa ativa.',
+  demo_agendada: 'Demonstração marcada ou em negociação de agenda.',
+  proposta_enviada: 'Proposta enviada, acompanhar decisão.',
+  fechado: 'Lead convertido em parceiro.',
+  perdido: 'Sem fit ou oportunidade encerrada.',
+};
 
 function TemperatureBadge({ t }: { t: LeadTemperature }) {
   if (t === 'quente')
@@ -68,11 +90,49 @@ interface KanbanBoardProps {
 }
 
 export function KanbanBoard({ leads, onSelectLead, onLeadUpdate }: KanbanBoardProps) {
-  async function handleUpdateStatus(id: string, status: LeadStatusCRM) {
+  const [dragging, setDragging] = useState<Lead | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<LeadStatusCRM | null>(null);
+
+  async function handleDrop(targetStatus: LeadStatusCRM) {
+    if (!dragging || dragging.status_crm === targetStatus) {
+      setDragging(null);
+      setDragOverStatus(null);
+      return;
+    }
+
+    const lead = dragging;
+    const previousLeads = leads;
+    setDragging(null);
+    setDragOverStatus(null);
+
+    mutate(
+      (key: unknown) => typeof key === 'string' && key.startsWith('/api/admin/prospeccao/leads'),
+      (current: unknown) => {
+        if (!current || typeof current !== 'object' || !('leads' in current)) return current;
+        const payload = current as { leads: Lead[] };
+        return {
+          ...payload,
+          leads: payload.leads.map((l) =>
+            l.id === lead.id ? { ...l, status_crm: targetStatus } : l
+          ),
+        };
+      },
+      false
+    );
+
     try {
-      await apiUpdateLead(id, { status_crm: status });
+      await apiUpdateLead(lead.id, { status_crm: targetStatus });
       onLeadUpdate();
+      toast.success('Status atualizado');
     } catch {
+      mutate(
+        (key: unknown) => typeof key === 'string' && key.startsWith('/api/admin/prospeccao/leads'),
+        (current: unknown) => {
+          if (!current || typeof current !== 'object' || !('leads' in current)) return current;
+          return { ...(current as { leads: Lead[] }), leads: previousLeads };
+        },
+        false
+      );
       toast.error('Erro ao atualizar status');
     }
   }
@@ -82,43 +142,117 @@ export function KanbanBoard({ leads, onSelectLead, onLeadUpdate }: KanbanBoardPr
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4 pb-8">
+    <div className="flex gap-4 items-start overflow-x-auto pb-8">
       {BOARD_STATUSES.map((status) => {
         const cards = byStatus(status);
         const cfg = STATUS_CONFIG[status];
-        const activeIdx = ACTIVE_STATUSES.indexOf(status);
-        const isActive = activeIdx !== -1;
+        const isActive = ACTIVE_STATUSES.includes(status);
+        const accent = COLUMN_ACCENT[status];
+        const isDragOver = dragOverStatus === status;
 
         return (
-          <div key={status} className="flex flex-col gap-3">
-            {/* Header da coluna */}
-            <div className={`flex items-center justify-between rounded-xl px-3 py-2 ${cfg.cls}`}>
-              <span className="text-xs font-bold">{cfg.label}</span>
-              <span className="text-xs font-black tabular-nums">{cards.length}</span>
+          <div
+            key={status}
+            className="flex h-[560px] w-[280px] flex-shrink-0 flex-col rounded-2xl transition-all duration-200"
+            style={{
+              background: isDragOver ? `${accent}14` : undefined,
+              border: isDragOver
+                ? `1.5px solid ${accent}70`
+                : '1.5px solid rgba(148,163,184,0.18)',
+              boxShadow: isDragOver ? `0 0 32px ${accent}25` : 'none',
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOverStatus(status);
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setDragOverStatus(null);
+              }
+            }}
+            onDrop={() => handleDrop(status)}
+          >
+            <div
+              className="h-[3px] rounded-t-2xl flex-shrink-0"
+              style={{ background: `linear-gradient(90deg, ${accent}, ${accent}40)` }}
+            />
+
+            <div className="px-3.5 py-3 flex-shrink-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: accent, boxShadow: `0 0 6px ${accent}` }}
+                    />
+                    <span className="text-[13px] font-bold text-slate-800 dark:text-zinc-200 tracking-tight">
+                      {cfg.label}
+                    </span>
+                  </div>
+                  <p className="mt-1 pl-[18px] text-[11px] leading-relaxed text-slate-500 dark:text-zinc-400">
+                    {COLUMN_GUIDANCE[status]}
+                  </p>
+                </div>
+
+                <span
+                  className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                  style={{
+                    background: `${accent}22`,
+                    color: accent,
+                    border: `1px solid ${accent}35`,
+                  }}
+                >
+                  {cards.length}
+                </span>
+              </div>
             </div>
 
-            {/* Cards */}
-            <div className="flex flex-col gap-2.5">
-              {cards.map((lead) => {
+            <div className="mx-4 h-px bg-slate-200 dark:bg-white/[0.04] flex-shrink-0" />
+
+            <div className="flex flex-col gap-2.5 p-3 flex-1 min-h-0 overflow-y-auto">
+              {cards.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-3">
+                  <div
+                    className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                    style={{ background: `${accent}12` }}
+                  >
+                    <LayoutGrid className="w-[18px] h-[18px]" style={{ color: accent, opacity: 0.45 }} />
+                  </div>
+                  <p className="text-[11px] font-medium text-slate-400 dark:text-zinc-600 text-center leading-relaxed px-2">
+                    Nenhum lead
+                  </p>
+                </div>
+              ) : cards.map((lead) => {
                 const displayName = lead.nome_fantasia || lead.razao_social;
                 return (
                   <div
                     key={lead.id}
+                    draggable
+                    tabIndex={0}
+                    onDragStart={() => setDragging(lead)}
+                    onDragEnd={() => {
+                      setDragging(null);
+                      setDragOverStatus(null);
+                    }}
                     onClick={() => onSelectLead(lead)}
-                    className="cursor-pointer rounded-xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-zinc-900 p-3.5 hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-all group"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelectLead(lead);
+                      }
+                    }}
+                    className="group relative cursor-grab rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5 transition-all duration-150 select-none hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-lg hover:shadow-black/5 active:cursor-grabbing active:scale-[0.98] active:opacity-75 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/90 dark:hover:shadow-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900"
+                    style={{ borderLeft: `3px solid ${accent}` }}
                   >
+                    <div className="absolute right-2.5 top-2.5 opacity-0 group-hover:opacity-25 transition-opacity pointer-events-none">
+                      <GripVertical className="w-3.5 h-3.5 text-slate-400" />
+                    </div>
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight line-clamp-2">
+                      <p className="pr-5 text-sm font-bold text-slate-900 dark:text-white leading-tight line-clamp-2">
                         {displayName}
                       </p>
                       {isActive && <TemperatureBadge t={lead.temperature} />}
                     </div>
-
-                    {lead.nome_socio && (
-                      <p className="text-[11px] text-slate-400 dark:text-zinc-500 mb-2">
-                        {lead.nome_socio}
-                      </p>
-                    )}
 
                     <div className="flex flex-wrap gap-1 mb-2">
                       {lead.org_id && (
@@ -158,48 +292,20 @@ export function KanbanBoard({ leads, onSelectLead, onLeadUpdate }: KanbanBoardPr
                       </p>
                     )}
 
-                    {/* Avançar / Voltar — visível no hover */}
-                    {isActive && (
-                      <div
-                        className="flex gap-1 mt-2.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {activeIdx > 0 && (
-                          <button
-                            onClick={() =>
-                              handleUpdateStatus(
-                                lead.id,
-                                ACTIVE_STATUSES[activeIdx - 1]
-                              )
-                            }
-                            className="flex-1 rounded-lg border border-slate-200 dark:border-zinc-700 py-1 text-[10px] font-semibold text-slate-500 hover:bg-slate-50 dark:hover:bg-zinc-800"
-                          >
-                            Voltar
-                          </button>
-                        )}
-                        {activeIdx < ACTIVE_STATUSES.length - 1 && (
-                          <button
-                            onClick={() =>
-                              handleUpdateStatus(
-                                lead.id,
-                                ACTIVE_STATUSES[activeIdx + 1]
-                              )
-                            }
-                            className="flex-1 rounded-lg border border-indigo-300 dark:border-indigo-500/40 py-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
-                          >
-                            Avançar
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </div>
                 );
               })}
 
-              {cards.length === 0 && (
-                <div className="rounded-xl border border-dashed border-slate-200 dark:border-zinc-800 p-4 text-center">
-                  <p className="text-[11px] text-slate-400 dark:text-zinc-600">
-                    Nenhum lead
+              {isDragOver && (
+                <div
+                  className="rounded-xl h-14 flex items-center justify-center mt-1 transition-all"
+                  style={{
+                    border: `2px dashed ${accent}50`,
+                    background: `${accent}08`,
+                  }}
+                >
+                  <p className="text-xs font-semibold" style={{ color: accent }}>
+                    Soltar para mover para {cfg.label.toLowerCase()}
                   </p>
                 </div>
               )}

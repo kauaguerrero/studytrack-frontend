@@ -7,14 +7,15 @@ import {
   PhoneOff,
   MailX,
   MessageSquare,
+  MessageCircle,
   AlertCircle,
   RefreshCw,
-  Upload,
+  MapPin,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { apiUpdateLead } from '../hooks/useLeads';
-import { isPessoaFisica, NATUREZA_LABELS, type Lead, type LeadStatusCRM } from '../types';
+import type { Lead, LeadStatusCRM, LeadTemperature } from '../types';
 
 export const STATUS_CONFIG: Record<
   LeadStatusCRM,
@@ -50,13 +51,14 @@ export const STATUS_CONFIG: Record<
   },
 };
 
-function formatDate(v: string | null) {
-  if (!v) return '—';
-  return new Date(v).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-  });
+const TEMP_CONFIG: Record<LeadTemperature, { label: string; cls: string }> = {
+  quente: { label: 'Quente', cls: 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300' },
+  morno: { label: 'Morno', cls: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300' },
+  frio: { label: 'Frio', cls: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300' },
+};
+
+function getWhatsAppUrl(phone: string) {
+  return `https://wa.me/55${phone.replace(/\D/g, '')}`;
 }
 
 interface LeadsTableProps {
@@ -124,12 +126,6 @@ export function LeadsTable({
                   <div className="h-3.5 w-24 rounded bg-slate-100 dark:bg-zinc-800 animate-pulse" />
                 </td>
                 <td className="px-4 py-3">
-                  <div className="h-3.5 w-28 rounded bg-slate-100 dark:bg-zinc-800 animate-pulse" />
-                </td>
-                <td className="px-4 py-3">
-                  <div className="h-3.5 w-16 rounded bg-slate-100 dark:bg-zinc-800 animate-pulse" />
-                </td>
-                <td className="px-4 py-3">
                   <div className="h-6 w-28 rounded-full bg-slate-100 dark:bg-zinc-800 animate-pulse" />
                 </td>
                 <td className="px-4 py-3">
@@ -170,22 +166,22 @@ export function LeadsTable({
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4 rounded-xl border border-dashed border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50 dark:bg-violet-500/10">
-          <Upload className="w-7 h-7 text-violet-500" />
+          <MapPin className="w-7 h-7 text-violet-500" />
         </div>
         <div className="text-center">
           <p className="text-sm font-semibold text-slate-700 dark:text-zinc-200 mb-1">
             Nenhum lead na base
           </p>
           <p className="text-xs text-slate-400 dark:text-zinc-500">
-            Importe cursinhos da Casa dos Dados para começar a prospectar
+            Busque cursinhos no Google Maps para começar a prospectar
           </p>
         </div>
         <button
           onClick={onImportClick}
           className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 transition-all shadow-md"
         >
-          <Upload className="w-4 h-4" />
-          Importar Leads
+          <MapPin className="w-4 h-4" />
+          Buscar no Google Maps
         </button>
       </div>
     );
@@ -209,23 +205,79 @@ export function LeadsTable({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-white/[0.06] overflow-auto bg-white dark:bg-zinc-900">
-      <table className="w-full text-sm min-w-[800px]">
-        <thead>
-          <TableHead />
-        </thead>
-        <tbody>
-          {leads.map((lead) => {
-            const status = getStatus(lead);
-            const cfg = STATUS_CONFIG[status];
-            const displayName = lead.nome_fantasia || lead.razao_social;
+    <>
+      <div className="block md:hidden space-y-2.5">
+        {leads.map((lead) => {
+          const status = getStatus(lead);
+          const cfg = STATUS_CONFIG[status];
+          const temp = TEMP_CONFIG[lead.temperature];
+          const displayName = lead.nome_fantasia || lead.razao_social;
 
-            return (
-              <tr
-                key={lead.id}
-                onClick={() => onSelectLead(lead)}
-                className="border-t border-slate-100 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors group"
-              >
+          return (
+            <div
+              key={lead.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelectLead(lead)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') onSelectLead(lead);
+              }}
+              className="w-full rounded-xl border border-slate-200 dark:border-white/[0.06] bg-white dark:bg-zinc-900 p-3.5 text-left shadow-sm transition-colors hover:bg-slate-50 dark:hover:bg-zinc-800/70"
+            >
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-sm text-slate-900 dark:text-white leading-tight truncate">
+                    {displayName}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {lead.uf && (
+                      <span className="rounded bg-slate-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[11px] font-bold text-slate-600 dark:text-zinc-300">
+                        {lead.uf}
+                      </span>
+                    )}
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${temp.cls}`}>
+                      {temp.label}
+                    </span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${cfg.cls}`}>
+                      {cfg.label}
+                    </span>
+                  </div>
+                </div>
+                {lead.telefone1 && (
+                  <a
+                    href={getWhatsAppUrl(lead.telefone1)}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-500 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 transition-colors"
+                    title="Abrir WhatsApp"
+                  >
+                    <MessageCircle className="w-5 h-5" />
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="hidden md:block rounded-xl border border-slate-200 dark:border-white/[0.06] overflow-auto bg-white dark:bg-zinc-900">
+        <table className="w-full text-sm min-w-[760px]">
+          <thead>
+            <TableHead />
+          </thead>
+          <tbody>
+            {leads.map((lead) => {
+              const status = getStatus(lead);
+              const cfg = STATUS_CONFIG[status];
+              const displayName = lead.nome_fantasia || lead.razao_social;
+
+              return (
+                <tr
+                  key={lead.id}
+                  onClick={() => onSelectLead(lead)}
+                  className="border-t border-slate-100 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors group"
+                >
                 {/* Nome */}
                 <td className="px-4 py-3">
                   <p className="font-semibold text-slate-900 dark:text-white leading-tight">
@@ -235,16 +287,6 @@ export function LeadsTable({
                     <p className="text-xs text-slate-400 dark:text-zinc-500 mt-0.5 truncate max-w-[200px]">
                       {lead.razao_social}
                     </p>
-                  )}
-                  {lead.codigo_natureza_juridica && (
-                    <span className={cn(
-                      'inline-block mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded',
-                      isPessoaFisica(lead.codigo_natureza_juridica)
-                        ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400'
-                        : 'bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400'
-                    )}>
-                      {NATUREZA_LABELS[lead.codigo_natureza_juridica] ?? `Nat. ${lead.codigo_natureza_juridica}`}
-                    </span>
                   )}
                 </td>
 
@@ -267,21 +309,23 @@ export function LeadsTable({
                   </div>
                 </td>
 
-                {/* Responsável */}
-                <td className="px-4 py-3">
-                  <span className="text-slate-600 dark:text-zinc-300 truncate max-w-[120px] block">
-                    {lead.nome_socio || (
-                      <span className="text-slate-300 dark:text-zinc-600">—</span>
-                    )}
-                  </span>
-                </td>
-
                 {/* Contato */}
                 <td
                   className="px-4 py-3"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex flex-col gap-1">
+                    {lead.telefone1 && (
+                      <a
+                        href={getWhatsAppUrl(lead.telefone1)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+                      >
+                        <MessageCircle className="w-3 h-3 shrink-0 text-emerald-500" />
+                        WhatsApp
+                      </a>
+                    )}
                     {lead.telefone1 ? (
                       <a
                         href={`tel:${lead.telefone1}`}
@@ -313,13 +357,6 @@ export function LeadsTable({
                   </div>
                 </td>
 
-                {/* Data de abertura */}
-                <td className="px-4 py-3">
-                  <span className="text-xs text-slate-500 dark:text-zinc-400">
-                    {formatDate(lead.data_abertura)}
-                  </span>
-                </td>
-
                 {/* Status CRM — inline select */}
                 <td
                   className="px-4 py-3"
@@ -345,20 +382,34 @@ export function LeadsTable({
 
                 {/* Ações */}
                 <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => onSelectLead(lead)}
-                    title="Ver detalhes e registrar observação"
-                    className="flex items-center justify-center w-7 h-7 rounded-lg text-slate-400 dark:text-zinc-500 hover:bg-slate-100 dark:hover:bg-zinc-800 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors opacity-0 group-hover:opacity-100"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {lead.telefone1 && (
+                      <a
+                        href={getWhatsAppUrl(lead.telefone1)}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Abrir WhatsApp"
+                        className="flex items-center justify-center w-7 h-7 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                    <button
+                      onClick={() => onSelectLead(lead)}
+                      title="Ver detalhes e registrar observação"
+                      className="flex items-center justify-center w-7 h-7 rounded-lg text-slate-400 dark:text-zinc-500 hover:bg-slate-100 dark:hover:bg-zinc-800 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -368,11 +419,9 @@ function TableHead() {
       {[
         'Nome',
         'UF / Município',
-        'Responsável',
         'Contato',
-        'Abertura',
         'Status CRM',
-        '',
+        'Ações',
       ].map((col, i) => (
         <th
           key={i}

@@ -80,6 +80,14 @@ function daysSince(v: string) {
   return `${days}d atrás`;
 }
 
+function getWhatsAppUrl(phone: string) {
+  return `https://wa.me/55${phone.replace(/\D/g, '')}`;
+}
+
+function getExternalUrl(url: string) {
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
 const inputCls =
   'h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400 dark:focus:border-indigo-500 transition-colors';
 
@@ -93,6 +101,7 @@ interface LeadDrawerProps {
 }
 
 export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const [creatingMock, setCreatingMock] = useState(false);
   const [converting, setConverting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -105,6 +114,11 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
     setObsText(lead.observacoes ?? '');
   }, [lead.observacoes]);
 
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setIsOpen(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   const [contactForm, setContactForm] = useState({
     channel: 'whatsapp' as ContactChannel,
     response: 'sem_resposta' as ContactResponse,
@@ -116,6 +130,7 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
   const statusCfg = STATUS_CONFIG[lead.status_crm];
   const displayName = lead.nome_fantasia || lead.razao_social;
   const isActive = ACTIVE_STATUSES.includes(lead.status_crm);
+  const hasCadastro = Boolean(lead.uf || lead.municipio || lead.website);
 
   async function handleUpdateStatus(status: LeadStatusCRM) {
     try {
@@ -206,12 +221,12 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex">
+    <div className="fixed inset-0 z-50 flex justify-end">
       {/* Overlay */}
-      <div className="flex-1 bg-black/50" onClick={onClose} />
+      <div className="hidden md:block flex-1 bg-black/50" onClick={onClose} />
 
       {/* Drawer */}
-      <div className="w-full max-w-md bg-white dark:bg-zinc-900 border-l border-slate-200 dark:border-zinc-700 flex flex-col overflow-hidden">
+      <div className={`w-full md:max-w-md bg-white dark:bg-zinc-900 border-l border-slate-200 dark:border-zinc-700 flex flex-col overflow-hidden transform transition-transform duration-300 ease-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         {/* Header */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-slate-100 dark:border-zinc-800 shrink-0">
           <div className="min-w-0 flex-1 mr-3">
@@ -258,15 +273,10 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
 
           {/* Dados cadastrais */}
-          <div className="space-y-2">
-            <p className={labelCls}>Dados cadastrais</p>
-            <div className="rounded-xl bg-slate-50 dark:bg-zinc-800/50 p-3.5 space-y-2 text-sm">
-              {lead.cnpj && (
-                <div className="flex justify-between">
-                  <span className="text-slate-400 dark:text-zinc-500">CNPJ</span>
-                  <span className="font-mono text-xs text-slate-700 dark:text-zinc-200">{lead.cnpj}</span>
-                </div>
-              )}
+          {hasCadastro && (
+            <div className="space-y-2">
+              <p className={labelCls}>Dados cadastrais</p>
+              <div className="rounded-xl bg-slate-50 dark:bg-zinc-800/50 p-3.5 space-y-2 text-sm">
               {(lead.uf || lead.municipio) && (
                 <div className="flex justify-between">
                   <span className="text-slate-400 dark:text-zinc-500">Localidade</span>
@@ -275,30 +285,39 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
                   </span>
                 </div>
               )}
-              {lead.data_abertura && (
-                <div className="flex justify-between">
-                  <span className="text-slate-400 dark:text-zinc-500">Abertura</span>
-                  <span className="text-slate-700 dark:text-zinc-200">{formatDate(lead.data_abertura)}</span>
+              {lead.website && (
+                <div className="flex justify-between gap-3">
+                  <span className="text-slate-400 dark:text-zinc-500">Website</span>
+                  <a
+                    href={getExternalUrl(lead.website)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-w-0 items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    <span className="truncate">{lead.website}</span>
+                    <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                  </a>
                 </div>
               )}
-              {lead.nome_socio && (
-                <div className="flex justify-between">
-                  <span className="text-slate-400 dark:text-zinc-500">Responsável</span>
-                  <span className="text-slate-700 dark:text-zinc-200">{lead.nome_socio}</span>
-                </div>
-              )}
-              {!lead.cnpj && !lead.uf && !lead.data_abertura && !lead.nome_socio && (
-                <p className="text-xs text-slate-400 dark:text-zinc-500 text-center py-1">
-                  Dados cadastrais não disponíveis
-                </p>
-              )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Contatos */}
           <div className="space-y-2">
             <p className={labelCls}>Contatos</p>
             <div className="space-y-1.5">
+              {lead.telefone1 && (
+                <a
+                  href={getWhatsAppUrl(lead.telefone1)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-2.5 text-sm font-bold text-white hover:bg-emerald-600 transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Abrir WhatsApp
+                </a>
+              )}
               {lead.telefone1 && (
                 <a
                   href={`tel:${lead.telefone1}`}

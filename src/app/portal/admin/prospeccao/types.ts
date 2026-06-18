@@ -33,22 +33,6 @@ export interface LeadContact {
   next_action: string | null;
 }
 
-// Codes mais comuns para exibição no painel
-export const NATUREZA_LABELS: Record<string, string> = {
-  '2062': 'Ltda',
-  '2135': 'Empresário Individual',
-  '2232': 'EIRELI',
-  '3069': 'Associação',
-  '2054': 'Sociedade Simples',
-  '2046': 'S/A',
-  '4120': 'Cooperativa',
-  '2240': 'Sociedade Simples Ltda',
-};
-
-export function isPessoaFisica(codigo: string | null | undefined): boolean {
-  return codigo === '2135';
-}
-
 export interface Lead {
   id: string;
   // Dados cadastrais (populados via importação ou manualmente)
@@ -108,18 +92,15 @@ export interface ImportJob {
 export interface LeadFilters {
   uf: string;
   status: LeadStatusCRM | '';
-  has_email: boolean;
   has_phone: boolean;
   search: string;
   temperature: LeadTemperature | '';
-  tipo: 'empresa' | 'pf' | '';   // empresa = não-2135 | pf = 2135 (Empresário Individual)
-  max_anos: string;               // ex: '10' = abertura nos últimos 10 anos
 }
 
 // ── Contratos de API (Next.js route handlers em /api/admin/prospeccao/) ──────
 //
 // GET    /api/admin/prospeccao/leads
-//        query: uf?, status?: LeadStatusCRM, has_email?: '1', has_phone?: '1',
+//        query: uf?, status?: LeadStatusCRM, has_phone?: '1',
 //               search?, temperature?: LeadTemperature
 //        → { leads: Lead[] }
 //

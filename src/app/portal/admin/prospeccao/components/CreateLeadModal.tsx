@@ -79,8 +79,8 @@ export function CreateLeadModal({ open, onClose }: CreateLeadModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-6 space-y-4 shadow-xl">
-        <div className="flex items-center justify-between">
+      <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-lg flex-col rounded-2xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-zinc-800 shrink-0">
           <p className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <Plus className="w-4 h-4 text-violet-500" />
             Novo lead
@@ -93,7 +93,7 @@ export function CreateLeadModal({ open, onClose }: CreateLeadModalProps) {
           </button>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid min-h-0 gap-3 overflow-y-auto px-6 py-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className={labelCls}>Razão social *</label>
             <input
@@ -240,7 +240,7 @@ export function CreateLeadModal({ open, onClose }: CreateLeadModalProps) {
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-1">
+        <div className="flex justify-end gap-2 border-t border-slate-100 dark:border-zinc-800 px-6 py-4 shrink-0">
           <button
             onClick={handleClose}
             className="px-4 py-2 text-sm text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white transition-colors"
