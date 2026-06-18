@@ -262,6 +262,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   const { org } = useOrg();
   const router = useRouter();
   const [simulados, setSimulados] = useState<ScheduledSimulado[]>([]);
+  const [printedSubmissionCounts, setPrintedSubmissionCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
@@ -318,12 +319,48 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         return;
       }
       const data = await res.json();
-      setSimulados(data.scheduled_simulados ?? []);
+      const scheduled = data.scheduled_simulados ?? [];
+      setSimulados(scheduled);
+      void loadPrintedSubmissionCounts(scheduled);
     } catch {
       toast.error('Erro ao buscar simulados');
     } finally {
       setLoading(false);
     }
+  }
+
+  async function loadPrintedSubmissionCounts(scheduled: ScheduledSimulado[]) {
+    const printedOrHybrid = scheduled.filter((sim) => sim.modality === 'printed' || sim.modality === 'hybrid');
+    if (printedOrHybrid.length === 0) {
+      setPrintedSubmissionCounts({});
+      return;
+    }
+
+    const entries = await Promise.all(
+      printedOrHybrid.map(async (sim) => {
+        try {
+          const examsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams?scheduled_simulado_id=${sim.id}`);
+          if (!examsRes.ok) return [sim.id, 0] as const;
+          const examsData = await examsRes.json();
+          const printedExams: Array<{ id: string }> = examsData.printed_exams ?? [];
+          if (printedExams.length === 0) return [sim.id, 0] as const;
+
+          const counts = await Promise.all(
+            printedExams.map(async (exam) => {
+              const resultsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${exam.id}/results`);
+              if (!resultsRes.ok) return 0;
+              const resultsData = await resultsRes.json();
+              return (resultsData.submissions ?? []).length;
+            }),
+          );
+          return [sim.id, counts.reduce((sum, count) => sum + count, 0)] as const;
+        } catch {
+          return [sim.id, 0] as const;
+        }
+      }),
+    );
+
+    setPrintedSubmissionCounts(Object.fromEntries(entries));
   }
 
   useEffect(() => { loadSimulados(); }, [slug]);
@@ -1377,10 +1414,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     </div>
 
                     {/* Métricas */}
-                    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
                       {[
-                        { label: 'Participantes', value: sim.metrics.unique_students, icon: Users },
-                        { label: 'Sessões', value: sim.metrics.total_sessions, icon: Play },
+                        { label: 'Participantes', value: sim.metrics.unique_students + (printedSubmissionCounts[sim.id] ?? 0), icon: Users },
                         { label: 'Média de acerto', value: sim.metrics.avg_score_pct != null ? `${sim.metrics.avg_score_pct}%` : '—', icon: BarChart2 },
                         { label: 'Melhor resultado', value: sim.metrics.best_score_pct != null ? `${sim.metrics.best_score_pct}%` : '—', icon: Trophy },
                       ].map(({ label, value, icon: Icon }) => (
