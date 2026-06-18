@@ -1,7 +1,9 @@
 import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
+import { AlternativeImages, QuestionContentBlocks, QuestionSupportImages } from '@/components/questions/QuestionMedia';
 import { notFound } from 'next/navigation';
 import { formatScientificText } from '@/lib/scientific-text';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getQuestionContentBlocks } from '@/components/questions/rendering';
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type Params = Promise<{ questionId: string }>;
@@ -27,6 +29,7 @@ interface AuditQuestionRow {
   alternatives?: unknown;
   correct_alternative?: string | null;
   images?: unknown;
+  metadata?: unknown;
 }
 
 function extractMarkdownImageUrls(text?: string | null): string[] {
@@ -137,21 +140,20 @@ export default async function AuditQuestionPreview({
           )}
         </div>
 
-        {images.length > 0 && (
-          <div className="mb-6 space-y-4">
-            {images.map((img, index) => (
-              <div key={img + index} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={img} alt={`Imagem de apoio ${index + 1}`} className="max-h-96 w-full object-contain" />
+        {getQuestionContentBlocks(data.metadata).length > 0 ? (
+          <QuestionContentBlocks metadata={data.metadata} className="mb-6" />
+        ) : (
+          <>
+            {data.context && (
+              <div className="prose prose-slate mb-6 max-w-none border-l-4 border-slate-200 pl-4 text-sm text-slate-600">
+                <SafeMarkdown>{formatScientificText(data.context)}</SafeMarkdown>
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {data.context && (
-          <div className="prose prose-slate mb-6 max-w-none border-l-4 border-slate-200 pl-4 text-sm text-slate-600">
-            <SafeMarkdown>{formatScientificText(data.context)}</SafeMarkdown>
-          </div>
+            {images.length > 0 && (
+              <QuestionSupportImages images={images} metadata={data.metadata} className="mb-6" />
+            )}
+          </>
         )}
 
         <div className="prose prose-slate mb-8 max-w-none text-lg">
@@ -172,10 +174,7 @@ export default async function AuditQuestionPreview({
                 </div>
                 <div className="flex-1">
                   {altImage && (
-                    <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={altImage} alt={`Alternativa ${alt.letter}`} data-audit-role="alternative-image" className="max-h-72 w-full object-contain" />
-                    </div>
+                    <AlternativeImages images={[altImage]} metadata={data.metadata} letter={alt.letter} />
                   )}
                   {alt.text ? (
                     <div className="text-base leading-relaxed text-slate-800">{formatScientificText(alt.text)}</div>

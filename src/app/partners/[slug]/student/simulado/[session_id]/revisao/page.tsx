@@ -3,10 +3,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, XCircle, Brain, Loader2, Flag } from 'lucide-react'
+import { AlternativeImages, QuestionContentBlocks, QuestionSupportImages } from '@/components/questions/QuestionMedia'
 import { QuestionRichText } from '@/components/questions/QuestionRichText'
 import {
     extractAlternativeImageUrls,
     extractDetachedQuestionImageUrls,
+    getQuestionContentBlocks,
     splitQuestionContextAndSource,
 } from '@/components/questions/rendering'
 import { createClient } from '@/lib/supabase/client'
@@ -23,6 +25,7 @@ interface QuestionContent {
     context: string
     statement: string
     images?: unknown
+    metadata?: unknown
     alternatives: { letter: string; text: string; image?: string | null }[]
     correct_option: string
 }
@@ -285,36 +288,29 @@ export default function RevisaoPage() {
 
                                     <div className="p-5">
                                         {/* Context */}
-                                        {contextText && (
-                                            <QuestionRichText
-                                                text={contextText}
-                                                className="prose prose-sm prose-slate dark:prose-invert max-w-none mb-4 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-3"
-                                            />
-                                        )}
+                                        {getQuestionContentBlocks(q.metadata).length > 0 ? (
+                                            <QuestionContentBlocks metadata={q.metadata} className="mb-4" />
+                                        ) : (
+                                            <>
+                                                {contextText && (
+                                                    <QuestionRichText
+                                                        text={contextText}
+                                                        className="prose prose-sm prose-slate dark:prose-invert max-w-none mb-4 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-3"
+                                                    />
+                                                )}
 
-                                        {sourceText && (
-                                            <QuestionRichText
-                                                text={sourceText}
-                                                className="prose prose-slate dark:prose-invert max-w-none -mt-2 mb-4 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
-                                            />
-                                        )}
+                                                {/* Support images */}
+                                                {supportImages.length > 0 && (
+                                                    <QuestionSupportImages images={supportImages} metadata={q.metadata} className="mb-4" />
+                                                )}
 
-                                        {/* Support images */}
-                                        {supportImages.length > 0 && (
-                                            <div className="mb-4">
-                                                {supportImages.map((img, imageIndex) => (
-                                                    <div
-                                                        key={`${q.id}-support-image-${imageIndex}`}
-                                                        className="mb-4 flex justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4"
-                                                    >
-                                                        <img
-                                                            src={img}
-                                                            alt="Material de apoio"
-                                                            className="max-h-40 md:max-h-52 w-auto max-w-full rounded-lg object-contain"
-                                                        />
-                                                    </div>
-                                                ))}
-                                            </div>
+                                                {sourceText && (
+                                                    <QuestionRichText
+                                                        text={sourceText}
+                                                        className="prose prose-slate dark:prose-invert max-w-none -mt-2 mb-4 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
+                                                    />
+                                                )}
+                                            </>
                                         )}
 
                                         {/* Statement */}
@@ -352,16 +348,7 @@ export default function RevisaoPage() {
                                                         </span>
                                                         <div className="flex-1">
                                                             {extractAlternativeImageUrls(alt).length > 0 && (
-                                                                <div className="mb-2">
-                                                                    {extractAlternativeImageUrls(alt).map((imageUrl, imageIndex) => (
-                                                                        <img
-                                                                            key={`${alt.letter}-img-${imageIndex}`}
-                                                                            src={imageUrl}
-                                                                            alt={`Alternativa ${alt.letter}`}
-                                                                            className={`max-h-32 md:max-h-36 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white ${imageIndex > 0 ? 'mt-2' : ''}`}
-                                                                        />
-                                                                    ))}
-                                                                </div>
+                                                                <AlternativeImages images={extractAlternativeImageUrls(alt)} metadata={q.metadata} letter={alt.letter} />
                                                             )}
                                                             {alt.text ? (
                                                                 <div className={`leading-snug ${

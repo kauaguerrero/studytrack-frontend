@@ -16,9 +16,11 @@ import {
   Medal, BarChart3, Plus, Clock, Zap, Flag, EyeOff, Target,
 } from 'lucide-react'
 import { QuestionRichText } from '@/components/questions/QuestionRichText'
+import { AlternativeImages, QuestionContentBlocks, QuestionSupportImages } from '@/components/questions/QuestionMedia'
 import {
   extractAlternativeImageUrls,
   extractDetachedQuestionImageUrls,
+  getQuestionContentBlocks,
 } from '@/components/questions/rendering'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -46,6 +48,7 @@ interface Question {
   context: string; statement: string; images?: unknown; alternatives: Alternative[]
   correct_option: string
   testlet_group_id?: string | null
+  metadata?: unknown
 }
 
 interface SubjectResult { correct: number; total: number; percentage: number }
@@ -2328,32 +2331,36 @@ export default function SimuladoPage() {
                   Leia o texto a seguir para responder as próximas {currentGroupQuestions.length} questões
                 </div>
               )}
-              {currentGroupSharedContext && (
-                <QuestionRichText
-                  text={currentGroupSharedContext}
-                  className="prose prose-slate dark:prose-invert max-w-none mb-5 text-slate-600 dark:text-slate-300 border-l-4 pl-4 text-sm leading-relaxed"
-                  style={{ borderColor: 'var(--brand-primary)' }}
-                />
-              )}
+              {currentGroupContextQuestion && getQuestionContentBlocks(currentGroupContextQuestion.metadata).length > 0 ? (
+                <QuestionContentBlocks metadata={currentGroupContextQuestion.metadata} className="mb-5" />
+              ) : (
+                <>
+                  {currentGroupSharedContext && (
+                    <QuestionRichText
+                      text={currentGroupSharedContext}
+                      className="prose prose-slate dark:prose-invert max-w-none mb-5 text-slate-600 dark:text-slate-300 border-l-4 pl-4 text-sm leading-relaxed"
+                      style={{ borderColor: 'var(--brand-primary)' }}
+                    />
+                  )}
 
-              {/* Imagens de apoio */}
-              {(() => {
-                const supportImages = extractDetachedQuestionImageUrls(
-                  currentGroupContextQuestion?.images,
-                  currentGroupContextQuestion?.context,
-                  currentGroupContextQuestion?.statement,
-                )
-                if (supportImages.length === 0) return null
-                return (
-                  <div className="mb-5">
-                    {supportImages.map((img, i) => (
-                      <div key={`${currentGroupContextQuestion?.id || 'group'}-img-${i}`} className="mb-5 flex justify-center bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                        <img src={img} alt="Imagem de apoio da questão" className="max-h-40 md:max-h-52 w-auto max-w-full object-contain rounded-lg" />
-                      </div>
-                    ))}
-                  </div>
-                )
-              })()}
+                  {/* Imagens de apoio */}
+                  {(() => {
+                    const supportImages = extractDetachedQuestionImageUrls(
+                      currentGroupContextQuestion?.images,
+                      currentGroupContextQuestion?.context,
+                      currentGroupContextQuestion?.statement,
+                    )
+                    if (supportImages.length === 0) return null
+                    return (
+                      <QuestionSupportImages
+                        images={supportImages}
+                        metadata={currentGroupContextQuestion?.metadata}
+                        className="mb-5"
+                      />
+                    )
+                  })()}
+                </>
+              )}
 
               <div className="space-y-6">
                 {currentGroupQuestions.map((question, groupIndex) => (
@@ -2421,16 +2428,7 @@ export default function SimuladoPage() {
                             </span>
                             <div className="flex-1 pt-1">
                               {alternativeImages.length > 0 && (
-                                <div className="mb-2">
-                                  {alternativeImages.map((imageUrl, imageIndex) => (
-                                    <img
-                                      key={`${question.id}-${alt.letter}-img-${imageIndex}`}
-                                      src={imageUrl}
-                                      alt={`Alternativa ${alt.letter}`}
-                                      className={`max-h-32 md:max-h-36 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white ${imageIndex > 0 ? 'mt-2' : ''}`}
-                                    />
-                                  ))}
-                                </div>
+                                <AlternativeImages images={alternativeImages} metadata={question.metadata} letter={alt.letter} />
                               )}
                               {alt.text ? (
                                 <QuestionRichText

@@ -47,7 +47,6 @@ interface Submission {
 }
 
 interface RankingEntry {
-  session_id?: string | null;
   student_id: string;
   full_name?: string | null;
   score: number | null;
@@ -186,7 +185,7 @@ export default function PrintedExamResultsPage() {
 
       const rankingData = await rankingRes.json();
       const onlineParticipants: Participant[] = (rankingData.ranking ?? []).map((entry: RankingEntry) => ({
-        id: entry.session_id ?? `online-${entry.student_id}`,
+        id: `online-${entry.student_id}`,
         source: 'online',
         student_id: entry.student_id,
         student_name: entry.full_name,
@@ -374,6 +373,7 @@ export default function PrintedExamResultsPage() {
                 const percentage = resolvePercentage(participant);
                 const subjectEntries = Object.entries(participant.results_by_subject ?? {});
                 const isPrinted = participant.source === 'printed';
+                const isExternal = isPrinted && !participant.student_id;
                 return (
                   <motion.article
                     key={participant.id}
@@ -453,27 +453,31 @@ export default function PrintedExamResultsPage() {
                       )}
 
                       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                        <button
-                          type="button"
-                          onClick={() => void downloadExternalReport(participant)}
-                          disabled={downloadingId === participant.id}
-                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-                        >
-                          {downloadingId === participant.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Download className="h-4 w-4" />
-                          )}
-                          Gerar Relatorio PDF
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/partners/${slug}/exam-results/${participant.id}`)}
-                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
-                          style={{ backgroundColor: 'var(--brand-primary)' }}
-                        >
-                          Ver Detalhe <ArrowRight className="h-4 w-4" />
-                        </button>
+                        {isExternal && (
+                          <button
+                            type="button"
+                            onClick={() => void downloadExternalReport(participant)}
+                            disabled={downloadingId === participant.id}
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                          >
+                            {downloadingId === participant.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                            Gerar Relatorio PDF
+                          </button>
+                        )}
+                        {isPrinted && (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/partners/${slug}/exam-results/${participant.id}`)}
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+                            style={{ backgroundColor: 'var(--brand-primary)' }}
+                          >
+                            Ver Detalhe <ArrowRight className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </motion.article>
