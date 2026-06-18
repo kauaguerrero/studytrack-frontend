@@ -209,7 +209,8 @@ export default function PrintedExamResultsPage() {
     try {
       const res = await fetchWithAuth(`/api/partners/${slug}/exam-results/${participant.id}/relatorio.pdf`);
       if (!res.ok) {
-        setError('Nao foi possivel gerar o relatorio PDF.');
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? 'Nao foi possivel gerar o relatorio PDF.');
         return;
       }
 
@@ -386,7 +387,7 @@ export default function PrintedExamResultsPage() {
                         <div className="min-w-0">
                           <div className="mb-2 flex flex-wrap items-center gap-2">
                             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-                              {isExternal ? <Award className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                            {isPrinted && !participant.student_id ? <Award className="h-4 w-4" /> : <User className="h-4 w-4" />}
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-extrabold text-slate-900 dark:text-white">
