@@ -338,7 +338,7 @@ export async function POST(
   }
 
   const rawType = String(essay.essay_type || 'enem').toLowerCase();
-  const essayType: EssayType = rawType === 'ufu' || rawType === 'ueg' ? rawType : 'enem';
+  const essayType: EssayType = (rawType === 'ufu' || rawType === 'ueg' || rawType === 'fuvest' || rawType === 'vunesp') ? (rawType as EssayType) : 'enem';
   const typeConfig = ESSAY_TYPE_CONFIGS[essayType] ?? ESSAY_TYPE_CONFIGS.enem;
   const compMaxes = typeConfig.score_options.map((opts) =>
     Array.isArray(opts) && opts.length > 0 ? Math.max(...opts) : 200,

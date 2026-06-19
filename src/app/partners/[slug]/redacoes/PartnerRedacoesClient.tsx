@@ -1219,25 +1219,19 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               Métricas por tipo:
             </span>
             <div className="flex gap-1.5 flex-wrap">
-              {([
-                { key: 'enem', label: 'ENEM', sub: '/ 1000' },
-                { key: 'ufu', label: 'UFU', sub: '/ 80' },
-                { key: 'ueg', label: 'UEG', sub: '/ 100' },
-              ] as const).map(({ key, label, sub }) => (
+              {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setActiveTypeFilter(key as EssayType)}
+                  onClick={() => setActiveTypeFilter(key)}
                   className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${
                     activeTypeFilter === key
                       ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
                       : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-[var(--brand-primary)]/40'
                   }`}
                 >
-                  {label}
-                  {sub && (
-                    <span className="ml-1 font-normal opacity-60">{sub}</span>
-                  )}
+                  {cfg.label}
+                  <span className="ml-1 font-normal opacity-60">/ {cfg.total_max}</span>
                 </button>
               ))}
             </div>

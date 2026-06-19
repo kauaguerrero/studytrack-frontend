@@ -143,7 +143,9 @@ export default function StudentRedacoesPage() {
           const rawText = String(row.text || row.text_preview || '');
           const preview = rawText.length > 120 ? `${rawText.slice(0, 120)}...` : rawText;
           const rawType = String(row.essay_type || '').toLowerCase();
-          const essayType: EssayType = rawType === 'ufu' || rawType === 'ueg' ? rawType : 'enem';
+          const essayType: EssayType = (['ufu', 'ueg', 'fuvest', 'vunesp'] as const).includes(rawType as 'ufu' | 'ueg' | 'fuvest' | 'vunesp')
+            ? (rawType as EssayType)
+            : 'enem';
           return {
             id: String(row.id),
             status: row.status,
@@ -244,7 +246,8 @@ export default function StudentRedacoesPage() {
         const avgRecent = Math.round(recent.reduce((a, b) => a + b, 0) / recent.length);
         const avgPrev = Math.round(previous.reduce((a, b) => a + b, 0) / previous.length);
         trendDelta = avgRecent - avgPrev;
-        trend = trendDelta > 10 ? 'up' : trendDelta < -10 ? 'down' : 'neutral';
+        const trendThreshold = Math.max(1, Math.round(activeConfig.total_max * 0.07));
+        trend = trendDelta > trendThreshold ? 'up' : trendDelta < -trendThreshold ? 'down' : 'neutral';
       }
     }
 
@@ -269,7 +272,7 @@ export default function StudentRedacoesPage() {
       && corrected.length > 1;
 
     return { total: essaysByType.length, correctedCount: corrected.length, avg, best, pending, chartData, trend, trendDelta, avgCorrectionDays, isRecord };
-  }, [essaysByType]);
+  }, [essaysByType, activeConfig]);
 
   const filteredCompetencyScores = useMemo(() => {
     const correctedEssayIds = new Set(
@@ -351,11 +354,7 @@ export default function StudentRedacoesPage() {
               Tipo de redação:
             </span>
             <div className="flex gap-1.5 flex-wrap">
-              {([
-                { key: 'enem', label: 'ENEM', sub: '/ 1000' },
-                { key: 'ufu', label: 'UFU', sub: '/ 80' },
-                { key: 'ueg', label: 'UEG', sub: '/ 100' },
-              ] as const).map(({ key, label, sub }) => (
+              {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => (
                 <button
                   key={key}
                   type="button"
@@ -366,8 +365,8 @@ export default function StudentRedacoesPage() {
                       : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-[var(--brand-primary)]/40'
                   }`}
                 >
-                  {label}
-                  <span className="ml-1 font-normal opacity-60">{sub}</span>
+                  {cfg.label}
+                  <span className="ml-1 font-normal opacity-60">/ {cfg.total_max}</span>
                 </button>
               ))}
             </div>
