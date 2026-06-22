@@ -28,22 +28,22 @@ interface Topic {
   count: number;
 }
 
+interface QuestionFilterOptions {
+  subjects: string[];
+  banks: string[];
+  years: string[];
+  difficulties: string[];
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SUBJECTS = [
-  'Matemática', 'Física', 'Química', 'Biologia', 'História',
-  'Geografia', 'Filosofia', 'Sociologia', 'Língua Portuguesa',
-  'Inglês', 'Espanhol', 'Francês',
-];
-
-const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: CURRENT_YEAR - 2008 }, (_, i) =>
-  (CURRENT_YEAR - i).toString()
-);
-
-const DIFFICULTIES = ['Fácil', 'Médio', 'Difícil'];
-const BANKS = ['ENEM', 'UFU', 'UEG', 'UNESP'];
 const TOTAL_QUESTIONS = 5000;
+const DEFAULT_FILTER_OPTIONS: QuestionFilterOptions = {
+  subjects: [],
+  banks: [],
+  years: [],
+  difficulties: [],
+};
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -75,23 +75,38 @@ const selectClass =
   'hover:border-slate-300 dark:hover:border-slate-600 focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] ' +
   'disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-50 dark:disabled:bg-slate-800/50';
 
-function normalizeBankValue(value: unknown): 'ENEM' | 'UFU' | 'UEG' | 'UNESP' {
+function normalizeBankValue(value: unknown): string {
   const normalized = String(value || '').trim().toUpperCase();
   if (normalized === 'UFU' || normalized === 'UFU_VEST') return 'UFU';
   if (normalized === 'UEG' || normalized === 'UEG_VEST') return 'UEG';
+  if (normalized === 'UFG' || normalized === 'UFG_VEST') return 'UFG';
   if (normalized === 'UNESP') return 'UNESP';
+  if (normalized === 'ENEM' || normalized === 'INEP_ENEM' || normalized === 'ENEM_OFICIAL') return 'ENEM';
+  if (normalized) return normalized;
   return 'ENEM';
 }
 
-function inferQuestionBank(row: any): 'ENEM' | 'UFU' | 'UEG' | 'UNESP' {
+function inferQuestionBank(row: any): string {
   if (row?.bank) return normalizeBankValue(row.bank);
   const metadata = row?.metadata && typeof row.metadata === 'object' ? row.metadata : {};
   if (metadata?.bank || metadata?.source) return normalizeBankValue(metadata.bank || metadata.source);
   const extId = String(row?.external_id || '').toUpperCase();
   if (extId.startsWith('UFU_VEST_')) return 'UFU';
   if (extId.startsWith('UEG_VEST_')) return 'UEG';
+  if (extId.startsWith('UFG_VEST_')) return 'UFG';
   if (extId.startsWith('UNESP_')) return 'UNESP';
   return 'ENEM';
+}
+
+function uniqueSorted(values: Array<string | number | null | undefined>, desc = false): string[] {
+  const items = Array.from(new Set(
+    values
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+  ));
+  return items.sort((a, b) => (
+    desc ? Number(b) - Number(a) || b.localeCompare(a) : a.localeCompare(b, 'pt-BR')
+  ));
 }
 
 // ─── Contrast helper ──────────────────────────────────────────────────────────
@@ -128,6 +143,7 @@ export default function BancoDeQuestoes() {
   const [filterDifficulty, setFilterDifficulty] = useState('Todas');
 
   const [availableTopics, setAvailableTopics] = useState<Topic[]>([]);
+  const [filterOptions, setFilterOptions] = useState<QuestionFilterOptions>(DEFAULT_FILTER_OPTIONS);
 
   // ── State: UI Controls ──────────────────────────────────────────────────────
   const [isMenuOpen, setIsMenuOpen] = useState(true);
@@ -201,6 +217,34 @@ export default function BancoDeQuestoes() {
   useEffect(() => {
     sessionStorage.removeItem('qsr_pending_points');
     sessionStorage.removeItem('qsr_shield_earned');
+  }, []);
+
+  // ── 2a. Filter options — sempre derivadas do banco ─────────────────────────
+  useEffect(() => {
+    async function loadFilterOptions() {
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('questions')
+          .select('subject, discipline, difficulty, exam_year, bank, metadata, external_id')
+          .eq('is_verified', true)
+          .limit(10000);
+
+        if (error) throw error;
+
+        const rows = data || [];
+        setFilterOptions({
+          subjects: uniqueSorted(rows.map((row) => row.subject)),
+          banks: uniqueSorted(rows.map(inferQuestionBank)),
+          years: uniqueSorted(rows.map((row) => row.exam_year), true),
+          difficulties: uniqueSorted(rows.map((row) => row.difficulty)),
+        });
+      } catch (err) {
+        void reportError('QuestionBankFilterOptionsError', String(err));
+      }
+    }
+
+    loadFilterOptions();
   }, []);
 
   // ── 2. Topics — direto no Supabase (sem CORS) ────────────────────────────────
@@ -355,15 +399,27 @@ export default function BancoDeQuestoes() {
   const handleNext = () => {
     if (isLockedByQuota) { toast.info('Limite de questões atingido', { description: 'Entre em contato com o administrador da sua organização.' }); return; }
     if (loadingMore && currentIdx >= questions.length - 1) return;
-    if (currentIdx < questions.length - 1) {
-      setCurrentIdx((prev) => prev + 1);
+    const current = questions[currentIdx];
+    const currentGroupId = current?.testlet_group_id;
+    const groupIndexes = currentGroupId
+      ? questions.map((q, index) => q.testlet_group_id === currentGroupId ? index : -1).filter((index) => index >= 0)
+      : [];
+    const nextIndex = groupIndexes.length > 1 ? Math.max(...groupIndexes) + 1 : currentIdx + 1;
+    if (nextIndex < questions.length) {
+      setCurrentIdx(nextIndex);
       questionTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
 
   const handlePrev = () => {
-    if (currentIdx > 0) {
-      setCurrentIdx((prev) => prev - 1);
+    const current = questions[currentIdx];
+    const currentGroupId = current?.testlet_group_id;
+    const groupIndexes = currentGroupId
+      ? questions.map((q, index) => q.testlet_group_id === currentGroupId ? index : -1).filter((index) => index >= 0)
+      : [];
+    const previousIndex = groupIndexes.length > 1 ? Math.min(...groupIndexes) - 1 : currentIdx - 1;
+    if (previousIndex >= 0) {
+      setCurrentIdx(previousIndex);
       questionTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
@@ -414,6 +470,11 @@ export default function BancoDeQuestoes() {
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────
   const currentQ = questions[currentIdx];
+  const currentTestletQuestions = useMemo(() => {
+    if (!currentQ?.testlet_group_id) return currentQ ? [currentQ] : [];
+    return questions.filter((q) => q.testlet_group_id === currentQ.testlet_group_id);
+  }, [currentQ, questions]);
+  const isCurrentTestletGroup = currentTestletQuestions.length > 1;
   const testletPositionMap = useMemo(() => {
     const map = new Map<string, { position: number; total: number }>();
     const groupCounts = new Map<string, number>();
@@ -436,7 +497,10 @@ export default function BancoDeQuestoes() {
     return map;
   }, [questions]);
   const currentTestletInfo = currentQ ? testletPositionMap.get(currentQ.id) : undefined;
-  const isNextDisabled = currentIdx === questions.length - 1;
+  const currentGroupLastIndex = isCurrentTestletGroup
+    ? Math.max(...currentTestletQuestions.map((groupQuestion) => questions.findIndex((q) => q.id === groupQuestion.id)))
+    : currentIdx;
+  const isNextDisabled = currentGroupLastIndex >= questions.length - 1;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -553,7 +617,7 @@ export default function BancoDeQuestoes() {
                   >
                     <option value="" disabled>Selecione a Matéria</option>
                     <option value="Todas">Todas as Matérias</option>
-                    {SUBJECTS.map((s) => (
+                    {filterOptions.subjects.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
@@ -590,7 +654,7 @@ export default function BancoDeQuestoes() {
                       value={filterBank}
                     >
                       <option value="Todas">Todas as Bancas</option>
-                      {BANKS.map((bank) => (
+                      {filterOptions.banks.map((bank) => (
                         <option key={bank} value={bank}>{bank}</option>
                       ))}
                     </select>
@@ -622,7 +686,7 @@ export default function BancoDeQuestoes() {
                       value={filterYear}
                     >
                       <option value="Todos">Todos os Anos</option>
-                      {YEARS.map((y) => (
+                      {filterOptions.years.map((y) => (
                         <option key={y} value={y}>{y}</option>
                       ))}
                     </select>
@@ -638,7 +702,7 @@ export default function BancoDeQuestoes() {
                       value={filterDifficulty}
                     >
                       <option value="Todas">Todas Dificuldades</option>
-                      {DIFFICULTIES.map((d) => (
+                      {filterOptions.difficulties.map((d) => (
                         <option key={d} value={d}>{d}</option>
                       ))}
                     </select>
@@ -666,7 +730,7 @@ export default function BancoDeQuestoes() {
                           value={filterBank}
                         >
                           <option value="Todas">Todas as Bancas</option>
-                          {BANKS.map((bank) => (
+                          {filterOptions.banks.map((bank) => (
                             <option key={bank} value={bank}>{bank}</option>
                           ))}
                         </select>
@@ -698,7 +762,7 @@ export default function BancoDeQuestoes() {
                           value={filterYear}
                         >
                           <option value="Todos">Todos os Anos</option>
-                          {YEARS.map((y) => (
+                          {filterOptions.years.map((y) => (
                             <option key={y} value={y}>{y}</option>
                           ))}
                         </select>
@@ -714,7 +778,7 @@ export default function BancoDeQuestoes() {
                           value={filterDifficulty}
                         >
                           <option value="Todas">Todas Dificuldades</option>
-                          {DIFFICULTIES.map((d) => (
+                          {filterOptions.difficulties.map((d) => (
                             <option key={d} value={d}>{d}</option>
                           ))}
                         </select>
@@ -785,7 +849,7 @@ export default function BancoDeQuestoes() {
                 <span className="font-bold text-slate-800 dark:text-slate-100">
                   {totalQuestions.toLocaleString('pt-BR')} questões
                 </span>{' '}
-                entre ENEM, UFU, UEG e UNESP disponíveis.{' '}
+                disponíveis no banco da plataforma.{' '}
                 <span className="font-semibold">Selecione a matéria e a banca</span> acima para começar.
               </p>
               <div className="mt-6 flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded-xl px-4 py-2.5 border border-slate-100 dark:border-slate-700/50">
@@ -814,7 +878,7 @@ export default function BancoDeQuestoes() {
                     ? <Circle size={9} fill="currentColor" />
                     : <CheckCircle2 size={11} />
                   }
-                  Questão {currentIdx + 1}
+                  {isCurrentTestletGroup ? `Testlet ${currentTestletQuestions.length} questões` : `Questão ${currentIdx + 1}`}
                 </span>
 
                 {isLockedByQuota && (
@@ -859,33 +923,40 @@ export default function BancoDeQuestoes() {
                 className={`relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden ${currentTestletInfo && currentTestletInfo.position > 1 ? 'border-l-4 border-l-amber-200 pl-4 -ml-4' : ''} ${isLockedByQuota ? 'blur-[2px] pointer-events-none select-none' : ''
                   }`}
               >
-                <QuestionCard
-                  key={currentQ.id}
-                  userId={userId || ''}
-                  question={{
-                    id: currentQ.id,
-                    external_id: currentQ.external_id,
-                    year: currentQ.exam_year,
-                    bank: currentQ.bank,
-                    subject: currentQ.subject,
-                    difficulty: currentQ.difficulty || 'Médio',
-                    context: currentQ.context,
-                    statement: currentQ.statement,
-                    alternatives: currentQ.alternatives,
-                    correct_option: currentQ.correct_option,
-                    explanation: currentQ.explanation,
-                    images: currentQ.images,
-                    metadata: currentQ.metadata,
-                  }}
-                  testletInfo={currentTestletInfo}
-                  suppressContext={currentTestletInfo !== undefined && currentTestletInfo.position > 1}
-                  onQuotaReached={handleQuotaLimitReached}
-                  onAnswer={(result) => handleAnswerResult(currentQ.id, result)}
-                  onReportError={() => {
-                    setReportQuestionId(currentQ.id);
-                    setReportDialogOpen(true);
-                  }}
-                />
+                <div className={isCurrentTestletGroup ? 'divide-y divide-slate-100 dark:divide-slate-800' : ''}>
+                  {currentTestletQuestions.map((questionInGroup, groupIndex) => {
+                    const testletInfo = testletPositionMap.get(questionInGroup.id);
+                    return (
+                      <QuestionCard
+                        key={questionInGroup.id}
+                        userId={userId || ''}
+                        question={{
+                          id: questionInGroup.id,
+                          external_id: questionInGroup.external_id,
+                          year: questionInGroup.exam_year,
+                          bank: questionInGroup.bank,
+                          subject: questionInGroup.subject,
+                          difficulty: questionInGroup.difficulty || 'Médio',
+                          context: questionInGroup.context,
+                          statement: questionInGroup.statement,
+                          alternatives: questionInGroup.alternatives,
+                          correct_option: questionInGroup.correct_option,
+                          explanation: questionInGroup.explanation,
+                          images: questionInGroup.images,
+                          metadata: questionInGroup.metadata,
+                        }}
+                        testletInfo={testletInfo}
+                        suppressContext={isCurrentTestletGroup && groupIndex > 0}
+                        onQuotaReached={handleQuotaLimitReached}
+                        onAnswer={(result) => handleAnswerResult(questionInGroup.id, result)}
+                        onReportError={() => {
+                          setReportQuestionId(questionInGroup.id);
+                          setReportDialogOpen(true);
+                        }}
+                      />
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Locked overlay */}
