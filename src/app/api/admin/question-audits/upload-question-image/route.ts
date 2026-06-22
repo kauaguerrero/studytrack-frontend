@@ -30,78 +30,113 @@ export async function POST(request: Request) {
   const auth = await requireAdmin();
   if (!auth.ok) return auth.response;
 
-  let payload: {
-    imageUrl?: string;
-    questionId?: string;
-    externalId?: string;
-  };
+  let imageBytes: Uint8Array | null = null;
+  let contentType = '';
+  let questionId = '';
+  let externalId = '';
 
-  try {
-    payload = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Payload inválido.' }, { status: 400 });
+  const requestContentType = request.headers.get('content-type') || '';
+  if (requestContentType.includes('multipart/form-data')) {
+    const formData = await request.formData();
+    const file = formData.get('file');
+    questionId = String(formData.get('questionId') || '').trim();
+    externalId = String(formData.get('externalId') || '').trim();
+
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: 'Arquivo de imagem não enviado.' }, { status: 400 });
+    }
+
+    contentType = file.type || '';
+    const extension = extensionFromContentType(contentType);
+    if (!extension) {
+      return NextResponse.json({ error: 'Arquivo de imagem em formato não suportado.' }, { status: 400 });
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    imageBytes = new Uint8Array(arrayBuffer);
+  } else {
+    let payload: {
+      imageUrl?: string;
+      questionId?: string;
+      externalId?: string;
+    };
+
+    try {
+      payload = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Payload inválido.' }, { status: 400 });
+    }
+
+    const imageUrl = String(payload.imageUrl || '').trim();
+    questionId = String(payload.questionId || '').trim();
+    externalId = String(payload.externalId || '').trim();
+
+    if (!imageUrl) {
+      return NextResponse.json({ error: 'imageUrl é obrigatório.' }, { status: 400 });
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(imageUrl);
+    } catch {
+      return NextResponse.json({ error: 'URL de imagem inválida.' }, { status: 400 });
+    }
+
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return NextResponse.json({ error: 'A URL da imagem deve usar http ou https.' }, { status: 400 });
+    }
+
+    let upstream: Response;
+    try {
+      upstream = await fetch(parsedUrl.toString(), {
+        signal: AbortSignal.timeout(15000),
+        cache: 'no-store',
+      });
+    } catch {
+      return NextResponse.json({ error: 'Não foi possível baixar a imagem remota.' }, { status: 502 });
+    }
+
+    if (!upstream.ok) {
+      return NextResponse.json(
+        { error: `Falha ao baixar a imagem remota (${upstream.status}).` },
+        { status: 502 }
+      );
+    }
+
+    contentType = upstream.headers.get('content-type') || '';
+    const extension = extensionFromContentType(contentType);
+    if (!extension) {
+      return NextResponse.json({ error: 'A URL informada não retornou uma imagem suportada.' }, { status: 400 });
+    }
+
+    const arrayBuffer = await upstream.arrayBuffer();
+    imageBytes = new Uint8Array(arrayBuffer);
   }
 
-  const imageUrl = String(payload.imageUrl || '').trim();
-  const questionId = String(payload.questionId || '').trim();
-  const externalId = String(payload.externalId || '').trim();
-
-  if (!imageUrl || !questionId) {
+  if (!questionId) {
     return NextResponse.json(
-      { error: 'imageUrl e questionId são obrigatórios.' },
+      { error: 'questionId é obrigatório.' },
       { status: 400 }
     );
   }
 
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(imageUrl);
-  } catch {
-    return NextResponse.json({ error: 'URL de imagem inválida.' }, { status: 400 });
-  }
-
-  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-    return NextResponse.json({ error: 'A URL da imagem deve usar http ou https.' }, { status: 400 });
-  }
-
-  let upstream: Response;
-  try {
-    upstream = await fetch(parsedUrl.toString(), {
-      signal: AbortSignal.timeout(15000),
-      cache: 'no-store',
-    });
-  } catch {
-    return NextResponse.json({ error: 'Não foi possível baixar a imagem remota.' }, { status: 502 });
-  }
-
-  if (!upstream.ok) {
-    return NextResponse.json(
-      { error: `Falha ao baixar a imagem remota (${upstream.status}).` },
-      { status: 502 }
-    );
-  }
-
-  const contentType = upstream.headers.get('content-type') || '';
   const extension = extensionFromContentType(contentType);
-  if (!extension) {
-    return NextResponse.json({ error: 'A URL informada não retornou uma imagem suportada.' }, { status: 400 });
+  if (!extension || !imageBytes) {
+    return NextResponse.json({ error: 'Imagem inválida.' }, { status: 400 });
   }
-
-  const arrayBuffer = await upstream.arrayBuffer();
-  if (arrayBuffer.byteLength <= 0) {
-    return NextResponse.json({ error: 'A imagem remota veio vazia.' }, { status: 400 });
+  if (imageBytes.byteLength <= 0) {
+    return NextResponse.json({ error: 'A imagem veio vazia.' }, { status: 400 });
   }
-  if (arrayBuffer.byteLength > MAX_IMAGE_SIZE_BYTES) {
+  if (imageBytes.byteLength > MAX_IMAGE_SIZE_BYTES) {
     return NextResponse.json({ error: 'A imagem excede o limite de 8 MB.' }, { status: 400 });
   }
 
   const supabaseAdmin = createAdminClient();
   const storageKey = `${slugifySegment(externalId || questionId)}/${crypto.randomUUID()}.${extension}`;
-  const fileBytes = new Uint8Array(arrayBuffer);
 
   const { error: uploadError } = await supabaseAdmin.storage
     .from(BUCKET_NAME)
-    .upload(storageKey, fileBytes, {
+    .upload(storageKey, imageBytes, {
       contentType,
       upsert: false,
     });

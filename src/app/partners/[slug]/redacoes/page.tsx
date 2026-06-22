@@ -18,7 +18,7 @@ export default async function PartnerRedacoesPage({
 
   try {
     const res = await fetch(
-      `${baseUrl}/api/partners/${slug}/essays/overview?pending_page=1&pending_limit=10&corrected_page=1&corrected_limit=10`,
+      `${baseUrl}/api/partners/${slug}/essays/overview?pending_page=1&pending_limit=10&corrected_page=1&corrected_limit=10&essay_type=enem`,
       {
         headers: { cookie },
         cache: 'no-store',

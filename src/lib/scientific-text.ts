@@ -45,6 +45,7 @@ const UNIT_EXPONENT_RE = new RegExp(
   `(^|[^A-Za-z0-9_])(${UNIT_PATTERN})(\\s*)([23])(?=(?:[.,;:)\\]/]|\\s|$))`,
   'g'
 );
+const MATH_SEGMENT_RE = /(\$\$[\s\S]+?(?<!\\)\$\$|\$(?!\$)[\s\S]+?(?<!\\)\$)/g;
 
 function toSubscriptDigits(value: string): string {
   return value.replace(/\d/g, (digit) => SUBSCRIPT_DIGITS[digit] || digit);
@@ -159,12 +160,8 @@ function normalizeParagraphBreaks(text: string): string {
     .join('\n\n');
 }
 
-export function formatScientificText(text?: string | null): string {
-  if (!text) return '';
-
-  let formatted = normalizeParagraphBreaks(
-    normalizeInlineHtmlFormatting(normalizeLatexArtifacts(text))
-  ).replace(
+function formatPlainScientificText(text: string): string {
+  let formatted = normalizeParagraphBreaks(normalizeInlineHtmlFormatting(normalizeLatexArtifacts(text))).replace(
     UNIT_EXPONENT_RE,
     (_match, prefix: string, unit: string, spacing: string, exponent: string) =>
       `${prefix}${unit}${toSuperscriptDigits(exponent)}`
@@ -172,4 +169,20 @@ export function formatScientificText(text?: string | null): string {
 
   formatted = formatChemicalFormulaSegments(formatted);
   return formatted;
+}
+
+export function formatScientificText(text?: string | null): string {
+  if (!text) return '';
+
+  const withNormalizedMathDelimiters = String(text)
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_match, expression: string) => `$$${expression.trim()}$$`)
+    .replace(/\\\(([\s\S]*?)\\\)/g, (_match, expression: string) => `$${expression.trim()}$`);
+
+  return withNormalizedMathDelimiters
+    .split(MATH_SEGMENT_RE)
+    .filter((segment) => segment.length > 0)
+    .map((segment) => (
+      segment.startsWith('$') ? segment : formatPlainScientificText(segment)
+    ))
+    .join('');
 }

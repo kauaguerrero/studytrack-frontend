@@ -64,8 +64,13 @@ export async function GET(
   const { slug } = await context.params;
   const url = new URL(request.url);
   const essayTypeFilter = url.searchParams.get('essay_type') ?? 'all';
-  const validTypes = ['enem', 'ufu', 'ueg'];
+  const validTypes = ['enem', 'ufu', 'ueg', 'fuvest', 'vunesp'];
   const filterByType = validTypes.includes(essayTypeFilter) ? essayTypeFilter : null;
+
+  const ESSAY_COMPETENCY_COUNTS: Record<string, number> = {
+    enem: 5, ufu: 5, ueg: 5, fuvest: 4, vunesp: 4,
+  };
+  const maxComp = filterByType ? (ESSAY_COMPETENCY_COUNTS[filterByType] ?? 5) : 5;
   const pendingPage = parsePageParam(url.searchParams.get('pending_page'), 1, 1000);
   const pendingLimit = parsePageParam(url.searchParams.get('pending_limit'), 10, 50);
   const correctedPage = parsePageParam(url.searchParams.get('corrected_page'), 1, 1000);
@@ -215,16 +220,16 @@ export async function GET(
     if (nextTs > prevTs) current.last_essay_at = essay.corrected_at || essay.submitted_at || current.last_essay_at;
   });
 
-  // Média por competência (C1-C5)
+  // Média por competência (dinâmico conforme tipo da banca)
   const competencyMap: Record<number, { sum: number; count: number }> = {};
   for (const row of competencyRows) {
     const c = Number(row.competency);
-    if (c < 1 || c > 5) continue;
+    if (c < 1 || c > maxComp) continue;
     if (!competencyMap[c]) competencyMap[c] = { sum: 0, count: 0 };
     competencyMap[c].sum += Number(row.score || 0);
     competencyMap[c].count += 1;
   }
-  const competencyScores = [1, 2, 3, 4, 5].map((c) => ({
+  const competencyScores = Array.from({ length: maxComp }, (_, i) => i + 1).map((c) => ({
     competency: c,
     avg: competencyMap[c]?.count
       ? Math.round(competencyMap[c].sum / competencyMap[c].count)
@@ -232,11 +237,8 @@ export async function GET(
     count: competencyMap[c]?.count ?? 0,
   }));
 
-  // Competência mais fraca
-  const withData = competencyScores.filter((c) => c.avg !== null);
-  const weakestCompetency = withData.length >= 2
-    ? withData.reduce((min, cur) => (cur.avg as number) < (min.avg as number) ? cur : min)
-    : null;
+  // weakest_competency calculado no cliente com normalização por máximo por competência
+  const weakestCompetency = null;
 
   // Tempo médio de correção em dias
   const withCorrectionTime = metricsList.filter(

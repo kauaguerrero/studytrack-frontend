@@ -6,12 +6,10 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import {
-  getQuestionContentBlocks,
   extractAlternativeImageUrls,
-  extractDetachedQuestionImageUrls,
-  splitQuestionContextAndSource,
 } from '@/components/questions/rendering';
-import { AlternativeImages, QuestionContentBlocks, QuestionSupportImages } from '@/components/questions/QuestionMedia';
+import { QuestionDisplay } from '@/components/questions/QuestionDisplay';
+import { QuestionRichText } from '@/components/questions/QuestionRichText';
 import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
@@ -20,10 +18,8 @@ import {
   CheckCircle2,
   Trash2,
   Search,
-  Images,
   Bot,
   Calendar,
-  BookOpen,
   AlertCircle,
   ArrowLeft,
   Edit3,
@@ -254,6 +250,50 @@ function stripDuplicatedIntroFromContext(context: string, intro: string): string
   const escapedIntro = escapeRegExp(cleanIntro);
   const duplicatedSuffix = new RegExp(`\\s*${escapedIntro}\\s*$`);
   return cleanContext.replace(duplicatedSuffix, '').trim();
+}
+
+function getEditableMetadata(metadata: any): Record<string, any> {
+  return metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? { ...metadata } : {};
+}
+
+function updateImageAssetMetadata(
+  metadata: any,
+  imageUrl: string,
+  patch: Record<string, any>,
+): Record<string, any> {
+  const root = getEditableMetadata(metadata);
+  const agentic = root.agentic_etl && typeof root.agentic_etl === 'object' ? { ...root.agentic_etl } : {};
+  const assets = Array.isArray(agentic.image_assets) ? [...agentic.image_assets] : [];
+  const existingIndex = assets.findIndex((asset) => asset && typeof asset === 'object' && asset.url === imageUrl);
+  const baseAsset = existingIndex >= 0 && assets[existingIndex] && typeof assets[existingIndex] === 'object'
+    ? { ...assets[existingIndex] }
+    : {
+        url: imageUrl,
+        role: 'context_image',
+        original_layout: 'single',
+        display_hint: 'responsive_fit',
+        source_order: assets.length + 1,
+      };
+
+  const nextAsset = { ...baseAsset, ...patch, url: imageUrl };
+  const nextAssets = existingIndex >= 0
+    ? assets.map((asset, index) => index === existingIndex ? nextAsset : asset)
+    : [...assets, nextAsset];
+
+  return {
+    ...root,
+    agentic_etl: {
+      ...agentic,
+      image_assets: nextAssets,
+    },
+  };
+}
+
+function findImageAssetMetadata(metadata: any, imageUrl: string): Record<string, any> {
+  const assets = metadata?.agentic_etl?.image_assets;
+  if (!Array.isArray(assets)) return {};
+  const asset = assets.find((item) => item && typeof item === 'object' && item.url === imageUrl);
+  return asset && typeof asset === 'object' ? asset : {};
 }
 
 function getDisplayTitle(question?: AdminQuestion): string {
@@ -1174,6 +1214,7 @@ export default function AdminQuestionApproval() {
         correct_alternative: editForm.correct_alternative,
         images: editForm.images,
         ai_reasoning: editForm.ai_reasoning,
+        metadata: editForm.metadata,
       };
 
       const { error } = await supabase
@@ -1202,6 +1243,52 @@ export default function AdminQuestionApproval() {
       toast.error(`Falha ao salvar: ${err.message}`);
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const uploadQuestionImageFile = async (file: File) => {
+    if (!editForm) return;
+    setQuestionImageUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('questionId', editForm.id);
+      formData.append('externalId', activeQuestion?.external_id || editForm.id);
+
+      const res = await fetch('/api/admin/question-audits/upload-question-image', {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || 'Falha ao fazer upload da imagem.');
+        return;
+      }
+
+      const publicUrl = String(json.publicUrl || '').trim();
+      if (!publicUrl) {
+        toast.error('Upload concluído sem URL pública retornada.');
+        return;
+      }
+
+      setEditForm(current => {
+        if (!current) return current;
+        return {
+          ...current,
+          images: [...(current.images || []), publicUrl],
+          metadata: updateImageAssetMetadata(current.metadata, publicUrl, {
+            role: 'context_image',
+            display_hint: 'responsive_fit',
+            original_layout: 'single',
+          }),
+        };
+      });
+      toast.success('Imagem enviada e vinculada à questão.');
+    } catch (error: any) {
+      void reportError('AdminQuestionImageFileUploadError', String(error));
+      toast.error(String(error?.message || 'Erro ao enviar imagem.'));
+    } finally {
+      setQuestionImageUploading(false);
     }
   };
 
@@ -1253,6 +1340,52 @@ export default function AdminQuestionApproval() {
     } catch (error: any) {
       console.error('Erro ao importar imagem da alternativa:', error);
       void reportError('AdminQuestionsAlternativeImageImportError', String(error));
+      toast.error(String(error?.message || error));
+    } finally {
+      setAlternativeImageUploading(null);
+    }
+  };
+
+  const uploadAlternativeImageFile = async (alternativeIndex: number, file: File) => {
+    if (!editForm || !activeQuestion) return;
+    const alternative = editForm.alternatives[alternativeIndex];
+    if (!alternative) return;
+
+    setAlternativeImageUploading(alternative.letter);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('questionId', editForm.id);
+      formData.append('externalId', activeQuestion.external_id || editForm.id);
+      formData.append('alternativeLetter', alternative.letter);
+
+      const response = await fetch('/api/admin/question-audits/upload-alternative-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Falha ao enviar imagem da alternativa');
+      }
+
+      const publicUrl = String(payload?.publicUrl || '').trim();
+      if (!publicUrl) throw new Error('URL pública da imagem não retornada.');
+
+      setEditForm(current => {
+        if (!current) return current;
+        return {
+          ...current,
+          alternatives: current.alternatives.map((item, currentIndex) => (
+            currentIndex === alternativeIndex
+              ? { ...item, image: publicUrl }
+              : item
+          )),
+        };
+      });
+      toast.success(`Imagem enviada para a alternativa ${alternative.letter}.`);
+    } catch (error: any) {
+      void reportError('AdminQuestionsAlternativeImageFileUploadError', String(error));
       toast.error(String(error?.message || error));
     } finally {
       setAlternativeImageUploading(null);
@@ -1320,18 +1453,6 @@ export default function AdminQuestionApproval() {
     : mode === 'archived'
       ? (filteredArchived.length ? filteredArchived[Math.min(currentIndex, filteredArchived.length - 1)] : undefined)
       : (filteredQuestions.length ? filteredQuestions[Math.min(currentIndex, filteredQuestions.length - 1)] : undefined);
-  const activeQuestionContextText = useMemo(
-    () => splitQuestionContextAndSource(activeQuestion?.context || '').body,
-    [activeQuestion?.context],
-  );
-  const activeQuestionSourceText = useMemo(
-    () => splitQuestionContextAndSource(activeQuestion?.context || '').source || '',
-    [activeQuestion?.context],
-  );
-  const activeQuestionStatementText = useMemo(
-    () => activeQuestion?.alternatives_intro || '',
-    [activeQuestion?.alternatives_intro],
-  );
   const activeQuestionDisplayTitle = useMemo(
     () => getDisplayTitle(activeQuestion),
     [activeQuestion],
@@ -1340,14 +1461,24 @@ export default function AdminQuestionApproval() {
     () => getQuestionComment(activeQuestion),
     [activeQuestion],
   );
-  const activeQuestionSupportImages = useMemo(() => {
-    if (!activeQuestion) return [];
-    return extractDetachedQuestionImageUrls(
-      activeQuestion.images,
-      activeQuestion.context,
-      activeQuestion.alternatives_intro,
-    );
-  }, [activeQuestion]);
+  const activeQuestionPreview = useMemo(() => {
+    if (!activeQuestion) return null;
+    return {
+      id: activeQuestion.id,
+      external_id: activeQuestion.external_id,
+      year: activeQuestion.exam_year,
+      bank: activeQuestion.bank,
+      subject: activeQuestion.subject,
+      difficulty: activeQuestion.difficulty || 'Médio',
+      context: activeQuestion.context || '',
+      statement: activeQuestion.alternatives_intro || '',
+      alternatives: activeQuestion.alternatives || [],
+      correct_option: activeQuestion.correct_alternative,
+      explanation: activeQuestionComment,
+      images: activeQuestion.images,
+      metadata: activeQuestion.metadata,
+    };
+  }, [activeQuestion, activeQuestionComment]);
   const activeValidationStatus = validation?.editorial_status || validation?.status || 'red';
   const activeValidationScore = typeof validation?.editorial_score === 'number'
     ? validation.editorial_score
@@ -1356,32 +1487,12 @@ export default function AdminQuestionApproval() {
       : 0;
   const validationAvailable = validation?.available ?? false;
   const activeValidationTone = getValidationTone(activeValidationStatus);
-  const activeParserStatus = validation?.parser_status || 'red';
-  const activeParserScore = typeof validation?.parser_score === 'number' ? validation.parser_score : 0;
-  const activeParserTone = getValidationTone(activeParserStatus);
   const comparisonConfidence = validation?.comparison_confidence || (validation?.available ? 'high' : 'low');
   const editorialChecks = validation?.editorial_checks || validation?.checks || [];
-  const parserChecks = validation?.parser_checks || [];
   const editorialReasons = validation?.editorial_reasons || validation?.reasons || [];
-  const parserReasons = validation?.parser_reasons || [];
   const validationEvidenceSource = normalizeSourceLabel(validation?.evidence?.source) || resolveQuestionSource(activeQuestion);
   const validationEvidenceExamId = validation?.evidence?.exam_id || activeQuestion?.external_id;
   const validationOfficialAnswer = validation?.evidence?.official_answer || validation?.parser_snapshot?.official_answer || null;
-  const validationChunkImageUrls = validation?.evidence?.chunk_image_urls || validation?.parser_snapshot?.chunk_image_urls || [];
-  const validationParserIntro = validation?.evidence?.parser_alternatives_intro || validation?.parser_snapshot?.parser_alternatives_intro || null;
-  const validationParserContext = validation?.evidence?.parser_context || validation?.parser_snapshot?.parser_context || null;
-  const validationChunkExcerpt = validation?.evidence?.chunk_excerpt || validation?.parser_snapshot?.chunk_excerpt || '';
-  const validationDetectedFlags = validation?.evidence?.detected_flags || [];
-  const validationParserMetrics = validation?.evidence?.parser_metrics || null;
-  const bankImageCount = activeQuestionSupportImages.length;
-  const parserImageCount = validationChunkImageUrls.length;
-  const imageCountMismatch = validationAvailable && bankImageCount !== parserImageCount;
-  const imageCountDelta = parserImageCount - bankImageCount;
-  const imageCountAlertLabel = imageCountMismatch
-    ? imageCountDelta > 0
-      ? `Atenção: parser detectou ${Math.abs(imageCountDelta)} imagem(ns) a mais que o banco`
-      : `Atenção: banco tem ${Math.abs(imageCountDelta)} imagem(ns) a mais que o parser`
-    : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -1905,16 +2016,6 @@ export default function AdminQuestionApproval() {
                           <h2 className="text-lg font-bold tracking-tight text-slate-950 md:text-[1.35rem]">
                             {activeQuestionDisplayTitle || activeQuestion.alternatives_intro || 'Questão em revisão'}
                           </h2>
-                          {imageCountAlertLabel && (
-                            <Badge
-                              variant="outline"
-                              className="border-amber-300 bg-amber-50 text-amber-800"
-                              title={`${imageCountAlertLabel}. Banco: ${bankImageCount}. Parser: ${parserImageCount}.`}
-                            >
-                              <AlertCircle size={12} className="mr-1" />
-                              Imagens divergentes
-                            </Badge>
-                          )}
                         </div>
                         <p className="mt-1 text-[13px] leading-5 text-slate-600">
                           Leia, edite e publique sem perder o contexto da prova e do parser.
@@ -2039,7 +2140,15 @@ export default function AdminQuestionApproval() {
                               alert(json.error || 'Falha ao fazer upload da imagem.');
                               return;
                             }
-                            setEditForm({ ...editForm, images: [...(editForm.images || []), json.publicUrl] });
+                            setEditForm({
+                              ...editForm,
+                              images: [...(editForm.images || []), json.publicUrl],
+                              metadata: updateImageAssetMetadata(editForm.metadata, json.publicUrl, {
+                                role: 'context_image',
+                                display_hint: 'responsive_fit',
+                                original_layout: 'single',
+                              }),
+                            });
                             setNewImageUrl('');
                           } catch {
                             alert('Erro ao conectar ao servidor de upload.');
@@ -2051,11 +2160,25 @@ export default function AdminQuestionApproval() {
                         {questionImageUploading ? 'Enviando…' : 'Adicionar imagem'}
                       </Button>
                     </div>
+                    <div className="mt-3">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        disabled={questionImageUploading}
+                        className="bg-white"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          e.currentTarget.value = '';
+                          if (file) void uploadQuestionImageFile(file);
+                        }}
+                      />
+                      <p className="mt-1 text-xs text-slate-500">Upload direto envia a imagem para o bucket público padrão e vincula a URL à questão.</p>
+                    </div>
                     {editForm.images?.length ? (
-                      <div className="mt-4 flex gap-4 overflow-x-auto pb-2">
+                      <div className="mt-4 grid gap-4 md:grid-cols-2">
                         {editForm.images.map((img, i) => (
-                          <div key={img + i} className="relative shrink-0">
-                            <img src={img} className="h-32 w-auto rounded-lg border border-slate-200 object-contain" alt={`Imagem ${i + 1}`} />
+                          <div key={img + i} className="relative rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <img src={img} className="mx-auto h-32 w-auto rounded-lg border border-slate-200 bg-white object-contain" alt={`Imagem ${i + 1}`} />
                             <button
                               type="button"
                               onClick={() => setEditForm({ ...editForm, images: editForm.images.filter((_, idx) => idx !== i) })}
@@ -2063,6 +2186,53 @@ export default function AdminQuestionApproval() {
                             >
                               <X size={14} />
                             </button>
+                            <div className="mt-3 space-y-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full bg-white"
+                                onClick={() => {
+                                  const markdown = `![Imagem da questão](${img})`;
+                                  setEditForm({
+                                    ...editForm,
+                                    context: [editForm.context || '', markdown].filter(Boolean).join('\n\n'),
+                                  });
+                                }}
+                              >
+                                Inserir no contexto
+                              </Button>
+                              <Input
+                                value={findImageAssetMetadata(editForm.metadata, img).caption || ''}
+                                placeholder="Legenda da imagem"
+                                className="bg-white"
+                                onChange={e => setEditForm({
+                                  ...editForm,
+                                  metadata: updateImageAssetMetadata(editForm.metadata, img, { caption: e.target.value || null }),
+                                })}
+                              />
+                              <Input
+                                value={findImageAssetMetadata(editForm.metadata, img).source || ''}
+                                placeholder="Fonte da imagem"
+                                className="bg-white"
+                                onChange={e => setEditForm({
+                                  ...editForm,
+                                  metadata: updateImageAssetMetadata(editForm.metadata, img, { source: e.target.value || null }),
+                                })}
+                              />
+                              <select
+                                value={findImageAssetMetadata(editForm.metadata, img).original_layout || 'single'}
+                                onChange={e => setEditForm({
+                                  ...editForm,
+                                  metadata: updateImageAssetMetadata(editForm.metadata, img, { original_layout: e.target.value }),
+                                })}
+                                className="w-full rounded-md border border-slate-300 bg-white p-2 text-sm outline-none focus:border-slate-500"
+                              >
+                                <option value="single">Imagem única</option>
+                                <option value="side_by_side">Lado a lado</option>
+                                <option value="stacked">Empilhada</option>
+                                <option value="inline">Inline</option>
+                              </select>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -2116,12 +2286,25 @@ export default function AdminQuestionApproval() {
                                 placeholder={`URL da imagem da alternativa ${alt.letter}`}
                                 className="bg-white md:flex-1"
                               />
-                              <Button type="button" variant="outline" className="bg-white" disabled={isUploading} onClick={() => void importAlternativeImage(i)}>
-                                {isUploading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
-                                Inserir imagem
-                              </Button>
-                            </div>
-                            {alternativeImages.length > 0 ? (
+	                              <Button type="button" variant="outline" className="bg-white" disabled={isUploading} onClick={() => void importAlternativeImage(i)}>
+	                                {isUploading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
+	                                Inserir imagem
+	                              </Button>
+	                            </div>
+	                            <div className="mt-3">
+	                              <Input
+	                                type="file"
+	                                accept="image/*"
+	                                disabled={isUploading}
+	                                className="bg-white"
+	                                onChange={e => {
+	                                  const file = e.target.files?.[0];
+	                                  e.currentTarget.value = '';
+	                                  if (file) void uploadAlternativeImageFile(i, file);
+	                                }}
+	                              />
+	                            </div>
+	                            {alternativeImages.length > 0 ? (
                               <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
                                 {alternativeImages.map((img, index) => (
                                   <div key={`${alt.letter}-${img}-${index}`} className="relative shrink-0">
@@ -2185,125 +2368,164 @@ export default function AdminQuestionApproval() {
                     </div>
                   )}
 
-                  {activeQuestion && getQuestionContentBlocks(activeQuestion.metadata).length > 0 ? (
-                    <QuestionContentBlocks metadata={activeQuestion.metadata} />
+                  {activeQuestionPreview ? (
+                    <QuestionDisplay
+                      question={activeQuestionPreview}
+                      showAnswer
+                      readOnly
+                      footer={activeQuestionComment ? (
+                        <div className="mt-8 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
+                          <div className="mb-3 flex items-center gap-2">
+                            <div className="rounded-lg bg-blue-100 p-2 text-blue-600">
+                              <Bot size={18} />
+                            </div>
+                            <h3 className="font-semibold text-blue-950">Comentário do Professor</h3>
+                          </div>
+                          <QuestionRichText text={activeQuestionComment} className="text-sm leading-relaxed text-slate-700" />
+                        </div>
+                      ) : undefined}
+                    />
                   ) : (
-                    <>
-                      {/* Contexto */}
-                      {activeQuestionContextText && (
-                        <div className="relative rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4 md:px-5">
-                          <div className="absolute -left-3 top-5 bg-white text-slate-400 p-1.5 rounded-full border border-slate-200 shadow-sm">
-                            <BookOpen size={16} />
-                          </div>
-                          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Contexto</p>
-                          <div className="prose prose-slate max-w-none text-slate-600 italic leading-relaxed text-[15px]">
-                            <RichText text={activeQuestionContextText} />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Imagens de Apoio */}
-                      {activeQuestionSupportImages.length > 0 && activeQuestion && (
-                        <QuestionSupportImages images={activeQuestionSupportImages} metadata={activeQuestion.metadata} />
-                      )}
-
-                      {activeQuestionSourceText && (
-                        <div className="-mt-4 prose prose-slate max-w-none text-[12px] leading-relaxed text-slate-500">
-                          <RichText text={activeQuestionSourceText} />
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {/* Comando da Questão */}
-                  <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Enunciado</p>
-                    <div className="prose prose-slate prose-lg max-w-none text-slate-900 font-medium leading-relaxed">
-                      <RichText text={activeQuestionStatementText} />
-                    </div>
-                  </div>
-
-                  {/* Bloco de Alternativas */}
-                  <div className="space-y-3 rounded-[24px] border border-slate-200 bg-slate-50/70 p-4 md:p-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Alternativas</h4>
-                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500">
-                        {activeQuestion.alternatives?.length || 0} opção(ões)
-                      </span>
-                    </div>
-                    {activeQuestion.alternatives && activeQuestion.alternatives.length > 0 ? (
-                      activeQuestion.alternatives.map((alt) => {
-                        const normalizedCorrect = String(activeQuestion.correct_alternative || '').toUpperCase();
-                        const fallbackCorrect = activeQuestion.alternatives.filter(a => a.isCorrect === true);
-                        const isCorrect = normalizedCorrect
-                          ? String(alt.letter || '').toUpperCase() === normalizedCorrect
-                          : (fallbackCorrect.length === 1 && fallbackCorrect[0].letter === alt.letter);
-                        const alternativeImages = extractAlternativeImageUrls(alt);
-                        const alternativeText = alt.text || '';
-
-                        return (
-                          <div
-                            key={alt.letter}
-                            className={`
-                              relative flex items-center gap-4 p-4 rounded-xl border transition-all
-                              ${isCorrect
-                                ? 'bg-emerald-50/50 border-emerald-300 shadow-sm ring-1 ring-emerald-100'
-                                : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                              }
-                            `}
-                          >
-                            <div className={`
-                               shrink-0 w-8 h-8 flex items-center justify-center rounded-lg font-bold text-sm border
-                               ${isCorrect
-                                ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm'
-                                : 'bg-slate-100 border-slate-200 text-slate-500'
-                              }
-                            `}>
-                              {alt.letter}
-                            </div>
-                            <div className={`flex-1 text-[15px] leading-snug ${isCorrect ? 'text-emerald-950 font-medium' : 'text-slate-700'}`}>
-                              {alternativeImages.length > 0 && (
-                                <AlternativeImages images={alternativeImages} metadata={activeQuestion.metadata} letter={alt.letter} />
-                              )}
-                              {alternativeText ? <RichText text={alternativeText} /> : <span className="italic opacity-50">Conteúdo em anexo/imagem</span>}
-                            </div>
-                            {isCorrect && (
-                              <div className="shrink-0 pl-2">
-                                <CheckCircle2 size={24} className="text-emerald-500" />
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })
-                    ) : (
-                      <div className="flex items-center gap-3 p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
-                        <AlertCircle size={20} className="shrink-0" />
-                        <span className="font-medium">ATENÇÃO:</span> Esta questão foi importada sem alternativas ou houve falha no parsing.
-                      </div>
-                    )}
-                  </div>
-
-                  {activeQuestionComment && (
-                    <div className="mt-6 rounded-[24px] border border-purple-100 bg-purple-50/50 p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Bot size={16} className="text-purple-600" />
-                        <span className="text-sm font-bold text-purple-900 uppercase tracking-wider">Comentário do professor</span>
-                      </div>
-                      <div className="text-sm text-purple-800 leading-relaxed italic">
-                        <RichText text={activeQuestionComment} />
-                      </div>
+                    <div className="flex items-center gap-3 p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
+                      <AlertCircle size={20} className="shrink-0" />
+                      <span className="font-medium">ATENÇÃO:</span> Nenhuma questão selecionada.
                     </div>
                   )}
                     </div>
 
                     <aside className="min-w-0 space-y-4 xl:sticky xl:top-6">
+                      <div className="hidden overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm xl:block">
+                        <div className="border-b border-slate-200 px-4 py-3">
+                          <p className="text-sm font-semibold text-slate-900">Ferramentas de curadoria</p>
+                          <p className="mt-0.5 text-xs text-slate-500">Ações editoriais da questão selecionada.</p>
+                        </div>
+
+                        <div className="space-y-3 p-4">
+                          {mode === 'audit' ? (
+                            <>
+                              <Button
+                                variant="outline"
+                                className="h-11 w-full justify-start rounded-xl border-slate-300 text-sm font-semibold text-slate-700"
+                                onClick={fetchAuditQueue}
+                                disabled={!!auditProcessingId}
+                              >
+                                Recarregar Auditoria
+                              </Button>
+
+                              <Button
+                                className="h-11 w-full justify-start rounded-xl bg-amber-600 text-sm font-semibold text-white shadow-lg shadow-amber-600/20 hover:bg-amber-700"
+                                onClick={() => handleDecision(activeQuestion.id, 'approve')}
+                                disabled={!!auditProcessingId || activeQuestion.is_verified === true}
+                              >
+                                {activeQuestion.is_verified === true ? 'Já publicada' : 'Aprovar após Correção'}
+                              </Button>
+
+                              <Button
+                                variant="outline"
+                                className="h-11 w-full justify-start rounded-xl border-amber-300 text-sm font-semibold text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                                onClick={() => moveQuestionToCuration(activeQuestion.id)}
+                                disabled={!!auditProcessingId || activeQuestion.is_verified === false}
+                              >
+                                {auditProcessingId === activeQuestion.id ? 'Movendo...' : (activeQuestion.is_verified === false ? 'Já está na Curadoria' : 'Mover para Curadoria')}
+                              </Button>
+                            </>
+                          ) : mode === 'archived' ? (
+                            <>
+                              <Button
+                                variant="outline"
+                                className="h-11 w-full justify-start rounded-xl border-slate-300 text-sm font-semibold text-slate-700"
+                                onClick={fetchArchived}
+                                disabled={!!questionPublishingAction}
+                              >
+                                Recarregar Arquivo
+                              </Button>
+
+                              <Button
+                                className="h-11 w-full justify-start rounded-xl bg-slate-700 text-sm font-semibold text-white shadow-lg shadow-slate-700/20 hover:bg-slate-800"
+                                onClick={() => void handleUnarchive(activeQuestion.id)}
+                                disabled={!!questionPublishingAction}
+                              >
+                                {questionPublishingAction === 'unarchive' ? (
+                                  <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Desarquivando...</>
+                                ) : (
+                                  <>
+                                    <ArchiveRestore className="mr-2 h-4 w-4" />
+                                    Desarquivar
+                                  </>
+                                )}
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                variant="outline"
+                                className="h-11 w-full justify-start rounded-xl border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+                                onClick={startEditing}
+                                disabled={!!processingId}
+                              >
+                                <Edit3 className="mr-2 h-4 w-4" />
+                                Editar questão
+                              </Button>
+
+                              <Button
+                                className="h-11 w-full justify-start rounded-xl bg-slate-900 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 hover:bg-slate-800"
+                                onClick={() => {
+                                  setQuestionPublishingAction('approve');
+                                  void handleDecision(activeQuestion.id, 'approve');
+                                }}
+                                disabled={!!processingId || questionPublishingAction !== null}
+                              >
+                                {processingId === activeQuestion.id || questionPublishingAction === 'approve' ? (
+                                  <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Processando...</>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                                    Aprovar e publicar
+                                  </>
+                                )}
+                              </Button>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                  variant="outline"
+                                  className="h-10 rounded-xl border-slate-300 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                                  onClick={() => void handleArchive(activeQuestion.id)}
+                                  disabled={!!processingId || questionPublishingAction !== null}
+                                >
+                                  {questionPublishingAction === 'archive' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Archive className="mr-2 h-4 w-4" />}
+                                  Arquivar
+                                </Button>
+
+                                <Button
+                                  variant="outline"
+                                  className="h-10 rounded-xl border-red-200 text-sm font-semibold text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+                                  onClick={() => {
+                                    setQuestionPublishingAction('delete');
+                                    void handleDecision(activeQuestion.id, 'reject');
+                                  }}
+                                  disabled={!!processingId || questionPublishingAction !== null}
+                                >
+                                  {questionPublishingAction === 'delete' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                                  Deletar
+                                </Button>
+                              </div>
+
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-500">
+                                <p className="font-semibold uppercase tracking-wide text-slate-600">Atalhos</p>
+                                <p className="mt-1">Enter aprova, A arquiva, Delete deleta e E edita.</p>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
                       <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50/90 shadow-sm">
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                           <div className="flex items-center gap-2">
                             <ShieldCheck size={16} className="text-slate-600" />
                             <div>
                               <p className="text-sm font-semibold text-slate-900">Confiabilidade editorial</p>
-                              <p className="text-xs text-slate-500">Comparação direta entre banco, chunk/parser, gabarito e imagens.</p>
+                              <p className="text-xs text-slate-500">Resumo editorial para apoiar a aprovação da questão.</p>
                             </div>
                           </div>
                           <Badge variant="outline" className={activeValidationTone.badge}>
@@ -2355,28 +2577,6 @@ export default function AdminQuestionApproval() {
                                 ) : null}
                               </div>
 
-                              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                                <div className="mb-3 flex items-end justify-between gap-3">
-                                  <div>
-                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Saúde do Parser</p>
-                                    <p className="text-2xl font-bold text-slate-900">{activeParserScore.toFixed(1)}%</p>
-                                  </div>
-                                  <Badge variant="outline" className={activeParserTone.badge}>
-                                    {activeParserStatus.toUpperCase()}
-                                  </Badge>
-                                </div>
-                                <Progress value={activeParserScore} className={activeParserTone.track + ' h-2'} indicatorClassName={activeParserTone.bar} />
-                                {validationDetectedFlags.length ? (
-                                  <div className="mt-3 flex flex-wrap gap-2">
-                                    {validationDetectedFlags.map((flag) => (
-                                      <Badge key={flag} variant="outline" className="border-slate-200 bg-slate-50 text-slate-700">
-                                        {flag}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                ) : null}
-                              </div>
-
                               {validationError && (
                                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                                   {validationError}
@@ -2423,118 +2623,25 @@ export default function AdminQuestionApproval() {
                                 </div>
                               ) : null}
 
-                              {parserChecks.length ? (
-                                <div className="space-y-3">
-                                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-                                    <p className="text-sm font-semibold text-slate-900">Checks técnicos do parser</p>
-                                  </div>
-                                  {parserChecks.map((check) => (
-                                    <div key={`parser-${check.key}`} className="rounded-xl border border-slate-200 bg-white p-4">
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div>
-                                          <p className="text-sm font-semibold text-slate-900">{check.label}</p>
-                                          <p className="mt-1 text-xs text-slate-500">{check.summary}</p>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          {check.hard_block ? (
-                                            <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
-                                              Hard block
-                                            </Badge>
-                                          ) : null}
-                                          <Badge
-                                            variant="outline"
-                                            className={check.status === 'pass'
-                                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                              : check.status === 'warning'
-                                                ? 'border-amber-200 bg-amber-50 text-amber-700'
-                                                : 'border-rose-200 bg-rose-50 text-rose-700'}
-                                          >
-                                            {check.score.toFixed(0)}%
-                                          </Badge>
-                                        </div>
-                                      </div>
-                                      <Progress
-                                        value={check.score}
-                                        className="mt-3 h-2 bg-slate-100"
-                                        indicatorClassName={check.status === 'pass' ? 'bg-emerald-500' : check.status === 'warning' ? 'bg-amber-500' : 'bg-rose-500'}
-                                      />
-                                      {check.issues.length > 0 && (
-                                        <div className="mt-3 space-y-1 text-xs text-slate-600">
-                                          {check.issues.map((issue, index) => (
-                                            <p key={`parser-${check.key}-${index}`}>• {issue}</p>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : null}
-
                               <div className="rounded-xl border border-slate-200 bg-white p-4">
                                 <p className="text-sm font-semibold text-slate-900">Motivos principais</p>
-                                <div className="mt-3 space-y-4 text-sm text-slate-600">
-                                  <div>
-                                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Motivos editoriais</p>
-                                    <div className="space-y-2">
-                                      {editorialReasons.map((reason, index) => (
-                                        <p key={`${activeQuestion.id}-editorial-reason-${index}`}>• {reason}</p>
-                                      ))}
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Alertas técnicos do parser</p>
-                                    <div className="space-y-2">
-                                      {parserReasons.length ? parserReasons.map((reason, index) => (
-                                        <p key={`${activeQuestion.id}-parser-reason-${index}`}>• {reason}</p>
-                                      )) : (
-                                        <p>• Nenhum alerta técnico relevante.</p>
-                                      )}
-                                    </div>
-                                  </div>
+                                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                                  {editorialReasons.length ? editorialReasons.map((reason, index) => (
+                                    <p key={`${activeQuestion.id}-editorial-reason-${index}`}>• {reason}</p>
+                                  )) : (
+                                    <p>• Nenhum motivo editorial relevante.</p>
+                                  )}
                                 </div>
                               </div>
 
-                              <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
-                                <p className="font-semibold text-slate-900">Evidências</p>
-                                {validationOfficialAnswer ? (
+                              {validationOfficialAnswer ? (
+                                <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
+                                  <p className="font-semibold text-slate-900">Evidências</p>
                                   <p className="mt-2">
                                     Gabarito oficial: <span className="font-semibold text-slate-900">{normalizeQuestionText(validationOfficialAnswer)}</span>
                                   </p>
-                                ) : null}
-                                <p className="mt-2">
-                                  Imagens encontradas no chunk/parser: <span className="font-semibold text-slate-900">{validationChunkImageUrls.length}</span>
-                                </p>
-                                {validationParserIntro ? (
-                                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                                    <p className="mb-2 font-medium text-slate-800">Comando reconstruído pelo parser</p>
-                                    <RichText text={validationParserIntro} className="text-slate-600" />
-                                  </div>
-                                ) : null}
-                                {validationParserContext ? (
-                                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                                    <p className="mb-2 font-medium text-slate-800">Contexto reconstruído pelo parser</p>
-                                    <RichText text={validationParserContext} className="text-slate-600" />
-                                  </div>
-                                ) : null}
-                                {validationChunkExcerpt ? (
-                                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                                    <p className="mb-2 font-medium text-slate-800">Bloco completo do chunk</p>
-                                    <RichText text={validationChunkExcerpt} className="text-slate-600" />
-                                  </div>
-                                ) : null}
-                                {validationParserMetrics ? (
-                                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                                    <p className="mb-2 font-medium text-slate-800">Métricas do parser</p>
-                                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-                                      {Object.entries(validationParserMetrics).map(([key, value]) => (
-                                        <p key={key}>
-                                          <span className="font-medium text-slate-800">{key}:</span> {String(value)}
-                                        </p>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ) : null}
-                              </div>
+                                </div>
+                              ) : null}
                             </>
                           )}
                         </div>
@@ -2574,7 +2681,7 @@ export default function AdminQuestionApproval() {
                 </div>
                 </div>
               ) : mode === 'audit' ? (
-                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6">
+                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6 xl:hidden">
                   <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
                   <Button
                     variant="outline"
@@ -2604,7 +2711,7 @@ export default function AdminQuestionApproval() {
                 </div>
                 </div>
               ) : mode === 'archived' ? (
-                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6">
+                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6 xl:hidden">
                   <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
                   <Button
                     variant="outline"
@@ -2632,7 +2739,7 @@ export default function AdminQuestionApproval() {
                 </div>
                 </div>
               ) : (
-                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6">
+                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6 xl:hidden">
                   <div className="mb-3 flex flex-wrap gap-2 md:hidden">
                     <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 shadow-sm">
                       Delete = Deletar
