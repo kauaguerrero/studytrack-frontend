@@ -4,9 +4,10 @@ import { useState, type ReactNode } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import {
   X, User, Calendar, Clock, FileText, History, CheckCircle2,
-  AlertCircle, Edit3, Save, XCircle, Trash2, Flag, ShieldAlert, Unlock, RotateCcw, Sparkles, GitBranch, ListTodo,
+  AlertCircle, Edit3, Save, XCircle, Trash2, Flag, ShieldAlert, Unlock, RotateCcw, Sparkles, GitBranch, ListTodo, ArrowRight,
 } from 'lucide-react';
 import { TaskDetail, TaskStatus, TaskPriority, apiUpdateProgress, apiUpdateTask, apiUpdateStatus, apiDeleteTask, apiBlockTask, apiUnblockTask, apiReopenTask, useAdminProfiles, useTaskIntelligence } from './hooks/useTasks';
+import TransferTaskModal from './TransferTaskModal';
 import { PRIORITY_CONFIG, COLUMN_ACCENT } from './TaskCard';
 import { mutate } from 'swr';
 import { toast } from 'sonner';
@@ -77,6 +78,7 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
   const [dependencyUpdates, setDependencyUpdates] = useState('');
   const [saving, setSaving] = useState(false);
   const [actionModal, setActionModal] = useState<{ mode: 'block' | 'unblock' | 'reopen'; targetStatus?: TaskStatus } | null>(null);
+  const [transferModal, setTransferModal] = useState(false);
 
   const { profiles } = useAdminProfiles();
   const { data: intelligence } = useTaskIntelligence(task?.id ?? null);
@@ -245,6 +247,15 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
           <div className="flex items-center gap-1 flex-shrink-0">
             {task.status !== 'archived' && !editMode && (
               <>
+                {task.status === 'in_progress' && (
+                  <button
+                    onClick={() => setTransferModal(true)}
+                    className="p-1.5 rounded-lg text-zinc-400 dark:text-zinc-500 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all"
+                    title="Transferir task"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   onClick={startEditTask}
                   className="p-1.5 rounded-lg text-zinc-400 dark:text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
@@ -709,6 +720,24 @@ export default function TaskDetailModal({ task, open, onClose }: Props) {
           targetStatus={actionModal.targetStatus}
           onConfirm={handleAction}
           onCancel={() => setActionModal(null)}
+        />
+      )}
+      {transferModal && (
+        <TransferTaskModal
+          open
+          task={task}
+          profiles={profiles}
+          onConfirm={async (data) => {
+            try {
+              await apiUpdateTask(task.id, { assignee_id: data.assignee_id });
+              toast.success('Task transferida!');
+              mutate(key => typeof key === 'string' && key.startsWith('/api/admin/tasks'));
+              setTransferModal(false);
+            } catch (e: any) {
+              toast.error(e.message ?? 'Erro ao transferir task');
+            }
+          }}
+          onCancel={() => setTransferModal(false)}
         />
       )}
     </Dialog>

@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 import { mutate } from 'swr';
-import { Task, TaskStatus, apiBlockTask, apiReopenTask, apiUnblockTask, apiUpdateStatus } from './hooks/useTasks';
+import { Task, TaskStatus, apiBlockTask, apiReopenTask, apiUnblockTask, apiUpdateStatus, apiUpdateTask, useAdminProfiles } from './hooks/useTasks';
 import KanbanColumn from './KanbanColumn';
 import MoveToProgressModal from './MoveToProgressModal';
+import TransferTaskModal from './TransferTaskModal';
 import CompleteTaskModal from './CompleteTaskModal';
 import TaskStatusActionModal from './TaskStatusActionModal';
 
@@ -32,8 +33,10 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
   const [progressModal, setProgressModal] = useState<{ task: Task } | null>(null);
   const [completeModal, setCompleteModal] = useState<{ task: Task } | null>(null);
   const [actionModal, setActionModal] = useState<{ mode: 'block' | 'unblock' | 'reopen'; task: Task; targetStatus?: TaskStatus } | null>(null);
+  const [transferModal, setTransferModal] = useState<{ task: Task } | null>(null);
   const [mounted, setMounted] = useState(false);
   const { resolvedTheme } = useTheme();
+  const { profiles } = useAdminProfiles();
   useEffect(() => setMounted(true), []);
   const isDark = mounted && resolvedTheme !== 'light';
 
@@ -142,11 +145,39 @@ export default function KanbanBoard({ tasks, onTaskClick, statusFilter }: Props)
         <MoveToProgressModal
           open
           task={progressModal.task}
+          profiles={profiles}
           onConfirm={async (data) => {
-            await performStatusUpdate(progressModal.task, 'in_progress', { progress: data });
+            await performStatusUpdate(progressModal.task, 'in_progress', { progress: data.progress });
+            if (data.transfer) {
+              try {
+                await apiUpdateTask(progressModal.task.id, { assignee_id: data.transfer.assignee_id });
+                mutate(key => typeof key === 'string' && key.startsWith('/api/admin/tasks'));
+              } catch {
+                // ignore transfer error, status already updated
+              }
+            }
             setProgressModal(null);
           }}
           onCancel={() => setProgressModal(null)}
+        />
+      )}
+
+      {transferModal && (
+        <TransferTaskModal
+          open
+          task={transferModal.task}
+          profiles={profiles}
+          onConfirm={async (data) => {
+            try {
+              await apiUpdateTask(transferModal.task.id, { assignee_id: data.assignee_id });
+              toast.success('Task transferida!');
+              mutate(key => typeof key === 'string' && key.startsWith('/api/admin/tasks'));
+            } catch (e: any) {
+              toast.error(e.message ?? 'Erro ao transferir task');
+            }
+            setTransferModal(null);
+          }}
+          onCancel={() => setTransferModal(null)}
         />
       )}
 
