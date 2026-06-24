@@ -70,14 +70,6 @@ interface B2BStats {
   period: string;
 }
 
-interface OrgMetrics {
-  questions: number;
-  simulados: number;
-  active_students: number;
-  essays: number;
-  total_students: number;
-}
-
 type OrgPeriod = 'day' | 'week' | 'month' | 'semester' | 'year' | 'all';
 const ORG_PERIODS: { key: OrgPeriod; label: string }[] = [
   { key: 'day',      label: 'Dia'      },
@@ -146,28 +138,10 @@ export default function SuperAdminDashboard() {
   });
   const [savingSettings, setSavingSettings] = useState(false);
   const [orgPeriod, setOrgPeriod]         = useState<OrgPeriod>('month');
-  const [orgMetrics, setOrgMetrics]       = useState<Record<string, OrgMetrics>>({});
   const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [distBankFilter, setDistBankFilter] = useState<string | null>(null);
   const supabaseRef = useState(() => createClient())[0];
   const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
-
-  const fetchOrgMetrics = useCallback(async (period: OrgPeriod) => {
-    const { data: { session } } = await supabaseRef.auth.getSession();
-    if (!session) return;
-    setLoadingMetrics(true);
-    try {
-      const res = await fetch(`${apiUrl}/api/admin/b2b/org-metrics?period=${period}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (res.ok) setOrgMetrics(await res.json());
-    } catch (e) {
-      console.error("Erro ao buscar org-metrics:", e);
-    } finally {
-      setLoadingMetrics(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const fetchB2bStats = useCallback(async (period: OrgPeriod) => {
     const statsPeriod = STATS_PERIOD_MAP[period] ?? 'month';
@@ -204,9 +178,9 @@ export default function SuperAdminDashboard() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => {
-    fetchOrgMetrics(orgPeriod);
-    fetchB2bStats(orgPeriod);
-  }, [orgPeriod, fetchOrgMetrics, fetchB2bStats]);
+    setLoadingMetrics(true);
+    fetchB2bStats(orgPeriod).finally(() => setLoadingMetrics(false));
+  }, [orgPeriod, fetchB2bStats]);
 
   function openCreate() {
     setOrgForm({ name: '', slug: '', plan_tier: 'b2b_basic', max_students: 200, contact_email: '', brand_primary: '#6366f1', brand_secondary: '#8b5cf6', brand_accent: '#f59e0b' });
@@ -422,7 +396,6 @@ export default function SuperAdminDashboard() {
           {orgs.map((org) => {
             const plan = PLAN_LABELS[org.plan_tier] ?? { label: org.plan_tier, cls: 'bg-slate-100 text-slate-600' };
             const fillPct = Math.round((org.student_count / org.max_students) * 100);
-            const m = orgMetrics[org.id];
             const p = b2bStats?.per_org?.find(x => x.org_id === org.id);
             const hasPrev = !!STATS_PERIOD_MAP[orgPeriod];
             return (
@@ -471,10 +444,10 @@ export default function SuperAdminDashboard() {
                   {/* Métricas do período */}
                   <div className={`grid grid-cols-4 gap-1.5 mb-3 text-xs transition-opacity ${loadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
                     {[
-                      { label: 'Questões',  value: m?.questions,       prev: p?.prev_questions_period,  color: 'text-blue-600 dark:text-blue-400'     },
-                      { label: 'Simulados', value: m?.simulados,       prev: p?.prev_simulados_period,  color: 'text-violet-600 dark:text-violet-400' },
-                      { label: 'Ativos',    value: m?.active_students, prev: p?.prev_active_period,     color: 'text-emerald-600 dark:text-emerald-400'},
-                      { label: 'Redações',  value: m?.essays,          prev: p?.prev_essays_period,     color: 'text-amber-600 dark:text-amber-400'   },
+                      { label: 'Questões',  value: p?.questions_period,  prev: p?.prev_questions_period,  color: 'text-blue-600 dark:text-blue-400'     },
+                      { label: 'Simulados', value: p?.simulados_period,  prev: p?.prev_simulados_period,  color: 'text-violet-600 dark:text-violet-400' },
+                      { label: 'Ativos',    value: p?.active_period,     prev: p?.prev_active_period,     color: 'text-emerald-600 dark:text-emerald-400'},
+                      { label: 'Redações',  value: p?.essays_period,     prev: p?.prev_essays_period,     color: 'text-amber-600 dark:text-amber-400'   },
                     ].map(({ label, value, prev, color }) => (
                       <div key={label} className="bg-slate-50 dark:bg-zinc-800 rounded-lg px-1.5 py-1.5 text-center">
                         <p className={`font-bold text-sm ${color}`}>{value ?? '—'}</p>

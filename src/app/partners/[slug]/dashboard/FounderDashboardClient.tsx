@@ -536,7 +536,7 @@ export default function FounderDashboardClient({
       ? questionsWeekFromStudents
       : metricWindow === 'month'
         ? questionsMonthFromStudents
-        : questionsTotalFromStudents;
+        : (stats?.questions_total ?? questionsTotalFromStudents);
 
   const simuladosValue = metricWindow === 'today'
     ? simuladosTodayFromStudents
@@ -544,7 +544,7 @@ export default function FounderDashboardClient({
       ? simuladosWeekFromStudents
       : metricWindow === 'month'
         ? simuladosMonthFromStudents
-        : simuladosTotalFromStudents;
+        : (stats?.simulados_total ?? simuladosTotalFromStudents);
 
   const activeRate = Math.round((activeValue / Math.max(students.length, 1)) * 100);
 
