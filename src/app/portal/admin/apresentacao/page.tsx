@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback, useEffect, useState } from 'react';
+import { useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Presentation } from 'lucide-react';
 import { usePresentation } from './hooks/usePresentation';
@@ -13,13 +13,14 @@ import { Slide02Team } from './components/slides/Slide02Team';
 import { Slide03Features } from './components/slides/Slide03Features';
 import { Slide04Redacao } from './components/slides/Slide04Redacao';
 import { Slide05Case } from './components/slides/Slide05Case';
+import { SlideTimeline } from './components/slides/SlideTimeline';
 import { Slide06Aprovacoes } from './components/slides/Slide06Aprovacoes';
 import { Slide07Custos } from './components/slides/Slide07Custos';
 import { SlideDecisao } from './components/slides/SlideDecisao';
 import { Slide08Proposta } from './components/slides/Slide08Proposta';
 import { Slide09CTA } from './components/slides/Slide09CTA';
 
-const TOTAL_SLIDES = 11;
+const TOTAL_SLIDES = 12;
 
 export default function ApresentacaoPage() {
   const {
@@ -36,20 +37,10 @@ export default function ApresentacaoPage() {
     resetToDefault,
   } = usePresentation();
 
-  const exportRefs = useRef<(HTMLDivElement | null)[]>(Array(TOTAL_SLIDES).fill(null));
+  const exportRefs = useRef<(HTMLDivElement | null)[]>(Array(12).fill(null));
   const viewerRef  = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
 
   const { exportToPDF, isExportingPDF } = useExport(exportRefs, content);
-
-  const directionRef = useRef<'next' | 'prev'>('next');
-  const prevSlideRef = useRef(currentSlide);
-  if (currentSlide !== prevSlideRef.current) {
-    directionRef.current = currentSlide > prevSlideRef.current ? 'next' : 'prev';
-    prevSlideRef.current = currentSlide;
-  }
 
   const handleFullscreen = useCallback(() => {
     const el = viewerRef.current;
@@ -59,18 +50,19 @@ export default function ApresentacaoPage() {
   }, []);
 
   /*
-   * Slide order (11 slides):
+   * Slide order (12 slides):
    * 0  Capa
-   * 1  O Desafio          ← NOVO (do PPTX)
-   * 2  Equipe
+   * 1  Equipe
+   * 2  O Desafio
    * 3  O que Oferecemos
    * 4  Redação & Métricas
    * 5  Case de Sucesso
-   * 6  Aprovações
-   * 7  Custos
-   * 8  Decisão Sem Risco  ← NOVO (do PPTX)
-   * 9  Proposta
-   * 10 Encerramento
+   * 6  Parcerias
+   * 7  Aprovações
+   * 8  Custos
+   * 9  Decisão Sem Risco  ← NOVO (do PPTX)
+   * 10 Proposta
+   * 11 Encerramento
    */
   const renderSlide = useCallback(
     (index: number, opts: { forExport?: boolean } = {}) => {
@@ -79,18 +71,19 @@ export default function ApresentacaoPage() {
       const p       = { isEditing: editing, forExport: fe };
 
       /*
-       * Slide order (11 slides):
+       * Slide order (12 slides):
        * 0  Capa
        * 1  Equipe            ← posição trocada (era 2)
        * 2  O Desafio         ← posição trocada (era 1)
        * 3  O que Oferecemos
        * 4  Redação & Métricas
        * 5  Case de Sucesso
-       * 6  Aprovações
-       * 7  Custos
-       * 8  Decisão Sem Risco
-       * 9  Proposta
-       * 10 Encerramento
+       * 6  Parcerias
+       * 7  Aprovações
+       * 8  Custos
+       * 9  Decisão Sem Risco
+       * 10 Proposta
+       * 11 Encerramento
        */
       switch (index) {
         case 0:  return <Slide01Cover    {...p} data={content.slide01}       onChange={(d) => updateSlide('slide01', d)} />;
@@ -99,23 +92,24 @@ export default function ApresentacaoPage() {
         case 3:  return <Slide03Features {...p} data={content.slide03}       onChange={(d) => updateSlide('slide03', d)} />;
         case 4:  return <Slide04Redacao  {...p} data={content.slide04}       onChange={(d) => updateSlide('slide04', d)} />;
         case 5:  return <Slide05Case     {...p} data={content.slide05}       onChange={(d) => updateSlide('slide05', d)} />;
-        case 6:  return <Slide06Aprovacoes {...p} data={content.slide06}     onChange={(d) => updateSlide('slide06', d)} />;
-        case 7:  return <Slide07Custos   {...p} data={content.slide07}       onChange={(d) => updateSlide('slide07', d)} />;
-        case 8:  return <SlideDecisao    {...p} data={content.slideDecisao}  onChange={(d) => updateSlide('slideDecisao', d)} />;
-        case 9:  return <Slide08Proposta {...p} data={content.slide08}       onChange={(d) => updateSlide('slide08', d)} />;
-        case 10: return <Slide09CTA      {...p} data={content.slide09}       onChange={(d) => updateSlide('slide09', d)} />;
+        case 6:  return <SlideTimeline   {...p} data={content.slideTimeline} onChange={(d) => updateSlide('slideTimeline', d)} />;
+        case 7:  return <Slide06Aprovacoes {...p} data={content.slide06}     onChange={(d) => updateSlide('slide06', d)} />;
+        case 8:  return <Slide07Custos   {...p} data={content.slide07}       onChange={(d) => updateSlide('slide07', d)} />;
+        case 9:  return <SlideDecisao    {...p} data={content.slideDecisao}  onChange={(d) => updateSlide('slideDecisao', d)} />;
+        case 10: return <Slide08Proposta {...p} data={content.slide08}       onChange={(d) => updateSlide('slide08', d)} />;
+        case 11: return <Slide09CTA      {...p} data={content.slide09}       onChange={(d) => updateSlide('slide09', d)} />;
         default: return null;
       }
     },
     [content, isEditing, updateSlide],
   );
 
-  const exportPortal = mounted ? createPortal(
+  const exportPortal = typeof document !== 'undefined' ? createPortal(
     <div
       aria-hidden
       style={{ position: 'fixed', top: '100vh', left: 0, pointerEvents: 'none', zIndex: -9999 }}
     >
-      {Array.from({ length: TOTAL_SLIDES }).map((_, i) => (
+      {Array.from({ length: 12 }).map((_, i) => (
         <div
           key={i}
           ref={(el) => { exportRefs.current[i] = el; }}
@@ -137,13 +131,13 @@ export default function ApresentacaoPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Apresentação</h1>
           <p className="text-slate-500 text-sm mt-0.5">
-            Apresentação comercial da StudyTrack — 11 slides editáveis
+            Apresentação comercial da StudyTrack — {TOTAL_SLIDES} slides editáveis
           </p>
         </div>
       </div>
 
       <div ref={viewerRef}>
-        <SlideViewer slideKey={currentSlide} direction={directionRef.current}>
+        <SlideViewer slideKey={currentSlide} direction="next">
           {renderSlide(currentSlide)}
         </SlideViewer>
       </div>

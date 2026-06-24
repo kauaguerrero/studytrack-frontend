@@ -176,7 +176,7 @@ function normalizeSourceLabel(value: string | null | undefined): string | null {
   if (normalized === 'ENEM' || normalized === 'INEP_ENEM' || normalized === 'ENEM_OFICIAL') return 'ENEM';
   if (normalized === 'UFU' || normalized === 'UFU_VEST') return 'UFU_VEST';
   if (normalized === 'UEG' || normalized === 'UEG_VEST') return 'UEG_VEST';
-  if (normalized === 'UNESP' || normalized === 'UNESP_VEST') return 'UNESP_VEST';
+  if (normalized === 'UNESP' || normalized === 'UNESP_VEST') return 'UNESP';
   if (normalized === 'UFG' || normalized === 'UFG_VEST') return 'UFG_VEST';
   return normalized;
 }
@@ -193,14 +193,14 @@ function resolveQuestionSource(question: Partial<AdminQuestion> | null | undefin
   const examIdSource = normalizeSourceLabel(question.metadata?.exam_id);
   if (examIdSource?.startsWith('UFU_')) return 'UFU_VEST';
   if (examIdSource?.startsWith('UEG_')) return 'UEG_VEST';
-  if (examIdSource?.startsWith('UNESP_')) return 'UNESP_VEST';
+  if (examIdSource?.startsWith('UNESP_')) return 'UNESP';
   if (examIdSource?.startsWith('UFG_')) return 'UFG_VEST';
   if (examIdSource?.startsWith('ENEM')) return 'ENEM';
 
   const externalId = String(question.external_id || '').trim().toUpperCase();
   if (externalId.startsWith('UFU_')) return 'UFU_VEST';
   if (externalId.startsWith('UEG_')) return 'UEG_VEST';
-  if (externalId.startsWith('UNESP_')) return 'UNESP_VEST';
+  if (externalId.startsWith('UNESP_')) return 'UNESP';
   if (externalId.startsWith('UFG_')) return 'UFG_VEST';
   if (externalId.startsWith('ENEM')) return 'ENEM';
 
@@ -208,7 +208,7 @@ function resolveQuestionSource(question: Partial<AdminQuestion> | null | undefin
   if (title.includes('ENEM')) return 'ENEM';
   if (title.includes('UFU')) return 'UFU_VEST';
   if (title.includes('UEG')) return 'UEG_VEST';
-  if (title.includes('UNESP')) return 'UNESP_VEST';
+  if (title.includes('UNESP')) return 'UNESP';
   if (title.includes('UFG')) return 'UFG_VEST';
 
   return 'UNKNOWN';

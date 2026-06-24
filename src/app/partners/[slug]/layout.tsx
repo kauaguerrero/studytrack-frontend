@@ -120,11 +120,26 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     max_students: number | null; invite_code: string | null;
     permissions: Record<string, boolean> | null;
   };
-  const orgRes = await adminClient
+  // Tenta o slug decodificado (Next.js já decodifica params, mas o encodeURIComponent
+  // no Link do admin garante que %2B → + chega aqui corretamente).
+  // Fallback tenta decodificar mais uma vez caso haja double-encoding.
+  let decodedSlug = slug;
+  try { decodedSlug = decodeURIComponent(slug); } catch { /* mantém slug original */ }
+
+  let orgRes = await adminClient
     .from('organizations')
     .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions')
-    .eq('slug', slug)
+    .eq('slug', decodedSlug)
     .single();
+
+  // Fallback: tenta com o slug original (sem decodificação extra)
+  if (!orgRes.data && decodedSlug !== slug) {
+    orgRes = await adminClient
+      .from('organizations')
+      .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions')
+      .eq('slug', slug)
+      .single();
+  }
 
   const org = orgRes.data as OrgRow | null;
 
