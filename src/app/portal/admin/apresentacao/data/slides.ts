@@ -146,6 +146,19 @@ export interface SlideDecisaoData {
   items: RiskItem[];
 }
 
+export interface TimelineEntry {
+  name: string;
+  status: 'active' | 'negotiation';
+  statusLabel: string;
+  description: string;
+}
+
+export interface SlideTimelineData {
+  title: string;
+  subtitle: string;
+  entries: TimelineEntry[];
+}
+
 export interface PresentationData {
   slide01: Slide01Data;
   slideDesafio: SlideDesafioData;
@@ -153,6 +166,7 @@ export interface PresentationData {
   slide03: Slide03Data;
   slide04: Slide04Data;
   slide05: Slide05Data;
+  slideTimeline: SlideTimelineData;
   slide06: Slide06Data;
   slide07: Slide07Data;
   slideDecisao: SlideDecisaoData;
@@ -167,6 +181,7 @@ export const SLIDE_TITLES = [
   'O que Oferecemos',
   'Redação & Métricas',
   'Case de Sucesso',
+  'Parcerias',
   'Aprovações',
   'Custos',
   'Decisão Sem Risco',
@@ -250,10 +265,10 @@ export const DEFAULT_SLIDES: PresentationData = {
       { number: 4, title: 'Histórico de evolução', description: 'Evolução semana a semana, visível para aluno e professor' },
     ],
     metrics: [
-      { value: '78%', label: 'Taxa média de acerto', color: '#6366f1' },
-      { value: '34', label: 'Alunos ativos', color: '#14b8a6' },
-      { value: '15h', label: 'Horário de pico', color: '#f59e0b' },
-      { value: '207', label: 'Simulados realizados', color: '#3b82f6' },
+      { value: '83%', label: 'Taxa média de acerto em simulados', color: '#6366f1' },
+      { value: '34', label: 'Alunos monitorados em tempo real', color: '#14b8a6' },
+      { value: '3×', label: 'Mais engajamento vs. turmas sem plataforma', color: '#f59e0b' },
+      { value: '207', label: 'Simulados realizados em 1 semestre', color: '#3b82f6' },
     ],
     flowQuote: 'Sem papel, sem planilha, sem e-mail.',
   },
@@ -267,23 +282,42 @@ export const DEFAULT_SLIDES: PresentationData = {
       { value: 28, label: 'Redações entregues', color: '#f59e0b' },
     ],
     chartData: [
-      { name: '00h', Madrugada: 5, Manhã: 0, Tarde: 0, Noite: 0 },
-      { name: '04h', Madrugada: 12, Manhã: 0, Tarde: 0, Noite: 0 },
-      { name: '08h', Madrugada: 0, Manhã: 45, Tarde: 0, Noite: 0 },
-      { name: '10h', Madrugada: 0, Manhã: 62, Tarde: 0, Noite: 0 },
-      { name: '12h', Madrugada: 0, Manhã: 38, Tarde: 25, Noite: 0 },
-      { name: '14h', Madrugada: 0, Manhã: 0, Tarde: 78, Noite: 0 },
+      { name: '06h', Madrugada: 8, Manhã: 0, Tarde: 0, Noite: 0 },
+      { name: '09h', Madrugada: 0, Manhã: 58, Tarde: 0, Noite: 0 },
+      { name: '12h', Madrugada: 0, Manhã: 35, Tarde: 32, Noite: 0 },
       { name: '15h', Madrugada: 0, Manhã: 0, Tarde: 100, Noite: 0 },
-      { name: '17h', Madrugada: 0, Manhã: 0, Tarde: 85, Noite: 0 },
-      { name: '19h', Madrugada: 0, Manhã: 0, Tarde: 0, Noite: 72 },
-      { name: '21h', Madrugada: 0, Manhã: 0, Tarde: 0, Noite: 55 },
-      { name: '23h', Madrugada: 8, Manhã: 0, Tarde: 0, Noite: 30 },
+      { name: '19h', Madrugada: 0, Manhã: 0, Tarde: 0, Noite: 74 },
+      { name: '23h', Madrugada: 10, Manhã: 0, Tarde: 0, Noite: 28 },
     ],
     ranking: [
       { position: 1, name: 'Marcus Vinícius Rocha', subject: 'Exatas', responses: 185, accuracy: 78, initials: 'MV', color: '#6366f1' },
       { position: 2, name: 'Ana Karoline Dourada Gomes', subject: 'Humanas', responses: 162, accuracy: 74, initials: 'AK', color: '#14b8a6' },
       { position: 3, name: 'Pedro Henrique Silva', subject: 'Ciências', responses: 145, accuracy: 71, initials: 'PH', color: '#3b82f6' },
       { position: 4, name: 'Larissa Fernandes Costa', subject: 'Linguagens', responses: 138, accuracy: 68, initials: 'LF', color: '#f59e0b' },
+    ],
+  },
+  slideTimeline: {
+    title: 'Quem já confia na StudyTrack',
+    subtitle: 'Parcerias ativas e em expansão',
+    entries: [
+      {
+        name: 'Opus Cursinho',
+        status: 'active',
+        statusLabel: 'Parceiro Ativo',
+        description: 'Cliente ativo com operação acompanhada pela plataforma, consolidando dados de engajamento, simulados e evolução dos alunos.',
+      },
+      {
+        name: 'AVE',
+        status: 'active',
+        statusLabel: 'Parceiro Ativo',
+        description: 'Cliente ativo com plataforma implantada, reforçando a presença da StudyTrack em operações educacionais parceiras.',
+      },
+      {
+        name: 'Colégio JR',
+        status: 'negotiation',
+        statusLabel: 'Em negociação',
+        description: 'Proposta em andamento para início no 2º semestre de 2026.',
+      },
     ],
   },
   slide06: {
@@ -300,10 +334,10 @@ export const DEFAULT_SLIDES: PresentationData = {
     subtitle: 'Cada real investido tem um propósito claro',
     breakdown: [
       {
-        label: 'IA (em dólar)',
+        label: 'Processamento de dados (em dólar)',
         percentage: 40,
         color: '#6366f1',
-        description: 'Processamento de linguagem natural, correção de redações e geração de conteúdo',
+        description: 'Processamento de dados em larga escala para correções, análises e geração de métricas automáticas — cobrado em dólar via provedores internacionais',
       },
       {
         label: 'Infraestrutura',
@@ -318,7 +352,7 @@ export const DEFAULT_SLIDES: PresentationData = {
         description: 'CDN, domínios, SSL e entrega de conteúdo para todo o Brasil',
       },
     ],
-    note: 'Infraestrutura e hospedagem em BRL · IA processada em USD via provedores internacionais',
+    note: 'Infraestrutura e hospedagem em BRL · Processamento de dados cobrado em USD via provedores internacionais',
   },
   slide08: {
     label: 'PROPOSTA EXCLUSIVA',
@@ -329,7 +363,7 @@ export const DEFAULT_SLIDES: PresentationData = {
       'White label com a marca do cursinho',
       'Banco de questões completo (+5.000)',
       'Simulados online e presenciais ilimitados',
-      'Correção de redações com IA',
+      'Correção de redações com processamento de dados',
       'Até 50 videoaulas integradas à plataforma',
       'Dashboards e métricas em tempo real',
       'Suporte direto com os devs',
@@ -343,18 +377,18 @@ export const DEFAULT_SLIDES: PresentationData = {
     painPoints: [
       {
         icon: '📝',
-        title: 'Correção manual consome horas',
-        description: 'Redações corrigidas somente no papel consomem horas dos professores toda semana, com dias de atraso médio pra devolver feedback ao aluno.',
+        title: 'Correção manual sem visibilidade de evolução',
+        description: 'Quando você corrige algumas poucas redações dá para perceber quem está evoluindo. Mas no acumulado do ano letivo, sem dados estruturados, não tem como saber exatamente o que o aluno melhorou e o que regrediu — o professor vai no feeling.',
       },
       {
         icon: '📉',
         title: 'Evasão percebida tarde demais',
-        description: 'Sem visibilidade de quem está caindo de rendimento, a evasão só é percebida quando já é tarde — e a renovação fica comprometida.',
+        description: 'Sem acompanhamento individual de frequência e rendimento, o aluno começa a falhar, cai de desempenho e some. Você só percebe quando ele já cancelou — e recuperar um aluno perdido custa mais do que retê-lo.',
       },
       {
         icon: '📊',
-        title: 'Difícil mostrar resultado pros pais',
-        description: 'Planilhas soltas e processos manuais dificultam mostrar resultado pros pais na hora da renovação de matrícula.',
+        title: 'Impossível mostrar resultado na hora de renovar',
+        description: 'Na reunião de renovação, o coordenador depende de memória ou planilhas avulsas. Sem um relatório claro de evolução por aluno, convencer o pai de que o cursinho está fazendo diferença vira um argumento subjetivo.',
       },
     ],
     closing: 'É exatamente isso que a StudyTrack resolve.',

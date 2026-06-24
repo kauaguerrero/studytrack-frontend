@@ -91,10 +91,10 @@ export function Slide05Case({ data, onChange, isEditing, forExport }: Props) {
                 ))}
               </div>
             </div>
-            <div className="flex items-end gap-1 flex-1" style={{ minHeight: 0 }}>
+            <div className="flex items-end gap-1" style={{ height: 280 }}>
               {data.chartData.map((pt, i) => {
                 const keys = ['Madrugada','Manhã','Tarde','Noite'] as const;
-                const MAX_PX = 140;
+                const MAX_PX = 240;
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center" style={{ minWidth: 0 }}>
                     <div className="flex items-end gap-0.5 w-full" style={{ height: MAX_PX }}>

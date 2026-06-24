@@ -123,10 +123,15 @@ export async function apiAddContact(
   });
 }
 
+export interface MockOrgResult {
+  org_url: string;
+  founder: { email: string; password: string; is_mock: boolean } | null;
+}
+
 export async function apiCreateMockOrg(
   leadId: string,
   orgName: string
-): Promise<{ org_url: string }> {
+): Promise<MockOrgResult> {
   return fetchJSON(`${LEADS_BASE}/${leadId}/create-mock-org`, {
     method: 'POST',
     body: JSON.stringify({ org_name: orgName }),

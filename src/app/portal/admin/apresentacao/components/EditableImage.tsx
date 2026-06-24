@@ -2,9 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Upload, Loader2 } from 'lucide-react';
-import Image from 'next/image';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
 
 interface Props {
   src: string;
@@ -33,18 +31,21 @@ export function EditableImage({
   const handleFile = async (file: File) => {
     setUploading(true);
     try {
-      const supabase = createClient();
       const ext = file.name.split('.').pop();
       const path = `${uploadPath}.${ext}`;
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('path', path);
 
-      const { error } = await supabase.storage
-        .from('apresentacao')
-        .upload(path, file, { upsert: true, contentType: file.type });
+      const response = await fetch('/api/admin/apresentacao/upload-image', {
+        method: 'POST',
+        body: formData,
+      });
 
-      if (error) throw error;
+      const result = await response.json();
+      if (!response.ok) throw new Error(result?.error || 'Upload failed');
 
-      const { data } = supabase.storage.from('apresentacao').getPublicUrl(path);
-      onUploaded(`${data.publicUrl}?t=${Date.now()}`);
+      onUploaded(`${result.url}?t=${Date.now()}`);
       toast.success('Imagem atualizada!');
     } catch {
       toast.error('Erro ao fazer upload. Tente novamente.');

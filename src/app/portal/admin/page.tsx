@@ -39,6 +39,7 @@ interface Org {
   contact_email: string | null;
   has_video_library: boolean;
   monthly_value: number | null;
+  is_mock: boolean;
   created_at: string;
   allow_multiple_pending_essays: boolean;
 }
@@ -399,7 +400,7 @@ export default function SuperAdminDashboard() {
             const p = b2bStats?.per_org?.find(x => x.org_id === org.id);
             const hasPrev = !!STATS_PERIOD_MAP[orgPeriod];
             return (
-              <Card key={org.id} className="hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-colors">
+              <Card key={org.id} className={`transition-colors ${org.is_mock ? 'border-amber-200 dark:border-amber-500/30 hover:border-amber-300 dark:hover:border-amber-500/50' : 'hover:border-indigo-300 dark:hover:border-indigo-500/40'}`}>
                 <CardContent className="p-4">
                   {/* Cabeçalho */}
                   <div className="flex items-start gap-3 mb-3">
@@ -414,6 +415,9 @@ export default function SuperAdminDashboard() {
                       <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{org.name}</p>
                       <p className="text-xs text-slate-400 dark:text-zinc-500">/{org.slug}</p>
                     </div>
+                    {org.is_mock && (
+                      <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">Demo</span>
+                    )}
                     <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${plan.cls}`}>{plan.label}</span>
                     <button
                       onClick={() => openOrgSettings(org)}
@@ -468,7 +472,7 @@ export default function SuperAdminDashboard() {
                   )}
 
                   <Link
-                    href={`/partners/${org.slug}/dashboard`}
+                    href={`/partners/${encodeURIComponent(org.slug)}/dashboard`}
                     target="_blank"
                     className="flex items-center justify-center gap-1.5 w-full rounded-lg border border-indigo-200 dark:border-indigo-500/30 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
                   >
