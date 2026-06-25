@@ -175,14 +175,24 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
   }
 
   async function handleCreateMockOrg() {
-    if (!confirm(`Criar org mock para "${displayName}"?\nSerão gerados 20 alunos e dados de demonstração.`)) return;
+    if (!confirm(`Criar demo para "${displayName}"?\nSerão gerados 20 alunos e dados de demonstração.`)) return;
     setCreatingMock(true);
     try {
       const json = await apiCreateMockOrg(lead.id, displayName);
       onLeadUpdate();
+
+      if (json.founder && !json.founder.is_mock) {
+        toast.success(
+          `Demo criada! Acesso do founder:\n${json.founder.email}\nSenha: ${json.founder.password}`,
+          { duration: 20000, description: 'Copie as credenciais antes de fechar.' }
+        );
+      } else {
+        toast.success('Demo criada com sucesso!');
+      }
+
       window.open(json.org_url, '_blank');
     } catch {
-      toast.error('Erro ao criar org mock');
+      toast.error('Erro ao criar demo');
     } finally {
       setCreatingMock(false);
     }

@@ -25,18 +25,6 @@ const partners = [
       "O Opus é referência em preparação para vestibulares em Goiás. Com a StudyTrack, a equipe pedagógica passou a acompanhar o desempenho de cada aluno individualmente, identificando lacunas antes das provas e ajustando o planejamento de aulas com base em dados reais.",
     colorPrimary: "#3B82F6",
   },
-  {
-    slug: "edificar",
-    name: "Edificar",
-    logo: "/marketing/LOGO-EDIFICAR.png",
-    logoWidth: 140,
-    logoHeight: 56,
-    location: "São Joaquim da Barra, SP",
-    type: "Curso Preparatório",
-    description:
-      "O Edificar adotou a StudyTrack com identidade visual própria, entregando para seus alunos uma plataforma que parece 100% da escola. Simulados semanais, banco de questões personalizado e correção de redações transformaram a preparação para o ENEM em um processo estruturado e mensurável.",
-    colorPrimary: "#F97316",
-  },
 ];
 
 export function PartnersSection() {

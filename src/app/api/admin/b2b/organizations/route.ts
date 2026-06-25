@@ -14,7 +14,7 @@ export async function GET() {
   const { data: orgs, error } = await db
     .from('organizations')
     .select('*')
-    .eq('is_mock', false)
+    .order('is_mock', { ascending: true })
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

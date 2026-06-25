@@ -11,13 +11,6 @@ const testimonials = [
     initial: "A",
     color: "#3B82F6",
   },
-  {
-    text: "Cara, por enquanto nenhuma crítica importante, o site é realmente bem intuitivo e legal de entrar, gostei bastante 🔥",
-    author: "Aluno Edificar",
-    role: "Curso Preparatório — São Joaquim da Barra, SP",
-    initial: "A",
-    color: "#F97316",
-  },
 ];
 
 export function TestimonialsSection() {

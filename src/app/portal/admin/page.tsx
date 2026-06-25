@@ -39,6 +39,7 @@ interface Org {
   contact_email: string | null;
   has_video_library: boolean;
   monthly_value: number | null;
+  is_mock: boolean;
   created_at: string;
   allow_multiple_pending_essays: boolean;
 }
@@ -68,14 +69,6 @@ interface B2BStats {
   prev_essays_period: number;
   per_org: PerOrgStats[];
   period: string;
-}
-
-interface OrgMetrics {
-  questions: number;
-  simulados: number;
-  active_students: number;
-  essays: number;
-  total_students: number;
 }
 
 type OrgPeriod = 'day' | 'week' | 'month' | 'semester' | 'year' | 'all';
@@ -146,28 +139,10 @@ export default function SuperAdminDashboard() {
   });
   const [savingSettings, setSavingSettings] = useState(false);
   const [orgPeriod, setOrgPeriod]         = useState<OrgPeriod>('month');
-  const [orgMetrics, setOrgMetrics]       = useState<Record<string, OrgMetrics>>({});
   const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [distBankFilter, setDistBankFilter] = useState<string | null>(null);
   const supabaseRef = useState(() => createClient())[0];
   const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
-
-  const fetchOrgMetrics = useCallback(async (period: OrgPeriod) => {
-    const { data: { session } } = await supabaseRef.auth.getSession();
-    if (!session) return;
-    setLoadingMetrics(true);
-    try {
-      const res = await fetch(`${apiUrl}/api/admin/b2b/org-metrics?period=${period}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (res.ok) setOrgMetrics(await res.json());
-    } catch (e) {
-      console.error("Erro ao buscar org-metrics:", e);
-    } finally {
-      setLoadingMetrics(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const fetchB2bStats = useCallback(async (period: OrgPeriod) => {
     const statsPeriod = STATS_PERIOD_MAP[period] ?? 'month';
@@ -204,9 +179,9 @@ export default function SuperAdminDashboard() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => {
-    fetchOrgMetrics(orgPeriod);
-    fetchB2bStats(orgPeriod);
-  }, [orgPeriod, fetchOrgMetrics, fetchB2bStats]);
+    setLoadingMetrics(true);
+    fetchB2bStats(orgPeriod).finally(() => setLoadingMetrics(false));
+  }, [orgPeriod, fetchB2bStats]);
 
   function openCreate() {
     setOrgForm({ name: '', slug: '', plan_tier: 'b2b_basic', max_students: 200, contact_email: '', brand_primary: '#6366f1', brand_secondary: '#8b5cf6', brand_accent: '#f59e0b' });
@@ -422,11 +397,10 @@ export default function SuperAdminDashboard() {
           {orgs.map((org) => {
             const plan = PLAN_LABELS[org.plan_tier] ?? { label: org.plan_tier, cls: 'bg-slate-100 text-slate-600' };
             const fillPct = Math.round((org.student_count / org.max_students) * 100);
-            const m = orgMetrics[org.id];
             const p = b2bStats?.per_org?.find(x => x.org_id === org.id);
             const hasPrev = !!STATS_PERIOD_MAP[orgPeriod];
             return (
-              <Card key={org.id} className="hover:border-indigo-300 dark:hover:border-indigo-500/40 transition-colors">
+              <Card key={org.id} className={`transition-colors ${org.is_mock ? 'border-amber-200 dark:border-amber-500/30 hover:border-amber-300 dark:hover:border-amber-500/50' : 'hover:border-indigo-300 dark:hover:border-indigo-500/40'}`}>
                 <CardContent className="p-4">
                   {/* Cabeçalho */}
                   <div className="flex items-start gap-3 mb-3">
@@ -441,6 +415,9 @@ export default function SuperAdminDashboard() {
                       <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{org.name}</p>
                       <p className="text-xs text-slate-400 dark:text-zinc-500">/{org.slug}</p>
                     </div>
+                    {org.is_mock && (
+                      <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">Demo</span>
+                    )}
                     <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${plan.cls}`}>{plan.label}</span>
                     <button
                       onClick={() => openOrgSettings(org)}
@@ -471,10 +448,10 @@ export default function SuperAdminDashboard() {
                   {/* Métricas do período */}
                   <div className={`grid grid-cols-4 gap-1.5 mb-3 text-xs transition-opacity ${loadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
                     {[
-                      { label: 'Questões',  value: m?.questions,       prev: p?.prev_questions_period,  color: 'text-blue-600 dark:text-blue-400'     },
-                      { label: 'Simulados', value: m?.simulados,       prev: p?.prev_simulados_period,  color: 'text-violet-600 dark:text-violet-400' },
-                      { label: 'Ativos',    value: m?.active_students, prev: p?.prev_active_period,     color: 'text-emerald-600 dark:text-emerald-400'},
-                      { label: 'Redações',  value: m?.essays,          prev: p?.prev_essays_period,     color: 'text-amber-600 dark:text-amber-400'   },
+                      { label: 'Questões',  value: p?.questions_period,  prev: p?.prev_questions_period,  color: 'text-blue-600 dark:text-blue-400'     },
+                      { label: 'Simulados', value: p?.simulados_period,  prev: p?.prev_simulados_period,  color: 'text-violet-600 dark:text-violet-400' },
+                      { label: 'Ativos',    value: p?.active_period,     prev: p?.prev_active_period,     color: 'text-emerald-600 dark:text-emerald-400'},
+                      { label: 'Redações',  value: p?.essays_period,     prev: p?.prev_essays_period,     color: 'text-amber-600 dark:text-amber-400'   },
                     ].map(({ label, value, prev, color }) => (
                       <div key={label} className="bg-slate-50 dark:bg-zinc-800 rounded-lg px-1.5 py-1.5 text-center">
                         <p className={`font-bold text-sm ${color}`}>{value ?? '—'}</p>
@@ -495,7 +472,7 @@ export default function SuperAdminDashboard() {
                   )}
 
                   <Link
-                    href={`/partners/${org.slug}/dashboard`}
+                    href={`/partners/${encodeURIComponent(org.slug)}/dashboard`}
                     target="_blank"
                     className="flex items-center justify-center gap-1.5 w-full rounded-lg border border-indigo-200 dark:border-indigo-500/30 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
                   >

@@ -60,7 +60,7 @@ export function Slide04Redacao({ data, onChange, isEditing, forExport }: Props) 
                       <Icon size={24} style={{ color }} />
                       <div className="absolute -top-2 -right-2 flex items-center justify-center rounded-full font-bold text-white" style={{ width: 22, height: 22, background: color, fontSize: 11 }}>{step.number}</div>
                     </div>
-                    {!isLast && <div style={{ width: 2, height: 28, background: `${color}30`, margin: '3px 0' }} />}
+                    {!isLast && <div style={{ width: 2, height: 28, background: '#c7d2fe', margin: '3px 0' }} />}
                   </div>
                   <div style={{ marginLeft: 20, paddingBottom: isLast ? 0 : 8 }}>
                     <p className="font-bold" style={{ fontSize: 22, color: '#0f172a' }}>{step.title}</p>

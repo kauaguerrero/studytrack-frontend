@@ -59,21 +59,38 @@ export function SlideDesafio({ data, onChange, isEditing, forExport }: Props) {
               borderLeft: '16px solid #4950BC',
               borderRadius: '12px',
               padding: '40px 40px 40px 44px',
+              justifyContent: 'center',
+              alignItems: 'center',
             }}
           >
+            <div
+              style={{
+                width: 88,
+                height: 88,
+                borderRadius: '50%',
+                background: '#e8eaf6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 48,
+                marginBottom: 28,
+              }}
+            >
+              {p.icon}
+            </div>
             <EditableText
               value={p.title}
               onChange={(v) => { const np = [...data.painPoints]; np[i] = { ...np[i], title: v }; onChange({ painPoints: np }); }}
               isEditing={isEditing}
               tag="h3"
-              style={{ fontSize: 32, fontWeight: 700, color: '#272525', marginBottom: 18, lineHeight: 1.25 }}
+              style={{ fontSize: 32, fontWeight: 700, color: '#272525', marginBottom: 18, lineHeight: 1.25, textAlign: 'center' }}
             />
             <EditableText
               value={p.description}
               onChange={(v) => { const np = [...data.painPoints]; np[i] = { ...np[i], description: v }; onChange({ painPoints: np }); }}
               isEditing={isEditing}
               tag="p"
-              style={{ fontSize: 22, color: '#444444', lineHeight: 1.65 }}
+              style={{ fontSize: 22, color: '#444444', lineHeight: 1.65, textAlign: 'center' }}
             />
           </motion.div>
         ))}

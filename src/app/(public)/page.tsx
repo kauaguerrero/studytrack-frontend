@@ -174,7 +174,6 @@ export default function Home() {
             <div className="flex items-center gap-10 sm:gap-14">
               {[
                 { logo: "/marketing/logo%20opus.png", name: "Opus", sub: "Goiânia, GO", w: 80 },
-                { logo: "/marketing/LOGO-EDIFICAR.png", name: "Edificar", sub: "São Joaquim da Barra, SP", w: 100 },
               ].map(({ logo, name, sub, w }) => (
                 <div key={name} className="flex items-center gap-3 opacity-50 hover:opacity-90 transition-opacity duration-300">
                   <Image
