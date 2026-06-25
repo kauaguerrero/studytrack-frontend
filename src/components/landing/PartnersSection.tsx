@@ -44,7 +44,7 @@ export function PartnersSection() {
             Casos de sucesso
           </span>
           <h2 className="text-3xl sm:text-4xl font-bold text-[#1A1A2E] tracking-tight mb-4">
-            Veja alguns de nossos parceiros
+            Veja um de nossos parceiros
           </h2>
           <p className="text-[#4A5568] text-base max-w-md mx-auto">
             Instituições que transformaram sua gestão pedagógica com{" "}

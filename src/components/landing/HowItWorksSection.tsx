@@ -76,19 +76,6 @@ export function HowItWorksSection() {
             aria-hidden
           />
 
-          {/* Vertical connector — mobile only */}
-          <motion.div
-            className="absolute left-1/2 -translate-x-1/2 top-8 bottom-8 w-px md:hidden pointer-events-none"
-            initial={{ scaleY: 0 }}
-            whileInView={{ scaleY: 1 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.9, delay: 0.2, ease: "easeOut" }}
-            style={{
-              background: "linear-gradient(180deg, #6366F1, #3B82F6, #06B6D4)",
-              transformOrigin: "top",
-            }}
-            aria-hidden
-          />
 
           {steps.map(({ number, icon: Icon, title, description, color }, i) => (
             <motion.div

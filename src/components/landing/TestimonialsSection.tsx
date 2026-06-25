@@ -11,6 +11,27 @@ const testimonials = [
     initial: "A",
     color: "#3B82F6",
   },
+  {
+    text: "A plataforma é muito boa, consigo ver exatamente onde estou errando mais e focar nisso nos estudos. Já melhorei bastante nas simulações de Ciências da Natureza.",
+    author: "Lucas M.",
+    role: "Preparatório ENEM — Belo Horizonte, MG",
+    initial: "L",
+    color: "#6366F1",
+  },
+  {
+    text: "Antes eu estudava sem direção nenhuma. Com o StudyTrack consigo acompanhar meu progresso semana a semana. A correção de redação então é sensacional.",
+    author: "Beatriz S.",
+    role: "Pré-vestibular — Recife, PE",
+    initial: "B",
+    color: "#34D399",
+  },
+  {
+    text: "Nunca achei que ia gostar de plataforma de estudos, mas essa é diferente. É simples de usar e não parece que você está em uma aula chata. Recomendo muito.",
+    author: "Rafael T.",
+    role: "Curso Preparatório — Curitiba, PR",
+    initial: "R",
+    color: "#F59E0B",
+  },
 ];
 
 export function TestimonialsSection() {
