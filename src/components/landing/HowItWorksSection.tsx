@@ -78,43 +78,54 @@ export function HowItWorksSection() {
 
 
           {steps.map(({ number, icon: Icon, title, description, color }, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 28 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.6, delay: i * 0.15, ease: [0.16, 1, 0.3, 1] }}
-              className="flex flex-col items-center text-center gap-4 py-8 md:py-0"
-            >
-              {/* Icon circle */}
-              <div className="relative z-10">
-                <motion.div
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                  style={{
-                    background: `${color}15`,
-                    border: `1px solid ${color}30`,
-                    boxShadow: `0 0 24px ${color}20`,
-                  }}
-                  whileHover={{ boxShadow: `0 0 36px ${color}35` }}
-                >
-                  <Icon className="w-7 h-7" style={{ color }} />
-                </motion.div>
-                <span
-                  className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white"
-                  style={{ background: "linear-gradient(135deg, #6366F1, #3B82F6)" }}
-                >
-                  {i + 1}
-                </span>
-              </div>
+            <div key={i} className="contents">
+              <motion.div
+                initial={{ opacity: 0, y: 28 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.6, delay: i * 0.15, ease: [0.16, 1, 0.3, 1] }}
+                className="relative z-10 flex flex-col items-center text-center gap-4 md:py-0"
+              >
+                {/* Icon circle — bg-white masks the desktop connector line */}
+                <div className="relative bg-white rounded-2xl">
+                  <motion.div
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                    style={{
+                      background: `${color}15`,
+                      border: `1px solid ${color}30`,
+                      boxShadow: `0 0 24px ${color}20`,
+                    }}
+                    whileHover={{ boxShadow: `0 0 36px ${color}35` }}
+                  >
+                    <Icon className="w-7 h-7" style={{ color }} />
+                  </motion.div>
+                  <span
+                    className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white"
+                    style={{ background: "linear-gradient(135deg, #6366F1, #3B82F6)" }}
+                  >
+                    {i + 1}
+                  </span>
+                </div>
 
-              <div className="max-w-xs md:max-w-none">
-                <p className="text-xs font-bold tracking-widest mb-2" style={{ color: `${color}80` }}>
-                  {number}
-                </p>
-                <h3 className="text-lg font-bold text-[#1A1A2E] mb-2">{title}</h3>
-                <p className="text-sm text-[#4A5568] leading-relaxed">{description}</p>
-              </div>
-            </motion.div>
+                <div className="max-w-xs md:max-w-none">
+                  <p className="text-xs font-bold tracking-widest mb-2" style={{ color: `${color}80` }}>
+                    {number}
+                  </p>
+                  <h3 className="text-lg font-bold text-[#1A1A2E] mb-2">{title}</h3>
+                  <p className="text-sm text-[#4A5568] leading-relaxed">{description}</p>
+                </div>
+              </motion.div>
+
+              {/* Mobile vertical connector between steps */}
+              {i < steps.length - 1 && (
+                <div className="flex justify-center md:hidden py-2" aria-hidden>
+                  <div
+                    className="w-px h-8"
+                    style={{ background: "linear-gradient(180deg, #6366F1, #06B6D4)" }}
+                  />
+                </div>
+              )}
+            </div>
           ))}
         </div>
       </div>
