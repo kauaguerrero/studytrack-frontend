@@ -36,7 +36,7 @@ const testimonials = [
 
 export function TestimonialsSection() {
   return (
-    <section className="py-16 sm:py-24 bg-[#F8F9FA] relative overflow-hidden">
+    <section className="pt-8 pb-16 sm:pt-6 sm:pb-24 bg-[#F8F9FA] relative overflow-hidden">
       <div
         className="absolute top-0 left-0 right-0 h-px pointer-events-none"
         style={{ background: "linear-gradient(90deg, transparent, rgba(99,102,241,0.2), transparent)" }}
