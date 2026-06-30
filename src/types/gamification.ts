@@ -84,6 +84,7 @@ export interface PopupState {
     position: 1 | 2 | 3;
     full_name: string;
     is_anonymous?: boolean;
+    avatar_url?: string | null;
     monthly_points: number;
   }>;
   /** For month_end: user's final rank for that month */

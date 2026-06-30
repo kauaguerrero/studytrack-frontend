@@ -180,7 +180,7 @@ export function ContextualPopup({ popupState, ranking, slug, onDismiss }: Props)
               <p className={`mt-2 text-sm leading-relaxed ${theme.bodyClass}`}>
                 {isUrgency
                   ? `Você caiu uma posição. Recupere o lugar hoje para não abrir distância.`
-                  : `Seu lugar já existe no ranking. Os 3 primeiros lideram o ranking, mas a meta real é chegar a 1.500 pts no mês.`}
+                  : `Seu lugar já existe no ranking. Os 3 primeiros lideram o ranking, mas a meta real é chegar a 1.000 pts no mês.`}
               </p>
             </div>
           </div>
@@ -300,7 +300,7 @@ export function ContextualPopup({ popupState, ranking, slug, onDismiss }: Props)
                 <div className="flex items-start gap-2">
                   <Zap className="mt-0.5 h-4 w-4 text-amber-300" />
                   <p className={`text-sm leading-relaxed ${theme.softTextClass}`}>
-                    Faltam <span className={`font-black ${theme.titleClass}`}>{popupState.points_to_top3 ?? 0} pts</span> para você encostar no topo. Estar entre os primeiros acelera a corrida. A meta é 1.500 pts no mês.
+                    Faltam <span className={`font-black ${theme.titleClass}`}>{popupState.points_to_top3 ?? 0} pts</span> para você encostar no topo. Estar entre os primeiros acelera a corrida. A meta é 1.000 pts no mês.
                   </p>
                 </div>
               </div>

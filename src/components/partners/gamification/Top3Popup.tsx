@@ -436,7 +436,7 @@ export function Top3Popup({ position, ranking, slug, onDismiss }: Props) {
               <div className="flex items-start gap-3">
                 <Trophy className="mt-0.5 h-4 w-4 text-amber-300" />
                 <p className={`text-[13px] leading-relaxed ${theme.softTextClass}`}>
-                  Agora você está visível na zona mais disputada do mês. O objetivo continua o mesmo: sustentar a posição e correr para os <span className={`font-black ${theme.titleClass}`}>1.500 pts</span>.
+                  Agora você está visível na zona mais disputada do mês. O objetivo continua o mesmo: sustentar a posição e correr para os <span className={`font-black ${theme.titleClass}`}>1.000 pts</span>.
                 </p>
               </div>
             </div>
