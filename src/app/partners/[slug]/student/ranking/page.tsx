@@ -484,6 +484,40 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
             ))}
           </div>
         )}
+        {(entry.has_questions_leader_badge || entry.has_accuracy_leader_badge || entry.has_streak_leader_badge) && (
+          <div className="mt-1 flex flex-wrap items-center gap-1 sm:hidden">
+            {entry.has_questions_leader_badge && (
+              <span
+                className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white"
+                style={{
+                  background: 'linear-gradient(135deg, #F59E0B, #D97706)',
+                }}
+              >
+                Questões
+              </span>
+            )}
+            {entry.has_accuracy_leader_badge && (
+              <span
+                className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white"
+                style={{
+                  background: 'linear-gradient(135deg, #10B981, #059669)',
+                }}
+              >
+                Acerto
+              </span>
+            )}
+            {entry.has_streak_leader_badge && (
+              <span
+                className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white"
+                style={{
+                  background: 'linear-gradient(135deg, #EF4444, #DC2626)',
+                }}
+              >
+                Sequência
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Points + prize */}
@@ -503,7 +537,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
           </span>
         </div>
         {(entry.has_questions_leader_badge || entry.has_accuracy_leader_badge || entry.has_streak_leader_badge) ? (
-          <div className="flex flex-wrap items-center justify-end gap-1">
+          <div className="hidden sm:flex flex-wrap items-center justify-end gap-1">
             {entry.has_questions_leader_badge && (
               <span
                 className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white"
@@ -518,7 +552,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
               <span
                 className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white"
                 style={{
-                  background: 'linear-gradient(135deg, #22C55E, #15803D)',
+                  background: 'linear-gradient(135deg, #10B981, #059669)',
                 }}
               >
                 Maior % de acerto
@@ -528,7 +562,7 @@ function RankRow({ entry, isSelf, isPrize, index }: RowProps) {
               <span
                 className="rounded-full px-2 py-0.5 text-[8px] font-bold text-white"
                 style={{
-                  background: 'linear-gradient(135deg, #EF4444, #B91C1C)',
+                  background: 'linear-gradient(135deg, #EF4444, #DC2626)',
                 }}
               >
                 Maior sequência

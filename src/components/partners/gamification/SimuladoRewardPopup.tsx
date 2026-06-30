@@ -13,7 +13,7 @@ interface Props {
   onViewRanking: () => void;
 }
 
-const MONTHLY_GOAL = 1500;
+const MONTHLY_GOAL = 1000;
 
 // ── Confetti: 20 partículas irradiam do centro para fora (sem lib externa) ───
 
@@ -207,7 +207,7 @@ export function SimuladoRewardPopup({
             <div className="flex justify-between items-baseline mb-2">
               <p className={`text-xs ${theme.mutedClass}`}>Progresso no ranking do mês</p>
               <p className={`text-xs font-semibold ${theme.titleClass}`}>
-                {newMonthlyPoints.toLocaleString('pt-BR')} / 1.500 pts
+                {newMonthlyPoints.toLocaleString('pt-BR')} / 1.000 pts
               </p>
             </div>
             <div
