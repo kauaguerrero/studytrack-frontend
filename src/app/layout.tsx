@@ -1,14 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { GlobalErrorHandler } from "@/components/GlobalErrorHandler";
 import { PerformancePatch } from "@/components/PerformancePatch";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const generalSans = localFont({
+  src: "../../public/fonts/GeneralSans-Variable.woff2",
+  variable: "--font-general",
+  weight: "200 700",
+  display: "swap",
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-plus-jakarta",
 });
 
 const geistMono = Geist_Mono({
@@ -59,7 +68,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased animate-in fade-in duration-300`}
+        className={`${generalSans.variable} ${plusJakartaSans.variable} ${geistMono.variable} antialiased animate-in fade-in duration-300`}
       >
         <ThemeProvider>
           <PerformancePatch />
