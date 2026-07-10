@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
+import { AnnouncementBell } from '@/components/announcements/AnnouncementBell';
 import {
   LayoutDashboard,
   Users,
@@ -373,7 +374,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         className={cn(
-          'partner-sidebar hidden md:flex md:flex-col shrink-0 border-r dark:border-slate-800 bg-white dark:bg-slate-900 transition-[width] duration-300 ease-in-out overflow-hidden',
+          'partner-sidebar hidden md:flex md:flex-col shrink-0 border-r dark:border-slate-800 bg-white dark:bg-slate-900 transition-[width] duration-300 ease-in-out overflow-hidden will-change-[width]',
           collapsed ? 'w-20' : 'w-64'
         )}
       >
@@ -409,16 +410,19 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
             </div>
 
             {(isPartnerStudent || !isAssociate) ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-touch"
-                className="shrink-0"
-                aria-label="Abrir menu completo"
-                onClick={() => setIsMobileMenuOpen(true)}
-              >
-                <Menu className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-              </Button>
+              <div className="flex shrink-0 items-center gap-0.5">
+                {isPartnerStudent && <AnnouncementBell />}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-touch"
+                  className="shrink-0"
+                  aria-label="Abrir menu completo"
+                  onClick={() => setIsMobileMenuOpen(true)}
+                >
+                  <Menu className="h-5 w-5 text-slate-500 dark:text-slate-300" />
+                </Button>
+              </div>
             ) : (
               <button
                 onClick={handleSignOut}

@@ -14,6 +14,7 @@ import { motion, type Variants } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { readableBrandText, readableBrandTextOnDark, onBrandText } from '@/lib/brand-color';
+import { SmokeBackground } from '@/components/ui/spooky-smoke-animation';
 
 /** CSS vars prontas pra `.brand-text-adaptive` decidir claro/escuro via seletor `.dark`. */
 function brandTextAdaptiveStyle(hex: string | undefined | null, cssVar: string) {
@@ -95,6 +96,7 @@ export function KpiCard({
   accentHex,
   delta,
   deltaLabel,
+  topRightBadge,
 }: {
   title: string;
   value: number | string;
@@ -106,6 +108,9 @@ export function KpiCard({
   accentHex?: string;
   delta?: number | null;
   deltaLabel?: string | null;
+  /** Substitui o delta/seta padrão no canto superior direito por um conteúdo
+   * customizado (ex: badge de conquista/liderança). */
+  topRightBadge?: React.ReactNode;
 }) {
   const iconBg = `color-mix(in srgb, ${accentColor} 16%, white)`;
   const iconColor = readableBrandText(accentHex, accentColor, 46);
@@ -145,7 +150,7 @@ export function KpiCard({
             />
           </div>
           <div className="flex items-center gap-1.5">
-            {delta !== null && delta !== undefined && !loading ? (
+            {topRightBadge ? topRightBadge : delta !== null && delta !== undefined && !loading ? (
               <div className={`flex items-center gap-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded-full ${
                 delta > 0
                   ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
@@ -367,19 +372,45 @@ export const CHART_TOOLTIP_STYLE_DARK = {
 
 // ─── Hero escuro (navy card com halftone, usado em cabeçalhos de página) ──────
 
-export function BrandHero({ children, className }: { children: React.ReactNode; className?: string }) {
-  const heroBg = 'radial-gradient(120% 140% at 15% 0%, color-mix(in srgb, var(--brand-primary) 45%, #101E45) 0%, color-mix(in srgb, var(--brand-primary) 16%, #060E27) 62%)';
+export function BrandHero({
+  children,
+  className,
+  smokeColorHex,
+  halftone = true,
+  lighten = false,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  /** Ativa a camada de fumaça animada (WebGL) por trás do conteúdo, tingida
+   * com essa cor (hex real da marca — o shader não entende CSS vars). Opt-in:
+   * sem essa prop o hero se comporta exatamente como antes. */
+  smokeColorHex?: string;
+  /** Textura de pontinhos decorativa. Padrão true (comportamento original). */
+  halftone?: boolean;
+  /** Gradiente de base mais claro/aberto em vez do navy escuro padrão. */
+  lighten?: boolean;
+}) {
+  const heroBg = lighten
+    ? 'radial-gradient(120% 140% at 15% 0%, color-mix(in srgb, var(--brand-primary) 34%, #333f5c) 0%, color-mix(in srgb, var(--brand-primary) 16%, #232c44) 62%)'
+    : 'radial-gradient(120% 140% at 15% 0%, color-mix(in srgb, var(--brand-primary) 45%, #101E45) 0%, color-mix(in srgb, var(--brand-primary) 16%, #060E27) 62%)';
   const heroShadow = '0 20px 48px -20px color-mix(in srgb, var(--brand-primary) 35%, rgba(6,14,39,0.6))';
   return (
     <div className={cn('relative overflow-hidden rounded-[22px] p-5 lg:p-7', className)} style={{ background: heroBg, boxShadow: heroShadow }}>
-      <div
-        className="partner-halftone pointer-events-none absolute inset-0"
-        style={{ maskImage: 'radial-gradient(120% 120% at 90% 10%, black, transparent 70%)' }}
-      />
+      {halftone && (
+        <div
+          className="partner-halftone pointer-events-none absolute inset-0"
+          style={{ maskImage: 'radial-gradient(120% 120% at 90% 10%, black, transparent 70%)' }}
+        />
+      )}
       <div
         className="pointer-events-none absolute -top-12 -right-12 h-48 w-48 rounded-full blur-3xl opacity-25"
         style={{ background: 'var(--brand-accent)' }}
       />
+      {smokeColorHex && (
+        <div className="pointer-events-none absolute inset-0 opacity-[0.22] mix-blend-screen">
+          <SmokeBackground smokeColor={smokeColorHex} />
+        </div>
+      )}
       <div className="relative z-10">{children}</div>
     </div>
   );

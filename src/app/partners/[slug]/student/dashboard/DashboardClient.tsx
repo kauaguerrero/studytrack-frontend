@@ -4,12 +4,14 @@ import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap, Shield, User, Zap, Play } from 'lucide-react';
+import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap, Shield, User, Zap, Play, Crown, Target } from 'lucide-react';
 import { ActivityHistoryModal } from '@/components/partners/ActivityHistoryModal';
+import { AnnouncementBell } from '@/components/announcements/AnnouncementBell';
 import { Typewriter } from '@/components/ui/typewriter';
 import { createClient } from '@/lib/supabase/client';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
+import { summarizePodiumStreaks } from '@/lib/podium-streak';
 import { useOrg } from '@/contexts/OrgContext';
 import { readableBrandText, readableBrandTextOnDark, onBrandText, resolveAccentColor } from '@/lib/brand-color';
 import {
@@ -50,6 +52,33 @@ function adaptiveTextStyle(hex: string | undefined | null, cssVar: string) {
     ['--bta-light' as string]: readableBrandText(hex, cssVar),
     ['--bta-dark' as string]: readableBrandTextOnDark(hex, cssVar),
   };
+}
+
+/** Badge de conquista/liderança pro canto superior direito dos KpiCards — só
+ * texto colorido (sem chip/fundo, mais legível), na mesma fonte cursiva do
+ * typewriter do hero (.font-script). Largura capada pra não competir com o
+ * valor do KPI em telas pequenas. */
+function KpiTopBadge({
+  icon: Icon,
+  label,
+  colorLight,
+  colorDark,
+}: {
+  icon: React.ElementType;
+  label: string;
+  colorLight: string;
+  colorDark: string;
+}) {
+  return (
+    <span
+      className="brand-text-adaptive inline-flex min-w-0 max-w-[76px] items-center gap-1 sm:max-w-[150px]"
+      style={{ ['--bta-light' as string]: colorLight, ['--bta-dark' as string]: colorDark }}
+      title={label}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span className="hidden min-w-0 truncate font-script text-[14.5px] leading-none sm:inline">{label}</span>
+    </span>
+  );
 }
 
 function timeAgo(ts?: string | null): string {
@@ -102,7 +131,7 @@ export function DashboardClient({
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { org } = useOrg();
+  const { org, userProfile } = useOrg();
   // Se brand_secondary for preto/branco/cinza (sem identidade cromática pra
   // usar como acento), busca outra cor da marca que já é "perfeita" (ex: o
   // amarelo do accent/primary) em vez de inventar um tom que não existe na paleta.
@@ -113,6 +142,13 @@ export function DashboardClient({
   const [feedLoading, setFeedLoading] = useState(true);
   const [feedInfoOpen, setFeedInfoOpen] = useState(false);
   const [activityModalOpen, setActivityModalOpen] = useState(false);
+  // Painel de dev (só aparece pra conta de teste) — liga/desliga cada badge individualmente.
+  const [devBadgeOverrides, setDevBadgeOverrides] = useState({
+    streak: true,
+    questions: true,
+    accuracy: true,
+    leader: true,
+  });
 
   useEffect(() => {
     const supabase = createClient();
@@ -153,6 +189,12 @@ export function DashboardClient({
   useEffect(() => {
     setEffectiveCurrentStreak(currentStreak);
   }, [currentStreak]);
+
+  // Dados de ranking (badges de liderança/pódio) — só busca se ainda não veio
+  // carregado por outro fluxo (ex: popups de urgência/motivação).
+  useEffect(() => {
+    if (!ranking) void refreshRanking(5);
+  }, [ranking, refreshRanking]);
 
   useEffect(() => {
     if (!popupState || popupState.type === 'none') return;
@@ -330,6 +372,23 @@ export function DashboardClient({
     ? Math.min(100, (monthlyPts / Math.max(tierTargetPts, 1)) * 100)
     : 100;
 
+  // ── Badges de liderança/pódio (KPIs) ────────────────────────────────────────
+  // Contas de teste (plan_tier "b2b_test", já sinalizadas em userProfile.isTestAccount
+  // em todo o app) podem forçar cada badge individualmente via o painel de dev no
+  // fim da página — é o jeito de QA/design conferir o visual sem precisar montar
+  // dados reais de liderança.
+  const isTestAccount = Boolean(userProfile.isTestAccount);
+  const selfRankingEntry = ranking?.user_context?.self ?? null;
+  const isLeader = (isTestAccount && devBadgeOverrides.leader) || (summary?.rank_position ?? selfRankingEntry?.rank) === 1;
+  const leaderMonths = isTestAccount && devBadgeOverrides.leader
+    ? 3
+    : selfRankingEntry
+      ? (summarizePodiumStreaks(selfRankingEntry.podium_history ?? []).find((s) => s.position === 1)?.count ?? (isLeader ? 1 : 0))
+      : (isLeader ? 1 : 0);
+  const hasStreakLeaderBadge = (isTestAccount && devBadgeOverrides.streak) || Boolean(selfRankingEntry?.has_streak_leader_badge);
+  const hasQuestionsLeaderBadge = (isTestAccount && devBadgeOverrides.questions) || Boolean(selfRankingEntry?.has_questions_leader_badge);
+  const hasAccuracyLeaderBadge = (isTestAccount && devBadgeOverrides.accuracy) || Boolean(selfRankingEntry?.has_accuracy_leader_badge);
+
   // ── CTA de retomada (hero) ─────────────────────────────────────────────────
   const resumeSubtitle = effectiveCurrentStreak > 0
     ? `Sequência de ${effectiveCurrentStreak} ${effectiveCurrentStreak === 1 ? 'dia' : 'dias'} — continue estudando hoje.`
@@ -345,7 +404,7 @@ export function DashboardClient({
 
           {/* ── 1. Hero Banner ─────────────────────────────────────────────── */}
           <RevealItem>
-            <BrandHero>
+            <BrandHero smokeColorHex={org.brand_primary ?? undefined} halftone={false} lighten>
               <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
               <div className="flex flex-col gap-1 lg:min-w-0 lg:flex-1">
                 {/* Org label */}
@@ -433,6 +492,9 @@ export function DashboardClient({
                       {monthlyPts.toLocaleString('pt-BR')} pts
                     </span>
                   </div>
+
+                  {/* Sino de novidades — desktop, ao lado do card de pontos */}
+                  <AnnouncementBell className="hidden lg:inline-flex hover:bg-white/10" iconClassName="text-white/70" />
                 </div>
               </div>
 
@@ -479,6 +541,9 @@ export function DashboardClient({
               icon={Flame}
               accentColor="var(--brand-primary)"
               accentHex={org.brand_primary}
+              topRightBadge={hasStreakLeaderBadge ? (
+                <KpiTopBadge icon={Flame} label="Maior sequência" colorLight="#DC2626" colorDark="#F87171" />
+              ) : undefined}
             />
             <KpiCard
               title="Questões"
@@ -488,6 +553,16 @@ export function DashboardClient({
               href={`/partners/${slug}/student/banco-de-questoes`}
               accentColor={secondaryAccent.cssVar}
               accentHex={secondaryAccent.hex ?? undefined}
+              topRightBadge={(hasQuestionsLeaderBadge || hasAccuracyLeaderBadge) ? (
+                <div className="flex flex-col items-end gap-1">
+                  {hasQuestionsLeaderBadge && (
+                    <KpiTopBadge icon={BookOpen} label="Mais questões" colorLight="#B45309" colorDark="#FBBF24" />
+                  )}
+                  {hasAccuracyLeaderBadge && (
+                    <KpiTopBadge icon={Target} label="Maior acerto" colorLight="#15803D" colorDark="#4ADE80" />
+                  )}
+                </div>
+              ) : undefined}
             />
             <KpiCard
               title="Simulados"
@@ -507,6 +582,14 @@ export function DashboardClient({
               loading={summary === null}
               accentColor="#8b5cf6"
               accentHex="#8b5cf6"
+              topRightBadge={isLeader ? (
+                <KpiTopBadge
+                  icon={Crown}
+                  label={leaderMonths >= 2 ? `${leaderMonths} meses na liderança!` : 'Líder do mês!'}
+                  colorLight="#B45309"
+                  colorDark="#FBBF24"
+                />
+              ) : undefined}
             />
           </RevealItem>
 
@@ -783,6 +866,36 @@ export function DashboardClient({
               </ElevatedCard>
             </Link>
           </RevealItem>
+
+          {/* ── Painel de dev — só conta de teste, liga/desliga cada badge ───── */}
+          {isTestAccount && (
+            <RevealItem className="flex justify-center pt-2">
+              <div className="flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-dashed border-slate-300 bg-white/70 px-3 py-1.5 dark:border-white/10 dark:bg-white/[0.03]">
+                <span className="mr-1 text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-white/25">
+                  Dev · badges
+                </span>
+                {([
+                  ['streak', 'Sequência'],
+                  ['questions', 'Questões'],
+                  ['accuracy', 'Acerto'],
+                  ['leader', 'Líder'],
+                ] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setDevBadgeOverrides((prev) => ({ ...prev, [key]: !prev[key] }))}
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                      devBadgeOverrides[key]
+                        ? 'bg-slate-800 text-white dark:bg-white/20'
+                        : 'bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-white/30'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </RevealItem>
+          )}
 
         </RevealGroup>
       </div>
