@@ -22,23 +22,23 @@ import { getProgressTierMeta } from '@/components/partners/gamification/titleSys
 import type { PartnerRankingEntry } from '@/types/gamification';
 import { getInitials, getRankingDisplayName, isAnonymousRankingEntry } from '@/lib/ranking-privacy';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
+import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { useOrg } from '@/contexts/OrgContext';
+import { readableBrandText } from '@/lib/brand-color';
+import {
+  RevealGroup, RevealItem, ElevatedCard, SectionTitle, BrandHero, HERO_ACCENT_COLOR,
+} from '@/components/partners/founder-ui';
 
 // ─── Animation config ────────────────────────────────────────────────────────
 
 const CONTAINER = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.07, delayChildren: 0.1 } },
+  show: { transition: { staggerChildren: 0.09, delayChildren: 0.04 } },
 };
 
 const ITEM = {
-  hidden: { opacity: 0, y: 20, scale: 0.98 },
-  show: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const },
-  },
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] as const } },
 };
 
 const ROW_VARIANTS = {
@@ -230,7 +230,7 @@ function PodiumEntry({ entry }: { entry: PartnerRankingEntry }) {
 
 // ─── Row ─────────────────────────────────────────────────────────────────────
 
-function RankRow({ entry, isPrize, index }: { entry: PartnerRankingEntry; isPrize: boolean; index: number }) {
+function RankRow({ entry, isPrize, index, brandHex }: { entry: PartnerRankingEntry; isPrize: boolean; index: number; brandHex?: string }) {
   const isTop3 = entry.rank <= 3;
   const theme = isTop3 ? RANK_THEMES[entry.rank as 1 | 2 | 3] : null;
   const progressMeta = getProgressTierMeta(entry.progress_tier);
@@ -254,7 +254,7 @@ function RankRow({ entry, isPrize, index }: { entry: PartnerRankingEntry; isPriz
           </div>
         ) : (
           <span className={`text-xs font-bold tabular-nums ${isPrize ? '' : 'text-slate-400 dark:text-slate-500/60'}`}
-            style={isPrize ? { color: 'var(--brand-primary)' } : undefined}>
+            style={isPrize ? { color: readableBrandText(brandHex, 'var(--brand-primary)') } : undefined}>
             {entry.rank}
           </span>
         )}
@@ -330,7 +330,7 @@ function RankRow({ entry, isPrize, index }: { entry: PartnerRankingEntry; isPriz
 
       <div className="flex shrink-0 flex-col items-end gap-1">
         <div className="flex items-center gap-1">
-          {isPrize && <Zap className="h-3 w-3" style={{ color: 'var(--brand-primary)' }} />}
+          {isPrize && <Zap className="h-3 w-3" style={{ color: readableBrandText(brandHex, 'var(--brand-primary)') }} />}
           <span className="text-xs sm:text-sm font-extrabold tabular-nums text-slate-800 dark:text-white/90"
             style={isTop3 && theme ? { color: theme.textColor } : undefined}>
             {formatPoints(entry.monthly_points)}
@@ -419,6 +419,7 @@ export default function FounderRankingPage() {
   const hasTopDivider = visibleList.length > topCutoff;
 
   return (
+    <ModuleGuard permKey="ranking_enabled">
     <PartnerLayout>
       <div className="relative -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 min-h-full overflow-hidden bg-slate-50 dark:bg-[#080808]">
         <div className="hidden dark:block pointer-events-none absolute inset-0"
@@ -583,5 +584,6 @@ export default function FounderRankingPage() {
         </div>
       </div>
     </PartnerLayout>
+    </ModuleGuard>
   );
 }

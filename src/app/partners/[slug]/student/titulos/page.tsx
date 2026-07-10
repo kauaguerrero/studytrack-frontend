@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { useOrg } from '@/contexts/OrgContext';
+import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { getIdentityTitleIcon, getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
 
 function formatMonthLabel(monthRef: string): string {
@@ -102,6 +103,7 @@ export default function PartnerStudentTitlesPage() {
   }
 
   return (
+    <ModuleGuard permKey="titulos_enabled">
     <div className="relative min-h-screen -m-4 overflow-hidden bg-slate-50 px-4 py-5 md:-m-8 md:px-8 md:py-8 dark:bg-[#080808]">
       <div
         className="pointer-events-none absolute inset-0 hidden dark:block"
@@ -519,5 +521,6 @@ export default function PartnerStudentTitlesPage() {
         </section>
       </div>
     </div>
+    </ModuleGuard>
   );
 }

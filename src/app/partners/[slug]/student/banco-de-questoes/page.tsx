@@ -20,6 +20,7 @@ import { QuestionCard } from '@/components/questions/QuestionCard';
 import { ReportDialog } from '@/components/questions/ReportDialog';
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
 import { toast } from 'sonner';
+import { ModuleGuard } from '@/components/partners/ModuleGuard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -523,6 +524,7 @@ export default function BancoDeQuestoes() {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
+    <ModuleGuard permKey="banco_questoes_enabled">
     <div className="bg-[#F5F5F7] dark:bg-slate-950/50 overscroll-none">
 
       <ReportDialog
@@ -1070,5 +1072,6 @@ export default function BancoDeQuestoes() {
       </AnimatePresence>
 
     </div>
+    </ModuleGuard>
   );
 }

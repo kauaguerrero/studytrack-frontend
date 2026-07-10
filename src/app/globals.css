@@ -151,6 +151,10 @@
   line-height: 1.08;
 }
 
+.font-script {
+  font-family: var(--font-caveat), cursive;
+}
+
 /* Halftone dot texture for dark hero/chart cards */
 .partner-halftone {
   background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1.5px);
@@ -188,6 +192,40 @@
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.3),
     0 16px 32px -12px rgba(0, 0, 0, 0.65);
+}
+
+/*
+ * Texto/superfície de cor de marca que se adapta ao tema sem precisar de JS
+ * sabendo qual está ativo agora. O componente injeta os dois valores prontos
+ * (via readableBrandText / readableBrandTextOnDark, ou brandTextVars) como
+ * CSS custom properties inline; o CSS decide qual usar pelo seletor .dark.
+ */
+.brand-text-adaptive {
+  color: var(--bta-light);
+}
+.dark .brand-text-adaptive {
+  color: var(--bta-dark, var(--bta-light));
+}
+
+.brand-surface-adaptive {
+  background: var(--bsa-bg-light);
+  color: var(--bsa-fg-light);
+}
+.dark .brand-surface-adaptive {
+  background: var(--bsa-bg-dark, var(--bsa-bg-light));
+  color: var(--bsa-fg-dark, var(--bsa-fg-light));
+}
+
+/* Glow respirando — chama atenção pro CTA sem ficar berrante nem travar performance. */
+@keyframes cta-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--cta-glow-color, transparent); }
+  50% { box-shadow: 0 0 0 10px transparent, 0 0 22px 2px var(--cta-glow-color, transparent); }
+}
+.cta-glow-pulse {
+  animation: cta-glow-pulse 2.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cta-glow-pulse { animation: none; }
 }
 
 .katex-display-wrap .katex-display {

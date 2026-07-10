@@ -24,6 +24,7 @@ import type {
   PartnerRankingEntry,
 } from '@/types/gamification';
 import { getInitials, getRankingDisplayName, isAnonymousRankingEntry } from '@/lib/ranking-privacy';
+import { ModuleGuard } from '@/components/partners/ModuleGuard';
 
 // ─── Animation config ────────────────────────────────────────────────────────
 
@@ -697,6 +698,7 @@ export default function RankingPage() {
   const hasTopDivider = visibleList.length > topCutoff;
 
   return (
+    <ModuleGuard permKey="ranking_enabled">
     <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 overflow-hidden bg-slate-50 dark:bg-[#080808]">
       {/* Dark mode gradient overlay */}
       <div
@@ -1084,5 +1086,6 @@ export default function RankingPage() {
       </motion.div>
     </div>
     </div>
+    </ModuleGuard>
   );
 }

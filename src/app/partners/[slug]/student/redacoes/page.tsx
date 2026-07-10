@@ -8,6 +8,7 @@ import { getApiBaseUrl } from '@/lib/api-base';
 import { cn } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { useOrg } from '@/contexts/OrgContext';
+import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { ArrowDown, ArrowUp, CalendarDays, ChevronDown, Eye, FileText, Minus, Plus, TrendingUp, BarChart3, CheckCircle2, Clock, Target } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip,
@@ -330,6 +331,7 @@ export default function StudentRedacoesPage() {
   }, [essaysByType, filter, sortBy, sortOption]);
 
   return (
+    <ModuleGuard permKey="redacoes_enabled">
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 md:px-6 md:py-8">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -833,5 +835,6 @@ export default function StudentRedacoesPage() {
         )}
       </div>
     </div>
+    </ModuleGuard>
   );
 }

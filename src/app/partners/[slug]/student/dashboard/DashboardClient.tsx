@@ -4,12 +4,18 @@ import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap, Shield, Activity, User, Zap } from 'lucide-react';
+import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap, Shield, User, Zap, Play } from 'lucide-react';
 import { ActivityHistoryModal } from '@/components/partners/ActivityHistoryModal';
 import { Typewriter } from '@/components/ui/typewriter';
 import { createClient } from '@/lib/supabase/client';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
+import { getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
 import { useOrg } from '@/contexts/OrgContext';
+import { readableBrandText, readableBrandTextOnDark, onBrandText, resolveAccentColor } from '@/lib/brand-color';
+import {
+  RevealGroup, RevealItem, ElevatedCard, KpiCard, SectionTitle,
+  BrandHero, HERO_ACCENT_COLOR,
+} from '@/components/partners/founder-ui';
 import { OnboardingDiagnosticModal } from '@/components/partners/gamification/OnboardingDiagnosticModal';
 import { RankingPopup } from '@/components/partners/gamification/RankingPopup';
 import { StreakPopup } from '@/components/partners/gamification/StreakPopup';
@@ -38,6 +44,14 @@ interface FeedItem {
   timestamp?: string | null;
 }
 
+/** CSS vars pra `.brand-text-adaptive` escolher claro/escuro sozinho via `.dark`. */
+function adaptiveTextStyle(hex: string | undefined | null, cssVar: string) {
+  return {
+    ['--bta-light' as string]: readableBrandText(hex, cssVar),
+    ['--bta-dark' as string]: readableBrandTextOnDark(hex, cssVar),
+  };
+}
+
 function timeAgo(ts?: string | null): string {
   if (!ts) return '';
   const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
@@ -46,20 +60,6 @@ function timeAgo(ts?: string | null): string {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`;
   return `${Math.floor(diff / 86400)}d atrás`;
 }
-
-// ─── Animation config ───────────────────────────────────────────────────────
-
-const CONTAINER = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.07, delayChildren: 0.04 } },
-};
-
-const ITEM = {
-  hidden: { opacity: 0, y: 18 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1] } },
-};
-
-const ITEM_REDUCED = { hidden: {}, show: {} };
 
 // ─── Streak progress helper (kept intact) ───────────────────────────────────
 
@@ -103,9 +103,11 @@ export function DashboardClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { org } = useOrg();
+  // Se brand_secondary for preto/branco/cinza (sem identidade cromática pra
+  // usar como acento), busca outra cor da marca que já é "perfeita" (ex: o
+  // amarelo do accent/primary) em vez de inventar um tom que não existe na paleta.
+  const secondaryAccent = resolveAccentColor(org, 'brand_secondary');
   const shouldReduce = useReducedMotion();
-  const itemVariant = shouldReduce ? ITEM_REDUCED : ITEM;
-  const containerVariant = shouldReduce ? { hidden: {}, show: {} } : CONTAINER;
   const [effectiveCurrentStreak, setEffectiveCurrentStreak] = useState(currentStreak);
   const [activityFeed, setActivityFeed] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
@@ -315,62 +317,37 @@ export function DashboardClient({
   const monthlyPts = summary?.monthly_points ?? 0;
   const monthlyGoal = summary?.monthly_goal ?? 1500;
   const goalReached = summary?.goal_reached ?? false;
-  const goalProgressPct = summary?.goal_progress_pct ?? 0;
   const monthLabel = summary?.month_label ?? '';
   const shieldCount = summary?.shield_count ?? 0;
   const hasShield = shieldCount > 0;
+  const nextTier = summary?.next_tier ?? null;
+  const nextTierMeta = nextTier ? getProgressTierMeta(nextTier) : null;
+  const pointsToNextTier = summary?.points_to_next_tier ?? 0;
+  // Meta e progresso da "Corrida" respondem ao próximo nível, não a um valor fixo —
+  // cada nível pede uma quantidade diferente de pontos.
+  const tierTargetPts = nextTierMeta ? monthlyPts + pointsToNextTier : monthlyPts;
+  const tierProgressPct = nextTierMeta
+    ? Math.min(100, (monthlyPts / Math.max(tierTargetPts, 1)) * 100)
+    : 100;
+
+  // ── CTA de retomada (hero) ─────────────────────────────────────────────────
+  const resumeSubtitle = effectiveCurrentStreak > 0
+    ? `Sequência de ${effectiveCurrentStreak} ${effectiveCurrentStreak === 1 ? 'dia' : 'dias'} — continue estudando hoje.`
+    : questionsCount > 0
+      ? `Você já respondeu ${questionsCount.toLocaleString('pt-BR')} questões. Vamos continuar?`
+      : 'Comece sua primeira questão agora.';
 
   return (
     <>
       {/* ── Container raiz — fundo adaptado ao tema ────────────────────────── */}
       <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 px-4 pt-4 md:px-8 md:pt-8 pb-8 min-h-screen bg-slate-50 dark:bg-[#080808] transition-colors duration-200">
-        <motion.div
-          className="space-y-5"
-          variants={containerVariant}
-          initial="hidden"
-          animate="show"
-        >
-          {/* ── 1. Hero Banner ─────────────────────────────────────────────── */}
-          <motion.div variants={itemVariant}>
-            <div
-              className="relative overflow-hidden rounded-[18px] p-6 flex flex-col gap-0"
-              style={{
-                background: '#0A0A0A',
-                border: '1px solid rgba(255,255,255,0.05)',
-                boxShadow: '0px 20px 25px -5px rgba(0,0,0,0.1), 0px 8px 10px -6px rgba(0,0,0,0.1)',
-              }}
-            >
-              {/* Large top-right glow */}
-              <div
-                className="pointer-events-none absolute -top-8 -right-8 h-40 w-40 rounded-full z-0"
-                style={{ background: 'var(--brand-primary)', opacity: 0.25, filter: 'blur(32px)' }}
-              />
-              {/* Small bottom-right glow */}
-              <div
-                className="pointer-events-none absolute bottom-[1px] right-[41px] h-20 w-20 rounded-full z-[1]"
-                style={{ background: 'var(--brand-primary)', opacity: 0.1, filter: 'blur(20px)' }}
-              />
-              {/* Particle dots */}
-              <div className="pointer-events-none absolute inset-0 z-[2]" style={{ opacity: 0.25 }}>
-                {([
-                  ['84.56%', '14.47%', 0.6], ['91.71%', '44.65%', 0.3], ['74.41%', '69.3%',  0.8],
-                  ['59.71%', '24.65%', 0.6], ['94.56%', '79.47%', 0.3], ['49.71%', '54.65%', 0.8],
-                  ['39.56%', '9.47%',  0.6], ['29.71%', '79.65%', 0.3], ['19.41%', '39.3%',  0.8],
-                  ['9.71%',  '64.65%', 0.6],
-                ] as [string, string, number][]).map(([l, t, op], i) => (
-                  <div
-                    key={i}
-                    className="absolute h-2.5 w-2.5 rounded-full -translate-x-1/2 -translate-y-1/2"
-                    style={{
-                      left: l, top: t, opacity: op,
-                      background: 'radial-gradient(50% 50% at 50% 50%, var(--brand-primary) 0%, transparent 100%)',
-                    }}
-                  />
-                ))}
-              </div>
+        <RevealGroup className="flex flex-col gap-4 lg:gap-5">
 
-              {/* Content */}
-              <div className="relative z-[3] flex flex-col gap-1">
+          {/* ── 1. Hero Banner ─────────────────────────────────────────────── */}
+          <RevealItem>
+            <BrandHero>
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+              <div className="flex flex-col gap-1 lg:min-w-0 lg:flex-1">
                 {/* Org label */}
                 <div className="flex items-center gap-2">
                   {orgLogoUrl ? (
@@ -390,148 +367,275 @@ export function DashboardClient({
                 </div>
 
                 {/* Greeting */}
-                <h1
-                  className="font-bold text-white mt-[10px]"
-                  style={{ fontSize: '23.6px', lineHeight: '24px', letterSpacing: '-0.6px' }}
-                >
+                <h1 className="font-display mt-[10px] text-[27px] font-black leading-none text-white lg:text-[34px]">
                   Olá, {firstName}!
                 </h1>
 
-                {/* Subtitle */}
-                <p className="text-[12.9px] leading-5 text-white/50 mt-1">
-                  Cada questão te aproxima da aprovação.
-                </p>
+                {/* Tagline em script — parte do título, sem caixa/pill ao redor.
+                    Div (não <p>) porque o Typewriter renderiza uma <div> internamente,
+                    e <div> dentro de <p> é HTML inválido (quebra a hidratação). */}
+                <div
+                  className="font-script mt-1 text-[24px] leading-tight text-white lg:text-[28px]"
+                  style={{ ['--hero-accent' as string]: HERO_ACCENT_COLOR }}
+                >
+                  Nós nascemos para{' '}
+                  <Typewriter
+                    text={slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                    speed={95}
+                    deleteSpeed={52}
+                    waitTime={2600}
+                    className="text-[var(--hero-accent)]"
+                    cursorClassName="text-[var(--hero-accent)]"
+                  />
+                </div>
 
-                {/* Badges */}
-                <div className="mt-4 flex flex-col gap-2">
-                  {/* Row 1: streak + points */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {/* Streak pill */}
-                    <div
-                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-[6px]"
-                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+                {/* Badges: sequência + pontos */}
+                <div className="mt-4 flex items-center gap-2 flex-wrap">
+                  {/* Streak pill */}
+                  <div
+                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-[6px]"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+                  >
+                    <Flame className="h-3.5 w-3.5 shrink-0" style={{ color: HERO_ACCENT_COLOR }} />
+                    <span className="text-[12px] font-bold text-white/80">
+                      {effectiveCurrentStreak} {effectiveCurrentStreak === 1 ? 'dia' : 'dias'}
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-[3px] ml-0.5"
+                      title={hasShield ? `${shieldCount} escudo${shieldCount !== 1 ? 's' : ''}` : 'Sem escudo'}
                     >
-                      <Flame className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
-                      <span className="text-[12px] font-bold text-white/80">
-                        {effectiveCurrentStreak} {effectiveCurrentStreak === 1 ? 'dia' : 'dias'}
-                      </span>
+                      <Shield
+                        className="h-[13px] w-[13px]"
+                        strokeWidth={2.2}
+                        style={{ color: hasShield ? '#60a5fa' : 'rgba(255,255,255,0.2)' }}
+                      />
                       <span
-                        className="inline-flex items-center gap-[3px] ml-0.5"
-                        title={hasShield ? `${shieldCount} escudo${shieldCount !== 1 ? 's' : ''}` : 'Sem escudo'}
+                        className="text-[10px] font-bold leading-none"
+                        style={{ color: hasShield ? '#60a5fa' : 'rgba(255,255,255,0.2)' }}
                       >
-                        <Shield
-                          className="h-[13px] w-[13px]"
-                          strokeWidth={2.2}
-                          style={{ color: hasShield ? '#60a5fa' : 'rgba(255,255,255,0.2)' }}
-                        />
-                        <span
-                          className="text-[10px] font-bold leading-none"
-                          style={{ color: hasShield ? '#60a5fa' : 'rgba(255,255,255,0.2)' }}
-                        >
-                          {shieldCount}
-                        </span>
+                        {shieldCount}
                       </span>
-                    </div>
-
-                    {/* Points pill */}
-                    <div
-                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-[6px]"
-                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
-                    >
-                      <div
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[8px]"
-                        style={{ background: 'color-mix(in srgb, var(--brand-primary) 15%, transparent)' }}
-                      >
-                        <Zap className="h-3 w-3" style={{ color: 'var(--brand-primary)' }} />
-                      </div>
-                      <span className="text-[12px] font-bold text-white/80">
-                        {monthlyPts.toLocaleString('pt-BR')} pts
-                      </span>
-                    </div>
+                    </span>
                   </div>
 
-                  {/* Row 2: typewriter */}
+                  {/* Points pill */}
                   <div
-                    className="flex items-center w-full rounded-[18px] px-3 py-2"
-                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)' }}
+                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-[6px]"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
                   >
-                    <span className="text-[13.5px] text-white/85 whitespace-nowrap mr-1">📚 Nós nascemos para</span>
-                    <Typewriter
-                      text={slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
-                      speed={95}
-                      deleteSpeed={52}
-                      waitTime={2600}
-                      className="font-bold text-[14px] tracking-[-0.35px] text-[var(--brand-primary)]"
-                      cursorClassName="ml-0.5 text-[var(--brand-primary)]"
-                    />
+                    <div
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[8px]"
+                      style={{ background: 'color-mix(in srgb, var(--brand-primary) 15%, transparent)' }}
+                    >
+                      <Zap className="h-3 w-3" style={{ color: HERO_ACCENT_COLOR }} />
+                    </div>
+                    <span className="text-[12px] font-bold text-white/80">
+                      {monthlyPts.toLocaleString('pt-BR')} pts
+                    </span>
                   </div>
                 </div>
               </div>
-            </div>
-          </motion.div>
 
-          {/* ── 2. Feed de atividades ────────────────────────────────────────── */}
-          <motion.div variants={itemVariant}>
-            <div className="relative overflow-hidden rounded-[18px] p-5 flex flex-col gap-3 bg-white dark:bg-[#0F0F0F] border border-slate-200 dark:border-white/[0.06]">
-              {/* Bottom brand glow */}
-              <div
-                className="pointer-events-none absolute bottom-[1.5px] left-[1px] right-[1px] h-16 blur-xl z-0"
-                style={{
-                  background: 'linear-gradient(0deg, color-mix(in srgb, var(--brand-primary) 40%, transparent) 0%, transparent 100%)',
-                  opacity: 0.2,
-                }}
-              />
-
-              <div className="relative z-10 flex flex-col gap-3">
-                {/* Header */}
-                <div className="flex items-center gap-2">
-                  <div
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[8px]"
-                    style={{ background: 'color-mix(in srgb, var(--brand-primary) 15%, transparent)' }}
+              {/* CTA de retomada — botão "pressionável" estilo app gamificado: camada
+                  de baixo mais escura simula profundidade 3D e "afunda" no clique/toque. */}
+              <div className="flex shrink-0 flex-col items-center gap-3">
+                <p className="text-center text-[11.5px] font-semibold leading-snug text-white/55">
+                  {resumeSubtitle}
+                </p>
+                <Link
+                  href={`/partners/${slug}/student/banco-de-questoes`}
+                  className="cta-glow-pulse group relative inline-block select-none rounded-2xl"
+                  style={{ ['--cta-glow-color' as string]: 'color-mix(in srgb, var(--brand-accent) 55%, transparent)' }}
+                >
+                  {/* borda 3D — fica visível como "degrau" abaixo da face do botão */}
+                  <span
+                    className="absolute inset-0 rounded-2xl transition-transform duration-100 ease-out"
+                    style={{ background: 'color-mix(in srgb, var(--brand-accent) 65%, black)', transform: 'translateY(5px)' }}
+                  />
+                  {/* face do botão — sobe em repouso, "afunda" ao pressionar */}
+                  <span
+                    className="relative flex items-center justify-center gap-2 rounded-2xl px-7 py-3.5 text-[14.5px] font-black tracking-tight transition-transform duration-100 ease-out group-hover:-translate-y-0.5 group-active:translate-y-[4px]"
+                    style={{
+                      background: 'var(--brand-accent)',
+                      color: onBrandText(org.brand_accent),
+                      textShadow: '0 1px 2px rgba(0,0,0,0.25)',
+                    }}
                   >
-                    <Activity className="h-2.5 w-2.5" style={{ color: 'var(--brand-primary)' }} />
-                  </div>
-                  <span className="text-[10.3px] font-bold uppercase tracking-[1.65px] text-slate-400 dark:text-white/35">
-                    Feed de atividades
+                    <Play className="h-4 w-4" fill="currentColor" strokeWidth={0} />
+                    Continue de onde parou
                   </span>
-                  <div className="ml-auto relative">
-                    <button
-                      onClick={() => setFeedInfoOpen(v => !v)}
-                      className="flex h-4 w-4 items-center justify-center rounded-full border transition-colors select-none leading-none"
+                </Link>
+              </div>
+              </div>
+            </BrandHero>
+          </RevealItem>
+
+          {/* ── KPIs pessoais ─────────────────────────────────────────────── */}
+          <RevealItem className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+            <KpiCard
+              title="Sequência"
+              value={effectiveCurrentStreak}
+              subtitle={effectiveCurrentStreak === 1 ? '1 dia seguido' : `${effectiveCurrentStreak} dias seguidos`}
+              icon={Flame}
+              accentColor="var(--brand-primary)"
+              accentHex={org.brand_primary}
+            />
+            <KpiCard
+              title="Questões"
+              value={questionsCount}
+              subtitle="Respondidas por você"
+              icon={BookOpen}
+              href={`/partners/${slug}/student/banco-de-questoes`}
+              accentColor={secondaryAccent.cssVar}
+              accentHex={secondaryAccent.hex ?? undefined}
+            />
+            <KpiCard
+              title="Simulados"
+              value={simuladosCount}
+              subtitle="Realizados por você"
+              icon={FileText}
+              href={`/partners/${slug}/student/simulado`}
+              accentColor="var(--brand-accent)"
+              accentHex={org.brand_accent}
+            />
+            <KpiCard
+              title={`Pontos · ${monthLabel || 'Mês'}`}
+              value={monthlyPts.toLocaleString('pt-BR')}
+              subtitle="Na corrida deste mês"
+              icon={Zap}
+              href={`/partners/${slug}/student/ranking`}
+              loading={summary === null}
+              accentColor="#8b5cf6"
+              accentHex="#8b5cf6"
+            />
+          </RevealItem>
+
+          {/* ── 2. Corrida para aprovação ──────────────────────────────────── */}
+          <RevealItem>
+            <ElevatedCard accentColor="var(--brand-primary)">
+              <div className="p-5">
+                <SectionTitle
+                  kicker="Gamificação"
+                  title="Corrida para aprovação"
+                  hex={org.brand_primary}
+                  action={
+                    <span
+                      className="brand-text-adaptive text-[11px] font-bold px-2.5 py-1 rounded-full"
                       style={{
-                        borderColor: 'color-mix(in srgb, var(--brand-primary) 40%, transparent)',
-                        color: 'var(--brand-primary)',
-                        fontSize: '9px',
-                        fontWeight: 700,
-                        paddingTop: '1px',
+                        background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)',
+                        ...adaptiveTextStyle(org.brand_primary, 'var(--brand-primary)'),
                       }}
-                      aria-label="Saiba mais sobre o feed"
                     >
-                      i
-                    </button>
-                    {feedInfoOpen && (
-                      <div className="absolute right-0 top-6 z-20 w-60 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1c] p-3 shadow-xl">
-                        <p className="text-[11px] leading-relaxed text-slate-500 dark:text-white/45">
-                          Faça questões, simulados ou entregue redações para aparecer aqui e acompanhe o que seus amigos estão fazendo.
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                      {monthLabel || 'Este mês'}
+                    </span>
+                  }
+                />
+
+                {/* Pontos em destaque */}
+                <div className="mb-4 flex items-end gap-2">
+                  <span
+                    className="brand-text-adaptive font-display text-[34px] font-black leading-none tabular-nums"
+                    style={adaptiveTextStyle(org.brand_primary, 'var(--brand-primary)')}
+                  >
+                    {monthlyPts.toLocaleString('pt-BR')}
+                  </span>
+                  <span className="pb-1 text-sm font-semibold text-slate-400 dark:text-white/30">
+                    {nextTierMeta
+                      ? `/ ${tierTargetPts.toLocaleString('pt-BR')} pts`
+                      : 'nível máximo'}
+                  </span>
                 </div>
+
+                {/* Barra de progresso premium */}
+                <div className="relative h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/6">
+                  <motion.div
+                    className="h-full rounded-full"
+                    style={{
+                      background: goalReached || !nextTierMeta
+                        ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
+                        : `linear-gradient(90deg, color-mix(in srgb, ${nextTierMeta.color} 65%, white), ${nextTierMeta.color})`,
+                      boxShadow: `0 0 12px color-mix(in srgb, ${nextTierMeta?.color ?? 'var(--brand-primary)'} 40%, transparent)`,
+                    }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${tierProgressPct}%` }}
+                    transition={
+                      shouldReduce
+                        ? { duration: 0 }
+                        : { duration: 1.2, ease: [0.22, 1, 0.36, 1], delay: 0.4 }
+                    }
+                  />
+                </div>
+
+                {/* Status — próximo nível (mesmo sistema do ranking) */}
+                <p className="mt-3 flex items-center gap-1.5 text-[11px] font-medium text-slate-400 dark:text-white/30">
+                  {!summary ? (
+                    'Carregando…'
+                  ) : goalReached ? (
+                    <><Trophy className="h-3 w-3 shrink-0 text-amber-400" /> Você está entre os líderes do mês!</>
+                  ) : nextTierMeta ? (
+                    <>
+                      <nextTierMeta.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: nextTierMeta.color }} />
+                      <span>
+                        Faltam <span className="font-bold tabular-nums" style={{ color: nextTierMeta.color }}>{pointsToNextTier.toLocaleString('pt-BR')} pts</span> para atingir o nível{' '}
+                        <span className="font-bold" style={{ color: nextTierMeta.color }}>{nextTierMeta.title}</span>
+                      </span>
+                    </>
+                  ) : (
+                    `Faltam ${(monthlyGoal - monthlyPts).toLocaleString('pt-BR')} pts para entrar na disputa`
+                  )}
+                </p>
+              </div>
+            </ElevatedCard>
+          </RevealItem>
+
+          {/* ── 3. Feed de atividades ────────────────────────────────────────── */}
+          <RevealItem>
+            <ElevatedCard accentColor={secondaryAccent.cssVar}>
+              <div className="p-5">
+                <SectionTitle
+                  kicker="Comunidade"
+                  title="Feed de atividades"
+                  hex={secondaryAccent.hex ?? undefined}
+                  colorVar={secondaryAccent.cssVar}
+                  action={
+                    <div className="relative">
+                      <button
+                        onClick={() => setFeedInfoOpen(v => !v)}
+                        className="brand-text-adaptive flex h-5 w-5 items-center justify-center rounded-full border transition-colors select-none leading-none"
+                        style={{
+                          borderColor: `color-mix(in srgb, ${secondaryAccent.cssVar} 40%, transparent)`,
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          ...adaptiveTextStyle(secondaryAccent.hex, secondaryAccent.cssVar),
+                        }}
+                        aria-label="Saiba mais sobre o feed"
+                      >
+                        i
+                      </button>
+                      {feedInfoOpen && (
+                        <div className="absolute right-0 top-7 z-20 w-60 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1c] p-3 shadow-xl">
+                          <p className="text-[11px] leading-relaxed text-slate-500 dark:text-white/45">
+                            Faça questões, simulados ou entregue redações para aparecer aqui e acompanhe o que seus amigos estão fazendo.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  }
+                />
 
                 {/* Activity rows */}
                 {feedLoading ? (
                   <div className="flex flex-col gap-2">
                     {[...Array(3)].map((_, i) => (
-                      <div key={i} className="h-[39px] rounded-[18px] bg-slate-100 dark:bg-white/5 animate-pulse" />
+                      <div key={i} className="h-[46px] rounded-[16px] bg-slate-100 dark:bg-white/5 animate-pulse" />
                     ))}
                   </div>
                 ) : activityFeed.length === 0 ? (
-                  <p className="text-[11px] text-slate-400 dark:text-white/30 py-1">
+                  <p className="py-3 text-[12px] text-slate-400 dark:text-white/30">
                     Nenhuma atividade ainda. Responda sua primeira questão!
                   </p>
                 ) : (
-                  <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-2.5">
                     {activityFeed.slice(0, 3).map((item, i) => {
                       const isQuestion = item.type === 'question';
                       const isSimulado = item.type === 'simulado';
@@ -548,10 +652,10 @@ export function DashboardClient({
                       return (
                         <div
                           key={i}
-                          className="relative flex items-center h-[46px] rounded-[18px] border border-slate-200 dark:border-white/[0.12] bg-slate-50 dark:bg-white/[0.05] overflow-hidden"
+                          className="relative flex items-center h-[46px] rounded-[16px] bg-slate-50 dark:bg-white/[0.05] overflow-hidden"
                         >
                           {/* Avatar */}
-                          <div className="absolute left-[13px] h-[22px] w-[22px] rounded-full overflow-hidden shrink-0 ring-1 ring-white/10">
+                          <div className="absolute left-[13px] h-[22px] w-[22px] rounded-full overflow-hidden shrink-0 ring-1 ring-black/5 dark:ring-white/10">
                             {item.student_avatar_url ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
@@ -562,14 +666,11 @@ export function DashboardClient({
                             ) : (
                               <div
                                 className="w-full h-full flex items-center justify-center"
-                                style={{ background: 'color-mix(in srgb, var(--brand-primary) 18%, #0f0f0f)' }}
+                                style={{ background: `color-mix(in srgb, ${secondaryAccent.cssVar} 18%, white)` }}
                               >
                                 <User
                                   className="h-3.5 w-3.5"
-                                  style={{
-                                    color: 'var(--brand-primary)',
-                                    filter: 'drop-shadow(0 0 4px var(--brand-primary))',
-                                  }}
+                                  style={{ color: readableBrandText(secondaryAccent.hex, secondaryAccent.cssVar) }}
                                 />
                               </div>
                             )}
@@ -580,14 +681,14 @@ export function DashboardClient({
                               {peerFirstName} {verb}
                             </span>
                             <span
-                              className="text-[12px] font-bold tracking-[-0.35px] truncate"
-                              style={{ color: 'var(--brand-primary)' }}
+                              className="brand-text-adaptive text-[12px] font-bold tracking-[-0.35px] truncate"
+                              style={adaptiveTextStyle(secondaryAccent.hex, secondaryAccent.cssVar)}
                             >
                               {actionLabel}
                             </span>
                           </div>
                           {/* Timestamp — bottom-right corner */}
-                          <p className="absolute bottom-[7px] right-[12px] text-[6.8px] font-bold text-slate-400 dark:text-white/50 leading-none">
+                          <p className="absolute bottom-[7px] right-[12px] text-[7px] font-bold text-slate-400 dark:text-white/50 leading-none">
                             {timeAgo(item.timestamp)}
                           </p>
                         </div>
@@ -599,117 +700,50 @@ export function DashboardClient({
                 {/* Footer link */}
                 <button
                   onClick={() => setActivityModalOpen(true)}
-                  className="flex items-center gap-1 text-[10.1px] font-medium"
-                  style={{ color: 'var(--brand-primary)' }}
+                  className="brand-text-adaptive mt-3 flex items-center gap-1 text-[11px] font-bold transition-opacity hover:opacity-70"
+                  style={adaptiveTextStyle(secondaryAccent.hex, secondaryAccent.cssVar)}
                 >
                   Ver atividade completa
-                  <ArrowRight className="h-2 w-2" />
+                  <ArrowRight className="h-3 w-3" />
                 </button>
               </div>
-            </div>
-          </motion.div>
+            </ElevatedCard>
+          </RevealItem>
 
-          {/* ── 3. Corrida para aprovação ──────────────────────────────────── */}
-          <motion.div variants={itemVariant}>
-            <div className="relative overflow-hidden rounded-2xl p-5 bg-white dark:bg-[#0F0F0F] border border-slate-200 dark:border-white/6 shadow-sm dark:shadow-none">
-              {/* Glow atrás da barra — só dark */}
-              <div
-                className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 opacity-0 dark:opacity-20 blur-xl"
-                style={{
-                  background: `linear-gradient(to top, color-mix(in srgb, var(--brand-primary) 40%, transparent), transparent)`,
-                }}
-              />
-
-              <div className="relative z-10">
-                {/* Header */}
-                <div className="mb-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="flex h-5 w-5 items-center justify-center rounded-md"
-                      style={{ background: 'color-mix(in srgb, var(--brand-primary) 15%, transparent)' }}
-                    >
-                      <Trophy className="h-3 w-3" style={{ color: 'var(--brand-primary)' }} />
-                    </div>
-                    <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">
-                      Corrida para aprovação
-                    </span>
-                  </div>
-                  <span
-                    className="text-[11px] font-bold px-2 py-0.5 rounded-full"
-                    style={{
-                      background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)',
-                      color: 'var(--brand-primary)',
-                    }}
-                  >
-                    {monthLabel || 'Este mês'}
-                  </span>
-                </div>
-
-                {/* Pontos em destaque */}
-                <div className="mb-4">
-                  <span className="text-4xl font-black tabular-nums" style={{ color: 'var(--brand-primary)' }}>
-                    {monthlyPts.toLocaleString('pt-BR')}
-                  </span>
-                  <span className="text-sm font-semibold ml-2 text-slate-400 dark:text-white/30">
-                    / {monthlyGoal.toLocaleString('pt-BR')} pts
-                  </span>
-                </div>
-
-                {/* Barra de progresso premium */}
-                <div className="relative h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/6">
-                  <motion.div
-                    className="h-full rounded-full"
-                    style={{
-                      background: goalReached
-                        ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
-                        : `linear-gradient(90deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 70%, white))`,
-                      boxShadow: `0 0 12px color-mix(in srgb, var(--brand-primary) 40%, transparent)`,
-                    }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${goalProgressPct}%` }}
-                    transition={
-                      shouldReduce
-                        ? { duration: 0 }
-                        : { duration: 1.2, ease: [0.22, 1, 0.36, 1], delay: 0.4 }
-                    }
-                  />
-                </div>
-
-                {/* Status */}
-                <p className="mt-3 text-[11px] font-medium text-slate-400 dark:text-white/30 flex items-center gap-1">
-                  {summary
-                    ? goalReached
-                      ? <><Trophy className="h-3 w-3 text-amber-400 shrink-0" /> Você está entre os líderes do mês!</>
-                      : `Faltam ${(monthlyGoal - monthlyPts).toLocaleString('pt-BR')} pts para entrar na disputa`
-                    : 'Carregando…'}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* ── 3. Action Cards ─────────────────────────────────────────────── */}
-          <motion.div variants={itemVariant} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* ── 4. Action Cards ─────────────────────────────────────────────── */}
+          <RevealItem className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* Simulados */}
             <Link href={`/partners/${slug}/student/simulado`} className="block group cursor-pointer h-full">
               <div
-                className="relative overflow-hidden rounded-xl p-5 text-white transition-transform duration-200 active:scale-[0.98] hover:brightness-105 h-full shadow-md dark:shadow-none"
-                style={{ background: `linear-gradient(135deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 80%, black) 100%)` }}
+                className="brand-surface-adaptive partner-elevated-card partner-elevated-card-hover relative overflow-hidden rounded-[20px] p-5 h-full transition-transform duration-200 active:scale-[0.98]"
+                style={{
+                  ['--bsa-bg-light' as string]: 'linear-gradient(135deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 65%, white) 100%)',
+                  ['--bsa-bg-dark' as string]: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 46%, #0b1220) 0%, color-mix(in srgb, var(--brand-primary) 22%, #05070d) 100%)',
+                  ['--bsa-fg-light' as string]: onBrandText(org.brand_primary),
+                  ['--bsa-fg-dark' as string]: '#ffffff',
+                }}
               >
-                <div className="pointer-events-none absolute -right-4 -bottom-4 h-28 w-28 rounded-full bg-black/10 dark:bg-black/20" />
-                <div className="relative z-10 flex flex-col h-full justify-between">
+                <div className="pointer-events-none absolute -right-4 -bottom-4 h-28 w-28 rounded-full bg-white/10" />
+                <div className="relative z-10 flex h-full flex-col justify-between">
                   <div>
-                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
-                      <FileText className="h-5 w-5 text-white" />
+                    <div
+                      className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl"
+                      style={{ background: 'color-mix(in srgb, white 25%, transparent)' }}
+                    >
+                      <FileText className="h-5 w-5" style={{ color: 'currentColor' }} />
                     </div>
-                    <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-white/70">
+                    <p
+                      className="mb-1 text-[10px] font-bold uppercase tracking-widest"
+                      style={{ color: 'color-mix(in srgb, currentColor 70%, transparent)' }}
+                    >
                       Destaque
                     </p>
-                    <h2 className="text-[18px] font-extrabold leading-tight text-white">Simulados</h2>
-                    <p className="mt-1 text-xs text-white/80">
+                    <h2 className="text-[18px] font-extrabold leading-tight">Simulados</h2>
+                    <p className="mt-1 text-xs" style={{ color: 'color-mix(in srgb, currentColor 80%, transparent)' }}>
                       Monte simulados ENEM, UFU e UEG com métricas por banca
                     </p>
                   </div>
-                  <div className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-white">
+                  <div className="mt-4 inline-flex items-center gap-1 text-xs font-bold">
                     Começar agora
                     <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
                   </div>
@@ -719,14 +753,14 @@ export function DashboardClient({
 
             {/* Banco de Questões */}
             <Link href={`/partners/${slug}/student/banco-de-questoes`} className="block group cursor-pointer h-full">
-              <div className="relative overflow-hidden rounded-xl p-5 h-full bg-white dark:bg-white/[0.03] border border-slate-100 dark:border-white/7 shadow-sm dark:shadow-none transition-all duration-200 hover:border-slate-200 dark:hover:border-white/12 hover:shadow-md dark:hover:bg-white/[0.05] active:scale-[0.98]">
-                <div className="relative z-10 flex flex-col h-full justify-between">
+              <ElevatedCard className="h-full">
+                <div className="relative z-10 flex h-full flex-col justify-between p-5">
                   <div>
                     <div
                       className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl"
-                      style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}
+                      style={{ background: `color-mix(in srgb, ${secondaryAccent.cssVar} 14%, transparent)` }}
                     >
-                      <BookOpen className="h-5 w-5" style={{ color: 'var(--brand-primary)' }} />
+                      <BookOpen className="brand-text-adaptive h-5 w-5" style={adaptiveTextStyle(secondaryAccent.hex, secondaryAccent.cssVar)} />
                     </div>
                     <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-white/30">
                       Praticar
@@ -739,18 +773,18 @@ export function DashboardClient({
                     </p>
                   </div>
                   <div
-                    className="mt-4 inline-flex items-center gap-1 text-xs font-bold"
-                    style={{ color: 'var(--brand-primary)' }}
+                    className="brand-text-adaptive mt-4 inline-flex items-center gap-1 text-xs font-bold"
+                    style={adaptiveTextStyle(secondaryAccent.hex, secondaryAccent.cssVar)}
                   >
                     Explorar questões
                     <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
                   </div>
                 </div>
-              </div>
+              </ElevatedCard>
             </Link>
-          </motion.div>
+          </RevealItem>
 
-        </motion.div>
+        </RevealGroup>
       </div>
 
       {/* ── Modal histórico de atividades ──────────────────────────────── */}

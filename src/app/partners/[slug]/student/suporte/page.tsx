@@ -3,9 +3,13 @@
 import { useState, useMemo } from 'react';
 import { LifeBuoy, Search, MessageSquare, Mail, ChevronRight, ChevronDown } from 'lucide-react';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
+import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { useOrg } from '@/contexts/OrgContext';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { readableBrandText, onBrandText } from '@/lib/brand-color';
+import {
+  RevealGroup, RevealItem, ElevatedCard, BrandHero, HERO_ACCENT_COLOR,
+} from '@/components/partners/founder-ui';
 
 const WHATSAPP_NUMBERS = ['5516996973320', '5516994045785'];
 const SUPPORT_WHATSAPP_TEXT = encodeURIComponent('Olá, preciso de ajuda com a plataforma.');
@@ -41,59 +45,58 @@ export default function StudentSuportePage() {
   void setExpandedIndex;
 
   return (
+    <ModuleGuard permKey="suporte_enabled">
     <PartnerLayout variant="student">
       <div className="min-h-full bg-[#F4F7FA] dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-50 -m-4 md:-m-8 pb-16">
+        <RevealGroup>
 
         {/* Hero */}
-        <div
-          className="relative pt-12 pb-24 px-4 md:px-8"
-          style={{ background: 'var(--brand-primary)' }}
-        >
-          <div className="absolute inset-0 opacity-10 bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)] bg-[size:32px_32px]" />
+        <RevealItem className="relative px-4 pb-24 pt-8 md:px-8">
+          <BrandHero>
+            <div className="relative z-10 mx-auto max-w-3xl space-y-4 text-center">
+              <Badge className="border-0 bg-white/10 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-white">
+                <LifeBuoy className="mr-2 inline-block h-4 w-4" style={{ color: HERO_ACCENT_COLOR }} />
+                Central de Ajuda
+              </Badge>
 
-          <div className="relative max-w-5xl mx-auto text-center z-10 space-y-4">
-            <Badge className="bg-white/20 text-white border-0 px-4 py-1.5 text-xs font-bold tracking-wide uppercase">
-              <LifeBuoy className="w-4 h-4 mr-2 inline-block" />
-              Central de Ajuda
-            </Badge>
+              <h1 className="font-display text-3xl font-black tracking-tight text-white md:text-4xl">
+                Ajuda e Suporte
+              </h1>
 
-            <h1 className="text-white font-extrabold text-3xl md:text-4xl tracking-tight">
-              Ajuda e Suporte
-            </h1>
+              <p className="text-lg text-white/60">
+                Encontre respostas rápidas ou fale com nossa equipe.
+              </p>
 
-            <p className="text-white/70 text-lg">
-              Encontre respostas rápidas ou fale com nossa equipe.
-            </p>
-
-            {/* Search bar */}
-            <div className="max-w-xl mx-auto mt-6">
-              <div className="flex items-center bg-white dark:bg-slate-900 rounded-2xl shadow-xl border-2 border-transparent focus-within:border-white/30 px-4 py-1 transition-all">
-                <Search className="text-slate-400 h-5 w-5 shrink-0" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Qual é a sua dúvida hoje?"
-                  className="w-full bg-transparent border-0 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-4 py-3 focus:outline-none focus:ring-0 text-base font-medium"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="shrink-0 px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-sm font-bold transition-colors"
-                  >
-                    Limpar
-                  </button>
-                )}
+              {/* Search bar */}
+              <div className="mx-auto mt-6 max-w-xl">
+                <div className="flex items-center rounded-2xl border-2 border-transparent bg-white px-4 py-1 shadow-xl transition-all focus-within:border-white/30 dark:bg-slate-900">
+                  <Search className="h-5 w-5 shrink-0 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Qual é a sua dúvida hoje?"
+                    className="w-full border-0 bg-transparent px-4 py-3 text-base font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-0 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="shrink-0 rounded-lg bg-slate-100 px-3 py-1 text-sm font-bold text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          </BrandHero>
+        </RevealItem>
 
         {/* Content */}
-        <div className="max-w-5xl mx-auto w-full p-4 md:p-8 -mt-12 relative z-20 space-y-8">
+        <div className="relative z-20 mx-auto -mt-12 w-full max-w-5xl space-y-5 p-4 md:p-8">
 
           {/* Action cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <RevealItem className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
             {/* Card 1 — Suporte via WhatsApp */}
             <a
@@ -105,19 +108,19 @@ export default function StudentSuportePage() {
               }}
               className="block"
             >
-              <Card className="rounded-2xl hover:border-emerald-400 dark:hover:border-emerald-600 hover:shadow-lg transition-all bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 group h-full cursor-pointer">
-                <CardContent className="p-8 flex flex-col items-center text-center space-y-4 h-full">
-                  <div className="h-14 w-14 bg-emerald-50 dark:bg-emerald-900/40 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform">
+              <ElevatedCard accentColor="#10b981" className="group h-full cursor-pointer">
+                <div className="flex h-full flex-col items-center space-y-4 p-6 text-center md:p-8">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 transition-transform group-hover:scale-110 dark:bg-emerald-900/40 dark:text-emerald-400">
                     <MessageSquare className="h-7 w-7" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-900 dark:text-slate-50 text-lg">Suporte via WhatsApp</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                    <h3 className="font-display text-lg font-bold text-slate-900 dark:text-slate-50">Suporte via WhatsApp</h3>
+                    <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
                       Fale diretamente com nossa equipe.
                     </p>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </ElevatedCard>
             </a>
 
             {/* Card 2 — E-mail de Suporte */}
@@ -127,74 +130,78 @@ export default function StudentSuportePage() {
               rel="noopener noreferrer"
               className="block"
             >
-              <Card className="rounded-2xl hover:border-purple-400 dark:hover:border-purple-600 hover:shadow-lg transition-all bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 group h-full cursor-pointer">
-                <CardContent className="p-8 flex flex-col items-center text-center space-y-4 h-full">
-                  <div className="h-14 w-14 bg-purple-50 dark:bg-purple-900/40 rounded-2xl flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform">
+              <ElevatedCard accentColor="#a855f7" className="group h-full cursor-pointer">
+                <div className="flex h-full flex-col items-center space-y-4 p-6 text-center md:p-8">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-50 text-purple-600 transition-transform group-hover:scale-110 dark:bg-purple-900/40 dark:text-purple-400">
                     <Mail className="h-7 w-7" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-900 dark:text-slate-50 text-lg">E-mail de Suporte</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                    <h3 className="font-display text-lg font-bold text-slate-900 dark:text-slate-50">E-mail de Suporte</h3>
+                    <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
                       Abra um ticket para o time de suporte.
                     </p>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </ElevatedCard>
             </a>
-          </div>
+          </RevealItem>
 
           {/* FAQ section */}
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50 flex items-center gap-2">
-              <LifeBuoy className="text-blue-600 dark:text-blue-400 h-6 w-6" />
+          <RevealItem className="space-y-3">
+            <h2 className="font-display flex items-center gap-2 text-xl font-bold text-slate-900 dark:text-slate-50">
+              <LifeBuoy className="h-6 w-6" style={{ color: readableBrandText(org.brand_primary, 'var(--brand-primary)') }} />
               Dúvidas Frequentes
             </h2>
 
             {filteredFaqs.length === 0 ? (
-              <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
-                <Search className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
-                <p className="font-bold text-slate-600 dark:text-slate-300">
-                  Nenhuma dúvida frequente cadastrada ainda.
-                </p>
-                <p className="text-slate-400 dark:text-slate-500 text-sm mt-1">
-                  Em breve novas perguntas serão adicionadas aqui.
-                </p>
-              </div>
+              <ElevatedCard>
+                <div className="py-12 text-center">
+                  <Search className="mx-auto mb-4 h-10 w-10 text-slate-300 dark:text-slate-600" />
+                  <p className="font-bold text-slate-600 dark:text-slate-300">
+                    Nenhuma dúvida frequente cadastrada ainda.
+                  </p>
+                  <p className="mt-1 text-sm text-slate-400 dark:text-slate-500">
+                    Em breve novas perguntas serão adicionadas aqui.
+                  </p>
+                </div>
+              </ElevatedCard>
             ) : (
               <div className="space-y-3">
                 {filteredFaqs.map((_, idx) => {
                   const isExpanded = expandedIndex === idx;
                   return (
-                    <div
-                      key={idx}
-                      className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden transition-all hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md"
-                    >
+                    <ElevatedCard key={idx}>
                       <button
                         type="button"
                         onClick={() => setExpandedIndex(isExpanded ? null : idx)}
-                        className="w-full p-5 flex justify-between items-start gap-4 text-left"
+                        className="flex w-full items-start justify-between gap-4 p-5 text-left"
                       >
-                        <div className="pr-4 flex-1 min-w-0">
-                          <Badge variant="secondary" className="mb-2 text-[10px] font-black tracking-wider uppercase text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800">
+                        <div className="min-w-0 flex-1 pr-4">
+                          <Badge variant="secondary" className="mb-2 bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                             categoria
                           </Badge>
-                          <p className="text-base font-bold text-slate-800 dark:text-slate-50 leading-snug">
+                          <p className="text-base font-bold leading-snug text-slate-800 dark:text-slate-50">
                             pergunta
                           </p>
                         </div>
-                        <div className={`h-10 w-10 shrink-0 rounded-full flex items-center justify-center transition-colors ${isExpanded ? 'bg-blue-600 text-white' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500'}`}>
-                          {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                        <div
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors"
+                          style={isExpanded ? { background: 'var(--brand-primary)', color: onBrandText(org.brand_primary) } : undefined}
+                        >
+                          {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5 text-slate-400 dark:text-slate-500" />}
                         </div>
                       </button>
-                    </div>
+                    </ElevatedCard>
                   );
                 })}
               </div>
             )}
-          </div>
+          </RevealItem>
 
         </div>
+        </RevealGroup>
       </div>
     </PartnerLayout>
+    </ModuleGuard>
   );
 }

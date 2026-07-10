@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { type EssayType } from '@/lib/essay-types';
+import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import DesempenhoClient, {
   type AnalyticsResponse,
   type DashboardState,
@@ -108,5 +109,9 @@ export default async function DesempenhoPage({
     }
   }
 
-  return <DesempenhoClient slug={slug} initialState={initialState} />;
+  return (
+    <ModuleGuard permKey="desempenho_enabled">
+      <DesempenhoClient slug={slug} initialState={initialState} />
+    </ModuleGuard>
+  );
 }

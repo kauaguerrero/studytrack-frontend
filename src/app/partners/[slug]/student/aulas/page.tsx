@@ -5,7 +5,12 @@ import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { cn } from '@/lib/utils';
-import { BookOpen, CheckCircle2, Play, ChevronDown, NotebookPen } from 'lucide-react';
+import { readableBrandText } from '@/lib/brand-color';
+import {
+  RevealGroup, RevealItem, ElevatedCard, SectionTitle,
+  KpiCard, BrandButton, MiniBar,
+} from '@/components/partners/founder-ui';
+import { BookOpen, CheckCircle2, Play, ChevronDown, NotebookPen, Target } from 'lucide-react';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -236,201 +241,224 @@ export default function StudentAulasPage() {
 
   if (!videoToolEnabled) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6 px-4 py-6 md:px-6 md:py-8">
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-6 text-center dark:border-amber-500/30 dark:bg-amber-500/10">
-          <h1 className="text-lg font-extrabold text-slate-900 dark:text-slate-100">
-            Essa função não está habilitada em sua organização
-          </h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Procure o founder ou o administrador da plataforma para habilitar videoaulas.
-          </p>
-        </div>
-      </div>
+      <RevealGroup className="mx-auto max-w-3xl px-4 py-6 md:px-6 md:py-8">
+        <RevealItem>
+          <ElevatedCard accentColor="#f59e0b">
+            <div className="p-6 text-center">
+              <h1 className="font-display text-lg font-black text-slate-900 dark:text-white">
+                Essa função não está habilitada em sua organização
+              </h1>
+              <p className="mt-1.5 text-sm text-slate-500 dark:text-white/50">
+                Procure o founder ou o administrador da plataforma para habilitar videoaulas.
+              </p>
+            </div>
+          </ElevatedCard>
+        </RevealItem>
+      </RevealGroup>
     );
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6 md:py-8">
-      <div className="flex items-center gap-3">
-        <BookOpen className="h-5 w-5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Aulas</h1>
-      </div>
+    <RevealGroup className="mx-auto max-w-6xl space-y-4 px-4 py-5 md:px-6 md:py-8 md:space-y-5">
+
+      {/* ── Cabeçalho ─────────────────────────────────────────────────────── */}
+      <RevealItem className="flex items-center gap-3">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+          style={{
+            background: 'color-mix(in srgb, var(--brand-primary) 16%, white)',
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 8px color-mix(in srgb, var(--brand-primary) 22%, transparent)',
+          }}
+        >
+          <BookOpen className="h-5 w-5" style={{ color: readableBrandText(org.brand_primary, 'var(--brand-primary)', 46) }} />
+        </div>
+        <div className="min-w-0">
+          <h1 className="font-display text-xl font-black text-slate-900 dark:text-white">Aulas</h1>
+          <p className="text-[12px] text-slate-500 dark:text-white/45">Suas videoaulas, no seu ritmo</p>
+        </div>
+      </RevealItem>
 
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2].map((k) => (
-            <div key={k} className="h-16 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
-          ))}
-        </div>
-      ) : modules.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 p-12 text-center dark:border-slate-700">
-          <Play className="mx-auto mb-3 h-8 w-8 text-slate-300 dark:text-slate-600" />
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Nenhuma aula disponível ainda.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Seu progresso em aulas
-                </p>
-                <p className="mt-1 text-2xl font-extrabold text-slate-900 dark:text-slate-100">
-                  {overallProgressPct}%
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {completedLessons} de {totalLessons} aulas concluídas
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-slate-500 dark:text-slate-400">Meta de conclusão</p>
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  80% por aula
-                </p>
-              </div>
-            </div>
-            <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${overallProgressPct}%`, backgroundColor: 'var(--brand-primary)' }}
-              />
-            </div>
+        <RevealItem className="space-y-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            {[1, 2, 3].map((k) => (
+              <div key={k} className="h-24 animate-pulse rounded-[20px] bg-slate-200 dark:bg-white/10" />
+            ))}
           </div>
+          {[1, 2].map((k) => (
+            <div key={k} className="h-16 animate-pulse rounded-[20px] bg-slate-200 dark:bg-white/10" />
+          ))}
+        </RevealItem>
+      ) : modules.length === 0 ? (
+        <RevealItem>
+          <ElevatedCard accentColor="var(--brand-primary)">
+            <div className="p-10 text-center">
+              <Play className="mx-auto mb-3 h-8 w-8 text-slate-300 dark:text-white/20" />
+              <p className="text-sm text-slate-500 dark:text-white/45">
+                Nenhuma aula disponível ainda.
+              </p>
+            </div>
+          </ElevatedCard>
+        </RevealItem>
+      ) : (
+        <>
+          {/* ── KPIs de progresso ────────────────────────────────────────── */}
+          <RevealItem className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
+            <KpiCard
+              title="Progresso geral"
+              value={`${overallProgressPct}%`}
+              subtitle={`${completedLessons} de ${totalLessons} aulas`}
+              icon={BookOpen}
+              accentColor="var(--brand-primary)"
+              accentHex={org.brand_primary}
+            />
+            <KpiCard
+              title="Aulas concluídas"
+              value={completedLessons}
+              subtitle={`de ${totalLessons} no total`}
+              icon={CheckCircle2}
+              accentColor="var(--brand-secondary)"
+              accentHex={org.brand_secondary}
+            />
+            <KpiCard
+              title="Meta por aula"
+              value={`${completionThreshold}%`}
+              subtitle="assistido para concluir"
+              icon={Target}
+              accentColor="var(--brand-accent)"
+              accentHex={org.brand_accent}
+            />
+          </RevealItem>
 
-          <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+          <div className="grid gap-4 lg:grid-cols-[340px_1fr] lg:gap-5">
 
             {/* ── Sidebar: lista de módulos e aulas ───────────────────────── */}
-            <div className="space-y-3 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:pr-1">
-              {modules.map((module) => {
-                const isExpanded = expandedModules.has(module.id);
-                return (
-                  <div
-                    key={module.id}
-                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
-                  >
-                    {/* Cabeçalho do módulo */}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedModules((prev) => {
-                          const next = new Set(prev);
-                          isExpanded ? next.delete(module.id) : next.add(module.id);
-                          return next;
-                        })
-                      }
-                      className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                          {module.title}
-                        </p>
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-                            <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{
-                                width: `${module.progress.pct}%`,
-                                backgroundColor: 'var(--brand-primary)',
-                              }}
-                            />
-                          </div>
-                          <span className="text-[11px] text-slate-400">
-                            {module.progress.completed}/{module.progress.total}
-                          </span>
-                        </div>
-                      </div>
-                      <ChevronDown
-                        className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200"
-                        style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                      />
-                    </button>
-
-                    {/* Aulas do módulo */}
-                    <div
-                      className="overflow-hidden transition-all duration-300"
-                      style={{ maxHeight: isExpanded ? '9999px' : '0px' }}
-                    >
-                      <div className="divide-y divide-slate-100 border-t border-slate-100 dark:divide-slate-800 dark:border-slate-800">
-                        {module.lessons.map((lesson) => (
+            <RevealItem>
+              <ElevatedCard accentColor="var(--brand-primary)">
+                <div className="p-4 lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto">
+                  <SectionTitle kicker="Conteúdo" title="Módulos" hex={org.brand_primary} />
+                  <div className="space-y-2">
+                    {modules.map((module) => {
+                      const isExpanded = expandedModules.has(module.id);
+                      return (
+                        <div
+                          key={module.id}
+                          className="overflow-hidden rounded-xl bg-slate-50 dark:bg-white/5"
+                        >
+                          {/* Cabeçalho do módulo */}
                           <button
-                            key={lesson.id}
                             type="button"
-                            onClick={() => {
-                              setActiveLesson(lesson);
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                            className={cn(
-                              'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
-                              activeLesson?.id === lesson.id
-                                ? 'bg-[var(--brand-primary)]/10'
-                                : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                            )}
+                            onClick={() =>
+                              setExpandedModules((prev) => {
+                                const next = new Set(prev);
+                                isExpanded ? next.delete(module.id) : next.add(module.id);
+                                return next;
+                              })
+                            }
+                            className="flex w-full items-center gap-3 px-3.5 py-3 text-left"
                           >
-                            <div
-                              className={cn(
-                                'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
-                                lesson.completed
-                                  ? 'bg-emerald-100 dark:bg-emerald-500/20'
-                                  : 'bg-slate-100 dark:bg-slate-800'
-                              )}
-                            >
-                              {lesson.completed ? (
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                              ) : (
-                                <Play className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
-                              )}
-                            </div>
                             <div className="min-w-0 flex-1">
-                              <p
-                                className={cn(
-                                  'truncate text-xs font-semibold',
-                                  activeLesson?.id === lesson.id
-                                    ? 'text-[var(--brand-primary)]'
-                                    : 'text-slate-700 dark:text-slate-300'
-                                )}
-                              >
-                                {lesson.title}
+                              <p className="text-[13px] font-bold text-slate-900 dark:text-white/85">
+                                {module.title}
                               </p>
-                              <div className="mt-0.5 flex items-center gap-2">
-                                {lesson.duration_secs && (
-                                  <p className="text-[10px] text-slate-400">
-                                    {formatDuration(lesson.duration_secs)}
-                                  </p>
-                                )}
-                                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                                  {lesson.completed ? '100%' : `${lesson.watched_pct || 0}%`}
-                                </p>
+                              <div className="mt-1.5 flex items-center gap-2">
+                                <div className="w-20">
+                                  <MiniBar pct={module.progress.pct} color="var(--brand-primary)" height={5} />
+                                </div>
+                                <span className="text-[10.5px] font-semibold text-slate-400 dark:text-white/35">
+                                  {module.progress.completed}/{module.progress.total}
+                                </span>
                               </div>
                             </div>
-                            {/* Mini barra de progresso parcial */}
-                            {lesson.watched_pct > 0 && !lesson.completed && (
-                              <div className="h-1 w-8 shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-                                <div
-                                  className="h-full rounded-full"
-                                  style={{
-                                    width: `${lesson.watched_pct}%`,
-                                    backgroundColor: 'var(--brand-primary)',
-                                  }}
-                                />
-                              </div>
-                            )}
+                            <ChevronDown
+                              className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 dark:text-white/35"
+                              style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                            />
                           </button>
-                        ))}
-                      </div>
-                    </div>
+
+                          {/* Aulas do módulo */}
+                          <div
+                            className="overflow-hidden transition-all duration-300"
+                            style={{ maxHeight: isExpanded ? '9999px' : '0px' }}
+                          >
+                            <div className="space-y-1 px-1.5 pb-1.5">
+                              {module.lessons.map((lesson) => {
+                                const isActive = activeLesson?.id === lesson.id;
+                                return (
+                                  <button
+                                    key={lesson.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveLesson(lesson);
+                                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }}
+                                    className={cn(
+                                      'flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition-colors',
+                                      isActive
+                                        ? 'bg-white shadow-sm dark:bg-slate-900'
+                                        : 'hover:bg-white/70 dark:hover:bg-white/5'
+                                    )}
+                                  >
+                                    <div
+                                      className={cn(
+                                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
+                                        lesson.completed
+                                          ? 'bg-emerald-100 dark:bg-emerald-500/20'
+                                          : 'bg-slate-200/70 dark:bg-white/10'
+                                      )}
+                                    >
+                                      {lesson.completed ? (
+                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                      ) : (
+                                        <Play className="h-3.5 w-3.5 text-slate-500 dark:text-white/40" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p
+                                        className={cn(
+                                          'truncate text-[12.5px] font-semibold',
+                                          !isActive && 'text-slate-700 dark:text-white/70',
+                                        )}
+                                        style={isActive ? { color: readableBrandText(org.brand_primary, 'var(--brand-primary)') } : undefined}
+                                      >
+                                        {lesson.title}
+                                      </p>
+                                      <div className="mt-0.5 flex items-center gap-2">
+                                        {lesson.duration_secs && (
+                                          <p className="text-[10px] text-slate-400 dark:text-white/30">
+                                            {formatDuration(lesson.duration_secs)}
+                                          </p>
+                                        )}
+                                        <p className="text-[10px] font-semibold text-slate-500 dark:text-white/40">
+                                          {lesson.completed ? '100%' : `${lesson.watched_pct || 0}%`}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    {/* Mini barra de progresso parcial */}
+                                    {lesson.watched_pct > 0 && !lesson.completed && (
+                                      <div className="w-8 shrink-0">
+                                        <MiniBar pct={lesson.watched_pct} color="var(--brand-primary)" height={4} />
+                                      </div>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              </ElevatedCard>
+            </RevealItem>
 
             {/* ── Player ───────────────────────────────────────────────────── */}
-            <div className="space-y-4">
+            <RevealItem className="space-y-4">
               {activeLesson ? (
                 <>
                   {/* Vídeo */}
-                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-black dark:border-slate-800">
+                  <div className="overflow-hidden rounded-[20px] bg-black shadow-lg">
                     <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
                       <iframe
                         key={activeLesson.id}
@@ -443,130 +471,126 @@ export default function StudentAulasPage() {
                   </div>
 
                   {/* Info da aula */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                    <div className="flex items-start justify-between gap-3">
-                      <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                        {activeLesson.title}
-                      </h2>
-                      {activeLesson.completed && (
-                        <div className="flex shrink-0 items-center gap-1.5 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                          <CheckCircle2 className="h-4 w-4" />
-                          Concluída
-                        </div>
-                      )}
-                    </div>
-                    <div className="mt-2">
-                      <div
-                        className={cn(
-                          'mb-2 rounded-lg border px-3 py-2 text-xs font-semibold',
-                          activeLesson.completed
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
-                            : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'
+                  <ElevatedCard accentColor="var(--brand-secondary)">
+                    <div className="p-4 lg:p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <h2 className="font-display text-base font-black text-slate-900 dark:text-white">
+                          {activeLesson.title}
+                        </h2>
+                        {activeLesson.completed && (
+                          <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Concluída
+                          </div>
                         )}
-                      >
-                        {activeLesson.completed
-                          ? 'Aula concluída. Você atingiu o mínimo de 80% assistido.'
-                          : 'Para concluir esta aula, assista pelo menos 80% do vídeo.'}
                       </div>
-                      <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        <span>Progresso desta aula</span>
-                        <span>{`${visibleActiveLessonProgress}%`}</span>
-                      </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                      <div className="mt-3">
                         <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${visibleActiveLessonProgress}%`,
-                            backgroundColor: 'var(--brand-primary)',
-                          }}
-                        />
-                      </div>
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                        Conclusão automática em 80% de visualização.
-                      </p>
-                    </div>
-                    {activeLesson.description && (
-                      <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                        {activeLesson.description}
-                      </p>
-                    )}
-
-                    <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/40">
-                      <button
-                        type="button"
-                        onClick={() => setNotesOpen((prev) => !prev)}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left"
-                      >
-                        <NotebookPen className="h-4 w-4 text-slate-500 dark:text-slate-300" />
-                        <p className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
-                          Anotações rápidas
+                          className={cn(
+                            'mb-3 rounded-xl px-3 py-2 text-xs font-semibold',
+                            activeLesson.completed
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                              : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+                          )}
+                        >
+                          {activeLesson.completed
+                            ? `Aula concluída. Você atingiu o mínimo de ${completionThreshold}% assistido.`
+                            : `Para concluir esta aula, assista pelo menos ${completionThreshold}% do vídeo.`}
+                        </div>
+                        <div className="mb-1.5 flex items-center justify-between text-xs font-bold text-slate-500 dark:text-white/45">
+                          <span>Progresso desta aula</span>
+                          <span className="tabular-nums">{`${visibleActiveLessonProgress}%`}</span>
+                        </div>
+                        <MiniBar pct={visibleActiveLessonProgress} color="var(--brand-secondary)" glow={visibleActiveLessonProgress >= completionThreshold} height={8} />
+                        <p className="mt-1.5 text-[11px] text-slate-400 dark:text-white/35">
+                          Conclusão automática em {completionThreshold}% de visualização.
                         </p>
-                        <ChevronDown
-                          className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200"
-                          style={{ transform: notesOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                        />
-                      </button>
+                      </div>
+                      {activeLesson.description && (
+                        <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-white/60">
+                          {activeLesson.description}
+                        </p>
+                      )}
 
-                      <div
-                        className="overflow-hidden transition-all duration-300"
-                        style={{ maxHeight: notesOpen ? '9999px' : '0px' }}
-                      >
-                        <div className="space-y-3 border-t border-slate-200 px-3 py-3 dark:border-slate-700">
-                          <div className="flex flex-col gap-2">
-                            <textarea
-                              value={newNote}
-                              onChange={(e) => setNewNote(e.target.value)}
-                              placeholder="Escreva uma anotação desta aula..."
-                              className="min-h-20 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-                            />
-                            <div className="flex justify-end">
-                              <button
-                                type="button"
-                                onClick={handleCreateNote}
-                                disabled={!newNote.trim()}
-                                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-                                style={{ backgroundColor: 'var(--brand-primary)' }}
-                              >
-                                Nova anotação
-                              </button>
+                      <div className="mt-4 overflow-hidden rounded-xl bg-slate-50 dark:bg-white/5">
+                        <button
+                          type="button"
+                          onClick={() => setNotesOpen((prev) => !prev)}
+                          className="flex w-full items-center gap-2 px-3.5 py-3 text-left"
+                        >
+                          <NotebookPen className="h-4 w-4 text-slate-500 dark:text-white/45" />
+                          <p className="min-w-0 flex-1 text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-white/45">
+                            Anotações rápidas
+                          </p>
+                          <ChevronDown
+                            className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 dark:text-white/35"
+                            style={{ transform: notesOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                          />
+                        </button>
+
+                        <div
+                          className="overflow-hidden transition-all duration-300"
+                          style={{ maxHeight: notesOpen ? '9999px' : '0px' }}
+                        >
+                          <div className="space-y-3 px-3.5 pb-3.5">
+                            <div className="flex flex-col gap-2">
+                              <textarea
+                                value={newNote}
+                                onChange={(e) => setNewNote(e.target.value)}
+                                placeholder="Escreva uma anotação desta aula..."
+                                className="min-h-20 w-full rounded-lg bg-white px-3 py-2 text-sm text-slate-700 outline-none ring-1 ring-slate-200 transition focus:ring-2 focus:ring-[color:var(--brand-secondary)] dark:bg-slate-900 dark:text-white/80 dark:ring-white/10"
+                              />
+                              <div className="flex justify-end">
+                                <BrandButton
+                                  onClick={handleCreateNote}
+                                  disabled={!newNote.trim()}
+                                  color="var(--brand-secondary)"
+                                  hex={org.brand_secondary}
+                                  className="!px-3 !py-1.5 !text-xs"
+                                >
+                                  Nova anotação
+                                </BrandButton>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              {(lessonNotes[activeLesson.id] ?? []).length === 0 ? (
+                                <p className="text-xs text-slate-400 dark:text-white/35">
+                                  Nenhuma anotação ainda para esta aula.
+                                </p>
+                              ) : (
+                                (lessonNotes[activeLesson.id] ?? []).map((note) => (
+                                  <div
+                                    key={note.id}
+                                    className="rounded-lg bg-white px-3 py-2 shadow-sm dark:bg-slate-900"
+                                  >
+                                    <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-white/75">
+                                      {note.text}
+                                    </p>
+                                  </div>
+                                ))
+                              )}
                             </div>
                           </div>
-
-                          <div className="space-y-2">
-                            {(lessonNotes[activeLesson.id] ?? []).length === 0 ? (
-                              <p className="text-xs text-slate-500 dark:text-slate-400">
-                                Nenhuma anotação ainda para esta aula.
-                              </p>
-                            ) : (
-                              (lessonNotes[activeLesson.id] ?? []).map((note) => (
-                                <div
-                                  key={note.id}
-                                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
-                                >
-                                  <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200">
-                                    {note.text}
-                                  </p>
-                                </div>
-                              ))
-                            )}
-                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </ElevatedCard>
                 </>
               ) : (
-                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 p-20 dark:border-slate-700">
-                  <Play className="mb-3 h-10 w-10 text-slate-300 dark:text-slate-600" />
-                  <p className="text-sm text-slate-400 dark:text-slate-500">
-                    Selecione uma aula para começar
-                  </p>
-                </div>
+                <ElevatedCard accentColor="var(--brand-secondary)">
+                  <div className="flex flex-col items-center justify-center p-16 lg:p-20">
+                    <Play className="mb-3 h-10 w-10 text-slate-300 dark:text-white/20" />
+                    <p className="text-sm text-slate-400 dark:text-white/35">
+                      Selecione uma aula para começar
+                    </p>
+                  </div>
+                </ElevatedCard>
               )}
-            </div>
+            </RevealItem>
           </div>
-        </div>
+        </>
       )}
-    </div>
+    </RevealGroup>
   );
 }

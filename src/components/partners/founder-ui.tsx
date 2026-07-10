@@ -13,7 +13,15 @@ import Link from 'next/link';
 import { motion, type Variants } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { readableBrandText, onBrandText } from '@/lib/brand-color';
+import { readableBrandText, readableBrandTextOnDark, onBrandText } from '@/lib/brand-color';
+
+/** CSS vars prontas pra `.brand-text-adaptive` decidir claro/escuro via seletor `.dark`. */
+function brandTextAdaptiveStyle(hex: string | undefined | null, cssVar: string) {
+  return {
+    ['--bta-light' as string]: readableBrandText(hex, cssVar),
+    ['--bta-dark' as string]: readableBrandTextOnDark(hex, cssVar),
+  };
+}
 
 // ─── Reveal (fade + slide-up escalonado ao carregar) ───────────────────────────
 
@@ -199,12 +207,12 @@ function ArrowUpRightIcon({ className }: { className?: string }) {
 
 // ─── SectionTitle ────────────────────────────────────────────────────────────
 
-export function SectionTitle({ kicker, title, action, hex }: { kicker?: string; title: string; action?: React.ReactNode; hex?: string }) {
+export function SectionTitle({ kicker, title, action, hex, colorVar = 'var(--brand-primary)' }: { kicker?: string; title: string; action?: React.ReactNode; hex?: string; colorVar?: string }) {
   return (
     <div className="mb-3 flex items-end justify-between gap-3">
       <div className="min-w-0">
         {kicker && (
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: readableBrandText(hex, 'var(--brand-primary)') }}>
+          <p className="brand-text-adaptive text-[10px] font-bold uppercase tracking-[0.14em]" style={brandTextAdaptiveStyle(hex, colorVar)}>
             {kicker}
           </p>
         )}

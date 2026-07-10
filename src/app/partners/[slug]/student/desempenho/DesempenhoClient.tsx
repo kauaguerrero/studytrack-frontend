@@ -9,7 +9,6 @@ import {
   BarChart,
   CartesianGrid,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -37,6 +36,8 @@ import { reportError } from '@/lib/reportError';
 import { useOrg } from '@/contexts/OrgContext';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { cn } from '@/lib/utils';
+import { RevealGroup, RevealItem } from '@/components/partners/founder-ui';
+import { readableBrandText } from '@/lib/brand-color';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -171,9 +172,9 @@ interface CompetencyAggregate {
 
 const MIN_SUBJECT_SAMPLE = 8;
 const MIN_SIMULADO_SUBJECT_SAMPLE = 2;
-const SOFT_CARD_CLASS = 'group relative overflow-hidden rounded-2xl border border-slate-300/95 bg-slate-50 p-4 shadow-[0_12px_28px_-24px_rgba(15,23,42,0.24)] ring-1 ring-inset ring-white/80 transition-all duration-200 before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-slate-400/80 before:to-transparent hover:-translate-y-[1px] hover:shadow-[0_18px_38px_-24px_rgba(15,23,42,0.28)] dark:border-white/15 dark:bg-slate-900/70 dark:ring-white/5 dark:before:via-white/30 dark:hover:border-white/20';
-const WHITE_CARD_CLASS = 'group relative overflow-hidden rounded-2xl border border-slate-300/95 bg-white p-4 shadow-[0_12px_28px_-24px_rgba(15,23,42,0.22)] ring-1 ring-inset ring-white/80 transition-all duration-200 before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-slate-400/80 before:to-transparent hover:-translate-y-[1px] hover:shadow-[0_18px_38px_-24px_rgba(15,23,42,0.26)] dark:border-white/15 dark:bg-slate-900/70 dark:ring-white/5 dark:before:via-white/30 dark:hover:border-white/20';
-const CHART_CARD_CLASS = 'group relative overflow-hidden rounded-[24px] border border-slate-300/95 bg-slate-50/90 p-4 shadow-[0_16px_34px_-26px_rgba(15,23,42,0.24)] ring-1 ring-inset ring-white/70 transition-all duration-200 before:absolute before:inset-x-5 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-slate-400/80 before:to-transparent hover:shadow-[0_22px_44px_-28px_rgba(15,23,42,0.28)] dark:border-white/15 dark:bg-slate-900/70 dark:ring-white/5 dark:before:via-white/30 dark:hover:border-white/20';
+const SOFT_CARD_CLASS = 'partner-elevated-card partner-elevated-card-hover group relative overflow-hidden rounded-2xl border-0 bg-slate-50 p-4 transition-all duration-200 dark:bg-white/5';
+const WHITE_CARD_CLASS = 'partner-elevated-card partner-elevated-card-hover group relative overflow-hidden rounded-2xl border-0 bg-white p-4 transition-all duration-200 dark:bg-slate-900';
+const CHART_CARD_CLASS = 'partner-elevated-card group relative overflow-hidden rounded-[24px] border-0 bg-slate-50/90 p-4 transition-all duration-200 dark:bg-white/5';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -373,22 +374,23 @@ function MetricShell({
   return (
     <section
       className={cn(
-        'group relative overflow-hidden rounded-[28px] border border-slate-300 bg-white/92 p-5 shadow-[0_16px_60px_-36px_rgba(15,23,42,0.32)] ring-1 ring-inset ring-white/75 transition-all duration-200 hover:-translate-y-[1px] hover:shadow-[0_24px_70px_-38px_rgba(15,23,42,0.34)] dark:border-white/15 dark:bg-[#0f172acc] dark:ring-white/5 dark:hover:border-white/20',
+        'partner-elevated-card partner-elevated-card-hover group relative overflow-hidden rounded-[24px] border-0 bg-white p-5 transition-all duration-200 dark:bg-slate-900',
         className,
       )}
-      style={accent ? { borderColor: hexToRgba(accent, 0.28) } : undefined}
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-6 top-0 h-px"
-        style={{ background: accent ? `linear-gradient(90deg, transparent 0%, ${hexToRgba(accent, 0.7)} 45%, transparent 100%)` : 'linear-gradient(90deg, transparent 0%, rgba(148,163,184,0.7) 45%, transparent 100%)' }}
-      />
+      {accent && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
+          style={{ background: `linear-gradient(90deg, ${accent}, color-mix(in srgb, ${accent} 40%, white))` }}
+        />
+      )}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -right-10 top-0 h-24 w-24 rounded-full blur-2xl"
         style={{ backgroundColor: accent ? hexToRgba(accent, 0.12) : 'rgba(148,163,184,0.10)' }}
       />
-      {children}
+      <div className="relative z-10">{children}</div>
     </section>
   );
 }
@@ -408,6 +410,7 @@ function KPI({
   accent: string;
   className?: string;
 }) {
+  const iconColor = readableBrandText(accent, accent, 42);
   return (
     <MetricShell accent={accent} className={cn('flex h-full flex-col justify-between gap-4', className)}>
       <div className="flex items-start justify-between gap-4">
@@ -416,11 +419,11 @@ function KPI({
           <div className="mt-3 text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">{value}</div>
         </div>
         <div
-          className="flex h-11 w-11 items-center justify-center rounded-2xl border"
+          className="flex h-11 w-11 items-center justify-center rounded-2xl"
           style={{
-            backgroundColor: hexToRgba(accent, 0.12),
-            borderColor: hexToRgba(accent, 0.2),
-            color: accent,
+            background: `color-mix(in srgb, ${accent} 16%, white)`,
+            boxShadow: `inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 8px color-mix(in srgb, ${accent} 22%, transparent)`,
+            color: iconColor,
           }}
         >
           <Icon className="h-5 w-5" />
@@ -734,7 +737,8 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.92),_rgba(241,245,249,0.98)_42%,_#e2e8f0_100%)] text-slate-900 dark:bg-[radial-gradient(circle_at_top_left,_rgba(51,65,85,0.4),_rgba(15,23,42,0.98)_34%,_#020617_100%)] dark:text-slate-100">
       <div className="mx-auto max-w-7xl px-4 py-5 md:px-6 md:py-7">
-        <div className="space-y-4">
+        <RevealGroup className="space-y-4 lg:space-y-5">
+          <RevealItem>
           <Link
             href={`/partners/${slug}/student/dashboard`}
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
@@ -742,21 +746,25 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
             <ArrowLeft className="h-4 w-4" />
             Dashboard
           </Link>
+          </RevealItem>
 
-          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <RevealItem className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
             <div className="min-w-0">
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white md:text-3xl">Desempenho</h1>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: readableBrandText(org.brand_primary, 'var(--brand-primary)') }}>
+                Meu raio-x
+              </p>
+              <h1 className="font-display text-2xl font-black tracking-tight text-slate-950 dark:text-white md:text-3xl">Desempenho</h1>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">Redações, simulados e hábitos.</p>
             </div>
             {summary?.month_label && (
-              <span className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:border-white/15 dark:bg-slate-900/70 dark:text-slate-300">
-                <CalendarDays className="h-3.5 w-3.5" />
+              <span className="partner-elevated-card inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:bg-slate-900 dark:text-slate-300">
+                <CalendarDays className="h-3.5 w-3.5" style={{ color: readableBrandText(org.brand_primary, 'var(--brand-primary)') }} />
                 {summary.month_label}
               </span>
             )}
-          </div>
+          </RevealItem>
 
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-12">
+          <RevealItem className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:gap-4">
             <KPI
               className="lg:col-span-2"
               label="Ranking"
@@ -807,9 +815,9 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
               icon={Flame}
               accent="#ea580c"
             />
-          </section>
+          </RevealItem>
 
-          <section className="grid gap-4 lg:grid-cols-12">
+          <RevealItem className="grid gap-3 lg:grid-cols-12 lg:gap-4">
             <MetricShell className="lg:col-span-12">
               <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
                 <div className="min-w-0">
@@ -933,9 +941,9 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                 )}
               </div>
             </MetricShell>
-          </section>
+          </RevealItem>
 
-          <section className="grid gap-4 lg:grid-cols-12">
+          <RevealItem className="grid gap-3 lg:grid-cols-12 lg:gap-4">
             <MetricShell className="lg:col-span-7">
               <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
                 <div className="min-w-0">
@@ -1016,13 +1024,19 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                 <div className={cn(CHART_CARD_CLASS, 'h-[250px] sm:h-[280px]')}>
                   {correctedEssays.length ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
+                      <AreaChart
                         data={correctedEssays.map((essay) => ({
                           label: formatDateShort(essay.corrected_at || essay.submitted_at),
                           score: essay.total_score,
                         }))}
                         margin={{ top: 8, right: 8, left: -24, bottom: 0 }}
                       >
+                        <defs>
+                          <linearGradient id="essayScoreFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#0f766e" stopOpacity={0.32} />
+                            <stop offset="100%" stopColor="#0f766e" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,0.22)" />
                         <XAxis dataKey="label" tickLine={false} axisLine={false} stroke="#94a3b8" fontSize={12} minTickGap={24} interval="preserveStartEnd" />
                         <YAxis domain={[0, essayTypeConfig.total_max]} tickLine={false} axisLine={false} stroke="#94a3b8" fontSize={12} />
@@ -1038,8 +1052,8 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                             );
                           }}
                         />
-                        <Line type="monotone" dataKey="score" stroke="#0f766e" strokeWidth={3} dot={{ r: 4, fill: '#0f766e', strokeWidth: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} />
-                      </LineChart>
+                        <Area type="monotone" dataKey="score" stroke="#0f766e" strokeWidth={3} fill="url(#essayScoreFill)" dot={{ r: 4, fill: '#0f766e', strokeWidth: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} />
+                      </AreaChart>
                     </ResponsiveContainer>
                   ) : (
                     <div className="flex h-full items-center justify-center text-center text-sm text-slate-500 dark:text-slate-400">
@@ -1160,9 +1174,9 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                 )}
               </div>
             </MetricShell>
-          </section>
+          </RevealItem>
 
-          <section className="grid gap-4 lg:grid-cols-12">
+          <RevealItem className="grid gap-3 lg:grid-cols-12 lg:gap-4">
             <MetricShell className="lg:col-span-7">
               <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
                 <div className="min-w-0">
@@ -1348,8 +1362,8 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                 </div>
               </div>
             </MetricShell>
-          </section>
-        </div>
+          </RevealItem>
+        </RevealGroup>
       </div>
     </div>
   );
