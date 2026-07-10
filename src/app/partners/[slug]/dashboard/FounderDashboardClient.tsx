@@ -411,7 +411,7 @@ export default function FounderDashboardClient({
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
         <RevealItem className="mb-3 lg:mb-5">
-          <BrandHero>
+          <BrandHero smokeColorHex={org.brand_primary ?? undefined} halftone={false}>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
               <div className="min-w-0">
                 <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/50">

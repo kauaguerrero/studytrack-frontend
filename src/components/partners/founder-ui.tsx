@@ -395,7 +395,7 @@ export function BrandHero({
     : 'radial-gradient(120% 140% at 15% 0%, color-mix(in srgb, var(--brand-primary) 45%, #101E45) 0%, color-mix(in srgb, var(--brand-primary) 16%, #060E27) 62%)';
   const heroShadow = '0 20px 48px -20px color-mix(in srgb, var(--brand-primary) 35%, rgba(6,14,39,0.6))';
   return (
-    <div className={cn('relative overflow-hidden rounded-[22px] p-5 lg:p-7', className)} style={{ background: heroBg, boxShadow: heroShadow }}>
+    <div className={cn('relative overflow-hidden rounded-[22px] p-4 lg:p-6', className)} style={{ background: heroBg, boxShadow: heroShadow }}>
       {halftone && (
         <div
           className="partner-halftone pointer-events-none absolute inset-0"
