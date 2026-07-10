@@ -9,7 +9,6 @@ import { SidebarProvider } from '@/contexts/SidebarContext';
 import { UserRole } from '@/types/roles';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { SidebarContent } from '@/components/layout/PortalSidebar';
-import { AnnouncementModal } from '@/components/announcements/AnnouncementModal';
 
 interface PortalLayoutWrapperProps {
   children: ReactNode;
@@ -70,8 +69,6 @@ export function PortalLayoutWrapper({
             </div>
           </SheetContent>
         </Sheet>
-
-        <AnnouncementModal />
       </SidebarProvider>
     </PortalRoleProvider>
   );
