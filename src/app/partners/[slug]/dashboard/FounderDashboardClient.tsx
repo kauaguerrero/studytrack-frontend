@@ -165,6 +165,41 @@ function mergeUniqueStudents(base: Student[], incoming: Student[]): Student[] {
   return Array.from(map.values());
 }
 
+const NAME_PARTICLES = new Set(['de', 'da', 'do', 'dos', 'das', 'e']);
+
+function parseNameForShortening(fullName?: string | null) {
+  const parts = (fullName ?? '').split(' ').filter(Boolean);
+  const first = parts[0];
+  const surnames = parts.slice(1).filter((p) => !NAME_PARTICLES.has(p.toLowerCase()));
+  return { first, surnames };
+}
+
+// Nome + inicial do sobrenome (o último sobrenome, não o nome do meio).
+// Quando dois alunos da mesma lista colidem (mesmo primeiro nome + mesma
+// inicial de sobrenome), inclui também a inicial do penúltimo sobrenome
+// para diferenciá-los — ex.: "Marcus F. S." vs "Marcus R. M.".
+function formatShortNames(fullNames: (string | null | undefined)[]): string[] {
+  const parsed = fullNames.map(parseNameForShortening);
+
+  return parsed.map(({ first, surnames }, i) => {
+    if (!first) return '—';
+    if (surnames.length === 0) return first;
+
+    const last = surnames[surnames.length - 1];
+    const collides = parsed.some((other, j) => {
+      if (j === i || !other.first) return false;
+      const otherLast = other.surnames[other.surnames.length - 1];
+      return other.first === first && otherLast && otherLast[0].toUpperCase() === last[0].toUpperCase();
+    });
+
+    if (collides && surnames.length > 1) {
+      const second = surnames[surnames.length - 2];
+      return `${first} ${second[0].toUpperCase()}. ${last[0].toUpperCase()}.`;
+    }
+    return `${first} ${last[0].toUpperCase()}.`;
+  });
+}
+
 // ─── Client Component ─────────────────────────────────────────────────────────
 
 export default function FounderDashboardClient({
@@ -667,7 +702,9 @@ export default function FounderDashboardClient({
                     <p className="py-8 text-center text-sm text-slate-400 dark:text-white/30">Nenhum aluno ativo ainda</p>
                   ) : (
                     <div className="flex flex-col gap-1">
-                      {topStudents.map((student, idx) => {
+                      {(() => {
+                        const shortNames = formatShortNames(topStudents.map((s) => s.full_name));
+                        return topStudents.map((student, idx) => {
                         const max = getQuestionsByWindow(topStudents[0]) || 1;
                         const pct = Math.round((getQuestionsByWindow(student) / max) * 100);
                         const isOnline = student.last_activity_date === todayBrtKey;
@@ -720,19 +757,14 @@ export default function FounderDashboardClient({
                               <div className="min-w-0 flex-1">
                                 <div className="mb-1.5 flex items-center justify-between">
                                   <span className="truncate text-[13px] font-bold text-slate-800 transition-colors group-hover:text-slate-950 dark:text-white/85 dark:group-hover:text-white">
-                                    {(() => {
-                                      const parts = student.full_name?.split(' ').filter(Boolean) ?? [];
-                                      const particles = new Set(['de', 'da', 'do', 'dos', 'das', 'e']);
-                                      const first = parts[0];
-                                      const last = parts.slice(1).find(p => !particles.has(p.toLowerCase()));
-                                      return first ? (last ? `${first} ${last}` : first) : '—';
-                                    })()}
+                                    <span className="sm:hidden">{shortNames[idx]}</span>
+                                    <span className="hidden sm:inline">{student.full_name || '—'}</span>
                                   </span>
                                   <div className="ml-2 flex shrink-0 items-center gap-2">
                                     <span className="text-[12px] font-black tabular-nums" style={{ color: readableBrandText(org.brand_primary, 'var(--brand-primary)') }}>
                                       {getQuestionsByWindow(student)} <span className="font-semibold opacity-70">questões</span>
                                     </span>
-                                    <span className="text-[11px] font-bold tabular-nums text-slate-400 dark:text-white/35">
+                                    <span className="hidden text-[11px] font-bold tabular-nums text-slate-400 dark:text-white/35 sm:inline">
                                       {getSimuladosByWindow(student)} simulados
                                     </span>
                                   </div>
@@ -742,7 +774,8 @@ export default function FounderDashboardClient({
                             </div>
                           </Link>
                         );
-                      })}
+                        });
+                      })()}
                       <p className="mt-2 text-[10.5px] text-slate-400 dark:text-white/30">
                         Baseado em {rankingBaseCount} aluno{rankingBaseCount === 1 ? '' : 's'} · questões e simulados no período
                       </p>
@@ -789,7 +822,7 @@ export default function FounderDashboardClient({
                     </p>
                   ) : (
                     <div className="-mx-1 overflow-x-auto">
-                      <table className="w-full min-w-[520px] text-sm">
+                      <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-slate-100 text-left text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:border-white/10 dark:text-white/35">
                             <th className="pb-3 pl-1 font-bold">Aluno</th>
@@ -801,7 +834,9 @@ export default function FounderDashboardClient({
                           </tr>
                         </thead>
                         <tbody>
-                          {studentsForTable.map((s) => (
+                          {(() => {
+                            const shortNames = formatShortNames(studentsForTable.map((s) => s.full_name));
+                            return studentsForTable.map((s, idx) => (
                             <tr
                               key={s.id}
                               className="border-b border-slate-100 transition-colors hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
@@ -811,7 +846,8 @@ export default function FounderDashboardClient({
                                   href={`/partners/${org.slug}/alunos/${s.id}`}
                                   className="text-[13px] font-bold text-slate-900 hover:underline dark:text-white"
                                 >
-                                  {s.full_name || '—'}
+                                  <span className="sm:hidden">{shortNames[idx]}</span>
+                                  <span className="hidden sm:inline">{s.full_name || '—'}</span>
                                 </Link>
                                 <p className="hidden text-[11px] text-slate-400 dark:text-white/35 xs:block">{s.email}</p>
                               </td>
@@ -842,7 +878,8 @@ export default function FounderDashboardClient({
                                 {s.last_activity_date ?? 'Nunca'}
                               </td>
                             </tr>
-                          ))}
+                            ));
+                          })()}
                         </tbody>
                       </table>
                     </div>

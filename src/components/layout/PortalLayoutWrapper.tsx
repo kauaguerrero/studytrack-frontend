@@ -46,6 +46,7 @@ export function PortalLayoutWrapper({
             <PortalHeader
               resolvedRole={resolvedRole}
               onOpenMobileMenu={() => setMobileMenuOpen(true)}
+              minimal={resolvedRole === 'admin'}
             />
 
             <div className="flex-1 p-4 md:p-8 max-w-[1600px] w-full mx-auto animate-in fade-in duration-150 pb-8">

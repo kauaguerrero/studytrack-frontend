@@ -25,6 +25,15 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useSidebar } from '@/contexts/SidebarContext';
 import { cn } from '@/lib/utils';
 
+// Acento azul-arroxeado da marca StudyTrack — usado só nos ícones e rótulos
+// da navegação do admin, mantendo o resto da sidebar no visual padrão (fundo
+// branco, bordas neutras) igual às outras roles.
+const ADMIN_ACCENT_ICON = 'text-indigo-500 dark:text-indigo-400';
+const ADMIN_ACCENT_ICON_ACTIVE = 'text-indigo-600 dark:text-indigo-300';
+const ADMIN_ACCENT_TEXT = 'text-indigo-600 dark:text-indigo-300';
+
+const EASE = 'ease-[cubic-bezier(0.16,1,0.3,1)]';
+
 interface PortalSidebarProps {
   role: UserRole;
   fullName: string;
@@ -51,8 +60,18 @@ export function SidebarContent({
           ? 'dev'
           : role;
 
+  const isAdmin = resolvedRole === 'admin';
+
   const isActive = (path: string) =>
     pathname === path || pathname.startsWith(`${path}/`);
+
+  // Largura animada do rótulo — em vez de sumir de uma vez (mount/unmount),
+  // encolhe suavemente junto com a sidebar pra não parecer travado.
+  const labelWrapClasses = cn(
+    'overflow-hidden whitespace-nowrap transition-all duration-300',
+    EASE,
+    collapsed ? 'max-w-0 opacity-0' : 'max-w-[160px] opacity-100',
+  );
 
   const renderNavItem = ({
     href,
@@ -64,16 +83,25 @@ export function SidebarContent({
     label: string;
   }) => {
     const active = isActive(href);
-    const baseClasses = `group flex items-center gap-3 min-h-[44px] rounded-lg text-sm font-medium transition-all duration-200 ${
+    const baseClasses = cn(
+      'group flex items-center gap-3 min-h-[44px] rounded-lg text-sm font-medium transition-all duration-300',
+      EASE,
       active
-        ? 'bg-blue-50/80 dark:bg-sidebar-accent text-blue-700 dark:text-sidebar-accent-foreground shadow-sm'
-        : 'text-slate-600 dark:text-muted-foreground hover:bg-slate-50 dark:hover:bg-sidebar-accent/50 hover:text-slate-900 dark:hover:text-sidebar-foreground'
-    }`;
-    const iconClasses = `transition-colors shrink-0 ${
+        ? isAdmin
+          ? `bg-indigo-50/80 dark:bg-indigo-500/15 ${ADMIN_ACCENT_TEXT} shadow-sm`
+          : 'bg-blue-50/80 dark:bg-sidebar-accent text-blue-700 dark:text-sidebar-accent-foreground shadow-sm'
+        : isAdmin
+          ? `${ADMIN_ACCENT_TEXT} hover:bg-indigo-50/60 dark:hover:bg-indigo-500/10`
+          : 'text-slate-600 dark:text-muted-foreground hover:bg-slate-50 dark:hover:bg-sidebar-accent/50 hover:text-slate-900 dark:hover:text-sidebar-foreground',
+    );
+    const iconClasses = cn(
+      'transition-colors shrink-0',
       active
-        ? 'text-blue-600 dark:text-sidebar-primary'
-        : 'text-slate-400 dark:text-muted-foreground group-hover:text-slate-600 dark:group-hover:text-sidebar-foreground'
-    }`;
+        ? isAdmin ? ADMIN_ACCENT_ICON_ACTIVE : 'text-blue-600 dark:text-sidebar-primary'
+        : isAdmin
+          ? `${ADMIN_ACCENT_ICON} group-hover:text-indigo-600 dark:group-hover:text-indigo-300`
+          : 'text-slate-400 dark:text-muted-foreground group-hover:text-slate-600 dark:group-hover:text-sidebar-foreground',
+    );
 
     const content = (
       <Link
@@ -86,16 +114,16 @@ export function SidebarContent({
         }
       >
         <Icon size={18} className={iconClasses} />
-        {!collapsed && (
-          <>
-            <span>{label}</span>
-            {active && (
-              <ChevronRight
-                size={14}
-                className="ml-auto text-blue-400 shrink-0"
-              />
+        <span className={labelWrapClasses}>{label}</span>
+        {active && (
+          <ChevronRight
+            size={14}
+            className={cn(
+              'ml-auto shrink-0 transition-opacity duration-300',
+              isAdmin ? 'text-indigo-400 dark:text-indigo-300' : 'text-blue-400',
+              collapsed ? 'opacity-0 w-0' : 'opacity-100',
             )}
-          </>
+          />
         )}
       </Link>
     );
@@ -114,10 +142,12 @@ export function SidebarContent({
   };
 
   const renderSectionTitle = (children: React.ReactNode) => {
-    if (collapsed) return null;
     return (
-      <div className="px-3 mt-6 mb-2">
-        <span className="text-[11px] font-bold text-slate-400 dark:text-muted-foreground uppercase tracking-widest leading-none">
+      <div className={cn('px-3 mt-6 mb-2 overflow-hidden transition-all duration-300', EASE, collapsed ? 'max-h-0 opacity-0 mt-0 mb-0' : 'max-h-8 opacity-100')}>
+        <span className={cn(
+          'text-[11px] font-bold uppercase tracking-widest leading-none whitespace-nowrap',
+          isAdmin ? 'text-indigo-400 dark:text-indigo-400/70' : 'text-slate-400 dark:text-muted-foreground',
+        )}>
           {children}
         </span>
       </div>
@@ -161,26 +191,28 @@ export function SidebarContent({
               unoptimized
             />
           </div>
-          {!collapsed && (
-            <div className="ml-1">
-              <h1 className="font-bold text-lg text-slate-900 dark:text-sidebar-foreground tracking-tight leading-none">
-                Study
-                <span className="text-blue-600 dark:text-sidebar-primary">
-                  Track
-                </span>
-              </h1>
-              <div className="flex items-center gap-1.5 mt-1">
-                <span
-                  className={`inline-block w-2 h-2 rounded-full ${
-                    resolvedRole === 'student' ? 'bg-green-500' : 'bg-blue-500'
-                  }`}
-                />
-                <span className="text-[11px] font-medium text-slate-500 dark:text-muted-foreground capitalize leading-none">
-                  {roleLabel}
-                </span>
-              </div>
+          <div className={cn('ml-1 overflow-hidden transition-all duration-300', EASE, collapsed ? 'max-w-0 opacity-0 ml-0' : 'max-w-[160px] opacity-100')}>
+            <h1 className="font-bold text-lg tracking-tight leading-none whitespace-nowrap text-slate-900 dark:text-sidebar-foreground">
+              Study
+              <span className={isAdmin ? 'text-indigo-500 dark:text-indigo-400' : 'text-blue-600 dark:text-sidebar-primary'}>
+                Track
+              </span>
+            </h1>
+            <div className="flex items-center gap-1.5 mt-1">
+              <span
+                className={cn(
+                  'inline-block w-2 h-2 rounded-full shrink-0',
+                  isAdmin ? 'bg-indigo-500' : resolvedRole === 'student' ? 'bg-green-500' : 'bg-blue-500',
+                )}
+              />
+              <span className={cn(
+                'text-[11px] font-medium capitalize leading-none whitespace-nowrap',
+                isAdmin ? 'text-indigo-500 dark:text-indigo-400' : 'text-slate-500 dark:text-muted-foreground',
+              )}>
+                {roleLabel}
+              </span>
             </div>
-          )}
+          </div>
         </Link>
       </div>
 
@@ -216,9 +248,10 @@ export function SidebarContent({
         )}
 
         <div
-          className={`border-t border-slate-100 dark:border-sidebar-border pt-4 space-y-0.5 ${
-            collapsed ? 'mt-6' : 'mt-8'
-          }`}
+          className={cn(
+            'border-t border-slate-100 dark:border-sidebar-border pt-4 space-y-0.5',
+            collapsed ? 'mt-6' : 'mt-8',
+          )}
         >
           {(resolvedRole === 'admin' || resolvedRole === 'dev') && (
             renderNavItem({
@@ -238,13 +271,9 @@ export function SidebarContent({
       </nav>
 
       {/* --- USER FOOTER --- */}
-      <div
-        className={`border-t border-slate-100 dark:border-sidebar-border ${
-          collapsed ? 'p-2' : 'p-4'
-        }`}
-      >
-        <div className="bg-slate-50 dark:bg-sidebar-accent rounded-xl border border-slate-100 dark:border-sidebar-border flex items-center gap-3 hover:border-blue-200 dark:hover:border-sidebar-ring hover:bg-blue-50/50 dark:hover:bg-sidebar-accent/80 transition-colors group cursor-default overflow-hidden">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center text-blue-700 dark:text-sidebar-primary-foreground font-bold overflow-hidden shrink-0 bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600">
+      <div className={cn('border-t border-slate-100 dark:border-sidebar-border', collapsed ? 'p-2' : 'p-4')}>
+        <div className="rounded-xl border bg-slate-50 dark:bg-sidebar-accent border-slate-100 dark:border-sidebar-border flex items-center gap-3 hover:border-blue-200 dark:hover:border-sidebar-ring hover:bg-blue-50/50 dark:hover:bg-sidebar-accent/80 transition-colors group cursor-default overflow-hidden">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold overflow-hidden shrink-0 text-blue-700 dark:text-sidebar-primary-foreground bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-700 dark:to-slate-600">
             {avatarUrl ? (
               <Image
                 src={avatarUrl}
@@ -257,23 +286,21 @@ export function SidebarContent({
               <span className="text-sm">{fullName.charAt(0)}</span>
             )}
           </div>
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-sm font-semibold text-slate-900 dark:text-sidebar-foreground truncate">
-                  {fullName}
-                </p>
-              </div>
-              <form action="/auth/signout" method="post">
-                <button
-                  type="submit"
-                  className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-muted-foreground hover:text-red-600 dark:hover:text-destructive font-medium transition-colors mt-0.5 w-full text-left"
-                >
-                  <LogOut size={12} /> Sair da conta
-                </button>
-              </form>
+          <div className={cn('flex-1 min-w-0 overflow-hidden transition-all duration-300', EASE, collapsed ? 'max-w-0 opacity-0' : 'max-w-[180px] opacity-100')}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-semibold truncate text-slate-900 dark:text-sidebar-foreground">
+                {fullName}
+              </p>
             </div>
-          )}
+            <form action="/auth/signout" method="post">
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-muted-foreground hover:text-red-600 dark:hover:text-destructive font-medium transition-colors mt-0.5 w-full text-left whitespace-nowrap"
+              >
+                <LogOut size={12} /> Sair da conta
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -287,15 +314,15 @@ export function PortalSidebar(props: PortalSidebarProps) {
 
   const handleMouseEnter = () => {
     if (!isCollapsed) return;
-    hoverTimer.current = setTimeout(() => setIsHovered(true), 150);
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setIsHovered(true), 120);
   };
 
   const handleMouseLeave = () => {
-    if (hoverTimer.current) {
-      clearTimeout(hoverTimer.current);
-      hoverTimer.current = null;
-    }
-    setIsHovered(false);
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    // Pequeno atraso ao fechar também — evita o "flicker" de abrir/fechar
+    // rápido demais quando o mouse só passa de raspão pela borda.
+    hoverTimer.current = setTimeout(() => setIsHovered(false), 200);
   };
 
   const effectiveCollapsed = isCollapsed && !isHovered;
@@ -305,7 +332,8 @@ export function PortalSidebar(props: PortalSidebarProps) {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className={cn(
-        'hidden md:flex flex-col h-full z-0 sticky top-0 border-r border-slate-200 dark:border-sidebar-border transition-[width] duration-300 ease-in-out shrink-0',
+        'hidden md:flex flex-col h-full z-0 sticky top-0 border-r border-slate-200 dark:border-sidebar-border shrink-0',
+        'transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width]',
         effectiveCollapsed ? 'w-20' : 'w-64'
       )}
     >

@@ -11,15 +11,18 @@ import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import {
   UserPlus, Search, ChevronLeft, ChevronRight, ExternalLink,
   Users, Trash2, BookOpen, ClipboardList, FileText, Target,
-  ArrowUp, ArrowDown, Activity,
+  ArrowUp, ArrowDown, Activity, MoreVertical,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { brtDateDaysAgo, toBrtDateKey } from '@/lib/brt-date';
-import { readableBrandText, onBrandText } from '@/lib/brand-color';
+import { onBrandText } from '@/lib/brand-color';
 import {
   RevealGroup, RevealItem, ElevatedCard, KpiCard, SectionTitle,
   BrandPill, Segmented, BrandHero, HERO_ACCENT_COLOR,
@@ -91,15 +94,6 @@ const SORT_OPTIONS: { value: SortByField; label: string }[] = [
   { value: 'accuracy',              label: '% Acertos' },
 ];
 
-// Widths that must match between header and row cells
-const COL = {
-  avatar:    'w-10',
-  metric:    'w-[72px]',
-  lastAccess:'w-[130px]',
-  // action area: select w-36 (144) + 2 buttons w-9 (36) + 2 gaps gap-1 (8) = 224
-  actions:   'w-[224px]',
-} as const;
-
 interface PlanOption {
   id: string;
   name: string;
@@ -153,60 +147,24 @@ function getMetrics(s: Student, w: MetricWindow) {
   };
 }
 
-// A single metric column cell — direct flex child so gap aligns with header
-function MetricCell({ icon: Icon, value, label, accent, className }: {
+// Compact metric chip — wraps naturally instead of hiding on narrow screens
+function MetricChip({ icon: Icon, value, label, accent }: {
   icon: React.ElementType;
   value: number | string;
   label: string;
   accent?: boolean;
-  className?: string;
 }) {
   return (
-    <div className={cn('flex-col items-center shrink-0 text-center', COL.metric, className)}>
-      <div className={cn(
-        'flex items-center justify-center gap-1 text-sm font-black tabular-nums',
+    <div className="flex shrink-0 items-center gap-1 text-xs">
+      <Icon className={cn('h-3.5 w-3.5 shrink-0', accent ? 'text-emerald-500 dark:text-emerald-400' : 'text-slate-400 dark:text-white/30')} />
+      <span className={cn(
+        'font-black tabular-nums',
         accent ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-white/80',
       )}>
-        <Icon className="h-3 w-3 shrink-0 opacity-50" />
         {value}
-      </div>
-      <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400 dark:text-white/30 mt-0.5 leading-tight">
-        {label}
-      </p>
+      </span>
+      <span className="text-slate-400 dark:text-white/30">{label}</span>
     </div>
-  );
-}
-
-// Clickable column header cell
-function ColHeader({ label, sortKey, currentSort, currentOrder, onSort, className, brandHex }: {
-  label: string;
-  sortKey: SortByField;
-  currentSort: SortByField;
-  currentOrder: 'asc' | 'desc';
-  onSort: (field: SortByField) => void;
-  className?: string;
-  brandHex?: string;
-}) {
-  const active = currentSort === sortKey;
-  return (
-    <button
-      onClick={() => onSort(sortKey)}
-      className={cn(
-        'flex items-center justify-center gap-0.5 shrink-0 text-[10px] font-bold uppercase tracking-widest transition-colors',
-        active
-          ? 'dark:text-white/70'
-          : 'text-slate-400 hover:text-slate-600 dark:text-white/30 dark:hover:text-white/60',
-        className,
-      )}
-      style={active ? { color: readableBrandText(brandHex, 'var(--brand-primary)') } : undefined}
-    >
-      {label}
-      {active
-        ? currentOrder === 'desc'
-          ? <ArrowDown className="h-2.5 w-2.5 ml-0.5" />
-          : <ArrowUp className="h-2.5 w-2.5 ml-0.5" />
-        : null}
-    </button>
   );
 }
 
@@ -228,6 +186,8 @@ export default function AlunosPage() {
   const [removing, setRemoving]         = useState<string | null>(null);
   const [updatingPlan, setUpdatingPlan] = useState<string | null>(null);
   const [customPlans, setCustomPlans]   = useState<PlanOption[]>([]);
+  const [actionsStudentId, setActionsStudentId] = useState<string | null>(null);
+  const actionsStudent = students.find(s => s.id === actionsStudentId) ?? null;
 
   const today = toBrtDateKey(new Date());
 
@@ -522,28 +482,30 @@ export default function AlunosPage() {
                     onBlur={() => { setSearch(searchInput); setPage(1); }}
                   />
                 </div>
-                <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setPage(1); }}>
-                  <SelectTrigger className="w-40 bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10">
-                    <SelectValue placeholder="Plano" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os planos</SelectItem>
-                    <SelectItem value="none">Sem plano vinculado</SelectItem>
-                    {customPlans.map(p => <SelectItem key={p.id} value={`custom:${p.id}`}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={activityFilter} onValueChange={(v) => { setActivityFilter(v); setPage(1); }}>
-                  <SelectTrigger className="w-44 bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Qualquer atividade</SelectItem>
-                    <SelectItem value="today">Ativos hoje</SelectItem>
-                    <SelectItem value="week">Ativos esta semana</SelectItem>
-                    <SelectItem value="inactive">Inativos há +7 dias</SelectItem>
-                  </SelectContent>
-                </Select>
-                <BrandPill href={`/partners/${org.slug}/alunos/convidar`} hex={org.brand_primary} className="shrink-0">
+                <div className="flex gap-2 sm:contents">
+                  <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setPage(1); }}>
+                    <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 sm:w-40">
+                      <SelectValue placeholder="Plano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os planos</SelectItem>
+                      <SelectItem value="none">Sem plano vinculado</SelectItem>
+                      {customPlans.map(p => <SelectItem key={p.id} value={`custom:${p.id}`}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={activityFilter} onValueChange={(v) => { setActivityFilter(v); setPage(1); }}>
+                    <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 sm:w-44">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Qualquer atividade</SelectItem>
+                      <SelectItem value="today">Ativos hoje</SelectItem>
+                      <SelectItem value="week">Ativos esta semana</SelectItem>
+                      <SelectItem value="inactive">Inativos há +7 dias</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <BrandPill href={`/partners/${org.slug}/alunos/convidar`} hex={org.brand_primary} className="shrink-0 justify-center">
                   <UserPlus className="h-4 w-4" /> Adicionar
                 </BrandPill>
               </div>
@@ -556,33 +518,6 @@ export default function AlunosPage() {
           <ElevatedCard accentColor="var(--brand-primary)">
             <div className="p-4 sm:p-5">
               <SectionTitle kicker="Turma" title="Alunos" hex={org.brand_primary} />
-
-              {/* Cabeçalho de colunas (clicável para ordenar) */}
-              {!loading && filteredStudents.length > 0 && (
-                <div className="hidden md:flex items-center gap-4 border-b border-slate-100 px-1 pb-2 dark:border-white/5">
-                  {/* Avatar spacer */}
-                  <div className={COL.avatar} />
-                  {/* Aluno */}
-                  <div className="flex-1 min-w-0 text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-white/30">
-                    Aluno
-                  </div>
-                  <ColHeader label="Questões"  sortKey="questions" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSortChange} className={COL.metric} brandHex={org.brand_primary} />
-                  <ColHeader label="Simulados" sortKey="simulados" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSortChange} className={COL.metric} brandHex={org.brand_primary} />
-                  <ColHeader label="Redações"  sortKey="essays"    currentSort={sortBy} currentOrder={sortOrder} onSort={handleSortChange} className={COL.metric} brandHex={org.brand_primary} />
-                  <ColHeader label="Acertos"   sortKey="accuracy"  currentSort={sortBy} currentOrder={sortOrder} onSort={handleSortChange} className={COL.metric} brandHex={org.brand_primary} />
-                  <ColHeader
-                    label="Último acesso"
-                    sortKey="last_activity_date"
-                    currentSort={sortBy}
-                    currentOrder={sortOrder}
-                    onSort={handleSortChange}
-                    className={cn(COL.lastAccess, 'justify-start')}
-                    brandHex={org.brand_primary}
-                  />
-                  {/* Action spacer */}
-                  <div className={COL.actions} />
-                </div>
-              )}
 
               {loading ? (
                 <div className="space-y-2 pt-2">
@@ -613,14 +548,14 @@ export default function AlunosPage() {
                       <div
                         key={s.id}
                         className={cn(
-                          'group flex items-center gap-4 rounded-xl px-3 py-3',
+                          'flex items-start gap-3 rounded-xl px-2 py-3 sm:px-3',
                           'border-b border-slate-100 last:border-0 dark:border-white/5',
                           'hover:bg-slate-50 dark:hover:bg-white/5',
                           'transition-colors duration-150',
                         )}
                       >
                         {/* Avatar */}
-                        <div className={cn('relative shrink-0', COL.avatar)}>
+                        <div className="relative shrink-0">
                           <StudentAvatar student={s} brandHex={org.brand_primary} />
                           {isOnline && (
                             <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
@@ -630,84 +565,58 @@ export default function AlunosPage() {
                           )}
                         </div>
 
-                        {/* Nome + email */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Link
-                              href={`/partners/${org.slug}/alunos/${s.id}`}
-                              className="font-bold text-sm text-slate-900 dark:text-white hover:underline truncate"
+                        <div className="min-w-0 flex-1">
+                          {/* Nome + plano + botão de ações */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <Link
+                                  href={`/partners/${org.slug}/alunos/${s.id}`}
+                                  className="truncate font-bold text-sm text-slate-900 dark:text-white hover:underline"
+                                >
+                                  {s.full_name || '—'}
+                                </Link>
+                                {s.plan_name && (
+                                  <span className={cn(
+                                    'text-[10px] font-bold px-1.5 py-0.5 rounded-md border shrink-0',
+                                    s.plan_id
+                                      ? 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-700'
+                                      : 'border-slate-200 bg-slate-50 text-slate-500 dark:bg-white/5 dark:text-white/50 dark:border-white/10',
+                                  )}>
+                                    {s.plan_name}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="truncate text-xs text-slate-400 dark:text-white/30 mt-0.5">{s.email}</p>
+                            </div>
+                            <button
+                              onClick={() => setActionsStudentId(s.id)}
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:text-white/30 dark:hover:bg-white/10 dark:hover:text-white"
+                              title="Mais ações"
                             >
-                              {s.full_name || '—'}
-                            </Link>
-                            {s.plan_name && (
-                              <span className={cn(
-                                'text-[10px] font-bold px-1.5 py-0.5 rounded-md border shrink-0',
-                                s.plan_id
-                                  ? 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-700'
-                                  : 'border-slate-200 bg-slate-50 text-slate-500 dark:bg-white/5 dark:text-white/50 dark:border-white/10',
-                              )}>
-                                {s.plan_name}
-                              </span>
-                            )}
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
                           </div>
-                          <p className="text-xs text-slate-400 dark:text-white/30 truncate mt-0.5">{s.email}</p>
-                        </div>
 
-                        {/* ── Metric columns — direct flex children, same gap-4 as header ── */}
-                        <MetricCell icon={BookOpen}     value={m.questions} label="questões" className="hidden md:flex" />
-                        <MetricCell icon={ClipboardList} value={m.simulados} label="simulados" className="hidden md:flex" />
-                        <MetricCell icon={FileText}      value={m.essays}    label="redações"  className="hidden md:flex" />
-                        <MetricCell
-                          icon={Target}
-                          value={m.accuracy != null ? `${m.accuracy}%` : '—'}
-                          label="acertos"
-                          accent={accuracyGood}
-                          className="hidden md:flex"
-                        />
+                          {/* Métricas — sempre visíveis, quebram linha em telas estreitas */}
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                            <MetricChip icon={BookOpen}      value={m.questions} label="questões" />
+                            <MetricChip icon={ClipboardList} value={m.simulados} label="simulados" />
+                            <MetricChip icon={FileText}      value={m.essays}    label="redações" />
+                            <MetricChip
+                              icon={Target}
+                              value={m.accuracy != null ? `${m.accuracy}%` : '—'}
+                              label="acertos"
+                              accent={accuracyGood}
+                            />
+                          </div>
 
-                        {/* Último acesso */}
-                        <div className={cn('hidden md:flex flex-col shrink-0', COL.lastAccess)}>
-                          {s.last_activity_date ? (
-                            <>
-                              <span className="text-xs font-semibold text-slate-600 dark:text-white/70 tabular-nums">
-                                {s.last_activity_date}
-                              </span>
-                              <span className="text-[10px] text-slate-400 dark:text-white/30">
-                                {relativeDate(s.last_activity_date)}
-                              </span>
-                            </>
-                          ) : (
-                            <span className="text-xs text-slate-300 dark:text-white/20">Nunca acessou</span>
-                          )}
-                        </div>
-
-                        {/* Ações */}
-                        <div className={cn('flex items-center gap-1 shrink-0 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity', COL.actions)}>
-                          <Select
-                            value={s.plan_id ? `custom:${s.plan_id}` : 'none'}
-                            onValueChange={(v) => handlePlanChange(s, v)}
-                            disabled={updatingPlan === s.id}
-                          >
-                            <SelectTrigger className="h-9 w-36 text-[11px] border-slate-200 dark:border-white/10">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Sem plano vinculado</SelectItem>
-                              {customPlans.map(p => <SelectItem key={p.id} value={`custom:${p.id}`}>{p.name}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          <Button variant="ghost" size="icon" className="h-9 w-9" asChild title="Ver perfil">
-                            <Link href={`/partners/${org.slug}/alunos/${s.id}`}><ExternalLink className="h-4 w-4" /></Link>
-                          </Button>
-                          <Button
-                            variant="ghost" size="icon"
-                            className="h-9 w-9 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:text-white/30 dark:hover:bg-rose-950/30"
-                            disabled={removing === s.id}
-                            onClick={() => handleRemove(s.id, s.full_name)}
-                            title="Remover da organização"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {/* Último acesso */}
+                          <p className="mt-1.5 text-[11px] text-slate-400 dark:text-white/30">
+                            {s.last_activity_date
+                              ? `Último acesso ${relativeDate(s.last_activity_date)}`
+                              : 'Nunca acessou'}
+                          </p>
                         </div>
                       </div>
                     );
@@ -739,6 +648,69 @@ export default function AlunosPage() {
 
         </RevealGroup>
       </div>
+
+      {/* ── Sheet de ações do aluno (plano / perfil / remover) ──────────────── */}
+      <Sheet open={!!actionsStudent} onOpenChange={(open) => { if (!open) setActionsStudentId(null); }}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-2xl border-t bg-white p-5 dark:border-white/10 dark:bg-slate-900 sm:mx-auto sm:max-w-md"
+        >
+          {actionsStudent && (
+            <>
+              <SheetHeader className="mb-4 flex-row items-center gap-3 space-y-0 text-left">
+                <StudentAvatar student={actionsStudent} brandHex={org.brand_primary} />
+                <div className="min-w-0">
+                  <SheetTitle className="truncate text-base dark:text-white">
+                    {actionsStudent.full_name || '—'}
+                  </SheetTitle>
+                  <p className="truncate text-xs text-slate-400 dark:text-white/40">{actionsStudent.email}</p>
+                </div>
+              </SheetHeader>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white/50">
+                    Plano
+                  </label>
+                  <Select
+                    value={actionsStudent.plan_id ? `custom:${actionsStudent.plan_id}` : 'none'}
+                    onValueChange={(v) => handlePlanChange(actionsStudent, v)}
+                    disabled={updatingPlan === actionsStudent.id}
+                  >
+                    <SelectTrigger className="w-full border-slate-200 dark:border-white/10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem plano vinculado</SelectItem>
+                      {customPlans.map(p => <SelectItem key={p.id} value={`custom:${p.id}`}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button variant="outline" className="w-full justify-start gap-2 border-slate-200 dark:border-white/10" asChild>
+                  <Link href={`/partners/${org.slug}/alunos/${actionsStudent.id}`}>
+                    <ExternalLink className="h-4 w-4" /> Ver perfil completo
+                  </Link>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                  disabled={removing === actionsStudent.id}
+                  onClick={async () => {
+                    const name = actionsStudent.full_name;
+                    const id = actionsStudent.id;
+                    await handleRemove(id, name);
+                    setActionsStudentId(null);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" /> Remover da organização
+                </Button>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </PartnerLayout>
   );
 }
