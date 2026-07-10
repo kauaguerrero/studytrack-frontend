@@ -421,6 +421,24 @@ export default function FounderDashboardClient({
                   {getGreeting()}, {firstName}
                 </h1>
                 <p className="mt-1 text-[13px] text-white/60">Aqui está o resumo da sua turma.</p>
+
+                {/* Tagline em script — mesmo tratamento do hero do dashboard do aluno.
+                    Div (não <p>) porque o Typewriter renderiza uma <div> internamente,
+                    e <div> dentro de <p> é HTML inválido (quebra a hidratação). */}
+                <div
+                  className="font-script mt-1 text-[20px] leading-tight text-white lg:text-[24px]"
+                  style={{ ['--hero-accent' as string]: HERO_ACCENT_COLOR }}
+                >
+                  Nós nascemos para{' '}
+                  <Typewriter
+                    text={org.slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                    speed={95}
+                    deleteSpeed={52}
+                    waitTime={2600}
+                    className="text-[var(--hero-accent)]"
+                    cursorClassName="text-[var(--hero-accent)]"
+                  />
+                </div>
               </div>
               <div className="flex flex-col items-start gap-2 lg:items-end">
                 <div className="flex flex-wrap items-center gap-2">
@@ -429,22 +447,6 @@ export default function FounderDashboardClient({
                     <span className="text-[13px] font-bold tabular-nums text-white">{loading ? '—' : students.length}</span>
                     <span className="text-[11px] text-white/55">alunos</span>
                   </div>
-                  <div className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-                    <Activity className="h-4 w-4" style={{ color: HERO_ACCENT_COLOR }} />
-                    <span className="text-[13px] font-bold tabular-nums text-white">{loading ? '—' : activeTodayFromStudents}</span>
-                    <span className="text-[11px] text-white/55">ativos hoje</span>
-                  </div>
-                </div>
-                <div className="inline-flex max-w-full items-center rounded-full border border-white/10 bg-white/10 px-3.5 py-1.5 text-[12.5px] font-semibold text-white/85 backdrop-blur-sm">
-                  <span className="mr-[0.25em] whitespace-nowrap">📚 Nós nascemos para</span>
-                  <Typewriter
-                    text={org.slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
-                    speed={95}
-                    deleteSpeed={52}
-                    waitTime={2600}
-                    className="max-w-full font-black text-white"
-                    cursorClassName="ml-1 text-white"
-                  />
                 </div>
               </div>
             </div>
