@@ -18,6 +18,7 @@ import {
   ScanSearch,
   Github,
   Presentation,
+  Bell,
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -201,6 +202,7 @@ export function SidebarContent({
             {renderNavItem({ href: '/portal/admin/audits', icon: ScanSearch, label: 'Audit Center' })}
             {renderNavItem({ href: '/portal/admin/social-media', icon: Sparkles, label: 'Social Media IA' })}
             {renderNavItem({ href: '/portal/admin/questions', icon: BookOpen, label: 'Curadoria' })}
+            {renderNavItem({ href: '/portal/admin/announcements', icon: Bell, label: 'Novidades' })}
             {renderSectionTitle('Reports')}
             {renderNavItem({ href: '/portal/admin/reports', icon: Flag, label: 'Reports' })}
           </div>

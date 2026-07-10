@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronDown, Bell as BellIcon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -39,7 +39,7 @@ function AnnouncementRow({
   defaultOpen: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const Icon = getAnnouncementIcon(announcement.icon);
+  const Icon = useMemo(() => getAnnouncementIcon(announcement.icon), [announcement.icon]);
   const bullets = splitBullets(announcement.body);
 
   return (
@@ -50,7 +50,7 @@ function AnnouncementRow({
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-zinc-800/50"
       >
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border border-violet-500/30">
-          <Icon className="h-4 w-4 text-violet-300" />
+          {createElement(Icon, { className: 'h-4 w-4 text-violet-300' })}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
