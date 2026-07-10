@@ -158,42 +158,6 @@ export default function Home() {
         {/* 1. Hero */}
         <HeroSection />
 
-        {/* 2. Social proof bar */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.7 }}
-          className="py-5 border-y border-[#E2E8F0]"
-          style={{ background: "#F8F9FA" }}
-        >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-10">
-            <span className="text-xs font-semibold tracking-widest text-[#9CA3AF] uppercase">
-              Instituições que confiam
-            </span>
-            <div className="flex items-center gap-10 sm:gap-14">
-              {[
-                { logo: "/marketing/logo%20opus.png", name: "Opus", sub: "Goiânia, GO", w: 80 },
-                { logo: "/marketing/LOGO-EDIFICAR.png", name: "Edificar", sub: "São Joaquim da Barra, SP", w: 100 },
-              ].map(({ logo, name, sub, w }) => (
-                <div key={name} className="flex items-center gap-3 opacity-50 hover:opacity-90 transition-opacity duration-300">
-                  <Image
-                    src={logo}
-                    alt={`Logo ${name}`}
-                    width={w}
-                    height={32}
-                    className="h-8 w-auto object-contain"
-                    unoptimized
-                  />
-                  <div>
-                    <p className="text-xs text-[#9CA3AF]">{sub}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </motion.div>
-
         {/* 3. Features */}
         <FeaturesSection />
 

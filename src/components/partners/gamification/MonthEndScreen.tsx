@@ -11,6 +11,7 @@ interface Winner {
   position: 1 | 2 | 3;
   full_name: string;
   is_anonymous?: boolean;
+  avatar_url?: string | null;
   monthly_points: number;
 }
 
@@ -81,18 +82,27 @@ function PodiumSlot({
       </p>
 
       {/* Avatar */}
-      <div
-        className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white ring-2 ring-white/20"
-        style={{
-          background: isFirst
-            ? 'linear-gradient(135deg, #f59e0b, #d97706)'
-            : winner.position === 2
-            ? 'linear-gradient(135deg, #94a3b8, #64748b)'
-            : 'linear-gradient(135deg, #a16207, #92400e)',
-        }}
-      >
-        {winner.is_anonymous ? <EyeOff className="h-4 w-4" /> : winner.full_name.charAt(0).toUpperCase()}
-      </div>
+      {!winner.is_anonymous && winner.avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={winner.avatar_url}
+          alt={winner.full_name}
+          className="h-10 w-10 rounded-full object-cover ring-2 ring-white/20"
+        />
+      ) : (
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white ring-2 ring-white/20"
+          style={{
+            background: isFirst
+              ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+              : winner.position === 2
+              ? 'linear-gradient(135deg, #94a3b8, #64748b)'
+              : 'linear-gradient(135deg, #a16207, #92400e)',
+          }}
+        >
+          {winner.is_anonymous ? <EyeOff className="h-4 w-4" /> : winner.full_name.charAt(0).toUpperCase()}
+        </div>
+      )}
 
       {/* Medal icon row */}
       <div className="flex items-center gap-0.5">{iconEl}</div>

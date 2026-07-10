@@ -207,7 +207,7 @@ export function RankingPopup({ ranking, onClose }: Props) {
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div className={`${theme.isDark ? 'border-t border-white/8' : 'border-t border-slate-200/80'} px-4 py-3`}>
           <p className={`text-center text-xs ${theme.bodyClass}`}>
-            Top {prize_cutoff} lideram o mês — quem atingir 1.500 pts no mês se destaca 🏆
+            Top {prize_cutoff} lideram o mês — quem atingir 1.000 pts no mês se destaca 🏆
           </p>
         </div>
       </motion.div>

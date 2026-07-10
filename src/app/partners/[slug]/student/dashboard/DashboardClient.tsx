@@ -357,7 +357,7 @@ export function DashboardClient({
 
   // ── Monthly ranking progress ───────────────────────────────────────────────
   const monthlyPts = summary?.monthly_points ?? 0;
-  const monthlyGoal = summary?.monthly_goal ?? 1500;
+  const monthlyGoal = summary?.monthly_goal ?? 1000;
   const goalReached = summary?.goal_reached ?? false;
   const monthLabel = summary?.month_label ?? '';
   const shieldCount = summary?.shield_count ?? 0;

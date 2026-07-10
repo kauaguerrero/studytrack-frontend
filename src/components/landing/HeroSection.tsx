@@ -525,36 +525,188 @@ function MacbookMockup3D() {
   );
 }
 
-// ─── Mobile flat dashboard card ───────────────────────────────────────────────
+// ─── Tablet geometry (SVG user-units, viewBox 0 0 520 378) ──────────────────
+
+const TAB = {
+  W: 520, H: 378,
+  R: 28,
+  SX: 24, SY: 18,
+  SW: 472, SH: 308,
+} as const;
+
+// ─── Mobile 3D tablet mockup ─────────────────────────────────────────────────
 
 function MobileDashboardCard() {
+  const touchX = useMotionValue(0);
+  const touchY = useMotionValue(0);
+
+  const rawDX = useSpring(useTransform(touchX, [-0.5, 0.5], [-5, 5]), { stiffness: 120, damping: 25 });
+  const rawDY = useSpring(useTransform(touchY, [-0.5, 0.5], [-3, 3]), { stiffness: 120, damping: 25 });
+  const rotateY = useTransform(rawDX, (v) => -8 + v);
+  const rotateX = useTransform(rawDY, (v) =>  6 + v);
+
+  function onTouchMove(e: React.TouchEvent<HTMLDivElement>) {
+    const r = e.currentTarget.getBoundingClientRect();
+    const t = e.touches[0];
+    touchX.set((t.clientX - r.left) / r.width  - 0.5);
+    touchY.set((t.clientY - r.top)  / r.height - 0.5);
+  }
+  function onTouchEnd() { touchX.set(0); touchY.set(0); }
+
   return (
     <motion.div
-      className="relative w-full max-w-sm mx-auto"
+      className="relative select-none w-full"
+      style={{ perspective: 900 }}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
       initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.7, delay: 0.4 }}
     >
+      {/* Ambient glow */}
       <div
-        className="rounded-2xl overflow-hidden border border-[#E2E8F0]"
-        style={{
-          boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 0 0 1px rgba(99,102,241,0.08) inset",
-        }}
+        className="absolute -inset-8 rounded-3xl pointer-events-none"
+        style={{ background: "radial-gradient(ellipse at 50% 45%, rgba(6,182,212,0.10) 0%, rgba(99,102,241,0.08) 55%, transparent 78%)" }}
+        aria-hidden
+      />
+
+      {/* 3-D tilt + float */}
+      <motion.div
+        style={{ rotateX, rotateY }}
+        animate={{ y: [0, -6, 0] }}
+        transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
+        className="relative"
       >
+        {/* Projected shadow */}
         <div
-          className="flex items-center gap-1.5 px-3 py-2 border-b border-white/8"
-          style={{ background: "rgba(8,14,30,0.99)" }}
+          className="absolute -bottom-8 left-1/2 -translate-x-1/2 pointer-events-none"
+          style={{ width: "70%", height: 22, background: "rgba(99,102,241,0.20)", filter: "blur(18px)", borderRadius: "50%" }}
+          aria-hidden
+        />
+
+        {/* ── SVG Tablet ── */}
+        <svg
+          viewBox={`0 0 ${TAB.W} ${TAB.H}`}
+          width="100%"
+          style={{ display: "block", overflow: "visible" }}
+          aria-label="Dashboard StudyTrack no tablet"
         >
-          <span className="w-2 h-2 rounded-full bg-red-400/70" />
-          <span className="w-2 h-2 rounded-full bg-yellow-400/70" />
-          <span className="w-2 h-2 rounded-full bg-green-400/70" />
-          <span className="flex-1 text-center text-[9px] text-white/20 font-mono">
-            app.studytrack.com.br
-          </span>
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        </div>
-        <DashboardContent />
-      </div>
+          <defs>
+            {/* Body gradient */}
+            <linearGradient id="tab-body" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#2A2A2C" />
+              <stop offset="100%" stopColor="#1C1C1E" />
+            </linearGradient>
+
+            {/* Top-edge reflection */}
+            <linearGradient id="tab-reflect" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="white" stopOpacity="0.05" />
+              <stop offset="100%" stopColor="white" stopOpacity="0" />
+            </linearGradient>
+
+            {/* Screen blue glow */}
+            <linearGradient id="tab-scr-glow" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor="#3B82F6" stopOpacity="0.06" />
+              <stop offset="100%" stopColor="#1E40AF" stopOpacity="0.01" />
+            </linearGradient>
+
+            {/* Clip for screen content */}
+            <clipPath id="tab-scr-clip">
+              <rect x={TAB.SX} y={TAB.SY} width={TAB.SW} height={TAB.SH} rx="5" />
+            </clipPath>
+          </defs>
+
+          {/* ── Tablet body ── */}
+          <rect
+            x="0" y="0" width={TAB.W} height={TAB.H} rx={TAB.R}
+            fill="url(#tab-body)" stroke="#3C3C3E" strokeWidth="1"
+          />
+
+          {/* Top-edge shine */}
+          <rect
+            x="0" y="0" width={TAB.W} height={TAB.H * 0.38} rx={TAB.R}
+            fill="url(#tab-reflect)" style={{ pointerEvents: "none" }}
+          />
+
+          {/* Camera — top center */}
+          <circle cx={TAB.W / 2} cy="10" r="3.5"
+            fill="#111113" stroke="#242426" strokeWidth="0.5" />
+          <circle cx={TAB.W / 2 - 0.8} cy="9.2" r="1.2"
+            fill="rgba(255,255,255,0.13)" />
+
+          {/* Power button — right side */}
+          <rect x={TAB.W - 3} y="88" width="3" height="30" rx="1.5"
+            fill="#2C2C2E" />
+
+          {/* Volume up / down — left side */}
+          <rect x="0" y="78" width="3" height="22" rx="1.5" fill="#2C2C2E" />
+          <rect x="0" y="108" width="3" height="22" rx="1.5" fill="#2C2C2E" />
+
+          {/* Screen background */}
+          <rect
+            x={TAB.SX} y={TAB.SY} width={TAB.SW} height={TAB.SH} rx="5"
+            fill="#050A18"
+          />
+
+          {/* Dashboard content via foreignObject */}
+          <g clipPath="url(#tab-scr-clip)">
+            <foreignObject x={TAB.SX} y={TAB.SY} width={TAB.SW} height={TAB.SH}>
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
+                  background: "transparent",
+                  fontFamily: "inherit",
+                }}
+              >
+                {/* Browser chrome */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "5px 12px",
+                    borderBottom: "1px solid rgba(255,255,255,0.07)",
+                    background: "rgba(8,14,30,0.99)",
+                    flexShrink: 0,
+                  }}
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(248,113,113,0.72)", display: "inline-block", flexShrink: 0 }} />
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(251,191,36,0.72)", display: "inline-block", flexShrink: 0 }} />
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: "rgba(52,211,153,0.72)", display: "inline-block", flexShrink: 0 }} />
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 9, color: "rgba(255,255,255,0.20)", fontFamily: "monospace" }}>
+                    app.studytrack.com.br
+                  </span>
+                  <span className="animate-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "#34D399", display: "inline-block", flexShrink: 0 }} />
+                </div>
+
+                {/* Animated dashboard */}
+                <div style={{ flex: 1, overflow: "hidden", minHeight: 0 }}>
+                  <DashboardContent />
+                </div>
+              </div>
+            </foreignObject>
+          </g>
+
+          {/* Screen glow overlay */}
+          <rect
+            x={TAB.SX} y={TAB.SY} width={TAB.SW} height={TAB.SH} rx="5"
+            fill="url(#tab-scr-glow)"
+            stroke="rgba(59,130,246,0.10)" strokeWidth="1"
+            style={{ pointerEvents: "none" }}
+          />
+
+          {/* Home indicator bar */}
+          <rect
+            x={TAB.W / 2 - 44} y={TAB.H - 11}
+            width="88" height="4" rx="2"
+            fill="rgba(255,255,255,0.15)"
+          />
+        </svg>
+      </motion.div>
     </motion.div>
   );
 }

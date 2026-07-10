@@ -13,7 +13,7 @@ interface Props {
   onContinue: () => void;
 }
 
-const MONTHLY_GOAL = 1500;
+const MONTHLY_GOAL = 1000;
 
 export function EssayRewardPopup({
   pointsAwarded,
@@ -149,9 +149,9 @@ export function EssayRewardPopup({
 
           <div>
             <div className="mb-2 flex items-baseline justify-between">
-              <p className={`text-xs ${theme.mutedClass}`}>Progresso para os 1.500 pts</p>
+              <p className={`text-xs ${theme.mutedClass}`}>Progresso para os 1.000 pts</p>
               <p className={`text-xs font-semibold ${theme.titleClass}`}>
-                {newMonthlyPoints.toLocaleString('pt-BR')} / 1.500 pts
+                {newMonthlyPoints.toLocaleString('pt-BR')} / 1.000 pts
               </p>
             </div>
             <div className="h-2.5 overflow-hidden rounded-full" style={theme.panelStyle}>
