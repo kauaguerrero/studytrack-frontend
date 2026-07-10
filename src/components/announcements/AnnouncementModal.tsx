@@ -1,6 +1,7 @@
 'use client';
 
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronDown, Bell as BellIcon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -97,7 +98,12 @@ function AnnouncementRow({
 export function AnnouncementFeedModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const { clearUnread } = useAnnouncementNotification();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const fetchFeed = useCallback(async () => {
     setLoading(true);
@@ -139,7 +145,9 @@ export function AnnouncementFeedModal({ isOpen, onClose }: { isOpen: boolean; on
     if (isOpen) void fetchFeed();
   }, [isOpen, fetchFeed]);
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -195,6 +203,7 @@ export function AnnouncementFeedModal({ isOpen, onClose }: { isOpen: boolean; on
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
