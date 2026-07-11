@@ -1,8 +1,7 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, AlertTriangle, Zap, Flame, CornerDownLeft, CornerDownRight, CheckCircle2, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, Zap, Flame, CheckCircle2, XCircle, RotateCcw, Target } from "lucide-react";
 
 interface WhatsappInfo {
   last_at: string | null;
@@ -18,13 +17,16 @@ interface QuestionInfo {
 interface DauProfile {
   id: string;
   full_name: string;
+  avatar_url: string | null;
   plan_tier: string | null;
   last_activity_date: string | null;
-  total_points: number;
+  monthly_points: number;
   current_streak: number;
   onboarding_completed: boolean | null;
   last_whatsapp: WhatsappInfo | null;
   last_question: QuestionInfo | null;
+  /** Quando não-nulo: dias sem atividade antes de voltar a aparecer hoje (>= 3). */
+  returned_after_days: number | null;
 }
 
 interface HealthData {
@@ -52,133 +54,205 @@ function fmtRelative(iso: string | null): string {
 }
 
 function stickinessColor(val: number): string {
-  if (val > 20) return "text-green-600";
-  if (val >= 10) return "text-amber-500";
-  return "text-red-500";
+  if (val > 20) return "text-emerald-600 dark:text-emerald-400";
+  if (val >= 10) return "text-amber-500 dark:text-amber-400";
+  return "text-red-500 dark:text-red-400";
 }
 
 function planBadgeClass(tier: string | null): string {
   switch (tier) {
-    case "pro":   return "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 border-emerald-200";
-    case "elite": return "bg-violet-50 dark:bg-violet-950/40 text-violet-700 border-violet-200";
-    default:      return "bg-slate-100 dark:bg-slate-800 text-slate-600 border-slate-200";
+    case "pro":   return "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900";
+    case "elite": return "bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-900";
+    default:      return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700";
   }
 }
 
-export default function StickinessCard({ health, apiUrl }: Props) {
-  const profiles = health.dau_profiles ?? [];
+function StudentAvatar({ name, avatarUrl }: { name: string; avatarUrl: string | null }) {
+  if (avatarUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={avatarUrl} alt={name} className="h-6 w-6 shrink-0 rounded-full object-cover" />;
+  }
+  return (
+    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
+      {(name || "?")[0].toUpperCase()}
+    </div>
+  );
+}
+
+// Cartão de métrica principal (DAU / MAU / Retenção) — padrão visual do dashboard de founder.
+function StatTile({ label, value, valueClassName, accentColor }: {
+  label: string;
+  value: string | number;
+  valueClassName?: string;
+  accentColor: string;
+}) {
+  return (
+    <div
+      className="relative overflow-hidden rounded-2xl p-4"
+      style={{ background: `color-mix(in srgb, ${accentColor} 7%, transparent)` }}
+    >
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
+        style={{ background: `linear-gradient(90deg, ${accentColor}, color-mix(in srgb, ${accentColor} 40%, white))` }}
+      />
+      <p className={`font-display text-[26px] font-black tabular-nums ${valueClassName ?? 'text-slate-900 dark:text-white'}`}>
+        {value}
+      </p>
+      <p className="mt-1 text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-white/50">{label}</p>
+    </div>
+  );
+}
+
+export default function StickinessCard({ health }: Props) {
+  // b2b_test já é filtrado no backend, mas mantemos o filtro aqui como reforço.
+  const profiles = (health.dau_profiles ?? []).filter((p) => p.plan_tier !== "b2b_test");
+
+  // Estatísticas derivadas dos alunos ativos hoje — dá contexto além da contagem crua.
+  const activeCount = profiles.length;
+  const withStreak = profiles.filter((p) => p.current_streak > 0).length;
+  const avgStreak = activeCount ? profiles.reduce((sum, p) => sum + p.current_streak, 0) / activeCount : 0;
+  const answered = profiles.filter((p) => p.last_question?.is_correct != null);
+  const correctCount = answered.filter((p) => p.last_question?.is_correct === true).length;
+  const accuracyPct = answered.length ? Math.round((correctCount / answered.length) * 100) : null;
+  const returnedUsers = profiles.filter((p) => p.returned_after_days != null);
+  const maxReturnGap = returnedUsers.length
+    ? Math.max(...returnedUsers.map((p) => p.returned_after_days as number))
+    : 0;
 
   return (
-    <>
-      <Card className="hover:border-slate-300 transition-colors">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Zap className="w-5 h-5 text-amber-500" /> Fidelidade de Uso (Stickiness)
-          </CardTitle>
-          <CardDescription>DAU/MAU por último dia com atividade (last_activity_date).</CardDescription>
-        </CardHeader>
+    <div className="relative overflow-hidden rounded-[20px] bg-white p-5 dark:bg-slate-900 partner-elevated-card lg:p-6">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
+        style={{ background: 'linear-gradient(90deg, #F59E0B, color-mix(in srgb, #F59E0B 40%, white))' }}
+      />
 
-        <CardContent className="space-y-5">
-          {/* MÉTRICAS PRINCIPAIS */}
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 p-3">
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{health.dau}</p>
-              <p className="text-xs text-slate-500 font-bold uppercase mt-1">DAU (24h)</p>
-            </div>
-            <div className="h-px" />
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 p-3">
-              <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{health.mau}</p>
-              <p className="text-xs text-slate-500 font-bold uppercase mt-1">MAU (30d)</p>
-            </div>
-            <div className="col-span-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 p-3">
-              <p className={`text-2xl font-bold ${stickinessColor(health.stickiness)}`}>
-                {health.stickiness}%
-              </p>
-              <p className="text-xs text-slate-500 font-bold uppercase mt-1">Retenção DAU/MAU</p>
-            </div>
+      <div className="mb-5 flex items-center gap-2">
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-xl"
+          style={{ background: 'color-mix(in srgb, #F59E0B 16%, white)' }}
+        >
+          <Zap className="h-[18px] w-[18px]" style={{ color: '#B45309' }} />
+        </div>
+        <div>
+          <h3 className="font-display text-base font-black text-slate-900 dark:text-white">Fidelidade de Uso (Stickiness)</h3>
+          <p className="text-[11.5px] text-slate-400 dark:text-white/40">DAU/MAU por último dia com atividade</p>
+        </div>
+      </div>
+
+      {/* MÉTRICAS PRINCIPAIS */}
+      <div className="grid grid-cols-3 gap-3">
+        <StatTile label="DAU (24h)" value={health.dau} accentColor="#2563eb" />
+        <StatTile label="MAU (30d)" value={health.mau} accentColor="#4f46e5" />
+        <StatTile
+          label="Retenção DAU/MAU"
+          value={`${health.stickiness}%`}
+          valueClassName={stickinessColor(health.stickiness)}
+          accentColor="#059669"
+        />
+      </div>
+
+      {/* MÉTRICAS SECUNDÁRIAS */}
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="flex items-center gap-2.5 rounded-2xl border border-red-100 bg-red-50 p-3 dark:border-red-900/40 dark:bg-red-950/30">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium text-red-700 dark:text-red-300">Inativos 7d (B2B)</p>
+            <p className="text-lg font-black tabular-nums text-red-800 dark:text-red-200">{health.expired_trials ?? 0}</p>
           </div>
-
-          {/* MÉTRICAS SECUNDÁRIAS */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/40 p-3 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-red-700 dark:text-red-300 font-medium">Inativos 7d (B2B)</p>
-                <p className="text-xl font-bold text-red-800 dark:text-red-200">{health.expired_trials ?? 0}</p>
-              </div>
-            </div>
-            <div className="rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-100 dark:border-orange-900/40 p-3 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-orange-500 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-xs text-orange-700 dark:text-orange-300 font-medium">Inativos 30d (B2B)</p>
-                <p className="text-xl font-bold text-orange-800 dark:text-orange-200">{health.churn_risk_users ?? 0}</p>
-              </div>
-            </div>
+        </div>
+        <div className="flex items-center gap-2.5 rounded-2xl border border-orange-100 bg-orange-50 p-3 dark:border-orange-900/40 dark:bg-orange-950/30">
+          <Activity className="h-4 w-4 shrink-0 text-orange-500" />
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium text-orange-700 dark:text-orange-300">Inativos 30d (B2B)</p>
+            <p className="text-lg font-black tabular-nums text-orange-800 dark:text-orange-200">{health.churn_risk_users ?? 0}</p>
           </div>
+        </div>
+      </div>
 
-          {/* TABELA DAU */}
-          <div>
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-              Ativos hoje ({health.dau} usuários)
-            </p>
-            {profiles.length === 0 ? (
-              <p className="text-sm text-slate-400 italic">Nenhum usuário ativo nas últimas 24h</p>
-            ) : (
-              <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 uppercase">
-                      <th className="px-3 py-2 text-left font-semibold">Nome</th>
-                      <th className="px-3 py-2 text-left font-semibold">Plano</th>
-                      <th className="px-3 py-2 text-right font-semibold">Pts</th>
-                      <th className="px-3 py-2 text-right font-semibold">Streak</th>
-                      <th className="px-3 py-2 text-left font-semibold">Último WhatsApp</th>
-                      <th className="px-3 py-2 text-left font-semibold">Última questão</th>
+      {/* TABELA DAU */}
+      <div className="mt-5">
+        <p className="mb-2.5 text-[13px] font-bold text-slate-700 dark:text-white/80">
+          Ativos hoje <span className="font-semibold text-slate-400 dark:text-white/35">({activeCount} usuário{activeCount === 1 ? '' : 's'})</span>
+        </p>
+
+        {activeCount === 0 ? (
+          <p className="text-sm italic text-slate-400 dark:text-white/30">Nenhum usuário ativo nas últimas 24h</p>
+        ) : (
+          <>
+            {/* Chips de estatísticas do grupo ativo hoje */}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-2.5 py-1 text-[11px] font-bold text-orange-700 dark:bg-orange-950/30 dark:text-orange-300">
+                <Flame className="h-3 w-3" /> {withStreak}/{activeCount} com sequência ativa
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300">
+                <Zap className="h-3 w-3" /> streak médio {avgStreak.toFixed(1)}d
+              </span>
+              {accuracyPct !== null && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                  <Target className="h-3 w-3" /> {accuracyPct}% de acerto na última questão
+                </span>
+              )}
+              {returnedUsers.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-700 dark:bg-violet-950/30 dark:text-violet-300">
+                  <RotateCcw className="h-3 w-3" /> {returnedUsers.length} volt{returnedUsers.length === 1 ? 'ou' : 'aram'} após até {maxReturnGap}d sumido{maxReturnGap === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-white/10">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-400 uppercase tracking-wide dark:bg-white/5 dark:text-white/35">
+                    <th className="px-3 py-2 text-left font-bold">Nome</th>
+                    <th className="px-3 py-2 text-left font-bold">Plano</th>
+                    <th className="px-3 py-2 text-right font-bold">Pontos</th>
+                    <th className="px-3 py-2 text-right font-bold">Streak</th>
+                    <th className="px-3 py-2 text-left font-bold">Última questão</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                  {profiles.map((p) => (
+                    <tr key={p.id} className="transition-colors hover:bg-slate-50 dark:hover:bg-white/5">
+                      <td className="max-w-[140px] px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <StudentAvatar name={p.full_name} avatarUrl={p.avatar_url} />
+                          <span className="truncate font-semibold text-slate-800 dark:text-white/85">{p.full_name}</span>
+                          {p.returned_after_days != null && (
+                            <span
+                              className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
+                              title={`Sem atividade por ${p.returned_after_days} dias antes de voltar hoje`}
+                            >
+                              <RotateCcw className="h-2.5 w-2.5" /> {p.returned_after_days}d
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <Badge variant="outline" className={`text-[10px] ${planBadgeClass(p.plan_tier)}`}>
+                          {p.plan_tier ?? "free"}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-600 dark:text-white/60">
+                        {p.monthly_points}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {p.current_streak > 0
+                          ? <span className="inline-flex items-center gap-1 font-semibold tabular-nums"><Flame className="h-3.5 w-3.5 text-orange-500" />{p.current_streak}d</span>
+                          : <span className="text-slate-300 dark:text-white/20">—</span>}
+                      </td>
+                      <td className="max-w-[160px] px-3 py-2 text-slate-600 dark:text-white/60">
+                        {p.last_question
+                          ? <span className="inline-flex items-center gap-1" title={p.last_question.subject ?? ""}>{p.last_question.is_correct ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" /> : <XCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />} {p.last_question.subject ?? "?"} · {fmtRelative(p.last_question.last_at)}</span>
+                          : "—"}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {profiles.map((p) => (
-                      <tr
-                        key={p.id}
-                        className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
-                      >
-                        <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200 max-w-[120px] truncate">
-                          {p.full_name}
-                        </td>
-                        <td className="px-3 py-2">
-                          <Badge variant="outline" className={`text-[10px] ${planBadgeClass(p.plan_tier)}`}>
-                            {p.plan_tier ?? "free"}
-                          </Badge>
-                        </td>
-                        <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
-                          {p.total_points}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          {p.current_streak > 0
-                            ? <span className="inline-flex items-center gap-1 font-medium"><Flame className="w-3.5 h-3.5 text-orange-500" />{p.current_streak}d</span>
-                            : <span className="text-slate-400">—</span>}
-                        </td>
-                        <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
-                          {p.last_whatsapp
-                            ? <span className="inline-flex items-center gap-1">{p.last_whatsapp.direction === "inbound" ? <CornerDownLeft className="w-3.5 h-3.5 text-slate-400 shrink-0" /> : <CornerDownRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />} {fmtRelative(p.last_whatsapp.last_at)}</span>
-                            : "—"}
-                        </td>
-                        <td className="px-3 py-2 text-slate-600 dark:text-slate-400 max-w-[140px]">
-                          {p.last_question
-                            ? <span className="inline-flex items-center gap-1" title={p.last_question.subject ?? ""}>{p.last_question.is_correct ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> : <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />} {p.last_question.subject ?? "?"} · {fmtRelative(p.last_question.last_at)}</span>
-                            : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-        </CardContent>
-      </Card>
-
-    </>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

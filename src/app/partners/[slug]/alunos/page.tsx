@@ -11,14 +11,22 @@ import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import {
   UserPlus, Search, ChevronLeft, ChevronRight, ExternalLink,
   Users, Trash2, BookOpen, ClipboardList, FileText, Target,
-  ArrowUp, ArrowDown, ArrowUpDown,
+  ArrowUp, ArrowDown, Activity, MoreVertical,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { brtDateDaysAgo, toBrtDateKey } from '@/lib/brt-date';
+import { onBrandText } from '@/lib/brand-color';
+import {
+  RevealGroup, RevealItem, ElevatedCard, KpiCard, SectionTitle,
+  BrandPill, Segmented, BrandHero, HERO_ACCENT_COLOR,
+} from '@/components/partners/founder-ui';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -86,15 +94,6 @@ const SORT_OPTIONS: { value: SortByField; label: string }[] = [
   { value: 'accuracy',              label: '% Acertos' },
 ];
 
-// Widths that must match between header and row cells
-const COL = {
-  avatar:    'w-10',
-  metric:    'w-[72px]',
-  lastAccess:'w-[130px]',
-  // action area: select w-36 (144) + 2 buttons w-9 (36) + 2 gaps gap-1 (8) = 224
-  actions:   'w-[224px]',
-} as const;
-
 interface PlanOption {
   id: string;
   name: string;
@@ -103,7 +102,7 @@ interface PlanOption {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function StudentAvatar({ student }: { student: Student }) {
+function StudentAvatar({ student, brandHex }: { student: Student; brandHex?: string }) {
   const initial = (student.full_name || student.email || '?')[0].toUpperCase();
   if (student.avatar_url) {
     return (
@@ -118,8 +117,8 @@ function StudentAvatar({ student }: { student: Student }) {
   }
   return (
     <div
-      className="w-10 h-10 rounded-full flex items-center justify-center font-black text-white shrink-0 text-sm"
-      style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))' }}
+      className="w-10 h-10 rounded-full flex items-center justify-center font-black shrink-0 text-sm"
+      style={{ background: 'var(--brand-primary)', color: onBrandText(brandHex) }}
     >
       {initial}
     </div>
@@ -148,59 +147,24 @@ function getMetrics(s: Student, w: MetricWindow) {
   };
 }
 
-// A single metric column cell — direct flex child so gap aligns with header
-function MetricCell({ icon: Icon, value, label, accent, className }: {
+// Compact metric chip — wraps naturally instead of hiding on narrow screens
+function MetricChip({ icon: Icon, value, label, accent }: {
   icon: React.ElementType;
   value: number | string;
   label: string;
   accent?: boolean;
-  className?: string;
 }) {
   return (
-    <div className={cn('flex-col items-center shrink-0 text-center', COL.metric, className)}>
-      <div className={cn(
-        'flex items-center justify-center gap-1 text-sm font-black tabular-nums',
+    <div className="flex shrink-0 items-center gap-1 text-xs">
+      <Icon className={cn('h-3.5 w-3.5 shrink-0', accent ? 'text-emerald-500 dark:text-emerald-400' : 'text-slate-400 dark:text-white/30')} />
+      <span className={cn(
+        'font-black tabular-nums',
         accent ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-white/80',
       )}>
-        <Icon className="h-3 w-3 shrink-0 opacity-50" />
         {value}
-      </div>
-      <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400 dark:text-white/30 mt-0.5 leading-tight">
-        {label}
-      </p>
+      </span>
+      <span className="text-slate-400 dark:text-white/30">{label}</span>
     </div>
-  );
-}
-
-// Clickable column header cell
-function ColHeader({ label, sortKey, currentSort, currentOrder, onSort, className }: {
-  label: string;
-  sortKey: SortByField;
-  currentSort: SortByField;
-  currentOrder: 'asc' | 'desc';
-  onSort: (field: SortByField) => void;
-  className?: string;
-}) {
-  const active = currentSort === sortKey;
-  return (
-    <button
-      onClick={() => onSort(sortKey)}
-      className={cn(
-        'flex items-center justify-center gap-0.5 shrink-0 text-[10px] font-semibold uppercase tracking-widest transition-colors',
-        active
-          ? 'dark:text-white/70'
-          : 'text-slate-400 hover:text-slate-600 dark:text-white/30 dark:hover:text-white/60',
-        className,
-      )}
-      style={active ? { color: 'var(--brand-primary)' } : undefined}
-    >
-      {label}
-      {active
-        ? currentOrder === 'desc'
-          ? <ArrowDown className="h-2.5 w-2.5 ml-0.5" />
-          : <ArrowUp className="h-2.5 w-2.5 ml-0.5" />
-        : null}
-    </button>
   );
 }
 
@@ -222,6 +186,8 @@ export default function AlunosPage() {
   const [removing, setRemoving]         = useState<string | null>(null);
   const [updatingPlan, setUpdatingPlan] = useState<string | null>(null);
   const [customPlans, setCustomPlans]   = useState<PlanOption[]>([]);
+  const [actionsStudentId, setActionsStudentId] = useState<string | null>(null);
+  const actionsStudent = students.find(s => s.id === actionsStudentId) ?? null;
 
   const today = toBrtDateKey(new Date());
 
@@ -389,322 +355,362 @@ export default function AlunosPage() {
   }, [students, activityFilter, sortBy, sortOrder, metricWindow, today, weekAgo]);
 
   const periodLabel = PERIOD_OPTIONS.find(o => o.key === metricWindow)?.label ?? '';
+  const segmentedOptions = PERIOD_OPTIONS.map(o => ({ value: o.key, label: o.label }));
+  const vagasPct = Math.min(100, Math.round((total / (org.max_students ?? 1)) * 100));
 
   return (
     <PartnerLayout>
-      <div className="edificar-page-canvas -mx-4 -mt-4 space-y-4 px-4 pt-4 pb-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
-        <div className="edificar-page-frame space-y-4 p-3 md:p-4">
+      <div className="edificar-page-canvas min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 [--partner-surface-base:#ffffff] dark:[--partner-surface-base:#0f172a]">
+        <RevealGroup className="edificar-page-frame space-y-4 p-3 md:p-4">
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
-        <div
-          className="relative overflow-hidden rounded-2xl p-5"
-          style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 18%, #0f172a) 0%, #0f172a 70%)' }}
-        >
-          <div className="absolute -top-8 -right-8 w-36 h-36 rounded-full blur-3xl opacity-20 pointer-events-none" style={{ background: 'var(--brand-primary)' }} />
-          <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-0.5">Gestão de Turma</p>
-              <h1 className="text-2xl font-extrabold text-white">Alunos</h1>
-              <p className="text-sm text-white/50 mt-0.5">{loading ? '...' : `${total} de ${org.max_students} vagas utilizadas`}</p>
-              {!loading && (
-                <div className="mt-2 w-48 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.round((total / (org.max_students ?? 1)) * 100))}%`, background: 'var(--brand-primary)' }} />
-                </div>
-              )}
-            </div>
-            <div className="flex gap-3">
-              {[
-                { val: activeToday, label: 'Ativos hoje' },
-                { val: activeWeek,  label: 'Ativos na semana' },
-                { val: total,       label: 'Total de alunos' },
-              ].map(({ val, label }, i, arr) => (
-                <div key={label} className="flex gap-3">
-                  <div className="text-center">
-                    <p className="text-2xl font-black text-white tabular-nums">{loading ? '—' : val}</p>
-                    <p className="text-[10px] text-white/40 font-semibold uppercase tracking-wide">{label}</p>
+        <RevealItem>
+          <BrandHero>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/50">Gestão de Turma</p>
+                <h1 className="font-display text-[28px] font-black text-white lg:text-[32px]">Alunos</h1>
+                <p className="mt-1 text-[13px] text-white/60">
+                  {loading ? '...' : `${total} de ${org.max_students} vagas utilizadas`}
+                </p>
+                {!loading && (
+                  <div className="mt-2.5 h-1.5 w-48 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${vagasPct}%`, background: 'var(--brand-accent)' }}
+                    />
                   </div>
-                  {i < arr.length - 1 && <div className="w-px bg-white/10" />}
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                  <Activity className="h-4 w-4" style={{ color: HERO_ACCENT_COLOR }} />
+                  <span className="text-[13px] font-bold tabular-nums text-white">{loading ? '—' : activeToday}</span>
+                  <span className="text-[11px] text-white/55">ativos hoje</span>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Filtros ───────────────────────────────────────────────────────── */}
-        <div className="edificar-major-surface rounded-2xl border p-3 sm:p-4 space-y-3">
-
-          {/* Linha 1: Período + Ordenação */}
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Período */}
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Período:</span>
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 gap-0.5">
-                {PERIOD_OPTIONS.map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => setMetricWindow(key)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors',
-                      metricWindow === key
-                        ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200',
-                    )}
-                    style={metricWindow === key ? { color: 'var(--brand-primary)' } : undefined}
-                  >
-                    {label}
-                  </button>
-                ))}
+                <div className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                  <Users className="h-4 w-4" style={{ color: HERO_ACCENT_COLOR }} />
+                  <span className="text-[13px] font-bold tabular-nums text-white">{loading ? '—' : total}</span>
+                  <span className="text-[11px] text-white/55">total</span>
+                </div>
               </div>
             </div>
+          </BrandHero>
+        </RevealItem>
 
-            <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 shrink-0 hidden sm:block" />
+        {/* ── KPIs ──────────────────────────────────────────────────────────── */}
+        <RevealItem className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
+          <KpiCard
+            title="Ativos hoje"
+            value={loading ? '—' : activeToday}
+            subtitle={`de ${total} alunos`}
+            icon={Activity}
+            loading={loading}
+            accentColor="var(--brand-primary)"
+            accentHex={org.brand_primary}
+          />
+          <KpiCard
+            title="Ativos na semana"
+            value={loading ? '—' : activeWeek}
+            subtitle={`de ${total} alunos`}
+            icon={Activity}
+            loading={loading}
+            accentColor="var(--brand-secondary)"
+            accentHex={org.brand_secondary}
+          />
+          <KpiCard
+            title="Total de alunos"
+            value={loading ? '—' : total}
+            subtitle={`de ${org.max_students} vagas`}
+            icon={Users}
+            loading={loading}
+            accentColor="var(--brand-accent)"
+            accentHex={org.brand_accent}
+          />
+        </RevealItem>
 
-            {/* Ordenação */}
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Ordenar:</span>
-              <Select value={sortBy} onValueChange={(v) => handleSortChange(v as SortByField)}>
-                <SelectTrigger className="h-9 w-40 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SORT_OPTIONS.map(o => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <button
-                onClick={() => setSortOrder(o => o === 'desc' ? 'asc' : 'desc')}
-                title={sortOrder === 'desc' ? 'Decrescente — clique para crescente' : 'Crescente — clique para decrescente'}
-                className="h-9 w-9 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:hover:text-white hover:border-slate-300 transition-colors shrink-0"
-              >
-                {sortOrder === 'desc'
-                  ? <ArrowDown className="h-4 w-4" />
-                  : <ArrowUp className="h-4 w-4" />}
-              </button>
+        {/* ── Filtros ───────────────────────────────────────────────────────── */}
+        <RevealItem>
+          <ElevatedCard>
+            <div className="space-y-3 p-4 sm:p-5">
+
+              {/* Linha 1: Período + Ordenação */}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Período */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-white/50 uppercase tracking-wide">Período:</span>
+                  <Segmented options={segmentedOptions} value={metricWindow} onChange={setMetricWindow} hex={org.brand_primary} />
+                </div>
+
+                <div className="w-px h-5 bg-slate-200 dark:bg-white/10 shrink-0 hidden sm:block" />
+
+                {/* Ordenação */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-white/50 uppercase tracking-wide">Ordenar:</span>
+                  <Select value={sortBy} onValueChange={(v) => handleSortChange(v as SortByField)}>
+                    <SelectTrigger className="h-9 w-40 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SORT_OPTIONS.map(o => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <button
+                    onClick={() => setSortOrder(o => o === 'desc' ? 'asc' : 'desc')}
+                    title={sortOrder === 'desc' ? 'Decrescente — clique para crescente' : 'Crescente — clique para decrescente'}
+                    className="h-9 w-9 flex items-center justify-center rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:text-white/50 dark:hover:text-white hover:border-slate-300 dark:hover:border-white/20 transition-colors shrink-0"
+                  >
+                    {sortOrder === 'desc'
+                      ? <ArrowDown className="h-4 w-4" />
+                      : <ArrowUp className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Linha 2: Busca + filtros */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-white/30" />
+                  <Input
+                    placeholder="Buscar por nome..."
+                    className="pl-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { setSearch(searchInput); setPage(1); } }}
+                    onBlur={() => { setSearch(searchInput); setPage(1); }}
+                  />
+                </div>
+                <div className="flex gap-2 sm:contents">
+                  <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setPage(1); }}>
+                    <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 sm:w-40">
+                      <SelectValue placeholder="Plano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os planos</SelectItem>
+                      <SelectItem value="none">Sem plano vinculado</SelectItem>
+                      {customPlans.map(p => <SelectItem key={p.id} value={`custom:${p.id}`}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={activityFilter} onValueChange={(v) => { setActivityFilter(v); setPage(1); }}>
+                    <SelectTrigger className="w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 sm:w-44">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Qualquer atividade</SelectItem>
+                      <SelectItem value="today">Ativos hoje</SelectItem>
+                      <SelectItem value="week">Ativos esta semana</SelectItem>
+                      <SelectItem value="inactive">Inativos há +7 dias</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <BrandPill href={`/partners/${org.slug}/alunos/convidar`} hex={org.brand_primary} className="shrink-0 justify-center">
+                  <UserPlus className="h-4 w-4" /> Adicionar
+                </BrandPill>
+              </div>
             </div>
-          </div>
-
-          {/* Linha 2: Busca + filtros */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Buscar por nome..."
-                className="pl-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { setSearch(searchInput); setPage(1); } }}
-                onBlur={() => { setSearch(searchInput); setPage(1); }}
-              />
-            </div>
-            <Select value={planFilter} onValueChange={(v) => { setPlanFilter(v); setPage(1); }}>
-              <SelectTrigger className="w-40 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                <SelectValue placeholder="Plano" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os planos</SelectItem>
-                <SelectItem value="none">Sem plano vinculado</SelectItem>
-                {customPlans.map(p => <SelectItem key={p.id} value={`custom:${p.id}`}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={activityFilter} onValueChange={(v) => { setActivityFilter(v); setPage(1); }}>
-              <SelectTrigger className="w-44 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Qualquer atividade</SelectItem>
-                <SelectItem value="today">Ativos hoje</SelectItem>
-                <SelectItem value="week">Ativos esta semana</SelectItem>
-                <SelectItem value="inactive">Inativos há +7 dias</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button asChild className="text-white gap-2 shrink-0" style={{ backgroundColor: 'var(--brand-primary)' }}>
-              <Link href={`/partners/${org.slug}/alunos/convidar`}>
-                <UserPlus className="h-4 w-4" /> Adicionar
-              </Link>
-            </Button>
-          </div>
-        </div>
-
-        {/* ── Cabeçalho de colunas (clicável para ordenar) ─────────────────── */}
-        {!loading && filteredStudents.length > 0 && (
-          <div className="hidden md:flex items-center gap-4 px-4">
-            {/* Avatar spacer */}
-            <div className={COL.avatar} />
-            {/* Aluno */}
-            <div className="flex-1 min-w-0 text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-white/30">
-              Aluno
-            </div>
-            <ColHeader label="Questões"  sortKey="questions" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSortChange} className={COL.metric} />
-            <ColHeader label="Simulados" sortKey="simulados" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSortChange} className={COL.metric} />
-            <ColHeader label="Redações"  sortKey="essays"    currentSort={sortBy} currentOrder={sortOrder} onSort={handleSortChange} className={COL.metric} />
-            <ColHeader label="Acertos"   sortKey="accuracy"  currentSort={sortBy} currentOrder={sortOrder} onSort={handleSortChange} className={COL.metric} />
-            <ColHeader
-              label="Último acesso"
-              sortKey="last_activity_date"
-              currentSort={sortBy}
-              currentOrder={sortOrder}
-              onSort={handleSortChange}
-              className={cn(COL.lastAccess, 'justify-start')}
-            />
-            {/* Action spacer */}
-            <div className={COL.actions} />
-          </div>
-        )}
+          </ElevatedCard>
+        </RevealItem>
 
         {/* ── Lista de Alunos ───────────────────────────────────────────────── */}
-        <div className="edificar-major-surface space-y-2 rounded-2xl border p-3 sm:p-4">
-          {loading ? (
-            [...Array(6)].map((_, i) => (
-              <div key={i} className="h-16 rounded-2xl bg-slate-100 dark:bg-slate-800/50 animate-pulse" />
-            ))
-          ) : filteredStudents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Users className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-3" />
-              <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
-                {search ? `Nenhum aluno encontrado para "${search}".` : 'Nenhum aluno cadastrado ainda.'}
-              </p>
-              {!search && (
-                <Button asChild className="mt-4 text-white gap-2" style={{ backgroundColor: 'var(--brand-primary)' }}>
-                  <Link href={`/partners/${org.slug}/alunos/convidar`}>
-                    <UserPlus className="h-4 w-4" /> Importar alunos
-                  </Link>
-                </Button>
-              )}
-            </div>
-          ) : (
-            filteredStudents.map((s) => {
-              const isOnline = s.last_activity_date === today;
-              const m = getMetrics(s, metricWindow);
-              const accuracyGood = m.accuracy != null && m.accuracy >= 60;
+        <RevealItem>
+          <ElevatedCard accentColor="var(--brand-primary)">
+            <div className="p-4 sm:p-5">
+              <SectionTitle kicker="Turma" title="Alunos" hex={org.brand_primary} />
 
-              return (
-                <div
-                  key={s.id}
-                  className={cn(
-                    'group flex items-center gap-4 rounded-2xl px-4 py-3',
-                    'edificar-soft-surface border border-slate-100 dark:border-slate-800',
-                    'shadow-sm hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700',
-                    'transition-all duration-200',
+              {loading ? (
+                <div className="space-y-2 pt-2">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="h-16 rounded-xl bg-slate-100 dark:bg-white/5 animate-pulse" />
+                  ))}
+                </div>
+              ) : filteredStudents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <Users className="h-12 w-12 text-slate-300 dark:text-white/15 mb-3" />
+                  <p className="text-sm font-semibold text-slate-500 dark:text-white/50">
+                    {search ? `Nenhum aluno encontrado para "${search}".` : 'Nenhum aluno cadastrado ainda.'}
+                  </p>
+                  {!search && (
+                    <BrandPill href={`/partners/${org.slug}/alunos/convidar`} hex={org.brand_primary} className="mt-4">
+                      <UserPlus className="h-4 w-4" /> Importar alunos
+                    </BrandPill>
                   )}
-                >
-                  {/* Avatar */}
-                  <div className={cn('relative shrink-0', COL.avatar)}>
-                    <StudentAvatar student={s} />
-                    {isOnline && (
-                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
-                      </span>
-                    )}
-                  </div>
+                </div>
+              ) : (
+                <div>
+                  {filteredStudents.map((s) => {
+                    const isOnline = s.last_activity_date === today;
+                    const m = getMetrics(s, metricWindow);
+                    const accuracyGood = m.accuracy != null && m.accuracy >= 60;
 
-                  {/* Nome + email */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <Link
-                        href={`/partners/${org.slug}/alunos/${s.id}`}
-                        className="font-bold text-sm text-slate-900 dark:text-white hover:underline truncate"
+                    return (
+                      <div
+                        key={s.id}
+                        className={cn(
+                          'flex items-start gap-3 rounded-xl px-2 py-3 sm:px-3',
+                          'border-b border-slate-100 last:border-0 dark:border-white/5',
+                          'hover:bg-slate-50 dark:hover:bg-white/5',
+                          'transition-colors duration-150',
+                        )}
                       >
-                        {s.full_name || '—'}
-                      </Link>
-                      {s.plan_name && (
-                        <span className={cn(
-                          'text-[10px] font-bold px-1.5 py-0.5 rounded-md border shrink-0',
-                          s.plan_id
-                            ? 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-700'
-                            : 'border-slate-200 bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700',
-                        )}>
-                          {s.plan_name}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-400 truncate mt-0.5">{s.email}</p>
-                  </div>
+                        {/* Avatar */}
+                        <div className="relative shrink-0">
+                          <StudentAvatar student={s} brandHex={org.brand_primary} />
+                          {isOnline && (
+                            <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
+                            </span>
+                          )}
+                        </div>
 
-                  {/* ── Metric columns — direct flex children, same gap-4 as header ── */}
-                  <MetricCell icon={BookOpen}     value={m.questions} label="questões" className="hidden md:flex" />
-                  <MetricCell icon={ClipboardList} value={m.simulados} label="simulados" className="hidden md:flex" />
-                  <MetricCell icon={FileText}      value={m.essays}    label="redações"  className="hidden md:flex" />
-                  <MetricCell
-                    icon={Target}
-                    value={m.accuracy != null ? `${m.accuracy}%` : '—'}
-                    label="acertos"
-                    accent={accuracyGood}
-                    className="hidden md:flex"
-                  />
+                        <div className="min-w-0 flex-1">
+                          {/* Nome + plano + botão de ações */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <Link
+                                  href={`/partners/${org.slug}/alunos/${s.id}`}
+                                  className="truncate font-bold text-sm text-slate-900 dark:text-white hover:underline"
+                                >
+                                  {s.full_name || '—'}
+                                </Link>
+                                {s.plan_name && (
+                                  <span className={cn(
+                                    'text-[10px] font-bold px-1.5 py-0.5 rounded-md border shrink-0',
+                                    s.plan_id
+                                      ? 'border-amber-300 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-700'
+                                      : 'border-slate-200 bg-slate-50 text-slate-500 dark:bg-white/5 dark:text-white/50 dark:border-white/10',
+                                  )}>
+                                    {s.plan_name}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="truncate text-xs text-slate-400 dark:text-white/30 mt-0.5">{s.email}</p>
+                            </div>
+                            <button
+                              onClick={() => setActionsStudentId(s.id)}
+                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:text-white/30 dark:hover:bg-white/10 dark:hover:text-white"
+                              title="Mais ações"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          </div>
 
-                  {/* Último acesso */}
-                  <div className={cn('hidden md:flex flex-col shrink-0', COL.lastAccess)}>
-                    {s.last_activity_date ? (
-                      <>
-                        <span className="text-xs font-semibold text-slate-600 dark:text-white/70 tabular-nums">
-                          {s.last_activity_date}
-                        </span>
-                        <span className="text-[10px] text-slate-400 dark:text-white/30">
-                          {relativeDate(s.last_activity_date)}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-xs text-slate-300 dark:text-slate-600">Nunca acessou</span>
-                    )}
-                  </div>
+                          {/* Métricas — sempre visíveis, quebram linha em telas estreitas */}
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                            <MetricChip icon={BookOpen}      value={m.questions} label="questões" />
+                            <MetricChip icon={ClipboardList} value={m.simulados} label="simulados" />
+                            <MetricChip icon={FileText}      value={m.essays}    label="redações" />
+                            <MetricChip
+                              icon={Target}
+                              value={m.accuracy != null ? `${m.accuracy}%` : '—'}
+                              label="acertos"
+                              accent={accuracyGood}
+                            />
+                          </div>
 
-                  {/* Ações */}
-                  <div className={cn('flex items-center gap-1 shrink-0 md:opacity-0 md:group-hover:opacity-100 md:transition-opacity', COL.actions)}>
-                    <Select
-                      value={s.plan_id ? `custom:${s.plan_id}` : 'none'}
-                      onValueChange={(v) => handlePlanChange(s, v)}
-                      disabled={updatingPlan === s.id}
-                    >
-                      <SelectTrigger className="h-9 w-36 text-[11px] border-slate-200 dark:border-slate-700">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Sem plano vinculado</SelectItem>
-                        {customPlans.map(p => <SelectItem key={p.id} value={`custom:${p.id}`}>{p.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Button variant="ghost" size="icon" className="h-9 w-9" asChild title="Ver perfil">
-                      <Link href={`/partners/${org.slug}/alunos/${s.id}`}><ExternalLink className="h-4 w-4" /></Link>
+                          {/* Último acesso */}
+                          <p className="mt-1.5 text-[11px] text-slate-400 dark:text-white/30">
+                            {s.last_activity_date
+                              ? `Último acesso ${relativeDate(s.last_activity_date)}`
+                              : 'Nunca acessou'}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── Paginação ─────────────────────────────────────────────────── */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-4 mt-1 border-t border-slate-100 dark:border-white/5">
+                  <p className="text-xs text-slate-500 dark:text-white/40">
+                    Período: <span className="font-semibold">{periodLabel}</span>
+                    {' · '}
+                    {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} de {total}
+                  </p>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="icon" className="h-8 w-8 border-slate-200 dark:border-white/10" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+                      <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="ghost" size="icon"
-                      className="h-9 w-9 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                      disabled={removing === s.id}
-                      onClick={() => handleRemove(s.id, s.full_name)}
-                      title="Remover da organização"
-                    >
-                      <Trash2 className="h-4 w-4" />
+                    <Button variant="outline" size="icon" className="h-8 w-8 border-slate-200 dark:border-white/10" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+                      <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* ── Paginação ─────────────────────────────────────────────────────── */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-1">
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Período: <span className="font-semibold">{periodLabel}</span>
-              {' · '}
-              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} de {total}
-            </p>
-            <div className="flex gap-1">
-              <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+              )}
             </div>
-          </div>
-        )}
+          </ElevatedCard>
+        </RevealItem>
 
-        </div>
+        </RevealGroup>
       </div>
+
+      {/* ── Sheet de ações do aluno (plano / perfil / remover) ──────────────── */}
+      <Sheet open={!!actionsStudent} onOpenChange={(open) => { if (!open) setActionsStudentId(null); }}>
+        <SheetContent
+          side="bottom"
+          className="rounded-t-2xl border-t bg-white p-5 dark:border-white/10 dark:bg-slate-900 sm:mx-auto sm:max-w-md"
+        >
+          {actionsStudent && (
+            <>
+              <SheetHeader className="mb-4 flex-row items-center gap-3 space-y-0 text-left">
+                <StudentAvatar student={actionsStudent} brandHex={org.brand_primary} />
+                <div className="min-w-0">
+                  <SheetTitle className="truncate text-base dark:text-white">
+                    {actionsStudent.full_name || '—'}
+                  </SheetTitle>
+                  <p className="truncate text-xs text-slate-400 dark:text-white/40">{actionsStudent.email}</p>
+                </div>
+              </SheetHeader>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white/50">
+                    Plano
+                  </label>
+                  <Select
+                    value={actionsStudent.plan_id ? `custom:${actionsStudent.plan_id}` : 'none'}
+                    onValueChange={(v) => handlePlanChange(actionsStudent, v)}
+                    disabled={updatingPlan === actionsStudent.id}
+                  >
+                    <SelectTrigger className="w-full border-slate-200 dark:border-white/10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem plano vinculado</SelectItem>
+                      {customPlans.map(p => <SelectItem key={p.id} value={`custom:${p.id}`}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button variant="outline" className="w-full justify-start gap-2 border-slate-200 dark:border-white/10" asChild>
+                  <Link href={`/partners/${org.slug}/alunos/${actionsStudent.id}`}>
+                    <ExternalLink className="h-4 w-4" /> Ver perfil completo
+                  </Link>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="w-full justify-start gap-2 border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-900/40 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                  disabled={removing === actionsStudent.id}
+                  onClick={async () => {
+                    const name = actionsStudent.full_name;
+                    const id = actionsStudent.id;
+                    await handleRemove(id, name);
+                    setActionsStudentId(null);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" /> Remover da organização
+                </Button>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </PartnerLayout>
   );
 }

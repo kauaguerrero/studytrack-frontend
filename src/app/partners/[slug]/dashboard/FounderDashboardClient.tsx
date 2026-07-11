@@ -1,22 +1,25 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Typewriter } from '@/components/ui/typewriter';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { readableBrandText, onBrandText } from '@/lib/brand-color';
 import {
-  Users, Activity, BookOpen, FileText, TrendingUp, TrendingDown, ArrowUpRight,
-  Trophy, Award, Star, Video, Target, Zap,
+  RevealGroup, RevealItem, ElevatedCard as TintedCard, KpiCard, SectionTitle,
+  BrandPill, Segmented, Medal, MiniBar, BrandHero, HERO_ACCENT_COLOR,
+  CHART_TOOLTIP_STYLE as TOOLTIP_STYLE, CHART_TOOLTIP_STYLE_DARK as TOOLTIP_STYLE_DARK,
+} from '@/components/partners/founder-ui';
+import {
+  Users, Activity, BookOpen, FileText, ArrowUpRight,
+  Video, Target, Zap, Calendar,
 } from 'lucide-react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Area, AreaChart, XAxis, YAxis,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
 
@@ -88,208 +91,36 @@ function toBrtDateKey(date: Date): string {
   }).format(date);
 }
 
-const TOOLTIP_STYLE = {
-  backgroundColor: 'rgb(255 255 255 / 0.98)',
-  border: '1px solid rgb(226 232 240)',
-  borderRadius: '12px',
-  color: '#0f172a',
-};
+const PERIOD_SEGMENTS: { value: MetricWindow; label: string }[] = [
+  { value: 'today', label: 'Hoje' },
+  { value: 'week', label: 'Semana' },
+  { value: 'month', label: 'Mês' },
+  { value: 'total', label: 'Total' },
+];
 
-function LiquidGlassDefs() {
-  return (
-    <svg aria-hidden className="hidden">
-      <defs>
-        <filter id="brand-liquid-glass" x="0%" y="0%" width="100%" height="100%" colorInterpolationFilters="sRGB">
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.015 0.025"
-            numOctaves={2}
-            seed={2}
-            result="noise"
-          />
-          <feGaussianBlur in="noise" stdDeviation="1.6" result="noise-blur" />
-          <feDisplacementMap
-            in="SourceGraphic"
-            in2="noise-blur"
-            scale={18}
-            xChannelSelector="R"
-            yChannelSelector="B"
-            result="displaced"
-          />
-          <feGaussianBlur in="displaced" stdDeviation="0.8" />
-        </filter>
-      </defs>
-    </svg>
-  );
+function formatDateTick(v: string, w: MetricWindow): string {
+  if (w === 'today') return v;
+  if (w === 'total') {
+    const [y, m] = v.split('-');
+    return `${m}/${y?.slice(2)}`;
+  }
+  const [, m, d] = v.split('-');
+  return `${d}/${m}`;
 }
 
-function BrandLiquidGlass({
-  accentColor,
-  intensity = 16,
-}: {
-  accentColor: string;
-  intensity?: number;
-}) {
-  return (
-    <div className="hidden dark:block">
-      <div
-        className="pointer-events-none absolute inset-0 rounded-[inherit] border border-slate-200 dark:border-white/10 opacity-48"
-        style={{
-          background: `linear-gradient(145deg, color-mix(in srgb, ${accentColor} ${Math.max(3, Math.round(intensity * 0.34))}%, transparent) 0%, rgba(255,255,255,0.01) 40%, color-mix(in srgb, ${accentColor} 3%, transparent) 100%)`,
-          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.1), inset 0 -1px 0 color-mix(in srgb, ${accentColor} 8%, transparent), 0 4px 14px rgba(0,0,0,0.11)`,
-        }}
-      />
-      <div
-        className="pointer-events-none absolute inset-[1px] rounded-[inherit] opacity-24"
-        style={{
-          filter: 'url("#brand-liquid-glass")',
-          background: `radial-gradient(circle at 18% 8%, color-mix(in srgb, ${accentColor} 14%, rgba(255,255,255,0.08)), transparent 46%),
-            radial-gradient(circle at 82% 92%, color-mix(in srgb, ${accentColor} 8%, rgba(255,255,255,0.06)), transparent 52%)`,
-        }}
-      />
-      <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.03),transparent_58%)]" />
-    </div>
-  );
+function formatDateLabel(label: string, w: MetricWindow): string {
+  if (w === 'today') return `Hora: ${label}`;
+  if (w === 'total') {
+    const [y, m] = label.split('-');
+    return `${m}/${y}`;
+  }
+  const [y, m, d] = label.split('-');
+  return `${d}/${m}/${y}`;
 }
 
-function TintedCard({
-  children,
-  className,
-  accentColor,
-  accentStrength = 8,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  accentColor?: string;
-  accentStrength?: number;
-}) {
-  const border = accentColor
-    ? `color-mix(in srgb, ${accentColor} 30%, #e2e8f0)`
-    : 'rgb(226 232 240)';
-
-  return (
-    <Card
-      className={cn(
-        'relative overflow-hidden transition-all duration-300',
-        'bg-white dark:bg-slate-900',
-        'hover:shadow-md hover:-translate-y-[1px]',
-        className,
-      )}
-      style={{ borderColor: border }}
-    >
-      {accentColor && (
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
-          style={{ background: `linear-gradient(90deg, ${accentColor}, color-mix(in srgb, ${accentColor} 40%, white))` }}
-        />
-      )}
-      <BrandLiquidGlass accentColor={accentColor || 'var(--brand-primary)'} intensity={12 + accentStrength} />
-      <div className="relative z-10">{children}</div>
-    </Card>
-  );
-}
-
-function KpiCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-  href,
-  loading,
-  accentColor,
-  delta,
-  deltaLabel,
-}: {
-  title: string;
-  value: number | string;
-  subtitle?: string;
-  icon: React.ElementType;
-  href?: string;
-  loading?: boolean;
-  accentColor: string;
-  delta?: number | null;
-  deltaLabel?: string | null;
-}) {
-  const border  = `color-mix(in srgb, ${accentColor} 34%, #e2e8f0)`;
-  const iconBg  = `color-mix(in srgb, ${accentColor} 16%, white)`;
-  const glowBg  = `radial-gradient(circle at top right, color-mix(in srgb, ${accentColor} 14%, transparent), transparent 70%)`;
-
-  const content = (
-    <div
-      className={cn(
-        'relative overflow-hidden rounded-2xl p-5',
-        'border bg-white dark:bg-slate-900',
-        'hover:shadow-md',
-        'transition-all duration-300 group',
-        href && 'cursor-pointer'
-      )}
-      style={{ borderColor: border }}
-    >
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
-        style={{ background: `linear-gradient(90deg, ${accentColor}, color-mix(in srgb, ${accentColor} 40%, white))` }}
-      />
-      <BrandLiquidGlass accentColor={accentColor} intensity={18} />
-
-      <div
-        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl"
-        style={{ background: glowBg }}
-      />
-
-      <div className="relative z-10">
-        <div className="flex items-center justify-between mb-4">
-          <div
-            className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 dark:border-white/20"
-            style={{
-              background: iconBg,
-              boxShadow: `inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 8px color-mix(in srgb, ${accentColor} 22%, transparent)`,
-            }}
-          >
-            <div
-              className="pointer-events-none absolute inset-0 rounded-xl"
-              style={{ background: `radial-gradient(circle at 20% 20%, color-mix(in srgb, ${accentColor} 24%, rgba(255,255,255,0.2)), transparent 60%)` }}
-            />
-            <Icon
-              className="relative z-10 h-5 w-5"
-              style={{ color: accentColor, filter: `drop-shadow(0 0 4px color-mix(in srgb, ${accentColor} 35%, transparent))` }}
-            />
-          </div>
-          <div className="flex items-center gap-1.5">
-            {delta !== null && delta !== undefined && !loading ? (
-              <div className={`flex items-center gap-0.5 text-xs font-bold px-1.5 py-0.5 rounded-lg ${
-                delta > 0
-                  ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                  : delta < 0
-                    ? 'bg-red-50 dark:bg-red-500/15 text-red-500 dark:text-red-400'
-                    : 'bg-slate-100 dark:bg-white/10 text-slate-400 dark:text-white/30'
-              }`}>
-                {delta > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : delta < 0 ? <TrendingDown className="w-3.5 h-3.5" /> : null}
-                <span>{delta > 0 ? '+' : ''}{delta}</span>
-              </div>
-            ) : href ? (
-              <ArrowUpRight className="h-3.5 w-3.5 text-slate-400 dark:text-white/20 group-hover:text-slate-700 dark:group-hover:text-white/60 transition-colors" />
-            ) : null}
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="h-9 w-24 bg-slate-200 dark:bg-white/10 rounded-lg animate-pulse" />
-        ) : (
-          <div className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">{value}</div>
-        )}
-
-        <p className="text-xs font-semibold text-slate-600 dark:text-white/50 mt-1">{title}</p>
-        {subtitle && (
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-white/30 mt-0.5">{subtitle}</p>
-        )}
-        {deltaLabel && delta !== null && delta !== undefined && !loading && (
-          <p className="text-[10px] text-slate-400 dark:text-white/25 mt-0.5">{deltaLabel}</p>
-        )}
-      </div>
-    </div>
-  );
-
-  return href ? <Link href={href}>{content}</Link> : content;
+function getGreeting() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -332,6 +163,41 @@ function mergeUniqueStudents(base: Student[], incoming: Student[]): Student[] {
     map.set(student.id, student);
   }
   return Array.from(map.values());
+}
+
+const NAME_PARTICLES = new Set(['de', 'da', 'do', 'dos', 'das', 'e']);
+
+function parseNameForShortening(fullName?: string | null) {
+  const parts = (fullName ?? '').split(' ').filter(Boolean);
+  const first = parts[0];
+  const surnames = parts.slice(1).filter((p) => !NAME_PARTICLES.has(p.toLowerCase()));
+  return { first, surnames };
+}
+
+// Nome + inicial do sobrenome (o último sobrenome, não o nome do meio).
+// Quando dois alunos da mesma lista colidem (mesmo primeiro nome + mesma
+// inicial de sobrenome), inclui também a inicial do penúltimo sobrenome
+// para diferenciá-los — ex.: "Marcus F. S." vs "Marcus R. M.".
+function formatShortNames(fullNames: (string | null | undefined)[]): string[] {
+  const parsed = fullNames.map(parseNameForShortening);
+
+  return parsed.map(({ first, surnames }, i) => {
+    if (!first) return '—';
+    if (surnames.length === 0) return first;
+
+    const last = surnames[surnames.length - 1];
+    const collides = parsed.some((other, j) => {
+      if (j === i || !other.first) return false;
+      const otherLast = other.surnames[other.surnames.length - 1];
+      return other.first === first && otherLast && otherLast[0].toUpperCase() === last[0].toUpperCase();
+    });
+
+    if (collides && surnames.length > 1) {
+      const second = surnames[surnames.length - 2];
+      return `${first} ${second[0].toUpperCase()}. ${last[0].toUpperCase()}.`;
+    }
+    return `${first} ${last[0].toUpperCase()}.`;
+  });
 }
 
 // ─── Client Component ─────────────────────────────────────────────────────────
@@ -571,695 +437,603 @@ export default function FounderDashboardClient({
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
+  const firstName = (userProfile.fullName || org.name).split(' ')[0];
+
   return (
     <PartnerLayout>
-      <div className="edificar-page-canvas space-y-6 min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 [--partner-surface-base:#ffffff] dark:[--partner-surface-base:#0f172a]">
-        <div className="edificar-page-frame space-y-6 p-3 md:p-4">
-        <LiquidGlassDefs />
+      <div className="edificar-page-canvas min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 [--partner-surface-base:#ffffff] dark:[--partner-surface-base:#0f172a]">
+        <RevealGroup className="edificar-page-frame p-3 md:p-4">
 
-        {/* ── Hero Header ───────────────────────────────────────────────────── */}
-        <div
-          className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 p-6 mb-2 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--brand-primary)_18%,white)_0%,color-mix(in_srgb,var(--brand-secondary)_10%,white)_100%)] dark:bg-[linear-gradient(135deg,color-mix(in_srgb,var(--brand-primary)_22%,#0f172a)_0%,#0f172a_62%)]"
-        >
-          <div
-            className="absolute -top-10 -right-10 w-40 h-40 rounded-full blur-3xl opacity-20"
-            style={{ background: 'var(--brand-primary)' }}
-          />
-          <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-white/40 mb-1">
-                Central de Inteligência
-              </p>
-              <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white">Dashboard</h1>
-              <p className="text-sm text-slate-600 dark:text-white/50 mt-1">Visão geral de {org.name}</p>
-              <div className="mt-3 flex items-center justify-start">
+        {/* ── Hero ──────────────────────────────────────────────────────────── */}
+        <RevealItem className="mb-3 lg:mb-5">
+          <BrandHero smokeColorHex={org.brand_primary ?? undefined} halftone={false}>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/50">
+                  Central de Inteligência · {org.name}
+                </p>
+                <h1 className="font-display text-[32px] font-black text-white lg:text-[42px]">
+                  {getGreeting()}, {firstName}
+                </h1>
+                <p className="mt-1 text-[13px] text-white/60">Aqui está o resumo da sua turma.</p>
+
+                {/* Tagline em script — mesmo tratamento do hero do dashboard do aluno.
+                    Div (não <p>) porque o Typewriter renderiza uma <div> internamente,
+                    e <div> dentro de <p> é HTML inválido (quebra a hidratação). */}
                 <div
-                  className="relative inline-flex items-center gap-3 overflow-hidden rounded-full border px-3 py-1.5
-                    bg-[color-mix(in_srgb,var(--brand-primary)_18%,white)] dark:bg-[color-mix(in_srgb,var(--brand-primary)_20%,#0f172a)]
-                    border-[color-mix(in_srgb,var(--brand-primary)_42%,white)] dark:border-[color-mix(in_srgb,var(--brand-primary)_42%,#0f172a)]
-                    ring-1 ring-inset ring-[color-mix(in_srgb,var(--brand-primary)_12%,white)] dark:ring-[color-mix(in_srgb,var(--brand-primary)_12%,#0f172a)]"
+                  className="font-script mt-1 text-[20px] leading-tight text-white lg:text-[24px]"
+                  style={{ ['--hero-accent' as string]: HERO_ACCENT_COLOR }}
                 >
-                  <BrandLiquidGlass accentColor="var(--brand-primary)" intensity={14} />
-                  <span
-                    className="relative z-10 text-[10px] font-bold uppercase tracking-wider"
-                    style={{ color: 'var(--brand-primary)' }}
-                  >
-                    Período
-                  </span>
-                  <Select value={metricWindow} onValueChange={(value) => setMetricWindow(value as MetricWindow)}>
-                    <SelectTrigger className="relative z-10 h-8 w-[170px] overflow-hidden border-slate-300 dark:border-white/25 bg-white dark:bg-slate-900/70 text-xs font-semibold text-slate-800 dark:text-white">
-                      <BrandLiquidGlass accentColor="var(--brand-primary)" intensity={10} />
-                      <span className="relative z-10">
-                        <SelectValue />
-                      </span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="today">Hoje</SelectItem>
-                      <SelectItem value="week">Esta semana</SelectItem>
-                      <SelectItem value="month">Este mês</SelectItem>
-                      <SelectItem value="total">Total</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  Nós nascemos para{' '}
+                  <Typewriter
+                    text={org.slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                    speed={95}
+                    deleteSpeed={52}
+                    waitTime={2600}
+                    className="text-[var(--hero-accent)]"
+                    cursorClassName="text-[var(--hero-accent)]"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col items-start gap-2 lg:items-end">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
+                    <Users className="h-4 w-4" style={{ color: HERO_ACCENT_COLOR }} />
+                    <span className="text-[13px] font-bold tabular-nums text-white">{loading ? '—' : students.length}</span>
+                    <span className="text-[11px] text-white/55">alunos</span>
+                  </div>
                 </div>
               </div>
             </div>
-            <div className="w-full lg:w-auto">
-              <div className="inline-flex w-full items-center rounded-2xl border border-slate-300/80 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-700 dark:border-white/15 dark:bg-slate-900/70 dark:text-white/85 sm:w-auto sm:rounded-full sm:px-4 sm:py-2.5 sm:text-base">
-                <span className="mr-[0.25em]">📚 Nós nascemos para</span>
-                <Typewriter
-                  text={org.slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
-                  speed={95}
-                  deleteSpeed={52}
-                  waitTime={2600}
-                  className="font-black text-[var(--brand-primary)] max-w-full"
-                  cursorClassName="ml-1 text-[var(--brand-primary)]"
-                />
-              </div>
-            </div>
+          </BrandHero>
+        </RevealItem>
+
+        {/* ── Período ───────────────────────────────────────────────────────── */}
+        <RevealItem className="mb-4 flex flex-wrap items-center gap-2">
+          <Calendar className="h-4 w-4 text-slate-400 dark:text-white/40" />
+          <span className="text-[12px] font-semibold text-slate-500 dark:text-white/50">Período:</span>
+          <Segmented options={PERIOD_SEGMENTS} value={metricWindow} onChange={setMetricWindow} hex={org.brand_primary} />
+        </RevealItem>
+
+        {/* ── Bento grid: coluna principal + trilha lateral ─────────────────── */}
+        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-5">
+
+          {/* Coluna principal */}
+          <div className="contents lg:flex lg:flex-col lg:gap-5">
+
+            {/* KPIs */}
+            <RevealItem className="order-1 grid grid-cols-2 gap-3 lg:order-none lg:grid-cols-4 lg:gap-4">
+              <KpiCard
+                title="Alunos"
+                value={students.length}
+                subtitle={`de ${org.max_students} vagas`}
+                icon={Users}
+                href={`/partners/${org.slug}/alunos`}
+                loading={loading}
+                accentColor="var(--brand-primary)"
+                accentHex={org.brand_primary}
+                delta={null}
+              />
+              <KpiCard
+                title={`Ativos · ${metricLabel}`}
+                value={activeValue ?? '—'}
+                subtitle={`${activeRate}% do total`}
+                icon={Activity}
+                loading={loading}
+                accentColor="var(--brand-secondary)"
+                accentHex={org.brand_secondary}
+                delta={stats ? getDelta(
+                  activeValue,
+                  stats.prev_active_today,
+                  stats.prev_active_week,
+                  stats.prev_active_month,
+                ) : null}
+                deltaLabel={deltaLabel}
+              />
+              <KpiCard
+                title={`Questões · ${metricLabel}`}
+                value={questionsValue ?? '—'}
+                subtitle="Respondidas pela turma"
+                icon={BookOpen}
+                loading={loading}
+                accentColor="var(--brand-accent)"
+                accentHex={org.brand_accent}
+                delta={stats ? getDelta(
+                  questionsValue,
+                  stats.prev_questions_today,
+                  stats.prev_questions_week,
+                  stats.prev_questions_month,
+                ) : null}
+                deltaLabel={deltaLabel}
+              />
+              <KpiCard
+                title={`Simulados · ${metricLabel}`}
+                value={simuladosValue ?? '—'}
+                subtitle="Realizados pela turma"
+                icon={FileText}
+                loading={loading}
+                accentColor="#8b5cf6"
+                accentHex="#8b5cf6"
+                delta={stats ? getDelta(
+                  simuladosValue,
+                  stats.prev_simulados_today,
+                  stats.prev_simulados_week,
+                  stats.prev_simulados_month,
+                ) : null}
+                deltaLabel={deltaLabel}
+              />
+            </RevealItem>
+
+            {/* Evolução da Turma */}
+            <RevealItem className="order-5 lg:order-none">
+              <TintedCard accentColor="var(--brand-secondary)" className="edificar-major-surface">
+                <div className="p-5">
+                  <SectionTitle
+                    kicker="Desempenho"
+                    title="Evolução da Turma"
+                    action={<span className="text-[11px] font-semibold text-slate-400 dark:text-white/40">{metricLabel}</span>}
+                    hex={org.brand_secondary}
+                  />
+                  {analyticsLoading ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="h-[160px] w-full animate-pulse rounded-xl bg-slate-200 dark:bg-white/10" />
+                      <div className="flex flex-col gap-3">
+                        <div className="h-[72px] animate-pulse rounded-xl bg-slate-200 dark:bg-white/10" />
+                        <div className="h-[72px] animate-pulse rounded-xl bg-slate-200 dark:bg-white/10" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      <div>
+                        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-white/50">
+                          % de acertos
+                        </p>
+                        {(analyticsData?.accuracy_series ?? []).every((d) => d.accuracy_pct === null) ? (
+                          <p className="py-10 text-center text-xs text-slate-400 dark:text-white/25">Sem dados no período</p>
+                        ) : (
+                          <ResponsiveContainer width="100%" height={160}>
+                            <AreaChart data={analyticsData?.accuracy_series ?? []} margin={{ top: 8, right: 4, left: -22, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="gradAcc" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#22c55e" stopOpacity={0.28} />
+                                  <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <XAxis
+                                dataKey="date"
+                                tick={{ fontSize: 9, fill: 'rgb(100 116 139)' }}
+                                tickFormatter={(v: string) => formatDateTick(v, metricWindow)}
+                                interval="preserveStartEnd"
+                                axisLine={false}
+                                tickLine={false}
+                              />
+                              <YAxis
+                                tick={{ fontSize: 9, fill: 'rgb(100 116 139)' }}
+                                domain={[0, 100]}
+                                tickFormatter={(v) => `${v}%`}
+                                axisLine={false}
+                                tickLine={false}
+                              />
+                              <Tooltip
+                                contentStyle={TOOLTIP_STYLE}
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                formatter={(v: any) => [v != null ? `${v}%` : '—', 'Acertos']}
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                labelFormatter={(label: any) => formatDateLabel(String(label ?? ''), metricWindow)}
+                              />
+                              <Area
+                                type="monotone"
+                                dataKey="accuracy_pct"
+                                stroke="#22c55e"
+                                strokeWidth={2.5}
+                                fill="url(#gradAcc)"
+                                dot={false}
+                                activeDot={{ r: 4, fill: '#22c55e' }}
+                                connectNulls={false}
+                              />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        )}
+                      </div>
+                      {(() => {
+                        const subjects = analyticsData?.subjects ?? [];
+                        const pontoFraco = subjects[0];
+                        const pontoForte = subjects[subjects.length - 1];
+                        return (
+                          <div className="flex flex-col justify-center gap-3">
+                            <div className="rounded-xl bg-red-50/80 p-3.5 dark:bg-red-900/15">
+                              <div className="mb-1 flex items-center gap-1.5">
+                                <Target className="h-3.5 w-3.5 shrink-0 text-red-500 dark:text-red-400" />
+                                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-red-600 dark:text-red-400">Ponto Fraco</p>
+                              </div>
+                              {pontoFraco && pontoFraco !== pontoForte ? (
+                                <>
+                                  <p className="line-clamp-2 text-[13px] font-black leading-tight text-red-700 dark:text-red-300">{pontoFraco.subject}</p>
+                                  <p className="mt-0.5 text-[10.5px] text-red-500 dark:text-red-400/80">{pontoFraco.accuracy_pct}% de acertos · {pontoFraco.total} questões</p>
+                                </>
+                              ) : (
+                                <p className="mt-1 text-[10.5px] text-red-400 dark:text-red-500/60">Sem dados suficientes</p>
+                              )}
+                            </div>
+                            <div className="rounded-xl bg-green-50/80 p-3.5 dark:bg-green-900/15">
+                              <div className="mb-1 flex items-center gap-1.5">
+                                <Zap className="h-3.5 w-3.5 shrink-0 text-green-500 dark:text-green-400" />
+                                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-green-600 dark:text-green-400">Ponto Forte</p>
+                              </div>
+                              {pontoForte && pontoFraco !== pontoForte ? (
+                                <>
+                                  <p className="line-clamp-2 text-[13px] font-black leading-tight text-green-700 dark:text-green-300">{pontoForte.subject}</p>
+                                  <p className="mt-0.5 text-[10.5px] text-green-500 dark:text-green-400/80">{pontoForte.accuracy_pct}% de acertos · {pontoForte.total} questões</p>
+                                </>
+                              ) : (
+                                <p className="mt-1 text-[10.5px] text-green-400 dark:text-green-500/60">Sem dados suficientes</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </TintedCard>
+            </RevealItem>
+
+            {/* Ranking TOP 5 */}
+            <RevealItem className="order-6 lg:order-none">
+              <TintedCard accentColor="var(--brand-primary)" className="edificar-major-surface">
+                <div className="p-5">
+                  <SectionTitle
+                    kicker="Engajamento"
+                    title={`Ranking · ${metricLabel}`}
+                    hex={org.brand_primary}
+                    action={
+                      <BrandPill href={`/partners/${org.slug}/alunos`} hex={org.brand_primary}>
+                        Ver todos <ArrowUpRight className="h-3 w-3" />
+                      </BrandPill>
+                    }
+                  />
+                  {loading ? (
+                    <div className="space-y-2.5">
+                      {[...Array(4)].map((_, i) => (
+                        <div key={i} className="h-12 w-full animate-pulse rounded-xl bg-slate-200 dark:bg-white/10" />
+                      ))}
+                    </div>
+                  ) : topStudents.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-slate-400 dark:text-white/30">Nenhum aluno ativo ainda</p>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {(() => {
+                        const shortNames = formatShortNames(topStudents.map((s) => s.full_name));
+                        return topStudents.map((student, idx) => {
+                        const max = getQuestionsByWindow(topStudents[0]) || 1;
+                        const pct = Math.round((getQuestionsByWindow(student) / max) * 100);
+                        const isOnline = student.last_activity_date === todayBrtKey;
+                        return (
+                          <Link
+                            key={student.id}
+                            href={`/partners/${org.slug}/alunos/${student.id}`}
+                            className="group block"
+                          >
+                            <div
+                              className="flex items-center gap-3 rounded-xl px-2.5 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-white/5"
+                              style={idx === 0 ? { background: 'color-mix(in srgb, var(--brand-primary) 6%, transparent)' } : undefined}
+                            >
+                              <div className="flex w-7 shrink-0 items-center justify-center">
+                                {idx < 3 ? (
+                                  <Medal place={(idx + 1) as 1 | 2 | 3} />
+                                ) : (
+                                  <span className="text-xs font-black text-slate-400 dark:text-white/25">#{idx + 1}</span>
+                                )}
+                              </div>
+                              <div className="relative shrink-0">
+                                {student.avatar_url ? (
+                                  <Image
+                                    src={student.avatar_url}
+                                    alt={student.full_name}
+                                    width={34}
+                                    height={34}
+                                    className="h-[34px] w-[34px] rounded-full object-cover"
+                                    style={idx === 0 ? { boxShadow: '0 0 0 2px var(--brand-accent)' } : undefined}
+                                  />
+                                ) : (
+                                  <div
+                                    className="flex h-[34px] w-[34px] items-center justify-center rounded-full text-xs font-black"
+                                    style={{
+                                      background: 'var(--brand-primary)',
+                                      color: onBrandText(org.brand_primary),
+                                      boxShadow: idx === 0 ? '0 0 0 2px var(--brand-accent)' : undefined,
+                                    }}
+                                  >
+                                    {(student.full_name || '?')[0].toUpperCase()}
+                                  </div>
+                                )}
+                                {isOnline && (
+                                  <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 ring-1 ring-white dark:ring-slate-900" />
+                                  </span>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="mb-1.5 flex items-center justify-between">
+                                  <span className="truncate text-[13px] font-bold text-slate-800 transition-colors group-hover:text-slate-950 dark:text-white/85 dark:group-hover:text-white">
+                                    <span className="sm:hidden">{shortNames[idx]}</span>
+                                    <span className="hidden sm:inline">{student.full_name || '—'}</span>
+                                  </span>
+                                  <div className="ml-2 flex shrink-0 items-center gap-2">
+                                    <span className="text-[12px] font-black tabular-nums" style={{ color: readableBrandText(org.brand_primary, 'var(--brand-primary)') }}>
+                                      {getQuestionsByWindow(student)} <span className="font-semibold opacity-70">questões</span>
+                                    </span>
+                                    <span className="hidden text-[11px] font-bold tabular-nums text-slate-400 dark:text-white/35 sm:inline">
+                                      {getSimuladosByWindow(student)} simulados
+                                    </span>
+                                  </div>
+                                </div>
+                                <MiniBar pct={pct} color="var(--brand-primary)" glow={idx === 0} height={5} />
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                        });
+                      })()}
+                      <p className="mt-2 text-[10.5px] text-slate-400 dark:text-white/30">
+                        Baseado em {rankingBaseCount} aluno{rankingBaseCount === 1 ? '' : 's'} · questões e simulados no período
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </TintedCard>
+            </RevealItem>
+
+            {/* Tabela de atividade */}
+            <RevealItem className="order-7 lg:order-none">
+              <TintedCard accentColor="var(--brand-accent)" className="edificar-major-surface">
+                <div className="p-5">
+                  <SectionTitle
+                    kicker="Atividade"
+                    title="Alunos mais ativos"
+                    hex={org.brand_accent}
+                    action={
+                      <Link
+                        href={`/partners/${org.slug}/alunos`}
+                        className="flex shrink-0 items-center gap-1 text-[11.5px] font-bold transition-opacity hover:opacity-70"
+                        style={{ color: readableBrandText(org.brand_primary, 'var(--brand-primary)') }}
+                      >
+                        Ver tabela completa <ArrowUpRight className="h-3 w-3" />
+                      </Link>
+                    }
+                  />
+                  {loading ? (
+                    <div className="space-y-2.5">
+                      {[...Array(5)].map((_, i) => (
+                        <div key={i} className="h-10 w-full animate-pulse rounded-lg bg-slate-200 dark:bg-white/10" />
+                      ))}
+                    </div>
+                  ) : students.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-slate-400 dark:text-white/30">
+                      Nenhum aluno cadastrado ainda.{' '}
+                      <Link
+                        href={`/partners/${org.slug}/alunos/convidar`}
+                        className="font-bold underline"
+                        style={{ color: readableBrandText(org.brand_primary, 'var(--brand-primary)') }}
+                      >
+                        Importar alunos
+                      </Link>
+                    </p>
+                  ) : (
+                    <div className="-mx-1 overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-left text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:border-white/10 dark:text-white/35">
+                            <th className="pb-3 pl-1 font-bold">Aluno</th>
+                            <th className="hidden pb-3 text-center font-bold sm:table-cell">Plano</th>
+                            <th className="pb-3 text-center font-bold">Questões</th>
+                            <th className="hidden pb-3 text-center font-bold sm:table-cell">Simulados</th>
+                            <th className="pb-3 text-center font-bold">Acertos</th>
+                            <th className="hidden pb-3 text-center font-bold md:table-cell">Última atividade</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            const shortNames = formatShortNames(studentsForTable.map((s) => s.full_name));
+                            return studentsForTable.map((s, idx) => (
+                            <tr
+                              key={s.id}
+                              className="border-b border-slate-100 transition-colors hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
+                            >
+                              <td className="py-3 pl-1">
+                                <Link
+                                  href={`/partners/${org.slug}/alunos/${s.id}`}
+                                  className="text-[13px] font-bold text-slate-900 hover:underline dark:text-white"
+                                >
+                                  <span className="sm:hidden">{shortNames[idx]}</span>
+                                  <span className="hidden sm:inline">{s.full_name || '—'}</span>
+                                </Link>
+                                <p className="hidden text-[11px] text-slate-400 dark:text-white/35 xs:block">{s.email}</p>
+                              </td>
+                              <td className="hidden py-3 text-center sm:table-cell">
+                                <Badge className="border-slate-200 bg-slate-100 text-[10px] text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-white/60">
+                                  {s.plan_name || 'Sem plano vinculado'}
+                                </Badge>
+                              </td>
+                              <td className="py-3 text-center text-[13px] font-bold tabular-nums text-slate-700 dark:text-white/70">
+                                {getQuestionsByWindow(s)}
+                              </td>
+                              <td className="hidden py-3 text-center text-[13px] tabular-nums text-slate-500 dark:text-white/50 sm:table-cell">
+                                {getSimuladosByWindow(s)}
+                              </td>
+                              <td className="py-3 text-center text-[13px] font-bold tabular-nums">
+                                {s.accuracy_pct != null ? (
+                                  <span
+                                    className={s.accuracy_pct < 60 ? 'text-rose-400' : ''}
+                                    style={s.accuracy_pct >= 60 ? { color: readableBrandText(org.brand_primary, 'var(--brand-primary)') } : undefined}
+                                  >
+                                    {s.accuracy_pct}%
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 dark:text-white/30">—</span>
+                                )}
+                              </td>
+                              <td className="hidden py-3 text-center text-xs text-slate-400 dark:text-white/30 md:table-cell">
+                                {s.last_activity_date ?? 'Nunca'}
+                              </td>
+                            </tr>
+                            ));
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </TintedCard>
+            </RevealItem>
+          </div>
+
+          {/* Trilha lateral */}
+          <div className="contents lg:flex lg:flex-col lg:gap-5">
+
+            {/* Redações entregues */}
+            <RevealItem className="order-2 lg:order-none">
+              <TintedCard accentColor="var(--brand-secondary)" className="edificar-major-surface">
+                <div className="p-5">
+                  <SectionTitle
+                    kicker="Pedagógico"
+                    title="Redações entregues"
+                    hex={org.brand_secondary}
+                    action={
+                      <BrandPill href={`/partners/${org.slug}/redacoes`} color="var(--brand-secondary)" hex={org.brand_secondary}>
+                        <FileText className="h-3 w-3" /> Ver redações
+                      </BrandPill>
+                    }
+                  />
+                  {loading ? (
+                    <div className="h-10 w-24 animate-pulse rounded-lg bg-slate-200 dark:bg-white/10" />
+                  ) : (
+                    <div className="flex items-end gap-2">
+                      <span className="font-display text-[34px] font-black tabular-nums text-slate-900 dark:text-white">
+                        {deliveredEssaysCount}
+                      </span>
+                      <span className="pb-2 text-[11px] text-slate-400 dark:text-white/40">
+                        no período · {metricLabel.toLowerCase()}
+                      </span>
+                    </div>
+                  )}
+                  {(userProfile.role === 'founder' || userProfile.role === 'admin') && (
+                    <div
+                      className="mt-3 flex items-center gap-2 rounded-xl px-3 py-2"
+                      style={{ background: 'color-mix(in srgb, var(--brand-secondary) 8%, transparent)' }}
+                    >
+                      <Users className="h-3.5 w-3.5" style={{ color: readableBrandText(org.brand_secondary, 'var(--brand-secondary)') }} />
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-white/60">Associados</span>
+                      <span className="ml-auto text-[13px] font-black tabular-nums text-slate-900 dark:text-white">
+                        {loading ? '—' : (associatesCount ?? 0)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </TintedCard>
+            </RevealItem>
+
+            {/* Videoaulas */}
+            {isVideoToolEnabled && (
+              <RevealItem className="order-3 lg:order-none">
+                <TintedCard accentColor="var(--brand-primary)" className="edificar-major-surface">
+                  <div className="p-5">
+                    <SectionTitle
+                      kicker="Videoaulas"
+                      title="Adoção semanal"
+                      hex={org.brand_primary}
+                      action={
+                        <BrandPill href={`/partners/${org.slug}/aulas`} hex={org.brand_primary}>
+                          <Video className="h-3 w-3" /> Ver aulas
+                        </BrandPill>
+                      }
+                    />
+                    {videoAdoptionLoading ? (
+                      <div className="h-10 w-24 animate-pulse rounded-lg bg-slate-200 dark:bg-white/10" />
+                    ) : (
+                      <>
+                        <div className="mb-2 flex items-end gap-2">
+                          <span className="font-display text-[34px] font-black tabular-nums text-slate-900 dark:text-white">
+                            {videoAdoption?.pct ?? 0}%
+                          </span>
+                          <span className="pb-2 text-[11px] text-slate-400 dark:text-white/40">
+                            {videoAdoption?.num ?? 0}/{videoAdoption?.den ?? 0} alunos · últimos 7 dias
+                          </span>
+                        </div>
+                        <MiniBar pct={videoAdoption?.pct ?? 0} color="var(--brand-primary)" glow height={8} />
+                      </>
+                    )}
+                  </div>
+                </TintedCard>
+              </RevealItem>
+            )}
+
+            {/* Questões — gráfico vivo em card escuro */}
+            <RevealItem className="order-4 lg:order-none">
+              <BrandHero>
+                <div className="mb-2 flex items-center gap-2">
+                  <BookOpen className="h-4 w-4" style={{ color: HERO_ACCENT_COLOR }} />
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.14em]" style={{ color: HERO_ACCENT_COLOR }}>
+                    Questões — {metricLabel}
+                  </p>
+                </div>
+                {analyticsLoading ? (
+                    <div className="h-[150px] w-full animate-pulse rounded-xl bg-white/10" />
+                  ) : (analyticsData?.questions_series ?? []).every((d) => d.total === 0) ? (
+                    <p className="py-12 text-center text-xs text-white/40">Sem dados no período</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={150}>
+                      <AreaChart data={analyticsData?.questions_series ?? []} margin={{ top: 8, right: 4, left: -22, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="gradQuestoes" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="var(--brand-accent)" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="var(--brand-accent)" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.4)' }}
+                          tickFormatter={(v: string) => formatDateTick(v, metricWindow)}
+                          interval="preserveStartEnd"
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.35)' }}
+                          allowDecimals={false}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={TOOLTIP_STYLE_DARK}
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          formatter={(v: any) => [`${v} questões`, 'Volume']}
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          labelFormatter={(label: any) => formatDateLabel(String(label ?? ''), metricWindow)}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="total"
+                          stroke="var(--brand-accent)"
+                          strokeWidth={2.5}
+                          fill="url(#gradQuestoes)"
+                          dot={false}
+                          activeDot={{ r: 4, fill: 'var(--brand-accent)' }}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                <p className="mt-2 text-[12px] text-white/60">
+                  Total do período:{' '}
+                  <span className="font-extrabold tabular-nums text-white">{loading ? '—' : questionsValue}</span>
+                </p>
+              </BrandHero>
+            </RevealItem>
           </div>
         </div>
 
-        {/* ── KPI Cards ─────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <KpiCard
-            title="Alunos Cadastrados"
-            value={students.length}
-            subtitle={`de ${org.max_students} vagas`}
-            icon={Users}
-            href={`/partners/${org.slug}/alunos`}
-            loading={loading}
-            accentColor="var(--brand-primary)"
-            delta={null}
-          />
-          <KpiCard
-            title={`Ativos • ${metricLabel}`}
-            value={activeValue ?? '—'}
-            subtitle={`${activeRate}% do total`}
-            icon={Activity}
-            loading={loading}
-            accentColor="var(--brand-secondary)"
-            delta={stats ? getDelta(
-              activeValue,
-              stats.prev_active_today,
-              stats.prev_active_week,
-              stats.prev_active_month,
-            ) : null}
-            deltaLabel={deltaLabel}
-          />
-          <KpiCard
-            title={`Questões • ${metricLabel}`}
-            value={questionsValue ?? '—'}
-            subtitle="Respondidas pela turma"
-            icon={BookOpen}
-            loading={loading}
-            accentColor="var(--brand-accent)"
-            delta={stats ? getDelta(
-              questionsValue,
-              stats.prev_questions_today,
-              stats.prev_questions_week,
-              stats.prev_questions_month,
-            ) : null}
-            deltaLabel={deltaLabel}
-          />
-          <KpiCard
-            title={`Simulados • ${metricLabel}`}
-            value={simuladosValue ?? '—'}
-            subtitle="Realizados pela turma"
-            icon={FileText}
-            loading={loading}
-            accentColor="#8b5cf6"
-            delta={stats ? getDelta(
-              simuladosValue,
-              stats.prev_simulados_today,
-              stats.prev_simulados_week,
-              stats.prev_simulados_month,
-            ) : null}
-            deltaLabel={deltaLabel}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <TintedCard
-            accentColor="var(--brand-primary)"
-            accentStrength={9}
-            className={cn('edificar-major-surface', !isVideoToolEnabled && 'lg:col-span-2')}
-          >
-            <CardHeader className="flex flex-row items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-sm text-slate-700 dark:text-white/80 font-bold">Redações entregues</CardTitle>
-                <Link
-                  href={`/partners/${org.slug}/redacoes`}
-                  className="relative inline-flex items-center gap-1.5 overflow-hidden rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition
-                    border-[color-mix(in_srgb,var(--brand-secondary)_45%,white)] dark:border-[color-mix(in_srgb,var(--brand-secondary)_45%,#0f172a)]
-                    bg-[color-mix(in_srgb,var(--brand-secondary)_22%,white)] dark:bg-[color-mix(in_srgb,var(--brand-secondary)_24%,#0f172a)]
-                    text-slate-800 dark:text-white hover:brightness-105"
-                >
-                  <BrandLiquidGlass accentColor="var(--brand-secondary)" intensity={14} />
-                  <span
-                    className="relative z-10 flex h-6 w-6 items-center justify-center rounded-lg border border-slate-300 dark:border-white/20"
-                    style={{
-                      background: 'color-mix(in srgb, var(--brand-secondary) 16%, white)',
-                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 8px color-mix(in srgb, var(--brand-secondary) 22%, transparent)',
-                    }}
-                  >
-                    <FileText
-                      className="h-3.5 w-3.5"
-                      style={{
-                        color: 'var(--brand-secondary)',
-                        filter: 'drop-shadow(0 0 4px color-mix(in srgb, var(--brand-secondary) 35%, transparent))',
-                      }}
-                    />
-                  </span>
-                  <span className="relative z-10">Redações</span>
-                </Link>
-              </div>
-              <div className="flex items-center gap-2">
-                {(userProfile.role === 'founder' || userProfile.role === 'admin') && (
-                  <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                    <Users className="h-3.5 w-3.5 text-[var(--brand-secondary)]" />
-                    <span>Número de Associados:</span>
-                    <span className="font-black text-slate-900 dark:text-white">{loading ? '—' : (associatesCount ?? 0)}</span>
-                  </div>
-                )}
-                <span className="text-xs text-slate-500 dark:text-white/45">Período: {metricLabel}</span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="h-10 w-24 bg-slate-200 dark:bg-white/10 rounded-lg animate-pulse" />
-              ) : (
-                <div className="flex items-end justify-between gap-3">
-                  <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">{deliveredEssaysCount}</p>
-                  <p className="text-xs text-slate-500 dark:text-white/45">Redações no período selecionado</p>
-                </div>
-              )}
-            </CardContent>
-          </TintedCard>
-
-          {isVideoToolEnabled && (
-          <TintedCard accentColor="var(--brand-primary)" accentStrength={8} className="edificar-major-surface">
-            <CardHeader className="flex flex-row items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-sm text-slate-700 dark:text-white/80 font-bold">Adoção semanal de videoaulas</CardTitle>
-                <Link
-                  href={`/partners/${org.slug}/aulas`}
-                  className="relative inline-flex items-center gap-1.5 overflow-hidden rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition
-                    border-[color-mix(in_srgb,var(--brand-primary)_45%,white)] dark:border-[color-mix(in_srgb,var(--brand-primary)_45%,#0f172a)]
-                    bg-[color-mix(in_srgb,var(--brand-primary)_20%,white)] dark:bg-[color-mix(in_srgb,var(--brand-primary)_22%,#0f172a)]
-                    text-slate-800 dark:text-white hover:brightness-105"
-                >
-                  <BrandLiquidGlass accentColor="var(--brand-primary)" intensity={12} />
-                  <Video className="relative z-10 h-3.5 w-3.5" />
-                  <span className="relative z-10">Videoaulas</span>
-                </Link>
-              </div>
-              <span className="text-xs text-slate-500 dark:text-white/45">Período: semanal</span>
-            </CardHeader>
-            <CardContent>
-              {videoAdoptionLoading ? (
-                <div className="h-10 w-24 bg-slate-200 dark:bg-white/10 rounded-lg animate-pulse" />
-              ) : (
-                <div className="flex items-end justify-between gap-3">
-                  <p className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">
-                    {videoAdoption?.pct ?? 0}%
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-white/45">
-                    {videoAdoption?.num ?? 0}/{videoAdoption?.den ?? 0} alunos ativos nos últimos 7 dias
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </TintedCard>
-          )}
-        </div>
-
-        {/* ── Charts ────────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-
-          <TintedCard accentColor="var(--brand-secondary)" accentStrength={7} className="edificar-major-surface">
-            <CardHeader>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-sm text-slate-700 dark:text-white/80 font-bold">
-                    Evolução da Turma
-                  </CardTitle>
-                  <p className="text-xs text-slate-500 dark:text-white/35">Volume de questões e % de acertos • {metricLabel}</p>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {analyticsLoading ? (
-                <div className="space-y-4">
-                  <div className="h-[120px] w-full bg-slate-200 dark:bg-white/10 rounded-xl animate-pulse" />
-                  <div className="h-[120px] w-full bg-slate-200 dark:bg-white/10 rounded-xl animate-pulse" />
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="h-20 bg-slate-200 dark:bg-white/10 rounded-xl animate-pulse" />
-                    <div className="h-20 bg-slate-200 dark:bg-white/10 rounded-xl animate-pulse" />
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {/* Gráfico 1: Volume de questões */}
-                  <div>
-                    <p className="mb-1.5 text-[11px] font-semibold text-slate-600 dark:text-white/50 uppercase tracking-wide">
-                      Questões respondidas
-                    </p>
-                    {(analyticsData?.questions_series ?? []).every((d) => d.total === 0) ? (
-                      <p className="text-center text-xs text-slate-400 dark:text-white/25 py-6">Sem dados no período</p>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={120}>
-                        <LineChart data={analyticsData?.questions_series ?? []} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgb(148 163 184 / 0.2)" />
-                          <XAxis
-                            dataKey="date"
-                            tick={{ fontSize: 9, fill: 'rgb(100 116 139)' }}
-                            tickFormatter={(v: string) => {
-                              if (metricWindow === 'today') return v;
-                              if (metricWindow === 'total') {
-                                const [y, m] = v.split('-');
-                                return `${m}/${y?.slice(2)}`;
-                              }
-                              const [, m, d] = v.split('-');
-                              return `${d}/${m}`;
-                            }}
-                            interval="preserveStartEnd"
-                          />
-                          <YAxis tick={{ fontSize: 9, fill: 'rgb(100 116 139)' }} allowDecimals={false} />
-                          <Tooltip
-                            contentStyle={TOOLTIP_STYLE}
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            formatter={(v: any) => [`${v} questões`, 'Volume']}
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            labelFormatter={(label: any) => {
-                              const l = String(label ?? '');
-                              if (metricWindow === 'today') return `Hora: ${l}`;
-                              if (metricWindow === 'total') {
-                                const [y, m] = l.split('-');
-                                return `${m}/${y}`;
-                              }
-                              const [y, m, d] = l.split('-');
-                              return `${d}/${m}/${y}`;
-                            }}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="total"
-                            stroke="var(--brand-primary)"
-                            strokeWidth={2}
-                            dot={false}
-                            activeDot={{ r: 4, fill: 'var(--brand-primary)' }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-
-                  {/* Gráfico 2: % de acertos */}
-                  <div>
-                    <p className="mb-1.5 text-[11px] font-semibold text-slate-600 dark:text-white/50 uppercase tracking-wide">
-                      % de acertos
-                    </p>
-                    {(analyticsData?.accuracy_series ?? []).every((d) => d.accuracy_pct === null) ? (
-                      <p className="text-center text-xs text-slate-400 dark:text-white/25 py-6">Sem dados no período</p>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={120}>
-                        <LineChart data={analyticsData?.accuracy_series ?? []} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgb(148 163 184 / 0.2)" />
-                          <XAxis
-                            dataKey="date"
-                            tick={{ fontSize: 9, fill: 'rgb(100 116 139)' }}
-                            tickFormatter={(v: string) => {
-                              if (metricWindow === 'today') return v;
-                              if (metricWindow === 'total') {
-                                const [y, m] = v.split('-');
-                                return `${m}/${y?.slice(2)}`;
-                              }
-                              const [, m, d] = v.split('-');
-                              return `${d}/${m}`;
-                            }}
-                            interval="preserveStartEnd"
-                          />
-                          <YAxis tick={{ fontSize: 9, fill: 'rgb(100 116 139)' }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                          <Tooltip
-                            contentStyle={TOOLTIP_STYLE}
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            formatter={(v: any) => [v != null ? `${v}%` : '—', 'Acertos']}
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            labelFormatter={(label: any) => {
-                              const l = String(label ?? '');
-                              if (metricWindow === 'today') return `Hora: ${l}`;
-                              if (metricWindow === 'total') {
-                                const [y, m] = l.split('-');
-                                return `${m}/${y}`;
-                              }
-                              const [y, m, d] = l.split('-');
-                              return `${d}/${m}/${y}`;
-                            }}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="accuracy_pct"
-                            stroke="#22c55e"
-                            strokeWidth={2}
-                            dot={false}
-                            activeDot={{ r: 4, fill: '#22c55e' }}
-                            connectNulls={false}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-
-                  {/* Ponto fraco + Ponto forte */}
-                  {(() => {
-                    const subjects = analyticsData?.subjects ?? [];
-                    const pontoFraco = subjects[0];
-                    const pontoForte = subjects[subjects.length - 1];
-                    return (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-xl border border-red-200 dark:border-red-500/30 bg-red-50/70 dark:bg-red-900/10 p-3">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <Target className="h-3.5 w-3.5 text-red-500 dark:text-red-400 shrink-0" />
-                            <p className="text-[10px] font-bold uppercase tracking-wide text-red-600 dark:text-red-400">Ponto Fraco</p>
-                          </div>
-                          {pontoFraco && pontoFraco !== pontoForte ? (
-                            <>
-                              <p className="text-xs font-black text-red-700 dark:text-red-300 leading-tight line-clamp-2">{pontoFraco.subject}</p>
-                              <p className="text-[10px] text-red-500 dark:text-red-400/80 mt-0.5">{pontoFraco.accuracy_pct}% de acertos</p>
-                              <p className="text-[10px] text-red-400 dark:text-red-500/60">{pontoFraco.total} questões</p>
-                            </>
-                          ) : (
-                            <p className="text-[10px] text-red-400 dark:text-red-500/60 mt-1">Sem dados suficientes</p>
-                          )}
-                        </div>
-                        <div className="rounded-xl border border-green-200 dark:border-green-500/30 bg-green-50/70 dark:bg-green-900/10 p-3">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <Zap className="h-3.5 w-3.5 text-green-500 dark:text-green-400 shrink-0" />
-                            <p className="text-[10px] font-bold uppercase tracking-wide text-green-600 dark:text-green-400">Ponto Forte</p>
-                          </div>
-                          {pontoForte && pontoFraco !== pontoForte ? (
-                            <>
-                              <p className="text-xs font-black text-green-700 dark:text-green-300 leading-tight line-clamp-2">{pontoForte.subject}</p>
-                              <p className="text-[10px] text-green-500 dark:text-green-400/80 mt-0.5">{pontoForte.accuracy_pct}% de acertos</p>
-                              <p className="text-[10px] text-green-400 dark:text-green-500/60">{pontoForte.total} questões</p>
-                            </>
-                          ) : (
-                            <p className="text-[10px] text-green-400 dark:text-green-500/60 mt-1">Sem dados suficientes</p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </>
-              )}
-            </CardContent>
-          </TintedCard>
-
-          {/* Ranking por período */}
-          <TintedCard accentColor="var(--brand-primary)" accentStrength={6} className="lg:col-span-2">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-sm text-slate-700 dark:text-white/80 font-bold">
-                    Ranking • {metricLabel}
-                  </CardTitle>
-                  <span
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
-                    style={{
-                      background: 'color-mix(in srgb, var(--brand-primary) 18%, transparent)',
-                      color: 'var(--brand-primary)',
-                      borderColor: 'color-mix(in srgb, var(--brand-primary) 42%, transparent)',
-                    }}
-                  >
-                    TOP 5
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-white/35">
-                  Ordenado por questões e simulados no período
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="text-[10px] text-slate-500 dark:text-white/35 whitespace-nowrap">
-                  Baseado em {rankingBaseCount} aluno{rankingBaseCount === 1 ? '' : 's'}
-                </span>
-                <span
-                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 dark:border-white/20 text-[10px] font-bold text-slate-500 dark:text-white/60"
-                  title={`Critério: Questões (${metricLabel}) desc, depois Simulados (${metricLabel}) desc e última atividade mais recente.`}
-                >
-                  i
-                </span>
-                <Link
-                  href={`/partners/${org.slug}/alunos`}
-                  className="text-xs font-medium flex items-center gap-1 shrink-0"
-                  style={{ color: 'var(--brand-primary)' }}
-                >
-                  Ver todos <ArrowUpRight className="h-3 w-3" />
-                </Link>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="space-y-3">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="h-12 w-full bg-slate-200 dark:bg-white/10 rounded-lg animate-pulse" />
-                  ))}
-                </div>
-              ) : topStudents.length === 0 ? (
-                <p className="text-center text-sm text-slate-400 dark:text-white/30 py-8">Nenhum aluno ativo ainda</p>
-              ) : (
-                <div className="space-y-2">
-                  {topStudents.map((student, idx) => {
-                    const max = getQuestionsByWindow(topStudents[0]) || 1;
-                    const pct = Math.round((getQuestionsByWindow(student) / max) * 100);
-                    const barOpacity = Math.max(0.3, 1 - idx * 0.15);
-                    const isOnline = student.last_activity_date === todayBrtKey;
-                    const RankIcon =
-                      idx === 0 ? Trophy :
-                      idx === 1 ? Award :
-                      idx === 2 ? Star : null;
-                    const rankColor =
-                      idx === 0 ? '#f59e0b' :
-                      idx === 1 ? '#94a3b8' :
-                      '#cd7c2f';
-
-                    return (
-                      <Link
-                        key={student.id}
-                        href={`/partners/${org.slug}/alunos/${student.id}`}
-                        className="group block"
-                      >
-                        <div
-                          className={cn(
-                            'relative flex items-center gap-3 rounded-xl p-3',
-                            'hover:bg-slate-100 dark:hover:bg-white/5 transition-all duration-200',
-                            idx === 0 && 'bg-slate-100 dark:bg-white/5 ring-1 ring-white/10',
-                          )}
-                        >
-                          <div className="w-8 shrink-0 flex items-center justify-center">
-                            {RankIcon ? (
-                              <RankIcon className="h-4 w-4" style={{ color: rankColor }} />
-                            ) : (
-                              <span className="text-xs font-black text-slate-400 dark:text-white/20">
-                                #{idx + 1}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="relative shrink-0">
-                            {student.avatar_url ? (
-                              <Image
-                                src={student.avatar_url}
-                                alt={student.full_name}
-                                width={32}
-                                height={32}
-                                className="w-8 h-8 rounded-full object-cover ring-1 ring-white/10"
-                              />
-                            ) : (
-                              <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-slate-900 dark:text-white"
-                                style={{
-                                  background: `color-mix(in srgb, var(--brand-primary) ${Math.max(6, 30 - idx * 4)}%, #1e293b)`,
-                                }}
-                              >
-                                {(student.full_name || '?')[0].toUpperCase()}
-                              </div>
-                            )}
-                            {isOnline && (
-                              <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 ring-1 ring-slate-900" />
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1.5">
-                              <span className="text-sm font-semibold text-slate-700 dark:text-white/80 truncate group-hover:text-slate-900 dark:group-hover:text-slate-900 dark:text-white transition-colors">
-                                {(() => {
-                                  const parts = student.full_name?.split(' ').filter(Boolean) ?? [];
-                                  const particles = new Set(['de', 'da', 'do', 'dos', 'das', 'e']);
-                                  const first = parts[0];
-                                  const last = parts.slice(1).find(p => !particles.has(p.toLowerCase()));
-                                  return first ? (last ? `${first} ${last}` : first) : '—';
-                                })()}
-                              </span>
-                              <div className="flex items-center gap-2.5 shrink-0 ml-2">
-                                <span
-                                  className="text-xs font-black tabular-nums"
-                                  style={{ color: 'var(--brand-primary)', opacity: barOpacity }}
-                                >
-                                  {getQuestionsByWindow(student)} Questões
-                                </span>
-                                <span className="text-slate-900 dark:text-white/15 text-xs">·</span>
-                                <span className="text-xs font-bold tabular-nums text-slate-500 dark:text-white/35">
-                                  {getSimuladosByWindow(student)} Simulados
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-white/5 overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all duration-700"
-                                style={{
-                                  width: `${pct}%`,
-                                  background: `linear-gradient(90deg,
-                                    color-mix(in srgb, var(--brand-primary) ${Math.round(barOpacity * 100)}%, #1e293b),
-                                    var(--brand-primary))`,
-                                  opacity: barOpacity,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </TintedCard>
-
-        </div>
-
-        {/* ── Tabela de Atividade Recente ───────────────────────────────────── */}
-        <TintedCard accentColor="var(--brand-accent)" accentStrength={5}>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle
-                className="text-sm font-bold flex items-center gap-2"
-                style={{ color: 'var(--brand-primary)' }}
-              >
-                <TrendingUp className="h-4 w-4" style={{ color: 'var(--brand-accent)' }} />
-                Ranking de Atividade
-              </CardTitle>
-              <p className="text-xs text-slate-500 dark:text-white/45">Alunos mais ativos em {metricLabel}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span
-                className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 dark:border-white/20 text-[10px] font-bold text-slate-500 dark:text-white/60"
-                title={`Tabela ordenada por Questões (${metricLabel}) desc, Simulados (${metricLabel}) desc e última atividade.`}
-              >
-                i
-              </span>
-              <Link
-                href={`/partners/${org.slug}/alunos`}
-                className="text-xs font-medium flex items-center gap-1 shrink-0"
-                style={{ color: 'var(--brand-primary)' }}
-              >
-                Ver tabela completa <ArrowUpRight className="h-3 w-3" />
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="space-y-3">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="h-10 w-full bg-slate-200 dark:bg-white/10 rounded-lg animate-pulse" />
-                ))}
-              </div>
-            ) : students.length === 0 ? (
-              <p className="text-center text-sm text-slate-400 dark:text-white/30 py-8">
-                Nenhum aluno cadastrado ainda.{' '}
-                <Link
-                  href={`/partners/${org.slug}/alunos/convidar`}
-                  className="underline"
-                  style={{ color: 'var(--brand-primary)' }}
-                >
-                  Importar alunos
-                </Link>
-              </p>
-            ) : (
-              <div className="overflow-x-auto -mx-1">
-                <table className="w-full text-sm min-w-[520px]">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-white/10 text-left text-[10px] uppercase tracking-widest">
-                      <th className="pb-3 font-semibold pl-1" style={{ color: 'var(--brand-primary)' }}>Aluno</th>
-                      <th className="pb-3 font-semibold text-center hidden sm:table-cell" style={{ color: 'var(--brand-primary)' }}>Plano</th>
-                      <th className="pb-3 font-semibold text-center" style={{ color: 'var(--brand-primary)' }}>
-                        {`Questões (${metricLabel.toLowerCase()})`}
-                      </th>
-                      <th className="pb-3 font-semibold text-center hidden sm:table-cell" style={{ color: 'var(--brand-primary)' }}>
-                        {`Simulados (${metricLabel.toLowerCase()})`}
-                      </th>
-                      <th className="pb-3 font-semibold text-center" style={{ color: 'var(--brand-primary)' }}>Taxa de acerto</th>
-                      <th className="pb-3 font-semibold text-center hidden md:table-cell" style={{ color: 'var(--brand-primary)' }}>Última atividade</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {studentsForTable.map((s) => (
-                      <tr
-                        key={s.id}
-                        className="border-b border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
-                      >
-                        <td className="py-3 pl-1">
-                          <Link
-                            href={`/partners/${org.slug}/alunos/${s.id}`}
-                            className="font-semibold text-slate-900 dark:text-white hover:underline"
-                          >
-                            {s.full_name || '—'}
-                          </Link>
-                          <p className="text-xs text-slate-500 dark:text-white/35 hidden xs:block">{s.email}</p>
-                        </td>
-                        <td className="py-3 text-center hidden sm:table-cell">
-                          <Badge className="text-[10px] border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-white/60">
-                            {s.plan_name || 'Sem plano vinculado'}
-                          </Badge>
-                        </td>
-                        <td className="py-3 text-center font-medium text-slate-600 dark:text-white/70">
-                          {getQuestionsByWindow(s)}
-                        </td>
-                        <td className="py-3 text-center text-slate-500 dark:text-white/50 hidden sm:table-cell">
-                          {getSimuladosByWindow(s)}
-                        </td>
-                        <td className="py-3 text-center">
-                          {s.accuracy_pct != null ? (
-                            <span
-                              className={s.accuracy_pct < 60 ? 'text-rose-400' : ''}
-                              style={
-                                s.accuracy_pct >= 60
-                                  ? { color: 'var(--brand-primary)' }
-                                  : undefined
-                              }
-                            >
-                              {s.accuracy_pct}%
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 dark:text-white/30">—</span>
-                          )}
-                        </td>
-                        <td className="py-3 text-center text-xs text-slate-400 dark:text-white/30 hidden md:table-cell">
-                          {s.last_activity_date ?? 'Nunca'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </TintedCard>
-
-        </div>
+        </RevealGroup>
       </div>
     </PartnerLayout>
   );

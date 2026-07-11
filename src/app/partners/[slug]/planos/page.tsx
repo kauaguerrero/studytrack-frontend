@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
+import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,13 @@ import {
   Plus,
   Trash2,
   WalletCards,
+  Layers,
+  Users,
 } from 'lucide-react';
+import {
+  RevealGroup, RevealItem, ElevatedCard, KpiCard, SectionTitle, BrandButton,
+} from '@/components/partners/founder-ui';
+import { readableBrandText, onBrandText } from '@/lib/brand-color';
 
 interface CustomPlan {
   id: string;
@@ -440,8 +447,8 @@ export default function PartnerPlansPage() {
         <article
           key={student.id}
           className={cn(
-            'rounded-xl border border-slate-200 p-3 dark:border-slate-700 md:p-4',
-            rowExpiring && 'border-amber-300 bg-amber-50/70 dark:border-amber-500/60 dark:bg-amber-900/10',
+            'rounded-xl border border-slate-100 p-3 transition-colors hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5 md:p-4',
+            rowExpiring && 'bg-amber-50/70 dark:bg-amber-900/10',
           )}
         >
           <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
@@ -456,8 +463,11 @@ export default function PartnerPlansPage() {
                 />
               ) : (
                 <div
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white"
-                  style={{ background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))' }}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-secondary))',
+                    color: onBrandText(org.brand_primary),
+                  }}
                 >
                   {avatarInitials}
                 </div>
@@ -471,18 +481,18 @@ export default function PartnerPlansPage() {
               {student.plan_name || 'Sem plano vinculado'}
             </Badge>
             {rowDirty && (
-              <Badge className="w-fit border-transparent text-white" style={{ backgroundColor: 'var(--brand-secondary)' }}>
+              <Badge className="w-fit border-transparent" style={{ backgroundColor: 'var(--brand-secondary)', color: onBrandText(org.brand_secondary) }}>
                 Alteração pendente
               </Badge>
             )}
           </div>
 
           <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
-            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1 text-slate-600 dark:bg-white/5 dark:text-slate-300">
               <Coins className="h-3 w-3" />
               Créditos: {student.essay_credits_remaining ?? '∞'} / {student.essay_credits_limit ?? '∞'} {student.essay_credits_period === 'week' ? 'semana' : 'mês'}
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1 text-slate-600 dark:bg-white/5 dark:text-slate-300">
               <CalendarClock className="h-3 w-3" />
               Últ. pagamento: {currentPaymentDate || 'não informado'}
             </span>
@@ -537,7 +547,7 @@ export default function PartnerPlansPage() {
               />
             </div>
 
-            <div className="h-11 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
+            <div className="h-11 rounded-lg border border-dashed border-slate-200 px-3 py-2 text-[11px] text-slate-500 dark:border-white/10 dark:text-slate-400">
               As alterações desta linha serão enviadas no botão “Salvar todos os vínculos”.
             </div>
           </div>
@@ -547,324 +557,373 @@ export default function PartnerPlansPage() {
   ), [prioritizedFilteredStudents, sortedPlans, draftAssignments, savingAllLinks, expiringStudentIdSet]);
 
   return (
+    <ModuleGuard permKey="planos_enabled">
     <PartnerLayout>
-      <div className="edificar-page-canvas -mx-4 -mt-4 space-y-6 px-4 pt-4 pb-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
-        <div className="edificar-page-frame space-y-6 p-3 md:p-4">
-        <section
-          className="relative overflow-hidden rounded-2xl border p-5 shadow-sm"
-          style={{
-            borderColor: 'color-mix(in srgb, var(--brand-primary) 34%, #e2e8f0)',
-            background: 'linear-gradient(130deg, color-mix(in srgb, var(--brand-primary) 14%, white) 0%, color-mix(in srgb, var(--brand-secondary) 12%, white) 100%)',
-          }}
-        >
+      <div className="edificar-page-canvas min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 [--partner-surface-base:#ffffff] dark:[--partner-surface-base:#0f172a]">
+        <RevealGroup className="edificar-page-frame flex flex-col gap-4 p-3 md:gap-5 md:p-4">
+
+        {/* ── Hero ──────────────────────────────────────────────────────────── */}
+        <RevealItem>
           <div
-            className="pointer-events-none absolute inset-0 hidden dark:block"
+            className="relative overflow-hidden rounded-[22px] p-5 lg:p-7"
             style={{
-              background: 'linear-gradient(130deg, color-mix(in srgb, var(--brand-primary) 22%, #0f172a) 0%, color-mix(in srgb, var(--brand-secondary) 18%, #0f172a) 100%)',
+              background: 'radial-gradient(120% 140% at 15% 0%, color-mix(in srgb, var(--brand-primary) 45%, #101E45) 0%, color-mix(in srgb, var(--brand-primary) 16%, #060E27) 62%)',
+              boxShadow: '0 20px 48px -20px color-mix(in srgb, var(--brand-primary) 35%, rgba(6,14,39,0.6))',
             }}
-          />
-          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ background: 'color-mix(in srgb, var(--brand-secondary) 35%, transparent)' }} />
-          <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full border bg-white/70 px-3 py-1 text-xs font-semibold dark:bg-slate-900/60"
-                style={{
-                  color: 'var(--brand-primary)',
-                  borderColor: 'color-mix(in srgb, var(--brand-primary) 30%, transparent)',
-                }}
-              >
-                <WalletCards className="h-3.5 w-3.5" />
-                Gestão de Planos
-              </div>
-              <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">Planos e Créditos de Redação</h1>
-              <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-                Organize seus planos, defina quantas redações cada aluno pode enviar e acompanhe tudo em um só lugar.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 text-center md:min-w-[360px]">
-              <div className="rounded-xl border border-slate-200 bg-white/90 p-3 dark:border-slate-700 dark:bg-slate-900/70">
-                <p className="text-xl font-black text-slate-900 dark:text-slate-100">{sortedPlans.length}</p>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-300">Planos totais</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white/90 p-3 dark:border-slate-700 dark:bg-slate-900/70">
-                <p className="text-xl font-black" style={{ color: 'var(--brand-primary)' }}>{activePlans}</p>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-300">Planos ativos</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white/90 p-3 dark:border-slate-700 dark:bg-slate-900/70">
-                <p className="text-xl font-black" style={{ color: 'var(--brand-secondary)' }}>{activePlanStudents}</p>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-300">Alunos com plano ativo</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-5">
-          <form onSubmit={handleCreatePlan} className="edificar-major-surface space-y-4 rounded-2xl border border-slate-200 p-5 shadow-sm dark:border-slate-800 xl:col-span-2">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Criar novo plano</h2>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Preencha os campos abaixo. Os alunos poderão ser vinculados na seção seguinte.
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nome do plano</label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ex.: Plano Intensivo ENEM"
-                required
-                className="h-11"
-              />
-              <p className="text-[11px] text-slate-500">Nome que aparecerá no dashboard, alunos e redações.</p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Descrição do plano</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Ex.: Acompanhamento semanal com 2 correções prioritárias"
-                className="min-h-20 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-              />
-              <p className="text-[11px] text-slate-500">Texto opcional para detalhar o que o plano inclui.</p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Valor (R$)</label>
-                <Input value={priceReais} onChange={(e) => setPriceReais(e.target.value)} type="number" min={0} step="0.01" className="h-11" />
-                <p className="text-[11px] text-slate-500">Preço mensal/ciclo do plano.</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Duração (dias)</label>
-                <Input value={durationDays} onChange={(e) => setDurationDays(e.target.value)} type="number" min={1} step={1} className="h-11" />
-                <p className="text-[11px] text-slate-500">Tempo de validade do plano.</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Créditos de redação</label>
-                <Input value={creditsLimit} onChange={(e) => setCreditsLimit(e.target.value)} type="number" min={0} step={1} className="h-11" />
-                <p className="text-[11px] text-slate-500">Quantidade máxima de envios por período.</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Período dos créditos</label>
-                <Select value={creditsPeriod} onValueChange={(v: 'week' | 'month') => setCreditsPeriod(v)}>
-                  <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="week">Semanal</SelectItem>
-                    <SelectItem value="month">Mensal</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[11px] text-slate-500">Define quando o contador de créditos reinicia.</p>
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              disabled={savingPlan}
-              className="h-11 w-full text-white sm:w-auto"
-              style={{ background: 'linear-gradient(90deg, var(--brand-primary), var(--brand-secondary))' }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              {savingPlan ? 'Criando plano...' : 'Criar plano'}
-            </Button>
-          </form>
-
-          <div className="edificar-major-surface space-y-3 rounded-2xl border border-slate-200 p-5 shadow-sm dark:border-slate-800 xl:col-span-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Planos cadastrados</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Visualize preço, créditos e quantidade de alunos em cada plano.</p>
-              </div>
-              <Badge
-                className="border-transparent px-3 py-1 text-white"
-                style={{ background: 'linear-gradient(90deg, var(--brand-primary), var(--brand-secondary))' }}
-              >
-                {sortedPlans.length} plano(s)
-              </Badge>
-            </div>
-
-            {loading ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />)}
-              </div>
-            ) : sortedPlans.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                Nenhum plano customizado ainda. Crie o primeiro plano usando o formulário ao lado.
-              </p>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {sortedPlans.map((plan) => (
-                  <article key={plan.id} className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{plan.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{plan.description || 'Sem descrição'}</p>
-                      </div>
-                      <Badge variant={isPlanActive(plan.is_active) ? 'default' : 'secondary'}>
-                        {isPlanActive(plan.is_active) ? 'Ativo' : 'Inativo'}
-                      </Badge>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/70">
-                        <p className="text-slate-500">Valor</p>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(plan.price_cents)}</p>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/70">
-                        <p className="text-slate-500">Duração</p>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100">{plan.duration_days} dias</p>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/70">
-                        <p className="text-slate-500">Créditos</p>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100">{plan.credits_limit}/{plan.credits_period === 'week' ? 'semana' : 'mês'}</p>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/70">
-                        <p className="text-slate-500">Alunos</p>
-                        <p className="font-semibold text-slate-900 dark:text-slate-100">{plan.students_total}</p>
-                      </div>
-                    </div>
-
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="mt-3 h-10 w-full justify-center text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                      onClick={() => handleDeletePlan(plan.id)}
-                      disabled={deletingPlanId === plan.id}
-                    >
-                      <Trash2 className="mr-1.5 h-4 w-4" />
-                      {deletingPlanId === plan.id ? 'Removendo...' : 'Remover plano'}
-                    </Button>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="edificar-major-surface space-y-4 rounded-2xl border border-slate-200 p-5 shadow-sm dark:border-slate-800">
-          {expiringStudents.length > 0 && (
+          >
             <div
-              className={cn(
-                'rounded-2xl border p-3 md:p-4',
-                'border-amber-300 bg-amber-50 dark:border-amber-500/60 dark:bg-amber-900/15',
-                focusExpiring && 'ring-2 ring-amber-300/80 dark:ring-amber-500/60',
-              )}
-            >
-              <div className="mb-3 flex items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-700 dark:text-amber-300" />
-                <div>
-                  <p className="text-sm font-bold text-amber-900 dark:text-amber-200">
-                    Alunos próximos do vencimento ({expiringStudents.length})
-                  </p>
-                  <p className="text-xs text-amber-800/85 dark:text-amber-200/80">
-                    Marque como pago para renovar automaticamente a vigência do plano.
-                  </p>
+              className="pointer-events-none absolute -top-12 -right-12 h-48 w-48 rounded-full blur-3xl opacity-25"
+              style={{ background: 'var(--brand-accent)' }}
+            />
+            <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+              <div className="min-w-0">
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-white/85 backdrop-blur-sm">
+                  <WalletCards className="h-3.5 w-3.5" style={{ color: 'color-mix(in srgb, var(--brand-accent) 55%, white)' }} />
+                  Gestão de Planos
+                </div>
+                <h1 className="font-display text-[26px] font-black text-white lg:text-[32px]">Planos e Créditos de Redação</h1>
+                <p className="mt-1 max-w-xl text-[13px] text-white/60">
+                  Organize seus planos, defina quantas redações cada aluno pode enviar e acompanhe tudo em um só lugar.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 lg:min-w-[340px]">
+                <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-2.5 text-center backdrop-blur-sm">
+                  <p className="font-display text-xl font-black text-white">{sortedPlans.length}</p>
+                  <p className="text-[10px] font-semibold text-white/55">Planos totais</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-2.5 text-center backdrop-blur-sm">
+                  <p className="font-display text-xl font-black" style={{ color: 'color-mix(in srgb, var(--brand-accent) 55%, white)' }}>{activePlans}</p>
+                  <p className="text-[10px] font-semibold text-white/55">Planos ativos</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/10 px-3 py-2.5 text-center backdrop-blur-sm">
+                  <p className="font-display text-xl font-black" style={{ color: 'color-mix(in srgb, var(--brand-accent) 55%, white)' }}>{activePlanStudents}</p>
+                  <p className="text-[10px] font-semibold text-white/55">Alunos c/ plano ativo</p>
                 </div>
               </div>
-              <div className="space-y-2">
-                {expiringStudents.map(({ student, daysLeft }) => (
-                  <div
-                    key={`expiring-${student.id}`}
-                    className="flex flex-col gap-2 rounded-xl border border-amber-300/70 bg-white/80 p-3 dark:border-amber-500/40 dark:bg-slate-950/50 md:flex-row md:items-center md:justify-between"
-                  >
+            </div>
+          </div>
+        </RevealItem>
+
+        {/* ── Criar plano + Planos cadastrados ────────────────────────────────── */}
+        <div className="grid gap-4 md:gap-5 xl:grid-cols-5">
+          <RevealItem className="xl:col-span-2">
+            <ElevatedCard accentColor="var(--brand-primary)">
+              <form onSubmit={handleCreatePlan} className="space-y-4 p-5">
+                <SectionTitle kicker="Novo plano" title="Criar plano" hex={org.brand_primary} />
+                <p className="-mt-2 text-xs text-slate-500 dark:text-white/40">
+                  Preencha os campos abaixo. Os alunos poderão ser vinculados na seção seguinte.
+                </p>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white/50">Nome do plano</label>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ex.: Plano Intensivo ENEM"
+                    required
+                    className="h-11"
+                  />
+                  <p className="text-[11px] text-slate-500 dark:text-white/35">Nome que aparecerá no dashboard, alunos e redações.</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white/50">Descrição do plano</label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Ex.: Acompanhamento semanal com 2 correções prioritárias"
+                    className="min-h-20 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+                  />
+                  <p className="text-[11px] text-slate-500 dark:text-white/35">Texto opcional para detalhar o que o plano inclui.</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white/50">Valor (R$)</label>
+                    <Input value={priceReais} onChange={(e) => setPriceReais(e.target.value)} type="number" min={0} step="0.01" className="h-11" />
+                    <p className="text-[11px] text-slate-500 dark:text-white/35">Preço mensal/ciclo do plano.</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white/50">Duração (dias)</label>
+                    <Input value={durationDays} onChange={(e) => setDurationDays(e.target.value)} type="number" min={1} step={1} className="h-11" />
+                    <p className="text-[11px] text-slate-500 dark:text-white/35">Tempo de validade do plano.</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white/50">Créditos de redação</label>
+                    <Input value={creditsLimit} onChange={(e) => setCreditsLimit(e.target.value)} type="number" min={0} step={1} className="h-11" />
+                    <p className="text-[11px] text-slate-500 dark:text-white/35">Quantidade máxima de envios por período.</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-white/50">Período dos créditos</label>
+                    <Select value={creditsPeriod} onValueChange={(v: 'week' | 'month') => setCreditsPeriod(v)}>
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="week">Semanal</SelectItem>
+                        <SelectItem value="month">Mensal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-slate-500 dark:text-white/35">Define quando o contador de créditos reinicia.</p>
+                  </div>
+                </div>
+
+                <BrandButton type="submit" disabled={savingPlan} hex={org.brand_primary} className="w-full sm:w-auto">
+                  <Plus className="h-4 w-4" />
+                  {savingPlan ? 'Criando plano...' : 'Criar plano'}
+                </BrandButton>
+              </form>
+            </ElevatedCard>
+          </RevealItem>
+
+          <RevealItem className="xl:col-span-3">
+            <ElevatedCard accentColor="var(--brand-secondary)">
+              <div className="space-y-3 p-5">
+                <SectionTitle
+                  kicker="Catálogo"
+                  title="Planos cadastrados"
+                  hex={org.brand_secondary}
+                  action={
+                    <Badge
+                      className="border-transparent px-3 py-1"
+                      style={{ background: 'linear-gradient(90deg, var(--brand-primary), var(--brand-secondary))', color: onBrandText(org.brand_primary) }}
+                    >
+                      {sortedPlans.length} plano(s)
+                    </Badge>
+                  }
+                />
+                <p className="-mt-2 text-xs text-slate-500 dark:text-white/40">Visualize preço, créditos e quantidade de alunos em cada plano.</p>
+
+                {loading ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl bg-slate-100 dark:bg-white/10" />)}
+                  </div>
+                ) : sortedPlans.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-white/10 dark:text-white/40">
+                    Nenhum plano customizado ainda. Crie o primeiro plano usando o formulário ao lado.
+                  </p>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {sortedPlans.map((plan) => (
+                      <article
+                        key={plan.id}
+                        className="rounded-xl border border-slate-100 p-4 transition-colors hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5"
+                      >
+                        <div className="mb-2 flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{plan.name}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{plan.description || 'Sem descrição'}</p>
+                          </div>
+                          <Badge variant={isPlanActive(plan.is_active) ? 'default' : 'secondary'}>
+                            {isPlanActive(plan.is_active) ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
+                            <p className="text-slate-500 dark:text-white/40">Valor</p>
+                            <p className="font-semibold text-slate-900 dark:text-slate-100">{formatMoney(plan.price_cents)}</p>
+                          </div>
+                          <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
+                            <p className="text-slate-500 dark:text-white/40">Duração</p>
+                            <p className="font-semibold text-slate-900 dark:text-slate-100">{plan.duration_days} dias</p>
+                          </div>
+                          <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
+                            <p className="text-slate-500 dark:text-white/40">Créditos</p>
+                            <p className="font-semibold text-slate-900 dark:text-slate-100">{plan.credits_limit}/{plan.credits_period === 'week' ? 'semana' : 'mês'}</p>
+                          </div>
+                          <div className="rounded-lg bg-slate-50 p-2 dark:bg-white/5">
+                            <p className="text-slate-500 dark:text-white/40">Alunos</p>
+                            <p className="font-semibold text-slate-900 dark:text-slate-100">{plan.students_total}</p>
+                          </div>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="mt-3 h-10 w-full justify-center text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                          onClick={() => handleDeletePlan(plan.id)}
+                          disabled={deletingPlanId === plan.id}
+                        >
+                          <Trash2 className="mr-1.5 h-4 w-4" />
+                          {deletingPlanId === plan.id ? 'Removendo...' : 'Remover plano'}
+                        </Button>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </ElevatedCard>
+          </RevealItem>
+        </div>
+
+        {/* ── KPIs rápidos ─────────────────────────────────────────────────────── */}
+        <RevealItem className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
+          <KpiCard
+            title="Planos totais"
+            value={sortedPlans.length}
+            subtitle="cadastrados na organização"
+            icon={Layers}
+            loading={loading}
+            accentColor="var(--brand-primary)"
+            accentHex={org.brand_primary}
+            delta={null}
+          />
+          <KpiCard
+            title="Alunos com plano ativo"
+            value={activePlanStudents}
+            subtitle={`de ${students.length} aluno(s)`}
+            icon={Users}
+            loading={loading}
+            accentColor="var(--brand-secondary)"
+            accentHex={org.brand_secondary}
+            delta={null}
+          />
+          <KpiCard
+            title="Próximos do vencimento"
+            value={expiringStudents.length}
+            subtitle="nos próximos 7 dias"
+            icon={AlertTriangle}
+            loading={loading}
+            accentColor="#f59e0b"
+            accentHex="#f59e0b"
+            delta={null}
+          />
+        </RevealItem>
+
+        {/* ── Vínculo de alunos ────────────────────────────────────────────────── */}
+        <RevealItem>
+          <ElevatedCard accentColor="var(--brand-accent)">
+            <div className="space-y-4 p-5">
+              {expiringStudents.length > 0 && (
+                <div
+                  className={cn(
+                    'rounded-xl bg-amber-50/80 p-3.5 dark:bg-amber-900/15',
+                    focusExpiring && 'ring-2 ring-amber-300/80 dark:ring-amber-500/60',
+                  )}
+                >
+                  <div className="mb-3 flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                     <div>
-                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{student.full_name}</p>
-                      <p className="text-xs text-slate-600 dark:text-slate-300">
-                        {student.plan_name || 'Plano'} • vence {daysLeft === 0 ? 'hoje' : `em ${daysLeft} dia(s)`}
+                      <p className="text-[13px] font-black leading-tight text-amber-700 dark:text-amber-300">
+                        Alunos próximos do vencimento ({expiringStudents.length})
+                      </p>
+                      <p className="mt-0.5 text-[10.5px] text-amber-600/80 dark:text-amber-400/80">
+                        Marque como pago para renovar automaticamente a vigência do plano.
                       </p>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => void markStudentAsPaid(student)}
-                      disabled={markingPaidId === student.id}
-                      className="h-9 border-0 text-white"
-                      style={{ background: 'linear-gradient(90deg, #16a34a, #22c55e)' }}
-                    >
-                      <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                      {markingPaidId === student.id ? 'Atualizando...' : 'Pago'}
-                    </Button>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  <div className="space-y-2">
+                    {expiringStudents.map(({ student, daysLeft }) => (
+                      <div
+                        key={`expiring-${student.id}`}
+                        className="flex flex-col gap-2 rounded-xl bg-white/80 p-3 dark:bg-slate-950/50 md:flex-row md:items-center md:justify-between"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{student.full_name}</p>
+                          <p className="text-xs text-slate-600 dark:text-slate-300">
+                            {student.plan_name || 'Plano'} • vence {daysLeft === 0 ? 'hoje' : `em ${daysLeft} dia(s)`}
+                          </p>
+                        </div>
+                        <BrandButton
+                          type="button"
+                          onClick={() => void markStudentAsPaid(student)}
+                          disabled={markingPaidId === student.id}
+                          color="#16a34a"
+                          hex="#16a34a"
+                          className="h-9"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                          {markingPaidId === student.id ? 'Atualizando...' : 'Pago'}
+                        </BrandButton>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Vincular alunos aos planos</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <SectionTitle kicker="Vínculos" title="Vincular alunos aos planos" hex={org.brand_accent} />
+                <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
+                  <Input
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    placeholder="Buscar aluno por nome, email ou plano"
+                    className="h-10 md:w-72"
+                  />
+                  <BrandButton
+                    type="button"
+                    hex={org.brand_primary}
+                    disabled={savingAllLinks || dirtyCount === 0}
+                    onClick={() => void saveAllAssignments()}
+                    className="h-10 whitespace-nowrap"
+                  >
+                    {savingAllLinks ? 'Sincronizando...' : `Salvar todos os vínculos${dirtyCount > 0 ? ` (${dirtyCount})` : ''}`}
+                  </BrandButton>
+                </div>
+              </div>
+              <p className="-mt-2 text-xs text-slate-500 dark:text-white/40">
                 Escolha o plano de cada aluno e defina a data do último pagamento para controle administrativo.
               </p>
-            </div>
-            <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
-              <Input
-                value={studentSearch}
-                onChange={(e) => setStudentSearch(e.target.value)}
-                placeholder="Buscar aluno por nome, email ou plano"
-                className="h-10 md:w-72"
-              />
-              <Button
-                type="button"
-                className="h-10 text-white"
-                style={{ background: 'linear-gradient(90deg, var(--brand-primary), var(--brand-secondary))' }}
-                disabled={savingAllLinks || dirtyCount === 0}
-                onClick={() => void saveAllAssignments()}
-              >
-                {savingAllLinks ? 'Sincronizando...' : `Salvar todos os vínculos${dirtyCount > 0 ? ` (${dirtyCount})` : ''}`}
-              </Button>
-            </div>
-          </div>
 
-          <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--brand-primary)_14%,transparent)] bg-white p-3 dark:border-slate-700 dark:bg-slate-950/90">
-            <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Painel de vínculo</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Uma área única para buscar, alterar e revisar pagamentos sem perder contexto.</p>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Painel de vínculo</p>
+                    <p className="text-xs text-slate-500 dark:text-white/40">Uma área única para buscar, alterar e revisar pagamentos sem perder contexto.</p>
+                  </div>
+                  <div
+                    className="rounded-full px-3 py-1 text-xs font-semibold"
+                    style={{
+                      color: readableBrandText(org.brand_primary, 'var(--brand-primary)'),
+                      background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)',
+                    }}
+                  >
+                    {filteredStudents.length} aluno(s) visíveis
+                  </div>
+                </div>
+                <div className="mb-3 h-px bg-slate-100 dark:bg-white/5" />
+                <div className="space-y-2">{studentAssignmentRows}</div>
               </div>
-              <div className="rounded-full border px-3 py-1 text-xs font-semibold"
-                style={{
-                  color: 'var(--brand-primary)',
-                  borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
-                  background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)',
-                }}
-              >
-                {filteredStudents.length} aluno(s) visíveis
-              </div>
-            </div>
-            <div className="mb-3 h-px bg-slate-200 dark:bg-slate-800" />
-            <div className="space-y-2">{studentAssignmentRows}</div>
-          </div>
 
-          {filteredStudents.length === 0 && !loading && (
-            <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-              Nenhum aluno encontrado para o filtro aplicado.
+              {filteredStudents.length === 0 && !loading && (
+                <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-white/10 dark:text-white/40">
+                  Nenhum aluno encontrado para o filtro aplicado.
+                </div>
+              )}
             </div>
-          )}
-        </section>
+          </ElevatedCard>
+        </RevealItem>
 
-        <section className="edificar-major-surface grid gap-3 rounded-2xl border border-slate-200 p-4 text-xs text-slate-600 shadow-sm dark:border-slate-800 dark:text-slate-300 md:grid-cols-3">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
-            <p className="font-semibold text-slate-900 dark:text-slate-100">1. Nome do plano</p>
-            <p>Use um título claro: ex. &quot;Mensal 4 Redações&quot;.</p>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
-            <p className="font-semibold text-slate-900 dark:text-slate-100">2. Créditos e período</p>
-            <p>Define o limite de envios por semana ou por mês.</p>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
-            <p className="font-semibold text-slate-900 dark:text-slate-100">3. Vínculo de alunos</p>
-            <p>Selecione o plano e registre a data do último pagamento.</p>
-          </div>
-        </section>
-        </div>
+        {/* ── Dicas rápidas ────────────────────────────────────────────────────── */}
+        <RevealItem className="grid gap-3 md:grid-cols-3">
+          <ElevatedCard>
+            <div className="p-4 text-xs text-slate-600 dark:text-white/50">
+              <p className="font-semibold text-slate-900 dark:text-slate-100">1. Nome do plano</p>
+              <p className="mt-0.5">Use um título claro: ex. &quot;Mensal 4 Redações&quot;.</p>
+            </div>
+          </ElevatedCard>
+          <ElevatedCard>
+            <div className="p-4 text-xs text-slate-600 dark:text-white/50">
+              <p className="font-semibold text-slate-900 dark:text-slate-100">2. Créditos e período</p>
+              <p className="mt-0.5">Define o limite de envios por semana ou por mês.</p>
+            </div>
+          </ElevatedCard>
+          <ElevatedCard>
+            <div className="p-4 text-xs text-slate-600 dark:text-white/50">
+              <p className="font-semibold text-slate-900 dark:text-slate-100">3. Vínculo de alunos</p>
+              <p className="mt-0.5">Selecione o plano e registre a data do último pagamento.</p>
+            </div>
+          </ElevatedCard>
+        </RevealItem>
+
+        </RevealGroup>
       </div>
     </PartnerLayout>
+    </ModuleGuard>
   );
 }

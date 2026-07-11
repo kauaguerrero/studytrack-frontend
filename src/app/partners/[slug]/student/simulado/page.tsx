@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { ModuleGuard } from '@/components/partners/ModuleGuard'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -1402,6 +1403,7 @@ export default function SimuladoPage() {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
+    <ModuleGuard permKey="simulados_enabled">
     <>
       <ReportDialog
         open={reportDialogOpen}
@@ -2752,5 +2754,6 @@ export default function SimuladoPage() {
         />
       )}
     </>
+    </ModuleGuard>
   )
 }

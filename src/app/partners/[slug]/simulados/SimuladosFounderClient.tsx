@@ -9,6 +9,10 @@ import PersonalizedSimuladoWizard from '@/app/partners/[slug]/simulados/Personal
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { readableBrandText, onBrandText } from '@/lib/brand-color';
+import {
+  RevealGroup, RevealItem, ElevatedCard, SectionTitle, BrandButton, BrandPill,
+} from '@/components/partners/founder-ui';
 import {
   Plus, ChevronDown, Trophy, Users, BarChart2, BarChart3,
   CalendarDays, Pencil, Trash2, Play, Timer, BookOpen, X, SlidersHorizontal,
@@ -701,29 +705,30 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
 
   return (
     <PartnerLayout>
-      <div className="edificar-page-canvas min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
-        <div className="edificar-page-frame space-y-6 p-3 md:p-4">
+      <div className="edificar-page-canvas min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 [--partner-surface-base:#ffffff] dark:[--partner-surface-base:#0f172a]">
+        <RevealGroup className="edificar-page-frame space-y-5 p-3 md:p-4">
 
           {/* Header */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <div className="min-w-0">
-              <h1 className="text-xl font-extrabold text-slate-900 dark:text-white sm:text-2xl">Simulados da Turma</h1>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Agende e acompanhe simulados para seus alunos.
-              </p>
+          <RevealItem>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+              <div className="min-w-0">
+                <SectionTitle kicker="Avaliações" title="Simulados da Turma" hex={org.brand_primary} />
+                <p className="-mt-2 text-sm text-slate-500 dark:text-white/50">
+                  Agende e acompanhe simulados para seus alunos.
+                </p>
+              </div>
+              {!showForm && (
+                <BrandButton
+                  onClick={() => { setShowTypeSelector(true); setEditingId(null); setForm(EMPTY_FORM); }}
+                  hex={org.brand_primary}
+                  className="w-full sm:w-auto"
+                >
+                  <Plus className="h-4 w-4" />
+                  Novo Simulado
+                </BrandButton>
+              )}
             </div>
-            {!showForm && (
-              <button
-                type="button"
-                onClick={() => { setShowTypeSelector(true); setEditingId(null); setForm(EMPTY_FORM); }}
-                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:brightness-110 sm:w-auto"
-                style={{ backgroundColor: 'var(--brand-primary)' }}
-              >
-                <Plus className="h-4 w-4" />
-                Novo Simulado
-              </button>
-            )}
-          </div>
+          </RevealItem>
 
           {/* Formulário */}
           {showForm && (
@@ -1269,31 +1274,29 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           )}
 
           {/* Lista de simulados */}
+          <RevealItem>
           {loading ? (
             <div className="space-y-3">
               {[1, 2].map((k) => (
-                <div key={k} className="h-32 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
+                <div key={k} className="h-32 animate-pulse rounded-[20px] bg-slate-200 dark:bg-white/10" />
               ))}
             </div>
           ) : simulados.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-10 text-center">
-              <BookOpen className="mx-auto mb-3 h-8 w-8 text-slate-300 dark:text-slate-600" />
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Nenhum simulado agendado ainda.
-              </p>
-            </div>
+            <ElevatedCard>
+              <div className="p-10 text-center">
+                <BookOpen className="mx-auto mb-3 h-8 w-8 text-slate-300 dark:text-white/20" />
+                <p className="text-sm text-slate-500 dark:text-white/50">
+                  Nenhum simulado agendado ainda.
+                </p>
+              </div>
+            </ElevatedCard>
           ) : (
             <div className="space-y-4">
               {simulados.map((sim) => (
-                <div
+                <ElevatedCard
                   key={sim.id}
-                  className={`overflow-hidden rounded-2xl border transition-all ${
-                    sim.status === 'active'
-                      ? 'border-emerald-300/60 dark:border-emerald-500/30'
-                      : sim.status === 'ended'
-                        ? 'border-slate-200 dark:border-slate-800 opacity-70'
-                        : 'border-slate-200 dark:border-slate-700'
-                  } bg-white dark:bg-slate-900`}
+                  accentColor={sim.status === 'active' ? '#10b981' : sim.status === 'ended' ? '#94a3b8' : org.brand_primary}
+                  className={sim.status === 'ended' ? 'opacity-75' : undefined}
                 >
                   <div className="p-4 sm:p-5">
                     {/* Header do card */}
@@ -1420,10 +1423,10 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         { label: 'Média de acerto', value: sim.metrics.avg_score_pct != null ? `${sim.metrics.avg_score_pct}%` : '—', icon: BarChart2 },
                         { label: 'Melhor resultado', value: sim.metrics.best_score_pct != null ? `${sim.metrics.best_score_pct}%` : '—', icon: Trophy },
                       ].map(({ label, value, icon: Icon }) => (
-                        <div key={label} className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/50">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <Icon className="h-3.5 w-3.5 text-slate-400" />
-                            <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</p>
+                        <div key={label} className="min-w-0 rounded-2xl bg-slate-50 px-3 py-2.5 dark:bg-white/5">
+                          <div className="mb-1 flex items-center gap-1.5">
+                            <Icon className="h-3.5 w-3.5" style={{ color: readableBrandText(org.brand_primary, 'var(--brand-primary)', 50) }} />
+                            <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-white/40">{label}</p>
                           </div>
                           <p className="truncate text-lg font-extrabold tabular-nums text-slate-900 dark:text-white">
                             {value}
@@ -1434,11 +1437,14 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
 
                     {/* Botão de ranking */}
                     {sim.metrics.completed_sessions > 0 && (
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <div
+                        className="mt-3 grid gap-2 sm:grid-cols-2"
+                        style={{ ['--sim-accent' as string]: readableBrandText(org.brand_primary, 'var(--brand-primary)') }}
+                      >
                         <button
                           type="button"
                           onClick={() => loadRanking(sim.id)}
-                          className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] dark:border-slate-700 dark:text-slate-300"
+                          className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-[var(--sim-accent)] hover:text-[var(--sim-accent)] dark:border-white/10 dark:text-white/70"
                         >
                           <div className="flex items-center gap-2">
                             <Trophy className="h-4 w-4" />
@@ -1455,7 +1461,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         <button
                           type="button"
                           onClick={() => loadAnalytics(sim.id)}
-                          className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] dark:border-slate-700 dark:text-slate-300"
+                          className="flex min-h-11 items-center justify-between rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-[var(--sim-accent)] hover:text-[var(--sim-accent)] dark:border-white/10 dark:text-white/70"
                         >
                           <div className="flex items-center gap-2">
                             <BarChart2 className="h-4 w-4" />
@@ -1713,11 +1719,12 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       </div>
                     </div>
                   )}
-                </div>
+                </ElevatedCard>
               ))}
             </div>
           )}
-        </div>
+          </RevealItem>
+        </RevealGroup>
       </div>
 
       {selectedQuestion && (

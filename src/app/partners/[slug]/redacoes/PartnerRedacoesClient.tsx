@@ -8,6 +8,11 @@ import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
+import { readableBrandText, onBrandText } from '@/lib/brand-color';
+import {
+  RevealGroup, RevealItem, ElevatedCard, KpiCard, SectionTitle,
+  BrandPill, BrandButton, Segmented, Medal, BrandHero, HERO_ACCENT_COLOR,
+} from '@/components/partners/founder-ui';
 import {
   Archive,
   BarChart2,
@@ -230,31 +235,6 @@ function StudentAvatar({
   );
 }
 
-function KpiCard({
-  label,
-  value,
-  icon: Icon,
-  badge,
-}: {
-  label: string;
-  value: string | number;
-  icon: React.ElementType;
-  badge?: React.ReactNode;
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800">
-          <Icon className="h-4 w-4 text-slate-700 dark:text-slate-100" />
-        </div>
-        {badge}
-      </div>
-      <p className="text-2xl font-extrabold text-slate-900 dark:text-white">{value}</p>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
-    </div>
-  );
-}
-
 function PaginationControls({
   page,
   totalPages,
@@ -271,8 +251,8 @@ function PaginationControls({
   if (totalPages <= 1) return null;
 
   return (
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950">
-      <span className="text-slate-600 dark:text-slate-300">
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-100 px-3 py-2 text-xs dark:bg-white/5">
+      <span className="font-semibold text-slate-500 dark:text-white/50">
         Página {page} de {totalPages} • {totalItems} redação(ões)
       </span>
       <div className="flex items-center gap-1.5">
@@ -280,7 +260,7 @@ function PaginationControls({
           type="button"
           disabled={loading || page <= 1}
           onClick={() => onPageChange(page - 1)}
-          className="min-h-9 rounded-lg border border-slate-300 px-2.5 py-1 font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          className="min-h-9 rounded-lg bg-white px-2.5 py-1 font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900 dark:text-white/70 dark:hover:bg-slate-800"
         >
           Anterior
         </button>
@@ -288,7 +268,7 @@ function PaginationControls({
           type="button"
           disabled={loading || page >= totalPages}
           onClick={() => onPageChange(page + 1)}
-          className="min-h-9 rounded-lg border border-slate-300 px-2.5 py-1 font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          className="min-h-9 rounded-lg bg-white px-2.5 py-1 font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900 dark:text-white/70 dark:hover:bg-slate-800"
         >
           Próxima
         </button>
@@ -321,7 +301,7 @@ function EssayQueueCard({
   const credit = item.student_plan;
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <article className="partner-elevated-card partner-elevated-card-hover rounded-2xl bg-white p-4 dark:bg-slate-900">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-3">
@@ -335,30 +315,30 @@ function EssayQueueCard({
             <div className="min-w-0">
               <Link
                 href={`/partners/${slug}/alunos/${item.student.id}`}
-                className="truncate text-sm font-semibold text-slate-900 underline-offset-2 transition hover:text-[var(--brand-primary)] hover:underline dark:text-slate-100"
+                className="truncate text-sm font-bold text-slate-900 underline-offset-2 transition hover:underline dark:text-white"
                 title="Abrir perfil do aluno"
               >
                 {item.student.full_name || 'Aluno'}
               </Link>
-              <p className="truncate text-xs text-slate-500 dark:text-slate-400">{item.student.email || '-'}</p>
+              <p className="truncate text-xs text-slate-400 dark:text-white/40">{item.student.email || '-'}</p>
             </div>
           </div>
 
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-[11px] font-semibold text-slate-400 dark:text-white/35">
             Enviada {relativeTimeFromNow(item.submitted_at)}
           </p>
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm text-slate-600 break-words [overflow-wrap:anywhere] dark:text-slate-300">
-              <span className="font-semibold">Tema:</span> {essayTheme || 'Não informado'}
+            <p className="text-sm text-slate-600 break-words [overflow-wrap:anywhere] dark:text-white/70">
+              <span className="font-bold text-slate-800 dark:text-white/90">Tema:</span> {essayTheme || 'Não informado'}
             </p>
             {item.essay_type && item.essay_type !== 'enem' && (
-              <span className="shrink-0 rounded border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+              <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 dark:bg-white/10 dark:text-white/50">
                 {ESSAY_TYPE_CONFIGS[(item.essay_type as EssayType)]?.label ?? item.essay_type.toUpperCase()}
               </span>
             )}
           </div>
           {credit && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-400 dark:text-white/35">
               Plano: {normalizePlanLabel(credit.plan_name)} • {
                 credit.limit && credit.limit > 0
                   ? `Créditos: ${credit.remaining ?? 0} disponíveis de ${credit.limit} por ${credit.period === 'week' ? 'semana' : 'mês'}${typeof credit.used === 'number' ? ` (${credit.used} usados)` : ''}`
@@ -366,22 +346,22 @@ function EssayQueueCard({
               }
             </p>
           )}
-          <p className="text-sm leading-relaxed text-slate-600 break-words [overflow-wrap:anywhere] dark:text-slate-300">{preview}</p>
+          <p className="text-sm leading-relaxed text-slate-500 break-words [overflow-wrap:anywhere] dark:text-white/60">{preview}</p>
         </div>
 
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {mode === 'corrected' && item.total_score !== null && (
-            <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-sm font-bold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+            <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-sm font-black tabular-nums text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
               {item.total_score}/{ESSAY_TYPE_CONFIGS[(item.essay_type as EssayType) ?? 'enem']?.total_max ?? 1000}
             </span>
           )}
           <Link
             href={`/partners/${slug}/redacoes/${item.id}`}
             className={cn(
-              'inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border px-3 py-2 text-sm font-semibold transition sm:flex-none',
+              'inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-3 py-2 text-sm font-bold transition sm:flex-none',
               mode === 'pending'
-                ? 'border-emerald-400/70 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-200 dark:hover:bg-emerald-500/25'
-                : 'border-slate-300 bg-slate-50 text-slate-700 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200',
+                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-200 dark:hover:bg-emerald-500/25'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-white/80 dark:hover:bg-white/15',
             )}
           >
             {mode === 'pending' ? 'Corrigir' : 'Visualizar correção'}
@@ -392,7 +372,7 @@ function EssayQueueCard({
                 type="button"
                 disabled={archiving || mode === 'pending'}
                 onClick={() => onArchive(item)}
-                className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl border border-slate-300 bg-slate-50 px-2.5 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
+                className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl bg-slate-100 px-2.5 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-200 dark:bg-white/5 dark:text-white/50 dark:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
                 title={mode === 'pending' ? 'Somente redações corrigidas podem ser arquivadas' : 'Arquivar redação'}
               >
                 <Archive className="h-3.5 w-3.5" />
@@ -402,7 +382,7 @@ function EssayQueueCard({
                 type="button"
                 disabled={deleting}
                 onClick={() => onDelete(item)}
-                className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl border border-rose-300 bg-rose-50 px-2.5 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
+                className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-xl bg-rose-50 px-2.5 py-2 text-xs font-bold text-rose-600 transition hover:bg-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Excluir
@@ -425,7 +405,7 @@ interface PartnerRedacoesClientProps {
 // ─── Client Component ─────────────────────────────────────────────────────────
 
 export default function PartnerRedacoesClient({ slug, initialOverview }: PartnerRedacoesClientProps) {
-  const { userProfile } = useOrg();
+  const { org, userProfile } = useOrg();
   const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
   const canManagePrompts = userProfile.role === 'founder' || userProfile.role === 'admin';
 
@@ -1242,31 +1222,37 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KpiCard
-              label="Recebidas esta semana"
+              title="Recebidas esta semana"
               value={metricsLoading ? '...' : metrics.received_week}
               icon={FileText}
+              accentColor="var(--brand-primary)"
+              accentHex={org.brand_primary}
+              loading={metricsLoading}
             />
             <KpiCard
-              label="Aguardando correção"
+              title="Aguardando correção"
               value={metricsLoading ? '...' : pendingTotalItems}
+              subtitle={!metricsLoading && pendingTotalItems > 0 ? 'Urgente' : undefined}
               icon={Clock}
-              badge={
-                !metricsLoading && pendingTotalItems > 0 ? (
-                  <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">
-                    Urgente
-                  </span>
-                ) : undefined
-              }
+              accentColor="var(--brand-secondary)"
+              accentHex={org.brand_secondary}
+              loading={metricsLoading}
             />
             <KpiCard
-              label="Nota média geral"
+              title="Nota média geral"
               value={metricsLoading ? '...' : avgScoreLabel}
               icon={TrendingUp}
+              accentColor="var(--brand-accent)"
+              accentHex={org.brand_accent}
+              loading={metricsLoading}
             />
             <KpiCard
-              label="Intervalo de notas"
+              title="Intervalo de notas"
               value={metricsLoading ? '...' : rangeLabel}
               icon={BarChart2}
+              accentColor="#8b5cf6"
+              accentHex="#8b5cf6"
+              loading={metricsLoading}
             />
           </div>
 

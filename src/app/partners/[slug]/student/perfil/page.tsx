@@ -6,6 +6,7 @@ import { useStudentTheme } from '@/contexts/StudentThemeContext'
 import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import { useOrg } from '@/contexts/OrgContext'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +23,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { readableBrandText, onBrandText } from '@/lib/brand-color'
+import {
+  RevealGroup, RevealItem, ElevatedCard, BrandButton,
+} from '@/components/partners/founder-ui'
 import {
   User,
   Shield,
@@ -122,6 +127,7 @@ function formatPlanPeriod(period?: 'week' | 'month' | null) {
 export default function PerfilPage() {
   const router = useRouter()
   const { slug } = useParams<{ slug: string }>()
+  const { org } = useOrg()
   const { theme: studentTheme, setTheme: setStudentTheme } = useStudentTheme()
   const [profileState, setProfileState] = useState<ProfileData | null>(null)
   const [userState, setUserState] = useState<UserData | null>(null)
@@ -692,75 +698,76 @@ export default function PerfilPage() {
   )
 
   // Estilos reutilizáveis com a cor brand
-  const primaryBtnStyle = { backgroundColor: BRAND_PRIMARY, color: '#fff' }
+  const brandPrimaryText = readableBrandText(org.brand_primary, BRAND_PRIMARY)
+  const brandPrimaryOn = onBrandText(org.brand_primary)
   const focusRingStyle = 'focus-visible:border-[var(--brand-primary)] focus-visible:ring-[var(--brand-primary)]'
-  const sectionCardClassName = 'overflow-hidden rounded-[24px] border border-slate-200/60 bg-white shadow-sm dark:border-slate-700/60 dark:bg-slate-900'
+  const sectionCardClassName = 'partner-elevated-card partner-elevated-card-hover overflow-hidden rounded-[20px] border-0 bg-white shadow-none dark:bg-slate-900'
 
   return (
     <div className="min-h-screen bg-slate-50/30 dark:bg-slate-950/50">
       <div className="mx-auto max-w-[1400px] px-4 py-5 md:py-12 lg:px-8">
+        <RevealGroup>
 
         {/* Header */}
-        <div className="mb-6 rounded-[28px] border border-slate-200/70 bg-white/90 px-4 py-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/80 sm:mb-8 sm:px-6 sm:py-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0">
-              <span
-                className="inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em]"
-                style={{
-                  backgroundColor: 'color-mix(in srgb, var(--brand-primary) 14%, white)',
-                  color: 'color-mix(in srgb, var(--brand-primary) 80%, black)',
-                }}
-              >
-                Configurações da conta
-              </span>
-              <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl">
-                Meu Perfil
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-400 sm:text-base">
-                Gerencie suas informações pessoais, segurança e preferências.
-              </p>
-            </div>
-            {user?.email && (
-              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400 sm:max-w-[320px] sm:text-sm">
-                <span className="font-medium text-slate-700 dark:text-slate-200">Conta</span>
-                <span className="min-w-0 break-all font-mono">{user.email}</span>
+        <RevealItem className="mb-4 sm:mb-6">
+          <ElevatedCard accentColor={org.brand_primary} className="px-4 py-5 sm:px-6 sm:py-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: brandPrimaryText }}>
+                  Configurações da conta
+                </p>
+                <h1 className="font-display mt-1.5 text-2xl font-black tracking-tight text-slate-900 dark:text-white sm:text-4xl">
+                  Meu Perfil
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-white/50 sm:text-base">
+                  Gerencie suas informações pessoais, segurança e preferências.
+                </p>
               </div>
-            )}
-          </div>
-        </div>
+              {user?.email && (
+                <div className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-white/5 dark:text-white/50 sm:max-w-[320px] sm:text-sm">
+                  <span className="font-bold text-slate-700 dark:text-white/80">Conta</span>
+                  <span className="min-w-0 break-all font-mono">{user.email}</span>
+                </div>
+              )}
+            </div>
+          </ElevatedCard>
+        </RevealItem>
 
-        <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
 
           {/* Navegação lateral */}
-          <nav className="-mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:w-60 md:flex-shrink-0 md:grid-cols-1 md:overflow-visible md:px-0 md:pb-0">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              const isActive = activeTab === item.id
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  style={isActive ? { backgroundColor: BRAND_PRIMARY, color: '#fff' } : undefined}
-                  className={`group flex min-w-[172px] snap-start items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition-all duration-200 md:min-w-0 ${
-                    isActive
-                      ? 'border-transparent shadow-md'
-                      : 'border-slate-200/80 bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-50'
-                  }`}
-                >
-                  <Icon
-                    size={17}
-                    style={isActive ? { color: 'rgba(255,255,255,0.85)' } : undefined}
-                    className={!isActive ? 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 transition-colors' : ''}
-                  />
-                  {item.label}
-                </button>
-              )
-            })}
-          </nav>
+          <RevealItem className="-mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:w-60 md:flex-shrink-0 md:overflow-visible md:px-0 md:pb-0">
+            <nav className="flex gap-2 md:grid md:grid-cols-1">
+              {navItems.map((item) => {
+                const Icon = item.icon
+                const isActive = activeTab === item.id
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    style={isActive ? { backgroundColor: BRAND_PRIMARY, color: brandPrimaryOn, boxShadow: `0 6px 16px -6px ${BRAND_PRIMARY}` } : undefined}
+                    className={`group flex min-w-[172px] shrink-0 snap-start items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-bold transition-all duration-200 md:min-w-0 ${
+                      isActive
+                        ? ''
+                        : 'bg-white text-slate-600 hover:bg-slate-50 partner-elevated-card dark:bg-slate-900 dark:text-white/60 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <Icon
+                      size={17}
+                      style={isActive ? { color: brandPrimaryOn, opacity: 0.85 } : undefined}
+                      className={!isActive ? 'text-slate-400 dark:text-white/35 group-hover:text-slate-600 transition-colors' : ''}
+                    />
+                    {item.label}
+                  </button>
+                )
+              })}
+            </nav>
+          </RevealItem>
 
           {/* Conteúdo */}
           <div className="flex-1 min-w-0">
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <RevealGroup key={activeTab} className="animate-in fade-in slide-in-from-bottom-2 duration-400">
+              <RevealItem>
 
               {/* ── TAB: IDENTIDADE ─────────────────────────────────────── */}
               {activeTab === 'personal' && (
@@ -809,7 +816,7 @@ export default function PerfilPage() {
                             <div className="min-w-0 flex-1 space-y-1.5">
                               <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                                 <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:truncate">{fullName || 'Aluno'}</h3>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0 text-white" style={{ backgroundColor: BRAND_PRIMARY }}>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0" style={{ backgroundColor: BRAND_PRIMARY, color: brandPrimaryOn }}>
                                   Aluno
                                 </span>
                               </div>
@@ -863,7 +870,7 @@ export default function PerfilPage() {
                             <Label htmlFor="accessibilityNeeds" className="text-slate-700 dark:text-slate-200 font-bold">Necessidade de Acessibilidade</Label>
                             <Textarea id="accessibilityNeeds" value={accessibilityNeeds} onChange={(e) => setAccessibilityNeeds(e.target.value)} placeholder="Ex: dislexia, daltonismo, baixa visão..." maxLength={500} className={`rounded-xl bg-slate-50/50 resize-none min-h-[72px] ${focusRingStyle}`} />
                           </div>
-                          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex flex-col gap-3 rounded-xl bg-slate-50 dark:bg-white/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="space-y-0.5">
                               <Label className="text-slate-700 dark:text-slate-200 font-bold">Perfil Público</Label>
                               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -875,11 +882,11 @@ export default function PerfilPage() {
                         </div>
                       </div>
                     </CardContent>
-                    <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-5 py-4 sm:px-8 sm:py-5 flex justify-end">
-                      <Button onClick={handleSavePersonal} disabled={savingPersonal} style={primaryBtnStyle} className="w-full rounded-xl px-8 font-semibold shadow-md transition-all hover:opacity-90 sm:w-auto">
-                        {savingPersonal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                    <CardFooter className="bg-slate-50/60 dark:bg-white/[0.03] px-5 py-4 sm:px-8 sm:py-5 flex justify-end">
+                      <BrandButton onClick={handleSavePersonal} disabled={savingPersonal} color={BRAND_PRIMARY} hex={org.brand_primary} className="w-full px-8 sm:w-auto">
+                        {savingPersonal ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                         Salvar Identidade
-                      </Button>
+                      </BrandButton>
                     </CardFooter>
                   </Card>
                 )
@@ -889,7 +896,7 @@ export default function PerfilPage() {
                 <Card className={sectionCardClassName}>
                   <CardHeader className="border-b border-slate-100 px-5 pb-5 pt-6 dark:border-slate-800 sm:px-8 sm:pb-6 sm:pt-8">
                     <CardTitle className="flex items-center gap-2 text-xl font-bold tracking-tight dark:text-slate-50">
-                      <WalletCards className="h-5 w-5" style={{ color: BRAND_PRIMARY }} />
+                      <WalletCards className="h-5 w-5" style={{ color: brandPrimaryText }} />
                       Meu Plano
                     </CardTitle>
                     <CardDescription className="mt-1 text-sm dark:text-slate-400">
@@ -904,10 +911,10 @@ export default function PerfilPage() {
                       </div>
                     ) : currentPlan?.plan_id ? (
                       <>
-                        <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-5 dark:border-slate-700 dark:bg-slate-800/40 sm:p-6">
+                        <div className="rounded-[20px] bg-slate-50/80 p-5 dark:bg-white/5 sm:p-6">
                           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div className="space-y-2">
-                              <div className="inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-white" style={{ backgroundColor: BRAND_PRIMARY }}>
+                              <div className="inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ backgroundColor: BRAND_PRIMARY, color: brandPrimaryOn }}>
                                 {currentPlan.plan_assignment_status === 'active' ? 'Plano ativo' : 'Plano configurado'}
                               </div>
                               <div>
@@ -929,28 +936,28 @@ export default function PerfilPage() {
                         </div>
 
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/70">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Redações usadas</p>
-                            <p className="mt-2 text-base font-bold text-slate-900 dark:text-slate-100">{currentPlan.essay_credits_used ?? 0}</p>
+                          <div className="rounded-2xl bg-slate-50 p-4 shadow-sm dark:bg-white/5">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-white/45">Redações usadas</p>
+                            <p className="mt-2 text-base font-bold text-slate-900 dark:text-white">{currentPlan.essay_credits_used ?? 0}</p>
                           </div>
-                          <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/70">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Redações restantes</p>
-                            <p className="mt-2 text-base font-bold text-slate-900 dark:text-slate-100">
+                          <div className="rounded-2xl bg-slate-50 p-4 shadow-sm dark:bg-white/5">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-white/45">Redações restantes</p>
+                            <p className="mt-2 text-base font-bold text-slate-900 dark:text-white">
                               {typeof currentPlan.essay_credits_remaining === 'number' ? currentPlan.essay_credits_remaining : 'Ilimitado'}
                             </p>
                           </div>
                         </div>
 
-                        <div className="rounded-[24px] border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900/70 sm:p-6">
-                          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Benefícios do seu plano</h3>
+                        <div className="rounded-[20px] bg-slate-50 p-5 shadow-sm dark:bg-white/5 sm:p-6">
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white">Benefícios do seu plano</h3>
                           <div className="mt-4 grid gap-3">
                             {planBenefits.length > 0 ? planBenefits.map((benefit) => (
-                              <div key={benefit} className="flex items-start gap-3 rounded-2xl bg-slate-50 px-4 py-3 dark:bg-slate-800/60">
-                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND_PRIMARY }} />
-                                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{benefit}</p>
+                              <div key={benefit} className="flex items-start gap-3 rounded-2xl bg-white px-4 py-3 dark:bg-white/5">
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: brandPrimaryText }} />
+                                <p className="text-sm font-medium text-slate-700 dark:text-white/70">{benefit}</p>
                               </div>
                             )) : (
-                              <p className="text-sm text-slate-500 dark:text-slate-400">
+                              <p className="text-sm text-slate-500 dark:text-white/45">
                                 Os benefícios deste plano ainda não foram detalhados pelo founder.
                               </p>
                             )}
@@ -958,7 +965,7 @@ export default function PerfilPage() {
                         </div>
                       </>
                     ) : (
-                      <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50/80 p-6 text-center dark:border-slate-700 dark:bg-slate-800/30">
+                      <div className="rounded-[20px] border border-dashed border-slate-300 bg-slate-50/80 p-6 text-center dark:border-white/10 dark:bg-white/5">
                         <WalletCards className="mx-auto h-8 w-8 text-slate-400" />
                         <h3 className="mt-3 text-base font-bold text-slate-900 dark:text-slate-100">Nenhum plano vinculado</h3>
                         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
@@ -1024,11 +1031,11 @@ export default function PerfilPage() {
                       </div>
                     </div>
                   </CardContent>
-                  <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-5 py-4 sm:px-8 sm:py-5 flex justify-end">
-                    <Button onClick={handleSaveJourney} disabled={savingJourney} style={primaryBtnStyle} className="w-full rounded-xl px-8 font-semibold shadow-md hover:opacity-90 sm:w-auto">
-                      {savingJourney && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <CardFooter className="bg-slate-50/60 dark:bg-white/[0.03] px-5 py-4 sm:px-8 sm:py-5 flex justify-end">
+                    <BrandButton onClick={handleSaveJourney} disabled={savingJourney} color={BRAND_PRIMARY} hex={org.brand_primary} className="w-full px-8 sm:w-auto">
+                      {savingJourney && <Loader2 className="h-4 w-4 animate-spin" />}
                       Salvar alterações
-                    </Button>
+                    </BrandButton>
                   </CardFooter>
                 </Card>
               )}
@@ -1099,11 +1106,11 @@ export default function PerfilPage() {
                       </Select>
                     </div>
                   </CardContent>
-                  <CardFooter className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/50 px-5 py-4 sm:px-8 sm:py-5 flex justify-end">
-                    <Button onClick={handleSaveRoutine} disabled={savingRoutine} style={primaryBtnStyle} className="w-full rounded-xl px-8 font-semibold shadow-md hover:opacity-90 sm:w-auto">
-                      {savingRoutine ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                  <CardFooter className="bg-slate-50/60 dark:bg-white/[0.03] px-5 py-4 sm:px-8 sm:py-5 flex justify-end">
+                    <BrandButton onClick={handleSaveRoutine} disabled={savingRoutine} color={BRAND_PRIMARY} hex={org.brand_primary} className="w-full px-8 sm:w-auto">
+                      {savingRoutine ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       Salvar Rotina
-                    </Button>
+                    </BrandButton>
                   </CardFooter>
                 </Card>
               )}
@@ -1138,11 +1145,11 @@ export default function PerfilPage() {
                         </div>
                       </div>
                     </CardContent>
-                    <CardFooter className="border-t border-slate-100 bg-slate-50/80 px-5 py-4 dark:border-slate-800 dark:bg-slate-900/50 sm:px-8 sm:py-5">
-                      <Button onClick={handleSavePassword} disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword} style={primaryBtnStyle} className="w-full rounded-xl px-8 font-semibold shadow-md hover:opacity-90 sm:w-auto">
-                        {savingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <CardFooter className="bg-slate-50/60 px-5 py-4 dark:bg-white/[0.03] sm:px-8 sm:py-5">
+                      <BrandButton onClick={handleSavePassword} disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword} color={BRAND_PRIMARY} hex={org.brand_primary} className="w-full px-8 sm:w-auto">
+                        {savingPassword && <Loader2 className="h-4 w-4 animate-spin" />}
                         Atualizar Senha
-                      </Button>
+                      </BrandButton>
                     </CardFooter>
                   </Card>
 
@@ -1168,10 +1175,10 @@ export default function PerfilPage() {
                               <div key={s.id} className="flex flex-col gap-3 border-b border-slate-100 pb-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between last:border-0 last:pb-0">
                                 <div className="flex min-w-0 items-center gap-4">
                                   <div
-                                    className={`p-2.5 rounded-full ${isCurrent ? 'text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}
+                                    className={`p-2.5 rounded-full ${isCurrent ? '' : 'bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-white/45'}`}
                                     style={isCurrent ? {
                                       backgroundColor: 'color-mix(in srgb, var(--brand-primary) 14%, transparent)',
-                                      color: BRAND_PRIMARY,
+                                      color: brandPrimaryText,
                                     } : undefined}
                                   >
                                     <Laptop size={18} />
@@ -1212,7 +1219,7 @@ export default function PerfilPage() {
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="space-y-1">
                           <p className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                            <Palette size={18} style={{ color: BRAND_PRIMARY }} />
+                            <Palette size={18} style={{ color: brandPrimaryText }} />
                             Tema da Aplicação
                           </p>
                           <p className="text-sm text-slate-500 dark:text-slate-400">Substitui o padrão do sistema operacional.</p>
@@ -1265,9 +1272,12 @@ export default function PerfilPage() {
                 </div>
               )}
 
-            </div>
+              </RevealItem>
+            </RevealGroup>
           </div>
         </div>
+
+        </RevealGroup>
       </div>
 
       {/* ── Modal: Visualizar foto ───────────────────────────────────────── */}
@@ -1340,9 +1350,9 @@ export default function PerfilPage() {
           </div>
           <DialogFooter className="flex flex-col gap-2 border-t border-slate-100 p-6 pt-2 dark:border-slate-800 sm:flex-row">
             <Button type="button" variant="outline" onClick={closeCropModal} className="w-full rounded-xl dark:border-slate-600 dark:text-slate-200 sm:w-auto">Cancelar</Button>
-            <Button type="button" onClick={handleAvatarCropConfirm} style={primaryBtnStyle} className="w-full rounded-xl hover:opacity-90 sm:w-auto">
+            <BrandButton type="button" onClick={handleAvatarCropConfirm} color={BRAND_PRIMARY} hex={org.brand_primary} className="w-full sm:w-auto">
               Usar esta foto
-            </Button>
+            </BrandButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>

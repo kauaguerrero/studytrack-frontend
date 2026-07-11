@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import PartnerRedacoesClient, { type EssaysOverviewPayload } from './PartnerRedacoesClient';
+import { ModuleGuard } from '@/components/partners/ModuleGuard';
 
 export default async function PartnerRedacoesPage({
   params,
@@ -32,9 +33,8 @@ export default async function PartnerRedacoesPage({
   }
 
   return (
-    <PartnerRedacoesClient
-      slug={slug}
-      initialOverview={initialOverview}
-    />
+    <ModuleGuard permKey="redacoes_enabled">
+      <PartnerRedacoesClient slug={slug} initialOverview={initialOverview} />
+    </ModuleGuard>
   );
 }

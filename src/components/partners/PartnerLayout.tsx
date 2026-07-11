@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
+import { AnnouncementBell } from '@/components/announcements/AnnouncementBell';
 import {
   LayoutDashboard,
   Users,
@@ -157,33 +158,38 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
   const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
   const isPartnerStudent = variant === 'student';
-  const isVideoToolEnabled = org.permissions?.video_lessons_enabled === true;
   const hideMobileChrome = isPartnerStudent && pathname.startsWith(`/partners/${org.slug}/student/simulado`);
 
+  // Lê permissão de um módulo — padrão true (ativo por omissão) exceto video (opt-in explícito)
+  const perm = (key: string, def = true) => {
+    const v = org.permissions?.[key];
+    return v === undefined ? def : Boolean(v);
+  };
+
   const founderNavItems: NavItemDef[] = [
-    { href: `/partners/${org.slug}/dashboard`,      icon: LayoutDashboard, label: 'Dashboard',        shortLabel: 'Dashboard' },
-    { href: `/partners/${org.slug}/ranking`,          icon: Trophy,         label: 'Ranking',          shortLabel: 'Ranking' },
-    { href: `/partners/${org.slug}/alunos`,          icon: Users,           label: 'Alunos',            shortLabel: 'Alunos' },
-    { href: `/partners/${org.slug}/planos`,          icon: WalletCards,     label: 'Planos',            shortLabel: 'Planos' },
-    { href: `/partners/${org.slug}/redacoes`,        icon: PenLine,         label: 'Redações',          shortLabel: 'Redações' },
-    { href: `/partners/${org.slug}/simulados`,       icon: ClipboardCheck,  label: 'Simulados',         shortLabel: 'Simulados' },
-    ...(isVideoToolEnabled ? [{ href: `/partners/${org.slug}/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
+    { href: `/partners/${org.slug}/dashboard`,       icon: LayoutDashboard, label: 'Dashboard',        shortLabel: 'Dashboard' },
+    ...(perm('ranking_enabled')   ? [{ href: `/partners/${org.slug}/ranking`,   icon: Trophy,         label: 'Ranking',          shortLabel: 'Ranking'   }] : []),
+    { href: `/partners/${org.slug}/alunos`,          icon: Users,           label: 'Alunos',           shortLabel: 'Alunos'    },
+    ...(perm('planos_enabled')    ? [{ href: `/partners/${org.slug}/planos`,    icon: WalletCards,     label: 'Planos',           shortLabel: 'Planos'    }] : []),
+    ...(perm('redacoes_enabled')  ? [{ href: `/partners/${org.slug}/redacoes`,  icon: PenLine,         label: 'Redações',         shortLabel: 'Redações'  }] : []),
+    ...(perm('simulados_enabled') ? [{ href: `/partners/${org.slug}/simulados`, icon: ClipboardCheck,  label: 'Simulados',        shortLabel: 'Simulados' }] : []),
+    ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
-    { href: `/partners/${org.slug}/suporte`,          icon: LifeBuoy,        label: 'Suporte',           shortLabel: 'Suporte' },
-    { href: `/partners/${org.slug}/configuracoes`,   icon: Settings,        label: 'Configurações',    shortLabel: 'Config' },
+    ...(perm('suporte_enabled')   ? [{ href: `/partners/${org.slug}/suporte`,   icon: LifeBuoy,        label: 'Suporte',          shortLabel: 'Suporte'   }] : []),
+    { href: `/partners/${org.slug}/configuracoes`,   icon: Settings,        label: 'Configurações',   shortLabel: 'Config'    },
   ];
 
   const studentNavItems: NavItemDef[] = [
-    { href: `/partners/${org.slug}/student/dashboard`,         icon: Home,           label: 'Início',         shortLabel: 'Início' },
-    { href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,       label: 'Questões',       shortLabel: 'Questões' },
-    { href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck, label: 'Simulados',      shortLabel: 'Simulados' },
-    { href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,         label: 'Ranking',        shortLabel: 'Ranking' },
-    { href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck,     label: 'Títulos',        shortLabel: 'Títulos' },
-    { href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3,      label: 'Meu Desempenho', shortLabel: 'Desempenho' },
-    { href: `/partners/${org.slug}/student/redacoes`,          icon: PenLine,        label: 'Redações',       shortLabel: 'Redações' },
-    ...(isVideoToolEnabled ? [{ href: `/partners/${org.slug}/student/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
-    { href: `/partners/${org.slug}/student/suporte`,           icon: LifeBuoy,       label: 'Suporte',        shortLabel: 'Suporte' },
-    { href: `/partners/${org.slug}/student/perfil`,            icon: User,           label: 'Perfil',         shortLabel: 'Perfil' },
+    { href: `/partners/${org.slug}/student/dashboard`,          icon: Home,           label: 'Início',         shortLabel: 'Início'      },
+    ...(perm('banco_questoes_enabled') ? [{ href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,       label: 'Questões',       shortLabel: 'Questões'    }] : []),
+    ...(perm('simulados_enabled')      ? [{ href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck, label: 'Simulados',      shortLabel: 'Simulados'   }] : []),
+    ...(perm('ranking_enabled')        ? [{ href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,         label: 'Ranking',        shortLabel: 'Ranking'     }] : []),
+    ...(perm('titulos_enabled')        ? [{ href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck,     label: 'Títulos',        shortLabel: 'Títulos'     }] : []),
+    ...(perm('desempenho_enabled')     ? [{ href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3,      label: 'Meu Desempenho', shortLabel: 'Desempenho'  }] : []),
+    ...(perm('redacoes_enabled')       ? [{ href: `/partners/${org.slug}/student/redacoes`,          icon: PenLine,        label: 'Redações',       shortLabel: 'Redações'    }] : []),
+    ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/student/aulas`,      icon: Video,          label: 'Aulas',          shortLabel: 'Aulas'       }] : []),
+    ...(perm('suporte_enabled')        ? [{ href: `/partners/${org.slug}/student/suporte`,           icon: LifeBuoy,       label: 'Suporte',        shortLabel: 'Suporte'     }] : []),
+    { href: `/partners/${org.slug}/student/perfil`,             icon: User,           label: 'Perfil',         shortLabel: 'Perfil'      },
   ];
 
   const associateNavItems: NavItemDef[] = [
@@ -368,7 +374,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         className={cn(
-          'partner-sidebar hidden md:flex md:flex-col shrink-0 border-r dark:border-slate-800 bg-white dark:bg-slate-900 transition-[width] duration-300 ease-in-out overflow-hidden',
+          'partner-sidebar hidden md:flex md:flex-col shrink-0 border-r dark:border-slate-800 bg-white dark:bg-slate-900 transition-[width] duration-300 ease-in-out overflow-hidden will-change-[width]',
           collapsed ? 'w-20' : 'w-64'
         )}
       >
@@ -404,16 +410,19 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
             </div>
 
             {(isPartnerStudent || !isAssociate) ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-touch"
-                className="shrink-0"
-                aria-label="Abrir menu completo"
-                onClick={() => setIsMobileMenuOpen(true)}
-              >
-                <Menu className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-              </Button>
+              <div className="flex shrink-0 items-center gap-0.5">
+                {isPartnerStudent && <AnnouncementBell />}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-touch"
+                  className="shrink-0"
+                  aria-label="Abrir menu completo"
+                  onClick={() => setIsMobileMenuOpen(true)}
+                >
+                  <Menu className="h-5 w-5 text-slate-500 dark:text-slate-300" />
+                </Button>
+              </div>
             ) : (
               <button
                 onClick={handleSignOut}

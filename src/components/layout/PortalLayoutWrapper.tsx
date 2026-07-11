@@ -9,7 +9,6 @@ import { SidebarProvider } from '@/contexts/SidebarContext';
 import { UserRole } from '@/types/roles';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { SidebarContent } from '@/components/layout/PortalSidebar';
-import { AnnouncementModal } from '@/components/announcements/AnnouncementModal';
 
 interface PortalLayoutWrapperProps {
   children: ReactNode;
@@ -47,6 +46,7 @@ export function PortalLayoutWrapper({
             <PortalHeader
               resolvedRole={resolvedRole}
               onOpenMobileMenu={() => setMobileMenuOpen(true)}
+              minimal={resolvedRole === 'admin'}
             />
 
             <div className="flex-1 p-4 md:p-8 max-w-[1600px] w-full mx-auto animate-in fade-in duration-150 pb-8">
@@ -70,8 +70,6 @@ export function PortalLayoutWrapper({
             </div>
           </SheetContent>
         </Sheet>
-
-        <AnnouncementModal />
       </SidebarProvider>
     </PortalRoleProvider>
   );

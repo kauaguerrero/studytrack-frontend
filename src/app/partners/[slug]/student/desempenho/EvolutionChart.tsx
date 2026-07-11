@@ -2,14 +2,13 @@
 
 import { useState } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip,
+  Area, AreaChart, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { TrendingUp } from 'lucide-react';
-import {
-  Card, CardContent, CardDescription, CardHeader, CardTitle,
-} from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { ElevatedCard, CHART_TOOLTIP_STYLE_DARK } from '@/components/partners/founder-ui';
+import { readableBrandText } from '@/lib/brand-color';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,35 +61,40 @@ export function EvolutionChart({ data, brandPrimary }: EvolutionChartProps) {
     color: s.key === 'questions' ? brandPrimary : s.color,
   }));
 
+  const titleColor = readableBrandText(brandPrimary, 'var(--brand-primary)');
+
   return (
-    <Card className="border-0 shadow-sm ring-1 ring-slate-200 dark:ring-slate-800 bg-white dark:bg-slate-900">
-      <CardHeader>
+    <ElevatedCard accentColor={brandPrimary} className="bg-white dark:bg-slate-900">
+      <div className="p-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
 
           {/* Título */}
           <div>
-            <CardTitle className="flex items-center gap-2 text-lg font-bold">
-              <TrendingUp size={18} style={{ color: brandPrimary }} />
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: titleColor }}>
+              Desempenho
+            </p>
+            <h2 className="font-display flex items-center gap-2 text-[17px] font-bold text-slate-900 dark:text-white">
+              <TrendingUp size={18} style={{ color: titleColor }} />
               Evolução do Aluno
-            </CardTitle>
-            <CardDescription>
+            </h2>
+            <p className="mt-0.5 text-[12px] text-slate-500 dark:text-white/50">
               Questões, simulados e acertos por dia
-            </CardDescription>
+            </p>
           </div>
 
           {/* Filtros de período */}
-          <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="inline-flex items-center gap-1 rounded-full bg-slate-200/70 p-1 dark:bg-white/10">
             {PERIODS.map(p => (
               <button
                 key={p.days}
                 onClick={() => setPeriod(p.days)}
                 className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
+                  'rounded-full px-3.5 py-1.5 text-[12px] font-bold transition-all duration-150',
                   period === p.days
-                    ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-800 dark:text-slate-100'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    ? 'bg-white shadow-sm dark:bg-slate-900'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-white/50 dark:hover:text-white/80',
                 )}
-                style={period === p.days ? { color: brandPrimary } : undefined}
+                style={period === p.days ? { color: titleColor } : undefined}
               >
                 {p.label}
               </button>
@@ -99,7 +103,7 @@ export function EvolutionChart({ data, brandPrimary }: EvolutionChartProps) {
         </div>
 
         {/* Legenda interativa */}
-        <div className="flex flex-wrap gap-3 mt-3">
+        <div className="flex flex-wrap gap-2 mt-4">
           {series.map(({ key, label, color }) => {
             const hidden = hiddenLines.has(key);
             return (
@@ -108,14 +112,13 @@ export function EvolutionChart({ data, brandPrimary }: EvolutionChartProps) {
                 onClick={() => toggleLine(key)}
                 className={cn(
                   'flex items-center gap-1.5 px-2.5 py-1 rounded-full',
-                  'text-xs font-semibold border transition-all',
+                  'text-xs font-semibold transition-all',
                   hidden
-                    ? 'opacity-40 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500'
-                    : 'border-transparent'
+                    ? 'opacity-40 bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-white/40'
+                    : '',
                 )}
                 style={!hidden ? {
-                  backgroundColor: color + '18',
-                  borderColor: color + '40',
+                  backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)`,
                   color,
                 } : undefined}
               >
@@ -128,20 +131,32 @@ export function EvolutionChart({ data, brandPrimary }: EvolutionChartProps) {
             );
           })}
         </div>
-      </CardHeader>
 
-      <CardContent className="pl-0">
-        <div className="h-[320px] w-full pr-4">
+        <div className="mt-4 h-[300px] w-full">
           {filtered.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart
+              <AreaChart
                 data={filtered}
                 margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
               >
+                <defs>
+                  <linearGradient id="evoQuestionsFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={brandPrimary} stopOpacity={0.28} />
+                    <stop offset="100%" stopColor={brandPrimary} stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="evoSimuladosFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="evoCorrectFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid
                   strokeDasharray="3 3"
                   vertical={false}
-                  stroke="#e2e8f0"
+                  stroke="rgba(148,163,184,0.25)"
                 />
                 <XAxis
                   dataKey="date"
@@ -164,7 +179,7 @@ export function EvolutionChart({ data, brandPrimary }: EvolutionChartProps) {
                     if (!active || !payload?.length) return null;
                     const d = payload[0]?.payload as DayData;
                     return (
-                      <div className="bg-slate-900 text-white text-xs rounded-xl py-3 px-4 shadow-xl border border-slate-700 space-y-1.5">
+                      <div style={CHART_TOOLTIP_STYLE_DARK} className="rounded-xl py-3 px-4 text-xs space-y-1.5">
                         <p className="font-bold text-slate-300 mb-2">{d?.fullDate}</p>
                         {payload.map(p => (
                           <div key={String(p.dataKey)} className="flex justify-between gap-6">
@@ -182,48 +197,50 @@ export function EvolutionChart({ data, brandPrimary }: EvolutionChartProps) {
                 />
 
                 {!hiddenLines.has('questions') && (
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey="questions"
                     stroke={brandPrimary}
                     strokeWidth={2.5}
+                    fill="url(#evoQuestionsFill)"
                     dot={false}
                     activeDot={{ r: 5, strokeWidth: 0 }}
                   />
                 )}
 
                 {!hiddenLines.has('simulados') && (
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey="simulados"
                     stroke="#f59e0b"
                     strokeWidth={2}
+                    fill="url(#evoSimuladosFill)"
                     dot={false}
-                    strokeDasharray="5 3"
                     activeDot={{ r: 4, strokeWidth: 0 }}
                   />
                 )}
 
                 {!hiddenLines.has('correct') && (
-                  <Line
+                  <Area
                     type="monotone"
                     dataKey="correct"
                     stroke="#10b981"
                     strokeWidth={2}
+                    fill="url(#evoCorrectFill)"
                     dot={false}
                     activeDot={{ r: 4, strokeWidth: 0 }}
                   />
                 )}
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2">
-              <TrendingUp className="w-10 h-10 text-slate-300" />
+            <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-white/30 gap-2">
+              <TrendingUp className="w-10 h-10 text-slate-300 dark:text-white/20" />
               <p className="text-sm">Sem dados no período selecionado.</p>
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </ElevatedCard>
   );
 }

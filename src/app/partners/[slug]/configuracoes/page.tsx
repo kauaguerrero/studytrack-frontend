@@ -6,15 +6,16 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
-import {
-  Card, CardContent, CardHeader, CardTitle, CardDescription,
-} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Save, Palette, Upload, Camera, Loader2, UserPlus, Users, Trash2, Mail, ShieldCheck, KeyRound, Copy } from 'lucide-react';
 import { toast } from 'sonner';
+import { readableBrandText, onBrandText } from '@/lib/brand-color';
+import {
+  RevealGroup, RevealItem, ElevatedCard, SectionTitle, BrandButton, BrandHero, HERO_ACCENT_COLOR,
+} from '@/components/partners/founder-ui';
 
 const BRAND_SWATCHES = ['#2563EB', '#7C3AED', '#059669', '#DC2626', '#D97706'];
 
@@ -40,11 +41,11 @@ function ColorPicker({
       <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
         {label}
       </Label>
-      <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+      <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
         {/* Swatch grande clicável abre o color picker nativo */}
         <label className="cursor-pointer shrink-0">
           <div
-            className="w-12 h-12 rounded-xl shadow-sm border border-black/10 transition-transform hover:scale-105"
+            className="w-12 h-12 rounded-xl shadow-sm transition-transform hover:scale-105"
             style={{ backgroundColor: value }}
           />
           <input
@@ -599,57 +600,48 @@ export default function ConfiguracoesPage() {
 
   return (
     <PartnerLayout>
-      <div className="edificar-page-canvas -mx-4 -mt-4 px-4 pt-4 pb-6 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
-        <div className="edificar-page-frame mx-auto w-full max-w-4xl space-y-6 p-3 md:p-4">
-        <Button variant="ghost" size="sm" asChild className="gap-1.5 -ml-2">
-          <Link href={`/partners/${org.slug}/dashboard`}>
-            <ArrowLeft className="h-4 w-4" /> Voltar
-          </Link>
-        </Button>
+      <div className="edificar-page-canvas min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 [--partner-surface-base:#ffffff] dark:[--partner-surface-base:#0f172a]">
+        <RevealGroup className="edificar-page-frame mx-auto w-full max-w-4xl p-3 md:p-4">
 
-        <section
-          className="relative overflow-hidden rounded-3xl border border-slate-200 p-6 shadow-sm dark:border-slate-700"
-          style={{
-            background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 13%, white) 0%, color-mix(in srgb, var(--brand-secondary) 9%, white) 100%)',
-          }}
-        >
-          <div
-            className="pointer-events-none absolute inset-0 hidden dark:block"
-            style={{
-              background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 24%, #0f172a) 0%, color-mix(in srgb, var(--brand-secondary) 18%, #0f172a) 100%)',
-            }}
-          />
-          <div
-            className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full blur-3xl opacity-60"
-            style={{ background: 'color-mix(in srgb, var(--brand-secondary) 48%, transparent)' }}
-          />
-          <div className="relative z-10">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold bg-white/70 dark:bg-slate-900/60"
-              style={{
-                color: 'var(--brand-primary)',
-                borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
-              }}
-            >
-              <Palette className="h-3.5 w-3.5" />
+        <RevealItem className="mb-3">
+          <Button variant="ghost" size="sm" asChild className="gap-1.5 -ml-2">
+            <Link href={`/partners/${org.slug}/dashboard`}>
+              <ArrowLeft className="h-4 w-4" /> Voltar
+            </Link>
+          </Button>
+        </RevealItem>
+
+        <RevealItem className="mb-5">
+          <BrandHero>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/50">
+              <Palette className="mr-1.5 inline h-3.5 w-3.5" style={{ color: HERO_ACCENT_COLOR }} />
               Aparência do portal
-            </div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Configurações</h1>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Personalize a identidade visual do portal com uma leitura mais quente e elegante.</p>
-          </div>
-        </section>
+            </p>
+            <h1 className="font-display text-[28px] font-black text-white lg:text-[34px]">Configurações</h1>
+            <p className="mt-1 text-[13px] text-white/60">
+              Personalize a identidade visual do portal com uma leitura mais quente e elegante.
+            </p>
+          </BrandHero>
+        </RevealItem>
+
+        <div className="flex flex-col gap-5">
 
         {/* Identidade Visual */}
-        <Card className="edificar-major-surface">
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Palette className="h-4 w-4" /> Identidade Visual
-            </CardTitle>
-            <CardDescription>
-              Aplicadas no portal dos alunos e na landing page do cursinho.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="edificar-soft-surface space-y-2 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+        <RevealItem>
+        <ElevatedCard accentColor="var(--brand-primary)" className="edificar-major-surface">
+          <div className="p-5">
+            <SectionTitle
+              kicker="Identidade Visual"
+              title="Marca do cursinho"
+              hex={org.brand_primary}
+              action={
+                <p className="max-w-[220px] text-right text-[11px] text-slate-400 dark:text-white/40">
+                  Aplicadas no portal dos alunos e na landing page.
+                </p>
+              }
+            />
+            <div className="space-y-6">
+            <div className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
                 Modo de visualização do Founder
               </Label>
@@ -685,7 +677,7 @@ export default function ConfiguracoesPage() {
               </p>
             </div>
 
-            <div className="edificar-soft-surface space-y-2 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+            <div className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
                 Foto de perfil do Founder
               </Label>
@@ -694,7 +686,7 @@ export default function ConfiguracoesPage() {
                   type="button"
                   onClick={() => avatarInputRef.current?.click()}
                   disabled={avatarUploading}
-                  className="group relative h-16 w-16 shrink-0 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 transition hover:brightness-95 disabled:opacity-70"
+                  className="group relative h-16 w-16 shrink-0 rounded-full overflow-hidden bg-slate-200 dark:bg-slate-800 transition hover:brightness-95 disabled:opacity-70"
                 >
                   {avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -740,7 +732,7 @@ export default function ConfiguracoesPage() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="relative w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden hover:border-[var(--brand-primary)] transition-colors group"
+                  className="relative w-24 h-24 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-white/5 overflow-hidden hover:border-[var(--brand-primary)] transition-colors group"
                 >
                   {logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -787,33 +779,33 @@ export default function ConfiguracoesPage() {
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
                 Preview
               </Label>
-              <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+              <div className="rounded-xl overflow-hidden shadow-sm">
                 <div className="px-4 py-3 flex items-center gap-3" style={{ backgroundColor: primary }}>
                   {logoUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={logoUrl} alt="" className="h-7 w-7 object-contain" />
                   )}
-                  <span className="text-white font-semibold text-sm">{org.name}</span>
-                  <span className="ml-auto text-white/70 text-xs">Portal</span>
+                  <span className="font-semibold text-sm" style={{ color: onBrandText(primary) }}>{org.name}</span>
+                  <span className="ml-auto text-xs opacity-70" style={{ color: onBrandText(primary) }}>Portal</span>
                 </div>
                 <div className="p-4 bg-white dark:bg-slate-900 space-y-3">
                   <div className="h-2 rounded-full w-3/4" style={{ backgroundColor: primary, opacity: 0.15 }} />
                   <div className="flex gap-2 flex-wrap">
                     <span
-                      className="px-3 py-1 rounded-full text-xs text-white font-medium"
-                      style={{ backgroundColor: primary }}
+                      className="px-3 py-1 rounded-full text-xs font-medium"
+                      style={{ backgroundColor: primary, color: onBrandText(primary) }}
                     >
                       Banco de Questões
                     </span>
                     <span
-                      className="px-3 py-1 rounded-full text-xs text-white font-medium"
-                      style={{ backgroundColor: secondary }}
+                      className="px-3 py-1 rounded-full text-xs font-medium"
+                      style={{ backgroundColor: secondary, color: onBrandText(secondary) }}
                     >
                       Simulados
                     </span>
                     <span
-                      className="px-3 py-1 rounded-full text-xs text-white font-medium"
-                      style={{ backgroundColor: accent }}
+                      className="px-3 py-1 rounded-full text-xs font-medium"
+                      style={{ backgroundColor: accent, color: onBrandText(accent) }}
                     >
                       Destaque
                     </span>
@@ -822,15 +814,16 @@ export default function ConfiguracoesPage() {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        </ElevatedCard>
+        </RevealItem>
 
         {/* Contato */}
-        <Card className="edificar-major-surface">
-          <CardHeader>
-            <CardTitle className="text-sm">Contato</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <RevealItem>
+        <ElevatedCard accentColor="var(--brand-secondary)" className="edificar-major-surface">
+          <div className="p-5">
+            <SectionTitle kicker="Portal" title="Contato" hex={org.brand_secondary} />
             <div className="space-y-1.5">
               <Label htmlFor="contact_email" className="text-xs">Email de Contato</Label>
               <Input
@@ -841,19 +834,24 @@ export default function ConfiguracoesPage() {
                 onChange={(e) => setContactEmail(e.target.value)}
               />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </ElevatedCard>
+        </RevealItem>
 
-        <Card className="edificar-major-surface">
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Users className="h-4 w-4" /> Associados
-            </CardTitle>
-            <CardDescription>
-              Professores associados têm acesso exclusivo para corrigir redações dos alunos.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <RevealItem>
+        <ElevatedCard accentColor="var(--brand-accent)" className="edificar-major-surface">
+          <div className="p-5">
+            <SectionTitle
+              kicker="Equipe"
+              title="Associados"
+              hex={org.brand_accent}
+              action={
+                <p className="max-w-[220px] text-right text-[11px] text-slate-400 dark:text-white/40">
+                  Acesso exclusivo para corrigir redações dos alunos.
+                </p>
+              }
+            />
+            <div className="space-y-4">
             {generatedAccess && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 dark:border-amber-500/50 dark:bg-amber-900/20">
                 <p className="text-xs font-bold text-amber-800 dark:text-amber-200">
@@ -917,20 +915,20 @@ export default function ConfiguracoesPage() {
                 />
               </div>
               <div className="md:col-span-1 flex items-end">
-                <Button
+                <BrandButton
                   type="button"
-                  className="w-full gap-2 text-white"
-                  style={{ backgroundColor: 'var(--brand-primary)' }}
+                  className="w-full"
+                  hex={org.brand_primary}
                   disabled={associateSubmitting}
                   onClick={handleCreateAssociate}
                 >
                   {associateSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
                   Adicionar associado
-                </Button>
+                </BrandButton>
               </div>
             </div>
 
-            <div className="edificar-soft-surface rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="rounded-xl bg-slate-50 dark:bg-white/5">
               {associatesLoading ? (
                 <div className="p-4 text-sm text-slate-500">Carregando associados...</div>
               ) : associates.length === 0 ? (
@@ -955,7 +953,7 @@ export default function ConfiguracoesPage() {
                             backgroundColor: (member.active ?? true)
                               ? 'color-mix(in srgb, var(--brand-primary) 14%, white)'
                               : 'rgb(241 245 249)',
-                            color: (member.active ?? true) ? 'var(--brand-primary)' : 'rgb(71 85 105)',
+                            color: (member.active ?? true) ? readableBrandText(org.brand_primary, 'var(--brand-primary)') : 'rgb(71 85 105)',
                           }}
                         >
                           <ShieldCheck className="h-3.5 w-3.5" />
@@ -998,23 +996,29 @@ export default function ConfiguracoesPage() {
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        </ElevatedCard>
+        </RevealItem>
 
-        <Button
-          className="w-full gap-2 text-white"
-          style={{ backgroundColor: 'var(--brand-primary)' }}
+        <RevealItem>
+        <BrandButton
+          className="w-full justify-center"
+          hex={org.brand_primary}
           onClick={handleSave}
           disabled={saving || logoUploading || avatarUploading}
         >
           <Save className="h-4 w-4" />
           {saving ? 'Salvando...' : 'Salvar Configurações'}
-        </Button>
+        </BrandButton>
+        </RevealItem>
+
         </div>
+        </RevealGroup>
       </div>
       {avatarCropOpen && avatarCropUrl && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-2xl dark:bg-slate-900">
             <div className="mb-3">
               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Ajustar foto de perfil</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">Arraste para reposicionar e use o zoom.</p>
@@ -1062,16 +1066,15 @@ export default function ConfiguracoesPage() {
               <Button type="button" variant="outline" onClick={closeAvatarCropModal} disabled={avatarUploading}>
                 Cancelar
               </Button>
-              <Button
+              <BrandButton
                 type="button"
                 onClick={handleAvatarCropConfirm}
                 disabled={avatarUploading}
-                className="text-white"
-                style={{ backgroundColor: 'var(--brand-primary)' }}
+                hex={org.brand_primary}
               >
-                {avatarUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {avatarUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Confirmar
-              </Button>
+              </BrandButton>
             </div>
           </div>
         </div>

@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportError } from '@/lib/reportError';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Clock, BarChart2, TrendingUp } from "lucide-react";
 import {
   BarChart,
@@ -28,11 +26,23 @@ interface HourData {
   sessions: number;
 }
 
+interface WeekdayTotal {
+  weekday: number;
+  label: string;
+  total: number;
+}
+
 interface PeakHoursData {
   hours: HourData[];
   peak_hour: number | null;
   total_events: number;
+  weekday_totals: WeekdayTotal[];
+  peak_weekday: number | null;
+  peak_weekday_label: string | null;
+  peak_weekday_hour: number | null;
 }
+
+const WEEKDAY_SHORT = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 const PERIODS = [
   { label: "Madrugada", range: [0, 5],   color: "#1e3a5f" },
@@ -75,19 +85,22 @@ type ChartType = "bar" | "line";
 
 export default function PeakHoursCard() {
   const [days, setDays] = useState<7 | 30>(30);
+  const [weekday, setWeekday] = useState<number | "all">("all");
   const [chartType, setChartType] = useState<ChartType>("bar");
   const [data, setData] = useState<PeakHoursData | null>(null);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
-  const fetchData = useCallback(async (period: number) => {
+  const fetchData = useCallback(async (period: number, wd: number | "all") => {
     setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
       const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
-      const res = await fetch(`${apiUrl}/api/admin/stats/peak-hours?days=${period}`, {
+      const params = new URLSearchParams({ days: String(period) });
+      if (wd !== "all") params.set("weekday", String(wd));
+      const res = await fetch(`${apiUrl}/api/admin/stats/peak-hours?${params}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (res.ok) setData(await res.json());
@@ -99,11 +112,13 @@ export default function PeakHoursCard() {
     }
   }, [supabase]);
 
-  useEffect(() => { fetchData(days); }, [days, fetchData]);
+  useEffect(() => { fetchData(days, weekday); }, [days, weekday, fetchData]);
 
   const hours = data?.hours ?? [];
   const peakHour = data?.peak_hour ?? null;
   const totalEvents = data?.total_events ?? 0;
+  const weekdayTotals = data?.weekday_totals ?? [];
+  const maxWeekdayTotal = Math.max(1, ...weekdayTotals.map((w) => w.total));
 
   const sharedAxisProps = {
     tick: { fontSize: 10, fill: "#94a3b8" },
@@ -112,29 +127,39 @@ export default function PeakHoursCard() {
   };
 
   return (
-    <Card className="hover:border-slate-300 transition-colors">
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Clock className="w-5 h-5 text-indigo-500" /> Horários de Pico
-            </CardTitle>
-            <CardDescription>
-              Quando os alunos estão mais ativos (BRT) — {totalEvents.toLocaleString()} eventos
-            </CardDescription>
-          </div>
+    <div className="relative overflow-hidden rounded-[20px] bg-white p-5 dark:bg-slate-900 partner-elevated-card lg:p-6">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
+        style={{ background: 'linear-gradient(90deg, #6366F1, color-mix(in srgb, #6366F1 40%, white))' }}
+      />
 
-          <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <div
+            className="flex h-9 w-9 items-center justify-center rounded-xl"
+            style={{ background: 'color-mix(in srgb, #6366F1 16%, white)' }}
+          >
+            <Clock className="h-[18px] w-[18px]" style={{ color: '#4338CA' }} />
+          </div>
+          <div>
+            <h3 className="font-display text-base font-black text-slate-900 dark:text-white">Horários de Pico</h3>
+            <p className="text-[11.5px] text-slate-400 dark:text-white/40">
+              Quando os alunos estão mais ativos (BRT) — {totalEvents.toLocaleString()} eventos
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
             {/* Seletor de período */}
-            <div className="flex gap-1">
+            <div className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 p-1 dark:bg-slate-800">
               {([7, 30] as const).map((d) => (
                 <button
                   key={d}
                   onClick={() => setDays(d)}
-                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  className={`rounded-full px-3 py-1 text-xs font-bold transition-all ${
                     days === d
-                      ? "bg-indigo-600 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      ? "bg-white text-indigo-600 shadow-sm dark:bg-slate-900"
+                      : "text-slate-500 hover:text-slate-700 dark:text-slate-400"
                   }`}
                 >
                   {d}d
@@ -143,13 +168,13 @@ export default function PeakHoursCard() {
             </div>
 
             {/* Switch de tipo de gráfico */}
-            <div className="flex items-center gap-0.5 bg-slate-100 rounded-md p-0.5">
+            <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-md p-0.5">
               <button
                 onClick={() => setChartType("bar")}
                 title="Gráfico de barras"
                 className={`p-1.5 rounded transition-colors ${
                   chartType === "bar"
-                    ? "bg-white shadow-sm text-indigo-600"
+                    ? "bg-white dark:bg-slate-900 shadow-sm text-indigo-600"
                     : "text-slate-400 hover:text-slate-600"
                 }`}
               >
@@ -160,7 +185,7 @@ export default function PeakHoursCard() {
                 title="Gráfico de linhas"
                 className={`p-1.5 rounded transition-colors ${
                   chartType === "line"
-                    ? "bg-white shadow-sm text-indigo-600"
+                    ? "bg-white dark:bg-slate-900 shadow-sm text-indigo-600"
                     : "text-slate-400 hover:text-slate-600"
                 }`}
               >
@@ -170,16 +195,54 @@ export default function PeakHoursCard() {
           </div>
         </div>
 
-        {peakHour !== null && (
-          <div className="flex items-center gap-2 mt-2">
-            <Badge className="bg-amber-100 text-amber-800 border-amber-200 font-semibold">
-              Pico: {formatHour(peakHour)}
-            </Badge>
-          </div>
-        )}
-      </CardHeader>
+        {/* Seletor de dia da semana */}
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => setWeekday("all")}
+            className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
+              weekday === "all"
+                ? "bg-indigo-600 text-white"
+                : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+            }`}
+          >
+            Todos os dias
+          </button>
+          {WEEKDAY_SHORT.map((label, wd) => {
+            const isPeakDay = data?.peak_weekday === wd;
+            return (
+              <button
+                key={wd}
+                onClick={() => setWeekday(wd)}
+                className={`relative rounded-full px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                  weekday === wd
+                    ? "bg-indigo-600 text-white"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400"
+                }`}
+                title={isPeakDay ? "Dia mais ativo do período" : undefined}
+              >
+                {label}
+                {isPeakDay && (
+                  <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-amber-400" />
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-      <CardContent>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {data?.peak_weekday_label && data.peak_weekday_hour !== null && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+              Pico da semana: {data.peak_weekday_label} às {formatHour(data.peak_weekday_hour!)}
+            </span>
+          )}
+          {peakHour !== null && weekday !== "all" && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300">
+              Pico em {WEEKDAY_SHORT[weekday]}: {formatHour(peakHour)}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-4">
         {loading ? (
           <div className="h-48 flex items-center justify-center">
             <div className="animate-pulse text-slate-400 text-sm">Carregando...</div>
@@ -257,7 +320,38 @@ export default function PeakHoursCard() {
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+
+        {/* Distribuição por dia da semana — dá contexto pra escolha do dia no seletor acima */}
+        {!loading && weekdayTotals.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">Distribuição por dia da semana</p>
+            <div className="flex items-end gap-2 h-16">
+              {weekdayTotals.map((w) => {
+                const isPeak = data?.peak_weekday === w.weekday;
+                const heightPct = Math.max(6, Math.round((w.total / maxWeekdayTotal) * 100));
+                return (
+                  <button
+                    key={w.weekday}
+                    onClick={() => setWeekday(w.weekday)}
+                    className="flex flex-1 flex-col items-center gap-1 group"
+                    title={`${w.label}: ${w.total} eventos`}
+                  >
+                    <div className="flex h-12 w-full items-end rounded-sm overflow-hidden bg-slate-100 dark:bg-slate-800">
+                      <div
+                        className={`w-full rounded-sm transition-colors ${isPeak ? "bg-amber-400" : "bg-indigo-400 group-hover:bg-indigo-500"}`}
+                        style={{ height: `${heightPct}%` }}
+                      />
+                    </div>
+                    <span className={`text-[10px] font-bold ${weekday === w.weekday ? "text-indigo-600" : "text-slate-400"}`}>
+                      {WEEKDAY_SHORT[w.weekday]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        </div>
+    </div>
   );
 }

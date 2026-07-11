@@ -6,7 +6,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-plus-jakarta), "Plus Jakarta Sans", Arial, sans-serif;
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -141,8 +141,121 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
+}
+
+.font-display {
+  font-family: var(--font-general), var(--font-plus-jakarta), sans-serif;
+  letter-spacing: -0.005em;
+  line-height: 1.08;
+}
+
+.font-script {
+  font-family: var(--font-caveat), cursive;
+}
+
+/* Halftone dot texture for dark hero/chart cards */
+.partner-halftone {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.16) 1px, transparent 1.5px);
+  background-size: 14px 14px;
+}
+
+/* Elevated card — shadow-only surface, no border. Mirrors mais-aprovacao's .aprova-card. */
+.partner-elevated-card {
+  background: #fff;
+  border-radius: 20px;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px -12px rgba(15, 23, 42, 0.12);
+}
+
+.dark .partner-elevated-card {
+  background: rgb(15 23 42);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.24),
+    0 8px 24px -12px rgba(0, 0, 0, 0.55);
+}
+
+.partner-elevated-card-hover {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.partner-elevated-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.06),
+    0 16px 32px -12px rgba(15, 23, 42, 0.18);
+}
+
+.dark .partner-elevated-card-hover:hover {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    0 16px 32px -12px rgba(0, 0, 0, 0.65);
+}
+
+/*
+ * Texto/superfície de cor de marca que se adapta ao tema sem precisar de JS
+ * sabendo qual está ativo agora. O componente injeta os dois valores prontos
+ * (via readableBrandText / readableBrandTextOnDark, ou brandTextVars) como
+ * CSS custom properties inline; o CSS decide qual usar pelo seletor .dark.
+ */
+.brand-text-adaptive {
+  color: var(--bta-light);
+}
+.dark .brand-text-adaptive {
+  color: var(--bta-dark, var(--bta-light));
+}
+
+.brand-surface-adaptive {
+  background: var(--bsa-bg-light);
+  color: var(--bsa-fg-light);
+}
+.dark .brand-surface-adaptive {
+  background: var(--bsa-bg-dark, var(--bsa-bg-light));
+  color: var(--bsa-fg-dark, var(--bsa-fg-light));
+}
+
+/* Glow respirando — chama atenção pro CTA sem ficar berrante nem travar performance. */
+@keyframes cta-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--cta-glow-color, transparent); }
+  50% { box-shadow: 0 0 0 10px transparent, 0 0 22px 2px var(--cta-glow-color, transparent); }
+}
+.cta-glow-pulse {
+  animation: cta-glow-pulse 2.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cta-glow-pulse { animation: none; }
+}
+
+/* Barra de rolagem fina, discreta — usada em sidebars, dropdowns e painéis
+ * de scroll interno em vez da barra nativa do navegador (grossa e com setas). */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.35);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.55);
+}
+.dark .custom-scrollbar {
+  scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.25);
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.4);
 }
 
 .katex-display-wrap .katex-display {
