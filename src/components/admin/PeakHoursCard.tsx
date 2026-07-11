@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { reportError } from '@/lib/reportError';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Clock, BarChart2, TrendingUp } from "lucide-react";
 import {
   BarChart,
@@ -129,19 +127,29 @@ export default function PeakHoursCard() {
   };
 
   return (
-    <Card className="hover:border-slate-300 transition-colors">
-      <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Clock className="w-5 h-5 text-indigo-500" /> Horários de Pico
-            </CardTitle>
-            <CardDescription>
-              Quando os alunos estão mais ativos (BRT) — {totalEvents.toLocaleString()} eventos
-            </CardDescription>
-          </div>
+    <div className="relative overflow-hidden rounded-[20px] bg-white p-5 dark:bg-slate-900 partner-elevated-card lg:p-6">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
+        style={{ background: 'linear-gradient(90deg, #6366F1, color-mix(in srgb, #6366F1 40%, white))' }}
+      />
 
-          <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <div
+            className="flex h-9 w-9 items-center justify-center rounded-xl"
+            style={{ background: 'color-mix(in srgb, #6366F1 16%, white)' }}
+          >
+            <Clock className="h-[18px] w-[18px]" style={{ color: '#4338CA' }} />
+          </div>
+          <div>
+            <h3 className="font-display text-base font-black text-slate-900 dark:text-white">Horários de Pico</h3>
+            <p className="text-[11.5px] text-slate-400 dark:text-white/40">
+              Quando os alunos estão mais ativos (BRT) — {totalEvents.toLocaleString()} eventos
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
             {/* Seletor de período */}
             <div className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 p-1 dark:bg-slate-800">
               {([7, 30] as const).map((d) => (
@@ -223,19 +231,18 @@ export default function PeakHoursCard() {
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {data?.peak_weekday_label && data.peak_weekday_hour !== null && (
-            <Badge className="bg-amber-100 text-amber-800 border-amber-200 font-semibold">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
               Pico da semana: {data.peak_weekday_label} às {formatHour(data.peak_weekday_hour!)}
-            </Badge>
+            </span>
           )}
           {peakHour !== null && weekday !== "all" && (
-            <Badge className="bg-indigo-100 text-indigo-700 border-indigo-200 font-semibold">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300">
               Pico em {WEEKDAY_SHORT[weekday]}: {formatHour(peakHour)}
-            </Badge>
+            </span>
           )}
         </div>
-      </CardHeader>
 
-      <CardContent>
+        <div className="mt-4">
         {loading ? (
           <div className="h-48 flex items-center justify-center">
             <div className="animate-pulse text-slate-400 text-sm">Carregando...</div>
@@ -344,7 +351,7 @@ export default function PeakHoursCard() {
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+        </div>
+    </div>
   );
 }
