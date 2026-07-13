@@ -13,7 +13,7 @@ import { motion, AnimatePresence, useAnimation, useReducedMotion } from 'framer-
 import {
   Timer, ArrowRight, ArrowLeft, ArrowUp, CheckCircle2, Play, RotateCcw,
   Trophy, BookOpen, History, Brain, ChevronDown, ChevronLeft, TrendingUp,
-  Medal, BarChart3, Plus, Clock, Zap, Flag, EyeOff, Target,
+  Medal, BarChart3, Plus, Clock, Zap, Flag, Target,
 } from 'lucide-react'
 import { QuestionRichText } from '@/components/questions/QuestionRichText'
 import { AlternativeImages, QuestionContentBlocks, QuestionSupportImages } from '@/components/questions/QuestionMedia'
@@ -358,7 +358,7 @@ const BANK_VISUALS = {
   UEG:   { label: 'UEG',   color: '#0f766e', bgClass: 'bg-teal-600' },
   UFG:   { label: 'UFG',   color: '#3b82f6', bgClass: 'bg-blue-500' },
   UNESP: { label: 'UNESP', color: '#7c3aed', bgClass: 'bg-violet-600' },
-  Todas: { label: 'ENEM + UFU + UEG + UFG + UNESP', color: '#64748b', bgClass: 'bg-slate-500' },
+  Todas: { label: 'Todos Vestibulares', color: '#64748b', bgClass: 'bg-slate-500' },
 } as const
 
 function celebrationMessage(pct: number): { emoji: string; title: string; sub: string } {
@@ -963,6 +963,9 @@ export default function SimuladoPage() {
   const bestPct = scopedSessionStats.length > 0
     ? Math.max(...scopedSessionStats.map((entry) => entry.scoped.percentage))
     : 0
+  const bestPersonalResults = [...scopedSessionStats]
+    .sort((a, b) => b.scoped.percentage - a.scoped.percentage)
+    .slice(0, 5)
   const rankingPos = rankingData?.user_position ?? null
   const nextTarget = (() => {
     const inc = bestPct < 50 ? 10 : bestPct <= 80 ? 5 : 3
@@ -970,7 +973,7 @@ export default function SimuladoPage() {
   })()
   const heroSubtitle = totalSimuladosFiltered === 0
     ? 'Faça seu primeiro simulado e descubra seu nível'
-    : `Sua próxima meta: superar ${nextTarget}% em ${pageBankFilter === 'Todas' ? 'ENEM, UFU, UEG e UNESP' : pageBankFilter}`
+    : `Sua próxima meta: superar ${nextTarget}% em ${pageBankFilter === 'Todas' ? 'Todos Vestibulares' : pageBankFilter}`
 
   const simuladoCtxHint = mode === 'preset'
     ? (() => {
@@ -985,7 +988,7 @@ export default function SimuladoPage() {
         const q = fmt?.qty ?? 45
         return `${presetBank} · ~${Math.round(q * 1.5)} min · ${q} questões${presetBank === 'ENEM' ? ' · TRI' : ''}`
       })()
-    : `${bank === 'Todas' ? 'ENEM + UFU + UEG + UNESP' : bank} · ~${qty * 3} min · ${qty} questões${bank === 'ENEM' ? ' · TRI' : ''}`
+    : `${bank === 'Todas' ? 'Todos Vestibulares' : bank} · ~${qty * 3} min · ${qty} questões${bank === 'ENEM' ? ' · TRI' : ''}`
 
   // ── Chart data ──
   const subjectOptions = ['Todas', ...Array.from(new Set(pageFilteredSessions.flatMap(s => Object.keys(s.results_by_subject || {}))))]
@@ -2065,7 +2068,7 @@ export default function SimuladoPage() {
                     ))}
                     {pageBankFilter === 'Todas' ? (
                       <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                        desempenho agregado das sessões ENEM, UFU, UEG e UNESP
+                        desempenho agregado de todos os vestibulares
                       </span>
                     ) : null}
                   </div>
@@ -2107,8 +2110,8 @@ export default function SimuladoPage() {
                           <p className={`mt-1 text-2xl font-black ${scoreColor(entry.pct)}`}>{entry.pct}%</p>
                         </div>
                         <div className="text-right text-xs text-slate-400">
-                          <p>{entry.sessions} simulados</p>
-                          <p>{entry.total} questões</p>
+                          <p>{entry.sessions} {entry.sessions === 1 ? 'Simulado' : 'Simulados'}</p>
+                          <p>{entry.total} {entry.total === 1 ? 'Questão' : 'Questões'}</p>
                         </div>
                       </div>
                       <div className="mt-3 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
@@ -2161,55 +2164,45 @@ export default function SimuladoPage() {
               </motion.div>
             )}
 
-            {/* Ranking */}
+            {/* Melhores resultados pessoais */}
             <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
               <div className="flex items-center gap-2 mb-1">
                 <Trophy size={17} className="text-yellow-500" />
                 <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                  {pageBankFilter === 'Todas' ? 'Ranking Geral' : `Ranking ${pageBankFilter}`}
+                  {pageBankFilter === 'Todas' ? 'Melhores Resultados' : `Melhores Resultados · ${pageBankFilter}`}
                 </h2>
               </div>
               <p className="text-xs text-slate-400 mb-5">
                 {pageBankFilter === 'Todas'
-                  ? 'Melhores resultados de todos os tempos'
-                  : `Melhores resultados de ${pageBankFilter} de todos os tempos`}
+                  ? 'Seus melhores desempenhos de todos os tempos'
+                  : `Seus melhores desempenhos em ${pageBankFilter} de todos os tempos`}
               </p>
               {dashLoading ? (
                 <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}</div>
-              ) : !rankingData?.ranking?.length ? (
+              ) : bestPersonalResults.length === 0 ? (
                 <div className="text-center py-8">
                   <Trophy size={28} className="text-slate-200 dark:text-slate-700 mx-auto mb-2" />
                   <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">Nenhum simulado realizado ainda</p>
-                  <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">Seja o primeiro a entrar no ranking!</p>
+                  <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">Faça seu primeiro simulado pra começar seu histórico!</p>
                 </div>
               ) : (
-                <>
-                  <div className="space-y-2">
-                    {rankingData.ranking.slice(0, 3).map(entry => {
-                      const isMe = entry.user_id === currentUserId
-                      const medals = ['🥇', '🥈', '🥉']
-                      return (
-                        <div key={entry.user_id} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${isMe ? 'border' : 'bg-slate-50 dark:bg-slate-800/50'}`}
-                          style={isMe ? { background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)', borderColor: 'color-mix(in srgb, var(--brand-primary) 30%, transparent)' } : {}}>
-                          <span className="text-lg w-7 text-center" role="img" aria-label={`${entry.position}º lugar`}>{medals[entry.position - 1] ?? `#${entry.position}`}</span>
-                          <span className={`flex flex-1 items-center gap-2 text-sm font-semibold truncate ${isMe ? '' : 'text-slate-700 dark:text-slate-300'}`} style={isMe ? { color: 'var(--brand-primary)' } : {}}>
-                            {!isMe && entry.is_anonymous ? <EyeOff className="h-4 w-4 shrink-0 text-slate-400" /> : null}
-                            <span className="truncate">{isMe ? 'Você' : (entry.is_anonymous ? 'Aluno secreto' : (entry.full_name || `Usuário ${entry.user_id.slice(0, 6)}`))}</span>
-                          </span>
-                          <span className={`text-sm font-black ${scoreColor(entry.percentage)}`}>{entry.percentage}%</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  {rankingData.user_position && rankingData.user_position > 3 && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-3 px-4 py-3 rounded-xl border"
-                      style={{ background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)', borderColor: 'color-mix(in srgb, var(--brand-primary) 30%, transparent)' }}>
-                      <span className="text-sm font-bold text-slate-500 dark:text-slate-400 w-7 text-center">#{rankingData.user_position}</span>
-                      <span className="flex-1 text-sm font-semibold" style={{ color: 'var(--brand-primary)' }}>Você</span>
-                      <span className={`text-sm font-black ${scoreColor(rankingData.user_best?.percentage ?? 0)}`}>{rankingData.user_best?.percentage ?? 0}%</span>
-                    </div>
-                  )}
-                </>
+                <div className="space-y-2">
+                  {bestPersonalResults.map(({ session, scoped }, i) => {
+                    const medals = ['🥇', '🥈', '🥉']
+                    const isTop = i < 3
+                    return (
+                      <div key={session.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${isTop ? 'border' : 'bg-slate-50 dark:bg-slate-800/50'}`}
+                        style={isTop ? { background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)', borderColor: 'color-mix(in srgb, var(--brand-primary) 30%, transparent)' } : {}}>
+                        <span className="text-lg w-7 text-center" role="img" aria-label={`${i + 1}º melhor resultado`}>{medals[i] ?? `#${i + 1}`}</span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-semibold truncate text-slate-700 dark:text-slate-300">{getConfigLabel(session)}</span>
+                          <span className="block text-xs text-slate-400">{formatDate(session.started_at)}</span>
+                        </span>
+                        <span className={`text-sm font-black ${scoreColor(scoped.percentage)}`}>{scoped.percentage}%</span>
+                      </div>
+                    )
+                  })}
+                </div>
               )}
             </motion.div>
           </motion.div>

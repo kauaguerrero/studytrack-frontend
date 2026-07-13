@@ -475,15 +475,6 @@ export default function FounderDashboardClient({
                   />
                 </div>
               </div>
-              <div className="flex flex-col items-start gap-2 lg:items-end">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 backdrop-blur-sm">
-                    <Users className="h-4 w-4" style={{ color: HERO_ACCENT_COLOR }} />
-                    <span className="text-[13px] font-bold tabular-nums text-white">{loading ? '—' : students.length}</span>
-                    <span className="text-[11px] text-white/55">alunos</span>
-                  </div>
-                </div>
-              </div>
             </div>
           </BrandHero>
         </RevealItem>

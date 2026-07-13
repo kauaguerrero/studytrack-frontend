@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
@@ -128,6 +129,7 @@ function getContrastTextColor(hex: string): string {
 export default function BancoDeQuestoes() {
   const { enqueuePopup } = usePopupQueue();
   const { org } = useOrg();
+  const searchParams = useSearchParams();
   const brandTextColor = getContrastTextColor(org.brand_primary);
   // ── State: Data ─────────────────────────────────────────────────────────────
   const [questions, setQuestions] = useState<any[]>([]);
@@ -137,7 +139,9 @@ export default function BancoDeQuestoes() {
   const [activeTab, setActiveTab] = useState<'todo' | 'done'>('todo');
   const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
 
-  const [filterSubject, setFilterSubject] = useState('Todas');
+  // Pré-seleciona a matéria quando o CTA "Continue de onde parou" chega com
+  // ?subject=X (última matéria que o aluno estava respondendo).
+  const [filterSubject, setFilterSubject] = useState(() => searchParams.get('subject') || 'Todas');
   const [filterBank, setFilterBank] = useState('Todas');
   const [filterTopic, setFilterTopic] = useState('Todos');
   const [filterYear, setFilterYear] = useState('Todos');
@@ -167,6 +171,10 @@ export default function BancoDeQuestoes() {
 
   // ── Refs ─────────────────────────────────────────────────────────────────────
   const isLoadingRef = useRef(false);
+  // Identifica a busca mais recente: quando o aluno troca de filtro antes da
+  // busca anterior responder, a resposta antiga (matéria errada) não pode
+  // sobrescrever a lista — só a busca com o id mais recente é aplicada.
+  const requestIdRef = useRef(0);
   const authTokenRef = useRef<string | null>(null);
   const questionTopRef = useRef<HTMLDivElement>(null);
 
@@ -302,20 +310,26 @@ export default function BancoDeQuestoes() {
 
   // ── 3. Core fetch ─────────────────────────────────────────────────────────────
   const fetchQuestions = useCallback(
-    async (targetPage = 1, append = false, retryCount = 0) => {
+    async (targetPage = 1, append = false, retryCount = 0, requestId?: number) => {
       if (!userId) return;
+      // Uma troca de filtro sempre inicia uma busca nova (id novo) mesmo que a
+      // anterior ainda esteja em voo — a resposta antiga será descartada abaixo
+      // se não for mais a mais recente. Continuações de retry/paginação
+      // reutilizam o id recebido para não "perder a corrida" pra si mesmas.
+      const myRequestId = requestId ?? ++requestIdRef.current;
       // Always fetch a fresh session so expired tokens are refreshed automatically.
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       if (!token) return;
       authTokenRef.current = token;
-      if (isLoadingRef.current && retryCount === 0) return;
       if (retryCount > 10) {
-        setLoading(false);
-        setLoadingMore(false);
-        setHasMore(false);
-        isLoadingRef.current = false;
+        if (myRequestId === requestIdRef.current) {
+          setLoading(false);
+          setLoadingMore(false);
+          setHasMore(false);
+          isLoadingRef.current = false;
+        }
         return;
       }
       if (retryCount === 0) {
@@ -351,6 +365,11 @@ export default function BancoDeQuestoes() {
           throw new Error(errMsg);
         }
 
+        // Uma busca mais nova (outra troca de filtro) já começou enquanto esta
+        // estava em voo — descarta esta resposta em vez de aplicar a matéria
+        // errada por cima do filtro atual.
+        if (myRequestId !== requestIdRef.current) return;
+
         const data = await res.json();
         if (!append) setTotalQuestionsFound(data.total || 0);
         if (data.user_status?.locked) setIsLockedByQuota(true);
@@ -361,7 +380,7 @@ export default function BancoDeQuestoes() {
         const shouldFetchNext = rawQuestions.length > 0 && filteredQuestions.length === 0;
 
         if (shouldFetchNext) {
-          await fetchQuestions(targetPage + 1, append, retryCount + 1);
+          await fetchQuestions(targetPage + 1, append, retryCount + 1, myRequestId);
         } else {
           if (append) setQuestions((prev) => [...prev, ...filteredQuestions]);
           else {
@@ -374,7 +393,7 @@ export default function BancoDeQuestoes() {
       } catch (err) {
         void reportError('QuestionBankError', String(err));
       } finally {
-        if (retryCount === 0) {
+        if (retryCount === 0 && myRequestId === requestIdRef.current) {
           setLoading(false);
           setLoadingMore(false);
           isLoadingRef.current = false;

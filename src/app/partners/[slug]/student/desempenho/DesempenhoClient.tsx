@@ -46,6 +46,7 @@ export interface AnalyticsResponse {
     total_questions: number;
     accuracy_percentage: number;
     current_streak: number;
+    longest_streak: number;
     total_xp: number;
     total_simulados: number;
   };
@@ -502,7 +503,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
         ]);
 
         const analytics: AnalyticsResponse = analyticsRes.ok ? await analyticsRes.json() : {
-          overview: { total_questions: 0, accuracy_percentage: 0, current_streak: 0, total_xp: 0, total_simulados: 0 },
+          overview: { total_questions: 0, accuracy_percentage: 0, current_streak: 0, longest_streak: 0, total_xp: 0, total_simulados: 0 },
           performance_by_subject: [],
           activity_history: [],
         };
@@ -572,7 +573,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
         if (active) {
           setState({
             analytics: {
-              overview: { total_questions: 0, accuracy_percentage: 0, current_streak: 0, total_xp: 0, total_simulados: 0 },
+              overview: { total_questions: 0, accuracy_percentage: 0, current_streak: 0, longest_streak: 0, total_xp: 0, total_simulados: 0 },
               performance_by_subject: [],
               activity_history: [],
             },
@@ -802,8 +803,8 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
               label="Simulados"
               value={analytics.overview.total_simulados || 0}
               hint={recentSimuladoAvg != null
-                ? `${recentSimuladoAvg}% • TRI ${bestSimuladoTri || '—'}`
-                : 'Sem base recente'}
+                ? `${recentSimuladoAvg}% de acerto nos últimos 3 • melhor nota (TRI) ${bestSimuladoTri || '—'}`
+                : 'Faça um simulado para ver sua média'}
               icon={Gauge}
               accent="#2563eb"
             />
@@ -811,7 +812,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
               className="lg:col-span-2"
               label="Ofensiva"
               value={`${analytics.overview.current_streak}d`}
-              hint={`${habits.activeDays7} dias ativos${summary?.shield_count ? ` • ${summary.shield_count} esc.` : ''}`}
+              hint={`${habits.activeDays7} de 7 dias ativos essa semana${summary?.shield_count ? ` • ${summary.shield_count} escudo${summary.shield_count === 1 ? '' : 's'} de proteção` : ''}`}
               icon={Flame}
               accent="#ea580c"
             />
@@ -945,53 +946,56 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
 
           <RevealItem className="grid gap-3 lg:grid-cols-12 lg:gap-4">
             <MetricShell className="lg:col-span-7">
-              <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
+              <div className="relative flex flex-col items-start justify-between gap-4 sm:flex-row">
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Redação em profundidade</p>
                   <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Análise Detalhada</h2>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setEssayTypeFilterOpen((v) => !v)}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:text-slate-950 dark:border-white/15 dark:bg-slate-900/70 dark:text-slate-100 dark:hover:text-white"
-                    >
-                      {essayTypeConfig.label}
-                      <ChevronDown className={cn('h-4 w-4 transition-transform', essayTypeFilterOpen && 'rotate-180')} />
-                    </button>
-                    {essayTypeFilterOpen && (
-                      <div className="absolute right-0 z-20 mt-1.5 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-900">
-                        {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => {
-                              setEssayTypeFilter(key);
-                              setEssayTypeFilterOpen(false);
-                            }}
-                            className={cn(
-                              'flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm transition',
-                              essayTypeFilter === key
-                                ? 'bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-white'
-                                : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60',
-                            )}
-                          >
-                            <span>{cfg.label}</span>
-                            <span className="text-[11px] opacity-70">/{cfg.total_max}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                <div className="flex w-full items-center gap-2 sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setEssayTypeFilterOpen((v) => !v)}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:text-slate-950 sm:flex-none dark:border-white/15 dark:bg-slate-900/70 dark:text-slate-100 dark:hover:text-white"
+                  >
+                    {essayTypeConfig.label}
+                    <ChevronDown className={cn('h-4 w-4 transition-transform', essayTypeFilterOpen && 'rotate-180')} />
+                  </button>
                   <Link
                     href={`/partners/${slug}/student/redacoes`}
-                    className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:text-slate-950 dark:border-white/15 dark:bg-slate-900/70 dark:text-slate-100 dark:hover:text-white"
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:text-slate-950 sm:flex-none dark:border-white/15 dark:bg-slate-900/70 dark:text-slate-100 dark:hover:text-white"
                   >
                     Ver redações
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
+
+                {/* Anexado ao header inteiro (não só ao botão) — assim, no mobile,
+                    a lista pode ocupar a largura toda do card (`inset-x-0`) sem
+                    vazar pra fora ou sobrepor o botão "Ver redações" ao lado;
+                    no desktop, volta a ser compacta e ancorada à direita. */}
+                {essayTypeFilterOpen && (
+                  <div className="absolute inset-x-0 top-full z-20 mt-1.5 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl sm:inset-x-auto sm:right-0 sm:w-44 dark:border-slate-700 dark:bg-slate-900">
+                    {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          setEssayTypeFilter(key);
+                          setEssayTypeFilterOpen(false);
+                        }}
+                        className={cn(
+                          'flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm transition',
+                          essayTypeFilter === key
+                            ? 'bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-white'
+                            : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60',
+                        )}
+                      >
+                        <span>{cfg.label}</span>
+                        <span className="text-[11px] opacity-70">/{cfg.total_max}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -1134,18 +1138,35 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                 </div>
               </div>
 
-              <div className="mt-5 space-y-3">
-                {subjectRows.length ? subjectRows.map((subject) => (
+              <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                <p><span className="font-semibold" style={{ color: 'var(--brand-primary)' }}>Precisão</span> — sua taxa de acerto na matéria.</p>
+                <p className="mt-1"><span className="font-semibold" style={{ color: 'var(--brand-primary)' }}>Volume relativo</span> — quantas questões você já fez ali, na comparação com as outras matérias. Barra curta = poucos dados = não confie no % de precisão ainda.</p>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {subjectRows.length ? subjectRows.map((subject) => {
+                  const isShortSample = subject.total < MIN_SUBJECT_SAMPLE;
+                  const insight = isShortSample
+                    ? { label: 'Poucos dados ainda', tone: 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-white/10' }
+                    : subject.accuracy < 50
+                      ? { label: 'Foco recomendado', tone: 'text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10' }
+                      : subject.accuracy >= 70
+                        ? { label: 'Ponto forte', tone: 'text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10' }
+                        : null;
+                  return (
                   <div key={subject.subject} className={WHITE_CARD_CLASS}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="break-words text-sm font-semibold text-slate-950 dark:text-white">{subject.subject}</p>
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {subject.total} tentativas • {subject.correct} acertos
-                          {subject.total < MIN_SUBJECT_SAMPLE ? ' • base curta' : ''}
-                        </p>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <p className="min-w-0 truncate text-[13px] font-semibold text-slate-950 dark:text-white">{subject.subject}</p>
+                      {insight && (
+                        <span className={cn('shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap', insight.tone)}>
+                          {insight.label}
+                        </span>
+                      )}
                     </div>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {subject.total} tentativas • {subject.correct} acertos
+                      {isShortSample ? ' • base curta demais pra confiar no %' : ''}
+                    </p>
                     <div className="mt-4 grid gap-3">
                       <div>
                         <div className="mb-1 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
@@ -1167,7 +1188,8 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                       </div>
                     </div>
                   </div>
-                )) : (
+                  );
+                }) : (
                   <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500 dark:border-white/15 dark:bg-white/5 dark:text-slate-400">
                     Quando houver base de questões, a página separa volume de precisão para evitar leituras enganosas.
                   </div>
@@ -1190,9 +1212,13 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div className={SOFT_CARD_CLASS}>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Ofensiva</p>
-                  <p className="mt-2 text-3xl font-semibold text-slate-950 dark:text-white">{analytics.overview.current_streak}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">dias seguidos</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Recorde de sequência</p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-950 dark:text-white">{analytics.overview.longest_streak}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {analytics.overview.current_streak >= analytics.overview.longest_streak && analytics.overview.longest_streak > 0
+                      ? 'seu melhor até agora — em andamento!'
+                      : 'maior sequência já alcançada'}
+                  </p>
                 </div>
 
                 <div className={SOFT_CARD_CLASS}>

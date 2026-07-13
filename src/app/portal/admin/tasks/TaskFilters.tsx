@@ -233,7 +233,7 @@ export default function TaskFilters({ filters, onChange, sprintOnly, onToggleSpr
         {open && (
           <div
             ref={panelRef}
-            className="absolute top-[calc(100%+8px)] left-0 z-50 w-80 rounded-2xl border shadow-2xl overflow-hidden"
+            className="absolute top-[calc(100%+8px)] left-0 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border shadow-2xl overflow-hidden"
             style={{
               background: isDark ? '#18181b' : '#ffffff',
               borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',

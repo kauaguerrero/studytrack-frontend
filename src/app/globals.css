@@ -219,10 +219,10 @@
 /* Glow respirando — chama atenção pro CTA sem ficar berrante nem travar performance. */
 @keyframes cta-glow-pulse {
   0%, 100% { box-shadow: 0 0 0 0 var(--cta-glow-color, transparent); }
-  50% { box-shadow: 0 0 0 10px transparent, 0 0 22px 2px var(--cta-glow-color, transparent); }
+  50% { box-shadow: 0 0 10px 1px var(--cta-glow-color, transparent); }
 }
 .cta-glow-pulse {
-  animation: cta-glow-pulse 2.6s ease-in-out infinite;
+  animation: cta-glow-pulse 4s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
   .cta-glow-pulse { animation: none; }

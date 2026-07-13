@@ -106,7 +106,7 @@ function BottomTabItem({ href, icon: Icon, shortLabel, showNotification }: NavIt
       href={href}
       className={cn(
         'partner-bottom-nav-link flex flex-1 flex-col items-center justify-center gap-1 py-2',
-        'min-h-[56px] transition-colors',
+        'min-h-[56px] transition-colors touch-manipulation active:scale-95 active:opacity-70',
         'text-[10px] font-bold tracking-wide',
         isActive
           ? 'text-[var(--brand-primary)]'
@@ -149,7 +149,6 @@ interface PartnerLayoutProps {
 
 export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutProps) {
   const { org, userProfile } = useOrg();
-  const pathname = usePathname();
   const { hasPendingCorrection } = useEssayNotification();
   const [isHovered, setIsHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -158,7 +157,6 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
   const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
   const isPartnerStudent = variant === 'student';
-  const hideMobileChrome = isPartnerStudent && pathname.startsWith(`/partners/${org.slug}/student/simulado`);
 
   // Lê permissão de um módulo — padrão true (ativo por omissão) exceto video (opt-in explícito)
   const perm = (key: string, def = true) => {
@@ -181,12 +179,12 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
 
   const studentNavItems: NavItemDef[] = [
     { href: `/partners/${org.slug}/student/dashboard`,          icon: Home,           label: 'Início',         shortLabel: 'Início'      },
-    ...(perm('banco_questoes_enabled') ? [{ href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,       label: 'Questões',       shortLabel: 'Questões'    }] : []),
-    ...(perm('simulados_enabled')      ? [{ href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck, label: 'Simulados',      shortLabel: 'Simulados'   }] : []),
+    ...(perm('banco_questoes_enabled') ? [{ href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,       label: 'Questões',       shortLabel: 'Questão'    }] : []),
+    ...(perm('simulados_enabled')      ? [{ href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck, label: 'Simulados',      shortLabel: 'Simulado'   }] : []),
     ...(perm('ranking_enabled')        ? [{ href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,         label: 'Ranking',        shortLabel: 'Ranking'     }] : []),
-    ...(perm('titulos_enabled')        ? [{ href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck,     label: 'Títulos',        shortLabel: 'Títulos'     }] : []),
+    ...(perm('titulos_enabled')        ? [{ href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck,     label: 'Títulos',        shortLabel: 'Título'     }] : []),
     ...(perm('desempenho_enabled')     ? [{ href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3,      label: 'Meu Desempenho', shortLabel: 'Desempenho'  }] : []),
-    ...(perm('redacoes_enabled')       ? [{ href: `/partners/${org.slug}/student/redacoes`,          icon: PenLine,        label: 'Redações',       shortLabel: 'Redações'    }] : []),
+    ...(perm('redacoes_enabled')       ? [{ href: `/partners/${org.slug}/student/redacoes`,          icon: PenLine,        label: 'Redações',       shortLabel: 'Redação'    }] : []),
     ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/student/aulas`,      icon: Video,          label: 'Aulas',          shortLabel: 'Aulas'       }] : []),
     ...(perm('suporte_enabled')        ? [{ href: `/partners/${org.slug}/student/suporte`,           icon: LifeBuoy,       label: 'Suporte',        shortLabel: 'Suporte'     }] : []),
     { href: `/partners/${org.slug}/student/perfil`,             icon: User,           label: 'Perfil',         shortLabel: 'Perfil'      },
@@ -211,8 +209,9 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     ? studentNavItems.filter((item) => (
       item.href === `/partners/${org.slug}/student/dashboard`
       || item.href === `/partners/${org.slug}/student/banco-de-questoes`
-      || item.href === `/partners/${org.slug}/student/redacoes`
+      || item.href === `/partners/${org.slug}/student/simulado`
       || item.href === `/partners/${org.slug}/student/ranking`
+      || item.href === `/partners/${org.slug}/student/redacoes`
     ))
     : isAssociate
       ? navItems
@@ -384,8 +383,9 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
       {/* ── Main content ───────────────────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
 
-        {/* Mobile top header */}
-        {!hideMobileChrome && (
+        {/* Mobile top header — some sozinho durante o quiz de simulado, que
+            é um overlay fixed inset-0 z-50 (acima do z-40 da nav/header),
+            então não precisa esconder pela rota, só a tela do quiz já cobre. */}
           <header className="flex items-center justify-between border-b dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 md:hidden shrink-0">
             <div className="flex items-center gap-2.5 min-w-0">
               {org.logo_url ? (
@@ -442,7 +442,6 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
               </button>
             )}
           </header>
-        )}
 
         {/* Page content — extra bottom padding on mobile for bottom tab bar */}
         <main className="partner-main min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 pb-24 md:p-8 md:pb-8">
@@ -451,7 +450,9 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
       </div>
 
       {/* ── Mobile bottom tab bar ──────────────────────────────────────────── */}
-      {!hideMobileChrome && (
+      {/* Some sozinha durante o quiz de simulado (overlay fixed inset-0 z-50
+          cobre o z-40 daqui) — não precisa esconder pela rota inteira de
+          /student/simulado, senão some também na tela de montar/histórico. */}
         <nav
           className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-white dark:bg-slate-900 border-t dark:border-slate-800"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
@@ -470,7 +471,6 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
             ))}
           </div>
         </nav>
-      )}
 
       {(isPartnerStudent || !isAssociate) && (
         <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>

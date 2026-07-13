@@ -141,14 +141,58 @@ export function resolveAccentColor(
   return { hex: org[preferred] ?? null, cssVar: `var(--${preferred.replace('brand_', 'brand-')})` };
 }
 
-/** true se a cor for clara o bastante para exigir texto escuro por cima. */
-export function isLightBrand(hex: string | undefined | null, threshold = 62): boolean {
-  const hsl = hex ? hexToHsl(hex) : null;
-  if (!hsl) return false;
-  return hsl.l > threshold;
+/**
+ * true se a cor for clara o bastante para exigir texto escuro por cima.
+ *
+ * Usa luminância percebida (fórmula YIQ: 0.299R + 0.587G + 0.114B), não HSL
+ * lightness — cores 100% saturadas (ex: amarelo puro #FFFF00) sempre caem em
+ * HSL L=50%, mesmo parecendo muito claras visualmente, então um limiar em
+ * cima de HSL lightness classifica amarelo/lima vibrantes como "escuros" e
+ * escolhe texto branco sobre eles (ilegível). Luminância percebida evita isso.
+ */
+export function isLightBrand(hex: string | undefined | null, threshold = 150): boolean {
+  const rgb = hex ? hexToRgb(hex) : null;
+  if (!rgb) return false;
+  const [r, g, b] = rgb;
+  const perceivedBrightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return perceivedBrightness > threshold;
 }
 
-/** Cor de texto ideal (branco ou tinta escura) para usar sobre um preenchimento sólido nessa cor de marca. */
+/**
+ * Cor de texto ideal para usar sobre um preenchimento sólido nessa cor de
+ * marca. Se a cor for escura o bastante, branco puro já contrasta bem. Se
+ * for clara (ex: amarelo), em vez de cair pra um neutro genérico tipo preto
+ * (que "briga" com a cor, sem nada a ver com a marca), escurece a MESMA cor
+ * preservando matiz/saturação — mesma técnica do `readableBrandText`. O
+ * resultado é um tom "dourado/oliva escuro" que ainda parece parte da
+ * paleta, e passa contraste AA (~5:1) contra a cor original.
+ */
 export function onBrandText(hex: string | undefined | null): string {
-  return isLightBrand(hex) ? '#0f172a' : '#ffffff';
+  if (!isLightBrand(hex)) return '#ffffff';
+  const hsl = hex ? hexToHsl(hex) : null;
+  if (!hsl || isAchromatic(hsl)) return '#0f172a';
+  return `hsl(${hsl.h.toFixed(1)} ${Math.max(hsl.s, 55).toFixed(0)}% 20%)`;
+}
+
+/**
+ * Contorno fino escuro simulado via `text-shadow` em 4 direções — alternativa
+ * a `onBrandText` para quando o texto deve continuar BRANCO mesmo sobre uma
+ * cor de marca clara (ex: amarelo), em vez de escurecer a cor. `-webkit-text-stroke`
+ * existe mas não é suportado em todo navegador e pode ficar mal-centralizado
+ * dependendo da fonte; 4 sombras deslocadas em diagonal funcionam em qualquer
+ * lugar. Retorna 'none' quando a cor de fundo já é escura (branco já contrasta
+ * bem sozinho, contorno só acrescentaria ruído visual).
+ */
+export function brandTextOutline(
+  hex: string | undefined | null,
+  width = 1,
+  color = 'rgba(0,0,0,0.6)',
+): string {
+  if (!isLightBrand(hex)) return 'none';
+  return [
+    `-${width}px -${width}px 0 ${color}`,
+    `${width}px -${width}px 0 ${color}`,
+    `-${width}px ${width}px 0 ${color}`,
+    `${width}px ${width}px 0 ${color}`,
+  ].join(', ');
 }

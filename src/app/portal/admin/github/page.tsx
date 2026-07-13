@@ -750,45 +750,85 @@ export default function AdminGithubPage() {
 
         <div className="rounded-2xl border border-zinc-200 dark:border-white/[0.06] bg-white dark:bg-zinc-900 overflow-hidden">
           <div className="px-4 py-3 border-b border-zinc-200 dark:border-white/[0.06] text-sm font-bold">Atividade por desenvolvedor</div>
-          <div className="px-4 py-2 text-[11px] text-zinc-500 grid grid-cols-12 gap-3 uppercase tracking-wider font-bold">
-            <span className="col-span-4">Nome</span>
-            <span className="col-span-2">GitHub</span>
-            <span className="col-span-1">Commits</span>
-            <span className="col-span-1">PRs abertas</span>
-            <span className="col-span-1">PRs merged</span>
-            <span className="col-span-3">Semanas ativas</span>
-          </div>
-          <div className="px-4 pb-3">
-            {loadingActivity && (
-              <>
-                <SkeletonRow isDark={isDark} />
-                <SkeletonRow isDark={isDark} />
-                <SkeletonRow isDark={isDark} />
-              </>
-            )}
 
-            {!loadingActivity && byDevRows.length === 0 && (
-              <div className="py-6 text-sm text-zinc-500 dark:text-zinc-400">Sem dados para os filtros atuais.</div>
-            )}
+          {loadingActivity && (
+            <div className="px-4 pb-3">
+              <SkeletonRow isDark={isDark} />
+              <SkeletonRow isDark={isDark} />
+              <SkeletonRow isDark={isDark} />
+            </div>
+          )}
 
-            {!loadingActivity && byDevRows.map(row => {
-              const meta = linkMetaMap[row.github_username];
-              const displayName = meta?.full_name || row.github_username;
-              return (
-                <div key={row.github_username} className="grid grid-cols-12 gap-3 py-2.5 border-t border-zinc-200 dark:border-white/[0.06] text-sm">
-                  <div className="col-span-4 flex items-center gap-2 min-w-0">
-                    <Avatar name={displayName} avatarUrl={meta?.avatar_url} isDark={isDark} />
-                    <span className="truncate">{displayName}</span>
+          {!loadingActivity && byDevRows.length === 0 && (
+            <div className="px-4 py-6 text-sm text-zinc-500 dark:text-zinc-400">Sem dados para os filtros atuais.</div>
+          )}
+
+          {/* Mobile: um card por dev — a tabela de 6 colunas não cabe numa tela pequena */}
+          {!loadingActivity && byDevRows.length > 0 && (
+            <div className="block md:hidden divide-y divide-zinc-200 dark:divide-white/[0.06]">
+              {byDevRows.map(row => {
+                const meta = linkMetaMap[row.github_username];
+                const displayName = meta?.full_name || row.github_username;
+                return (
+                  <div key={row.github_username} className="px-4 py-3">
+                    <div className="flex items-center gap-2 min-w-0 mb-2.5">
+                      <Avatar name={displayName} avatarUrl={meta?.avatar_url} isDark={isDark} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{displayName}</p>
+                        <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">@{row.github_username}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      {[
+                        { label: 'Commits', value: row.commits },
+                        { label: 'PRs abertas', value: row.prs_opened },
+                        { label: 'PRs merged', value: row.prs_merged },
+                        { label: 'Semanas ativas', value: row.weeks_active },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="rounded-lg bg-zinc-50 dark:bg-zinc-800 px-1 py-1.5">
+                          <p className="text-sm font-bold tabular-nums">{value}</p>
+                          <p className="text-[10px] leading-tight text-zinc-500 dark:text-zinc-400 mt-0.5">{label}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="col-span-2 text-zinc-600 dark:text-zinc-300 truncate">@{row.github_username}</div>
-                  <div className="col-span-1 tabular-nums">{row.commits}</div>
-                  <div className="col-span-1 tabular-nums">{row.prs_opened}</div>
-                  <div className="col-span-1 tabular-nums">{row.prs_merged}</div>
-                  <div className="col-span-3 tabular-nums">{row.weeks_active}</div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Desktop: tabela compacta original */}
+          {!loadingActivity && byDevRows.length > 0 && (
+            <>
+              <div className="hidden md:grid px-4 py-2 text-[11px] text-zinc-500 grid-cols-12 gap-3 uppercase tracking-wider font-bold">
+                <span className="col-span-4">Nome</span>
+                <span className="col-span-2">GitHub</span>
+                <span className="col-span-1">Commits</span>
+                <span className="col-span-1">PRs abertas</span>
+                <span className="col-span-1">PRs merged</span>
+                <span className="col-span-3">Semanas ativas</span>
+              </div>
+              <div className="hidden md:block px-4 pb-3">
+                {byDevRows.map(row => {
+                  const meta = linkMetaMap[row.github_username];
+                  const displayName = meta?.full_name || row.github_username;
+                  return (
+                    <div key={row.github_username} className="grid grid-cols-12 gap-3 py-2.5 border-t border-zinc-200 dark:border-white/[0.06] text-sm">
+                      <div className="col-span-4 flex items-center gap-2 min-w-0">
+                        <Avatar name={displayName} avatarUrl={meta?.avatar_url} isDark={isDark} />
+                        <span className="truncate">{displayName}</span>
+                      </div>
+                      <div className="col-span-2 text-zinc-600 dark:text-zinc-300 truncate">@{row.github_username}</div>
+                      <div className="col-span-1 tabular-nums">{row.commits}</div>
+                      <div className="col-span-1 tabular-nums">{row.prs_opened}</div>
+                      <div className="col-span-1 tabular-nums">{row.prs_merged}</div>
+                      <div className="col-span-3 tabular-nums">{row.weeks_active}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="rounded-2xl border border-zinc-200 dark:border-white/[0.06] bg-white dark:bg-zinc-900 overflow-hidden">
@@ -805,7 +845,8 @@ export default function AdminGithubPage() {
             )}
 
             {!loadingActivity && !weeklyData.groupedByRepo && (
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] text-sm">
                 <thead>
                   <tr className="text-zinc-500 dark:text-zinc-500 text-[11px] uppercase tracking-wider">
                     <th className="text-left py-2">Semana</th>
@@ -830,6 +871,7 @@ export default function AdminGithubPage() {
                   )}
                 </tbody>
               </table>
+              </div>
             )}
 
             {!loadingActivity && weeklyData.groupedByRepo && (
@@ -839,7 +881,8 @@ export default function AdminGithubPage() {
                     <div className="px-3 py-2 bg-zinc-100 dark:bg-zinc-950 border-b border-zinc-200 dark:border-white/[0.06] text-sm font-semibold">
                       {repoGroup.repo}
                     </div>
-                    <table className="w-full text-sm">
+                    <div className="overflow-x-auto">
+                    <table className="w-full min-w-[420px] text-sm">
                       <thead>
                         <tr className="text-zinc-500 dark:text-zinc-500 text-[11px] uppercase tracking-wider">
                           <th className="text-left py-2 px-3">Semana</th>
@@ -865,6 +908,7 @@ export default function AdminGithubPage() {
                         </tr>
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 ))}
                 {(weeklyData.repos ?? []).length === 0 && (

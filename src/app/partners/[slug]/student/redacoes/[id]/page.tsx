@@ -296,7 +296,7 @@ export default function RedacaoDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <div className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         <div className="mx-auto w-full max-w-5xl space-y-4 px-4 py-6 md:px-6 md:py-8">
           <div className="h-10 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800/80" />
           <div className="h-52 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800/70" />
@@ -308,7 +308,7 @@ export default function RedacaoDetailPage() {
 
   if (error || !essay) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <div className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         <div className="mx-auto w-full max-w-5xl px-4 py-8 md:px-6">
           <div className="rounded-2xl border border-red-300 bg-red-50 p-6 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-950/30 dark:text-red-200">
             {error || 'Redação não encontrada.'}
@@ -322,7 +322,7 @@ export default function RedacaoDetailPage() {
   const showCorrectionPanels = essay.status === 'corrected' || essay.status === 'seen';
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 md:px-6 md:py-8">
         <header className="space-y-3">
           <Link

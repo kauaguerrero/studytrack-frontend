@@ -8,12 +8,13 @@ import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap, Shield, U
 import { ActivityHistoryModal } from '@/components/partners/ActivityHistoryModal';
 import { AnnouncementBell } from '@/components/announcements/AnnouncementBell';
 import { Typewriter } from '@/components/ui/typewriter';
+import { SmokeBackground } from '@/components/ui/spooky-smoke-animation';
 import { createClient } from '@/lib/supabase/client';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
 import { summarizePodiumStreaks } from '@/lib/podium-streak';
 import { useOrg } from '@/contexts/OrgContext';
-import { readableBrandText, readableBrandTextOnDark, onBrandText, resolveAccentColor } from '@/lib/brand-color';
+import { readableBrandText, readableBrandTextOnDark, resolveAccentColor } from '@/lib/brand-color';
 import {
   RevealGroup, RevealItem, ElevatedCard, KpiCard, SectionTitle,
   BrandHero, HERO_ACCENT_COLOR,
@@ -140,6 +141,7 @@ export function DashboardClient({
   const [effectiveCurrentStreak, setEffectiveCurrentStreak] = useState(currentStreak);
   const [activityFeed, setActivityFeed] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
+  const [lastActivity, setLastActivity] = useState<{ type: 'question' | 'simulado' | 'essay' | null; subject: string | null }>({ type: null, subject: null });
   const [feedInfoOpen, setFeedInfoOpen] = useState(false);
   const [activityModalOpen, setActivityModalOpen] = useState(false);
   // Painel de dev (só aparece pra conta de teste) — liga/desliga cada badge individualmente.
@@ -162,8 +164,23 @@ export function DashboardClient({
         .then((data) => { if (Array.isArray(data)) setActivityFeed(data); })
         .catch(() => {})
         .finally(() => setFeedLoading(false));
+
+      fetch(`${api}/api/student/analytics/last-activity`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => { if (data) setLastActivity({ type: data.type ?? null, subject: data.subject ?? null }); })
+        .catch(() => {});
     });
   }, []);
+
+  const resumeHref = lastActivity.type === 'simulado'
+    ? `/partners/${slug}/student/simulado`
+    : lastActivity.type === 'essay'
+      ? `/partners/${slug}/student/redacoes`
+      : lastActivity.type === 'question' && lastActivity.subject
+        ? `/partners/${slug}/student/banco-de-questoes?subject=${encodeURIComponent(lastActivity.subject)}`
+        : `/partners/${slug}/student/banco-de-questoes`;
 
   // Streak milestone progress (kept intact for hero badge)
   const { next: nextMilestone, pct: streakPct } = getStreakProgress(effectiveCurrentStreak);
@@ -404,11 +421,11 @@ export function DashboardClient({
 
           {/* ── 1. Hero Banner ─────────────────────────────────────────────── */}
           <RevealItem>
-            <BrandHero smokeColorHex={org.brand_primary ?? undefined} halftone={false} lighten>
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+            <BrandHero className="p-3.5 lg:p-5" smokeColorHex={org.brand_primary ?? undefined} halftone={false} lighten>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
               <div className="flex flex-col gap-1 lg:min-w-0 lg:flex-1">
-                {/* Org label */}
-                <div className="flex items-center gap-2">
+                {/* Org label — escondido no mobile: já aparece no topo da página, mostrar de novo aqui é redundante. Só desktop, onde também mora o sino. */}
+                <div className="hidden items-center gap-2 lg:flex">
                   {orgLogoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -423,6 +440,12 @@ export function DashboardClient({
                   <span className="text-[10.3px] font-bold uppercase tracking-[1.1px] text-white/50">
                     {orgName}
                   </span>
+                  <AnnouncementBell
+                    className="hidden h-7 w-7 lg:inline-flex"
+                    iconClassName="h-4 w-4"
+                    style={{ background: 'color-mix(in srgb, var(--brand-primary) 22%, transparent)' }}
+                    iconStyle={{ color: 'color-mix(in srgb, var(--brand-primary) 70%, white)' }}
+                  />
                 </div>
 
                 {/* Greeting */}
@@ -447,65 +470,16 @@ export function DashboardClient({
                     cursorClassName="text-[var(--hero-accent)]"
                   />
                 </div>
-
-                {/* Badges: sequência + pontos */}
-                <div className="mt-4 flex items-center gap-2 flex-wrap">
-                  {/* Streak pill */}
-                  <div
-                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-[6px]"
-                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
-                  >
-                    <Flame className="h-3.5 w-3.5 shrink-0" style={{ color: HERO_ACCENT_COLOR }} />
-                    <span className="text-[12px] font-bold text-white/80">
-                      {effectiveCurrentStreak} {effectiveCurrentStreak === 1 ? 'dia' : 'dias'}
-                    </span>
-                    <span
-                      className="inline-flex items-center gap-[3px] ml-0.5"
-                      title={hasShield ? `${shieldCount} escudo${shieldCount !== 1 ? 's' : ''}` : 'Sem escudo'}
-                    >
-                      <Shield
-                        className="h-[13px] w-[13px]"
-                        strokeWidth={2.2}
-                        style={{ color: hasShield ? '#60a5fa' : 'rgba(255,255,255,0.2)' }}
-                      />
-                      <span
-                        className="text-[10px] font-bold leading-none"
-                        style={{ color: hasShield ? '#60a5fa' : 'rgba(255,255,255,0.2)' }}
-                      >
-                        {shieldCount}
-                      </span>
-                    </span>
-                  </div>
-
-                  {/* Points pill */}
-                  <div
-                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-[6px]"
-                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
-                  >
-                    <div
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[8px]"
-                      style={{ background: 'color-mix(in srgb, var(--brand-primary) 15%, transparent)' }}
-                    >
-                      <Zap className="h-3 w-3" style={{ color: HERO_ACCENT_COLOR }} />
-                    </div>
-                    <span className="text-[12px] font-bold text-white/80">
-                      {monthlyPts.toLocaleString('pt-BR')} pts
-                    </span>
-                  </div>
-
-                  {/* Sino de novidades — desktop, ao lado do card de pontos */}
-                  <AnnouncementBell className="hidden lg:inline-flex hover:bg-white/10" iconClassName="text-white/70" />
-                </div>
               </div>
 
               {/* CTA de retomada — botão "pressionável" estilo app gamificado: camada
                   de baixo mais escura simula profundidade 3D e "afunda" no clique/toque. */}
-              <div className="flex shrink-0 flex-col items-center gap-3">
+              <div className="flex shrink-0 flex-col items-center gap-2 lg:gap-3">
                 <p className="text-center text-[11.5px] font-semibold leading-snug text-white/55">
                   {resumeSubtitle}
                 </p>
                 <Link
-                  href={`/partners/${slug}/student/banco-de-questoes`}
+                  href={resumeHref}
                   className="cta-glow-pulse group relative inline-block select-none rounded-2xl"
                   style={{ ['--cta-glow-color' as string]: 'color-mix(in srgb, var(--brand-accent) 55%, transparent)' }}
                 >
@@ -516,11 +490,11 @@ export function DashboardClient({
                   />
                   {/* face do botão — sobe em repouso, "afunda" ao pressionar */}
                   <span
-                    className="relative flex items-center justify-center gap-2 rounded-2xl px-7 py-3.5 text-[14.5px] font-black tracking-tight transition-transform duration-100 ease-out group-hover:-translate-y-0.5 group-active:translate-y-[4px]"
+                    className="relative flex items-center justify-center gap-2 rounded-2xl px-7 py-3 text-[14.5px] font-black tracking-tight transition-transform duration-100 ease-out group-hover:-translate-y-0.5 group-active:translate-y-[4px] lg:py-3.5"
                     style={{
                       background: 'var(--brand-accent)',
-                      color: onBrandText(org.brand_accent),
-                      textShadow: '0 1px 2px rgba(0,0,0,0.25)',
+                      color: '#ffffff',
+                      textShadow: '0 1px 1px rgba(0,0,0,0.3), 0 2px 5px rgba(0,0,0,0.3)',
                     }}
                   >
                     <Play className="h-4 w-4" fill="currentColor" strokeWidth={0} />
@@ -543,6 +517,14 @@ export function DashboardClient({
               accentHex={org.brand_primary}
               topRightBadge={hasStreakLeaderBadge ? (
                 <KpiTopBadge icon={Flame} label="Maior sequência" colorLight="#DC2626" colorDark="#F87171" />
+              ) : undefined}
+              iconAdornment={hasShield ? (
+                <span
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-500/15"
+                  title={`${shieldCount} escudo${shieldCount !== 1 ? 's' : ''}`}
+                >
+                  <Shield className="h-3 w-3" strokeWidth={2.4} style={{ color: '#3b82f6' }} />
+                </span>
               ) : undefined}
             />
             <KpiCard
@@ -595,6 +577,7 @@ export function DashboardClient({
 
           {/* ── 2. Corrida para aprovação ──────────────────────────────────── */}
           <RevealItem>
+            <Link href={`/partners/${slug}/student/ranking`} className="block cursor-pointer">
             <ElevatedCard accentColor="var(--brand-primary)">
               <div className="p-5">
                 <SectionTitle
@@ -669,6 +652,7 @@ export function DashboardClient({
                 </p>
               </div>
             </ElevatedCard>
+            </Link>
           </RevealItem>
 
           {/* ── 3. Feed de atividades ────────────────────────────────────────── */}
@@ -798,20 +782,22 @@ export function DashboardClient({
             {/* Simulados */}
             <Link href={`/partners/${slug}/student/simulado`} className="block group cursor-pointer h-full">
               <div
-                className="brand-surface-adaptive partner-elevated-card partner-elevated-card-hover relative overflow-hidden rounded-[20px] p-5 h-full transition-transform duration-200 active:scale-[0.98]"
+                className="partner-elevated-card partner-elevated-card-hover relative overflow-hidden rounded-[20px] p-5 h-full text-white transition-transform duration-200 active:scale-[0.98]"
                 style={{
-                  ['--bsa-bg-light' as string]: 'linear-gradient(135deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 65%, white) 100%)',
-                  ['--bsa-bg-dark' as string]: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 46%, #0b1220) 0%, color-mix(in srgb, var(--brand-primary) 22%, #05070d) 100%)',
-                  ['--bsa-fg-light' as string]: onBrandText(org.brand_primary),
-                  ['--bsa-fg-dark' as string]: '#ffffff',
+                  background: 'radial-gradient(120% 140% at 15% 0%, color-mix(in srgb, var(--brand-primary) 45%, #101E45) 0%, color-mix(in srgb, var(--brand-primary) 16%, #060E27) 62%)',
+                  boxShadow: '0 20px 48px -20px color-mix(in srgb, var(--brand-primary) 35%, rgba(6,14,39,0.6))',
+                  textShadow: '0 1px 1px rgba(0,0,0,0.3), 0 2px 5px rgba(0,0,0,0.3)',
                 }}
               >
+                <div className="pointer-events-none absolute inset-0 opacity-[0.22] mix-blend-screen">
+                  <SmokeBackground smokeColor={org.brand_primary ?? '#ffffff'} />
+                </div>
                 <div className="pointer-events-none absolute -right-4 -bottom-4 h-28 w-28 rounded-full bg-white/10" />
                 <div className="relative z-10 flex h-full flex-col justify-between">
                   <div>
                     <div
                       className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl"
-                      style={{ background: 'color-mix(in srgb, white 25%, transparent)' }}
+                      style={{ background: 'color-mix(in srgb, white 20%, transparent)' }}
                     >
                       <FileText className="h-5 w-5" style={{ color: 'currentColor' }} />
                     </div>
@@ -823,7 +809,7 @@ export function DashboardClient({
                     </p>
                     <h2 className="text-[18px] font-extrabold leading-tight">Simulados</h2>
                     <p className="mt-1 text-xs" style={{ color: 'color-mix(in srgb, currentColor 80%, transparent)' }}>
-                      Monte simulados ENEM, UFU e UEG com métricas por banca
+                      Monte simulados de diversos vestibulares com métricas por banca
                     </p>
                   </div>
                   <div className="mt-4 inline-flex items-center gap-1 text-xs font-bold">
