@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, ReactNode } from 'react';
+import type { OrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
 
 // Interface espelhada para garantir desacoplamento e sucesso no build
 export interface OrgBranding {
@@ -15,6 +16,7 @@ export interface OrgBranding {
   max_students?: number;
   invite_code?: string | null;
   permissions?: Record<string, boolean>;
+  typewriter_tagline?: OrgTypewriterTagline | null;
 }
 
 interface UserProfile {

@@ -9,6 +9,7 @@ import { OrgProvider } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import type { OrgBranding } from '@/app/partners/[slug]/layout';
 import { UserRole } from '@/types/roles';
+import { normalizeOrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
 import {
   SIDEBAR_COOKIE_NAME,
   parseSidebarCollapsedCookie,
@@ -50,11 +51,12 @@ async function PortalShell({
       brand_accent: string | null; plan_tier: string | null;
       max_students: number | null; invite_code: string | null;
       permissions: Record<string, boolean> | null;
+      typewriter_tagline: unknown;
     };
     const adminClient = createAdminClient();
     const orgRes = await adminClient
       .from('organizations')
-      .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions')
+      .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline')
       .eq('id', profile.organization_id)
       .single();
     const org = orgRes.data as OrgRow | null;
@@ -76,6 +78,7 @@ async function PortalShell({
         max_students:    org.max_students ?? 0,
         invite_code:     org.invite_code ?? null,
         permissions:     org.permissions ?? {},
+        typewriter_tagline: normalizeOrgTypewriterTagline(org.typewriter_tagline),
       };
 
       return (

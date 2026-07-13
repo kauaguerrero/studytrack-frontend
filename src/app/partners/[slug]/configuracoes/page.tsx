@@ -10,9 +10,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, Save, Palette, Upload, Camera, Loader2, UserPlus, Users, Trash2, Mail, ShieldCheck, KeyRound, Copy } from 'lucide-react';
+import { Typewriter } from '@/components/ui/typewriter';
+import { ArrowLeft, Save, Palette, Upload, Camera, Loader2, UserPlus, Trash2, Mail, ShieldCheck, KeyRound, Copy, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { readableBrandText, onBrandText } from '@/lib/brand-color';
+import {
+  getOrgTypewriterPreviewKey,
+  normalizeOrgTypewriterTagline,
+  ORG_TYPEWRITER_LIMITS,
+  type OrgTypewriterTagline,
+} from '@/lib/org-typewriter-tagline';
 import {
   RevealGroup, RevealItem, ElevatedCard, SectionTitle, BrandButton, BrandHero, HERO_ACCENT_COLOR,
 } from '@/components/partners/founder-ui';
@@ -107,6 +114,9 @@ export default function ConfiguracoesPage() {
   const [primary, setPrimary] = useState(org.brand_primary);
   const [secondary, setSecondary] = useState(org.brand_secondary);
   const [accent, setAccent] = useState(org.brand_accent);
+  const initialTagline = normalizeOrgTypewriterTagline(org.typewriter_tagline);
+  const [taglineStaticText, setTaglineStaticText] = useState(initialTagline.staticText);
+  const [taglineAnimatedTexts, setTaglineAnimatedTexts] = useState<string[]>(initialTagline.animatedTexts);
   const [contactEmail, setContactEmail] = useState('');
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(
     userProfile.themePreference === 'dark' ? 'dark' : 'light',
@@ -126,6 +136,10 @@ export default function ConfiguracoesPage() {
   const avatarCropImageRef = useRef<HTMLImageElement>(null);
   const avatarCropDragStart = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
   const CROP_SIZE = 240;
+  const taglinePreview: OrgTypewriterTagline = normalizeOrgTypewriterTagline({
+    staticText: taglineStaticText,
+    animatedTexts: taglineAnimatedTexts,
+  });
 
   useEffect(() => {
     const fromProfile = userProfile.themePreference === 'dark' ? 'dark' : 'light';
@@ -438,6 +452,31 @@ export default function ConfiguracoesPage() {
   }
 
   async function handleSave() {
+    const typewriterTagline = {
+      staticText: taglineStaticText.trim(),
+      animatedTexts: taglineAnimatedTexts.map((text) => text.trim()).filter(Boolean),
+    };
+    if (!typewriterTagline.staticText) {
+      toast.error('Informe o texto fixo da frase do portal.');
+      return;
+    }
+    if (typewriterTagline.staticText.length > ORG_TYPEWRITER_LIMITS.staticTextMax) {
+      toast.error(`O texto fixo deve ter no máximo ${ORG_TYPEWRITER_LIMITS.staticTextMax} caracteres.`);
+      return;
+    }
+    if (typewriterTagline.animatedTexts.length < ORG_TYPEWRITER_LIMITS.animatedMin) {
+      toast.error('Informe pelo menos uma frase animada.');
+      return;
+    }
+    if (typewriterTagline.animatedTexts.length > ORG_TYPEWRITER_LIMITS.animatedMax) {
+      toast.error(`Use no máximo ${ORG_TYPEWRITER_LIMITS.animatedMax} frases animadas.`);
+      return;
+    }
+    if (typewriterTagline.animatedTexts.some((text) => text.length > ORG_TYPEWRITER_LIMITS.animatedTextMax)) {
+      toast.error(`Cada frase animada deve ter no máximo ${ORG_TYPEWRITER_LIMITS.animatedTextMax} caracteres.`);
+      return;
+    }
+
     setSaving(true);
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -454,9 +493,13 @@ export default function ConfiguracoesPage() {
         brand_secondary: secondary,
         brand_accent:    accent,
       };
+      const payload: Record<string, unknown> = {
+        ...body,
+        typewriter_tagline: typewriterTagline,
+      };
       // Remove cache-buster antes de salvar
-      if (logoUrl) body.logo_url = logoUrl.split('?t=')[0];
-      if (contactEmail) body.contact_email = contactEmail;
+      if (logoUrl) payload.logo_url = logoUrl.split('?t=')[0];
+      if (contactEmail) payload.contact_email = contactEmail;
 
       const res = await fetch(`${api}/api/partners/${org.slug}/settings`, {
         method: 'PATCH',
@@ -464,7 +507,7 @@ export default function ConfiguracoesPage() {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -596,6 +639,23 @@ export default function ConfiguracoesPage() {
     } finally {
       setAssociateBusyId(null);
     }
+  }
+
+  function updateAnimatedTagline(index: number, value: string) {
+    setTaglineAnimatedTexts((prev) => prev.map((item, i) => (i === index ? value : item)));
+  }
+
+  function addAnimatedTagline() {
+    setTaglineAnimatedTexts((prev) => (
+      prev.length >= ORG_TYPEWRITER_LIMITS.animatedMax ? prev : [...prev, 'aprovar.']
+    ));
+  }
+
+  function removeAnimatedTagline(index: number) {
+    setTaglineAnimatedTexts((prev) => {
+      if (prev.length <= ORG_TYPEWRITER_LIMITS.animatedMin) return prev;
+      return prev.filter((_, i) => i !== index);
+    });
   }
 
   return (
@@ -811,6 +871,111 @@ export default function ConfiguracoesPage() {
                     </span>
                   </div>
                   <div className="h-2 rounded-full w-1/2" style={{ backgroundColor: secondary, opacity: 0.15 }} />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+              <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                    Frase do portal
+                  </Label>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Aparece no dashboard do founder e dos alunos da organização.
+                  </p>
+                </div>
+                <span className="text-[11px] text-slate-400 dark:text-white/40">
+                  Preview em tempo real
+                </span>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tagline_static" className="text-xs">Texto fixo</Label>
+                    <Input
+                      id="tagline_static"
+                      value={taglineStaticText}
+                      maxLength={ORG_TYPEWRITER_LIMITS.staticTextMax}
+                      onChange={(e) => setTaglineStaticText(e.target.value)}
+                      placeholder="Nós nascemos para"
+                    />
+                    <p className="text-[11px] text-slate-400">
+                      {taglineStaticText.trim().length}/{ORG_TYPEWRITER_LIMITS.staticTextMax}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label className="text-xs">Frases animadas</Label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5 text-xs"
+                        onClick={addAnimatedTagline}
+                        disabled={taglineAnimatedTexts.length >= ORG_TYPEWRITER_LIMITS.animatedMax}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Adicionar
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {taglineAnimatedTexts.map((text, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <Input
+                            value={text}
+                            maxLength={ORG_TYPEWRITER_LIMITS.animatedTextMax}
+                            onChange={(e) => updateAnimatedTagline(index, e.target.value)}
+                            placeholder="aprovar."
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 shrink-0 text-slate-400 hover:text-rose-500"
+                            title="Remover frase"
+                            disabled={taglineAnimatedTexts.length <= ORG_TYPEWRITER_LIMITS.animatedMin}
+                            onClick={() => removeAnimatedTagline(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Use de {ORG_TYPEWRITER_LIMITS.animatedMin} a {ORG_TYPEWRITER_LIMITS.animatedMax} frases, até {ORG_TYPEWRITER_LIMITS.animatedTextMax} caracteres cada.
+                    </p>
+                  </div>
+                </div>
+
+                <div
+                  className="flex min-h-[180px] items-center rounded-2xl p-4 shadow-sm"
+                  style={{
+                    background: `linear-gradient(135deg, ${primary}, color-mix(in srgb, ${secondary} 78%, black))`,
+                  }}
+                >
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/50">
+                      {org.name}
+                    </p>
+                    <div
+                      className="font-script mt-2 text-[24px] leading-tight text-white sm:text-[28px]"
+                      style={{ ['--hero-accent' as string]: HERO_ACCENT_COLOR }}
+                    >
+                      {taglinePreview.staticText}{' '}
+                      <Typewriter
+                        key={getOrgTypewriterPreviewKey(taglinePreview)}
+                        text={taglinePreview.animatedTexts}
+                        speed={95}
+                        deleteSpeed={52}
+                        waitTime={2600}
+                        className="text-[var(--hero-accent)]"
+                        cursorClassName="text-[var(--hero-accent)]"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
