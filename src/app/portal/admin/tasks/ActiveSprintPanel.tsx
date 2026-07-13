@@ -118,75 +118,80 @@ export default function ActiveSprintPanel({
 
   return (
     <div
-      className="flex items-center gap-3 px-6 h-12 flex-shrink-0 border-b"
+      className="flex flex-col gap-1.5 px-4 py-2 md:flex-row md:items-center md:gap-3 md:px-6 md:h-12 md:py-0 flex-shrink-0 border-b"
       style={{
         background:   isDark ? 'rgba(20,184,166,0.05)' : 'rgba(20,184,166,0.04)',
         borderColor:  isDark ? 'rgba(20,184,166,0.13)' : 'rgba(20,184,166,0.10)',
       }}
     >
-      {/* ── Status indicator ──────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <div
-          className={`w-1.5 h-1.5 rounded-full flex-shrink-0${dot.pulse ? ' animate-pulse' : ''}`}
-          style={{ backgroundColor: dot.color, boxShadow: dot.shadow }}
-        />
-        <span className="text-[10px] font-bold uppercase tracking-widest text-teal-700 dark:text-teal-400 hidden sm:block">
-          Sprint ativa
-        </span>
-      </div>
-
-      {/* ── Divider ───────────────────────────────────────────────────────── */}
-      <div
-        className="w-px h-3.5 flex-shrink-0"
-        style={{ background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.12)' }}
-      />
-
-      {/* ── Goal (truncated) ──────────────────────────────────────────────── */}
-      <p className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-200 truncate flex-1 min-w-0">
-        {sprint.goal}
-      </p>
-
-      {/* ── Progress bar + % ──────────────────────────────────────────────── */}
-      <div className="hidden md:flex items-center gap-2 flex-shrink-0">
-        <div
-          className="w-28 h-2 rounded-full overflow-hidden flex-shrink-0"
-          style={{ background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)' }}
-        >
+      {/* ── Linha 1: status + meta ────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 min-w-0">
+        {/* ── Status indicator ──────────────────────────────────────────────── */}
+        <div className="flex items-center gap-2 flex-shrink-0">
           <div
-            className="h-full rounded-full transition-[width] duration-500"
-            style={{ width: `${progress}%`, background: progressBg }}
+            className={`w-1.5 h-1.5 rounded-full flex-shrink-0${dot.pulse ? ' animate-pulse' : ''}`}
+            style={{ backgroundColor: dot.color, boxShadow: dot.shadow }}
           />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-teal-700 dark:text-teal-400 hidden sm:block">
+            Sprint ativa
+          </span>
         </div>
-        <span className="text-[11px] font-bold tabular-nums text-zinc-600 dark:text-zinc-400 w-8 text-right">
-          {progress}%
-        </span>
+
+        {/* ── Divider ───────────────────────────────────────────────────────── */}
+        <div
+          className="w-px h-3.5 flex-shrink-0 hidden sm:block"
+          style={{ background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.12)' }}
+        />
+
+        {/* ── Goal (truncated) ──────────────────────────────────────────────── */}
+        <p className="text-[13px] font-semibold text-zinc-700 dark:text-zinc-200 truncate flex-1 min-w-0">
+          {sprint.goal}
+        </p>
       </div>
 
-      {/* ── Days remaining ────────────────────────────────────────────────── */}
-      <span className={`text-[11px] font-medium flex-shrink-0 hidden sm:block tabular-nums ${HEALTH_DAYS_CLASS[health]}`}>
-        {daysText}
-      </span>
+      {/* ── Linha 2 (mobile) / resto da linha (desktop): progresso + dias + menu ── */}
+      <div className="flex items-center gap-3 flex-shrink-0">
+        {/* ── Progress bar + % ──────────────────────────────────────────────── */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div
+            className="w-20 sm:w-28 h-2 rounded-full overflow-hidden flex-shrink-0"
+            style={{ background: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)' }}
+          >
+            <div
+              className="h-full rounded-full transition-[width] duration-500"
+              style={{ width: `${progress}%`, background: progressBg }}
+            />
+          </div>
+          <span className="text-[11px] font-bold tabular-nums text-zinc-600 dark:text-zinc-400 w-8 text-right">
+            {progress}%
+          </span>
+        </div>
 
-      {/* ── Menu ─────────────────────────────────────────────────────────── */}
-      <div className="relative flex-shrink-0">
-        <button
-          ref={btnRef}
-          onClick={() => setOpen(v => !v)}
-          aria-label="Opções da sprint"
-          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
-            open
-              ? 'bg-zinc-200 dark:bg-white/[0.10] text-zinc-700 dark:text-zinc-200'
-              : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/[0.06] hover:text-zinc-700 dark:hover:text-zinc-200'
-          }`}
-        >
-          <MoreHorizontal className="w-4 h-4" />
-        </button>
+        {/* ── Days remaining ────────────────────────────────────────────────── */}
+        <span className={`text-[11px] font-medium flex-shrink-0 tabular-nums ${HEALTH_DAYS_CLASS[health]}`}>
+          {daysText}
+        </span>
+
+        {/* ── Menu ─────────────────────────────────────────────────────────── */}
+        <div className="relative flex-shrink-0 md:ml-auto">
+          <button
+            ref={btnRef}
+            onClick={() => setOpen(v => !v)}
+            aria-label="Opções da sprint"
+            className={`flex h-9 w-9 md:h-7 md:w-7 items-center justify-center rounded-lg transition-all ${
+              open
+                ? 'bg-zinc-200 dark:bg-white/[0.10] text-zinc-700 dark:text-zinc-200'
+                : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-white/[0.06] hover:text-zinc-700 dark:hover:text-zinc-200'
+            }`}
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
 
         {/* ── Popover ───────────────────────────────────────────────────── */}
         {open && (
           <div
             ref={menuRef}
-            className="absolute right-0 top-[calc(100%+6px)] z-50 w-72 rounded-2xl border shadow-2xl overflow-hidden"
+            className="absolute right-0 top-[calc(100%+6px)] z-50 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border shadow-2xl overflow-hidden"
             style={{
               background:   isDark ? '#18181b' : '#ffffff',
               borderColor:  isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
@@ -297,6 +302,7 @@ export default function ActiveSprintPanel({
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

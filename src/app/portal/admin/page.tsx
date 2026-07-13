@@ -581,7 +581,7 @@ export default function SuperAdminDashboard() {
                     <button
                       onClick={() => openOrgSettings(org)}
                       title="Configurações da instituição"
-                      className="shrink-0 p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors"
                     >
                       <Settings className="w-3.5 h-3.5" />
                     </button>
@@ -605,7 +605,7 @@ export default function SuperAdminDashboard() {
                   </div>
 
                   {/* Métricas do período */}
-                  <div className={`grid grid-cols-4 gap-1.5 mb-3 text-xs transition-opacity ${loadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
+                  <div className={`grid grid-cols-2 lg:grid-cols-4 gap-1.5 mb-3 text-xs transition-opacity ${loadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
                     {[
                       { label: 'Questões',  value: p?.questions_period,  prev: p?.prev_questions_period,  color: 'text-blue-600 dark:text-blue-400'     },
                       { label: 'Simulados', value: p?.simulados_period,  prev: p?.prev_simulados_period,  color: 'text-violet-600 dark:text-violet-400' },

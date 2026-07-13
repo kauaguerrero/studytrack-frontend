@@ -250,7 +250,7 @@ export default function NovaRedacaoPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <div className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 md:px-6 md:py-8">
         <header className="space-y-2">
           <Link
@@ -404,7 +404,7 @@ export default function NovaRedacaoPage() {
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Tipo de redação
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => (
                 <button
                   key={key}
@@ -412,7 +412,7 @@ export default function NovaRedacaoPage() {
                   disabled={essayTypeLocked}
                   onClick={() => setEssayType(key)}
                   className={cn(
-                    'flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition',
+                    'rounded-xl border px-3 py-2 text-sm font-semibold transition',
                     essayType === key
                       ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
                       : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300',

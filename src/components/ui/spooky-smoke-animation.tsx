@@ -77,15 +77,22 @@ class Renderer {
     this.color = newColor;
   }
 
-  /** Dimensiona pelo elemento pai (não pela viewport) — o canvas vive
-   * dentro de um card, não é um fundo full-screen. */
+  /** Dimensiona pela LARGURA DA JANELA, não pelo card que contém o canvas.
+   * O card (hero) muda de largura quando a sidebar abre/fecha (transição
+   * CSS de ~300ms) — se o buffer do WebGL reallocasse nesse momento, o
+   * shader (cujo uv depende da resolução em pixels) produz um "pulo"
+   * visível no padrão de ruído a cada realocação, não importa a frequência.
+   * Como o canvas usa `object-fit: cover` (ver JSX), renderizar numa
+   * resolução fixa, baseada na janela, e deixar o CSS cropar/esticar o
+   * quadro pro tamanho do card resolve isso: a sidebar nunca dispara uma
+   * realocação, só um resize de CSS (grátis, sempre suave). Um resize de
+   * janela de verdade (raro, não é uma transição animada) ainda atualiza. */
   updateScale() {
     const gl = this.gl;
     if (!gl) return;
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const { clientWidth, clientHeight } = this.canvas.parentElement ?? this.canvas;
-    const width = clientWidth || this.canvas.clientWidth || 1;
-    const height = clientHeight || this.canvas.clientHeight || 1;
+    const width = window.innerWidth || this.canvas.clientWidth || 1;
+    const height = this.canvas.parentElement?.clientHeight || this.canvas.clientHeight || 1;
     const nextWidth = Math.round(width * dpr);
     const nextHeight = Math.round(height * dpr);
     // Realocar o drawing buffer é caro e desnecessário se o tamanho não mudou de verdade.
@@ -193,21 +200,21 @@ export function SmokeBackground({ smokeColor = '#808080', className }: SmokeBack
 
     renderer.updateScale();
 
-    // A transição de largura da sidebar (hover pra abrir) dispara o
-    // ResizeObserver em praticamente todo frame da animação CSS (~250ms).
-    // Reallocar o drawing buffer do WebGL a cada frame durante uma transição
-    // é caro e trava a UI inteira (é a causa do travamento ao abrir a
-    // sidebar). Em vez de reagir a cada evento, só aplicamos o resize depois
-    // que os eventos "assentam" por um instante — enquanto a transição roda,
-    // o canvas só fica escalado via CSS (imperceptível numa textura de
-    // ruído), e o buffer real só é realocado uma vez, no final.
+    // updateScale() agora dimensiona pela largura da JANELA (não pelo card),
+    // então a transição de largura da sidebar não muda o resultado do
+    // cálculo — o early-return dentro de updateScale() vira no-op nesses
+    // casos, sem realocar o buffer e sem "pular" o padrão do ruído. Ainda
+    // observamos o card (altura pode mudar) e a janela (resize real), com
+    // throttle só como cinto-de-segurança contra rajadas de eventos.
+    const RESIZE_THROTTLE_MS = 80;
     let needsResize = false;
-    let resizeDebounceId: ReturnType<typeof setTimeout> | null = null;
+    let lastResizeAt = 0;
     const resizeObserver = new ResizeObserver(() => {
-      if (resizeDebounceId) clearTimeout(resizeDebounceId);
-      resizeDebounceId = setTimeout(() => { needsResize = true; }, 140);
+      needsResize = true;
     });
     if (canvas.parentElement) resizeObserver.observe(canvas.parentElement);
+    const handleWindowResize = () => { needsResize = true; };
+    window.addEventListener('resize', handleWindowResize);
 
     // Pausa o loop de render quando o card sai da viewport (scroll) — mesmo
     // resultado visual quando visível, zero custo de GPU/CPU quando não está.
@@ -220,9 +227,10 @@ export function SmokeBackground({ smokeColor = '#808080', className }: SmokeBack
 
     let animationFrameId: number;
     const loop = (now: number) => {
-      if (needsResize) {
+      if (needsResize && now - lastResizeAt > RESIZE_THROTTLE_MS) {
         renderer.updateScale();
         needsResize = false;
+        lastResizeAt = now;
       }
       if (isVisible) renderer.render(now);
       animationFrameId = requestAnimationFrame(loop);
@@ -232,7 +240,7 @@ export function SmokeBackground({ smokeColor = '#808080', className }: SmokeBack
     return () => {
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
-      if (resizeDebounceId) clearTimeout(resizeDebounceId);
+      window.removeEventListener('resize', handleWindowResize);
       cancelAnimationFrame(animationFrameId);
       renderer.reset();
     };
@@ -245,5 +253,5 @@ export function SmokeBackground({ smokeColor = '#808080', className }: SmokeBack
     if (rgbColor) renderer.updateColor(rgbColor);
   }, [smokeColor]);
 
-  return <canvas ref={canvasRef} className={cn('block h-full w-full', className)} />;
+  return <canvas ref={canvasRef} className={cn('block h-full w-full object-cover', className)} />;
 }

@@ -97,6 +97,7 @@ export function KpiCard({
   delta,
   deltaLabel,
   topRightBadge,
+  iconAdornment,
 }: {
   title: string;
   value: number | string;
@@ -111,6 +112,8 @@ export function KpiCard({
   /** Substitui o delta/seta padrão no canto superior direito por um conteúdo
    * customizado (ex: badge de conquista/liderança). */
   topRightBadge?: React.ReactNode;
+  /** Conteúdo extra ao lado do ícone principal (ex: escudo de proteção de sequência). */
+  iconAdornment?: React.ReactNode;
 }) {
   const iconBg = `color-mix(in srgb, ${accentColor} 16%, white)`;
   const iconColor = readableBrandText(accentHex, accentColor, 46);
@@ -119,7 +122,7 @@ export function KpiCard({
   const content = (
     <div
       className={cn(
-        'relative overflow-hidden rounded-[20px] p-4 lg:p-5',
+        'relative flex h-full flex-col overflow-hidden rounded-[20px] p-4 lg:p-5',
         'partner-elevated-card partner-elevated-card-hover',
         'bg-white dark:bg-slate-900',
         'group',
@@ -135,19 +138,22 @@ export function KpiCard({
         style={{ background: glowBg }}
       />
 
-      <div className="relative z-10">
+      <div className="relative z-10 flex h-full flex-col">
         <div className="flex items-center justify-between mb-3">
-          <div
-            className="relative flex h-9 w-9 items-center justify-center rounded-xl"
-            style={{
-              background: iconBg,
-              boxShadow: `inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 8px color-mix(in srgb, ${accentColor} 22%, transparent)`,
-            }}
-          >
-            <Icon
-              className="relative z-10 h-[18px] w-[18px]"
-              style={{ color: iconColor }}
-            />
+          <div className="flex items-center gap-1.5">
+            <div
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl"
+              style={{
+                background: iconBg,
+                boxShadow: `inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 8px color-mix(in srgb, ${accentColor} 22%, transparent)`,
+              }}
+            >
+              <Icon
+                className="relative z-10 h-[18px] w-[18px]"
+                style={{ color: iconColor }}
+              />
+            </div>
+            {iconAdornment}
           </div>
           <div className="flex items-center gap-1.5">
             {topRightBadge ? topRightBadge : delta !== null && delta !== undefined && !loading ? (
@@ -167,19 +173,21 @@ export function KpiCard({
           </div>
         </div>
 
-        {loading ? (
-          <div className="h-8 w-20 bg-slate-200 dark:bg-white/10 rounded-lg animate-pulse" />
-        ) : (
-          <div className="font-display text-[26px] font-black text-slate-900 dark:text-white tabular-nums lg:text-[28px]">{value}</div>
-        )}
+        <div className="mt-auto">
+          {loading ? (
+            <div className="h-8 w-20 bg-slate-200 dark:bg-white/10 rounded-lg animate-pulse" />
+          ) : (
+            <div className="font-display text-[26px] font-black text-slate-900 dark:text-white tabular-nums lg:text-[28px]">{value}</div>
+          )}
 
-        <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-white/50 mt-1">{title}</p>
-        {subtitle && (
-          <p className="text-[10px] text-slate-400 dark:text-white/30 mt-0.5">{subtitle}</p>
-        )}
-        {deltaLabel && delta !== null && delta !== undefined && !loading && (
-          <p className="text-[10px] text-slate-400 dark:text-white/25 mt-0.5">{deltaLabel}</p>
-        )}
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-white/50 mt-1">{title}</p>
+          {subtitle && (
+            <p className="text-[10px] text-slate-400 dark:text-white/30 mt-0.5">{subtitle}</p>
+          )}
+          {deltaLabel && delta !== null && delta !== undefined && !loading && (
+            <p className="text-[10px] text-slate-400 dark:text-white/25 mt-0.5">{deltaLabel}</p>
+          )}
+        </div>
       </div>
     </div>
   );

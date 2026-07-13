@@ -148,7 +148,7 @@ export default function ProspeccaoPage() {
           onClick={() => setView('table')}
           title="Visualização em tabela"
           className={cn(
-            'flex items-center justify-center w-8 h-8 rounded-lg transition-colors',
+            'flex items-center justify-center h-11 w-11 sm:h-8 sm:w-8 rounded-lg transition-colors',
             view === 'table'
               ? 'bg-slate-200 dark:bg-zinc-700 text-slate-800 dark:text-white'
               : 'text-slate-400 dark:text-zinc-500 hover:bg-slate-100 dark:hover:bg-zinc-800'
@@ -160,7 +160,7 @@ export default function ProspeccaoPage() {
           onClick={() => setView('kanban')}
           title="Visualização em kanban"
           className={cn(
-            'flex items-center justify-center w-8 h-8 rounded-lg transition-colors',
+            'flex items-center justify-center h-11 w-11 sm:h-8 sm:w-8 rounded-lg transition-colors',
             view === 'kanban'
               ? 'bg-slate-200 dark:bg-zinc-700 text-slate-800 dark:text-white'
               : 'text-slate-400 dark:text-zinc-500 hover:bg-slate-100 dark:hover:bg-zinc-800'
