@@ -15,6 +15,7 @@ import { getProgressTierMeta } from '@/components/partners/gamification/titleSys
 import { summarizePodiumStreaks } from '@/lib/podium-streak';
 import { useOrg } from '@/contexts/OrgContext';
 import { readableBrandText, readableBrandTextOnDark, resolveAccentColor } from '@/lib/brand-color';
+import { normalizeOrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
 import {
   RevealGroup, RevealItem, ElevatedCard, KpiCard, SectionTitle,
   BrandHero, HERO_ACCENT_COLOR,
@@ -133,6 +134,7 @@ export function DashboardClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { org, userProfile } = useOrg();
+  const typewriterTagline = normalizeOrgTypewriterTagline(org.typewriter_tagline);
   // Se brand_secondary for preto/branco/cinza (sem identidade cromática pra
   // usar como acento), busca outra cor da marca que já é "perfeita" (ex: o
   // amarelo do accent/primary) em vez de inventar um tom que não existe na paleta.
@@ -460,9 +462,9 @@ export function DashboardClient({
                   className="font-script mt-1 text-[24px] leading-tight text-white lg:text-[28px]"
                   style={{ ['--hero-accent' as string]: HERO_ACCENT_COLOR }}
                 >
-                  Nós nascemos para{' '}
+                  {typewriterTagline.staticText}{' '}
                   <Typewriter
-                    text={slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                    text={typewriterTagline.animatedTexts}
                     speed={95}
                     deleteSpeed={52}
                     waitTime={2600}

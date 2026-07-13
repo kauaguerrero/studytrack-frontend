@@ -12,6 +12,7 @@ import { AnnouncementNotificationProvider } from '@/contexts/AnnouncementNotific
 import { StudentThemeProvider } from '@/contexts/StudentThemeContext';
 import { StudentThemeShell } from '@/components/partners/StudentThemeShell';
 import { getStudentThemeStorageKey, type StudentTheme } from '@/lib/student-theme';
+import { normalizeOrgTypewriterTagline, type OrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 function sanitizeCssHexColor(value: string | null | undefined, fallback: string): string {
@@ -32,6 +33,7 @@ export interface OrgBranding {
   max_students?: number;
   invite_code?: string | null;
   permissions?: Record<string, boolean>;
+  typewriter_tagline?: OrgTypewriterTagline | null;
 }
 
 interface StudentLayoutProps {
@@ -69,10 +71,11 @@ export default async function PartnerStudentLayout({ children, params }: Student
     id: string; name: string; logo_url: string | null;
     brand_primary: string | null; brand_secondary: string | null; brand_accent: string | null;
     permissions: Record<string, boolean> | null;
+    typewriter_tagline: unknown;
   };
   const orgRes = await adminClient
     .from('organizations')
-    .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent, permissions')
+    .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent, permissions, typewriter_tagline')
     .eq('slug', slug)
     .single();
   const org = orgRes.data as OrgRow | null;
@@ -111,6 +114,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
     max_students:     0,
     invite_code:      null,
     permissions:      org.permissions ?? {},
+    typewriter_tagline: normalizeOrgTypewriterTagline(org.typewriter_tagline),
   };
   // Escapa < > & para evitar quebra prematura da tag <script> caso o slug
   // contenha sequências como "</script>" (JSON.stringify não escapa "/" por padrão).

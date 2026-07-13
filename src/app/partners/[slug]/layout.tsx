@@ -15,6 +15,7 @@ import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { OrgProvider } from '@/contexts/OrgContext';
+import { normalizeOrgTypewriterTagline, type OrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 function sanitizeCssHexColor(value: string | null | undefined, fallback: string): string {
@@ -34,6 +35,7 @@ export interface OrgBranding {
   max_students: number;
   invite_code: string | null;
   permissions: Record<string, boolean>;
+  typewriter_tagline: OrgTypewriterTagline;
 }
 
 interface PartnersLayoutProps {
@@ -119,6 +121,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     brand_accent: string | null; plan_tier: string | null;
     max_students: number | null; invite_code: string | null;
     permissions: Record<string, boolean> | null;
+    typewriter_tagline: unknown;
   };
   // Tenta o slug decodificado (Next.js já decodifica params, mas o encodeURIComponent
   // no Link do admin garante que %2B → + chega aqui corretamente).
@@ -128,7 +131,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
 
   let orgRes = await adminClient
     .from('organizations')
-    .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions')
+    .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline')
     .eq('slug', decodedSlug)
     .single();
 
@@ -136,7 +139,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   if (!orgRes.data && decodedSlug !== slug) {
     orgRes = await adminClient
       .from('organizations')
-      .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions')
+      .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline')
       .eq('slug', slug)
       .single();
   }
@@ -170,6 +173,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     max_students:    org.max_students ?? 200,
     invite_code:     org.invite_code ?? null,
     permissions:     org.permissions ?? {},
+    typewriter_tagline: normalizeOrgTypewriterTagline(org.typewriter_tagline),
   };
   const safePrimary = sanitizeCssHexColor(branding.brand_primary, '#6366f1');
   const safeSecondary = sanitizeCssHexColor(branding.brand_secondary, '#8b5cf6');

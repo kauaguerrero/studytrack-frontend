@@ -9,6 +9,7 @@ import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { Badge } from '@/components/ui/badge';
 import { Typewriter } from '@/components/ui/typewriter';
 import { readableBrandText, onBrandText } from '@/lib/brand-color';
+import { normalizeOrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
 import {
   RevealGroup, RevealItem, ElevatedCard as TintedCard, KpiCard, SectionTitle,
   BrandPill, Segmented, Medal, MiniBar, BrandHero, HERO_ACCENT_COLOR,
@@ -438,6 +439,7 @@ export default function FounderDashboardClient({
   // ── Render ───────────────────────────────────────────────────────────────────
 
   const firstName = (userProfile.fullName || org.name).split(' ')[0];
+  const typewriterTagline = normalizeOrgTypewriterTagline(org.typewriter_tagline);
 
   return (
     <PartnerLayout>
@@ -464,9 +466,9 @@ export default function FounderDashboardClient({
                   className="font-script mt-1 text-[20px] leading-tight text-white lg:text-[24px]"
                   style={{ ['--hero-accent' as string]: HERO_ACCENT_COLOR }}
                 >
-                  Nós nascemos para{' '}
+                  {typewriterTagline.staticText}{' '}
                   <Typewriter
-                    text={org.slug === 'edificar' ? ['Edificar sonhos.', 'Edificar futuros.', 'Edificar aprovações.', 'Edificar histórias.'] : ['Estudar.', 'Evoluir.', 'Conquistar.', 'Aprovar.']}
+                    text={typewriterTagline.animatedTexts}
                     speed={95}
                     deleteSpeed={52}
                     waitTime={2600}
