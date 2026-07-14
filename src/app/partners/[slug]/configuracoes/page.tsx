@@ -674,16 +674,6 @@ export default function ConfiguracoesPage() {
     e.target.value = '';
     if (files.length === 0) return;
 
-    const remainingSlots = ORG_APPROVED_PHOTOS_LIMITS.maxPhotos - approvedPhotos.length;
-    if (remainingSlots <= 0) {
-      toast.error(`Use no máximo ${ORG_APPROVED_PHOTOS_LIMITS.maxPhotos} fotos.`);
-      return;
-    }
-    if (files.length > remainingSlots) {
-      toast.error(`Você pode adicionar mais ${remainingSlots} foto${remainingSlots === 1 ? '' : 's'}.`);
-      return;
-    }
-
     setApprovedPhotoUploading(true);
     try {
       const supabase = createClient();
@@ -1073,7 +1063,7 @@ export default function ConfiguracoesPage() {
                   size="sm"
                   variant="outline"
                   className="gap-1.5 self-start"
-                  disabled={approvedPhotoUploading || approvedPhotos.length >= ORG_APPROVED_PHOTOS_LIMITS.maxPhotos}
+                  disabled={approvedPhotoUploading}
                   onClick={() => approvedPhotoInputRef.current?.click()}
                 >
                   {approvedPhotoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
@@ -1125,7 +1115,7 @@ export default function ConfiguracoesPage() {
               )}
 
               <p className="text-[11px] text-slate-400">
-                Limite de {ORG_APPROVED_PHOTOS_LIMITS.maxPhotos} fotos. Depois de adicionar ou remover, clique em salvar configurações.
+                Depois de adicionar ou remover fotos, clique em salvar configurações.
               </p>
             </div>
             </div>
