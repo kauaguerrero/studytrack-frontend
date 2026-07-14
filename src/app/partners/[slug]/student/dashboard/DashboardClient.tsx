@@ -93,8 +93,7 @@ function ApprovedPhotosHeroStrip({
 }) {
   if (photos.length === 0) return null;
 
-  const visiblePhotos = photos.slice(0, 12);
-  const activePhoto = visiblePhotos[activeIndex % visiblePhotos.length];
+  const activePhoto = photos[activeIndex % photos.length];
 
   return (
     <div className="pointer-events-none absolute inset-y-0 left-[58%] right-[205px] z-[1] hidden lg:flex lg:items-stretch lg:justify-center xl:left-[60%] xl:right-[235px]">

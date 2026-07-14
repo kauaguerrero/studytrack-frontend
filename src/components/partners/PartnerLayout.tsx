@@ -47,19 +47,18 @@ interface NavItemDef {
 }
 
 function MobileApprovedPhotosHeaderCluster({ photos }: { photos: OrgApprovedPhoto[] }) {
-  const visiblePhotos = photos.slice(0, 12);
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
-    if (visiblePhotos.length <= 1) return;
+    if (photos.length <= 1) return;
     const timer = window.setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % visiblePhotos.length);
+      setActiveIndex((prev) => (prev + 1) % photos.length);
     }, 2600);
     return () => window.clearInterval(timer);
-  }, [visiblePhotos.length]);
+  }, [photos.length]);
 
-  if (visiblePhotos.length === 0) return null;
-  const activePhoto = visiblePhotos[activeIndex % visiblePhotos.length];
+  if (photos.length === 0) return null;
+  const activePhoto = photos[activeIndex % photos.length];
 
   return (
     <div className="relative h-14 w-12 shrink-0 overflow-hidden md:hidden" aria-hidden>

@@ -89,8 +89,7 @@ function FounderApprovedPhotoOverlay({
 }) {
   if (photos.length === 0) return null;
 
-  const visiblePhotos = photos.slice(0, 12);
-  const activePhoto = visiblePhotos[activeIndex % visiblePhotos.length];
+  const activePhoto = photos[activeIndex % photos.length];
 
   return (
     <div className="pointer-events-none absolute inset-y-0 right-8 z-[1] hidden w-[160px] lg:flex lg:items-stretch lg:justify-center xl:right-12 xl:w-[180px]">
