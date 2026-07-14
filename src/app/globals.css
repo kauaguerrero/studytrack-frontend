@@ -194,6 +194,35 @@
     0 16px 32px -12px rgba(0, 0, 0, 0.65);
 }
 
+@keyframes approved-photo-float {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.02);
+  }
+}
+
+@keyframes approved-photo-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(50%);
+  }
+}
+
+.mobile-approved-photo-cutout {
+  -webkit-mask-image:
+    linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%),
+    linear-gradient(to bottom, black 0%, black 82%, rgba(0, 0, 0, 0.72) 94%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%),
+    linear-gradient(to bottom, black 0%, black 82%, rgba(0, 0, 0, 0.72) 94%, transparent 100%);
+  mask-composite: intersect;
+}
+
 /*
  * Texto/superfície de cor de marca que se adapta ao tema sem precisar de JS
  * sabendo qual está ativo agora. O componente injeta os dois valores prontos

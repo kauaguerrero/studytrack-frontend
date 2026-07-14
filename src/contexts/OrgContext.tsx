@@ -2,6 +2,7 @@
 
 import { createContext, useContext, ReactNode } from 'react';
 import type { OrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
+import type { OrgApprovedPhoto } from '@/lib/org-approved-photos';
 
 // Interface espelhada para garantir desacoplamento e sucesso no build
 export interface OrgBranding {
@@ -17,6 +18,7 @@ export interface OrgBranding {
   invite_code?: string | null;
   permissions?: Record<string, boolean>;
   typewriter_tagline?: OrgTypewriterTagline | null;
+  approved_student_photos?: OrgApprovedPhoto[] | null;
 }
 
 interface UserProfile {

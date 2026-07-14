@@ -21,6 +21,13 @@ import {
   type OrgTypewriterTagline,
 } from '@/lib/org-typewriter-tagline';
 import {
+  imageHasTransparentPixels,
+  normalizeOrgApprovedPhotos,
+  ORG_APPROVED_PHOTOS_BUCKET,
+  ORG_APPROVED_PHOTOS_LIMITS,
+  type OrgApprovedPhoto,
+} from '@/lib/org-approved-photos';
+import {
   RevealGroup, RevealItem, ElevatedCard, SectionTitle, BrandButton, BrandHero, HERO_ACCENT_COLOR,
 } from '@/components/partners/founder-ui';
 
@@ -117,6 +124,8 @@ export default function ConfiguracoesPage() {
   const initialTagline = normalizeOrgTypewriterTagline(org.typewriter_tagline);
   const [taglineStaticText, setTaglineStaticText] = useState(initialTagline.staticText);
   const [taglineAnimatedTexts, setTaglineAnimatedTexts] = useState<string[]>(initialTagline.animatedTexts);
+  const [approvedPhotos, setApprovedPhotos] = useState<OrgApprovedPhoto[]>(() => normalizeOrgApprovedPhotos(org.approved_student_photos));
+  const [approvedPhotoUploading, setApprovedPhotoUploading] = useState(false);
   const [contactEmail, setContactEmail] = useState('');
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(
     userProfile.themePreference === 'dark' ? 'dark' : 'light',
@@ -133,6 +142,7 @@ export default function ConfiguracoesPage() {
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const approvedPhotoInputRef = useRef<HTMLInputElement>(null);
   const avatarCropImageRef = useRef<HTMLImageElement>(null);
   const avatarCropDragStart = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
   const CROP_SIZE = 240;
@@ -496,6 +506,7 @@ export default function ConfiguracoesPage() {
       const payload: Record<string, unknown> = {
         ...body,
         typewriter_tagline: typewriterTagline,
+        approved_student_photos: approvedPhotos,
       };
       // Remove cache-buster antes de salvar
       if (logoUrl) payload.logo_url = logoUrl.split('?t=')[0];
@@ -656,6 +667,73 @@ export default function ConfiguracoesPage() {
       if (prev.length <= ORG_TYPEWRITER_LIMITS.animatedMin) return prev;
       return prev.filter((_, i) => i !== index);
     });
+  }
+
+  async function handleApprovedPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    const remainingSlots = ORG_APPROVED_PHOTOS_LIMITS.maxPhotos - approvedPhotos.length;
+    if (remainingSlots <= 0) {
+      toast.error(`Use no máximo ${ORG_APPROVED_PHOTOS_LIMITS.maxPhotos} fotos.`);
+      return;
+    }
+    if (files.length > remainingSlots) {
+      toast.error(`Você pode adicionar mais ${remainingSlots} foto${remainingSlots === 1 ? '' : 's'}.`);
+      return;
+    }
+
+    setApprovedPhotoUploading(true);
+    try {
+      const supabase = createClient();
+      const uploaded: OrgApprovedPhoto[] = [];
+
+      for (const file of files) {
+        if (!['image/png', 'image/webp'].includes(file.type)) {
+          throw new Error('Use apenas PNG ou WEBP com fundo transparente.');
+        }
+        if (file.size > ORG_APPROVED_PHOTOS_LIMITS.maxFileSizeBytes) {
+          throw new Error('Cada imagem deve ter no máximo 2MB.');
+        }
+
+        const hasTransparency = await imageHasTransparentPixels(file);
+        if (!hasTransparency) {
+          toast.warning(`Não consegui confirmar transparência em "${file.name}", mas a foto será enviada.`);
+        }
+
+        const ext = file.type === 'image/webp' ? 'webp' : 'png';
+        const path = `${org.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from(ORG_APPROVED_PHOTOS_BUCKET)
+          .upload(path, file, { upsert: false, contentType: file.type });
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage.from(ORG_APPROVED_PHOTOS_BUCKET).getPublicUrl(path);
+        uploaded.push({
+          url: publicUrl,
+          path,
+          alt: `Aprovado ${approvedPhotos.length + uploaded.length + 1}`,
+        });
+      }
+
+      setApprovedPhotos((prev) => [...prev, ...uploaded]);
+      toast.success(`${uploaded.length} foto${uploaded.length === 1 ? '' : 's'} adicionada${uploaded.length === 1 ? '' : 's'}. Salve para publicar.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Não foi possível enviar as fotos.');
+    } finally {
+      setApprovedPhotoUploading(false);
+    }
+  }
+
+  async function handleRemoveApprovedPhoto(photo: OrgApprovedPhoto) {
+    setApprovedPhotos((prev) => prev.filter((item) => item.path !== photo.path));
+    try {
+      const supabase = createClient();
+      await supabase.storage.from(ORG_APPROVED_PHOTOS_BUCKET).remove([photo.path]);
+    } catch {
+      // A lista salva é a fonte de verdade; se o objeto já não existir, a remoção visual continua válida.
+    }
   }
 
   return (
@@ -978,6 +1056,77 @@ export default function ConfiguracoesPage() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="space-y-3 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                    Fotos de aprovados
+                  </Label>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    PNG ou WEBP sem fundo para aparecer no card principal dos alunos.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 self-start"
+                  disabled={approvedPhotoUploading || approvedPhotos.length >= ORG_APPROVED_PHOTOS_LIMITS.maxPhotos}
+                  onClick={() => approvedPhotoInputRef.current?.click()}
+                >
+                  {approvedPhotoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                  Adicionar fotos
+                </Button>
+                <input
+                  ref={approvedPhotoInputRef}
+                  type="file"
+                  accept="image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={handleApprovedPhotoUpload}
+                />
+              </div>
+
+              {approvedPhotos.length > 0 ? (
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                  {approvedPhotos.map((photo, index) => (
+                    <div
+                      key={photo.path}
+                      className="group relative aspect-[3/4] overflow-hidden rounded-xl bg-slate-900/90 shadow-sm"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photo.url}
+                        alt={photo.alt}
+                        className="h-full w-full object-contain p-1.5"
+                      />
+                      <span className="absolute left-1.5 top-1.5 rounded-full bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                        {index + 1}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1 h-7 w-7 bg-black/40 text-white opacity-0 hover:bg-black/60 hover:text-white group-hover:opacity-100"
+                        title="Remover foto"
+                        onClick={() => handleRemoveApprovedPhoto(photo)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+                  Nenhuma foto selecionada. O card do aluno continua sem fotos.
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-400">
+                Limite de {ORG_APPROVED_PHOTOS_LIMITS.maxPhotos} fotos. Depois de adicionar ou remover, clique em salvar configurações.
+              </p>
             </div>
             </div>
           </div>

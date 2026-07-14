@@ -10,6 +10,7 @@ import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import type { OrgBranding } from '@/app/partners/[slug]/layout';
 import { UserRole } from '@/types/roles';
 import { normalizeOrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
+import { normalizeOrgApprovedPhotos } from '@/lib/org-approved-photos';
 import {
   SIDEBAR_COOKIE_NAME,
   parseSidebarCollapsedCookie,
@@ -52,11 +53,12 @@ async function PortalShell({
       max_students: number | null; invite_code: string | null;
       permissions: Record<string, boolean> | null;
       typewriter_tagline: unknown;
+      approved_student_photos: unknown;
     };
     const adminClient = createAdminClient();
     const orgRes = await adminClient
       .from('organizations')
-      .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline')
+      .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline, approved_student_photos')
       .eq('id', profile.organization_id)
       .single();
     const org = orgRes.data as OrgRow | null;
@@ -79,6 +81,7 @@ async function PortalShell({
         invite_code:     org.invite_code ?? null,
         permissions:     org.permissions ?? {},
         typewriter_tagline: normalizeOrgTypewriterTagline(org.typewriter_tagline),
+        approved_student_photos: normalizeOrgApprovedPhotos(org.approved_student_photos),
       };
 
       return (

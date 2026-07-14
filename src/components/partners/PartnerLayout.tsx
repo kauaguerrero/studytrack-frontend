@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable react-hooks/static-components */
 
-import { ReactNode, useState, useRef } from 'react';
+import { ReactNode, useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -35,6 +35,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { ForcePasswordChangeModal } from '@/components/partners/ForcePasswordChangeModal';
+import { normalizeOrgApprovedPhotos, type OrgApprovedPhoto } from '@/lib/org-approved-photos';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,34 @@ interface NavItemDef {
   icon: React.ElementType;
   label: string;
   shortLabel: string;
+}
+
+function MobileApprovedPhotosHeaderCluster({ photos }: { photos: OrgApprovedPhoto[] }) {
+  const visiblePhotos = photos.slice(0, 12);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    if (visiblePhotos.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % visiblePhotos.length);
+    }, 2600);
+    return () => window.clearInterval(timer);
+  }, [visiblePhotos.length]);
+
+  if (visiblePhotos.length === 0) return null;
+  const activePhoto = visiblePhotos[activeIndex % visiblePhotos.length];
+
+  return (
+    <div className="relative h-14 w-12 shrink-0 overflow-hidden md:hidden" aria-hidden>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        key={activePhoto.path}
+          src={activePhoto.url}
+          alt=""
+        className="mobile-approved-photo-cutout h-full w-full object-cover object-top drop-shadow-[0_8px_8px_rgba(0,0,0,0.28)]"
+      />
+    </div>
+  );
 }
 
 // ─── Sidebar nav item (desktop) ───────────────────────────────────────────────
@@ -157,6 +186,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
   const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
   const isPartnerStudent = variant === 'student';
+  const approvedPhotos = normalizeOrgApprovedPhotos(org.approved_student_photos);
 
   // Lê permissão de um módulo — padrão true (ativo por omissão) exceto video (opt-in explícito)
   const perm = (key: string, def = true) => {
@@ -386,8 +416,8 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
         {/* Mobile top header — some sozinho durante o quiz de simulado, que
             é um overlay fixed inset-0 z-50 (acima do z-40 da nav/header),
             então não precisa esconder pela rota, só a tela do quiz já cobre. */}
-          <header className="flex items-center justify-between border-b dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 md:hidden shrink-0">
-            <div className="flex items-center gap-2.5 min-w-0">
+          <header className="flex h-14 items-center justify-between border-b dark:border-slate-800 bg-white dark:bg-slate-900 px-4 md:hidden shrink-0">
+            <div className="flex min-w-0 items-center gap-2.5">
               {org.logo_url ? (
                 <Image
                   src={org.logo_url}
@@ -410,7 +440,8 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
             </div>
 
             {(isPartnerStudent || !isAssociate) ? (
-              <div className="flex shrink-0 items-center gap-0.5">
+              <div className="flex h-full shrink-0 items-center gap-0.5">
+                {!isAssociate && <MobileApprovedPhotosHeaderCluster photos={approvedPhotos} />}
                 {isPartnerStudent && <AnnouncementBell />}
                 <Button
                   type="button"
