@@ -6,7 +6,6 @@ export interface OrgApprovedPhoto {
 
 export const ORG_APPROVED_PHOTOS_BUCKET = 'org-approved-photos';
 export const ORG_APPROVED_PHOTOS_LIMITS = {
-  maxPhotos: 12,
   maxFileSizeBytes: 2 * 1024 * 1024,
 };
 
@@ -28,8 +27,7 @@ export function normalizeOrgApprovedPhotos(value: unknown): OrgApprovedPhoto[] {
       if (!url || !VALID_URL_RE.test(url) || !path) return null;
       return { url, path, alt };
     })
-    .filter((item): item is OrgApprovedPhoto => Boolean(item))
-    .slice(0, ORG_APPROVED_PHOTOS_LIMITS.maxPhotos);
+    .filter((item): item is OrgApprovedPhoto => Boolean(item));
 }
 
 export async function imageHasTransparentPixels(file: File): Promise<boolean> {
