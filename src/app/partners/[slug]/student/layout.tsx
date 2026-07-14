@@ -13,6 +13,7 @@ import { StudentThemeProvider } from '@/contexts/StudentThemeContext';
 import { StudentThemeShell } from '@/components/partners/StudentThemeShell';
 import { getStudentThemeStorageKey, type StudentTheme } from '@/lib/student-theme';
 import { normalizeOrgTypewriterTagline, type OrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
+import { normalizeOrgApprovedPhotos, type OrgApprovedPhoto } from '@/lib/org-approved-photos';
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 function sanitizeCssHexColor(value: string | null | undefined, fallback: string): string {
@@ -34,6 +35,7 @@ export interface OrgBranding {
   invite_code?: string | null;
   permissions?: Record<string, boolean>;
   typewriter_tagline?: OrgTypewriterTagline | null;
+  approved_student_photos?: OrgApprovedPhoto[] | null;
 }
 
 interface StudentLayoutProps {
@@ -72,10 +74,11 @@ export default async function PartnerStudentLayout({ children, params }: Student
     brand_primary: string | null; brand_secondary: string | null; brand_accent: string | null;
     permissions: Record<string, boolean> | null;
     typewriter_tagline: unknown;
+    approved_student_photos: unknown;
   };
   const orgRes = await adminClient
     .from('organizations')
-    .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent, permissions, typewriter_tagline')
+    .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent, permissions, typewriter_tagline, approved_student_photos')
     .eq('slug', slug)
     .single();
   const org = orgRes.data as OrgRow | null;
@@ -115,6 +118,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
     invite_code:      null,
     permissions:      org.permissions ?? {},
     typewriter_tagline: normalizeOrgTypewriterTagline(org.typewriter_tagline),
+    approved_student_photos: normalizeOrgApprovedPhotos(org.approved_student_photos),
   };
   // Escapa < > & para evitar quebra prematura da tag <script> caso o slug
   // contenha sequências como "</script>" (JSON.stringify não escapa "/" por padrão).

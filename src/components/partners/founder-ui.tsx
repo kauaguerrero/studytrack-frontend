@@ -386,6 +386,7 @@ export function BrandHero({
   smokeColorHex,
   halftone = true,
   lighten = false,
+  overlay,
 }: {
   children: React.ReactNode;
   className?: string;
@@ -397,6 +398,8 @@ export function BrandHero({
   halftone?: boolean;
   /** Gradiente de base mais claro/aberto em vez do navy escuro padrão. */
   lighten?: boolean;
+  /** Camada opcional posicionada contra o root do card, não contra o wrapper do conteúdo. */
+  overlay?: React.ReactNode;
 }) {
   const heroBg = lighten
     ? 'radial-gradient(120% 140% at 15% 0%, color-mix(in srgb, var(--brand-primary) 34%, #333f5c) 0%, color-mix(in srgb, var(--brand-primary) 16%, #232c44) 62%)'
@@ -419,6 +422,7 @@ export function BrandHero({
           <SmokeBackground smokeColor={smokeColorHex} />
         </div>
       )}
+      {overlay}
       <div className="relative z-10">{children}</div>
     </div>
   );

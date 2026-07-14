@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Typewriter } from '@/components/ui/typewriter';
 import { readableBrandText, onBrandText } from '@/lib/brand-color';
 import { normalizeOrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
+import { normalizeOrgApprovedPhotos, type OrgApprovedPhoto } from '@/lib/org-approved-photos';
 import {
   RevealGroup, RevealItem, ElevatedCard as TintedCard, KpiCard, SectionTitle,
   BrandPill, Segmented, Medal, MiniBar, BrandHero, HERO_ACCENT_COLOR,
@@ -77,6 +78,32 @@ interface Student {
   simulados_month: number;
   simulados_total: number;
   accuracy_pct: number | null;
+}
+
+function FounderApprovedPhotoOverlay({
+  photos,
+  activeIndex,
+}: {
+  photos: OrgApprovedPhoto[];
+  activeIndex: number;
+}) {
+  if (photos.length === 0) return null;
+
+  const visiblePhotos = photos.slice(0, 12);
+  const activePhoto = visiblePhotos[activeIndex % visiblePhotos.length];
+
+  return (
+    <div className="pointer-events-none absolute inset-y-0 right-8 z-[1] hidden w-[160px] lg:flex lg:items-stretch lg:justify-center xl:right-12 xl:w-[180px]">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        key={activePhoto.path}
+        src={activePhoto.url}
+        alt=""
+        aria-hidden
+        className="h-full w-auto max-w-none object-contain object-bottom drop-shadow-[0_24px_24px_rgba(0,0,0,0.42)]"
+      />
+    </div>
+  );
 }
 
 type MetricWindow = 'today' | 'week' | 'month' | 'total';
@@ -440,6 +467,16 @@ export default function FounderDashboardClient({
 
   const firstName = (userProfile.fullName || org.name).split(' ')[0];
   const typewriterTagline = normalizeOrgTypewriterTagline(org.typewriter_tagline);
+  const approvedPhotos = normalizeOrgApprovedPhotos(org.approved_student_photos);
+  const [activeApprovedPhotoIndex, setActiveApprovedPhotoIndex] = useState(0);
+
+  useEffect(() => {
+    if (approvedPhotos.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActiveApprovedPhotoIndex((prev) => (prev + 1) % approvedPhotos.length);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [approvedPhotos.length]);
 
   return (
     <PartnerLayout>
@@ -448,9 +485,13 @@ export default function FounderDashboardClient({
 
         {/* ── Hero ──────────────────────────────────────────────────────────── */}
         <RevealItem className="mb-3 lg:mb-5">
-          <BrandHero smokeColorHex={org.brand_primary ?? undefined} halftone={false}>
+          <BrandHero
+            smokeColorHex={org.brand_primary ?? undefined}
+            halftone={false}
+            overlay={<FounderApprovedPhotoOverlay photos={approvedPhotos} activeIndex={activeApprovedPhotoIndex} />}
+          >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
-              <div className="min-w-0">
+              <div className="min-w-0 lg:max-w-[calc(100%-190px)] xl:max-w-[calc(100%-220px)]">
                 <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/50">
                   Central de Inteligência · {org.name}
                 </p>

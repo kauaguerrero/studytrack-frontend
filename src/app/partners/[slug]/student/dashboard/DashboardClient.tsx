@@ -16,6 +16,7 @@ import { summarizePodiumStreaks } from '@/lib/podium-streak';
 import { useOrg } from '@/contexts/OrgContext';
 import { readableBrandText, readableBrandTextOnDark, resolveAccentColor } from '@/lib/brand-color';
 import { normalizeOrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
+import { normalizeOrgApprovedPhotos, type OrgApprovedPhoto } from '@/lib/org-approved-photos';
 import {
   RevealGroup, RevealItem, ElevatedCard, KpiCard, SectionTitle,
   BrandHero, HERO_ACCENT_COLOR,
@@ -83,6 +84,32 @@ function KpiTopBadge({
   );
 }
 
+function ApprovedPhotosHeroStrip({
+  photos,
+  activeIndex,
+}: {
+  photos: OrgApprovedPhoto[];
+  activeIndex: number;
+}) {
+  if (photos.length === 0) return null;
+
+  const visiblePhotos = photos.slice(0, 12);
+  const activePhoto = visiblePhotos[activeIndex % visiblePhotos.length];
+
+  return (
+    <div className="pointer-events-none absolute inset-y-0 left-[58%] right-[205px] z-[1] hidden lg:flex lg:items-stretch lg:justify-center xl:left-[60%] xl:right-[235px]">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        key={activePhoto.path}
+        src={activePhoto.url}
+        alt=""
+        aria-hidden
+        className="h-full w-auto max-w-none object-contain object-bottom drop-shadow-[0_24px_24px_rgba(0,0,0,0.42)]"
+      />
+    </div>
+  );
+}
+
 function timeAgo(ts?: string | null): string {
   if (!ts) return '';
   const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
@@ -135,6 +162,8 @@ export function DashboardClient({
   const searchParams = useSearchParams();
   const { org, userProfile } = useOrg();
   const typewriterTagline = normalizeOrgTypewriterTagline(org.typewriter_tagline);
+  const approvedPhotos = normalizeOrgApprovedPhotos(org.approved_student_photos);
+  const [activeApprovedPhotoIndex, setActiveApprovedPhotoIndex] = useState(0);
   // Se brand_secondary for preto/branco/cinza (sem identidade cromática pra
   // usar como acento), busca outra cor da marca que já é "perfeita" (ex: o
   // amarelo do accent/primary) em vez de inventar um tom que não existe na paleta.
@@ -153,6 +182,14 @@ export function DashboardClient({
     accuracy: true,
     leader: true,
   });
+
+  useEffect(() => {
+    if (approvedPhotos.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setActiveApprovedPhotoIndex((prev) => (prev + 1) % approvedPhotos.length);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [approvedPhotos.length]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -423,27 +460,33 @@ export function DashboardClient({
 
           {/* ── 1. Hero Banner ─────────────────────────────────────────────── */}
           <RevealItem>
-            <BrandHero className="p-3.5 lg:p-5" smokeColorHex={org.brand_primary ?? undefined} halftone={false} lighten>
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
-              <div className="flex flex-col gap-1 lg:min-w-0 lg:flex-1">
-                {/* Org label — escondido no mobile: já aparece no topo da página, mostrar de novo aqui é redundante. Só desktop, onde também mora o sino. */}
-                <div className="hidden items-center gap-2 lg:flex">
+            <BrandHero
+              className="p-3.5 lg:p-5"
+              smokeColorHex={org.brand_primary ?? undefined}
+              halftone={false}
+              lighten
+              overlay={<ApprovedPhotosHeroStrip photos={approvedPhotos} activeIndex={activeApprovedPhotoIndex} />}
+            >
+              <div className="relative z-10 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+              <div className="flex min-w-0 flex-col gap-1 lg:flex-1">
+                {/* Org label — no mobile também abriga as fotos discretas de aprovados ao lado do sino. */}
+                <div className="flex items-center gap-2">
                   {orgLogoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={orgLogoUrl}
                       alt={orgName}
-                      className="h-6 w-6 rounded object-contain p-0.5"
+                      className="hidden h-6 w-6 rounded object-contain p-0.5 lg:block"
                       style={{ background: 'rgba(255,255,255,0.1)' }}
                     />
                   ) : (
-                    <GraduationCap className="h-[22px] w-[22px] text-white/40" />
+                    <GraduationCap className="hidden h-[22px] w-[22px] text-white/40 lg:block" />
                   )}
-                  <span className="text-[10.3px] font-bold uppercase tracking-[1.1px] text-white/50">
+                  <span className="min-w-0 truncate text-[10.3px] font-bold uppercase tracking-[1.1px] text-white/50 lg:max-w-none">
                     {orgName}
                   </span>
                   <AnnouncementBell
-                    className="hidden h-7 w-7 lg:inline-flex"
+                    className="h-7 w-7 shrink-0 lg:inline-flex"
                     iconClassName="h-4 w-4"
                     style={{ background: 'color-mix(in srgb, var(--brand-primary) 22%, transparent)' }}
                     iconStyle={{ color: 'color-mix(in srgb, var(--brand-primary) 70%, white)' }}
