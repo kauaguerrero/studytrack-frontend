@@ -4,6 +4,21 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 const PROMPT_IMAGES_BUCKET = 'essay-prompt-images';
 
+function ensureSameOrigin(request: Request): NextResponse | null {
+  const origin = request.headers.get('origin');
+  const host = request.headers.get('host');
+  if (!origin || !host) return null;
+  try {
+    const originHost = new URL(origin).host;
+    if (originHost !== host) {
+      return NextResponse.json({ error: 'Origem inválida.' }, { status: 403 });
+    }
+  } catch {
+    return NextResponse.json({ error: 'Origem inválida.' }, { status: 403 });
+  }
+  return null;
+}
+
 function normalizeSupportItemType(rawType: unknown, rawContent: unknown) {
   if (rawType === 'text' || rawType === 'image' || rawType === 'link') return rawType;
   if (rawType === 'img' || rawType === 'photo' || rawType === 'figure') return 'image';
@@ -61,6 +76,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string; id: string }> },
 ) {
+  const originError = ensureSameOrigin(request);
+  if (originError) return originError;
+
   const { slug, id } = await params;
   const supabase = await createClient();
   const { data: { user }, error: authErr } = await supabase.auth.getUser();
@@ -110,9 +128,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ slug: string; id: string }> },
 ) {
+  const originError = ensureSameOrigin(request);
+  if (originError) return originError;
+
   const { slug, id } = await params;
   const supabase = await createClient();
   const { data: { user }, error: authErr } = await supabase.auth.getUser();
