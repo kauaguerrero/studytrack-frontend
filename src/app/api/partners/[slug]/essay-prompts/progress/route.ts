@@ -12,9 +12,16 @@ export async function GET(
   if (authErr || !user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
 
   const admin = createAdminClient();
-  const { data: org } = await (admin as any)
-    .from('organizations').select('id').eq('slug', slug).maybeSingle();
+  const [{ data: org }, { data: profile }] = await Promise.all([
+    (admin as any).from('organizations').select('id').eq('slug', slug).maybeSingle(),
+    (admin as any).from('profiles').select('role, organization_id').eq('id', user.id).maybeSingle(),
+  ]);
   if (!org) return NextResponse.json({ error: 'Org não encontrada' }, { status: 404 });
+
+  const isAdmin = profile?.role === 'admin';
+  if (!isAdmin && profile?.organization_id !== org.id) {
+    return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
+  }
 
   const [{ data: prompts }, { data: submissions }] = await Promise.all([
     (admin as any)

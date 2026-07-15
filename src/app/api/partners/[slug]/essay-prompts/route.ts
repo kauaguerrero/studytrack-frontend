@@ -4,6 +4,21 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 const PROMPT_IMAGES_BUCKET = 'essay-prompt-images';
 
+function ensureSameOrigin(request: Request): NextResponse | null {
+  const origin = request.headers.get('origin');
+  const host = request.headers.get('host');
+  if (!origin || !host) return null;
+  try {
+    const originHost = new URL(origin).host;
+    if (originHost !== host) {
+      return NextResponse.json({ error: 'Origem inválida.' }, { status: 403 });
+    }
+  } catch {
+    return NextResponse.json({ error: 'Origem inválida.' }, { status: 403 });
+  }
+  return null;
+}
+
 function normalizeSupportItemType(rawType: unknown, rawContent: unknown) {
   if (rawType === 'text' || rawType === 'image' || rawType === 'link') return rawType;
   if (rawType === 'img' || rawType === 'photo' || rawType === 'figure') return 'image';
@@ -111,6 +126,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
+  const originError = ensureSameOrigin(request);
+  if (originError) return originError;
+
   const { slug } = await params;
   const ctx = await getOrgAndRequester(slug);
   if ('error' in ctx) return ctx.error;

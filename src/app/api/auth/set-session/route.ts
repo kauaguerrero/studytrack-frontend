@@ -4,6 +4,17 @@ import { cookies } from 'next/headers'
 
 export async function POST(request: Request) {
   try {
+    // Login CSRF: sem isso, um site externo consegue POSTar tokens de UMA conta dele
+    // pra essa rota (bypassando preflight com Content-Type: text/plain) e fazer o
+    // navegador da vítima gravar o cookie de sessão dele — a vítima fica "logada"
+    // como o atacante sem perceber. Origin só é ausente em clientes não-browser,
+    // que não são o vetor de ataque aqui (o alvo é sempre o navegador da vítima).
+    const origin = request.headers.get('origin')
+    const selfOrigin = new URL(request.url).origin
+    if (origin && origin !== selfOrigin) {
+      return NextResponse.json({ error: 'Origem não permitida' }, { status: 403 })
+    }
+
     const { access_token, refresh_token } = await request.json()
 
     if (!access_token || !refresh_token) {
