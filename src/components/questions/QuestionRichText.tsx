@@ -106,6 +106,54 @@ function isMarkdownBlock(text: string): boolean {
   return /^\s*(#{1,6}\s|>|\|.*\||[-*+]\s|\d+\.\s|!\[)/m.test(text)
 }
 
+function stripDiacritics(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+function hasLiteraryIntro(text: string): boolean {
+  const normalized = stripDiacritics(String(text || '').toLowerCase())
+  return /\b(poema|poesia|poetico|poetica|cancao|letra|soneto|estrofe|verso|versos)\b/.test(normalized)
+}
+
+function shouldPreserveManualLineBreaks(paragraph: string, previousParagraph?: string): boolean {
+  const lines = paragraph.split('\n').filter((line) => line.trim())
+  if (lines.length <= 1) return false
+  if (/^\s*(```|~~~)/m.test(paragraph)) return true
+  if (/^\s*\$\$/m.test(paragraph) || /\$\$\s*$/m.test(paragraph)) return true
+  if (parseMarkdownTable(paragraph) || isMarkdownBlock(paragraph)) return true
+  if (hasLiteraryIntro(previousParagraph || '')) return true
+  if (lines.length >= 3 && hasLiteraryIntro(lines[0] || '')) return true
+
+  const indentedLines = lines.filter((line) => /^\s{2,}\S/.test(line)).length
+  if (indentedLines >= 2) return true
+
+  const dialogueLines = lines.filter((line) => /^\s*[\u2014-]\s+\S/.test(line)).length
+  return dialogueLines >= 2
+}
+
+function collapseSoftLineBreaks(paragraph: string): string {
+  return paragraph
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+}
+
+function normalizeQuestionParagraphs(text: string): string[] {
+  const rawParagraphs = text.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean)
+
+  return rawParagraphs.map((paragraph, index) => {
+    const previousParagraph = rawParagraphs[index - 1]
+    if (shouldPreserveManualLineBreaks(paragraph, previousParagraph)) {
+      return paragraph
+    }
+
+    return collapseSoftLineBreaks(paragraph)
+  })
+}
+
 function renderMarkdownChildren(children: ReactNode, keyPrefix: string): ReactNode {
   return Children.map(children, (child, childIndex) => {
     if (typeof child === 'string') {
@@ -287,7 +335,7 @@ export function QuestionRichText({ text, className, style }: { text?: string | n
   const safeText = typeof text === 'string' ? text : text == null ? '' : String(text)
   const normalized = formatScientificText(safeText)
   const paragraphs = useMemo(
-    () => normalized.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean),
+    () => normalizeQuestionParagraphs(normalized),
     [normalized],
   )
 
