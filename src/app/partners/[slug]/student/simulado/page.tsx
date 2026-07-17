@@ -13,7 +13,7 @@ import { motion, AnimatePresence, useAnimation, useReducedMotion } from 'framer-
 import {
   Timer, ArrowRight, ArrowLeft, ArrowUp, CheckCircle2, Play, RotateCcw,
   Trophy, BookOpen, History, Brain, ChevronDown, ChevronLeft, TrendingUp,
-  Medal, BarChart3, Plus, Clock, Zap, Flag, Target,
+  Medal, BarChart3, Plus, Clock, Zap, Flag, Target, SlidersHorizontal,
 } from 'lucide-react'
 import { QuestionRichText } from '@/components/questions/QuestionRichText'
 import { AlternativeImages, QuestionContentBlocks, QuestionSupportImages } from '@/components/questions/QuestionMedia'
@@ -38,6 +38,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { ModuleGuard } from '@/components/partners/ModuleGuard'
+import { SimuladoComposerModal, type SimuladoComposition } from '@/components/partners/simulado/SimuladoComposerModal'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -86,7 +87,11 @@ interface FinishResult {
   };
 }
 
-interface SessionConfig { mode?: string; format?: string; subject?: string; difficulty?: string; qty?: number; bank?: string; year?: number | null; results_by_bank?: Record<string, BankResult> }
+interface SessionConfig {
+  mode?: string; format?: string; subject?: string; difficulty?: string; qty?: number; bank?: string
+  year?: number | null; results_by_bank?: Record<string, BankResult>
+  compositions?: Array<{ subject: string; topic?: string | null; qty: number; include_answered?: boolean }>
+}
 
 interface SimuladoSession {
   id: string; score: number; total_questions: number; percentage: number
@@ -158,22 +163,9 @@ const BANK_OPTIONS = [
 ] as const
 
 const SIMULADO_YEARS = ['Todos', ...Array.from({ length: 18 }, (_, i) => String(new Date().getFullYear() - i))]
+const SIMULADO_MAX_QTY = 180
 
-const CUSTOM_SUBJECTS = [
-  { value: 'Todas',             label: 'Todas as Matérias', qty: null },
-  { value: 'Matemática',        label: 'Matemática',        qty: 673  },
-  { value: 'Língua Portuguesa', label: 'Língua Portuguesa', qty: 664  },
-  { value: 'Biologia',          label: 'Biologia',          qty: 237  },
-  { value: 'Geografia',         label: 'Geografia',         qty: 226  },
-  { value: 'Física',            label: 'Física',            qty: 216  },
-  { value: 'História',          label: 'História',          qty: 201  },
-  { value: 'Química',           label: 'Química',           qty: 196  },
-  { value: 'Sociologia',        label: 'Sociologia',        qty: 119  },
-  { value: 'Filosofia',         label: 'Filosofia',         qty: 83   },
-  { value: 'Espanhol',          label: 'Espanhol',          qty: 64   },
-  { value: 'Inglês',            label: 'Inglês',            qty: 42   },
-  { value: 'Francês',           label: 'Francês',           qty: null },
-]
+// CUSTOM_SUBJECTS agora vive em @/lib/simuladoSubjects (reaproveitado pelo SimuladoComposerModal)
 
 const DIFFICULTY_LABELS: Record<string, string> = {
   facil: 'Fácil',
@@ -415,7 +407,9 @@ function getConfigLabel(session: SimuladoSession): string {
     return fmt ? `${fmt.label}${bankLabel !== 'Todas' ? ` · ${bankLabel}` : ''}` : c.format
   }
   const bankLabel = inferSessionBank(c)
-  const subj = c.subject || 'Todas'
+  const subj = c.compositions && c.compositions.length > 0
+    ? c.compositions.map((comp) => (comp.topic ? `${comp.subject} · ${comp.topic}` : comp.subject)).join(' + ')
+    : (c.subject || 'Todas')
   const qty = session.total_questions || c.qty || 0
   const diff = DIFFICULTIES.find(d => d.value === c.difficulty)?.label || 'Misto'
   const yearLabel = c.year ? ` · ${c.year}` : ''
@@ -546,7 +540,6 @@ export default function SimuladoPage() {
   const [mode, setMode] = useState<'custom' | 'preset'>('custom')
   const [pageBankFilter, setPageBankFilter] = useState<BankLabel>('Todas')
   const [bank, setBank] = useState<BankLabel>('Todas')
-  const [subject, setSubject] = useState('Todas')
   const [year, setYear] = useState('Todos')
   const [qty, setQty] = useState(10)
   const [difficulty, setDifficulty] = useState('misto')
@@ -554,6 +547,8 @@ export default function SimuladoPage() {
   const [presetBank, setPresetBank] = useState<PresetBank>('ENEM')
   const [availableCustomCount, setAvailableCustomCount] = useState<number | null>(null)
   const [loadingCustomCount, setLoadingCustomCount] = useState(false)
+  const [compositions, setCompositions] = useState<SimuladoComposition[]>([])
+  const [showComposerModal, setShowComposerModal] = useState(false)
 
   // Quiz state
   const [questions, setQuestions] = useState<Question[]>([])
@@ -1012,7 +1007,14 @@ export default function SimuladoPage() {
       fill: pageBankFilter === 'Todas' ? BANK_VISUALS.Todas.color : BANK_VISUALS[pageBankFilter].color,
     }))
   const bankPerfData = aggregateBankPerf(pageFilteredSessions, pageBankFilter)
-  const customCountInsufficient = mode === 'custom' && availableCustomCount !== null && availableCustomCount < qty
+  const compositionsTotalQty = useMemo(() => compositions.reduce((sum, c) => sum + c.qty, 0), [compositions])
+  const customEffectiveMax = availableCustomCount != null ? Math.min(availableCustomCount, SIMULADO_MAX_QTY) : SIMULADO_MAX_QTY
+  const customCountInsufficient = mode === 'custom' && compositions.length === 0 && availableCustomCount !== null && availableCustomCount < qty
+  const customStartDisabled = mode === 'custom' && (compositions.length > 0 ? compositionsTotalQty <= 0 : customCountInsufficient)
+  const compositionsSummaryLabel = compositions.length === 0
+    ? 'Personalizar Assuntos e Matérias'
+    : compositions.map((c) => (c.topic ? `${c.subject} · ${c.topic}` : c.subject)).join(' + ')
+  const customDifficultyLabel = difficulty !== 'misto' ? (DIFFICULTIES.find((item) => item.value === difficulty)?.label ?? null) : null
   const presetFormats = presetBank === 'UFU'
     ? UFU_BLOCK_FORMATS
     : presetBank === 'UEG'
@@ -1054,9 +1056,17 @@ export default function SimuladoPage() {
       if (year !== 'Todos') body.year = Number(year)
       if (mode === 'custom') {
         body.format = 'custom'
-        body.qty = qty
         body.bank = bank
-        if (subject !== 'Todas') body.subject = subject
+        if (compositions.length > 0) {
+          body.compositions = compositions.map((c) => ({
+            subject: c.subject,
+            topic: c.topic || undefined,
+            qty: c.qty,
+            include_answered: c.includeAnswered,
+          }))
+        } else {
+          body.qty = qty
+        }
       } else {
         body.format = enemFormat
         body.bank = presetBank
@@ -1278,14 +1288,13 @@ export default function SimuladoPage() {
   }
 
   useEffect(() => {
-    if (!accessToken || !showConfigModal || mode !== 'custom') return
+    if (!accessToken || !showConfigModal || mode !== 'custom' || compositions.length > 0) return
 
     const controller = new AbortController()
     const fetchAvailability = async () => {
       setLoadingCustomCount(true)
       try {
         const params = new URLSearchParams({ page: '1', limit: '1', tab: 'all' })
-        if (subject !== 'Todas') params.append('subject', subject)
         if (bank !== 'Todas') params.append('bank', bank)
         if (year !== 'Todos') params.append('year', year)
         if (difficulty !== 'misto') {
@@ -1312,7 +1321,14 @@ export default function SimuladoPage() {
 
     fetchAvailability()
     return () => controller.abort()
-  }, [accessToken, showConfigModal, mode, subject, bank, year, difficulty])
+  }, [accessToken, showConfigModal, mode, compositions.length, bank, year, difficulty])
+
+  // Nunca deixa a quantidade escolhida passar do que está disponível nem do limite
+  // de 180 questões por simulado.
+  useEffect(() => {
+    if (compositions.length > 0) return
+    setQty((prev) => (prev > customEffectiveMax ? Math.max(1, customEffectiveMax) : prev))
+  }, [customEffectiveMax, compositions.length])
 
   useEffect(() => {
     if (!showConfigModal) return
@@ -1488,37 +1504,58 @@ export default function SimuladoPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Matéria</label>
-                  <div className="relative">
-                    <select className="w-full p-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800 focus:ring-2 font-semibold text-slate-700 dark:text-slate-200 appearance-none pr-10 cursor-pointer outline-none"
-                      style={{ ['--tw-ring-color' as string]: 'var(--brand-primary)' }}
-                      value={subject} onChange={e => setSubject(e.target.value)}>
-                      {CUSTOM_SUBJECTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
-                  </div>
+                  <button type="button" onClick={() => setShowComposerModal(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-3.5 text-sm font-bold text-slate-600 transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800 cursor-pointer">
+                    <SlidersHorizontal size={16} className="shrink-0" />
+                    <span className="min-w-0 truncate">{compositionsSummaryLabel}</span>
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Quantidade</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[5, 10, 15, 30, 45, 90, 180].map(val => (
-                      <button key={val} onClick={() => setQty(val)}
-                        className={`p-2.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer ${qty === val ? 'text-white border-transparent' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 border-slate-200 dark:border-slate-700'}`}
-                        style={qty === val ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)' } : {}}>
-                        {val}
-                      </button>
-                    ))}
+                {compositions.length === 0 ? (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Quantidade</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[5, 10, 15, 30, 45, 90, 180].map(val => {
+                        const disabled = val > customEffectiveMax
+                        return (
+                          <button key={val} disabled={disabled} onClick={() => setQty(val)}
+                            className={`p-2.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${qty === val ? 'text-white border-transparent' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 border-slate-200 dark:border-slate-700'}`}
+                            style={qty === val ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)' } : {}}>
+                            {val}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Ou digite:</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={customEffectiveMax}
+                        value={qty}
+                        onChange={(e) => {
+                          const raw = parseInt(e.target.value, 10)
+                          if (Number.isNaN(raw)) { setQty(1); return }
+                          setQty(Math.min(Math.max(raw, 1), customEffectiveMax))
+                        }}
+                        className="w-24 rounded-xl border border-slate-200 bg-white p-2 text-center text-sm font-bold text-slate-700 outline-none focus:ring-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        style={{ ['--tw-ring-color' as string]: 'var(--brand-primary)' }}
+                      />
+                      <span className="text-xs text-slate-400 dark:text-slate-500">Max: {customEffectiveMax}</span>
+                    </div>
+                    {loadingCustomCount && (
+                      <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">Verificando disponibilidade real para os filtros selecionados...</p>
+                    )}
                   </div>
-                  {loadingCustomCount ? (
-                    <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">Verificando disponibilidade real para os filtros selecionados...</p>
-                  ) : availableCustomCount != null ? (
-                    <p className={`mt-1.5 text-xs ${customCountInsufficient ? 'text-amber-600 dark:text-amber-500' : 'text-slate-400 dark:text-slate-500'}`}>
-                      {customCountInsufficient
-                        ? `Há ${availableCustomCount} questões disponíveis para essa combinação. Reduza a quantidade ou alivie os filtros.`
-                        : `${availableCustomCount} questões disponíveis para essa combinação.`}
+                ) : (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Quantidade</label>
+                    <p className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                      Total: {compositionsTotalQty} questões · {compositions.length} {compositions.length === 1 ? 'composição' : 'composições'}
                     </p>
-                  ) : null}
-                </div>
+                  </div>
+                )}
               </>
             ) : (
               <div>
@@ -1591,8 +1628,8 @@ export default function SimuladoPage() {
               className="min-h-11 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer">
               Cancelar
             </button>
-            <button onClick={() => startSimulado()} disabled={loading || !accessToken || customCountInsufficient}
-              aria-disabled={loading || !accessToken || customCountInsufficient}
+            <button onClick={() => startSimulado()} disabled={loading || !accessToken || customStartDisabled}
+              aria-disabled={loading || !accessToken || customStartDisabled}
               className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all disabled:opacity-70 cursor-pointer"
               style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
               {loading ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {START_STAGES[startStage] ?? 'Preparando...'}</>) : (<><Play size={16} /> Iniciar Simulado</>)}
@@ -1600,6 +1637,20 @@ export default function SimuladoPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Composer de matérias/assuntos (simulado custom) ── */}
+      <SimuladoComposerModal
+        open={showComposerModal}
+        onOpenChange={setShowComposerModal}
+        initialCompositions={compositions}
+        onSave={setCompositions}
+        apiUrl={apiUrl}
+        accessToken={accessToken}
+        bank={bank}
+        year={year}
+        difficultyLabel={customDifficultyLabel}
+        brandTextColor={brandTextColor}
+      />
 
       {/* ══════════════════════════ SETUP ════════════════════════════════════ */}
       {step === 'setup' && (

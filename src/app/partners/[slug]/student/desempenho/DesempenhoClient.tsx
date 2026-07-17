@@ -56,6 +56,13 @@ export interface AnalyticsResponse {
     correct: number;
     accuracy: number;
   }>;
+  performance_by_topic: Array<{
+    subject: string;
+    topic: string;
+    total: number;
+    correct: number;
+    accuracy: number;
+  }>;
   activity_history: Array<{
     usage_date: string;
     questions_count: number;
@@ -172,6 +179,8 @@ interface CompetencyAggregate {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MIN_SUBJECT_SAMPLE = 8;
+const MIN_TOPIC_SAMPLE = 5;
+const MAX_WEAK_TOPICS = 10;
 const MIN_SIMULADO_SUBJECT_SAMPLE = 2;
 const SOFT_CARD_CLASS = 'partner-elevated-card partner-elevated-card-hover group relative overflow-hidden rounded-2xl border-0 bg-slate-50 p-4 transition-all duration-200 dark:bg-white/5';
 const WHITE_CARD_CLASS = 'partner-elevated-card partner-elevated-card-hover group relative overflow-hidden rounded-2xl border-0 bg-white p-4 transition-all duration-200 dark:bg-slate-900';
@@ -475,6 +484,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
   const [visibleHabitsMetrics, setVisibleHabitsMetrics] = useState<Array<'questions' | 'simulados'>>(['questions', 'simulados']);
   const [essayTypeFilter, setEssayTypeFilter] = useState<EssayType>('enem');
   const [essayTypeFilterOpen, setEssayTypeFilterOpen] = useState(false);
+  const [subjectSort, setSubjectSort] = useState<'accuracy' | 'volume'>('accuracy');
 
   useEffect(() => {
     if (initialState !== null && essayTypeFilter === 'enem') return; // server pre-fetched successfully for default filter
@@ -505,6 +515,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
         const analytics: AnalyticsResponse = analyticsRes.ok ? await analyticsRes.json() : {
           overview: { total_questions: 0, accuracy_percentage: 0, current_streak: 0, longest_streak: 0, total_xp: 0, total_simulados: 0 },
           performance_by_subject: [],
+          performance_by_topic: [],
           activity_history: [],
         };
 
@@ -575,6 +586,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
             analytics: {
               overview: { total_questions: 0, accuracy_percentage: 0, current_streak: 0, longest_streak: 0, total_xp: 0, total_simulados: 0 },
               performance_by_subject: [],
+              performance_by_topic: [],
               activity_history: [],
             },
             essays: [],
@@ -710,7 +722,18 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
     essayTypeConfig,
   } = derived;
 
-  const subjectRows = analytics.performance_by_subject.slice().sort((a, b) => b.total - a.total).slice(0, 6);
+  const subjectRows = (analytics.performance_by_subject || []).slice().sort((a, b) => {
+    if (subjectSort === 'volume') return b.total - a.total;
+    const aShort = a.total < MIN_SUBJECT_SAMPLE;
+    const bShort = b.total < MIN_SUBJECT_SAMPLE;
+    if (aShort !== bShort) return aShort ? 1 : -1;
+    return a.accuracy - b.accuracy;
+  });
+  const weakestTopics = (analytics.performance_by_topic || [])
+    .filter((item) => item.total >= MIN_TOPIC_SAMPLE)
+    .slice()
+    .sort((a, b) => a.accuracy - b.accuracy)
+    .slice(0, MAX_WEAK_TOPICS);
   const filteredActivityChart = activityChart.slice(-evolutionPeriod);
   const habitsChartData = analytics.activity_history.slice(-habitsPeriod).map((item) => ({
     label: formatDateShort(item.usage_date),
@@ -944,8 +967,8 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
             </MetricShell>
           </RevealItem>
 
-          <RevealItem className="grid gap-3 lg:grid-cols-12 lg:gap-4">
-            <MetricShell className="lg:col-span-7">
+          <RevealItem>
+            <MetricShell>
               <div className="relative flex flex-col items-start justify-between gap-4 sm:flex-row">
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Redação em profundidade</p>
@@ -1126,12 +1149,14 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                 </div>
               </div>
             </MetricShell>
+          </RevealItem>
 
-            <MetricShell className="lg:col-span-5">
+          <RevealItem className="grid gap-3 lg:grid-cols-12 lg:gap-4">
+            <MetricShell className="lg:col-span-7">
               <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
                 <div className="min-w-0">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Performance por matéria</p>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Precisão e volume</h2>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Todas as matérias</h2>
                 </div>
                 <div className="rounded-2xl bg-slate-950 p-2 text-white dark:bg-white/10">
                   <BarChart3 className="h-5 w-5" />
@@ -1143,7 +1168,28 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                 <p className="mt-1"><span className="font-semibold" style={{ color: 'var(--brand-primary)' }}>Volume relativo</span> — quantas questões você já fez ali, na comparação com as outras matérias. Barra curta = poucos dados = não confie no % de precisão ainda.</p>
               </div>
 
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 flex gap-2">
+                {([
+                  { key: 'accuracy', label: 'Maior dificuldade' },
+                  { key: 'volume', label: 'Mais praticadas' },
+                ] as const).map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setSubjectSort(item.key)}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-xs font-semibold transition',
+                      subjectSort === item.key
+                        ? 'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-950'
+                        : 'border-slate-300 bg-white text-slate-500 dark:border-white/15 dark:bg-slate-900/70 dark:text-slate-300',
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {subjectRows.length ? subjectRows.map((subject) => {
                   const isShortSample = subject.total < MIN_SUBJECT_SAMPLE;
                   const insight = isShortSample
@@ -1190,8 +1236,52 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                   </div>
                   );
                 }) : (
-                  <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500 dark:border-white/15 dark:bg-white/5 dark:text-slate-400">
+                  <div className="col-span-full rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500 dark:border-white/15 dark:bg-white/5 dark:text-slate-400">
                     Quando houver base de questões, a página separa volume de precisão para evitar leituras enganosas.
+                  </div>
+                )}
+              </div>
+            </MetricShell>
+
+            <MetricShell className="lg:col-span-5">
+              <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Pontos de atenção</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Conteúdos com mais dificuldade</h2>
+                </div>
+                <div className="rounded-2xl bg-rose-600 p-2 text-white">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+              </div>
+
+              <p className="mt-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+                Assuntos com a menor taxa de acerto, do pior pro melhor — baseado nas questões que
+                você respondeu avulsas no banco de questões (simulados entram só na visão por matéria, ao lado).
+              </p>
+
+              <div className="mt-4 space-y-2">
+                {weakestTopics.length ? weakestTopics.map((topic, index) => (
+                  <div key={`${topic.subject}__${topic.topic}`} className={WHITE_CARD_CLASS}>
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-50 text-[11px] font-bold text-rose-600 dark:bg-rose-500/15 dark:text-rose-300">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold text-slate-950 dark:text-white">
+                          {topic.subject} <span className="text-slate-400 dark:text-slate-500">·</span> {topic.topic}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{topic.total} tentativas • {topic.correct} acertos</p>
+                      </div>
+                      <span className="shrink-0 text-lg font-semibold text-rose-600 dark:text-rose-300">{topic.accuracy}%</span>
+                    </div>
+                    <div className="mt-3 h-2 rounded-full bg-slate-100 dark:bg-white/10">
+                      <div className="h-full rounded-full bg-rose-500" style={{ width: `${Math.max(8, topic.accuracy)}%` }} />
+                    </div>
+                  </div>
+                )) : (
+                  <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500 dark:border-white/15 dark:bg-white/5 dark:text-slate-400">
+                    Ainda não há base suficiente por assunto — pratique no banco de questões para
+                    a página apontar onde focar.
                   </div>
                 )}
               </div>

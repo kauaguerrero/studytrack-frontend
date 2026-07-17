@@ -36,7 +36,7 @@ export default async function DesempenhoPage({
 
       const analytics: AnalyticsResponse = analyticsRes.ok
         ? await analyticsRes.json()
-        : { overview: { total_questions: 0, accuracy_percentage: 0, current_streak: 0, total_xp: 0, total_simulados: 0 }, performance_by_subject: [], activity_history: [] };
+        : { overview: { total_questions: 0, accuracy_percentage: 0, current_streak: 0, total_xp: 0, total_simulados: 0 }, performance_by_subject: [], performance_by_topic: [], activity_history: [] };
 
       const essaysPayload = essaysRes.ok ? await essaysRes.json() : { items: [], credits: null };
       const summary = summaryRes.ok ? await summaryRes.json() : null;

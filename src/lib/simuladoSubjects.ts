@@ -1,0 +1,15 @@
+export const CUSTOM_SUBJECTS = [
+  { value: 'Todas',             label: 'Todas as Matérias', qty: null },
+  { value: 'Matemática',        label: 'Matemática',        qty: 673  },
+  { value: 'Língua Portuguesa', label: 'Língua Portuguesa', qty: 664  },
+  { value: 'Biologia',          label: 'Biologia',          qty: 237  },
+  { value: 'Geografia',         label: 'Geografia',         qty: 226  },
+  { value: 'Física',            label: 'Física',            qty: 216  },
+  { value: 'História',          label: 'História',          qty: 201  },
+  { value: 'Química',           label: 'Química',           qty: 196  },
+  { value: 'Sociologia',        label: 'Sociologia',        qty: 119  },
+  { value: 'Filosofia',         label: 'Filosofia',         qty: 83   },
+  { value: 'Espanhol',          label: 'Espanhol',          qty: 64   },
+  { value: 'Inglês',            label: 'Inglês',            qty: 42   },
+  { value: 'Francês',           label: 'Francês',           qty: null },
+]
