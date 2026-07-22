@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { reportError } from '@/lib/reportError';
 import { toast } from 'sonner';
 import PeakHoursCard from "@/components/admin/PeakHoursCard";
+import UsageTimeCard from "@/components/admin/UsageTimeCard";
 import StickinessCard from "@/components/admin/StickinessCard";
 import AIUsageRecentCard from "@/components/admin/AIUsageRecentCard";
 import { KpiCard, ElevatedCard } from "@/components/partners/founder-ui";
@@ -491,6 +492,9 @@ export default function SuperAdminDashboard() {
           apiUrl={(process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "")}
         />
       )}
+
+      {/* ── Tempo de Uso da Plataforma ─────────────────────────────────────── */}
+      <UsageTimeCard orgs={orgs.map((o) => ({ id: o.id, name: o.name }))} />
 
       {/* ── Horários de Pico ───────────────────────────────────────────────── */}
       <PeakHoursCard />
