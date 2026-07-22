@@ -83,7 +83,7 @@ Feature-based under `src/components/`:
 ### Key Libraries
 
 - **UI:** Radix UI (partial) + Tailwind CSS v4 + `class-variance-authority` + `tailwindcss-animate`
-- **Math rendering:** KaTeX (ENEM questions with formulas)
+- **Math rendering:** KaTeX (Vestibular questions with formulas)
 - **Charts:** Recharts
 - **Animation:** Framer Motion
 - **PDF/export:** `jspdf`, `html-to-image`, `pptxgenjs`, `jszip` (presentation/social-media generation)
@@ -102,4 +102,4 @@ Feature-based under `src/components/`:
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase public access
 - `NEXT_PUBLIC_API_URL` — Flask backend URL (default: `http://127.0.0.1:5000`)
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — server-side admin access (API routes only)
-- `ANTHROPIC_API_KEY` — server-only (no `NEXT_PUBLIC_` prefix — never rename it to have one, that would inline it into the browser bundle), used in `/api/admin/social-media/*` routes
+- `NEXT_PUBLIC_API_KEY` — Anthropic API key (used in `/api/*` routes)

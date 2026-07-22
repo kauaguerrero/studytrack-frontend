@@ -11,6 +11,7 @@ import { EssayNotificationProvider } from '@/contexts/EssayNotificationContext';
 import { AnnouncementNotificationProvider } from '@/contexts/AnnouncementNotificationContext';
 import { StudentThemeProvider } from '@/contexts/StudentThemeContext';
 import { StudentThemeShell } from '@/components/partners/StudentThemeShell';
+import { UsageHeartbeat } from '@/components/students/UsageHeartbeat';
 import { getStudentThemeStorageKey, type StudentTheme } from '@/lib/student-theme';
 import { normalizeOrgTypewriterTagline, type OrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
 import { normalizeOrgApprovedPhotos, type OrgApprovedPhoto } from '@/lib/org-approved-photos';
@@ -166,6 +167,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
             <StudentThemeShell mustChangePassword={profile.must_change_password === true}>
               {children}
             </StudentThemeShell>
+            <UsageHeartbeat />
           </StudentThemeProvider>
         </AnnouncementNotificationProvider>
       </EssayNotificationProvider>
