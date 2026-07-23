@@ -565,6 +565,7 @@ export default function SimuladoPage() {
   const scheduledEndsAtRef = useRef<Date | null>(null)
   const [loading, setLoading] = useState(false)
   const [startStage, setStartStage] = useState(0)
+  const suppressBankSyncRef = useRef(false)
 
   // Session
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -1244,7 +1245,13 @@ export default function SimuladoPage() {
       if (currentUserId) window.localStorage.removeItem(getActiveSessionStorageKey())
     } catch {}
     setReportedQuestionIds(new Set()); setReportDialogOpen(false); setReportQuestionId(null)
-    if (openModal) setShowConfigModal(true)
+    if (openModal) {
+      // Refazer com os mesmos filtros: bank/year/difficulty/qty/compositions já
+      // continuam corretos no state, só precisamos impedir que o efeito de
+      // sincronização com o filtro do dashboard (pageBankFilter) os sobrescreva.
+      suppressBankSyncRef.current = true
+      setShowConfigModal(true)
+    }
   }
 
   // ── Fallback score ──
@@ -1332,6 +1339,10 @@ export default function SimuladoPage() {
 
   useEffect(() => {
     if (!showConfigModal) return
+    if (suppressBankSyncRef.current) {
+      suppressBankSyncRef.current = false
+      return
+    }
     if (mode === 'custom') {
       setBank(pageBankFilter)
       return

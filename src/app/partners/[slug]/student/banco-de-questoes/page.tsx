@@ -205,15 +205,31 @@ export default function BancoDeQuestoes() {
         if (user) {
           setUserId(user.id);
 
-          const [profileRes, answersRes] = await Promise.all([
+          const fetchAllAnsweredIds = async (): Promise<string[]> => {
+            const ids: string[] = [];
+            const pageSize = 1000;
+            let offset = 0;
+            while (true) {
+              const { data } = await supabase
+                .from('user_answers')
+                .select('question_id')
+                .eq('user_id', user.id)
+                .range(offset, offset + pageSize - 1);
+              if (!data || data.length === 0) break;
+              ids.push(...data.map((a) => a.question_id));
+              if (data.length < pageSize) break;
+              offset += pageSize;
+            }
+            return ids;
+          };
+
+          const [profileRes, answeredIdsList] = await Promise.all([
             supabase.from('profiles').select('full_name').eq('id', user.id).single(),
-            supabase.from('user_answers').select('question_id').eq('user_id', user.id),
+            fetchAllAnsweredIds(),
           ]);
 
           setUserProfile(profileRes.data);
-          if (answersRes.data) {
-            setAnsweredIds(new Set(answersRes.data.map((a) => a.question_id)));
-          }
+          setAnsweredIds(new Set(answeredIdsList));
         }
       } catch (error) {
         await reportError('QuestionBankInitError', String(error), { flow: 'question_bank_init' });
