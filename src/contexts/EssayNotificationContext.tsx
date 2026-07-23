@@ -5,11 +5,13 @@ import { createClient } from '@/lib/supabase/client';
 
 type EssayNotificationContextValue = {
   hasPendingCorrection: boolean;
+  assignedSecondCorrectionCount: number;
   refresh: () => Promise<void>;
 };
 
 const EssayNotificationContext = createContext<EssayNotificationContextValue>({
   hasPendingCorrection: false,
+  assignedSecondCorrectionCount: 0,
   refresh: async () => {},
 });
 
@@ -21,6 +23,7 @@ export function EssayNotificationProvider({
   children: ReactNode;
 }) {
   const [hasPendingCorrection, setHasPendingCorrection] = useState(false);
+  const [assignedSecondCorrectionCount, setAssignedSecondCorrectionCount] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -28,6 +31,7 @@ export function EssayNotificationProvider({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         setHasPendingCorrection(false);
+        setAssignedSecondCorrectionCount(0);
         return;
       }
 
@@ -39,15 +43,25 @@ export function EssayNotificationProvider({
 
       if (!res.ok) {
         setHasPendingCorrection(false);
+        setAssignedSecondCorrectionCount(0);
         return;
       }
 
       const payload = await res.json();
       const essays = Array.isArray(payload) ? payload : (payload.items || []);
-      const hasPending = essays.some((e: { status?: string }) => e.status === 'corrected');
+      const hasPending = essays.some((e: { status?: string }) => e.status === 'corrected' || e.status === 'second_corrected');
       setHasPendingCorrection(hasPending);
+
+      const userId = session.user?.id;
+      const secondCount = userId
+        ? essays.filter((e: { status?: string; second_corrector_id?: string }) =>
+            e.status === 'awaiting_second' && e.second_corrector_id === userId,
+          ).length
+        : 0;
+      setAssignedSecondCorrectionCount(secondCount);
     } catch {
       setHasPendingCorrection(false);
+      setAssignedSecondCorrectionCount(0);
     }
   }, [slug]);
 
@@ -57,8 +71,8 @@ export function EssayNotificationProvider({
   }, [refresh]);
 
   const value = useMemo(
-    () => ({ hasPendingCorrection, refresh }),
-    [hasPendingCorrection, refresh],
+    () => ({ hasPendingCorrection, assignedSecondCorrectionCount, refresh }),
+    [hasPendingCorrection, assignedSecondCorrectionCount, refresh],
   );
 
   return (

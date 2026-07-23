@@ -8,7 +8,9 @@ import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import FloatingActionMenu from '@/components/ui/floating-action-menu';
 import { cn } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
-import { ArrowLeft, ChevronLeft, ChevronRight, Info, MessageCircle, PenLine, PencilLine, Send, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Info, MessageCircle, PenLine, PencilLine, Send, Users, X } from 'lucide-react';
+import { useOrg } from '@/contexts/OrgContext';
+import { useOrgCorrectionPresence } from '@/hooks/useOrgCorrectionPresence';
 
 type Annotation = {
   id: string;
@@ -26,20 +28,38 @@ type CompetencyScore = {
   comment: string;
 };
 
+type CorrectorInfo = { id: string; full_name: string | null; avatar_url: string | null; role?: string | null };
+
+type CorrectionRound = {
+  round: number;
+  total_score: number;
+  general_comment: string | null;
+  corrected_at: string | null;
+  corrector_name?: string | null;
+  corrector_avatar_url?: string | null;
+};
+
 type EssayDetail = {
   id: string;
-  status: 'pending' | 'corrected' | 'seen';
+  status: 'pending' | 'corrected' | 'awaiting_second' | 'second_corrected' | 'seen';
   essay_type?: string | null;
   theme?: string | null;
   text: string;
   submitted_at: string;
   corrected_at: string | null;
+  second_corrected_at: string | null;
   total_score: number | null;
+  average_score: number | null;
   general_comment: string | null;
+  second_corrector_id: string | null;
+  second_corrector_name: string | null;
+  second_correction_requested_by_name?: string | null;
+  second_correction_requested_at: string | null;
   competency_scores: Array<{
     competency: number;
     score: number;
     comment: string | null;
+    correction_round?: number;
   }>;
   annotations: Array<{
     id: string;
@@ -49,7 +69,9 @@ type EssayDetail = {
     comment_text: string | null;
     original_text: string | null;
     corrected_text: string | null;
+    correction_round?: number;
   }>;
+  corrections: CorrectionRound[];
   signed_image_url?: string | null;
 };
 
@@ -185,6 +207,7 @@ function pickEssayTheme(raw: Record<string, unknown>): string | null {
 export default function CorrecaoRedacaoPage() {
   const { slug, id } = useParams<{ slug: string; id: string }>();
   const router = useRouter();
+  const { org, userProfile } = useOrg();
   const textContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [essay, setEssay] = useState<EssayDetail | null>(null);
@@ -206,6 +229,52 @@ export default function CorrecaoRedacaoPage() {
   const [showCompetencyPanel, setShowCompetencyPanel] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Estados para modal de devolução / segunda correção
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [requestSecond, setRequestSecond] = useState(false);
+  const [secondCorrectorMode, setSecondCorrectorMode] = useState<'random' | 'specific'>('random');
+  const [correctors, setCorrectors] = useState<CorrectorInfo[]>([]);
+  const [selectedCorrectorId, setSelectedCorrectorId] = useState<string>('');
+  const [loadingCorrectors, setLoadingCorrectors] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Estado para o accordion "Ver primeira correção" no modo segunda correção
+  const [showRound1Reference, setShowRound1Reference] = useState(false);
+
+  // Busca ID do usuário atual para verificar se é o segundo corretor alocado
+  useEffect(() => {
+    import('@/lib/supabase/client').then(({ createClient }) => {
+      const supabase = createClient();
+      supabase.auth.getUser().then(({ data }) => {
+        if (data.user) setCurrentUserId(data.user.id);
+      });
+    });
+  }, []);
+
+  // Presença em tempo real: anuncia que este corretor está com a redação aberta.
+  // Só rastreia quando essay está pending (rodada 1); awaiting_second já tem lock via second_corrector_id.
+  const isPendingEssay = essay?.status === 'pending';
+  const { presenceByEssay, synced } = useOrgCorrectionPresence({
+    orgId: org.id,
+    currentUserId,
+    currentUserName: userProfile.fullName,
+    currentUserAvatarUrl: userProfile.avatarUrl,
+    trackingEssayId: isPendingEssay && currentUserId ? id : undefined,
+  });
+
+  // Redirect se outro corretor já estiver com esta redação ao carregar a página
+  const presenceCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!synced || presenceCheckedRef.current || !isPendingEssay) return;
+    presenceCheckedRef.current = true;
+    const others = presenceByEssay.get(id);
+    if (others && others.length > 0) {
+      const name = others[0].name || 'Outro corretor';
+      toast.warning(`${name} já está corrigindo esta redação.`);
+      router.push(`/partners/${slug}/redacoes`);
+    }
+  }, [synced, presenceByEssay, isPendingEssay, id, slug, router]);
 
   useEffect(() => {
     let mounted = true;
@@ -229,23 +298,45 @@ export default function CorrecaoRedacaoPage() {
         setEssay({
           ...data,
           theme: pickEssayTheme(data),
+          corrections: data.corrections || [],
+          second_corrector_id: data.second_corrector_id ?? null,
+          second_corrector_name: data.second_corrector_name ?? null,
+          second_corrected_at: data.second_corrected_at ?? null,
+          average_score: data.average_score ?? null,
+          second_correction_requested_at: data.second_correction_requested_at ?? null,
         });
+
+        // Para a segunda correção, carregar apenas anotações da rodada 1 como referência
+        // e iniciar com formulário limpo
+        const allAnnotations = (data.annotations || []) as Array<{
+          id: string; start_offset: number; end_offset: number;
+          type: 'comment' | 'correction'; comment_text: string | null;
+          original_text: string | null; corrected_text: string | null;
+          correction_round?: number;
+        }>;
+        const isRound2 = data.status === 'awaiting_second';
         setAnnotations(
-          (data.annotations || []).map((a) => ({
-            id: a.id || crypto.randomUUID(),
-            start_offset: a.start_offset,
-            end_offset: a.end_offset,
-            type: a.type,
-            comment_text: a.comment_text,
-            original_text: a.original_text,
-            corrected_text: a.corrected_text,
-          })),
+          allAnnotations
+            .filter((a) => isRound2 ? false : (a.correction_round ?? 1) === 1)
+            .map((a) => ({
+              id: a.id || crypto.randomUUID(),
+              start_offset: a.start_offset,
+              end_offset: a.end_offset,
+              type: a.type,
+              comment_text: a.comment_text,
+              original_text: a.original_text,
+              corrected_text: a.corrected_text,
+            })),
         );
 
         const loadedTypeConfig = ESSAY_TYPE_CONFIGS[(data.essay_type as EssayType) || 'enem'] ?? ESSAY_TYPE_CONFIGS.enem;
+        const allScores = (data.competency_scores || []) as Array<{ competency: number; score: number; comment: string | null; correction_round?: number }>;
         const normalizedScores = Array.from({ length: loadedTypeConfig.competencies.length }, (_, idx) => {
           const comp = idx + 1;
-          const existing = (data.competency_scores || []).find((s) => s.competency === comp);
+          // Para round 2, inicia zerado; para round 1, carrega existente
+          const existing = isRound2
+            ? null
+            : allScores.find((s) => s.competency === comp && (s.correction_round ?? 1) === 1);
           return {
             competency: comp,
             score: existing?.score ?? 0,
@@ -253,7 +344,8 @@ export default function CorrecaoRedacaoPage() {
           };
         });
         setScores(normalizedScores);
-        setGeneralComment(data.general_comment || '');
+        // Para round 2, comentário geral começa vazio
+        setGeneralComment(isRound2 ? '' : (data.general_comment || ''));
       } catch {
         if (mounted) setError('Não foi possível carregar esta redação.');
       } finally {
@@ -272,10 +364,16 @@ export default function CorrecaoRedacaoPage() {
     [scores],
   );
 
+  const isLockedForCurrentUser = useMemo(() => {
+    if (!essay || !currentUserId) return false;
+    return essay.status === 'awaiting_second' && !!essay.second_corrector_id && essay.second_corrector_id !== currentUserId;
+  }, [essay, currentUserId]);
+
   const canSubmit = useMemo(() => {
+    if (isLockedForCurrentUser) return false;
     const hasGeneral = generalComment.trim().length >= 20;
     return hasGeneral && !submitting;
-  }, [generalComment, submitting]);
+  }, [generalComment, submitting, isLockedForCurrentUser]);
 
   const segments = useMemo(
     () => buildSegments(essay?.text || '', annotations),
@@ -317,15 +415,23 @@ export default function CorrecaoRedacaoPage() {
     if (!selected.trim()) return;
 
     const rect = range.getBoundingClientRect();
+    const POPUP_W = 288; // w-72
+    const POPUP_H_EST = 160; // estimativa para checar overflow vertical
+    const MARGIN = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const rawX = rect.left + rect.width / 2;
+    // Clampa horizontalmente para o popup não sair da tela
+    const clampedX = Math.min(Math.max(rawX, POPUP_W / 2 + MARGIN), vw - POPUP_W / 2 - MARGIN);
+    // Mostra acima da seleção se não couber abaixo
+    const fitsBelow = rect.bottom + POPUP_H_EST + MARGIN < vh;
+    const clampedY = fitsBelow ? rect.bottom + 8 : Math.max(MARGIN, rect.top - POPUP_H_EST - 8);
     setSelectedText({
       start: offsetStart,
       end: offsetEnd,
       text: selected,
     });
-    setAnnotationPopup({
-      x: rect.left + rect.width / 2,
-      y: rect.bottom + 8,
-    });
+    setAnnotationPopup({ x: clampedX, y: clampedY });
     setPopupMode(queuedMode);
     setQueuedMode(null);
     setPopupValue('');
@@ -377,13 +483,43 @@ export default function CorrecaoRedacaoPage() {
     }
   }
 
-  async function submitCorrection() {
+  async function fetchCorrectors() {
+    if (correctors.length > 0) return;
+    setLoadingCorrectors(true);
+    try {
+      const res = await fetch(`/api/partners/${slug}/correctors`);
+      if (res.ok) {
+        const data = await res.json() as CorrectorInfo[];
+        // Exclui o corretor atual da lista
+        setCorrectors(data.filter((c) => c.id !== currentUserId));
+      }
+    } catch {
+      // ignora — lista fica vazia
+    } finally {
+      setLoadingCorrectors(false);
+    }
+  }
+
+  function handleSubmitClick() {
     if (!essay) return;
     if (!canSubmit) return;
+    // Abre o modal de escolha apenas na rodada 1 (status pending)
+    if (essay.status === 'pending') {
+      setShowDeliveryModal(true);
+      void fetchCorrectors();
+    } else {
+      // Rodada 2: submete diretamente
+      void doSubmitCorrection({ secondRequest: false, secondCorrectorId: null });
+    }
+  }
+
+  async function doSubmitCorrection({ secondRequest, secondCorrectorId }: { secondRequest: boolean; secondCorrectorId: string | null }) {
+    if (!essay) return;
 
     setSubmitting(true);
+    setShowDeliveryModal(false);
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         competency_scores: scores.map((s) => ({
           competency: s.competency,
           score: s.score,
@@ -391,23 +527,36 @@ export default function CorrecaoRedacaoPage() {
         })),
         annotations,
         general_comment: generalComment.trim(),
+        request_second_correction: secondRequest,
+        second_corrector_id: secondCorrectorId,
       };
 
       const res = await fetch(`/api/partners/${slug}/essays/${essay.id}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
+        const data = await res.json().catch(() => null) as { error?: string; locked?: boolean } | null;
         throw new Error(data?.error || 'Não foi possível enviar a correção.');
       }
-      const responseData = await res.json().catch(() => null) as { warning?: string | null; details?: string } | null;
+      const responseData = await res.json().catch(() => null) as {
+        ok?: boolean;
+        warning?: string | null;
+        action?: string;
+        second_corrector?: { id: string; full_name: string | null };
+      } | null;
 
-      toast.success('Correção enviada! O aluno será notificado.');
+      if (responseData?.action === 'second_correction_requested') {
+        const name = responseData.second_corrector?.full_name || 'outro corretor';
+        toast.success(`Segunda correção solicitada para ${name}!`);
+      } else if (essay.status === 'awaiting_second') {
+        toast.success('Segunda correção enviada! O aluno será notificado.');
+      } else {
+        toast.success('Correção enviada! O aluno será notificado.');
+      }
+
       if (responseData?.warning) {
         toast.warning(responseData.warning);
       }
@@ -538,12 +687,12 @@ export default function CorrecaoRedacaoPage() {
 
       <button
         type="button"
-        onClick={submitCorrection}
+        onClick={handleSubmitClick}
         disabled={!canSubmit}
         className="mt-4 hidden min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 lg:inline-flex"
       >
         <Send className="h-4 w-4" />
-        {submitting ? 'Enviando...' : 'Enviar Correção'}
+        {submitting ? 'Enviando...' : (essay?.status === 'awaiting_second' ? 'Enviar 2ª Correção' : 'Enviar Correção')}
       </button>
     </>
   );
@@ -661,6 +810,57 @@ export default function CorrecaoRedacaoPage() {
           </div>
         </header>
 
+        {/* Banner: corretor está alocado mas não é o usuário atual → lock */}
+        {essay.status === 'awaiting_second' && currentUserId && essay.second_corrector_id && essay.second_corrector_id !== currentUserId && (
+          <div className="rounded-2xl border border-rose-400/40 bg-rose-50 p-4 dark:border-rose-500/30 dark:bg-rose-950/40">
+            <p className="text-sm font-semibold text-rose-700 dark:text-rose-300">
+              🔒 Esta redação está reservada para segunda correção por{' '}
+              <span className="font-bold">{essay.second_corrector_name || 'outro corretor'}</span>.
+              Você não pode corrigi-la agora.
+            </p>
+            <Link
+              href={`/partners/${slug}/redacoes`}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-700 dark:text-rose-300 dark:hover:bg-rose-900"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Voltar para a fila
+            </Link>
+          </div>
+        )}
+
+        {/* Banner: este usuário é o segundo corretor alocado */}
+        {essay.status === 'awaiting_second' && currentUserId && essay.second_corrector_id === currentUserId && (
+          <div className="rounded-2xl border border-amber-400/50 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-950/40">
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              📋 Você foi solicitado(a)
+              {essay.second_correction_requested_by_name ? ` por ${essay.second_correction_requested_by_name}` : ''} para realizar a{' '}
+              <span className="font-bold">segunda correção</span> desta redação.
+            </p>
+            {/* Accordion: ver primeira correção como referência */}
+            {essay.corrections && essay.corrections.length > 0 && (
+              <details
+                className="mt-3 rounded-xl border border-amber-300/60 dark:border-amber-700/40"
+                open={showRound1Reference}
+                onToggle={(e) => setShowRound1Reference((e.target as HTMLDetailsElement).open)}
+              >
+                <summary className="cursor-pointer rounded-xl px-3 py-2 text-xs font-semibold text-amber-700 select-none dark:text-amber-300">
+                  {showRound1Reference ? '▲' : '▶'} Ver primeira correção (referência)
+                </summary>
+                <div className="space-y-2 px-3 pb-3 pt-1">
+                  {essay.corrections.filter((c) => c.round === 1).map((c) => (
+                    <div key={c.round} className="text-xs text-amber-800 dark:text-amber-200">
+                      <span className="font-semibold">Nota:</span> {c.total_score} pts
+                      {c.general_comment && (
+                        <p className="mt-1 italic text-amber-700 dark:text-amber-300">&ldquo;{c.general_comment}&rdquo;</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+
         {essay.signed_image_url && (
           <details className="rounded-xl border border-slate-200 dark:border-slate-800">
             <summary className="cursor-pointer px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 select-none">
@@ -710,6 +910,7 @@ export default function CorrecaoRedacaoPage() {
             <div
               ref={textContainerRef}
               onMouseUp={handleTextMouseUp}
+              onTouchEnd={() => setTimeout(handleTextMouseUp, 50)}
               className="max-h-[540px] overflow-auto rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
             >
               {renderAnnotatedText()}
@@ -873,6 +1074,132 @@ export default function CorrecaoRedacaoPage() {
           A correção exige nota nas {typeConfig.competencies.length} competências (incluindo 0) e comentário geral com no mínimo 20 caracteres.
         </div>
 
+        {/* Modal de devolução: "Como deseja devolver esta redação?" */}
+        {showDeliveryModal && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 pb-6 sm:items-center sm:pb-0" onClick={() => setShowDeliveryModal(false)}>
+            <div
+              className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="mb-1 text-base font-bold text-slate-900 dark:text-white">Como deseja devolver esta redação?</h2>
+              <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">Escolha se quer enviar ao aluno agora ou solicitar uma segunda avaliação.</p>
+
+              {/* Opção A: devolver ao aluno */}
+              <button
+                type="button"
+                onClick={() => {
+                  setRequestSecond(false);
+                  void doSubmitCorrection({ secondRequest: false, secondCorrectorId: null });
+                }}
+                disabled={submitting}
+                className="mb-3 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-left transition hover:bg-emerald-50 hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-emerald-950/30 dark:hover:border-emerald-700"
+              >
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900">
+                  <Send className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Devolver ao aluno agora</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">O aluno receberá esta correção imediatamente.</p>
+                </div>
+              </button>
+
+              {/* Opção B: solicitar segunda correção */}
+              <button
+                type="button"
+                onClick={() => setRequestSecond(!requestSecond)}
+                className={cn(
+                  'flex w-full items-center gap-3 rounded-xl border p-3.5 text-left transition',
+                  requestSecond
+                    ? 'border-[var(--brand-primary)] bg-[color:color-mix(in_srgb,var(--brand-primary)_8%,white)] dark:bg-[color:color-mix(in_srgb,var(--brand-primary)_12%,#1e293b)]'
+                    : 'border-slate-200 bg-slate-50 hover:border-[var(--brand-primary)]/50 dark:border-slate-700 dark:bg-slate-800',
+                )}
+              >
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--brand-primary)_15%,white)] dark:bg-[color:color-mix(in_srgb,var(--brand-primary)_20%,#1e293b)]">
+                  <Users className="h-4 w-4 text-[var(--brand-primary)]" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Solicitar segunda correção</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Outro corretor avaliará antes de enviar ao aluno.</p>
+                </div>
+              </button>
+
+              {/* Painel de seleção do segundo corretor */}
+              {requestSecond && (
+                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2 dark:border-slate-700 dark:bg-slate-800">
+                  <div className="flex gap-3">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                      <input
+                        type="radio"
+                        name="corrector_mode"
+                        value="random"
+                        checked={secondCorrectorMode === 'random'}
+                        onChange={() => { setSecondCorrectorMode('random'); setSelectedCorrectorId(''); }}
+                        className="accent-[var(--brand-primary)]"
+                      />
+                      Corretor aleatório
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                      <input
+                        type="radio"
+                        name="corrector_mode"
+                        value="specific"
+                        checked={secondCorrectorMode === 'specific'}
+                        onChange={() => setSecondCorrectorMode('specific')}
+                        className="accent-[var(--brand-primary)]"
+                      />
+                      Escolher corretor
+                    </label>
+                  </div>
+
+                  {secondCorrectorMode === 'specific' && (
+                    <div>
+                      {loadingCorrectors ? (
+                        <div className="h-9 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
+                      ) : correctors.length === 0 ? (
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Nenhum outro corretor disponível nesta organização.</p>
+                      ) : (
+                        <select
+                          value={selectedCorrectorId}
+                          onChange={(e) => setSelectedCorrectorId(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                        >
+                          <option value="">Selecione um corretor...</option>
+                          {correctors.map((c) => (
+                            <option key={c.id} value={c.id}>{c.full_name || c.id}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    disabled={submitting || (secondCorrectorMode === 'specific' && !selectedCorrectorId)}
+                    onClick={() => {
+                      void doSubmitCorrection({
+                        secondRequest: true,
+                        secondCorrectorId: secondCorrectorMode === 'specific' ? selectedCorrectorId : null,
+                      });
+                    }}
+                    className="mt-1 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Users className="h-4 w-4" />
+                    {submitting ? 'Enviando...' : 'Confirmar segunda correção'}
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowDeliveryModal(false)}
+                className="mt-3 w-full rounded-xl border border-slate-200 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950 lg:hidden">
           <div className="mx-auto flex w-full max-w-5xl items-center gap-3">
             <div className="min-w-0">
@@ -881,12 +1208,12 @@ export default function CorrecaoRedacaoPage() {
             </div>
             <button
               type="button"
-              onClick={submitCorrection}
+              onClick={handleSubmitClick}
               disabled={!canSubmit}
               className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
-              {submitting ? 'Enviando...' : 'Enviar Correção'}
+              {submitting ? 'Enviando...' : (essay.status === 'awaiting_second' ? 'Enviar 2ª Correção' : 'Enviar Correção')}
             </button>
           </div>
         </div>
