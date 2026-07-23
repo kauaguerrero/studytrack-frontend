@@ -977,9 +977,11 @@ export default function SimuladoPage() {
           ? UFU_BLOCK_FORMATS
           : presetBank === 'UEG'
             ? UEG_BLOCK_FORMATS
-            : presetBank === 'UNESP'
-              ? UNESP_BLOCK_FORMATS
-              : ENEM_BLOCK_FORMATS
+            : presetBank === 'UFG'
+              ? UFG_BLOCK_FORMATS
+              : presetBank === 'UNESP'
+                ? UNESP_BLOCK_FORMATS
+                : ENEM_BLOCK_FORMATS
         const fmt = presetFormats.find(f => f.value === enemFormat)
         const q = fmt?.qty ?? 45
         return `${presetBank} · ~${Math.round(q * 1.5)} min · ${q} questões${presetBank === 'ENEM' ? ' · TRI' : ''}`
@@ -1020,9 +1022,11 @@ export default function SimuladoPage() {
     ? UFU_BLOCK_FORMATS
     : presetBank === 'UEG'
       ? UEG_BLOCK_FORMATS
-      : presetBank === 'UNESP'
-        ? UNESP_BLOCK_FORMATS
-        : ENEM_BLOCK_FORMATS
+      : presetBank === 'UFG'
+        ? UFG_BLOCK_FORMATS
+        : presetBank === 'UNESP'
+          ? UNESP_BLOCK_FORMATS
+          : ENEM_BLOCK_FORMATS
   const evolutionLegend = pageBankFilter === 'Todas'
     ? (['ENEM', 'UFU', 'UEG', 'UNESP', 'Todas'] as const)
     : ([pageBankFilter] as const)
@@ -1347,7 +1351,7 @@ export default function SimuladoPage() {
       setBank(pageBankFilter)
       return
     }
-    if (pageBankFilter === 'ENEM' || pageBankFilter === 'UFU' || pageBankFilter === 'UEG' || pageBankFilter === 'UNESP') {
+    if (pageBankFilter === 'ENEM' || pageBankFilter === 'UFU' || pageBankFilter === 'UEG' || pageBankFilter === 'UFG' || pageBankFilter === 'UNESP') {
       setPresetBank(pageBankFilter)
     }
   }, [showConfigModal, mode, pageBankFilter])
@@ -1573,7 +1577,7 @@ export default function SimuladoPage() {
                 <div className="mb-4">
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Banca do Bloco</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(['ENEM', 'UFU', 'UEG', 'UNESP'] as const).map((option) => (
+                    {(['ENEM', 'UFU', 'UEG', 'UFG', 'UNESP'] as const).map((option) => (
                       <button
                         key={option}
                         onClick={() => setPresetBank(option)}
@@ -1591,7 +1595,7 @@ export default function SimuladoPage() {
                 </div>
 
                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                  {presetBank === 'UFU' || presetBank === 'UEG' || presetBank === 'UNESP' ? 'Bloco da Prova' : 'Área de Conhecimento'}
+                  {presetBank === 'UFU' || presetBank === 'UEG' || presetBank === 'UFG' || presetBank === 'UNESP' ? 'Bloco da Prova' : 'Área de Conhecimento'}
                 </label>
                 <div className="space-y-2">
                   {presetFormats.map(f => (
