@@ -64,6 +64,8 @@ interface EssayListItem {
   } | null;
   second_corrector_id?: string | null;
   second_corrector_name?: string | null;
+  is_historical?: boolean;
+  historical_date?: string | null;
 }
 
 interface RankingItem {
@@ -100,6 +102,7 @@ interface EssayPrompt {
 
 interface EssaysMetrics {
   received_week: number;
+  historical_received_week?: number;
   pending_count: number;
   avg_score: number | null;
   highest_score: number | null;
@@ -129,6 +132,7 @@ export type { EssaysOverviewPayload };
 
 const DEFAULT_METRICS: EssaysMetrics = {
   received_week: 0,
+  historical_received_week: 0,
   pending_count: 0,
   avg_score: null,
   highest_score: null,
@@ -398,6 +402,11 @@ function EssayQueueCard({
                 DUPLA CORREÇÃO
               </span>
             )}
+            {item.is_historical && (
+              <span className="rounded-md bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                IMPORTADA
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm text-slate-600 break-words [overflow-wrap:anywhere] dark:text-white/70">
@@ -503,7 +512,7 @@ interface PartnerRedacoesClientProps {
 
 export default function PartnerRedacoesClient({ slug, initialOverview }: PartnerRedacoesClientProps) {
   const { org, userProfile } = useOrg();
-  const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
+  const isAssociate = userProfile.role === 'associate';
   const canManagePrompts = userProfile.role === 'founder' || userProfile.role === 'admin';
 
   const [metrics, setMetrics] = useState<EssaysMetrics>(initialOverview?.metrics || DEFAULT_METRICS);
@@ -1346,6 +1355,11 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
             <KpiCard
               title="Recebidas esta semana"
               value={metricsLoading ? '...' : metrics.received_week}
+              subtitle={
+                !metricsLoading && (metrics.historical_received_week ?? 0) > 0
+                  ? `${metrics.historical_received_week} importada${(metrics.historical_received_week ?? 0) > 1 ? 's' : ''}`
+                  : undefined
+              }
               icon={FileText}
               accentColor="var(--brand-primary)"
               accentHex={org.brand_primary}
@@ -1695,14 +1709,23 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setQueueOpen((v) => !v)}
-              className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              {queueOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              {queueOpen ? 'Ocultar fila' : 'Mostrar fila'}
-            </button>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/partners/${slug}/redacoes/importar`}
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <Upload className="h-4 w-4" />
+                Importar Redação
+              </Link>
+              <button
+                type="button"
+                onClick={() => setQueueOpen((v) => !v)}
+                className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                {queueOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                {queueOpen ? 'Ocultar fila' : 'Mostrar fila'}
+              </button>
+            </div>
           </div>
 
           {queueOpen && (

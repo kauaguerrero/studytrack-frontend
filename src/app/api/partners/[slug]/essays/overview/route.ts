@@ -93,7 +93,7 @@ export async function GET(
   const role = String(requester.role || '').toLowerCase();
   const isAdmin = role === 'admin';
   const isFounder = role === 'founder';
-  const isAssociate = role === 'associate' || role === 'teacher';
+  const isAssociate = role === 'associate';
   if (!isAdmin && !isFounder && !isAssociate) {
     return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
   }
@@ -191,6 +191,9 @@ export async function GET(
 
   const weekStart = startOfWeekBrtKey();
   const receivedWeek = metricsList.filter((e) => toBrtDateKey(new Date(e.submitted_at)) >= weekStart).length;
+  const historicalReceivedWeek = metricsList.filter(
+    (e) => toBrtDateKey(new Date(e.submitted_at)) >= weekStart && Boolean(e.is_historical),
+  ).length;
   const pendingCount = metricsList.filter((e) => e.status === 'pending').length;
 
   const scored = metricsList.filter((e) => (e.status === 'corrected' || e.status === 'seen') && typeof e.total_score === 'number');
@@ -300,6 +303,7 @@ export async function GET(
     essay_type_filter: essayTypeFilter,
     metrics: {
       received_week: receivedWeek,
+      historical_received_week: historicalReceivedWeek,
       pending_count: pendingCount,
       avg_score: avgScore,
       highest_score: highestScore,

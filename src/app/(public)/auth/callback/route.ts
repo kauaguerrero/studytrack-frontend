@@ -8,11 +8,8 @@ type CookieRemove = { name: string; options: CookieOptions }
 
 const ROLE_TO_DASHBOARD: Record<UserRole, string> = {
   student: '/',
-  teacher: '/',
-  manager: '/',
   admin: '/portal/admin',
   dev: '/portal',
-  secretariat: '/',
   founder: '/portal',  // /portal redireciona founder para /partners/<slug>/dashboard
   associate: '/portal',
 }
@@ -82,7 +79,8 @@ export async function GET(request: Request) {
         }
 
         if (requestedNext) {
-          const metaRole = user.user_metadata?.role
+          const rawMetaRole = user.user_metadata?.role
+          const metaRole = rawMetaRole && ROLE_TO_DASHBOARD[rawMetaRole as UserRole] ? rawMetaRole as UserRole : null
           if (metaRole) {
             await supabase.from('profiles').update({ 
               role: metaRole,
@@ -103,26 +101,6 @@ export async function GET(request: Request) {
           .eq('id', user.id)
           .single()
 
-        const cookieRole = roleCookie
-        const metaRole = user.user_metadata?.role
-        const dbRole = profile?.role
-        const isTeacher = cookieRole === 'teacher' || metaRole === 'teacher' || dbRole === 'teacher'
-
-        // Teacher legado vinculado a organização parceira deve ir para correção de redações
-        if (isTeacher && profile?.organization_id) {
-          const { data: org } = await supabase
-            .from('organizations')
-            .select('slug')
-            .eq('id', profile.organization_id)
-            .maybeSingle()
-          if (org?.slug) {
-            redirectUrl = `${origin}/partners/${org.slug}/redacoes`
-            const res = NextResponse.redirect(redirectUrl)
-            applyCapturedCookies(res, capturedSets, capturedRemoves)
-            return res
-          }
-        }
-
         if (!profile) {
           redirectUrl = `${origin}/`
           const res = NextResponse.redirect(redirectUrl)
@@ -131,6 +109,9 @@ export async function GET(request: Request) {
         }
 
         // Perfil completo → redireciona para o dashboard da role
+        const cookieRole = roleCookie
+        const metaRole = user.user_metadata?.role
+        const dbRole = profile?.role
         const role = resolveRole(cookieRole, metaRole, dbRole)
         redirectUrl = `${origin}${ROLE_TO_DASHBOARD[role]}`
         const res = NextResponse.redirect(redirectUrl)

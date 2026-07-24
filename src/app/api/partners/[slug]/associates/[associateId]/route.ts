@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const ASSOCIATE_DB_ROLE = 'associate';
-const LEGACY_ASSOCIATE_ROLE = 'teacher';
 const CSRF_HEADER = 'x-studytrack-csrf';
 
 type RequesterRow = {
@@ -98,7 +97,7 @@ export async function PATCH(
     .eq('id', associateId)
     .maybeSingle() as { data: { id: string; role: string | null; organization_id: string | null } | null };
 
-  if (!associate || ![ASSOCIATE_DB_ROLE, LEGACY_ASSOCIATE_ROLE].includes(associate.role || '') || associate.organization_id !== auth.orgId) {
+  if (!associate || associate.role !== ASSOCIATE_DB_ROLE || associate.organization_id !== auth.orgId) {
     return NextResponse.json({ error: 'Associado não encontrado nesta organização.' }, { status: 404 });
   }
 
@@ -141,7 +140,7 @@ export async function DELETE(
     .eq('id', associateId)
     .maybeSingle() as { data: { id: string; role: string | null; organization_id: string | null } | null };
 
-  if (!associate || ![ASSOCIATE_DB_ROLE, LEGACY_ASSOCIATE_ROLE].includes(associate.role || '') || associate.organization_id !== auth.orgId) {
+  if (!associate || associate.role !== ASSOCIATE_DB_ROLE || associate.organization_id !== auth.orgId) {
     return NextResponse.json({ error: 'Associado não encontrado nesta organização.' }, { status: 404 });
   }
 

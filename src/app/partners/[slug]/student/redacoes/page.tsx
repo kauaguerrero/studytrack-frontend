@@ -24,6 +24,7 @@ interface Essay {
   total_score: number | null;
   text_preview: string;
   theme: string | null;
+  is_historical?: boolean;
 }
 
 type Filter = 'all' | 'pending' | 'corrected' | 'seen';
@@ -44,6 +45,7 @@ interface RawEssay {
   tema?: string | null;
   topic?: string | null;
   title?: string | null;
+  is_historical?: boolean;
 }
 
 interface EssaysApiResponse {
@@ -144,7 +146,7 @@ export default function StudentRedacoesPage() {
           const rawText = String(row.text || row.text_preview || '');
           const preview = rawText.length > 120 ? `${rawText.slice(0, 120)}...` : rawText;
           const rawType = String(row.essay_type || '').toLowerCase();
-          const essayType: EssayType = (['ufu', 'ueg', 'fuvest', 'vunesp'] as const).includes(rawType as 'ufu' | 'ueg' | 'fuvest' | 'vunesp')
+          const essayType: EssayType = (['ufu', 'ueg', 'fuvest', 'vunesp', 'geral'] as const).includes(rawType as 'ufu' | 'ueg' | 'fuvest' | 'vunesp' | 'geral')
             ? (rawType as EssayType)
             : 'enem';
           return {
@@ -156,6 +158,7 @@ export default function StudentRedacoesPage() {
             total_score: typeof row.total_score === 'number' ? row.total_score : null,
             text_preview: preview,
             theme: pickEssayTheme(row),
+            is_historical: Boolean(row.is_historical),
           };
         });
 
@@ -233,7 +236,9 @@ export default function StudentRedacoesPage() {
         }),
       }));
 
-    const sorted = corrected
+    // Exclui redações históricas do cálculo de tendência (sem data real definida)
+    const nonHistoricalCorrected = corrected.filter((e) => !e.is_historical);
+    const sorted = nonHistoricalCorrected
       .slice()
       .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
 
@@ -684,6 +689,11 @@ export default function StudentRedacoesPage() {
                         <span className="inline-flex items-center rounded-full border border-slate-200 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:text-slate-300">
                           {essayConfig.label}
                         </span>
+                        {essay.is_historical && (
+                          <span className="rounded-md bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                            IMPORTADA
+                          </span>
+                        )}
                       </div>
 
                       <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">

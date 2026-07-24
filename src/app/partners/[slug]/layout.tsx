@@ -3,7 +3,7 @@
  *
  * Responsabilidades:
  * 1. Valida que o usuário está autenticado (redirect se não)
- * 2. Valida que o usuário tem role `founder`, `admin` ou `teacher` (associado técnico)
+ * 2. Valida que o usuário tem role `founder`, `admin` ou `associate`
  * 3. Valida que o founder pertence à organização do slug (anti cross-org)
  * 4. Injeta CSS variables de branding da org no layout
  * 5. Fornece o OrgContext para todos os filhos
@@ -46,7 +46,7 @@ interface PartnersLayoutProps {
 }
 
 function isAssociateRole(role: string | null | undefined): boolean {
-  return role === 'associate' || role === 'teacher';
+  return role === 'associate';
 }
 
 export default async function PartnersLayout({ children, params }: PartnersLayoutProps) {
@@ -112,7 +112,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   }
 
   // Roles sem acesso ao painel de parceiros
-  if (!profile || !['founder', 'admin', 'associate', 'teacher'].includes(profile.role ?? '')) {
+  if (!profile || !['founder', 'admin', 'associate'].includes(profile.role ?? '')) {
     redirect('/portal');
   }
 
@@ -153,7 +153,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     redirect('/portal');
   }
 
-  // Founder e associado técnico (teacher) só acessam a própria org; admin acessa qualquer uma
+  // Founder e associado técnico só acessam a própria org; admin acessa qualquer uma
   if ((profile.role === 'founder' || isAssociateRole(profile.role)) && profile.organization_id !== org.id) {
     redirect('/portal');
   }

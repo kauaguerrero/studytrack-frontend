@@ -78,7 +78,7 @@ export default function PartnerLoginPage() {
       const safeNextRedirect = (next && next.startsWith('/') && !next.startsWith('//')) ? next : null;
 
       const isManagementRole = profile?.role === 'founder' || profile?.role === 'admin'
-        || profile?.role === 'associate' || profile?.role === 'teacher';
+        || profile?.role === 'associate';
       const nextIsStudentPath = safeNextRedirect?.includes('/student/');
 
       if (safeNextRedirect && !(isManagementRole && nextIsStudentPath)) {
@@ -90,7 +90,7 @@ export default function PartnerLoginPage() {
         window.location.replace(`/partners/${slug}/dashboard`);
         return;
       }
-      if (profile?.role === 'associate' || profile?.role === 'teacher') {
+      if (profile?.role === 'associate') {
         window.location.replace(`/partners/${slug}/redacoes`);
         return;
       }
@@ -167,11 +167,11 @@ export default function PartnerLoginPage() {
       const roleTarget =
         role === 'founder' || role === 'admin'
           ? `/partners/${slug}/dashboard`
-          : role === 'associate' || role === 'teacher'
+          : role === 'associate'
             ? `/partners/${slug}/redacoes`
             : `/partners/${slug}/student/dashboard`;
 
-      const isManagementRole = role === 'founder' || role === 'admin' || role === 'associate' || role === 'teacher';
+      const isManagementRole = role === 'founder' || role === 'admin' || role === 'associate';
       const nextIsStudentPath = safeNext?.includes('/student/');
       // Impede que um founder/associate caia em rota de aluno via ?next stale
       const target = (safeNext && !(isManagementRole && nextIsStudentPath)) ? safeNext : roleTarget;

@@ -34,7 +34,7 @@ export async function GET(
 
   const role = String(requester.role || '').toLowerCase();
   const isAdmin = role === 'admin';
-  const isStaff = ['founder', 'teacher', 'associate'].includes(role);
+  const isStaff = ['founder', 'associate'].includes(role);
   if (!isAdmin && !isStaff) {
     return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
   }
@@ -46,7 +46,7 @@ export async function GET(
     .from('profiles')
     .select('id, full_name, avatar_url, role')
     .eq('organization_id', org.id)
-    .in('role', ['founder', 'teacher', 'associate'])
+    .in('role', ['founder', 'associate'])
     .order('full_name');
 
   if (error) {

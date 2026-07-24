@@ -4,7 +4,6 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { randomInt } from 'node:crypto';
 
 const ASSOCIATE_DB_ROLE = 'associate';
-const LEGACY_ASSOCIATE_ROLE = 'teacher';
 const CSRF_HEADER = 'x-studytrack-csrf';
 
 type RequesterRow = {
@@ -119,7 +118,7 @@ export async function GET(
   const { data, error } = await profilesTable
     .select('id, full_name, email, avatar_url, organization_id')
     .eq('organization_id', auth.orgId)
-    .in('role', [ASSOCIATE_DB_ROLE, LEGACY_ASSOCIATE_ROLE])
+    .eq('role', ASSOCIATE_DB_ROLE)
     .order('full_name', { ascending: true });
 
   if (error) {

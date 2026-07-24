@@ -52,6 +52,9 @@ interface EssayDetail {
   corrections?: CorrectionRound[];
   corrector_name?: string | null;
   corrector_avatar_url?: string | null;
+  is_historical?: boolean;
+  historical_date?: string | null;
+  signed_historical_file_url?: string | null;
 }
 
 function formatDateBR(value: string | null | undefined): string {
@@ -431,7 +434,8 @@ export default function RedacaoDetailPage() {
           </div>
         </header>
 
-        {showCorrectionPanels && orderedScores.length > 0 && !isDualCorrection && (
+        {showCorrectionPanels && orderedScores.length > 0 && !isDualCorrection &&
+          (!essay.is_historical || (essay.competency_scores || []).length > 0) && (
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5 dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Notas por competência</h2>
@@ -607,7 +611,37 @@ export default function RedacaoDetailPage() {
             </div>
           )}
 
-          {isPending ? (
+          {essay.is_historical ? (
+            <div className="rounded-2xl border border-violet-200 bg-violet-50 p-5 dark:border-violet-500/30 dark:bg-violet-500/10">
+              <p className="mb-3 text-xs font-bold uppercase tracking-wider text-violet-600 dark:text-violet-400">
+                Redação Importada
+              </p>
+              {essay.historical_date && (
+                <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+                  <span className="font-semibold">Data original:</span>{' '}
+                  {formatDateBR(essay.historical_date)}
+                </p>
+              )}
+              {essay.signed_historical_file_url ? (
+                <a
+                  href={essay.signed_historical_file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-xl border border-violet-300 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-500/40 dark:bg-slate-900 dark:text-violet-300 dark:hover:bg-slate-800"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                  Ver redação digitalizada
+                </a>
+              ) : (
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Nenhum arquivo digitalizado disponível.
+                </p>
+              )}
+            </div>
+          ) : isPending ? (
             <div className="space-y-3">
               <span className="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
                 Aguardando correção pelo professor

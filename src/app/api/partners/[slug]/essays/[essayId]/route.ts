@@ -173,7 +173,7 @@ async function authorize(slug: string) {
   const role = String(requester.role || '').toLowerCase();
   const isAdmin = role === 'admin';
   const isFounder = role === 'founder';
-  const isAssociate = role === 'associate' || role === 'teacher';
+  const isAssociate = role === 'associate';
   if (!isAdmin && !isFounder && !isAssociate) {
     return { ok: false as const, response: NextResponse.json({ error: 'Acesso negado.' }, { status: 403 }) };
   }
@@ -211,7 +211,7 @@ export async function GET(
   const role = String(requester.role || '').toLowerCase();
   const isAdmin = role === 'admin';
   const isFounder = role === 'founder';
-  const isAssociate = role === 'associate' || role === 'teacher';
+  const isAssociate = role === 'associate';
   const isStudent = role === 'student';
   if (!isAdmin && !isFounder && !isAssociate && !isStudent) {
     return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
@@ -328,6 +328,10 @@ export async function GET(
     }
   }
 
+  // Bucket é público — a URL armazenada no DB já é acessível diretamente.
+  const rawHistoricalFileUrl = essay.historical_file_url as string | null;
+  const signedHistoricalFileUrl: string | null = rawHistoricalFileUrl ?? null;
+
   return NextResponse.json({
     id: String(essay.id),
     status: (essay.status as string) || 'pending',
@@ -348,6 +352,9 @@ export async function GET(
     second_correction_requested_at: (essay.second_correction_requested_at as string) || null,
     student,
     signed_image_url: signedImageUrl,
+    is_historical: Boolean(essay.is_historical),
+    historical_date: (essay.historical_date as string) || null,
+    signed_historical_file_url: signedHistoricalFileUrl,
   });
 }
 
@@ -419,7 +426,7 @@ export async function POST(
   }
 
   const rawType = String(essay.essay_type || 'enem').toLowerCase();
-  const essayType: EssayType = (rawType === 'ufu' || rawType === 'ueg' || rawType === 'fuvest' || rawType === 'vunesp') ? (rawType as EssayType) : 'enem';
+  const essayType: EssayType = (rawType === 'ufu' || rawType === 'ueg' || rawType === 'fuvest' || rawType === 'vunesp' || rawType === 'geral') ? (rawType as EssayType) : 'enem';
   const typeConfig = ESSAY_TYPE_CONFIGS[essayType] ?? ESSAY_TYPE_CONFIGS.enem;
   const compMaxes = typeConfig.score_options.map((opts) =>
     Array.isArray(opts) && opts.length > 0 ? Math.max(...opts) : 200,
@@ -491,7 +498,7 @@ export async function POST(
         return NextResponse.json({ error: 'Corretor selecionado não pertence a esta organização.' }, { status: 400 });
       }
       const scRole = String(scProfile.role || '').toLowerCase();
-      if (!['founder', 'teacher', 'associate', 'admin'].includes(scRole)) {
+      if (!['founder', 'associate', 'admin'].includes(scRole)) {
         return NextResponse.json({ error: 'Usuário selecionado não tem permissão para corrigir redações.' }, { status: 400 });
       }
       resolvedSecondCorrectorId = chosenSecondCorrectorId;
@@ -502,7 +509,7 @@ export async function POST(
         .from('profiles')
         .select('id, full_name')
         .eq('organization_id', auth.orgId)
-        .in('role', ['founder', 'teacher', 'associate'])
+        .in('role', ['founder', 'associate'])
         .neq('id', auth.userId)
         .limit(10);
       if (!staffList || staffList.length === 0) {

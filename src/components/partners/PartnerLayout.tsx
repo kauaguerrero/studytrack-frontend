@@ -183,7 +183,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const [passwordModalDismissed, setPasswordModalDismissed] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
-  const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
+  const isAssociate = userProfile.role === 'associate';
   const isPartnerStudent = variant === 'student';
   const approvedPhotos = normalizeOrgApprovedPhotos(org.approved_student_photos);
 
