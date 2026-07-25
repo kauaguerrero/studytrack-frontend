@@ -9,6 +9,8 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { readableBrandText, onBrandText } from '@/lib/brand-color';
+import { createClient } from '@/lib/supabase/client';
+import { useOrgCorrectionPresence, type CorrectionPresenceEntry } from '@/hooks/useOrgCorrectionPresence';
 import {
   RevealGroup, RevealItem, ElevatedCard, KpiCard, SectionTitle,
   BrandPill, BrandButton, Segmented, Medal, BrandHero, HERO_ACCENT_COLOR,
@@ -22,6 +24,7 @@ import {
   Clock,
   Filter,
   FileText,
+  Lock,
   Search,
   Trash2,
   TrendingUp,
@@ -34,7 +37,7 @@ import {
 
 interface EssayListItem {
   id: string;
-  status: 'pending' | 'corrected' | 'seen';
+  status: 'pending' | 'corrected' | 'seen' | 'awaiting_second' | 'second_corrected';
   essay_type?: string | null;
   theme?: string | null;
   essay_theme?: string | null;
@@ -44,6 +47,7 @@ interface EssayListItem {
   submitted_at: string;
   corrected_at: string | null;
   total_score: number | null;
+  average_score?: number | null;
   text: string;
   student: {
     id: string;
@@ -58,6 +62,17 @@ interface EssayListItem {
     used?: number | null;
     remaining?: number | null;
   } | null;
+  second_corrector_id?: string | null;
+  second_corrector_name?: string | null;
+  correction_lock_user_id?: string | null;
+  correction_lock_at?: string | null;
+  correction_lock_user?: {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+  } | null;
+  is_historical?: boolean;
+  historical_date?: string | null;
 }
 
 interface RankingItem {
@@ -94,6 +109,7 @@ interface EssayPrompt {
 
 interface EssaysMetrics {
   received_week: number;
+  historical_received_week?: number;
   pending_count: number;
   avg_score: number | null;
   highest_score: number | null;
@@ -103,6 +119,7 @@ interface EssaysMetrics {
   weakest_competency: { competency: number; avg: number } | null;
   avg_correction_days: number | null;
   improvement_rate: number | null;
+  second_corrections_count?: number;
 }
 
 type EssaysOverviewPayload = {
@@ -122,6 +139,7 @@ export type { EssaysOverviewPayload };
 
 const DEFAULT_METRICS: EssaysMetrics = {
   received_week: 0,
+  historical_received_week: 0,
   pending_count: 0,
   avg_score: null,
   highest_score: null,
@@ -131,6 +149,7 @@ const DEFAULT_METRICS: EssaysMetrics = {
   weakest_competency: null,
   avg_correction_days: null,
   improvement_rate: null,
+  second_corrections_count: 0,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -277,26 +296,93 @@ function PaginationControls({
   );
 }
 
+function CorrectorPresenceBadge({ correctors }: { correctors: CorrectionPresenceEntry[] }) {
+  const shown = correctors.slice(0, 2);
+  const extra = correctors.length - shown.length;
+  const label = correctors.length === 1
+    ? `${shown[0]?.name} está corrigindo...`
+    : `${shown[0]?.name} +${correctors.length - 1} corrigindo...`;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex -space-x-2">
+        {shown.map((c) => (
+          <div
+            key={c.userId}
+            title={c.name}
+            className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full ring-2 ring-white dark:ring-slate-900"
+          >
+            {c.avatarUrl ? (
+              <Image src={c.avatarUrl} alt={c.name} fill className="object-cover" sizes="28px" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-orange-400 text-[10px] font-bold text-white">
+                {c.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+          </div>
+        ))}
+        {extra > 0 && (
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-300 ring-2 ring-white text-[10px] font-bold text-slate-700 dark:bg-slate-600 dark:text-white dark:ring-slate-900">
+            +{extra}
+          </div>
+        )}
+      </div>
+      <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">{label}</span>
+    </div>
+  );
+}
+
 function EssayQueueCard({
   slug,
   item,
   mode,
   onArchive,
   onDelete,
+  onOpenForCorrection,
   archiving,
   deleting,
+  opening,
+  nowMs,
   allowManageActions,
+  canViewStudents,
+  currentUserId,
+  activeCorrectors,
 }: {
   slug: string;
   item: EssayListItem;
   mode: 'pending' | 'corrected';
   onArchive: (essay: EssayListItem) => void;
   onDelete: (essay: EssayListItem) => void;
+  onOpenForCorrection: (essay: EssayListItem) => void;
   archiving: boolean;
   deleting: boolean;
+  opening: boolean;
+  nowMs: number;
   allowManageActions: boolean;
+  canViewStudents: boolean;
+  currentUserId?: string | null;
+  activeCorrectors?: CorrectionPresenceEntry[];
 }) {
   const preview = item.text?.length > 100 ? `${item.text.slice(0, 100)}...` : (item.text || '');
+  const isAwaitingSecond = item.status === 'awaiting_second';
+  const isAssignedToMe = isAwaitingSecond && !!currentUserId && item.second_corrector_id === currentUserId;
+  const isLockedForMe = isAwaitingSecond && !isAssignedToMe;
+  const lockAgeMs = item.correction_lock_at ? nowMs - new Date(item.correction_lock_at).getTime() : Number.POSITIVE_INFINITY;
+  const hasActiveDbLock = Boolean(item.correction_lock_user_id && lockAgeMs >= 0 && lockAgeMs < 90_000);
+  const dbLockedByOther = hasActiveDbLock && item.correction_lock_user_id !== currentUserId;
+  const dbLockCorrector = item.correction_lock_user
+    ? [{
+        userId: item.correction_lock_user.id,
+        name: item.correction_lock_user.full_name || 'Corretor',
+        avatarUrl: item.correction_lock_user.avatar_url,
+        essayId: item.id,
+      }]
+    : [];
+  const displayedCorrectors = dbLockedByOther ? dbLockCorrector : (activeCorrectors || []);
+  const isBeingCorrected = mode === 'pending' && !isLockedForMe && !isAssignedToMe && (dbLockedByOther || displayedCorrectors.length > 0);
+  const canShowManageActions = allowManageActions && !isBeingCorrected;
+  const displayScore = item.status === 'second_corrected' && item.average_score != null
+    ? Math.round(item.average_score)
+    : item.total_score;
   const essayTheme = pickEssayTheme(item);
   const credit = item.student_plan;
 
@@ -305,28 +391,63 @@ function EssayQueueCard({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-3">
-            <Link
-              href={`/partners/${slug}/alunos/${item.student.id}`}
-              className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
-              title="Abrir perfil do aluno"
-            >
-              <StudentAvatar name={item.student.full_name} avatarUrl={item.student.avatar_url} />
-            </Link>
-            <div className="min-w-0">
+            {canViewStudents ? (
               <Link
                 href={`/partners/${slug}/alunos/${item.student.id}`}
-                className="truncate text-sm font-bold text-slate-900 underline-offset-2 transition hover:underline dark:text-white"
+                className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
                 title="Abrir perfil do aluno"
               >
-                {item.student.full_name || 'Aluno'}
+                <StudentAvatar name={item.student.full_name} avatarUrl={item.student.avatar_url} />
               </Link>
+            ) : (
+              <span className="shrink-0 rounded-full">
+                <StudentAvatar name={item.student.full_name} avatarUrl={item.student.avatar_url} />
+              </span>
+            )}
+            <div className="min-w-0">
+              {canViewStudents ? (
+                <Link
+                  href={`/partners/${slug}/alunos/${item.student.id}`}
+                  className="truncate text-sm font-bold text-slate-900 underline-offset-2 transition hover:underline dark:text-white"
+                  title="Abrir perfil do aluno"
+                >
+                  {item.student.full_name || 'Aluno'}
+                </Link>
+              ) : (
+                <span className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                  {item.student.full_name || 'Aluno'}
+                </span>
+              )}
               <p className="truncate text-xs text-slate-400 dark:text-white/40">{item.student.email || '-'}</p>
             </div>
           </div>
 
-          <p className="text-[11px] font-semibold text-slate-400 dark:text-white/35">
-            Enviada {relativeTimeFromNow(item.submitted_at)}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[11px] font-semibold text-slate-400 dark:text-white/35">
+              Enviada {relativeTimeFromNow(item.submitted_at)}
+            </p>
+            {isAssignedToMe && (
+              <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                2ª CORREÇÃO
+              </span>
+            )}
+            {isLockedForMe && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 dark:bg-white/10 dark:text-white/40">
+                <Lock className="h-2.5 w-2.5" />
+                {item.second_corrector_name ? `Para ${item.second_corrector_name}` : 'Alocada'}
+              </span>
+            )}
+            {item.status === 'second_corrected' && (
+              <span className="rounded-md bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+                DUPLA CORREÇÃO
+              </span>
+            )}
+            {item.is_historical && (
+              <span className="rounded-md bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                IMPORTADA
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm text-slate-600 break-words [overflow-wrap:anywhere] dark:text-white/70">
               <span className="font-bold text-slate-800 dark:text-white/90">Tema:</span> {essayTheme || 'Não informado'}
@@ -347,26 +468,61 @@ function EssayQueueCard({
             </p>
           )}
           <p className="text-sm leading-relaxed text-slate-500 break-words [overflow-wrap:anywhere] dark:text-white/60">{preview}</p>
+          {isBeingCorrected && displayedCorrectors.length > 0 && (
+            <CorrectorPresenceBadge correctors={displayedCorrectors} />
+          )}
         </div>
 
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-          {mode === 'corrected' && item.total_score !== null && (
+          {mode === 'corrected' && displayScore !== null && (
             <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-sm font-black tabular-nums text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
-              {item.total_score}/{ESSAY_TYPE_CONFIGS[(item.essay_type as EssayType) ?? 'enem']?.total_max ?? 1000}
+              {displayScore}/{ESSAY_TYPE_CONFIGS[(item.essay_type as EssayType) ?? 'enem']?.total_max ?? 1000}
+              {item.status === 'second_corrected' && (
+                <span className="ml-1 text-[10px] font-semibold opacity-60">média</span>
+              )}
             </span>
           )}
-          <Link
-            href={`/partners/${slug}/redacoes/${item.id}`}
-            className={cn(
-              'inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-3 py-2 text-sm font-bold transition sm:flex-none',
-              mode === 'pending'
-                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-200 dark:hover:bg-emerald-500/25'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-white/80 dark:hover:bg-white/15',
-            )}
-          >
-            {mode === 'pending' ? 'Corrigir' : 'Visualizar correção'}
-          </Link>
-          {allowManageActions && (
+          {isBeingCorrected ? (
+            <span
+              className="inline-flex min-h-11 flex-1 cursor-not-allowed items-center justify-center rounded-xl bg-orange-50 px-3 py-2 text-sm font-bold text-orange-400 sm:flex-none dark:bg-orange-500/10 dark:text-orange-400/70"
+              title={`${displayedCorrectors.map((c) => c.name).join(', ')} está corrigindo esta redação`}
+            >
+              Sendo corrigida
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (mode === 'pending' && !isLockedForMe) {
+                  onOpenForCorrection(item);
+                  return;
+                }
+                window.location.href = `/partners/${slug}/redacoes/${item.id}`;
+              }}
+              disabled={opening}
+              className={cn(
+                'inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-3 py-2 text-sm font-bold transition disabled:cursor-wait disabled:opacity-70 sm:flex-none',
+                isAssignedToMe
+                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/15 dark:text-amber-200 dark:hover:bg-amber-500/25'
+                  : isLockedForMe
+                    ? 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-white/5 dark:text-white/50 dark:hover:bg-white/10'
+                    : mode === 'pending'
+                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-200 dark:hover:bg-emerald-500/25'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-white/80 dark:hover:bg-white/15',
+              )}
+            >
+              {opening
+                ? 'Abrindo...'
+                : isAssignedToMe
+                ? 'Fazer 2ª Correção'
+                : isLockedForMe
+                  ? 'Ver Redação'
+                  : mode === 'pending'
+                    ? 'Corrigir'
+                    : 'Visualizar correção'}
+            </button>
+          )}
+          {canShowManageActions && (
             <>
               <button
                 type="button"
@@ -406,8 +562,10 @@ interface PartnerRedacoesClientProps {
 
 export default function PartnerRedacoesClient({ slug, initialOverview }: PartnerRedacoesClientProps) {
   const { org, userProfile } = useOrg();
-  const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
+  const isAssociate = userProfile.role === 'associate';
   const canManagePrompts = userProfile.role === 'founder' || userProfile.role === 'admin';
+  const canImportEssay = !isAssociate || (userProfile.associatePermissions?.can_import === true);
+  const canViewStudents = !isAssociate || (userProfile.associatePermissions?.can_view_students === true);
 
   const [metrics, setMetrics] = useState<EssaysMetrics>(initialOverview?.metrics || DEFAULT_METRICS);
   const [pendingEssays, setPendingEssays] = useState<EssayListItem[]>(initialOverview?.pending_items || []);
@@ -434,8 +592,11 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'corrected' | 'seen'>('all');
   const [studentFilterId, setStudentFilterId] = useState<string | null>(null);
   const [studentFilterName, setStudentFilterName] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [openingEssayId, setOpeningEssayId] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [queueOpen, setQueueOpen] = useState(() =>
     (initialOverview?.pagination?.pending?.total || 0) > 0,
   );
@@ -457,6 +618,25 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   const queueSectionRef = useRef<HTMLDivElement | null>(null);
 
   const [queueInitDone, setQueueInitDone] = useState(initialOverview !== null);
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), 5000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const { presenceByEssay } = useOrgCorrectionPresence({
+    orgId: org.id,
+    currentUserId,
+    currentUserName: userProfile.fullName,
+    currentUserAvatarUrl: userProfile.avatarUrl,
+  });
+
   const activeConfig = ESSAY_TYPE_CONFIGS[activeTypeFilter];
   const competencyNames = activeConfig.competencies;
   const getCompetencyMax = (idx: number): number => {
@@ -465,9 +645,11 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     return Number.isFinite(max) ? max : 200;
   };
 
-  const loadOverview = useCallback(async () => {
-    setMetricsLoading(true);
-    setQueueLoading(true);
+  const loadOverview = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setMetricsLoading(true);
+      setQueueLoading(true);
+    }
     try {
       const params = new URLSearchParams({
         pending_page: String(pendingPage),
@@ -495,10 +677,37 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
       const message = err instanceof Error ? err.message : 'Não foi possível carregar as métricas de redações.';
       toast.error(message);
     } finally {
-      setMetricsLoading(false);
-      setQueueLoading(false);
+      if (!options?.silent) {
+        setMetricsLoading(false);
+        setQueueLoading(false);
+      }
     }
   }, [slug, pendingPage, correctedPage, activeTypeFilter]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`essay-locks:${org.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'essays', filter: `org_id=eq.${org.id}` },
+        () => {
+          void loadOverview({ silent: true });
+        },
+      )
+      .subscribe();
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void loadOverview({ silent: true });
+      }
+    }, 3000);
+
+    return () => {
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
+  }, [org.id, loadOverview]);
 
   // Reset pagination when slug changes
   useEffect(() => {
@@ -570,18 +779,29 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     return blob.includes(query);
   }, [search]);
 
+  const assignedSecondEssays = useMemo(() =>
+    pendingEssays.filter(
+      (e) => e.status === 'awaiting_second' && !!currentUserId && e.second_corrector_id === currentUserId,
+    ),
+  [pendingEssays, currentUserId]);
+
+  const displayPendingCount = Math.max(0, pendingTotalItems);
+  const regularPendingCount = Math.max(0, pendingTotalItems - assignedSecondEssays.length);
+  const regularPendingTotalPages = Math.max(1, Math.ceil(regularPendingCount / 10));
+
   const filteredPending = useMemo(() => {
     if (statusFilter !== 'all' && statusFilter !== 'pending') return [];
     return pendingEssays
+      .filter((e) => !(e.status === 'awaiting_second' && !!currentUserId && e.second_corrector_id === currentUserId))
       .filter(matchesSearch)
       .filter((item) => !studentFilterId || item.student.id === studentFilterId);
-  }, [pendingEssays, statusFilter, matchesSearch, studentFilterId]);
+  }, [pendingEssays, currentUserId, statusFilter, matchesSearch, studentFilterId]);
 
   const filteredCorrected = useMemo(() => {
     const base = correctedEssays
       .filter(matchesSearch)
       .filter((item) => !studentFilterId || item.student.id === studentFilterId);
-    if (statusFilter === 'corrected') return base.filter((i) => i.status === 'corrected');
+    if (statusFilter === 'corrected') return base.filter((i) => i.status === 'corrected' || i.status === 'second_corrected');
     if (statusFilter === 'seen') return base.filter((i) => i.status === 'seen');
     if (statusFilter === 'pending') return [];
     return base;
@@ -623,6 +843,19 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   }
 
   async function handleDelete(item: EssayListItem) {
+    const active = presenceByEssay.get(item.id) || [];
+    if (item.status === 'pending' && active.length > 0) {
+      toast.error('Não é possível excluir enquanto a redação está sendo corrigida.');
+      return;
+    }
+    const lockAgeMs = item.correction_lock_at ? Date.now() - new Date(item.correction_lock_at).getTime() : Number.POSITIVE_INFINITY;
+    const activeDbLock = Boolean(item.correction_lock_user_id && lockAgeMs >= 0 && lockAgeMs < 90_000);
+    if (item.status === 'pending' && activeDbLock && item.correction_lock_user_id !== currentUserId) {
+      const name = item.correction_lock_user?.full_name || 'Outro corretor';
+      toast.error(`${name} está corrigindo esta redação. Não é possível excluir agora.`);
+      await loadOverview({ silent: true });
+      return;
+    }
     const ok = window.confirm(`Excluir a redação de ${item.student.full_name || 'Aluno'}? Essa ação não pode ser desfeita.`);
     if (!ok) return;
     setDeletingId(item.id);
@@ -638,6 +871,27 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
       toast.error(err instanceof Error ? err.message : 'Erro ao excluir redação.');
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleOpenForCorrection(item: EssayListItem) {
+    setOpeningEssayId(item.id);
+    try {
+      const res = await fetch(`/api/partners/${slug}/essays/${item.id}/lock`, {
+        method: 'PATCH',
+      });
+      const payload = await res.json().catch(() => null) as { error?: string } | null;
+      if (!res.ok) {
+        toast.error(payload?.error || 'Esta redação já está sendo corrigida.');
+        await loadOverview({ silent: true });
+        return;
+      }
+      window.location.href = `/partners/${slug}/redacoes/${item.id}`;
+    } catch {
+      toast.error('Não foi possível iniciar a correção agora.');
+      await loadOverview({ silent: true });
+    } finally {
+      setOpeningEssayId(null);
     }
   }
 
@@ -784,9 +1038,9 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
           <div className="relative z-10 space-y-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Redações</h1>
-            {pendingTotalItems > 0 && (
+            {displayPendingCount > 0 && (
               <span className="rounded-full bg-red-500 px-2.5 py-1 text-xs font-bold text-white">
-                {pendingTotalItems} {pendingTotalItems === 1 ? 'pendente' : 'pendentes'}
+                {displayPendingCount} {displayPendingCount === 1 ? 'pendente' : 'pendentes'}
               </span>
             )}
           </div>
@@ -1220,10 +1474,15 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
             <KpiCard
               title="Recebidas esta semana"
               value={metricsLoading ? '...' : metrics.received_week}
+              subtitle={
+                !metricsLoading && (metrics.historical_received_week ?? 0) > 0
+                  ? `${metrics.historical_received_week} importada${(metrics.historical_received_week ?? 0) > 1 ? 's' : ''}`
+                  : undefined
+              }
               icon={FileText}
               accentColor="var(--brand-primary)"
               accentHex={org.brand_primary}
@@ -1231,8 +1490,8 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
             />
             <KpiCard
               title="Aguardando correção"
-              value={metricsLoading ? '...' : pendingTotalItems}
-              subtitle={!metricsLoading && pendingTotalItems > 0 ? 'Urgente' : undefined}
+              value={metricsLoading ? '...' : displayPendingCount}
+              subtitle={!metricsLoading && displayPendingCount > 0 ? 'Urgente' : undefined}
               icon={Clock}
               accentColor="var(--brand-secondary)"
               accentHex={org.brand_secondary}
@@ -1254,6 +1513,16 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               accentHex="#8b5cf6"
               loading={metricsLoading}
             />
+            {(metricsLoading || (metrics.second_corrections_count ?? 0) > 0) && (
+              <KpiCard
+                title="Duplas correções"
+                value={metricsLoading ? '...' : (metrics.second_corrections_count ?? 0)}
+                icon={CheckCircle2}
+                accentColor="#0ea5e9"
+                accentHex="#0ea5e9"
+                loading={metricsLoading}
+              />
+            )}
           </div>
 
           {/* ── Métricas expandidas ─────────────────────────────────── */}
@@ -1404,20 +1673,31 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-slate-500 dark:text-slate-400">#{idx + 1}</span>
-                            <Link
-                              href={`/partners/${slug}/alunos/${row.student_id}`}
-                              className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
-                              title="Abrir perfil do aluno"
-                            >
-                              <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
-                            </Link>
-                            <Link
-                              href={`/partners/${slug}/alunos/${row.student_id}`}
-                              className="text-sm font-medium text-slate-900 underline-offset-2 transition hover:text-[var(--brand-primary)] hover:underline dark:text-slate-100"
-                              title="Abrir perfil do aluno"
-                            >
-                              {row.full_name || 'Aluno'}
-                            </Link>
+                            {canViewStudents ? (
+                              <>
+                                <Link
+                                  href={`/partners/${slug}/alunos/${row.student_id}`}
+                                  className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
+                                  title="Abrir perfil do aluno"
+                                >
+                                  <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
+                                </Link>
+                                <Link
+                                  href={`/partners/${slug}/alunos/${row.student_id}`}
+                                  className="text-sm font-medium text-slate-900 underline-offset-2 transition hover:text-[var(--brand-primary)] hover:underline dark:text-slate-100"
+                                  title="Abrir perfil do aluno"
+                                >
+                                  {row.full_name || 'Aluno'}
+                                </Link>
+                              </>
+                            ) : (
+                              <>
+                                <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
+                                <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                  {row.full_name || 'Aluno'}
+                                </span>
+                              </>
+                            )}
                           </div>
                           <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                             {activeConfig ? `${Math.round(row.avg_score)} / ${activeConfig.total_max}` : Math.round(row.avg_score)}
@@ -1465,20 +1745,29 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                           <td className="py-2 pr-2 font-semibold text-slate-600 dark:text-slate-300">{idx + 1}</td>
                           <td className="py-2 pr-2">
                             <div className="flex items-center gap-2">
-                              <Link
-                                href={`/partners/${slug}/alunos/${row.student_id}`}
-                                className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
-                                title="Abrir perfil do aluno"
-                              >
-                                <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
-                              </Link>
-                              <Link
-                                href={`/partners/${slug}/alunos/${row.student_id}`}
-                                className="font-medium underline-offset-2 transition hover:text-[var(--brand-primary)] hover:underline"
-                                title="Abrir perfil do aluno"
-                              >
-                                {row.full_name || 'Aluno'}
-                              </Link>
+                              {canViewStudents ? (
+                                <>
+                                  <Link
+                                    href={`/partners/${slug}/alunos/${row.student_id}`}
+                                    className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
+                                    title="Abrir perfil do aluno"
+                                  >
+                                    <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
+                                  </Link>
+                                  <Link
+                                    href={`/partners/${slug}/alunos/${row.student_id}`}
+                                    className="font-medium underline-offset-2 transition hover:text-[var(--brand-primary)] hover:underline"
+                                    title="Abrir perfil do aluno"
+                                  >
+                                    {row.full_name || 'Aluno'}
+                                  </Link>
+                                </>
+                              ) : (
+                                <>
+                                  <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
+                                  <span className="font-medium">{row.full_name || 'Aluno'}</span>
+                                </>
+                              )}
                             </div>
                           </td>
                           <td className="py-2 pr-2 font-semibold">
@@ -1516,6 +1805,41 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
           </div>
         </section>
 
+        {assignedSecondEssays.length > 0 && (
+          <section className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-bold text-amber-800 dark:text-amber-200">Aguardando Sua Correção</h2>
+              <span className="rounded-full bg-amber-500 px-2.5 py-1 text-xs font-bold text-white">
+                {assignedSecondEssays.length}
+              </span>
+            </div>
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              Você foi solicitado(a) para realizar a segunda correção das redações abaixo.
+            </p>
+            <div className="space-y-3">
+              {assignedSecondEssays.map((item) => (
+                <EssayQueueCard
+                  key={item.id}
+                  slug={slug}
+                  item={item}
+                  mode="pending"
+                  onArchive={handleArchive}
+                  onDelete={handleDelete}
+                  onOpenForCorrection={handleOpenForCorrection}
+                  archiving={archivingId === item.id}
+                  deleting={deletingId === item.id}
+                  opening={openingEssayId === item.id}
+                  nowMs={nowMs}
+                  allowManageActions={false}
+                  canViewStudents={canViewStudents}
+                  currentUserId={currentUserId}
+                  activeCorrectors={presenceByEssay.get(item.id)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         <section ref={queueSectionRef} className="edificar-major-surface space-y-3 rounded-2xl border border-slate-200 p-4 shadow-sm dark:border-slate-800">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -1523,23 +1847,34 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               <span
                 className={cn(
                   'rounded-full px-2.5 py-1 text-xs font-bold',
-                  pendingTotalItems > 0
+                  regularPendingCount > 0
                     ? 'bg-red-500 text-white'
                     : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
                 )}
               >
-                {pendingTotalItems}
+                {regularPendingCount}
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setQueueOpen((v) => !v)}
-              className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              {queueOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              {queueOpen ? 'Ocultar fila' : 'Mostrar fila'}
-            </button>
+            <div className="flex items-center gap-2">
+              {canImportEssay && (
+                <Link
+                  href={`/partners/${slug}/redacoes/importar`}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  <Upload className="h-4 w-4" />
+                  Importar Redação
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => setQueueOpen((v) => !v)}
+                className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                {queueOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                {queueOpen ? 'Ocultar fila' : 'Mostrar fila'}
+              </button>
+            </div>
           </div>
 
           {queueOpen && (
@@ -1565,17 +1900,23 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                       mode="pending"
                       onArchive={handleArchive}
                       onDelete={handleDelete}
+                      onOpenForCorrection={handleOpenForCorrection}
                       archiving={archivingId === item.id}
                       deleting={deletingId === item.id}
+                      opening={openingEssayId === item.id}
+                      nowMs={nowMs}
                       allowManageActions={!isAssociate}
+                      canViewStudents={canViewStudents}
+                      currentUserId={currentUserId}
+                      activeCorrectors={presenceByEssay.get(item.id)}
                     />
                   ))}
                 </div>
               )}
               <PaginationControls
                 page={pendingPage}
-                totalPages={pendingTotalPages}
-                totalItems={pendingTotalItems}
+                totalPages={regularPendingTotalPages}
+                totalItems={regularPendingCount}
                 loading={queueLoading}
                 onPageChange={setPendingPage}
               />
@@ -1679,9 +2020,14 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                       mode="corrected"
                       onArchive={handleArchive}
                       onDelete={handleDelete}
+                      onOpenForCorrection={handleOpenForCorrection}
                       archiving={archivingId === item.id}
                       deleting={deletingId === item.id}
+                      opening={openingEssayId === item.id}
+                      nowMs={nowMs}
                       allowManageActions={!isAssociate}
+                      canViewStudents={canViewStudents}
+                      currentUserId={currentUserId}
                     />
                   ))}
                 </div>

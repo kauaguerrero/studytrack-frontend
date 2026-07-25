@@ -3,7 +3,7 @@
  *
  * Responsabilidades:
  * 1. Valida que o usuário está autenticado (redirect se não)
- * 2. Valida que o usuário tem role `founder`, `admin` ou `teacher` (associado técnico)
+ * 2. Valida que o usuário tem role `founder`, `admin` ou `associate`
  * 3. Valida que o founder pertence à organização do slug (anti cross-org)
  * 4. Injeta CSS variables de branding da org no layout
  * 5. Fornece o OrgContext para todos os filhos
@@ -46,7 +46,7 @@ interface PartnersLayoutProps {
 }
 
 function isAssociateRole(role: string | null | undefined): boolean {
-  return role === 'associate' || role === 'teacher';
+  return role === 'associate';
 }
 
 export default async function PartnersLayout({ children, params }: PartnersLayoutProps) {
@@ -92,10 +92,11 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     avatar_url: string | null;
     theme_preference: string | null;
     must_change_password: boolean | null;
+    associate_permissions: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean } | null;
   };
   const profileRes = await adminClient
     .from('profiles')
-    .select('role, organization_id, plan_tier, full_name, avatar_url, theme_preference, must_change_password')
+    .select('role, organization_id, plan_tier, full_name, avatar_url, theme_preference, must_change_password, associate_permissions')
     .eq('id', user.id)
     .single();
   const profile = profileRes.data as ProfileRow | null;
@@ -112,7 +113,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   }
 
   // Roles sem acesso ao painel de parceiros
-  if (!profile || !['founder', 'admin', 'associate', 'teacher'].includes(profile.role ?? '')) {
+  if (!profile || !['founder', 'admin', 'associate'].includes(profile.role ?? '')) {
     redirect('/portal');
   }
 
@@ -153,15 +154,55 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     redirect('/portal');
   }
 
-  // Founder e associado técnico (teacher) só acessam a própria org; admin acessa qualquer uma
+  // Founder e associado técnico só acessam a própria org; admin acessa qualquer uma
   if ((profile.role === 'founder' || isAssociateRole(profile.role)) && profile.organization_id !== org.id) {
     redirect('/portal');
   }
 
-  // Associate só pode acessar páginas de redações (lista e detalhe de correção).
-  // Com pathname vazio (dev/turbopack), delega para o client-side sem bloquear aqui.
-  if (isAssociateRole(profile.role) && pathname !== '' && !/^\/partners\/[^/]+\/redacoes(\/[^/]+)?$/.test(pathname)) {
-    redirect(`/partners/${slug}/redacoes`);
+  // Associate: acesso restrito a /redacoes/*; roteamento fino baseado em permissões.
+  if (isAssociateRole(profile.role) && pathname !== '') {
+    const rawPerms = profile.associate_permissions || {};
+    const canCorrect = rawPerms.can_correct !== false;  // default true (legado)
+    const canImport = rawPerms.can_import === true;     // default false
+    const canViewStudents = rawPerms.can_view_students === true; // default false
+    const associateHome = !canCorrect && canImport
+      ? `/partners/${slug}/redacoes/minhas-importacoes`
+      : canCorrect
+        ? `/partners/${slug}/redacoes`
+        : canViewStudents
+          ? `/partners/${slug}/alunos`
+          : `/partners/${slug}/suporte`;
+
+    const isAllowedBaseRoute =
+      /^\/partners\/[^/]+\/redacoes(\/.*)?$/.test(pathname) ||
+      pathname === `/partners/${slug}/suporte` ||
+      pathname === `/partners/${slug}/perfil` ||
+      (canViewStudents && /^\/partners\/[^/]+\/alunos(\/[0-9a-f-]{36})?$/.test(pathname));
+
+    // Fora das rotas permitidas → home do associate
+    if (!isAllowedBaseRoute) {
+      redirect(associateHome);
+    }
+
+    // can_import_only: redireciona /redacoes base e detalhe de correção (UUID)
+    if (!canCorrect && canImport) {
+      if (
+        pathname === `/partners/${slug}/redacoes` ||
+        /^\/partners\/[^/]+\/redacoes\/[0-9a-f-]{36}$/i.test(pathname)
+      ) {
+        redirect(`/partners/${slug}/redacoes/minhas-importacoes`);
+      }
+    }
+
+    // can_correct_only: bloqueia páginas de importação
+    if (canCorrect && !canImport) {
+      if (
+        pathname === `/partners/${slug}/redacoes/importar` ||
+        pathname === `/partners/${slug}/redacoes/minhas-importacoes`
+      ) {
+        redirect(`/partners/${slug}/redacoes`);
+      }
+    }
   }
 
   const branding: OrgBranding = {
@@ -204,6 +245,13 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
         isTestAccount: profile.plan_tier === 'b2b_test',
         themePreference: safeThemePreference,
         mustChangePassword: profile.must_change_password === true,
+        associatePermissions: isAssociateRole(profile.role)
+          ? {
+              can_correct: (profile.associate_permissions?.can_correct) !== false,
+              can_import: profile.associate_permissions?.can_import === true,
+              can_view_students: profile.associate_permissions?.can_view_students === true,
+            }
+          : undefined,
       }}
     >
       <script

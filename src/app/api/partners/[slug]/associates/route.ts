@@ -4,12 +4,17 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { randomInt } from 'node:crypto';
 
 const ASSOCIATE_DB_ROLE = 'associate';
-const LEGACY_ASSOCIATE_ROLE = 'teacher';
 const CSRF_HEADER = 'x-studytrack-csrf';
 
 type RequesterRow = {
   role: string | null;
   organization_id: string | null;
+};
+
+type AssociatePermissions = {
+  can_correct?: boolean;
+  can_import?: boolean;
+  can_view_students?: boolean;
 };
 
 type AssociateListRow = {
@@ -18,6 +23,7 @@ type AssociateListRow = {
   email: string | null;
   avatar_url: string | null;
   organization_id: string | null;
+  associate_permissions: AssociatePermissions | null;
 };
 
 async function authorize(slug: string) {
@@ -117,22 +123,30 @@ export async function GET(
 
   const profilesTable = auth.adminClient.from('profiles') as any;
   const { data, error } = await profilesTable
-    .select('id, full_name, email, avatar_url, organization_id')
+    .select('id, full_name, email, avatar_url, organization_id, associate_permissions')
     .eq('organization_id', auth.orgId)
-    .in('role', [ASSOCIATE_DB_ROLE, LEGACY_ASSOCIATE_ROLE])
+    .eq('role', ASSOCIATE_DB_ROLE)
     .order('full_name', { ascending: true });
 
   if (error) {
     return NextResponse.json({ error: 'Não foi possível listar associados.' }, { status: 500 });
   }
 
-  const associates = ((data || []) as AssociateListRow[]).map((item) => ({
-    id: item.id,
-    full_name: item.full_name,
-    email: item.email,
-    avatar_url: item.avatar_url,
-    active: item.organization_id === auth.orgId,
-  }));
+  const associates = ((data || []) as AssociateListRow[]).map((item) => {
+    const rawPerms = item.associate_permissions || {};
+    return {
+      id: item.id,
+      full_name: item.full_name,
+      email: item.email,
+      avatar_url: item.avatar_url,
+      active: item.organization_id === auth.orgId,
+      associate_permissions: {
+        can_correct: rawPerms.can_correct !== false,  // default true (legado)
+        can_import: rawPerms.can_import === true,     // default false
+        can_view_students: rawPerms.can_view_students === true, // default false
+      },
+    };
+  });
 
   return NextResponse.json({
     total: associates.length,
@@ -190,6 +204,7 @@ export async function POST(
     email,
     role: ASSOCIATE_DB_ROLE,
     organization_id: auth.orgId,
+    associate_permissions: { can_correct: true, can_import: false, can_view_students: false },
     must_change_password: true,
     updated_at: new Date().toISOString(),
   };

@@ -117,7 +117,7 @@ function LoginForm() {
       const safeNext = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : null;
 
       let partnerTarget: string | null = null;
-      if (profile?.organization_id && (role === 'student' || role === 'founder' || role === 'admin' || role === 'associate' || role === 'teacher')) {
+      if (profile?.organization_id && (role === 'student' || role === 'founder' || role === 'admin' || role === 'associate')) {
         const { data: org, error: orgError } = await supabase
           .from('organizations')
           .select('slug')
@@ -132,7 +132,7 @@ function LoginForm() {
           partnerTarget =
             role === 'founder' || role === 'admin'
               ? `/partners/${org.slug}/dashboard`
-              : role === 'associate' || role === 'teacher'
+              : role === 'associate'
                 ? `/partners/${org.slug}/redacoes`
                 : `/partners/${org.slug}/student/dashboard`;
         }

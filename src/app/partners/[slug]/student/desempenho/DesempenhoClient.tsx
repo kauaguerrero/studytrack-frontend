@@ -73,11 +73,12 @@ export interface AnalyticsResponse {
 
 export interface EssayListItem {
   id: string;
-  status: 'pending' | 'corrected' | 'seen';
+  status: 'pending' | 'awaiting_second' | 'corrected' | 'second_corrected' | 'seen';
   essay_type: EssayType;
   submitted_at: string;
   corrected_at: string | null;
   total_score: number | null;
+  average_score?: number | null;
   theme: string | null;
 }
 
@@ -89,6 +90,7 @@ interface EssayListResponse {
     submitted_at: string;
     corrected_at: string | null;
     total_score: number | null;
+    average_score?: number | null;
     theme?: string | null;
   }>;
   credits?: {
@@ -105,14 +107,32 @@ export interface EssayDetail {
   status: EssayListItem['status'];
   essay_type?: string | null;
   total_score: number | null;
+  average_score?: number | null;
   submitted_at: string;
   corrected_at: string | null;
   competency_scores: Array<{
     competency: number;
     score: number;
+    correction_round?: number | null;
     comment?: string | null;
   }>;
   general_comment?: string | null;
+}
+
+function isEssayPending(status: EssayListItem['status']): boolean {
+  return status === 'pending' || status === 'awaiting_second';
+}
+
+function isEssayCorrected(status: EssayListItem['status']): boolean {
+  return status === 'corrected' || status === 'second_corrected' || status === 'seen';
+}
+
+function effectiveEssayScore(essay: Pick<EssayListItem, 'status' | 'total_score' | 'average_score'>): number | null {
+  if (!isEssayCorrected(essay.status)) return null;
+  const score = essay.status === 'second_corrected' && typeof essay.average_score === 'number'
+    ? essay.average_score
+    : essay.total_score;
+  return typeof score === 'number' ? score : null;
 }
 
 interface PartnerSummary {
@@ -281,21 +301,26 @@ function buildActivityChart(
 
 function buildEssayCompetencies(essayDetails: EssayDetail[], essayType: EssayType): CompetencyAggregate[] {
   const config = ESSAY_TYPE_CONFIGS[essayType] ?? ESSAY_TYPE_CONFIGS.enem;
+  const effectiveScoreForEssayCompetency = (essay: EssayDetail, competency: number): number | null => {
+    const rows = essay.competency_scores.filter((item) => item.competency === competency);
+    if (!rows.length) return null;
+    return average(rows.map((row) => row.score));
+  };
   return config.competencies.map((label, idx) => {
     const competency = idx + 1;
     const options = config.score_options[idx] || [];
     const maxScore = options.length ? Math.max(...options) : 200;
     const rows = essayDetails
-      .map((essay) => essay.competency_scores.find((item) => item.competency === competency))
-      .filter((row): row is NonNullable<typeof row> => Boolean(row));
+      .map((essay) => effectiveScoreForEssayCompetency(essay, competency))
+      .filter((score): score is number => score !== null);
 
     return {
       competency,
       label,
-      average: rows.length ? Number(average(rows.map((row) => row.score)).toFixed(1)) : 0,
+      average: rows.length ? Number(average(rows).toFixed(1)) : 0,
       maxScore,
       count: rows.length,
-      latest: rows.length ? rows[rows.length - 1].score : null,
+      latest: rows.length ? rows[rows.length - 1] : null,
     };
   });
 }
@@ -535,11 +560,12 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
           submitted_at: String(item.submitted_at),
           corrected_at: item.corrected_at ? String(item.corrected_at) : null,
           total_score: typeof item.total_score === 'number' ? item.total_score : null,
+          average_score: typeof item.average_score === 'number' ? item.average_score : null,
           theme: typeof item.theme === 'string' ? item.theme : null,
         }));
 
         const correctedRecent = essays
-          .filter((item) => item.total_score != null && (item.status === 'corrected' || item.status === 'seen'))
+          .filter((item) => effectiveEssayScore(item) !== null)
           .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
 
         const detailResponses = await Promise.all(
@@ -614,34 +640,40 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
     const essayTypeConfig = ESSAY_TYPE_CONFIGS[essayTypeFilter] ?? ESSAY_TYPE_CONFIGS.enem;
     const essaysByType = essays.filter((item) => item.essay_type === essayTypeFilter);
     const correctedEssays = essaysByType
-      .filter((item) => item.total_score != null && (item.status === 'corrected' || item.status === 'seen'))
+      .filter((item) => effectiveEssayScore(item) !== null)
       .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
     const latestEssay = correctedEssays[correctedEssays.length - 1] || null;
-    const bestEssay = [...correctedEssays].sort((a, b) => (b.total_score || 0) - (a.total_score || 0))[0] || null;
-    const pendingEssays = essaysByType.filter((item) => item.status === 'pending');
+    const bestEssay = [...correctedEssays].sort((a, b) => (effectiveEssayScore(b) || 0) - (effectiveEssayScore(a) || 0))[0] || null;
+    const pendingEssays = essaysByType.filter((item) => isEssayPending(item.status));
     const essayAverage = correctedEssays.length
-      ? Number(average(correctedEssays.map((item) => item.total_score || 0)).toFixed(1))
+      ? Number(average(correctedEssays.map((item) => effectiveEssayScore(item) || 0)).toFixed(1))
       : null;
     const essayMedian = correctedEssays.length
-      ? Number(median(correctedEssays.map((item) => item.total_score || 0)).toFixed(1))
+      ? Number(median(correctedEssays.map((item) => effectiveEssayScore(item) || 0)).toFixed(1))
       : null;
-    const essayTrendDelta = compareWindowTrend(correctedEssays.map((item) => item.total_score || 0), 2);
+    const essayTrendDelta = compareWindowTrend(correctedEssays.map((item) => effectiveEssayScore(item) || 0), 2);
     const correctedIds = new Set(correctedEssays.map((item) => item.id));
     const essayDetailsByType = essayDetails.filter((item) => correctedIds.has(item.id));
     const competencyStats = buildEssayCompetencies(essayDetailsByType, essayTypeFilter);
     const latestEssayDetail = latestEssay ? essayDetailsByType.find((item) => item.id === latestEssay.id) || null : null;
-    const latestEssayCompetencies = (latestEssayDetail?.competency_scores || [])
-      .map((item) => {
-        const options = essayTypeConfig.score_options[item.competency - 1] || [];
+    const latestEssayCompetencies = essayTypeConfig.competencies
+      .map((label, idx) => {
+        const competency = idx + 1;
+        const rows = (latestEssayDetail?.competency_scores || []).filter((item) => item.competency === competency);
+        if (!rows.length) return null;
+        const score = average(rows.map((item) => item.score));
+        const options = essayTypeConfig.score_options[idx] || [];
         const maxScore = options.length ? Math.max(...options) : 200;
-        const ratio = maxScore > 0 ? item.score / maxScore : 0;
+        const ratio = maxScore > 0 ? score / maxScore : 0;
         return {
-          ...item,
+          competency,
+          score,
           maxScore,
           ratio,
-          label: essayTypeConfig.competencies[item.competency - 1] ?? `Critério ${item.competency}`,
+          label,
         };
-      });
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
     const weakestCompetency = latestEssayCompetencies.length
       ? latestEssayCompetencies.reduce((min, cur) => (cur.ratio < min.ratio ? cur : min))
       : null;
@@ -816,7 +848,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
               label="Redação"
               value={essayAverage ? `${essayAverage.toFixed(0)} / ${essayTypeConfig.total_max}` : 'Sem nota ainda'}
               hint={latestEssay
-                ? <span className="block">Última {latestEssay.total_score} • melhor {bestEssay?.total_score ?? '—'}</span>
+                ? <span className="block">Última {effectiveEssayScore(latestEssay)} • melhor {bestEssay ? effectiveEssayScore(bestEssay) : '—'}</span>
                 : 'Sem correção'}
               icon={FilePenLine}
               accent="#0f766e"
@@ -860,7 +892,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                   {correctedEssays.slice(-4).map((essay) => (
                     <div key={essay.id} className={cn(SOFT_CARD_CLASS, 'px-4 py-3')}>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Redação</p>
-                      <p className={cn('mt-2 text-2xl font-semibold', getScoreTone(essay.total_score, essayTypeConfig.total_max))}>{essay.total_score}</p>
+                      <p className={cn('mt-2 text-2xl font-semibold', getScoreTone(effectiveEssayScore(essay), essayTypeConfig.total_max))}>{effectiveEssayScore(essay)}</p>
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">{formatDateShort(essay.corrected_at || essay.submitted_at)}</p>
                     </div>
                   ))}
@@ -1032,16 +1064,16 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
 
                 <div className={SOFT_CARD_CLASS}>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Última nota</p>
-                  <p className={cn('mt-2 text-3xl font-semibold tracking-tight', getScoreTone(latestEssay?.total_score, essayTypeConfig.total_max))}>
-                    {latestEssay?.total_score ?? '—'}
+                  <p className={cn('mt-2 text-3xl font-semibold tracking-tight', getScoreTone(latestEssay ? effectiveEssayScore(latestEssay) : null, essayTypeConfig.total_max))}>
+                    {latestEssay ? effectiveEssayScore(latestEssay) : '—'}
                   </p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{formatDateShort(latestEssay?.corrected_at || latestEssay?.submitted_at)}</p>
                 </div>
 
                 <div className={SOFT_CARD_CLASS}>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Melhor nota</p>
-                  <p className={cn('mt-2 text-3xl font-semibold tracking-tight', getScoreTone(bestEssay?.total_score, essayTypeConfig.total_max))}>
-                    {bestEssay?.total_score ?? '—'}
+                  <p className={cn('mt-2 text-3xl font-semibold tracking-tight', getScoreTone(bestEssay ? effectiveEssayScore(bestEssay) : null, essayTypeConfig.total_max))}>
+                    {bestEssay ? effectiveEssayScore(bestEssay) : '—'}
                   </p>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{bestEssay?.theme || 'Tema indisponível'}</p>
                 </div>
@@ -1054,7 +1086,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                       <AreaChart
                         data={correctedEssays.map((essay) => ({
                           label: formatDateShort(essay.corrected_at || essay.submitted_at),
-                          score: essay.total_score,
+                          score: effectiveEssayScore(essay),
                         }))}
                         margin={{ top: 8, right: 8, left: -24, bottom: 0 }}
                       >

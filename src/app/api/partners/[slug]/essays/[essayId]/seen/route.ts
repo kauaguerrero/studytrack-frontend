@@ -75,8 +75,16 @@ export async function PATCH(
     return NextResponse.json({ ok: true });
   }
 
+  if (essay.status !== 'corrected' && essay.status !== 'second_corrected') {
+    return NextResponse.json({ ok: true });
+  }
+
+  const updatePayload = essay.status === 'second_corrected'
+    ? { seen_at: new Date().toISOString() }
+    : { status: 'seen', seen_at: new Date().toISOString() };
+
   const { error: updateError } = await essaysTable
-    .update({ status: 'seen', seen_at: new Date().toISOString() })
+    .update(updatePayload)
     .eq('id', essayId);
 
   if (updateError) {

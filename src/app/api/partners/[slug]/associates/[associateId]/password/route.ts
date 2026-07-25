@@ -4,7 +4,6 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { randomInt } from 'node:crypto';
 
 const ASSOCIATE_DB_ROLE = 'associate';
-const LEGACY_ASSOCIATE_ROLE = 'teacher';
 const CSRF_HEADER = 'x-studytrack-csrf';
 
 function ensureSameOrigin(request: Request): NextResponse | null {
@@ -128,7 +127,7 @@ export async function POST(
   if (!associate) {
     return NextResponse.json({ error: 'Associado não encontrado.' }, { status: 404 });
   }
-  if (![ASSOCIATE_DB_ROLE, LEGACY_ASSOCIATE_ROLE].includes(associate.role || '')) {
+  if (associate.role !== ASSOCIATE_DB_ROLE) {
     return NextResponse.json({ error: 'O usuário selecionado não é associado.' }, { status: 400 });
   }
   if (associate.organization_id !== org.id) {

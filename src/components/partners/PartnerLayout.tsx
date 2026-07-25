@@ -29,6 +29,8 @@ import {
   Video,
   FlaskConical,
   GraduationCap,
+  Upload,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -183,7 +185,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const [passwordModalDismissed, setPasswordModalDismissed] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
-  const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
+  const isAssociate = userProfile.role === 'associate';
   const isPartnerStudent = variant === 'student';
   const approvedPhotos = normalizeOrgApprovedPhotos(org.approved_student_photos);
 
@@ -219,8 +221,22 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/student/perfil`,             icon: User,           label: 'Perfil',         shortLabel: 'Perfil'      },
   ];
 
+  const associatePerms = userProfile.associatePermissions ?? { can_correct: true, can_import: false, can_view_students: false };
   const associateNavItems: NavItemDef[] = [
-    { href: `/partners/${org.slug}/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redações' },
+    ...(associatePerms.can_view_students
+      ? [{ href: `/partners/${org.slug}/alunos`, icon: Users, label: 'Alunos', shortLabel: 'Alunos' }]
+      : []),
+    ...(associatePerms.can_correct
+      ? [{ href: `/partners/${org.slug}/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redações' }]
+      : []),
+    ...(associatePerms.can_import
+      ? [
+          { href: `/partners/${org.slug}/redacoes/minhas-importacoes`, icon: History, label: 'Minhas Importações', shortLabel: 'Importações' },
+          { href: `/partners/${org.slug}/redacoes/importar`, icon: Upload, label: 'Importar', shortLabel: 'Importar' },
+        ]
+      : []),
+    ...(perm('suporte_enabled') ? [{ href: `/partners/${org.slug}/suporte`, icon: LifeBuoy, label: 'Suporte', shortLabel: 'Suporte' }] : []),
+    { href: `/partners/${org.slug}/perfil`, icon: User, label: 'Perfil', shortLabel: 'Perfil' },
   ];
 
   const navItems = variant === 'student'
