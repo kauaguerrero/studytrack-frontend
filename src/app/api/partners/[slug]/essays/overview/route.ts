@@ -19,6 +19,8 @@ type EssayRow = {
   average_score?: number | null;
   text: string | null;
   second_corrector_id?: string | null;
+  correction_lock_user_id?: string | null;
+  correction_lock_at?: string | null;
   theme?: string | null;
   essay_theme?: string | null;
   tema?: string | null;
@@ -126,7 +128,7 @@ export async function GET(
     return NextResponse.json({ error: 'Acesso negado à organização.' }, { status: 403 });
   }
 
-  const essayFields = 'id, student_id, status, essay_type, submitted_at, corrected_at, imported_at, is_historical, total_score, average_score, text, theme, second_corrector_id';
+  const essayFields = 'id, student_id, status, essay_type, submitted_at, corrected_at, imported_at, is_historical, total_score, average_score, text, theme, second_corrector_id, correction_lock_user_id, correction_lock_at';
   const pendingFrom = (pendingPage - 1) * pendingLimit;
   const pendingTo = pendingFrom + pendingLimit - 1;
   const correctedFrom = (correctedPage - 1) * correctedLimit;
@@ -226,6 +228,20 @@ export async function GET(
       .select('id, full_name, email, avatar_url')
       .in('id', studentIds);
     studentsMap = new Map(((students || []) as StudentRow[]).map((s) => [s.id, s]));
+  }
+
+  const lockUserIds = Array.from(new Set(
+    [...pendingItemsRaw, ...assignedSecondItemsRaw, ...correctedItemsRaw]
+      .map((e) => e.correction_lock_user_id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0),
+  ));
+  let lockUsersMap = new Map<string, StudentRow>();
+  if (lockUserIds.length > 0) {
+    const { data: lockUsers } = await admin
+      .from('profiles')
+      .select('id, full_name, email, avatar_url')
+      .in('id', lockUserIds);
+    lockUsersMap = new Map(((lockUsers || []) as StudentRow[]).map((s) => [s.id, s]));
   }
 
   const weekStart = startOfWeekBrtKey();
@@ -341,8 +357,16 @@ export async function GET(
 
   const hydrateEssay = (item: EssayRow) => {
     const student = studentsMap.get(item.student_id);
+    const lockUser = item.correction_lock_user_id ? lockUsersMap.get(item.correction_lock_user_id) : null;
     return {
       ...item,
+      correction_lock_user: lockUser
+        ? {
+            id: lockUser.id,
+            full_name: lockUser.full_name,
+            avatar_url: lockUser.avatar_url,
+          }
+        : null,
       text: item.text || '',
       student: {
         id: item.student_id,

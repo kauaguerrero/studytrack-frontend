@@ -64,6 +64,13 @@ interface EssayListItem {
   } | null;
   second_corrector_id?: string | null;
   second_corrector_name?: string | null;
+  correction_lock_user_id?: string | null;
+  correction_lock_at?: string | null;
+  correction_lock_user?: {
+    id: string;
+    full_name: string | null;
+    avatar_url: string | null;
+  } | null;
   is_historical?: boolean;
   historical_date?: string | null;
 }
@@ -330,8 +337,11 @@ function EssayQueueCard({
   mode,
   onArchive,
   onDelete,
+  onOpenForCorrection,
   archiving,
   deleting,
+  opening,
+  nowMs,
   allowManageActions,
   canViewStudents,
   currentUserId,
@@ -342,8 +352,11 @@ function EssayQueueCard({
   mode: 'pending' | 'corrected';
   onArchive: (essay: EssayListItem) => void;
   onDelete: (essay: EssayListItem) => void;
+  onOpenForCorrection: (essay: EssayListItem) => void;
   archiving: boolean;
   deleting: boolean;
+  opening: boolean;
+  nowMs: number;
   allowManageActions: boolean;
   canViewStudents: boolean;
   currentUserId?: string | null;
@@ -353,7 +366,19 @@ function EssayQueueCard({
   const isAwaitingSecond = item.status === 'awaiting_second';
   const isAssignedToMe = isAwaitingSecond && !!currentUserId && item.second_corrector_id === currentUserId;
   const isLockedForMe = isAwaitingSecond && !isAssignedToMe;
-  const isBeingCorrected = mode === 'pending' && !isLockedForMe && !isAssignedToMe && (activeCorrectors?.length ?? 0) > 0;
+  const lockAgeMs = item.correction_lock_at ? nowMs - new Date(item.correction_lock_at).getTime() : Number.POSITIVE_INFINITY;
+  const hasActiveDbLock = Boolean(item.correction_lock_user_id && lockAgeMs >= 0 && lockAgeMs < 90_000);
+  const dbLockedByOther = hasActiveDbLock && item.correction_lock_user_id !== currentUserId;
+  const dbLockCorrector = item.correction_lock_user
+    ? [{
+        userId: item.correction_lock_user.id,
+        name: item.correction_lock_user.full_name || 'Corretor',
+        avatarUrl: item.correction_lock_user.avatar_url,
+        essayId: item.id,
+      }]
+    : [];
+  const displayedCorrectors = dbLockedByOther ? dbLockCorrector : (activeCorrectors || []);
+  const isBeingCorrected = mode === 'pending' && !isLockedForMe && !isAssignedToMe && (dbLockedByOther || displayedCorrectors.length > 0);
   const canShowManageActions = allowManageActions && !isBeingCorrected;
   const displayScore = item.status === 'second_corrected' && item.average_score != null
     ? Math.round(item.average_score)
@@ -443,8 +468,8 @@ function EssayQueueCard({
             </p>
           )}
           <p className="text-sm leading-relaxed text-slate-500 break-words [overflow-wrap:anywhere] dark:text-white/60">{preview}</p>
-          {isBeingCorrected && activeCorrectors && (
-            <CorrectorPresenceBadge correctors={activeCorrectors} />
+          {isBeingCorrected && displayedCorrectors.length > 0 && (
+            <CorrectorPresenceBadge correctors={displayedCorrectors} />
           )}
         </div>
 
@@ -460,15 +485,23 @@ function EssayQueueCard({
           {isBeingCorrected ? (
             <span
               className="inline-flex min-h-11 flex-1 cursor-not-allowed items-center justify-center rounded-xl bg-orange-50 px-3 py-2 text-sm font-bold text-orange-400 sm:flex-none dark:bg-orange-500/10 dark:text-orange-400/70"
-              title={`${activeCorrectors?.map((c) => c.name).join(', ')} está corrigindo esta redação`}
+              title={`${displayedCorrectors.map((c) => c.name).join(', ')} está corrigindo esta redação`}
             >
               Sendo corrigida
             </span>
           ) : (
-            <Link
-              href={`/partners/${slug}/redacoes/${item.id}`}
+            <button
+              type="button"
+              onClick={() => {
+                if (mode === 'pending' && !isLockedForMe) {
+                  onOpenForCorrection(item);
+                  return;
+                }
+                window.location.href = `/partners/${slug}/redacoes/${item.id}`;
+              }}
+              disabled={opening}
               className={cn(
-                'inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-3 py-2 text-sm font-bold transition sm:flex-none',
+                'inline-flex min-h-11 flex-1 items-center justify-center rounded-xl px-3 py-2 text-sm font-bold transition disabled:cursor-wait disabled:opacity-70 sm:flex-none',
                 isAssignedToMe
                   ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/15 dark:text-amber-200 dark:hover:bg-amber-500/25'
                   : isLockedForMe
@@ -478,14 +511,16 @@ function EssayQueueCard({
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-white/10 dark:text-white/80 dark:hover:bg-white/15',
               )}
             >
-              {isAssignedToMe
+              {opening
+                ? 'Abrindo...'
+                : isAssignedToMe
                 ? 'Fazer 2ª Correção'
                 : isLockedForMe
                   ? 'Ver Redação'
                   : mode === 'pending'
                     ? 'Corrigir'
                     : 'Visualizar correção'}
-            </Link>
+            </button>
           )}
           {canShowManageActions && (
             <>
@@ -560,6 +595,8 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [archivingId, setArchivingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [openingEssayId, setOpeningEssayId] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [queueOpen, setQueueOpen] = useState(() =>
     (initialOverview?.pagination?.pending?.total || 0) > 0,
   );
@@ -588,6 +625,11 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     });
   }, []);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), 5000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const { presenceByEssay } = useOrgCorrectionPresence({
     orgId: org.id,
     currentUserId,
@@ -603,9 +645,11 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     return Number.isFinite(max) ? max : 200;
   };
 
-  const loadOverview = useCallback(async () => {
-    setMetricsLoading(true);
-    setQueueLoading(true);
+  const loadOverview = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setMetricsLoading(true);
+      setQueueLoading(true);
+    }
     try {
       const params = new URLSearchParams({
         pending_page: String(pendingPage),
@@ -633,10 +677,37 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
       const message = err instanceof Error ? err.message : 'Não foi possível carregar as métricas de redações.';
       toast.error(message);
     } finally {
-      setMetricsLoading(false);
-      setQueueLoading(false);
+      if (!options?.silent) {
+        setMetricsLoading(false);
+        setQueueLoading(false);
+      }
     }
   }, [slug, pendingPage, correctedPage, activeTypeFilter]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`essay-locks:${org.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'essays', filter: `org_id=eq.${org.id}` },
+        () => {
+          void loadOverview({ silent: true });
+        },
+      )
+      .subscribe();
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void loadOverview({ silent: true });
+      }
+    }, 3000);
+
+    return () => {
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
+  }, [org.id, loadOverview]);
 
   // Reset pagination when slug changes
   useEffect(() => {
@@ -777,6 +848,14 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
       toast.error('Não é possível excluir enquanto a redação está sendo corrigida.');
       return;
     }
+    const lockAgeMs = item.correction_lock_at ? Date.now() - new Date(item.correction_lock_at).getTime() : Number.POSITIVE_INFINITY;
+    const activeDbLock = Boolean(item.correction_lock_user_id && lockAgeMs >= 0 && lockAgeMs < 90_000);
+    if (item.status === 'pending' && activeDbLock && item.correction_lock_user_id !== currentUserId) {
+      const name = item.correction_lock_user?.full_name || 'Outro corretor';
+      toast.error(`${name} está corrigindo esta redação. Não é possível excluir agora.`);
+      await loadOverview({ silent: true });
+      return;
+    }
     const ok = window.confirm(`Excluir a redação de ${item.student.full_name || 'Aluno'}? Essa ação não pode ser desfeita.`);
     if (!ok) return;
     setDeletingId(item.id);
@@ -792,6 +871,27 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
       toast.error(err instanceof Error ? err.message : 'Erro ao excluir redação.');
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleOpenForCorrection(item: EssayListItem) {
+    setOpeningEssayId(item.id);
+    try {
+      const res = await fetch(`/api/partners/${slug}/essays/${item.id}/lock`, {
+        method: 'PATCH',
+      });
+      const payload = await res.json().catch(() => null) as { error?: string } | null;
+      if (!res.ok) {
+        toast.error(payload?.error || 'Esta redação já está sendo corrigida.');
+        await loadOverview({ silent: true });
+        return;
+      }
+      window.location.href = `/partners/${slug}/redacoes/${item.id}`;
+    } catch {
+      toast.error('Não foi possível iniciar a correção agora.');
+      await loadOverview({ silent: true });
+    } finally {
+      setOpeningEssayId(null);
     }
   }
 
@@ -1725,8 +1825,11 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                   mode="pending"
                   onArchive={handleArchive}
                   onDelete={handleDelete}
+                  onOpenForCorrection={handleOpenForCorrection}
                   archiving={archivingId === item.id}
                   deleting={deletingId === item.id}
+                  opening={openingEssayId === item.id}
+                  nowMs={nowMs}
                   allowManageActions={false}
                   canViewStudents={canViewStudents}
                   currentUserId={currentUserId}
@@ -1797,8 +1900,11 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                       mode="pending"
                       onArchive={handleArchive}
                       onDelete={handleDelete}
+                      onOpenForCorrection={handleOpenForCorrection}
                       archiving={archivingId === item.id}
                       deleting={deletingId === item.id}
+                      opening={openingEssayId === item.id}
+                      nowMs={nowMs}
                       allowManageActions={!isAssociate}
                       canViewStudents={canViewStudents}
                       currentUserId={currentUserId}
@@ -1914,8 +2020,11 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                       mode="corrected"
                       onArchive={handleArchive}
                       onDelete={handleDelete}
+                      onOpenForCorrection={handleOpenForCorrection}
                       archiving={archivingId === item.id}
                       deleting={deletingId === item.id}
+                      opening={openingEssayId === item.id}
+                      nowMs={nowMs}
                       allowManageActions={!isAssociate}
                       canViewStudents={canViewStudents}
                       currentUserId={currentUserId}

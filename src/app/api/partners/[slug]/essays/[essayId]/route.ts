@@ -16,6 +16,28 @@ type CorrectorProfile = {
   associate_permissions: { can_correct?: boolean; can_import?: boolean } | null;
 };
 
+type DbError = { message: string } | null;
+
+type InsertRowsTable<T extends Record<string, unknown>> = {
+  insert: (values: T[]) => PromiseLike<{ error: DbError }>;
+};
+
+type UpsertRowTable<T extends Record<string, unknown>> = {
+  upsert: (value: T, options?: { onConflict?: string }) => PromiseLike<{ error: DbError }>;
+};
+
+type EssayUpdateTable = {
+  update: (value: Record<string, unknown>) => {
+    eq: (column: string, value: string) => {
+      eq: (column: string, value: string) => {
+        eq: (column: string, value: string) => {
+          select: (columns: string) => PromiseLike<{ error: DbError; data: Array<{ id: string }> | null }>;
+        };
+      };
+    };
+  };
+};
+
 function canCorrectEssays(profile: Pick<CorrectorProfile, 'role' | 'associate_permissions'>): boolean {
   const role = String(profile.role || '').toLowerCase();
   if (role === 'admin' || role === 'founder' || role === 'teacher') return true;
@@ -160,7 +182,7 @@ async function insertEssayAnnotationsCompat(
   ];
 
   let lastErrorMessage = 'Formato de anotações incompatível com o schema.';
-  const annotationsTable = admin.from('essay_annotations') as any;
+  const annotationsTable = admin.from('essay_annotations') as unknown as InsertRowsTable<Record<string, unknown>>;
   for (const rows of attempts) {
     const { error } = await annotationsTable.insert(rows);
     if (!error) return { ok: true as const };
@@ -418,6 +440,29 @@ export async function POST(
 
   const essayStatus = String(essay.status || '').toLowerCase();
   const secondCorrectorId = essay.second_corrector_id as string | null;
+  const lockUserId = typeof essay.correction_lock_user_id === 'string' ? essay.correction_lock_user_id : null;
+  const lockAt = typeof essay.correction_lock_at === 'string' ? essay.correction_lock_at : null;
+  const lockAgeMs = lockAt ? Date.now() - new Date(lockAt).getTime() : Number.POSITIVE_INFINITY;
+  if (
+    (essayStatus === 'pending' || essayStatus === 'awaiting_second')
+    && lockUserId
+    && lockUserId !== auth.userId
+    && lockAgeMs >= 0
+    && lockAgeMs < 90_000
+  ) {
+    const { data: locker } = await auth.admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', lockUserId)
+      .maybeSingle<{ full_name: string | null }>();
+    return NextResponse.json(
+      {
+        error: `${locker?.full_name || 'Outro corretor'} já está corrigindo esta redação.`,
+        locked: true,
+      },
+      { status: 409 },
+    );
+  }
 
   // Determina rodada de correção
   let correctionRound = 1;
@@ -546,7 +591,8 @@ export async function POST(
   // Busca nota da rodada 1 em essay_corrections (fonte autoritativa para o average)
   let round1ScoreForAverage = 0;
   if (correctionRound === 2) {
-    const r1Result = await (auth.admin.from('essay_corrections') as any)
+    const r1Result = await auth.admin
+      .from('essay_corrections')
       .select('total_score')
       .eq('essay_id', essayId)
       .eq('round', 1)
@@ -591,10 +637,13 @@ export async function POST(
   if (Object.prototype.hasOwnProperty.call(essay, 'updated_at')) {
     updatePayload.updated_at = nowIso;
   }
+  updatePayload.correction_lock_user_id = null;
+  updatePayload.correction_lock_at = null;
 
   // Persiste scores ANTES de atualizar status: se falhar, corretor pode retentar (status inalterado)
   if (competencyScores.length > 0) {
-    await (auth.admin.from('essay_competency_scores') as any)
+    await auth.admin
+      .from('essay_competency_scores')
       .delete()
       .eq('essay_id', essayId)
       .eq('correction_round', correctionRound);
@@ -607,8 +656,9 @@ export async function POST(
       correction_round: correctionRound,
     }));
 
-    const { error: insertScoresError } = await (auth.admin.from('essay_competency_scores') as any)
-      .insert(scoreRows);
+    const scoreInsertTable = auth.admin
+      .from('essay_competency_scores') as unknown as InsertRowsTable<(typeof scoreRows)[number]>;
+    const { error: insertScoresError } = await scoreInsertTable.insert(scoreRows);
     if (insertScoresError) {
       return NextResponse.json(
         {
@@ -621,7 +671,15 @@ export async function POST(
   }
 
   // Registra a rodada de correção em essay_corrections
-  await (auth.admin.from('essay_corrections') as any).upsert({
+  const correctionsTable = auth.admin.from('essay_corrections') as unknown as UpsertRowTable<{
+    essay_id: string;
+    corrector_id: string;
+    round: number;
+    total_score: number;
+    general_comment: string;
+    corrected_at: string;
+  }>;
+  await correctionsTable.upsert({
     essay_id: essayId,
     corrector_id: auth.userId,
     round: correctionRound,
@@ -642,7 +700,7 @@ export async function POST(
   }
 
   // Atualiza status do essay POR ÚLTIMO com lock otimista (evita race conditions)
-  const essaysTable = auth.admin.from('essays') as any;
+  const essaysTable = auth.admin.from('essays') as unknown as EssayUpdateTable;
   const { error: updateError, data: updatedEssays } = await essaysTable
     .update(updatePayload)
     .eq('id', essayId)
@@ -709,11 +767,30 @@ export async function DELETE(
 
   const { data: essay } = await auth.admin
     .from('essays')
-    .select('id, status')
+    .select('id, status, correction_lock_user_id, correction_lock_at')
     .eq('id', essayId)
     .eq('org_id', auth.orgId)
-    .maybeSingle<{ id: string; status: string }>();
+    .maybeSingle<{ id: string; status: string; correction_lock_user_id: string | null; correction_lock_at: string | null }>();
   if (!essay) return NextResponse.json({ error: 'Redação não encontrada.' }, { status: 404 });
+
+  const lockAgeMs = essay.correction_lock_at ? Date.now() - new Date(essay.correction_lock_at).getTime() : Number.POSITIVE_INFINITY;
+  if (
+    essay.status === 'pending'
+    && essay.correction_lock_user_id
+    && essay.correction_lock_user_id !== auth.userId
+    && lockAgeMs >= 0
+    && lockAgeMs < 90_000
+  ) {
+    const { data: locker } = await auth.admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', essay.correction_lock_user_id)
+      .maybeSingle<{ full_name: string | null }>();
+    return NextResponse.json(
+      { error: `${locker?.full_name || 'Outro corretor'} está corrigindo esta redação. Não é possível excluir agora.` },
+      { status: 409 },
+    );
+  }
 
   if (essay.status === 'awaiting_second') {
     return NextResponse.json(

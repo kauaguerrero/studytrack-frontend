@@ -11,6 +11,7 @@ import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { ArrowLeft, ChevronLeft, ChevronRight, Info, MessageCircle, PenLine, PencilLine, Send, Users, X } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { useOrgCorrectionPresence } from '@/hooks/useOrgCorrectionPresence';
+import { createClient } from '@/lib/supabase/client';
 
 type Annotation = {
   id: string;
@@ -238,43 +239,30 @@ export default function CorrecaoRedacaoPage() {
   const [selectedCorrectorId, setSelectedCorrectorId] = useState<string>('');
   const [loadingCorrectors, setLoadingCorrectors] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [lockOwned, setLockOwned] = useState(false);
+  const lockOwnedRef = useRef(false);
 
   // Estado para o accordion "Ver primeira correção" no modo segunda correção
   const [showRound1Reference, setShowRound1Reference] = useState(false);
 
   // Busca ID do usuário atual para verificar se é o segundo corretor alocado
   useEffect(() => {
-    import('@/lib/supabase/client').then(({ createClient }) => {
-      const supabase = createClient();
-      supabase.auth.getUser().then(({ data }) => {
-        if (data.user) setCurrentUserId(data.user.id);
-      });
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) setCurrentUserId(data.user.id);
     });
   }, []);
 
   // Presença em tempo real: anuncia que este corretor está com a redação aberta.
   // Só rastreia quando essay está pending (rodada 1); awaiting_second já tem lock via second_corrector_id.
   const isPendingEssay = essay?.status === 'pending';
-  const { presenceByEssay, synced } = useOrgCorrectionPresence({
+  useOrgCorrectionPresence({
     orgId: org.id,
     currentUserId,
     currentUserName: userProfile.fullName,
     currentUserAvatarUrl: userProfile.avatarUrl,
-    trackingEssayId: isPendingEssay && currentUserId ? id : undefined,
+    trackingEssayId: isPendingEssay && currentUserId && lockOwned ? id : undefined,
   });
-
-  // Redirect se outro corretor já estiver com esta redação ao carregar a página
-  const presenceCheckedRef = useRef(false);
-  useEffect(() => {
-    if (!synced || presenceCheckedRef.current || !isPendingEssay) return;
-    presenceCheckedRef.current = true;
-    const others = presenceByEssay.get(id);
-    if (others && others.length > 0) {
-      const name = others[0].name || 'Outro corretor';
-      toast.warning(`${name} já está corrigindo esta redação.`);
-      router.push(`/partners/${slug}/redacoes`);
-    }
-  }, [synced, presenceByEssay, isPendingEssay, id, slug, router]);
 
   useEffect(() => {
     let mounted = true;
@@ -356,6 +344,54 @@ export default function CorrecaoRedacaoPage() {
     loadEssay();
     return () => {
       mounted = false;
+    };
+  }, [id, slug]);
+
+  useEffect(() => {
+    if (!essay || !currentUserId) return;
+    if (essay.status !== 'pending' && essay.status !== 'awaiting_second') return;
+    if (essay.status === 'awaiting_second' && essay.second_corrector_id && essay.second_corrector_id !== currentUserId) return;
+
+    let cancelled = false;
+    let heartbeat: number | null = null;
+    async function acquireLock() {
+      try {
+        const res = await fetch(`/api/partners/${slug}/essays/${id}/lock`, { method: 'PATCH' });
+        const payload = await res.json().catch(() => null) as { error?: string } | null;
+        if (cancelled) return;
+        if (!res.ok) {
+          toast.warning(payload?.error || 'Esta redação já está sendo corrigida.');
+          router.push(`/partners/${slug}/redacoes`);
+          return;
+        }
+        lockOwnedRef.current = true;
+        setLockOwned(true);
+        heartbeat = window.setInterval(() => {
+          void fetch(`/api/partners/${slug}/essays/${id}/lock`, { method: 'PATCH' });
+        }, 30_000);
+      } catch {
+        if (!cancelled) {
+          toast.error('Não foi possível reservar esta redação para correção.');
+          router.push(`/partners/${slug}/redacoes`);
+        }
+      }
+    }
+
+    void acquireLock();
+    return () => {
+      cancelled = true;
+      if (heartbeat !== null) window.clearInterval(heartbeat);
+      setLockOwned(false);
+    };
+  }, [essay, currentUserId, id, slug, router]);
+
+  useEffect(() => {
+    return () => {
+      if (!lockOwnedRef.current) return;
+      void fetch(`/api/partners/${slug}/essays/${id}/lock`, {
+        method: 'DELETE',
+        keepalive: true,
+      });
     };
   }, [id, slug]);
 
