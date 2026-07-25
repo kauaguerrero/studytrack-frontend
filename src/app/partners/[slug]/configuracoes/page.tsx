@@ -39,7 +39,7 @@ interface AssociateMember {
   email: string | null;
   avatar_url?: string | null;
   active?: boolean | null;
-  associate_permissions?: { can_correct: boolean; can_import: boolean } | null;
+  associate_permissions?: { can_correct: boolean; can_import: boolean; can_view_students: boolean } | null;
 }
 
 function ColorPicker({
@@ -625,10 +625,10 @@ export default function ConfiguracoesPage() {
     }
   }
 
-  async function handleUpdatePermissions(member: AssociateMember, key: 'can_correct' | 'can_import', value: boolean) {
-    const current = member.associate_permissions ?? { can_correct: true, can_import: false };
+  async function handleUpdatePermissions(member: AssociateMember, key: 'can_correct' | 'can_import' | 'can_view_students', value: boolean) {
+    const current = member.associate_permissions ?? { can_correct: true, can_import: false, can_view_students: false };
     const next = { ...current, [key]: value };
-    if (!next.can_correct && !next.can_import) {
+    if (!next.can_correct && !next.can_import && !next.can_view_students) {
       toast.error('O associate deve ter ao menos uma permissão ativa.');
       return;
     }
@@ -1292,6 +1292,14 @@ export default function ConfiguracoesPage() {
                                 onCheckedChange={(v) => handleUpdatePermissions(member, 'can_import', v)}
                               />
                               <span className="text-xs text-slate-600 dark:text-slate-300">Pode importar redações</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <Switch
+                                checked={member.associate_permissions?.can_view_students ?? false}
+                                disabled={associateBusyId === member.id}
+                                onCheckedChange={(v) => handleUpdatePermissions(member, 'can_view_students', v)}
+                              />
+                              <span className="text-xs text-slate-600 dark:text-slate-300">Pode acessar alunos</span>
                             </label>
                           </div>
                         )}

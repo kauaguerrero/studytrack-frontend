@@ -221,8 +221,11 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/student/perfil`,             icon: User,           label: 'Perfil',         shortLabel: 'Perfil'      },
   ];
 
-  const associatePerms = userProfile.associatePermissions ?? { can_correct: true, can_import: false };
+  const associatePerms = userProfile.associatePermissions ?? { can_correct: true, can_import: false, can_view_students: false };
   const associateNavItems: NavItemDef[] = [
+    ...(associatePerms.can_view_students
+      ? [{ href: `/partners/${org.slug}/alunos`, icon: Users, label: 'Alunos', shortLabel: 'Alunos' }]
+      : []),
     ...(associatePerms.can_correct
       ? [{ href: `/partners/${org.slug}/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redações' }]
       : []),
@@ -232,6 +235,8 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
           { href: `/partners/${org.slug}/redacoes/importar`, icon: Upload, label: 'Importar', shortLabel: 'Importar' },
         ]
       : []),
+    ...(perm('suporte_enabled') ? [{ href: `/partners/${org.slug}/suporte`, icon: LifeBuoy, label: 'Suporte', shortLabel: 'Suporte' }] : []),
+    { href: `/partners/${org.slug}/perfil`, icon: User, label: 'Perfil', shortLabel: 'Perfil' },
   ];
 
   const navItems = variant === 'student'

@@ -201,7 +201,8 @@ const SIM_FORMAT_LABELS: Record<string, string> = {
 };
 
 export default function StudentProfilePage() {
-  const { org } = useOrg();
+  const { org, userProfile } = useOrg();
+  const canManageStudents = userProfile.role === 'founder' || userProfile.role === 'admin';
   const params = useParams<{ slug: string; id: string }>();
   const studentId = params.id;
 
@@ -499,23 +500,25 @@ export default function StudentProfilePage() {
                     <p>Plano atual</p>
                     <p className="font-semibold text-slate-700 dark:text-slate-100">{currentPlanLabel}</p>
                   </div>
-                  <Select
-                    value={selectedPlanValue}
-                    onValueChange={handlePlanChange}
-                    disabled={updatingPlan}
-                  >
-                    <SelectTrigger className="w-44 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sem plano vinculado</SelectItem>
-                      {plans.map((plan) => (
-                        <SelectItem key={plan.id} value={plan.id}>
-                          {plan.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {canManageStudents && (
+                    <Select
+                      value={selectedPlanValue}
+                      onValueChange={handlePlanChange}
+                      disabled={updatingPlan}
+                    >
+                      <SelectTrigger className="w-44 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem plano vinculado</SelectItem>
+                        {plans.map((plan) => (
+                          <SelectItem key={plan.id} value={plan.id}>
+                            {plan.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               </div>
             )}

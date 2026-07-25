@@ -333,6 +333,7 @@ function EssayQueueCard({
   archiving,
   deleting,
   allowManageActions,
+  canViewStudents,
   currentUserId,
   activeCorrectors,
 }: {
@@ -344,6 +345,7 @@ function EssayQueueCard({
   archiving: boolean;
   deleting: boolean;
   allowManageActions: boolean;
+  canViewStudents: boolean;
   currentUserId?: string | null;
   activeCorrectors?: CorrectionPresenceEntry[];
 }) {
@@ -363,21 +365,33 @@ function EssayQueueCard({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="flex items-center gap-3">
-            <Link
-              href={`/partners/${slug}/alunos/${item.student.id}`}
-              className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
-              title="Abrir perfil do aluno"
-            >
-              <StudentAvatar name={item.student.full_name} avatarUrl={item.student.avatar_url} />
-            </Link>
-            <div className="min-w-0">
+            {canViewStudents ? (
               <Link
                 href={`/partners/${slug}/alunos/${item.student.id}`}
-                className="truncate text-sm font-bold text-slate-900 underline-offset-2 transition hover:underline dark:text-white"
+                className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
                 title="Abrir perfil do aluno"
               >
-                {item.student.full_name || 'Aluno'}
+                <StudentAvatar name={item.student.full_name} avatarUrl={item.student.avatar_url} />
               </Link>
+            ) : (
+              <span className="shrink-0 rounded-full">
+                <StudentAvatar name={item.student.full_name} avatarUrl={item.student.avatar_url} />
+              </span>
+            )}
+            <div className="min-w-0">
+              {canViewStudents ? (
+                <Link
+                  href={`/partners/${slug}/alunos/${item.student.id}`}
+                  className="truncate text-sm font-bold text-slate-900 underline-offset-2 transition hover:underline dark:text-white"
+                  title="Abrir perfil do aluno"
+                >
+                  {item.student.full_name || 'Aluno'}
+                </Link>
+              ) : (
+                <span className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                  {item.student.full_name || 'Aluno'}
+                </span>
+              )}
               <p className="truncate text-xs text-slate-400 dark:text-white/40">{item.student.email || '-'}</p>
             </div>
           </div>
@@ -515,6 +529,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   const isAssociate = userProfile.role === 'associate';
   const canManagePrompts = userProfile.role === 'founder' || userProfile.role === 'admin';
   const canImportEssay = !isAssociate || (userProfile.associatePermissions?.can_import === true);
+  const canViewStudents = !isAssociate || (userProfile.associatePermissions?.can_view_students === true);
 
   const [metrics, setMetrics] = useState<EssaysMetrics>(initialOverview?.metrics || DEFAULT_METRICS);
   const [pendingEssays, setPendingEssays] = useState<EssayListItem[]>(initialOverview?.pending_items || []);
@@ -1552,20 +1567,31 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                         <div className="mb-2 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-slate-500 dark:text-slate-400">#{idx + 1}</span>
-                            <Link
-                              href={`/partners/${slug}/alunos/${row.student_id}`}
-                              className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
-                              title="Abrir perfil do aluno"
-                            >
-                              <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
-                            </Link>
-                            <Link
-                              href={`/partners/${slug}/alunos/${row.student_id}`}
-                              className="text-sm font-medium text-slate-900 underline-offset-2 transition hover:text-[var(--brand-primary)] hover:underline dark:text-slate-100"
-                              title="Abrir perfil do aluno"
-                            >
-                              {row.full_name || 'Aluno'}
-                            </Link>
+                            {canViewStudents ? (
+                              <>
+                                <Link
+                                  href={`/partners/${slug}/alunos/${row.student_id}`}
+                                  className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
+                                  title="Abrir perfil do aluno"
+                                >
+                                  <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
+                                </Link>
+                                <Link
+                                  href={`/partners/${slug}/alunos/${row.student_id}`}
+                                  className="text-sm font-medium text-slate-900 underline-offset-2 transition hover:text-[var(--brand-primary)] hover:underline dark:text-slate-100"
+                                  title="Abrir perfil do aluno"
+                                >
+                                  {row.full_name || 'Aluno'}
+                                </Link>
+                              </>
+                            ) : (
+                              <>
+                                <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
+                                <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                                  {row.full_name || 'Aluno'}
+                                </span>
+                              </>
+                            )}
                           </div>
                           <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                             {activeConfig ? `${Math.round(row.avg_score)} / ${activeConfig.total_max}` : Math.round(row.avg_score)}
@@ -1613,20 +1639,29 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                           <td className="py-2 pr-2 font-semibold text-slate-600 dark:text-slate-300">{idx + 1}</td>
                           <td className="py-2 pr-2">
                             <div className="flex items-center gap-2">
-                              <Link
-                                href={`/partners/${slug}/alunos/${row.student_id}`}
-                                className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
-                                title="Abrir perfil do aluno"
-                              >
-                                <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
-                              </Link>
-                              <Link
-                                href={`/partners/${slug}/alunos/${row.student_id}`}
-                                className="font-medium underline-offset-2 transition hover:text-[var(--brand-primary)] hover:underline"
-                                title="Abrir perfil do aluno"
-                              >
-                                {row.full_name || 'Aluno'}
-                              </Link>
+                              {canViewStudents ? (
+                                <>
+                                  <Link
+                                    href={`/partners/${slug}/alunos/${row.student_id}`}
+                                    className="shrink-0 rounded-full outline-none ring-offset-2 ring-offset-white transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:ring-offset-slate-900"
+                                    title="Abrir perfil do aluno"
+                                  >
+                                    <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
+                                  </Link>
+                                  <Link
+                                    href={`/partners/${slug}/alunos/${row.student_id}`}
+                                    className="font-medium underline-offset-2 transition hover:text-[var(--brand-primary)] hover:underline"
+                                    title="Abrir perfil do aluno"
+                                  >
+                                    {row.full_name || 'Aluno'}
+                                  </Link>
+                                </>
+                              ) : (
+                                <>
+                                  <StudentAvatar name={row.full_name} avatarUrl={row.avatar_url} size={28} />
+                                  <span className="font-medium">{row.full_name || 'Aluno'}</span>
+                                </>
+                              )}
                             </div>
                           </td>
                           <td className="py-2 pr-2 font-semibold">
@@ -1687,6 +1722,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                   archiving={archivingId === item.id}
                   deleting={deletingId === item.id}
                   allowManageActions={false}
+                  canViewStudents={canViewStudents}
                   currentUserId={currentUserId}
                   activeCorrectors={presenceByEssay.get(item.id)}
                 />
@@ -1758,6 +1794,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                       archiving={archivingId === item.id}
                       deleting={deletingId === item.id}
                       allowManageActions={!isAssociate}
+                      canViewStudents={canViewStudents}
                       currentUserId={currentUserId}
                       activeCorrectors={presenceByEssay.get(item.id)}
                     />
@@ -1874,6 +1911,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                       archiving={archivingId === item.id}
                       deleting={deletingId === item.id}
                       allowManageActions={!isAssociate}
+                      canViewStudents={canViewStudents}
                       currentUserId={currentUserId}
                     />
                   ))}

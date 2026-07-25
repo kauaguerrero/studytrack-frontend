@@ -101,18 +101,19 @@ export async function PATCH(
     return NextResponse.json({ error: 'Associado não encontrado nesta organização.' }, { status: 404 });
   }
 
-  const body = await request.json().catch(() => ({} as { active?: boolean; permissions?: { can_correct?: boolean; can_import?: boolean } }));
+  const body = await request.json().catch(() => ({} as { active?: boolean; permissions?: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean } }));
 
   // Atualização de permissões
   if (body.permissions !== undefined) {
     const canCorrect = Boolean(body.permissions?.can_correct);
     const canImport = Boolean(body.permissions?.can_import);
-    if (!canCorrect && !canImport) {
+    const canViewStudents = Boolean(body.permissions?.can_view_students);
+    if (!canCorrect && !canImport && !canViewStudents) {
       return NextResponse.json({ error: 'O associate deve ter ao menos uma permissão ativa.' }, { status: 400 });
     }
     const { error } = await profilesTable
       .update({
-        associate_permissions: { can_correct: canCorrect, can_import: canImport },
+        associate_permissions: { can_correct: canCorrect, can_import: canImport, can_view_students: canViewStudents },
         updated_at: new Date().toISOString(),
       } as never)
       .eq('id', associateId);

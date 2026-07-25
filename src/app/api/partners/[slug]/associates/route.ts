@@ -14,6 +14,7 @@ type RequesterRow = {
 type AssociatePermissions = {
   can_correct?: boolean;
   can_import?: boolean;
+  can_view_students?: boolean;
 };
 
 type AssociateListRow = {
@@ -142,6 +143,7 @@ export async function GET(
       associate_permissions: {
         can_correct: rawPerms.can_correct !== false,  // default true (legado)
         can_import: rawPerms.can_import === true,     // default false
+        can_view_students: rawPerms.can_view_students === true, // default false
       },
     };
   });
@@ -202,6 +204,7 @@ export async function POST(
     email,
     role: ASSOCIATE_DB_ROLE,
     organization_id: auth.orgId,
+    associate_permissions: { can_correct: true, can_import: false, can_view_students: false },
     must_change_password: true,
     updated_at: new Date().toISOString(),
   };
