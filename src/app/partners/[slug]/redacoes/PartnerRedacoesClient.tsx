@@ -698,8 +698,9 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     ),
   [pendingEssays, currentUserId]);
 
-  // Desconta da contagem servidor os awaiting_second já exibidos na seção dedicada
-  const displayPendingCount = Math.max(0, pendingTotalItems - assignedSecondEssays.length);
+  const displayPendingCount = Math.max(0, pendingTotalItems);
+  const regularPendingCount = Math.max(0, pendingTotalItems - assignedSecondEssays.length);
+  const regularPendingTotalPages = Math.max(1, Math.ceil(regularPendingCount / 10));
 
   const filteredPending = useMemo(() => {
     if (statusFilter !== 'all' && statusFilter !== 'pending') return [];
@@ -1701,12 +1702,12 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               <span
                 className={cn(
                   'rounded-full px-2.5 py-1 text-xs font-bold',
-                  displayPendingCount > 0
+                  regularPendingCount > 0
                     ? 'bg-red-500 text-white'
                     : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
                 )}
               >
-                {displayPendingCount}
+                {regularPendingCount}
               </span>
             </div>
 
@@ -1765,8 +1766,8 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               )}
               <PaginationControls
                 page={pendingPage}
-                totalPages={pendingTotalPages}
-                totalItems={displayPendingCount}
+                totalPages={regularPendingTotalPages}
+                totalItems={regularPendingCount}
                 loading={queueLoading}
                 onPageChange={setPendingPage}
               />
