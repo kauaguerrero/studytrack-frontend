@@ -49,7 +49,9 @@ export function EssayNotificationProvider({
 
       const payload = await res.json();
       const essays = Array.isArray(payload) ? payload : (payload.items || []);
-      const hasPending = essays.some((e: { status?: string }) => e.status === 'corrected' || e.status === 'second_corrected');
+      const hasPending = essays.some((e: { status?: string; seen_at?: string | null }) =>
+        (e.status === 'corrected' || e.status === 'second_corrected') && !e.seen_at,
+      );
       setHasPendingCorrection(hasPending);
 
       const userId = session.user?.id;

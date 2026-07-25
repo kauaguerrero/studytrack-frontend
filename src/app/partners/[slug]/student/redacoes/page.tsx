@@ -21,6 +21,7 @@ interface Essay {
   essay_type: EssayType;
   submitted_at: string;
   corrected_at: string | null;
+  seen_at?: string | null;
   total_score: number | null;
   average_score?: number | null;
   text_preview: string;
@@ -38,6 +39,7 @@ interface RawEssay {
   essay_type?: string | null;
   submitted_at: string;
   corrected_at: string | null;
+  seen_at?: string | null;
   total_score: number | null;
   average_score?: number | null;
   text?: string;
@@ -173,6 +175,7 @@ export default function StudentRedacoesPage() {
             essay_type: essayType,
             submitted_at: String(row.submitted_at),
             corrected_at: row.corrected_at ? String(row.corrected_at) : null,
+            seen_at: row.seen_at ? String(row.seen_at) : null,
             total_score: typeof row.total_score === 'number' ? row.total_score : null,
             average_score: typeof row.average_score === 'number' ? row.average_score : null,
             text_preview: preview,
@@ -348,7 +351,7 @@ export default function StudentRedacoesPage() {
     } else if (filter === 'corrected') {
       data = data.filter((e) => isEssayCorrected(e.status));
     } else if (filter === 'seen') {
-      data = data.filter((e) => e.status === 'seen');
+      data = data.filter((e) => e.status === 'seen' || Boolean(e.seen_at));
     }
 
     if (sortBy === 'date') {

@@ -72,6 +72,11 @@ function getStatusLabel(status: EssayStatus): string {
   return 'Vista';
 }
 
+function getDisplayStatusLabel(status: EssayStatus, hasDualCorrection: boolean): string {
+  if (hasDualCorrection) return 'Duas correções recebidas';
+  return getStatusLabel(status);
+}
+
 function progressColor(score: number, max: number): string {
   const ratio = max > 0 ? score / max : 0;
   if (ratio >= 0.8) return 'bg-emerald-500';
@@ -277,7 +282,10 @@ export default function RedacaoDetailPage() {
             method: 'PATCH',
           }).then(() => {
             if (!mounted) return;
-            setEssay((prev) => (prev ? { ...prev, status: 'seen' } : prev));
+            setEssay((prev) => {
+              if (!prev) return prev;
+              return prev.status === 'second_corrected' ? prev : { ...prev, status: 'seen' };
+            });
             void refresh();
           }).catch(() => {});
         }
@@ -377,7 +385,7 @@ export default function RedacaoDetailPage() {
 
   const isPending = essay.status === 'pending' || essay.status === 'awaiting_second';
   const showCorrectionPanels = essay.status === 'corrected' || essay.status === 'seen' || essay.status === 'second_corrected';
-  const displayScore = essay.status === 'second_corrected' && essay.average_score != null
+  const displayScore = isDualCorrection && essay.average_score != null
     ? Math.round(essay.average_score)
     : (essay.total_score ?? scoreSum);
 
@@ -416,11 +424,11 @@ export default function RedacaoDetailPage() {
                   'rounded-full px-3 py-1 text-xs font-semibold',
                   (essay.status === 'pending' || essay.status === 'awaiting_second') && 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
                   essay.status === 'corrected' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
-                  essay.status === 'second_corrected' && 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
-                  essay.status === 'seen' && 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
+                  (essay.status === 'second_corrected' || isDualCorrection) && 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
+                  essay.status === 'seen' && !isDualCorrection && 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
                 )}
               >
-                {getStatusLabel(essay.status)}
+                {getDisplayStatusLabel(essay.status, isDualCorrection)}
               </span>
 
               {showCorrectionPanels && (

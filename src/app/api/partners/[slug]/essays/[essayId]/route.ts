@@ -104,6 +104,7 @@ async function insertEssayAnnotationsCompat(
       comment_text: typeof row.comment_text === 'string' ? row.comment_text : null,
       original_text: typeof row.original_text === 'string' ? row.original_text : null,
       corrected_text: typeof row.corrected_text === 'string' ? row.corrected_text : null,
+      correction_round: Number(row.correction_round ?? 1),
       created_at: new Date().toISOString(),
     };
   });
@@ -120,6 +121,7 @@ async function insertEssayAnnotationsCompat(
       comment_text: row.comment_text,
       original_text: row.original_text,
       corrected_text: row.corrected_text,
+      correction_round: row.correction_round,
       created_at: row.created_at,
     })),
     // Formato atual.
@@ -132,6 +134,7 @@ async function insertEssayAnnotationsCompat(
       comment_text: row.comment_text,
       original_text: row.original_text,
       corrected_text: row.corrected_text,
+      correction_round: row.correction_round,
     })),
     // Formato legado com coluna `comment`.
     base.map((row) => ({
@@ -143,6 +146,7 @@ async function insertEssayAnnotationsCompat(
       comment: row.comment_text,
       original_text: row.original_text,
       corrected_text: row.corrected_text,
+      correction_round: row.correction_round,
     })),
     // Formato mínimo.
     base.map((row) => ({
@@ -151,6 +155,7 @@ async function insertEssayAnnotationsCompat(
       start_offset: row.start_offset,
       end_offset: row.end_offset,
       type: row.type,
+      correction_round: row.correction_round,
     })),
   ];
 
