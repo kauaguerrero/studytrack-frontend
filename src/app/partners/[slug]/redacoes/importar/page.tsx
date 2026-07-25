@@ -1,16 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
-import { createClient } from '@/lib/supabase/client';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Search, Upload, FileText, X, CheckCircle2, User,
+  ArrowLeft, Upload, FileText, X, CheckCircle2, User,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -75,12 +74,9 @@ export default function ImportarRedacaoPage() {
   const showScores = form.importStatus === 'corrected';
   const maxScore = typeConfig.total_max;
 
-  // ── Student search ─────────────────────────────────────────────────────────
-  const [studentHits, setStudentHits] = useState<StudentHit[]>([]);
-  const [studentSearching, setStudentSearching] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Students select ────────────────────────────────────────────────────────
+  const [students, setStudents] = useState<StudentHit[]>([]);
+  const [studentsLoading, setStudentsLoading] = useState(true);
 
   // ── File ───────────────────────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,61 +100,44 @@ export default function ImportarRedacaoPage() {
     setForm((prev) => ({ ...prev, totalScore: String(sum) }));
   }, [form.competencyScores, showScores, isGeral, hasCompetencies]);
 
-  // ── Student search ─────────────────────────────────────────────────────────
-  const searchStudents = useCallback(async (q: string) => {
-    if (!q || q.length < 2) {
-      setStudentHits([]);
-      return;
-    }
-    setStudentSearching(true);
-    try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
-      const res = await fetch(
-        `${api}/api/partners/${org.slug}/students?search=${encodeURIComponent(q)}&limit=8&page=1`,
-        { headers: { Authorization: `Bearer ${session.access_token}` } },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setStudentHits(data.students ?? []);
-        setShowDropdown(true);
+  // ── Students select ────────────────────────────────────────────────────────
+  useEffect(() => {
+    let mounted = true;
+    async function loadStudents() {
+      setStudentsLoading(true);
+      try {
+        const res = await fetch(`/api/partners/${org.slug}/students/select`, { cache: 'no-store' });
+        const data = await res.json().catch(() => null) as { students?: StudentHit[]; error?: string } | null;
+        if (!mounted) return;
+        if (!res.ok) {
+          throw new Error(data?.error || 'Não foi possível carregar alunos.');
+        }
+        setStudents(data?.students ?? []);
+      } catch (err) {
+        if (mounted) toast.error(err instanceof Error ? err.message : 'Não foi possível carregar alunos.');
+      } finally {
+        if (mounted) setStudentsLoading(false);
       }
-    } catch {
-      // silencioso
-    } finally {
-      setStudentSearching(false);
     }
+    void loadStudents();
+    return () => {
+      mounted = false;
+    };
   }, [org.slug]);
 
-  function handleStudentQueryChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const q = e.target.value;
-    setForm((prev) => ({ ...prev, studentQuery: q, selectedStudent: null }));
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => searchStudents(q), 300);
-  }
-
-  function selectStudent(s: StudentHit) {
+  function handleStudentSelect(e: React.ChangeEvent<HTMLSelectElement>) {
+    const studentId = e.target.value;
+    const selected = students.find((student) => student.id === studentId) ?? null;
     setForm((prev) => ({
       ...prev,
-      selectedStudent: s,
-      studentQuery: s.full_name ?? s.email ?? '',
+      selectedStudent: selected,
+      studentQuery: selected?.full_name ?? selected?.email ?? '',
     }));
-    setShowDropdown(false);
-    setStudentHits([]);
   }
 
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
-    }
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
+  function clearStudent() {
+    setForm((prev) => ({ ...prev, selectedStudent: null, studentQuery: '' }));
+  }
 
   // ── File ───────────────────────────────────────────────────────────────────
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -247,7 +226,6 @@ export default function ImportarRedacaoPage() {
       // Reset form and stay on page (bulk import flow)
       setForm(makeEmptyForm());
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setStudentHits([]);
     } catch {
       toast.error('Erro de conexão. Tente novamente.');
     } finally {
@@ -308,55 +286,38 @@ export default function ImportarRedacaoPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => setForm((prev) => ({ ...prev, selectedStudent: null, studentQuery: '' }))}
+                    onClick={clearStudent}
                     className="rounded-lg p-1 text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-300"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               ) : (
-                <div ref={searchRef} className="relative">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      value={form.studentQuery}
-                      onChange={handleStudentQueryChange}
-                      onFocus={() => studentHits.length > 0 && setShowDropdown(true)}
-                      placeholder="Buscar por nome ou e-mail..."
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-4 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-violet-500 dark:focus:bg-slate-800"
-                    />
-                  </div>
-                  {showDropdown && (
-                    <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
-                      {studentSearching ? (
-                        <p className="px-4 py-3 text-sm text-slate-400">Buscando...</p>
-                      ) : studentHits.length === 0 ? (
-                        <p className="px-4 py-3 text-sm text-slate-400">Nenhum aluno encontrado.</p>
-                      ) : (
-                        studentHits.map((s) => {
-                          const initials = s.full_name?.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase() ?? '';
-                          return (
-                            <button
-                              key={s.id}
-                              type="button"
-                              onClick={() => selectStudent(s)}
-                              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
-                            >
-                              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                                {initials || <User className="h-3 w-3" />}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-medium text-slate-800 dark:text-white">
-                                  {s.full_name ?? '—'}
-                                </p>
-                                <p className="truncate text-xs text-slate-400">{s.email}</p>
-                              </div>
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
+                <div className="space-y-2">
+                  <select
+                    value=""
+                    onChange={handleStudentSelect}
+                    disabled={studentsLoading || students.length === 0}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-2 focus:ring-violet-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  >
+                    <option value="">
+                      {studentsLoading
+                        ? 'Carregando alunos...'
+                        : students.length === 0
+                          ? 'Nenhum aluno cadastrado'
+                          : 'Selecione um aluno'}
+                    </option>
+                    {students.map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {(student.full_name || student.email || 'Aluno sem nome')}
+                        {student.email ? ` - ${student.email}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {!studentsLoading && students.length > 0 && (
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      Lista em ordem alfabética dos alunos cadastrados na organização.
+                    </p>
                   )}
                 </div>
               )}
