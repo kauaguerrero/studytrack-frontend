@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +14,8 @@ interface ForcePasswordChangeModalProps {
 }
 
 export function ForcePasswordChangeModal({ onSuccess }: ForcePasswordChangeModalProps) {
+  const params = useParams<{ slug?: string }>();
+  const slug = typeof params?.slug === 'string' ? params.slug : '';
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNew, setShowNew] = useState(false);
@@ -56,8 +59,13 @@ export function ForcePasswordChangeModal({ onSuccess }: ForcePasswordChangeModal
         return;
       }
 
-      toast.success('Senha atualizada com sucesso!');
+      toast.success('Senha atualizada. Faça login novamente com a nova senha.');
       onSuccess();
+      await supabase.auth.signOut();
+      const loginUrl = slug
+        ? `/partners/${slug}/login?password_changed=1`
+        : '/auth/login?password_changed=1';
+      window.location.replace(loginUrl);
     } catch {
       toast.error('Erro de conexão. Tente novamente.');
     } finally {
@@ -184,7 +192,7 @@ export function ForcePasswordChangeModal({ onSuccess }: ForcePasswordChangeModal
             style={{ backgroundColor: 'var(--brand-primary)' }}
             disabled={loading || newPassword.length < 8 || newPassword !== confirmPassword}
           >
-            {loading ? 'Salvando...' : 'Salvar senha e continuar'}
+            {loading ? 'Salvando...' : 'Salvar senha e fazer login'}
           </Button>
         </form>
       </div>

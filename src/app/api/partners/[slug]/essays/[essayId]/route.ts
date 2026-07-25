@@ -369,6 +369,7 @@ export async function GET(
     signed_image_url: signedImageUrl,
     is_historical: Boolean(essay.is_historical),
     historical_date: (essay.historical_date as string) || null,
+    imported_at: (essay.imported_at as string) || null,
     signed_historical_file_url: signedHistoricalFileUrl,
   });
 }

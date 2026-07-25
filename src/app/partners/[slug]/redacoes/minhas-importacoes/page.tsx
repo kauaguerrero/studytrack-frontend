@@ -16,6 +16,7 @@ interface ImportedEssay {
   status: string | null;
   total_score: number | null;
   submitted_at: string;
+  imported_at: string | null;
   historical_date: string | null;
   historical_file_url: string | null;
   student: { id: string; full_name: string | null; email: string | null } | null;

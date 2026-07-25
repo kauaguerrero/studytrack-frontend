@@ -17,11 +17,12 @@ import {
 
 interface Essay {
   id: string;
-  status: 'pending' | 'corrected' | 'seen';
+  status: 'pending' | 'awaiting_second' | 'corrected' | 'second_corrected' | 'seen';
   essay_type: EssayType;
   submitted_at: string;
   corrected_at: string | null;
   total_score: number | null;
+  average_score?: number | null;
   text_preview: string;
   theme: string | null;
   is_historical?: boolean;
@@ -38,6 +39,7 @@ interface RawEssay {
   submitted_at: string;
   corrected_at: string | null;
   total_score: number | null;
+  average_score?: number | null;
   text?: string;
   text_preview?: string;
   theme?: string | null;
@@ -80,6 +82,22 @@ function pickEssayTheme(row: RawEssay): string | null {
   return found ? found.trim() : null;
 }
 
+function isEssayPending(status: Essay['status']): boolean {
+  return status === 'pending' || status === 'awaiting_second';
+}
+
+function isEssayCorrected(status: Essay['status']): boolean {
+  return status === 'corrected' || status === 'second_corrected' || status === 'seen';
+}
+
+function effectiveEssayScore(essay: Essay): number | null {
+  if (!isEssayCorrected(essay.status)) return null;
+  const score = essay.status === 'second_corrected' && typeof essay.average_score === 'number'
+    ? essay.average_score
+    : essay.total_score;
+  return typeof score === 'number' ? score : null;
+}
+
 export default function StudentRedacoesPage() {
   const { slug } = useParams<{ slug: string }>();
   const { org } = useOrg();
@@ -92,7 +110,7 @@ export default function StudentRedacoesPage() {
   const [error, setError] = useState<string | null>(null);
   const [pulsingIds, setPulsingIds] = useState<string[]>([]);
   const [credits, setCredits] = useState<EssaysApiResponse['credits']>(null);
-  const [competencyScores, setCompetencyScores] = useState<{ essay_id: string; competency: number; score: number }[]>([]);
+  const [competencyScores, setCompetencyScores] = useState<{ essay_id: string; competency: number; score: number; correction_round?: number | null }[]>([]);
   const [competencyOpen, setCompetencyOpen] = useState(true);
   const [page, setPage] = useState(0);
   const [essayTypeFilter, setEssayTypeFilter] = useState<EssayType>('enem');
@@ -156,6 +174,7 @@ export default function StudentRedacoesPage() {
             submitted_at: String(row.submitted_at),
             corrected_at: row.corrected_at ? String(row.corrected_at) : null,
             total_score: typeof row.total_score === 'number' ? row.total_score : null,
+            average_score: typeof row.average_score === 'number' ? row.average_score : null,
             text_preview: preview,
             theme: pickEssayTheme(row),
             is_historical: Boolean(row.is_historical),
@@ -171,12 +190,12 @@ export default function StudentRedacoesPage() {
           const essayIds = mapped.map((e) => e.id);
           const { data: compData } = await supabase
             .from('essay_competency_scores')
-            .select('essay_id, competency, score')
+            .select('essay_id, competency, score, correction_round')
             .in('essay_id', essayIds);
           if (mounted && compData) setCompetencyScores(compData);
         }
 
-        const correctedIds = mapped.filter((e) => e.status === 'corrected').map((e) => e.id);
+        const correctedIds = mapped.filter((e) => isEssayCorrected(e.status)).map((e) => e.id);
         setPulsingIds(correctedIds);
 
         if (correctedIds.length > 0) {
@@ -216,38 +235,38 @@ export default function StudentRedacoesPage() {
   );
 
   const metrics = useMemo(() => {
-    const corrected = essaysByType.filter((e) => e.total_score !== null);
-    const scores = corrected.map((e) => e.total_score as number);
+    const corrected = essaysByType
+      .map((essay) => ({ essay, score: effectiveEssayScore(essay) }))
+      .filter((item): item is { essay: Essay; score: number } => item.score !== null);
+    const scores = corrected.map((item) => item.score);
     const avg = scores.length
       ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
       : null;
     const best = scores.length ? Math.max(...scores) : null;
-    const pending = essaysByType.filter((e) => e.status === 'pending').length;
+    const pending = essaysByType.filter((e) => isEssayPending(e.status)).length;
 
     const chartData = corrected
-      .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())
+      .sort((a, b) => new Date(a.essay.submitted_at).getTime() - new Date(b.essay.submitted_at).getTime())
       .slice(-10)
-      .map((e, i) => ({
+      .map(({ essay, score }, i) => ({
         label: `#${i + 1}`,
-        score: e.total_score as number,
-        date: new Date(e.submitted_at).toLocaleDateString('pt-BR', {
+        score,
+        date: new Date(essay.submitted_at).toLocaleDateString('pt-BR', {
           day: '2-digit',
           month: '2-digit',
         }),
       }));
 
-    // Exclui redações históricas do cálculo de tendência (sem data real definida)
-    const nonHistoricalCorrected = corrected.filter((e) => !e.is_historical);
-    const sorted = nonHistoricalCorrected
+    const sorted = corrected
       .slice()
-      .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
+      .sort((a, b) => new Date(a.essay.submitted_at).getTime() - new Date(b.essay.submitted_at).getTime());
 
     let trend: 'up' | 'down' | 'neutral' | null = null;
     let trendDelta: number | null = null;
 
     if (sorted.length >= 4) {
-      const recent = sorted.slice(-3).map((e) => e.total_score as number);
-      const previous = sorted.slice(-6, -3).map((e) => e.total_score as number);
+      const recent = sorted.slice(-3).map((item) => item.score);
+      const previous = sorted.slice(-6, -3).map((item) => item.score);
       if (previous.length >= 1) {
         const avgRecent = Math.round(recent.reduce((a, b) => a + b, 0) / recent.length);
         const avgPrev = Math.round(previous.reduce((a, b) => a + b, 0) / previous.length);
@@ -258,7 +277,7 @@ export default function StudentRedacoesPage() {
     }
 
     const withCorrectionTime = essaysByType.filter(
-      (e) => e.corrected_at !== null && e.submitted_at
+      (e) => isEssayCorrected(e.status) && e.corrected_at !== null && e.submitted_at
     );
     const avgCorrectionDays = withCorrectionTime.length
       ? Math.round(
@@ -274,7 +293,7 @@ export default function StudentRedacoesPage() {
     const lastCorrected = sorted.length > 0 ? sorted[sorted.length - 1] : null;
     const isRecord = best !== null
       && lastCorrected !== null
-      && lastCorrected.total_score === best
+      && lastCorrected.score === best
       && corrected.length > 1;
 
     return { total: essaysByType.length, correctedCount: corrected.length, avg, best, pending, chartData, trend, trendDelta, avgCorrectionDays, isRecord };
@@ -283,7 +302,7 @@ export default function StudentRedacoesPage() {
   const filteredCompetencyScores = useMemo(() => {
     const correctedEssayIds = new Set(
       essaysByType
-        .filter((e) => e.status === 'corrected' || e.status === 'seen')
+        .filter((e) => isEssayCorrected(e.status))
         .map((e) => e.id),
     );
     return competencyScores.filter((row) => correctedEssayIds.has(row.essay_id));
@@ -291,8 +310,19 @@ export default function StudentRedacoesPage() {
 
   const { competencyMetrics, weakestCompetency } = useMemo(() => {
     const maxCompetencies = activeConfig.competencies.length;
+    const scoreByEssayCompetency = new Map<string, { competency: number; scores: number[] }>();
+    filteredCompetencyScores.forEach((score) => {
+      const key = `${score.essay_id}:${score.competency}`;
+      const current = scoreByEssayCompetency.get(key) || { competency: score.competency, scores: [] };
+      current.scores.push(Number(score.score || 0));
+      scoreByEssayCompetency.set(key, current);
+    });
+    const effectiveCompetencyScores = Array.from(scoreByEssayCompetency.values()).map((item) => ({
+      competency: item.competency,
+      score: item.scores.reduce((sum, score) => sum + score, 0) / item.scores.length,
+    }));
     const items = Array.from({ length: maxCompetencies }, (_, idx) => idx + 1).map((c) => {
-      const scores = filteredCompetencyScores.filter((s) => s.competency === c).map((s) => s.score);
+      const scores = effectiveCompetencyScores.filter((s) => s.competency === c).map((s) => s.score);
       const avg = scores.length
         ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
         : null;
@@ -314,9 +344,9 @@ export default function StudentRedacoesPage() {
     let data = [...essaysByType];
 
     if (filter === 'pending') {
-      data = data.filter((e) => e.status === 'pending');
+      data = data.filter((e) => isEssayPending(e.status));
     } else if (filter === 'corrected') {
-      data = data.filter((e) => e.status === 'corrected' || e.status === 'seen');
+      data = data.filter((e) => isEssayCorrected(e.status));
     } else if (filter === 'seen') {
       data = data.filter((e) => e.status === 'seen');
     }
@@ -327,11 +357,11 @@ export default function StudentRedacoesPage() {
     }
 
     if (sortOption === 'score_worst') {
-      data.sort((a, b) => (a.total_score ?? 10_000) - (b.total_score ?? 10_000));
+      data.sort((a, b) => (effectiveEssayScore(a) ?? 10_000) - (effectiveEssayScore(b) ?? 10_000));
       return data;
     }
 
-    data.sort((a, b) => (b.total_score ?? -1) - (a.total_score ?? -1));
+    data.sort((a, b) => (effectiveEssayScore(b) ?? -1) - (effectiveEssayScore(a) ?? -1));
     return data;
   }, [essaysByType, filter, sortBy, sortOption]);
 
@@ -653,11 +683,14 @@ export default function StudentRedacoesPage() {
         ) : (
           <div ref={essaysListRef} className="grid gap-4">
             {filteredAndSorted.slice(page * 5, page * 5 + 5).map((essay) => {
-              const isCorrected = essay.status === 'corrected';
+              const isCorrected = isEssayCorrected(essay.status);
+              const isSecondCorrected = essay.status === 'second_corrected';
               const isSeen = essay.status === 'seen';
+              const isPending = isEssayPending(essay.status);
               const showScore = isCorrected || isSeen;
               const essayConfig = ESSAY_TYPE_CONFIGS[essay.essay_type];
-              const scoreClass = getScoreColorClass(essay.total_score, essayConfig.total_max);
+              const score = effectiveEssayScore(essay);
+              const scoreClass = getScoreColorClass(score, essayConfig.total_max);
 
               return (
                 <article
@@ -677,13 +710,16 @@ export default function StudentRedacoesPage() {
                         <span
                           className={cn(
                             'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold',
-                            essay.status === 'pending' && 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+                            isPending && 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
                             essay.status === 'corrected' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+                            isSecondCorrected && 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
                             essay.status === 'seen' && 'bg-slate-100 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300',
                           )}
                         >
                           {essay.status === 'pending' && 'Aguardando correção'}
+                          {essay.status === 'awaiting_second' && 'Aguardando segunda correção'}
                           {essay.status === 'corrected' && 'Corrigida ✓'}
+                          {essay.status === 'second_corrected' && 'Duas correções ✓'}
                           {essay.status === 'seen' && 'Vista'}
                         </span>
                         <span className="inline-flex items-center rounded-full border border-slate-200 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:text-slate-300">
@@ -707,7 +743,7 @@ export default function StudentRedacoesPage() {
                       {showScore && (
                         <>
                           <p className={cn('text-3xl font-extrabold tracking-tight', scoreClass)}>
-                            {essay.total_score ?? '-'} / {essayConfig.total_max}
+                            {score ?? '-'} / {essayConfig.total_max}
                           </p>
                           <p className="text-sm text-slate-500 dark:text-slate-400">Corrigida em {formatDateBR(essay.corrected_at)}</p>
                         </>

@@ -50,6 +50,7 @@ export default async function DesempenhoPage({
         submitted_at: string;
         corrected_at: string | null;
         total_score: number | null;
+        average_score?: number | null;
         theme?: string | null;
       }) => ({
         id: String(item.id),
@@ -62,11 +63,17 @@ export default async function DesempenhoPage({
         submitted_at: String(item.submitted_at),
         corrected_at: item.corrected_at ? String(item.corrected_at) : null,
         total_score: typeof item.total_score === 'number' ? item.total_score : null,
+        average_score: typeof item.average_score === 'number' ? item.average_score : null,
         theme: typeof item.theme === 'string' ? item.theme : null,
       }));
 
       const correctedRecent = essays
-        .filter((item) => item.total_score != null && (item.status === 'corrected' || item.status === 'seen'))
+        .filter((item) => {
+          const score = item.status === 'second_corrected' && typeof item.average_score === 'number'
+            ? item.average_score
+            : item.total_score;
+          return score != null && (item.status === 'corrected' || item.status === 'second_corrected' || item.status === 'seen');
+        })
         .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
 
       const detailResponses = await Promise.all(

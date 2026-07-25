@@ -38,7 +38,7 @@ export async function PATCH(
   }
 
   const admin = createAdminClient();
-  const essaysTable = admin.from('essays') as any;
+  const essaysTable = admin.from('essays');
   const [{ data: org }, { data: requester }] = await Promise.all([
     admin.from('organizations').select('id').eq('slug', slug).maybeSingle<{ id: string }>(),
     admin.from('profiles').select('role, organization_id').eq('id', user.id).maybeSingle<ProfileRow>(),
@@ -63,12 +63,12 @@ export async function PATCH(
     .eq('org_id', org.id)
     .maybeSingle() as { data: { id: string; status: string | null } | null };
   if (!essay) return NextResponse.json({ error: 'Redação não encontrada.' }, { status: 404 });
-  if (essay.status === 'pending') {
+  if (essay.status === 'pending' || essay.status === 'awaiting_second') {
     return NextResponse.json({ error: 'Somente redações corrigidas podem ser arquivadas.' }, { status: 400 });
   }
 
   const { error } = await essaysTable
-    .update({ status: 'seen', seen_at: new Date().toISOString() })
+    .update({ status: 'seen', seen_at: new Date().toISOString() } as never)
     .eq('id', essayId)
     .eq('org_id', org.id);
 

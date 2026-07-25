@@ -13,6 +13,7 @@ type EssayRow = {
   status: string | null;
   total_score: number | null;
   submitted_at: string;
+  imported_at: string | null;
   historical_date: string | null;
   historical_file_url: string | null;
   student: { id: string; full_name: string | null; email: string | null } | null;
@@ -57,21 +58,22 @@ export async function GET(
     return NextResponse.json({ error: 'Acesso negado à organização.' }, { status: 403 });
   }
 
-  const { data, error } = await (adminClient.from('essays') as any)
+  const { data, error } = await adminClient
+    .from('essays')
     .select(`
       id, theme, essay_type, status, total_score, submitted_at,
-      historical_date, historical_file_url,
+      imported_at, historical_date, historical_file_url,
       student:profiles!essays_student_id_fkey(id, full_name, email)
     `)
     .eq('org_id', org.id)
     .eq('imported_by', user.id)
     .eq('is_historical', true)
-    .order('submitted_at', { ascending: false })
-    .limit(200) as { data: EssayRow[] | null; error: unknown };
+    .order('imported_at', { ascending: false, nullsFirst: false })
+    .limit(200);
 
   if (error) {
     return NextResponse.json({ error: 'Não foi possível carregar importações.' }, { status: 500 });
   }
 
-  return NextResponse.json({ essays: data ?? [] });
+  return NextResponse.json({ essays: (data ?? []) as EssayRow[] });
 }
