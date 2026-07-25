@@ -354,6 +354,7 @@ function EssayQueueCard({
   const isAssignedToMe = isAwaitingSecond && !!currentUserId && item.second_corrector_id === currentUserId;
   const isLockedForMe = isAwaitingSecond && !isAssignedToMe;
   const isBeingCorrected = mode === 'pending' && !isLockedForMe && !isAssignedToMe && (activeCorrectors?.length ?? 0) > 0;
+  const canShowManageActions = allowManageActions && !isBeingCorrected;
   const displayScore = item.status === 'second_corrected' && item.average_score != null
     ? Math.round(item.average_score)
     : item.total_score;
@@ -486,7 +487,7 @@ function EssayQueueCard({
                     : 'Visualizar correção'}
             </Link>
           )}
-          {allowManageActions && (
+          {canShowManageActions && (
             <>
               <button
                 type="button"
@@ -771,6 +772,11 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   }
 
   async function handleDelete(item: EssayListItem) {
+    const active = presenceByEssay.get(item.id) || [];
+    if (item.status === 'pending' && active.length > 0) {
+      toast.error('Não é possível excluir enquanto a redação está sendo corrigida.');
+      return;
+    }
     const ok = window.confirm(`Excluir a redação de ${item.student.full_name || 'Aluno'}? Essa ação não pode ser desfeita.`);
     if (!ok) return;
     setDeletingId(item.id);

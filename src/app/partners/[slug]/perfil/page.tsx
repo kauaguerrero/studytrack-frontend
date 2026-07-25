@@ -1,15 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Mail, ShieldCheck, User, LogOut } from 'lucide-react';
+import { Mail, ShieldCheck, LogOut, Lock } from 'lucide-react';
+import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function PartnerProfilePage() {
   const { org, userProfile } = useOrg();
   const [email, setEmail] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -22,6 +29,47 @@ export default function PartnerProfilePage() {
     const supabase = createClient();
     await supabase.auth.signOut();
     window.location.href = `/partners/${org.slug}/login`;
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) {
+      toast.error('Não foi possível identificar seu e-mail.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error('A nova senha precisa ter no mínimo 8 caracteres.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem.');
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      const supabase = createClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      });
+      if (signInError) {
+        toast.error('Senha atual incorreta.');
+        return;
+      }
+
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+
+      toast.success('Senha atualizada.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar senha.');
+    } finally {
+      setSavingPassword(false);
+    }
   }
 
   return (
@@ -71,12 +119,49 @@ export default function PartnerProfilePage() {
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
-            <User className="h-4 w-4" />
+            <Lock className="h-4 w-4" />
             Segurança
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Para alterar sua senha, use o fluxo de recuperação de senha na tela de login da organização.
-          </p>
+          <form onSubmit={handleChangePassword} className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="current-password">Senha atual</Label>
+              <Input
+                id="current-password"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-password">Nova senha</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="confirm-password">Confirmar nova senha</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Button
+                type="submit"
+                disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}
+              >
+                {savingPassword ? 'Salvando...' : 'Atualizar senha'}
+              </Button>
+            </div>
+          </form>
         </section>
       </main>
     </PartnerLayout>

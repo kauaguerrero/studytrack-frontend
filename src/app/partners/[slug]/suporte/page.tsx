@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
-import { LifeBuoy, Search, BookOpen, MessageSquare, Mail, ChevronRight, ChevronDown } from 'lucide-react';
+import { LifeBuoy, Search, MessageSquare, Mail, ChevronRight, ChevronDown } from 'lucide-react';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { useOrg } from '@/contexts/OrgContext';
@@ -32,7 +31,6 @@ const SUPPORT_EMAIL_BODY = encodeURIComponent(
   'Olá, equipe StudyTrack!\n\nPreciso de ajuda com:\n\n[Descreva aqui sua dúvida, problema técnico ou solicitação]\n\nMeus dados (opcional):\n- Nome:\n- E-mail da conta:\n\nObrigado(a)!'
 );
 const SUPPORT_GMAIL_URL = `https://mail.google.com/mail/?view=cm&fs=1&to=${SUPPORT_EMAIL_TO}&su=${SUPPORT_EMAIL_SUBJECT}&body=${SUPPORT_EMAIL_BODY}`;
-const KB_LINK = '/portal/support/kb';
 
 const PARTNER_FAQS: never[] = [];
 
@@ -96,32 +94,8 @@ export default function SuportePage() {
           </RevealItem>
 
           {/* Action cards */}
-          <RevealItem className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3 lg:gap-4">
-
-            {/* Card 1 — Manual da Plataforma */}
-            <Link href={KB_LINK} className="block h-full">
-              <ElevatedCard accentColor="var(--brand-primary)" className="group h-full">
-                <div className="flex h-full flex-col items-center gap-3 p-5 text-center">
-                  <div
-                    className="flex h-12 w-12 items-center justify-center rounded-xl transition-transform group-hover:scale-110"
-                    style={{
-                      background: 'color-mix(in srgb, var(--brand-primary) 15%, transparent)',
-                      color: readableBrandText(org.brand_primary, 'var(--brand-primary)', 46),
-                    }}
-                  >
-                    <BookOpen className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-[14px] font-bold text-slate-900 dark:text-slate-50">Manual da Plataforma</h3>
-                    <p className="mt-1 text-[12px] font-medium text-slate-500 dark:text-slate-400">
-                      Guias passo a passo de todos os recursos.
-                    </p>
-                  </div>
-                </div>
-              </ElevatedCard>
-            </Link>
-
-            {/* Card 2 — Suporte via WhatsApp */}
+          <RevealItem className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:gap-4">
+            {/* Card 1 — Suporte via WhatsApp */}
             <a
               href="#"
               onClick={(e) => {
@@ -146,7 +120,7 @@ export default function SuportePage() {
               </ElevatedCard>
             </a>
 
-            {/* Card 3 — E-mail de Suporte */}
+            {/* Card 2 — E-mail de Suporte */}
             <a
               href={SUPPORT_GMAIL_URL}
               target="_blank"

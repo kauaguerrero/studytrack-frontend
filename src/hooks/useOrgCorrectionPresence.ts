@@ -34,11 +34,34 @@ export function useOrgCorrectionPresence({
 }) {
   const [presenceByEssay, setPresenceByEssay] = useState<PresenceMap>(new Map());
   const [synced, setSynced] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null);
+  const trackingRef = useRef<{
+    currentUserId: string | null;
+    currentUserName: string;
+    currentUserAvatarUrl: string | null;
+    trackingEssayId?: string;
+  }>({
+    currentUserId,
+    currentUserName,
+    currentUserAvatarUrl,
+    trackingEssayId,
+  });
+
+  useEffect(() => {
+    trackingRef.current = {
+      currentUserId,
+      currentUserName,
+      currentUserAvatarUrl,
+      trackingEssayId,
+    };
+  }, [trackingEssayId, currentUserId, currentUserName, currentUserAvatarUrl]);
 
   useEffect(() => {
     if (!orgId || !currentUserId) return;
 
+    setSynced(false);
+    setSubscribed(false);
     const supabase = createClient();
     const channel = supabase.channel(`essay-corrections:${orgId}`);
     channelRef.current = channel;
@@ -73,34 +96,44 @@ export function useOrgCorrectionPresence({
       .on('presence', { event: 'join' }, () => rebuildMap())
       .on('presence', { event: 'leave' }, () => rebuildMap())
       .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED' && trackingEssayId) {
-          await channel.track({
-            userId: currentUserId,
-            name: currentUserName,
-            avatarUrl: currentUserAvatarUrl,
-            essayId: trackingEssayId,
-          });
+        if (status === 'SUBSCRIBED') {
+          setSubscribed(true);
         }
       });
 
     return () => {
+      setSubscribed(false);
       void supabase.removeChannel(channel);
       channelRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, currentUserId]);
 
-  // Atualiza o track quando o essay ou dados do usuário mudam
+  // Atualiza o track quando o essay ou dados do usuário mudam.
+  // O intervalo reduz falhas por corrida entre subscribe, auth e carregamento da redação.
   useEffect(() => {
     const channel = channelRef.current;
-    if (!channel || !currentUserId || !trackingEssayId) return;
-    void channel.track({
-      userId: currentUserId,
-      name: currentUserName,
-      avatarUrl: currentUserAvatarUrl,
-      essayId: trackingEssayId,
-    });
-  }, [trackingEssayId, currentUserId, currentUserName, currentUserAvatarUrl]);
+    if (!channel || !subscribed) return;
+
+    const publish = () => {
+      const latest = trackingRef.current;
+      if (!latest.currentUserId) return;
+      if (!latest.trackingEssayId) {
+        void channel.untrack();
+        return;
+      }
+      void channel.track({
+        userId: latest.currentUserId,
+        name: latest.currentUserName,
+        avatarUrl: latest.currentUserAvatarUrl,
+        essayId: latest.trackingEssayId,
+      });
+    };
+
+    publish();
+    const interval = window.setInterval(publish, 10_000);
+    return () => window.clearInterval(interval);
+  }, [subscribed]);
 
   return { presenceByEssay, synced };
 }
