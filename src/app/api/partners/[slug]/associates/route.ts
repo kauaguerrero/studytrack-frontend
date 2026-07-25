@@ -11,12 +11,18 @@ type RequesterRow = {
   organization_id: string | null;
 };
 
+type AssociatePermissions = {
+  can_correct?: boolean;
+  can_import?: boolean;
+};
+
 type AssociateListRow = {
   id: string;
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
   organization_id: string | null;
+  associate_permissions: AssociatePermissions | null;
 };
 
 async function authorize(slug: string) {
@@ -116,7 +122,7 @@ export async function GET(
 
   const profilesTable = auth.adminClient.from('profiles') as any;
   const { data, error } = await profilesTable
-    .select('id, full_name, email, avatar_url, organization_id')
+    .select('id, full_name, email, avatar_url, organization_id, associate_permissions')
     .eq('organization_id', auth.orgId)
     .eq('role', ASSOCIATE_DB_ROLE)
     .order('full_name', { ascending: true });
@@ -125,13 +131,20 @@ export async function GET(
     return NextResponse.json({ error: 'Não foi possível listar associados.' }, { status: 500 });
   }
 
-  const associates = ((data || []) as AssociateListRow[]).map((item) => ({
-    id: item.id,
-    full_name: item.full_name,
-    email: item.email,
-    avatar_url: item.avatar_url,
-    active: item.organization_id === auth.orgId,
-  }));
+  const associates = ((data || []) as AssociateListRow[]).map((item) => {
+    const rawPerms = item.associate_permissions || {};
+    return {
+      id: item.id,
+      full_name: item.full_name,
+      email: item.email,
+      avatar_url: item.avatar_url,
+      active: item.organization_id === auth.orgId,
+      associate_permissions: {
+        can_correct: rawPerms.can_correct !== false,  // default true (legado)
+        can_import: rawPerms.can_import === true,     // default false
+      },
+    };
+  });
 
   return NextResponse.json({
     total: associates.length,

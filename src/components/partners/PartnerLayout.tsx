@@ -29,6 +29,8 @@ import {
   Video,
   FlaskConical,
   GraduationCap,
+  Upload,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -219,8 +221,17 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/student/perfil`,             icon: User,           label: 'Perfil',         shortLabel: 'Perfil'      },
   ];
 
+  const associatePerms = userProfile.associatePermissions ?? { can_correct: true, can_import: false };
   const associateNavItems: NavItemDef[] = [
-    { href: `/partners/${org.slug}/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redações' },
+    ...(associatePerms.can_correct
+      ? [{ href: `/partners/${org.slug}/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redações' }]
+      : []),
+    ...(associatePerms.can_import
+      ? [
+          { href: `/partners/${org.slug}/redacoes/minhas-importacoes`, icon: History, label: 'Minhas Importações', shortLabel: 'Importações' },
+          { href: `/partners/${org.slug}/redacoes/importar`, icon: Upload, label: 'Importar', shortLabel: 'Importar' },
+        ]
+      : []),
   ];
 
   const navItems = variant === 'student'

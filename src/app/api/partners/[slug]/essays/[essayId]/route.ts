@@ -8,6 +8,21 @@ type ProfileRow = {
   organization_id: string | null;
 };
 
+type CorrectorProfile = {
+  id: string;
+  full_name: string | null;
+  role: string | null;
+  organization_id?: string | null;
+  associate_permissions: { can_correct?: boolean; can_import?: boolean } | null;
+};
+
+function canCorrectEssays(profile: Pick<CorrectorProfile, 'role' | 'associate_permissions'>): boolean {
+  const role = String(profile.role || '').toLowerCase();
+  if (role === 'admin' || role === 'founder' || role === 'teacher') return true;
+  if (role === 'associate') return profile.associate_permissions?.can_correct !== false;
+  return false;
+}
+
 const MAX_GENERAL_COMMENT_LEN = 5000;
 const MAX_COMP_COMMENT_LEN = 2000;
 const MAX_ANNOTATION_TEXT_LEN = 3000;
@@ -491,14 +506,13 @@ export async function POST(
     if (chosenSecondCorrectorId) {
       const { data: scProfile } = await auth.admin
         .from('profiles')
-        .select('id, full_name, role, organization_id')
+        .select('id, full_name, role, organization_id, associate_permissions')
         .eq('id', chosenSecondCorrectorId)
-        .maybeSingle<{ id: string; full_name: string | null; role: string | null; organization_id: string | null }>();
+        .maybeSingle<CorrectorProfile>();
       if (!scProfile || scProfile.organization_id !== auth.orgId) {
         return NextResponse.json({ error: 'Corretor selecionado não pertence a esta organização.' }, { status: 400 });
       }
-      const scRole = String(scProfile.role || '').toLowerCase();
-      if (!['founder', 'associate', 'admin'].includes(scRole)) {
+      if (!canCorrectEssays(scProfile)) {
         return NextResponse.json({ error: 'Usuário selecionado não tem permissão para corrigir redações.' }, { status: 400 });
       }
       resolvedSecondCorrectorId = chosenSecondCorrectorId;
@@ -507,15 +521,17 @@ export async function POST(
       // Aleatório: seleciona um staff da org excluindo o corretor atual
       const { data: staffList } = await auth.admin
         .from('profiles')
-        .select('id, full_name')
+        .select('id, full_name, role, associate_permissions')
         .eq('organization_id', auth.orgId)
         .in('role', ['founder', 'associate'])
         .neq('id', auth.userId)
-        .limit(10);
-      if (!staffList || staffList.length === 0) {
+        .limit(10)
+        .returns<CorrectorProfile[]>();
+      const eligibleStaff = (staffList || []).filter(canCorrectEssays);
+      if (eligibleStaff.length === 0) {
         return NextResponse.json({ error: 'Não há outros corretores disponíveis para segunda correção.' }, { status: 400 });
       }
-      const chosen = staffList[Math.floor(Math.random() * staffList.length)] as { id: string; full_name: string | null };
+      const chosen = eligibleStaff[Math.floor(Math.random() * eligibleStaff.length)];
       resolvedSecondCorrectorId = chosen.id;
       resolvedSecondCorrectorName = chosen.full_name;
     }

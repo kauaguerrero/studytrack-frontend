@@ -28,6 +28,7 @@ interface UserProfile {
   isTestAccount?: boolean;
   themePreference?: 'light' | 'dark' | 'system' | null;
   mustChangePassword?: boolean;
+  associatePermissions?: { can_correct: boolean; can_import: boolean };
 }
 
 interface OrgContextValue {

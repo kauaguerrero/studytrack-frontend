@@ -7,6 +7,21 @@ type ProfileRow = {
   organization_id: string | null;
 };
 
+type CorrectorRow = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: string | null;
+  associate_permissions: { can_correct?: boolean; can_import?: boolean } | null;
+};
+
+function canCorrectEssays(profile: Pick<CorrectorRow, 'role' | 'associate_permissions'>): boolean {
+  const role = String(profile.role || '').toLowerCase();
+  if (role === 'founder' || role === 'teacher' || role === 'admin') return true;
+  if (role === 'associate') return profile.associate_permissions?.can_correct !== false;
+  return false;
+}
+
 export async function GET(
   _request: Request,
   context: { params: Promise<{ slug: string }> },
@@ -44,14 +59,22 @@ export async function GET(
 
   const { data: correctors, error } = await admin
     .from('profiles')
-    .select('id, full_name, avatar_url, role')
+    .select('id, full_name, avatar_url, role, associate_permissions')
     .eq('organization_id', org.id)
     .in('role', ['founder', 'associate'])
-    .order('full_name');
+    .order('full_name')
+    .returns<CorrectorRow[]>();
 
   if (error) {
     return NextResponse.json({ error: 'Erro ao buscar corretores.' }, { status: 500 });
   }
 
-  return NextResponse.json(correctors || []);
+  return NextResponse.json((correctors || [])
+    .filter(canCorrectEssays)
+    .map((corrector) => ({
+      id: corrector.id,
+      full_name: corrector.full_name,
+      avatar_url: corrector.avatar_url,
+      role: corrector.role,
+    })));
 }

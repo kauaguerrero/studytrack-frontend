@@ -101,9 +101,30 @@ export async function PATCH(
     return NextResponse.json({ error: 'Associado não encontrado nesta organização.' }, { status: 404 });
   }
 
-  const body = await request.json().catch(() => ({} as { active?: boolean }));
+  const body = await request.json().catch(() => ({} as { active?: boolean; permissions?: { can_correct?: boolean; can_import?: boolean } }));
+
+  // Atualização de permissões
+  if (body.permissions !== undefined) {
+    const canCorrect = Boolean(body.permissions?.can_correct);
+    const canImport = Boolean(body.permissions?.can_import);
+    if (!canCorrect && !canImport) {
+      return NextResponse.json({ error: 'O associate deve ter ao menos uma permissão ativa.' }, { status: 400 });
+    }
+    const { error } = await profilesTable
+      .update({
+        associate_permissions: { can_correct: canCorrect, can_import: canImport },
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq('id', associateId);
+    if (error) {
+      return NextResponse.json({ error: 'Não foi possível atualizar permissões.' }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  // Ativar / desativar
   if (typeof body.active !== 'boolean') {
-    return NextResponse.json({ error: 'Campo "active" inválido.' }, { status: 400 });
+    return NextResponse.json({ error: 'Campo "active" ou "permissions" é obrigatório.' }, { status: 400 });
   }
 
   const { error } = await profilesTable

@@ -514,6 +514,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   const { org, userProfile } = useOrg();
   const isAssociate = userProfile.role === 'associate';
   const canManagePrompts = userProfile.role === 'founder' || userProfile.role === 'admin';
+  const canImportEssay = !isAssociate || (userProfile.associatePermissions?.can_import === true);
 
   const [metrics, setMetrics] = useState<EssaysMetrics>(initialOverview?.metrics || DEFAULT_METRICS);
   const [pendingEssays, setPendingEssays] = useState<EssayListItem[]>(initialOverview?.pending_items || []);
@@ -1710,13 +1711,15 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
             </div>
 
             <div className="flex items-center gap-2">
-              <Link
-                href={`/partners/${slug}/redacoes/importar`}
-                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-              >
-                <Upload className="h-4 w-4" />
-                Importar Redação
-              </Link>
+              {canImportEssay && (
+                <Link
+                  href={`/partners/${slug}/redacoes/importar`}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  <Upload className="h-4 w-4" />
+                  Importar Redação
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={() => setQueueOpen((v) => !v)}

@@ -39,6 +39,7 @@ interface AssociateMember {
   email: string | null;
   avatar_url?: string | null;
   active?: boolean | null;
+  associate_permissions?: { can_correct: boolean; can_import: boolean } | null;
 }
 
 function ColorPicker({
@@ -619,6 +620,31 @@ export default function ConfiguracoesPage() {
       await fetchAssociates();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao remover associado.');
+    } finally {
+      setAssociateBusyId(null);
+    }
+  }
+
+  async function handleUpdatePermissions(member: AssociateMember, key: 'can_correct' | 'can_import', value: boolean) {
+    const current = member.associate_permissions ?? { can_correct: true, can_import: false };
+    const next = { ...current, [key]: value };
+    if (!next.can_correct && !next.can_import) {
+      toast.error('O associate deve ter ao menos uma permissão ativa.');
+      return;
+    }
+    setAssociateBusyId(member.id);
+    try {
+      const res = await fetch(`/api/partners/${org.slug}/associates/${member.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-studytrack-csrf': '1' },
+        body: JSON.stringify({ permissions: next }),
+      });
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) throw new Error(data.error || 'Não foi possível atualizar permissões.');
+      await fetchAssociates();
+      toast.success('Permissões atualizadas.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar permissões.');
     } finally {
       setAssociateBusyId(null);
     }
@@ -1240,7 +1266,7 @@ export default function ConfiguracoesPage() {
               ) : (
                 <div className="divide-y divide-slate-200 dark:divide-slate-700">
                   {associates.map((member) => (
-                    <div key={member.id} className="flex flex-col gap-3 p-3 md:flex-row md:items-center md:justify-between">
+                    <div key={member.id} className="flex flex-col gap-3 p-3 md:flex-row md:items-start md:justify-between">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
                           {member.full_name || 'Associado'}
@@ -1249,6 +1275,26 @@ export default function ConfiguracoesPage() {
                           <Mail className="h-3.5 w-3.5" />
                           {member.email || 'Sem e-mail'}
                         </p>
+                        {(member.active ?? true) && (
+                          <div className="mt-2 flex flex-col gap-1.5">
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <Switch
+                                checked={member.associate_permissions?.can_correct ?? true}
+                                disabled={associateBusyId === member.id}
+                                onCheckedChange={(v) => handleUpdatePermissions(member, 'can_correct', v)}
+                              />
+                              <span className="text-xs text-slate-600 dark:text-slate-300">Pode corrigir redações</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <Switch
+                                checked={member.associate_permissions?.can_import ?? false}
+                                disabled={associateBusyId === member.id}
+                                onCheckedChange={(v) => handleUpdatePermissions(member, 'can_import', v)}
+                              />
+                              <span className="text-xs text-slate-600 dark:text-slate-300">Pode importar redações</span>
+                            </label>
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <span

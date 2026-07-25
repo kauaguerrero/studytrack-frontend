@@ -92,10 +92,11 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     avatar_url: string | null;
     theme_preference: string | null;
     must_change_password: boolean | null;
+    associate_permissions: { can_correct?: boolean; can_import?: boolean } | null;
   };
   const profileRes = await adminClient
     .from('profiles')
-    .select('role, organization_id, plan_tier, full_name, avatar_url, theme_preference, must_change_password')
+    .select('role, organization_id, plan_tier, full_name, avatar_url, theme_preference, must_change_password, associate_permissions')
     .eq('id', user.id)
     .single();
   const profile = profileRes.data as ProfileRow | null;
@@ -158,10 +159,38 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     redirect('/portal');
   }
 
-  // Associate só pode acessar páginas de redações (lista e detalhe de correção).
-  // Com pathname vazio (dev/turbopack), delega para o client-side sem bloquear aqui.
-  if (isAssociateRole(profile.role) && pathname !== '' && !/^\/partners\/[^/]+\/redacoes(\/[^/]+)?$/.test(pathname)) {
-    redirect(`/partners/${slug}/redacoes`);
+  // Associate: acesso restrito a /redacoes/*; roteamento fino baseado em permissões.
+  if (isAssociateRole(profile.role) && pathname !== '') {
+    const rawPerms = profile.associate_permissions || {};
+    const canCorrect = rawPerms.can_correct !== false;  // default true (legado)
+    const canImport = rawPerms.can_import === true;     // default false
+
+    // Fora de redacoes → home do associate
+    if (!/^\/partners\/[^/]+\/redacoes(\/.*)?$/.test(pathname)) {
+      redirect((!canCorrect && canImport)
+        ? `/partners/${slug}/redacoes/minhas-importacoes`
+        : `/partners/${slug}/redacoes`);
+    }
+
+    // can_import_only: redireciona /redacoes base e detalhe de correção (UUID)
+    if (!canCorrect && canImport) {
+      if (
+        pathname === `/partners/${slug}/redacoes` ||
+        /^\/partners\/[^/]+\/redacoes\/[0-9a-f-]{36}$/i.test(pathname)
+      ) {
+        redirect(`/partners/${slug}/redacoes/minhas-importacoes`);
+      }
+    }
+
+    // can_correct_only: bloqueia páginas de importação
+    if (canCorrect && !canImport) {
+      if (
+        pathname === `/partners/${slug}/redacoes/importar` ||
+        pathname === `/partners/${slug}/redacoes/minhas-importacoes`
+      ) {
+        redirect(`/partners/${slug}/redacoes`);
+      }
+    }
   }
 
   const branding: OrgBranding = {
@@ -204,6 +233,12 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
         isTestAccount: profile.plan_tier === 'b2b_test',
         themePreference: safeThemePreference,
         mustChangePassword: profile.must_change_password === true,
+        associatePermissions: isAssociateRole(profile.role)
+          ? {
+              can_correct: (profile.associate_permissions?.can_correct) !== false,
+              can_import: profile.associate_permissions?.can_import === true,
+            }
+          : undefined,
       }}
     >
       <script
