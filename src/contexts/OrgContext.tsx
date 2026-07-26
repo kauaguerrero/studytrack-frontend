@@ -19,6 +19,7 @@ export interface OrgBranding {
   permissions?: Record<string, boolean>;
   typewriter_tagline?: OrgTypewriterTagline | null;
   approved_student_photos?: OrgApprovedPhoto[] | null;
+  hasAssociates?: boolean;
 }
 
 interface UserProfile {

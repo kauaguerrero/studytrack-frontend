@@ -38,6 +38,7 @@ export interface OrgBranding {
   permissions: Record<string, boolean>;
   typewriter_tagline: OrgTypewriterTagline;
   approved_student_photos: OrgApprovedPhoto[];
+  hasAssociates?: boolean;
 }
 
 interface PartnersLayoutProps {
@@ -92,7 +93,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     avatar_url: string | null;
     theme_preference: string | null;
     must_change_password: boolean | null;
-    associate_permissions: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean } | null;
+    associate_permissions: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean; active?: boolean } | null;
   };
   const profileRes = await adminClient
     .from('profiles')
@@ -159,6 +160,14 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     redirect('/portal');
   }
 
+  // Verifica se a org tem ao menos 1 associado (para exibir item na sidebar)
+  const { count: associateCount } = await adminClient
+    .from('profiles')
+    .select('id', { count: 'exact', head: true })
+    .eq('organization_id', org.id)
+    .eq('role', 'associate');
+
+
   // Associate: acesso restrito a /redacoes/*; roteamento fino baseado em permissões.
   if (isAssociateRole(profile.role) && pathname !== '') {
     const rawPerms = profile.associate_permissions || {};
@@ -219,6 +228,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     permissions:     org.permissions ?? {},
     typewriter_tagline: normalizeOrgTypewriterTagline(org.typewriter_tagline),
     approved_student_photos: normalizeOrgApprovedPhotos(org.approved_student_photos),
+    hasAssociates:   (associateCount ?? 0) > 0,
   };
   const safePrimary = sanitizeCssHexColor(branding.brand_primary, '#6366f1');
   const safeSecondary = sanitizeCssHexColor(branding.brand_secondary, '#8b5cf6');

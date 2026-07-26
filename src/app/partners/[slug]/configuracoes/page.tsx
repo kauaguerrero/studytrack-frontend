@@ -11,9 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Typewriter } from '@/components/ui/typewriter';
-import { ArrowLeft, Save, Palette, Upload, Camera, Loader2, UserPlus, Trash2, Mail, ShieldCheck, KeyRound, Copy, Plus, X } from 'lucide-react';
+import { ArrowLeft, Save, Palette, Upload, Camera, Loader2, Trash2, Plus, X, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
-import { readableBrandText, onBrandText } from '@/lib/brand-color';
+import { onBrandText } from '@/lib/brand-color';
 import {
   getOrgTypewriterPreviewKey,
   normalizeOrgTypewriterTagline,
@@ -32,15 +32,6 @@ import {
 } from '@/components/partners/founder-ui';
 
 const BRAND_SWATCHES = ['#2563EB', '#7C3AED', '#059669', '#DC2626', '#D97706'];
-
-interface AssociateMember {
-  id: string;
-  full_name: string | null;
-  email: string | null;
-  avatar_url?: string | null;
-  active?: boolean | null;
-  associate_permissions?: { can_correct: boolean; can_import: boolean; can_view_students: boolean } | null;
-}
 
 function ColorPicker({
   label,
@@ -131,14 +122,6 @@ export default function ConfiguracoesPage() {
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(
     userProfile.themePreference === 'dark' ? 'dark' : 'light',
   );
-  const [associates, setAssociates] = useState<AssociateMember[]>([]);
-  const [associatesLoading, setAssociatesLoading] = useState(true);
-  const [associateSubmitting, setAssociateSubmitting] = useState(false);
-  const [associateBusyId, setAssociateBusyId] = useState<string | null>(null);
-  const [generatedAccess, setGeneratedAccess] = useState<{ fullName: string; email: string; password: string } | null>(null);
-  const [showGeneratedPassword, setShowGeneratedPassword] = useState(false);
-  const [newAssociateName, setNewAssociateName] = useState('');
-  const [newAssociateEmail, setNewAssociateEmail] = useState('');
   const [themeSaving, setThemeSaving] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -167,31 +150,6 @@ export default function ConfiguracoesPage() {
       if (avatarCropUrl) URL.revokeObjectURL(avatarCropUrl);
     };
   }, [avatarCropUrl]);
-
-  async function fetchAssociates() {
-    setAssociatesLoading(true);
-    try {
-      const res = await fetch(`/api/partners/${org.slug}/associates`);
-
-      if (!res.ok) {
-        setAssociates([]);
-        return;
-      }
-
-      const data = await res.json() as { associates?: AssociateMember[]; items?: AssociateMember[] };
-      const list = Array.isArray(data.associates) ? data.associates : Array.isArray(data.items) ? data.items : [];
-      setAssociates(list);
-    } catch {
-      setAssociates([]);
-    } finally {
-      setAssociatesLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchAssociates();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [org.slug]);
 
   function applyFounderTheme(next: 'light' | 'dark') {
     const root = document.documentElement;
@@ -532,149 +490,6 @@ export default function ConfiguracoesPage() {
       toast.error('Erro de conexão.');
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleCreateAssociate() {
-    const email = newAssociateEmail.trim();
-    const fullName = newAssociateName.trim();
-    if (!email) {
-      toast.error('Informe o e-mail do associado.');
-      return;
-    }
-    if (!fullName) {
-      toast.error('Informe o nome do associado.');
-      return;
-    }
-
-    setAssociateSubmitting(true);
-    try {
-      const res = await fetch(`/api/partners/${org.slug}/associates`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-studytrack-csrf': '1',
-        },
-        body: JSON.stringify({
-          full_name: fullName,
-          email,
-          role: 'associate',
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({} as { error?: string }));
-        throw new Error(data.error || 'Não foi possível adicionar o associado.');
-      }
-
-      toast.success('Associado adicionado com sucesso.');
-      setNewAssociateEmail('');
-      setNewAssociateName('');
-      setGeneratedAccess(null);
-      await fetchAssociates();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao adicionar associado.');
-    } finally {
-      setAssociateSubmitting(false);
-    }
-  }
-
-  async function handleToggleAssociate(member: AssociateMember) {
-    setAssociateBusyId(member.id);
-    try {
-      const res = await fetch(`/api/partners/${org.slug}/associates/${member.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-studytrack-csrf': '1',
-        },
-        body: JSON.stringify({ active: !(member.active ?? true) }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({} as { error?: string }));
-        throw new Error(data.error || 'Não foi possível atualizar o associado.');
-      }
-      toast.success((member.active ?? true) ? 'Associado desativado.' : 'Associado reativado.');
-      await fetchAssociates();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar associado.');
-    } finally {
-      setAssociateBusyId(null);
-    }
-  }
-
-  async function handleRemoveAssociate(member: AssociateMember) {
-    setAssociateBusyId(member.id);
-    try {
-      const res = await fetch(`/api/partners/${org.slug}/associates/${member.id}`, {
-        method: 'DELETE',
-        headers: {
-          'x-studytrack-csrf': '1',
-        },
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({} as { error?: string }));
-        throw new Error(data.error || 'Não foi possível remover o associado.');
-      }
-      toast.success('Associado removido.');
-      await fetchAssociates();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao remover associado.');
-    } finally {
-      setAssociateBusyId(null);
-    }
-  }
-
-  async function handleUpdatePermissions(member: AssociateMember, key: 'can_correct' | 'can_import' | 'can_view_students', value: boolean) {
-    const current = member.associate_permissions ?? { can_correct: true, can_import: false, can_view_students: false };
-    const next = { ...current, [key]: value };
-    if (!next.can_correct && !next.can_import && !next.can_view_students) {
-      toast.error('O associate deve ter ao menos uma permissão ativa.');
-      return;
-    }
-    setAssociateBusyId(member.id);
-    try {
-      const res = await fetch(`/api/partners/${org.slug}/associates/${member.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-studytrack-csrf': '1' },
-        body: JSON.stringify({ permissions: next }),
-      });
-      const data = await res.json().catch(() => ({} as { error?: string }));
-      if (!res.ok) throw new Error(data.error || 'Não foi possível atualizar permissões.');
-      await fetchAssociates();
-      toast.success('Permissões atualizadas.');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar permissões.');
-    } finally {
-      setAssociateBusyId(null);
-    }
-  }
-
-  async function handleGenerateTemporaryPassword(member: AssociateMember) {
-    setAssociateBusyId(member.id);
-    try {
-      const res = await fetch(`/api/partners/${org.slug}/associates/${member.id}/password`, {
-        method: 'POST',
-        headers: {
-          'x-studytrack-csrf': '1',
-        },
-      });
-      const data = await res.json().catch(() => ({} as { error?: string; temporary_password?: string }));
-      if (!res.ok || !data.temporary_password) {
-        throw new Error(data.error || 'Não foi possível gerar senha temporária.');
-      }
-
-      setGeneratedAccess({
-        fullName: member.full_name || 'Associado',
-        email: member.email || 'sem-email',
-        password: data.temporary_password,
-      });
-      setShowGeneratedPassword(false);
-      toast.success('Senha temporária gerada com sucesso.');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao gerar senha temporária.');
-    } finally {
-      setAssociateBusyId(null);
     }
   }
 
@@ -1170,191 +985,25 @@ export default function ConfiguracoesPage() {
 
         <RevealItem>
         <ElevatedCard accentColor="var(--brand-accent)" className="edificar-major-surface">
-          <div className="p-5">
-            <SectionTitle
-              kicker="Equipe"
-              title="Associados"
-              hex={org.brand_accent}
-              action={
-                <p className="max-w-[220px] text-right text-[11px] text-slate-400 dark:text-white/40">
-                  Acesso exclusivo para corrigir redações dos alunos.
-                </p>
-              }
-            />
-            <div className="space-y-4">
-            {generatedAccess && (
-              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 dark:border-amber-500/50 dark:bg-amber-900/20">
-                <p className="text-xs font-bold text-amber-800 dark:text-amber-200">
-                  Senha temporária gerada
-                </p>
-                <p className="mt-1 text-xs text-amber-800/90 dark:text-amber-200/90">
-                  Entregue com segurança para <span className="font-semibold">{generatedAccess.fullName}</span> ({generatedAccess.email}).
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <code className="rounded bg-amber-100 px-2.5 py-1.5 text-sm font-bold text-amber-900 dark:bg-amber-800/40 dark:text-amber-100">
-                    {showGeneratedPassword ? generatedAccess.password : '••••••••••••'}
-                  </code>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={() => setShowGeneratedPassword((prev) => !prev)}
-                  >
-                    <KeyRound className="h-3.5 w-3.5" />
-                    {showGeneratedPassword ? 'Ocultar' : 'Mostrar'}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(generatedAccess.password);
-                      toast.success('Senha copiada.');
-                    }}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    Copiar
-                  </Button>
-                </div>
-                <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
-                  O associado será obrigado a trocar a senha no primeiro login.
-                </p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <div className="md:col-span-1 space-y-1.5">
-                <Label htmlFor="associate_name" className="text-xs">Nome do associado</Label>
-                <Input
-                  id="associate_name"
-                  placeholder="Nome completo"
-                  value={newAssociateName}
-                  onChange={(e) => setNewAssociateName(e.target.value)}
-                />
-              </div>
-              <div className="md:col-span-1 space-y-1.5">
-                <Label htmlFor="associate_email" className="text-xs">E-mail</Label>
-                <Input
-                  id="associate_email"
-                  type="email"
-                  placeholder="professor@cursinho.com"
-                  value={newAssociateEmail}
-                  onChange={(e) => setNewAssociateEmail(e.target.value)}
-                />
-              </div>
-              <div className="md:col-span-1 flex items-end">
-                <BrandButton
-                  type="button"
-                  className="w-full"
-                  hex={org.brand_primary}
-                  disabled={associateSubmitting}
-                  onClick={handleCreateAssociate}
-                >
-                  {associateSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-                  Adicionar associado
-                </BrandButton>
-              </div>
+          <div className="p-5 flex flex-col items-center gap-4 text-center">
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-full"
+              style={{ backgroundColor: `color-mix(in srgb, var(--brand-accent) 14%, white)` }}
+            >
+              <UsersRound className="h-6 w-6" style={{ color: `var(--brand-accent)` }} />
             </div>
-
-            <div className="rounded-xl bg-slate-50 dark:bg-white/5">
-              {associatesLoading ? (
-                <div className="p-4 text-sm text-slate-500">Carregando associados...</div>
-              ) : associates.length === 0 ? (
-                <div className="p-4 text-sm text-slate-500">Nenhum associado cadastrado.</div>
-              ) : (
-                <div className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {associates.map((member) => (
-                    <div key={member.id} className="flex flex-col gap-3 p-3 md:flex-row md:items-start md:justify-between">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
-                          {member.full_name || 'Associado'}
-                        </p>
-                        <p className="truncate text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                          <Mail className="h-3.5 w-3.5" />
-                          {member.email || 'Sem e-mail'}
-                        </p>
-                        {(member.active ?? true) && (
-                          <div className="mt-2 flex flex-col gap-1.5">
-                            <label className="flex items-center gap-2 cursor-pointer select-none">
-                              <Switch
-                                checked={member.associate_permissions?.can_correct ?? true}
-                                disabled={associateBusyId === member.id}
-                                onCheckedChange={(v) => handleUpdatePermissions(member, 'can_correct', v)}
-                              />
-                              <span className="text-xs text-slate-600 dark:text-slate-300">Pode corrigir redações</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer select-none">
-                              <Switch
-                                checked={member.associate_permissions?.can_import ?? false}
-                                disabled={associateBusyId === member.id}
-                                onCheckedChange={(v) => handleUpdatePermissions(member, 'can_import', v)}
-                              />
-                              <span className="text-xs text-slate-600 dark:text-slate-300">Pode importar redações</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer select-none">
-                              <Switch
-                                checked={member.associate_permissions?.can_view_students ?? false}
-                                disabled={associateBusyId === member.id}
-                                onCheckedChange={(v) => handleUpdatePermissions(member, 'can_view_students', v)}
-                              />
-                              <span className="text-xs text-slate-600 dark:text-slate-300">Pode acessar alunos</span>
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                          style={{
-                            backgroundColor: (member.active ?? true)
-                              ? 'color-mix(in srgb, var(--brand-primary) 14%, white)'
-                              : 'rgb(241 245 249)',
-                            color: (member.active ?? true) ? readableBrandText(org.brand_primary, 'var(--brand-primary)') : 'rgb(71 85 105)',
-                          }}
-                        >
-                          <ShieldCheck className="h-3.5 w-3.5" />
-                          {(member.active ?? true) ? 'Ativo' : 'Inativo'}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={associateBusyId === member.id}
-                          onClick={() => handleToggleAssociate(member)}
-                        >
-                          {(member.active ?? true) ? 'Desativar' : 'Reativar'}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5"
-                          disabled={associateBusyId === member.id || !(member.active ?? true)}
-                          onClick={() => handleGenerateTemporaryPassword(member)}
-                        >
-                          <KeyRound className="h-3.5 w-3.5" />
-                          Senha temporária
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={associateBusyId === member.id}
-                          onClick={() => handleRemoveAssociate(member)}
-                          className="text-rose-500 hover:text-rose-600"
-                          title="Remover associado"
-                        >
-                          {associateBusyId === member.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Gestão de Associados</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs">
+                Adicione correctores, configure permissões e acompanhe métricas do time no dashboard de associados.
+              </p>
             </div>
-            </div>
+            <Button asChild variant="outline" size="sm" className="gap-2">
+              <Link href={`/partners/${org.slug}/associados`}>
+                <UsersRound className="h-3.5 w-3.5" />
+                Ir para o Dashboard de Associados
+              </Link>
+            </Button>
           </div>
         </ElevatedCard>
         </RevealItem>

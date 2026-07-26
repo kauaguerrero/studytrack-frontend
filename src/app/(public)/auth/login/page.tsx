@@ -97,14 +97,25 @@ function LoginForm() {
       const userId = authData.user.id;
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('role, organization_id')
+        .select('role, organization_id, associate_permissions')
         .eq('id', userId)
         .maybeSingle();
 
       if (profileError) {
         throw new Error('Falha ao carregar o perfil após autenticação.');
       }
-      
+
+      // Bloqueia associate desativado antes de qualquer redirecionamento
+      if (profile?.role === 'associate') {
+        const perms = profile.associate_permissions as { active?: boolean } | null;
+        if (perms?.active === false) {
+          await supabase.auth.signOut();
+          setError('Sua conta está inativa. Entre em contato com o gestor da instituição.');
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const role = profile?.role ?? null;
       const roleToPath: Record<string, string> = {
         admin: '/portal/admin',

@@ -242,8 +242,7 @@ export default function CorrecaoRedacaoPage() {
   const [lockOwned, setLockOwned] = useState(false);
   const lockOwnedRef = useRef(false);
 
-  // Estado para o accordion "Ver primeira correção" no modo segunda correção
-  const [showRound1Reference, setShowRound1Reference] = useState(false);
+
 
   // Busca ID do usuário atual para verificar se é o segundo corretor alocado
   useEffect(() => {
@@ -872,28 +871,6 @@ export default function CorrecaoRedacaoPage() {
               {essay.second_correction_requested_by_name ? ` por ${essay.second_correction_requested_by_name}` : ''} para realizar a{' '}
               <span className="font-bold">segunda correção</span> desta redação.
             </p>
-            {/* Accordion: ver primeira correção como referência */}
-            {essay.corrections && essay.corrections.length > 0 && (
-              <details
-                className="mt-3 rounded-xl border border-amber-300/60 dark:border-amber-700/40"
-                open={showRound1Reference}
-                onToggle={(e) => setShowRound1Reference((e.target as HTMLDetailsElement).open)}
-              >
-                <summary className="cursor-pointer rounded-xl px-3 py-2 text-xs font-semibold text-amber-700 select-none dark:text-amber-300">
-                  {showRound1Reference ? '▲' : '▶'} Ver primeira correção (referência)
-                </summary>
-                <div className="space-y-2 px-3 pb-3 pt-1">
-                  {essay.corrections.filter((c) => c.round === 1).map((c) => (
-                    <div key={c.round} className="text-xs text-amber-800 dark:text-amber-200">
-                      <span className="font-semibold">Nota:</span> {c.total_score} pts
-                      {c.general_comment && (
-                        <p className="mt-1 italic text-amber-700 dark:text-amber-300">&ldquo;{c.general_comment}&rdquo;</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </details>
-            )}
           </div>
         )}
 
