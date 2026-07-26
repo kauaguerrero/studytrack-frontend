@@ -497,11 +497,10 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
 
             {(isPartnerStudent || !isAssociate) ? (
               <div className="flex h-full shrink-0 items-center gap-0.5">
-                {!isAssociate && (
-                  org.slug === 'ave-palavra'
-                    ? <MobileAveBirdHeader />
-                    : <MobileApprovedPhotosHeaderCluster photos={approvedPhotos} />
-                )}
+                {org.slug === 'ave-palavra'
+                  ? <MobileAveBirdHeader />
+                  : (!isAssociate && <MobileApprovedPhotosHeaderCluster photos={approvedPhotos} />)
+                }
                 {isPartnerStudent && <AnnouncementBell />}
                 <Button
                   type="button"
