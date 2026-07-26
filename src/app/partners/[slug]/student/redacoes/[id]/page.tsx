@@ -507,10 +507,10 @@ export default function RedacaoDetailPage() {
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Comparativo de notas — duas correções</h2>
               <div className="flex items-center gap-2 text-xs">
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
-                  <span className="h-2 w-2 rounded-full bg-amber-400" />C1: {round1?.total_score ?? 0}
+                  <span className="h-2 w-2 rounded-full bg-amber-400" />Cor. 1: {round1?.total_score ?? 0}
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-1 font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
-                  <span className="h-2 w-2 rounded-full bg-indigo-400" />C2: {round2?.total_score ?? 0}
+                  <span className="h-2 w-2 rounded-full bg-indigo-400" />Cor. 2: {round2?.total_score ?? 0}
                 </span>
                 <span className="font-bold text-emerald-600 dark:text-emerald-300">Média: {displayScore}</span>
               </div>
@@ -531,7 +531,7 @@ export default function RedacaoDetailPage() {
                     <div className="grid grid-cols-3 gap-1.5 text-center text-xs sm:gap-2">
                       <div className="rounded-lg bg-amber-50 p-2 dark:bg-amber-500/10">
                         <p className="font-semibold text-amber-700 dark:text-amber-300">
-                          <span className="sm:hidden">C1</span>
+                          <span className="sm:hidden">Cor. 1</span>
                           <span className="hidden sm:inline">Correção 1</span>
                         </p>
                         <p className="mt-1 text-base font-black text-amber-800 dark:text-amber-200">{s1.score}<span className="text-xs font-normal">/{compMax}</span></p>
@@ -539,7 +539,7 @@ export default function RedacaoDetailPage() {
                       </div>
                       <div className="rounded-lg bg-indigo-50 p-2 dark:bg-indigo-500/10">
                         <p className="font-semibold text-indigo-700 dark:text-indigo-300">
-                          <span className="sm:hidden">C2</span>
+                          <span className="sm:hidden">Cor. 2</span>
                           <span className="hidden sm:inline">Correção 2</span>
                         </p>
                         <p className="mt-1 text-base font-black text-indigo-800 dark:text-indigo-200">{s2?.score ?? 0}<span className="text-xs font-normal">/{compMax}</span></p>

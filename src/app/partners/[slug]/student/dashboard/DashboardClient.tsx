@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion, useAnimation } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap, Shield, User, Zap, Play, Crown, Target } from 'lucide-react';
@@ -81,6 +81,50 @@ function KpiTopBadge({
       <Icon className="h-3.5 w-3.5 shrink-0" />
       <span className="hidden min-w-0 truncate font-script text-[14.5px] leading-none sm:inline">{label}</span>
     </span>
+  );
+}
+
+
+function AveBirdAnimation() {
+  const reduced = !!useReducedMotion();
+  const controls = useAnimation();
+
+  useEffect(() => {
+    if (reduced) return;
+    void controls.start({
+      scaleY: [1,    0.50, 1.12, 1],
+      scaleX: [1,    1.30, 0.88, 1],
+      y:      [0,    8,    -5,   0],
+      transition: {
+        duration: 2.2,
+        repeat: Infinity,
+        ease: ['easeIn', 'easeOut', 'easeInOut'],
+        times: [0, 0.28, 0.58, 1],
+      },
+    });
+  }, [controls, reduced]);
+
+  const birdClass = (extra: string) =>
+    `absolute w-auto drop-shadow-[0_20px_20px_rgba(0,0,0,0.32)] ${extra}`;
+
+  return (
+    <div className="pointer-events-none absolute inset-y-0 left-[58%] right-[205px] z-[1] hidden lg:block xl:left-[60%] xl:right-[235px]">
+      {/* Grande — base da diagonal */}
+      <motion.img src="/marketing/logo_ave-removebg-preview.png"
+        alt="" aria-hidden animate={controls}
+        style={{ transformOrigin: '50% 68%' }}
+        className={birdClass('bottom-[2%] left-[5%] h-[54%]')} />
+      {/* Média — meio da diagonal */}
+      <motion.img src="/marketing/logo_ave-removebg-preview.png"
+        alt="" aria-hidden animate={controls}
+        style={{ transformOrigin: '50% 68%' }}
+        className={birdClass('bottom-[32%] left-[36%] h-[32%] opacity-75')} />
+      {/* Pequena — topo da diagonal */}
+      <motion.img src="/marketing/logo_ave-removebg-preview.png"
+        alt="" aria-hidden animate={controls}
+        style={{ transformOrigin: '50% 68%' }}
+        className={birdClass('bottom-[58%] left-[60%] h-[18%] opacity-55')} />
+    </div>
   );
 }
 
@@ -464,7 +508,11 @@ export function DashboardClient({
               smokeColorHex={org.brand_primary ?? undefined}
               halftone={false}
               lighten
-              overlay={<ApprovedPhotosHeroStrip photos={approvedPhotos} activeIndex={activeApprovedPhotoIndex} />}
+              overlay={
+                slug === 'ave-palavra'
+                  ? <AveBirdAnimation />
+                  : <ApprovedPhotosHeroStrip photos={approvedPhotos} activeIndex={activeApprovedPhotoIndex} />
+              }
             >
               <div className="relative z-10 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
               <div className="flex min-w-0 flex-col gap-1 lg:flex-1">
@@ -490,6 +538,7 @@ export function DashboardClient({
                     style={{ background: 'color-mix(in srgb, var(--brand-primary) 22%, transparent)' }}
                     iconStyle={{ color: 'color-mix(in srgb, var(--brand-primary) 70%, white)' }}
                   />
+
                 </div>
 
                 {/* Greeting */}

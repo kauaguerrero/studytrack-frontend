@@ -15,6 +15,7 @@ type AssociatePermissions = {
   can_correct?: boolean;
   can_import?: boolean;
   can_view_students?: boolean;
+  active?: boolean;
 };
 
 type AssociateListRow = {
@@ -139,11 +140,12 @@ export async function GET(
       full_name: item.full_name,
       email: item.email,
       avatar_url: item.avatar_url,
-      active: item.organization_id === auth.orgId,
+      // active: ausência do flag ou true = ativo (compatibilidade com registros antigos)
+      active: rawPerms.active !== false,
       associate_permissions: {
-        can_correct: rawPerms.can_correct !== false,  // default true (legado)
-        can_import: rawPerms.can_import === true,     // default false
-        can_view_students: rawPerms.can_view_students === true, // default false
+        can_correct: rawPerms.can_correct !== false,
+        can_import: rawPerms.can_import === true,
+        can_view_students: rawPerms.can_view_students === true,
       },
     };
   });

@@ -69,11 +69,21 @@ export default function PartnerLoginPage() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, associate_permissions')
         .eq('id', session.user.id)
         .maybeSingle();
 
       if (cancelled) return;
+
+      // Bloqueia associate desativado — encerra sessão e exibe aviso
+      if (profile?.role === 'associate') {
+        const perms = profile.associate_permissions as { active?: boolean } | null;
+        if (perms?.active === false) {
+          await supabase.auth.signOut();
+          setError('Sua conta está inativa. Entre em contato com o gestor da instituição.');
+          return;
+        }
+      }
 
       const next = searchParams.get('next');
       const safeNextRedirect = (next && next.startsWith('/') && !next.startsWith('//')) ? next : null;
@@ -161,12 +171,22 @@ export default function PartnerLoginPage() {
       const userId = authData.user.id;
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('role, organization_id')
+        .select('role, organization_id, associate_permissions')
         .eq('id', userId)
         .maybeSingle();
 
       if (profileError) {
         throw new Error('Falha ao carregar o perfil após autenticação.');
+      }
+
+      // Bloqueia associate desativado antes de qualquer redirecionamento
+      if (profile?.role === 'associate') {
+        const perms = profile.associate_permissions as { active?: boolean } | null;
+        if (perms?.active === false) {
+          await supabase.auth.signOut();
+          setError('Sua conta está inativa. Entre em contato com o gestor da instituição.');
+          return;
+        }
       }
 
       const role = profile?.role ?? null;

@@ -131,7 +131,7 @@ export function useOrgCorrectionPresence({
     };
 
     publish();
-    const interval = window.setInterval(publish, 10_000);
+    const interval = window.setInterval(publish, 3_000);
     return () => window.clearInterval(interval);
   }, [subscribed]);
 
