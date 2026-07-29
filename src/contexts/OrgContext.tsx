@@ -30,6 +30,9 @@ interface UserProfile {
   themePreference?: 'light' | 'dark' | 'system' | null;
   mustChangePassword?: boolean;
   associatePermissions?: { can_correct: boolean; can_import: boolean; can_view_students: boolean };
+  /** Usados só pelo nudge "Complete seu perfil" da sidebar do aluno. */
+  username?: string | null;
+  birthDate?: string | null;
 }
 
 interface OrgContextValue {

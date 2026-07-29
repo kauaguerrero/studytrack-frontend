@@ -223,13 +223,26 @@ export function getTierProgress(monthlyPoints: number): {
 // Derivado de profiles.total_points, que nunca reseta com o mês — é a camada
 // de progresso de longo prazo do aluno. O XP espelha os lançamentos positivos
 // do gamification_ledger (+2/1º acerto, +25/redação, simulado variável,
-// diagnóstico 50–247), rendendo ~300–600 XP/mês para um aluno ativo.
+// diagnóstico 50–247).
 //
-// Curva triangular: subir do nível N para N+1 custa 250×N XP.
-// L2 aos 250 (1ª semana, vitória rápida), L3 aos 750, L4 aos 1.500,
-// L5 aos 2.500 — ~L6-7 ao fim de um ano letivo ativo.
+// Curva calibrada em 29/07/2026 nos dados reais de produção: o aluno mais
+// ativo da base tinha 3.100 XP (1.132 questões, 789 acertos, 127 simulados).
+// Com a curva antiga (passo triangular 250×N) isso o deixava só no nível 5 —
+// achatado, dado o quanto ele já tinha estudado. Quem responde centenas de
+// questões precisa sentir progresso real, não estagnação.
+//
+// XP acumulado para alcançar o nível N = 50 × (N-1)^1.7 (arredondado).
+// Nível 2 custa só 50 XP (~1 semana ativa, vitória rápida), e a curva
+// acelera suavemente depois. Nos dados reais: 3.100 XP ≈ nível 12,
+// ~1.400 XP ≈ nível 9, ~500 XP ≈ nível 4-5, ~100 XP ≈ nível 2.
 
-export const ACCOUNT_LEVEL_BASE_STEP = 250;
+const ACCOUNT_LEVEL_XP_BASE = 50;
+const ACCOUNT_LEVEL_XP_EXPONENT = 1.7;
+
+function cumulativeXpForLevel(level: number): number {
+  if (level <= 1) return 0;
+  return Math.round(ACCOUNT_LEVEL_XP_BASE * Math.pow(level - 1, ACCOUNT_LEVEL_XP_EXPONENT));
+}
 
 export function getAccountLevel(totalPoints: number): {
   level: number;
@@ -241,17 +254,17 @@ export function getAccountLevel(totalPoints: number): {
 } {
   const xp = Math.max(0, totalPoints);
   let level = 1;
-  let remaining = xp;
-  let step = ACCOUNT_LEVEL_BASE_STEP;
-  while (remaining >= step) {
-    remaining -= step;
+  while (cumulativeXpForLevel(level + 1) <= xp) {
     level += 1;
-    step = ACCOUNT_LEVEL_BASE_STEP * level;
   }
+  const currentThreshold = cumulativeXpForLevel(level);
+  const nextThreshold = cumulativeXpForLevel(level + 1);
+  const xpIntoLevel = xp - currentThreshold;
+  const xpForNextLevel = nextThreshold - currentThreshold;
   return {
     level,
-    xpIntoLevel: remaining,
-    xpForNextLevel: step,
-    pct: Math.round((remaining / step) * 100),
+    xpIntoLevel,
+    xpForNextLevel,
+    pct: Math.round((xpIntoLevel / xpForNextLevel) * 100),
   };
 }

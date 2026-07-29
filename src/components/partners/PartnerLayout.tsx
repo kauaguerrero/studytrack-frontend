@@ -33,6 +33,7 @@ import {
   GraduationCap,
   Upload,
   History,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -163,6 +164,80 @@ function SidebarNavItem({
     );
   }
   return linkEl;
+}
+
+// ─── Nudge "Complete seu perfil" (sidebar do aluno) ────────────────────────────
+// Ocupa o espaço vazio entre a navegação e o rodapé de usuário — some sozinho
+// assim que os 3 campos (foto, @ de usuário, data de nascimento) existirem.
+
+function ProfileCompletionNudge({
+  collapsed,
+  slug,
+  completedCount,
+  totalCount,
+  onNavigate,
+}: {
+  collapsed: boolean;
+  slug: string;
+  completedCount: number;
+  totalCount: number;
+  onNavigate?: () => void;
+}) {
+  const pct = Math.round((completedCount / totalCount) * 100);
+  const href = `/partners/${slug}/student/perfil`;
+
+  if (collapsed) {
+    return (
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>
+          <Link
+            href={href}
+            onClick={onNavigate}
+            className="mx-auto flex h-9 w-9 shrink-0 items-center justify-center"
+            aria-label={`Complete seu perfil — ${completedCount} de ${totalCount} concluído`}
+          >
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-full"
+              style={{ background: `conic-gradient(var(--brand-primary) ${pct}%, rgb(226 232 240) ${pct}%)` }}
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white dark:bg-slate-900">
+                <Sparkles className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
+              </div>
+            </div>
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={8}>
+          Complete seu perfil ({completedCount}/{totalCount})
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className="mx-3 block shrink-0 rounded-xl border p-3 transition-colors hover:bg-slate-50 dark:hover:bg-white/5"
+      style={{
+        borderColor: 'color-mix(in srgb, var(--brand-primary) 22%, transparent)',
+        background: 'color-mix(in srgb, var(--brand-primary) 6%, transparent)',
+      }}
+    >
+      <div className="flex items-center gap-1.5">
+        <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
+        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">Complete seu perfil!</p>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+        <div
+          className="h-full rounded-full transition-[width] duration-500 ease-out"
+          style={{ width: `${pct}%`, background: 'var(--brand-primary)' }}
+        />
+      </div>
+      <p className="mt-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+        {completedCount}/{totalCount} concluído — clique para finalizar
+      </p>
+    </Link>
+  );
 }
 
 // ─── Bottom tab item (mobile) ─────────────────────────────────────────────────
@@ -303,6 +378,17 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
       ? navItems
       : navItems.filter((item) => founderBottomHrefs.has(item.href));
 
+  // Nudge "Complete seu perfil" — só faz sentido pro aluno, e some sozinho
+  // quando os 3 campos existirem.
+  const profileCompletionFlags = [
+    Boolean(userProfile.avatarUrl),
+    Boolean(userProfile.username && userProfile.username.trim().length > 0),
+    Boolean(userProfile.birthDate),
+  ];
+  const profileCompletedCount = profileCompletionFlags.filter(Boolean).length;
+  const profileTotalCount = profileCompletionFlags.length;
+  const showProfileCompletionNudge = isPartnerStudent && profileCompletedCount < profileTotalCount;
+
   const initials = userProfile.fullName
     .split(' ')
     .slice(0, 2)
@@ -369,22 +455,41 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className={cn('partner-sidebar-links flex-1 space-y-1 py-4', c ? 'px-2' : 'px-3')}>
-        {navItems.map((item) => (
-          <SidebarNavItem
-            key={item.href}
-            {...item}
-            collapsed={c}
-            onClick={onNavigate}
-            showNotification={
-              variant === 'student'
-                && item.href === `/partners/${org.slug}/student/redacoes`
-                && hasPendingCorrection
-            }
-          />
-        ))}
-      </nav>
+      {/* Navigation — nav items no topo, nudge de perfil grudado embaixo do
+          espaço restante (mt-auto), preenchendo o vão antes do rodapé.
+          Sem overflow-hidden aqui de propósito: o <nav> original nunca teve
+          corte nenhum, e cortar essa área faz o card sumir se, por um
+          instante durante a transição de largura do hover, o conteúdo
+          ultrapassar por qualquer pixel o espaço disponível. */}
+      <div className="flex flex-1 flex-col">
+        <nav className={cn('partner-sidebar-links space-y-1 py-4', c ? 'px-2' : 'px-3')}>
+          {navItems.map((item) => (
+            <SidebarNavItem
+              key={item.href}
+              {...item}
+              collapsed={c}
+              onClick={onNavigate}
+              showNotification={
+                variant === 'student'
+                  && item.href === `/partners/${org.slug}/student/redacoes`
+                  && hasPendingCorrection
+              }
+            />
+          ))}
+        </nav>
+
+        {showProfileCompletionNudge && (
+          <div className="mt-auto pb-3 pt-2">
+            <ProfileCompletionNudge
+              collapsed={c}
+              slug={org.slug}
+              completedCount={profileCompletedCount}
+              totalCount={profileTotalCount}
+              onNavigate={onNavigate}
+            />
+          </div>
+        )}
+      </div>
 
       {/* User footer */}
       <div className={cn('border-t dark:border-slate-800 py-3', c ? 'px-2' : 'px-3')}>

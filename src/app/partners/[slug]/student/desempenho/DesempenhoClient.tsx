@@ -684,6 +684,15 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
     const activityChart = buildActivityChart(analytics.activity_history, essaysByType);
     const simuladoSubjectStats = buildSimuladoSubjectStats(simuladoSessions);
     const bestSimuladoTri = Math.max(...simuladoSessions.map((item) => item.tri_score || 0), 0) || null;
+    const triHistory = [...simuladoSessions]
+      .filter((item): item is SimuladoSession & { tri_score: number } => item.tri_score != null)
+      .sort((a, b) => new Date(a.completed_at).getTime() - new Date(b.completed_at).getTime())
+      .map((item) => ({
+        label: formatDateShort(item.completed_at),
+        fullDate: formatWeekdayDate(item.completed_at),
+        tri: item.tri_score,
+      }));
+    const triTrendDelta = compareWindowTrend(triHistory.map((item) => item.tri), 2);
     const recentSimuladoAvg = simuladoSessions.length
       ? Number(average(simuladoSessions.slice(0, 3).map((item) => item.percentage || 0)).toFixed(1))
       : null;
@@ -706,6 +715,8 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
       activityChart,
       simuladoSubjectStats,
       bestSimuladoTri,
+      triHistory,
+      triTrendDelta,
       recentSimuladoAvg,
       lastSimulado,
       mostConsistentArea,
@@ -746,6 +757,8 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
     activityChart,
     simuladoSubjectStats,
     bestSimuladoTri,
+    triHistory,
+    triTrendDelta,
     recentSimuladoAvg,
     lastSimulado,
     mostConsistentArea,
@@ -993,6 +1006,58 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                 ) : (
                   <div className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500 dark:border-white/15 dark:bg-slate-900/70 dark:text-slate-300">
                     Ainda não há histórico suficiente para desenhar evolução recente.
+                  </div>
+                )}
+              </div>
+            </MetricShell>
+          </RevealItem>
+
+          <RevealItem>
+            <MetricShell>
+              <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Simulados</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Evolução do TRI</h2>
+                </div>
+                <div className={cn(SOFT_CARD_CLASS, 'w-full px-4 py-3 text-sm text-slate-600 sm:w-auto dark:text-slate-200')}>
+                  {triTrendDelta != null
+                    ? <span className={cn('font-semibold', getDeltaTone(triTrendDelta))}>{triTrendDelta > 0 ? `+${triTrendDelta}` : triTrendDelta} pts nos últimos simulados comparáveis</span>
+                    : triHistory.length > 0 ? 'Poucos simulados com TRI ainda para comparar tendência' : 'Sem simulados com nota TRI'}
+                </div>
+              </div>
+
+              <div className="mt-6 h-[220px] w-full sm:h-[280px]">
+                {triHistory.length ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={triHistory} margin={{ left: -24, right: 20, top: 12, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="triFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={hexToRgba('#7c3aed', 0.26)} />
+                          <stop offset="100%" stopColor={hexToRgba('#7c3aed', 0.02)} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,0.22)" />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} stroke="#94a3b8" fontSize={12} minTickGap={24} interval="preserveStartEnd" />
+                      <YAxis tickLine={false} axisLine={false} stroke="#94a3b8" fontSize={12} domain={['dataMin - 20', 'dataMax + 20']} allowDecimals={false} />
+                      <Tooltip
+                        cursor={{ stroke: 'rgba(124, 58, 237, 0.25)', strokeWidth: 1 }}
+                        content={({ active: isActive, payload }) => {
+                          if (!isActive || !payload?.length) return null;
+                          const row = payload[0]?.payload as { fullDate: string; tri: number };
+                          return (
+                            <div className="rounded-2xl border border-slate-800 bg-slate-950/95 px-4 py-3 text-xs text-white shadow-2xl">
+                              <p className="mb-1 font-semibold capitalize text-slate-300">{row.fullDate}</p>
+                              <p>TRI: <span className="font-semibold text-violet-300">{row.tri}</span></p>
+                            </div>
+                          );
+                        }}
+                      />
+                      <Area type="monotone" dataKey="tri" stroke="#7c3aed" fill="url(#triFill)" strokeWidth={2.2} dot={{ r: 3, fill: '#7c3aed', strokeWidth: 0 }} activeDot={{ r: 5, strokeWidth: 0 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-300 bg-slate-50 text-center text-sm text-slate-500 dark:border-white/15 dark:bg-slate-900/70 dark:text-slate-300">
+                    Faça simulados elegíveis pra nota TRI pra ver sua evolução aqui.
                   </div>
                 )}
               </div>
