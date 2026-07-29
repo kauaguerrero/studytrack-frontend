@@ -90,7 +90,13 @@ export function ForcePasswordChangeModal({ onSuccess }: ForcePasswordChangeModal
     strength === 'forte' ? 'w-full' : 'w-0';
 
   return (
-    /* Overlay bloqueante — sem fechar ao clicar fora, sem ESC */
+    /* Overlay bloqueante — sem fechar ao clicar fora, sem ESC.
+       z-[9999] é INTENCIONALMENTE o mais alto de toda a área do aluno — nada
+       (incluindo os popups de gamificação em z-[9500]) pode aparecer por
+       cima de um gate de segurança obrigatório. Não reutilize 9999 em outro
+       popup: foi exatamente essa colisão (dois popups no mesmo z) que causou
+       um bug real de sobreposição com o check-in de onboarding — ver
+       PopupQueueContext.tsx e o restante da fila, todos em z-[9500]. */
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700 overflow-hidden">
 

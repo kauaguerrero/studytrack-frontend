@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/client';
 import { apiFetcher } from '@/lib/api-fetcher';
 import { getApiBaseUrl } from '@/lib/api-base';
 import type {
-  DiagnosticResult,
   MonthlySummary,
   MonthlyCheckInResult,
   MonthlyCheckInStatus,
@@ -304,36 +303,6 @@ export function usePartnerGamification(
     }
   }, []);
 
-  // ── Mutation: submit diagnostic ────────────────────────────────────────────
-
-  const submitDiagnostic = useCallback(
-    async (score: number, questionIds: string[]): Promise<DiagnosticResult> => {
-      const token = tokenRef.current;
-      if (!token) throw new Error('Sessão expirada. Faça login novamente.');
-      const apiBase = getApiBaseUrl();
-
-      const result = await apiFetcher<DiagnosticResult>(
-        `${apiBase}/api/partner/gamification/diagnostic/complete`,
-        {
-          method: 'POST',
-          headers: buildHeaders(token),
-          body: JSON.stringify({ score, question_ids: questionIds }),
-        },
-      );
-
-      invalidateCache([
-        `partner-gamification:summary:${apiBase}:${token}`,
-        `partner-gamification:popup:${apiBase}:${token}`,
-      ]);
-
-      // Refresh summary so monthly_points reflects the new points
-      await fetchSummary(token);
-
-      return result;
-    },
-    [fetchSummary],
-  );
-
   const submitMonthlyCheckIn = useCallback(
     async (answers: MonthlyCheckInAnswerInput[]): Promise<MonthlyCheckInResult> => {
       const token = tokenRef.current;
@@ -412,7 +381,6 @@ export function usePartnerGamification(
     shieldResult,
     isLoading,
     error,
-    submitDiagnostic,
     submitMonthlyCheckIn,
     refreshSummary,
     refreshRanking,

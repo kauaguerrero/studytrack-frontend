@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useStudentTheme } from '@/contexts/StudentThemeContext'
 import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
@@ -43,8 +43,13 @@ import {
   CheckCircle2,
   WalletCards,
   Bell,
+  Trophy,
+  Lock,
+  ChevronRight,
 } from 'lucide-react'
 import { isPushSupported, hasActiveSubscription, requestAndSubscribe, disablePush } from '@/lib/push'
+import { getAchievementIcon, getDifficultyStyle, formatChancePct } from '@/lib/achievement-icons'
+import { getAccountLevel } from '@/components/partners/gamification/titleSystem'
 
 /** Modelo 1:1 com a tabela profiles e resposta GET /api/account/profile */
 interface ProfileData {
@@ -112,7 +117,27 @@ interface StudentCurrentPlan {
   profile_plan_tier: string | null
 }
 
-type TabKey = 'personal' | 'plan' | 'journey' | 'routine' | 'security' | 'preferences'
+type TabKey = 'personal' | 'achievements' | 'plan' | 'journey' | 'routine' | 'security' | 'preferences'
+
+const VALID_TABS: readonly TabKey[] = ['personal', 'achievements', 'plan', 'journey', 'routine', 'security', 'preferences']
+
+function isValidTab(value: string | null): value is TabKey {
+  return value !== null && (VALID_TABS as readonly string[]).includes(value)
+}
+
+interface Achievement {
+  id: string
+  category: string
+  title: string
+  description: string
+  icon: string
+  target: number
+  progress: number
+  unlocked: boolean
+  difficulty: string
+  difficulty_label: string
+  chance_pct: number
+}
 
 const BRAND_PRIMARY = 'var(--brand-primary)'
 const BRAND_SECONDARY = 'var(--brand-secondary)'
@@ -130,11 +155,26 @@ function formatPlanPeriod(period?: 'week' | 'month' | null) {
 export default function PerfilPage() {
   const router = useRouter()
   const { slug } = useParams<{ slug: string }>()
+  const searchParams = useSearchParams()
   const { org } = useOrg()
   const { theme: studentTheme, setTheme: setStudentTheme } = useStudentTheme()
   const [profileState, setProfileState] = useState<ProfileData | null>(null)
   const [userState, setUserState] = useState<UserData | null>(null)
-  const [activeTab, setActiveTab] = useState<TabKey>('personal')
+  // Deep-link (?tab=achievements) — o card Nível do dashboard leva direto pra
+  // aba de conquistas. Só lido na montagem; trocar de aba depois não reescreve
+  // a URL de propósito, pra não brigar com o histórico de navegação.
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    const fromQuery = searchParams.get('tab')
+    return isValidTab(fromQuery) ? fromQuery : 'personal'
+  })
+
+  // Affordance da navegação de abas no mobile (rolagem horizontal): a setinha
+  // some sozinha assim que o aluno rolar uma vez — depois disso o degradê nas
+  // bordas já basta como sinal de "tem mais pra puxar".
+  const [tabNavScrolled, setTabNavScrolled] = useState(false)
+  const handleTabNavScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (e.currentTarget.scrollLeft > 4) setTabNavScrolled(true)
+  }, [])
 
   // States - Identidade
   const [fullName, setFullName] = useState('')
@@ -308,6 +348,49 @@ export default function PerfilPage() {
   useEffect(() => {
     if (activeTab === 'security') fetchSessions()
   }, [activeTab, fetchSessions])
+
+  const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [achievementsUnlockedCount, setAchievementsUnlockedCount] = useState(0)
+  const [loadingAchievements, setLoadingAchievements] = useState(false)
+  const [achievementsLoaded, setAchievementsLoaded] = useState(false)
+  // Nível (XP permanente) — mostrado num cabeçalho no topo da aba de
+  // Conquistas, pra fazer sentido chegar aqui vindo do card Nível do
+  // dashboard. Busca em paralelo com as conquistas, não bloqueia uma a outra.
+  const [levelTotalPoints, setLevelTotalPoints] = useState<number | null>(null)
+
+  const fetchAchievements = useCallback(async () => {
+    setLoadingAchievements(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return
+      const [achievementsRes, summaryRes] = await Promise.all([
+        fetch(`${apiUrl}/api/partner/gamification/achievements`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }),
+        fetch(`${apiUrl}/api/partner/gamification/summary`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }),
+      ])
+      if (!achievementsRes.ok) throw new Error('Falha ao carregar conquistas.')
+      const data = await achievementsRes.json()
+      setAchievements(data.achievements ?? [])
+      setAchievementsUnlockedCount(data.unlocked_count ?? 0)
+      setAchievementsLoaded(true)
+
+      if (summaryRes.ok) {
+        const summary = await summaryRes.json()
+        setLevelTotalPoints(typeof summary.total_points === 'number' ? summary.total_points : 0)
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao carregar conquistas.')
+    } finally {
+      setLoadingAchievements(false)
+    }
+  }, [apiUrl, supabase.auth])
+
+  useEffect(() => {
+    if (activeTab === 'achievements' && !achievementsLoaded) void fetchAchievements()
+  }, [activeTab, achievementsLoaded, fetchAchievements])
 
   const formatLastActive = (iso: string | null): string => {
     if (!iso) return '—'
@@ -697,6 +780,7 @@ export default function PerfilPage() {
 
   const navItems = [
     { id: 'personal' as const,     label: 'Identidade',          icon: User          },
+    { id: 'achievements' as const, label: 'Conquistas',          icon: Trophy        },
     { id: 'plan' as const,         label: 'Meu Plano',           icon: WalletCards   },
     { id: 'journey' as const,      label: 'Jornada Acadêmica',   icon: GraduationCap },
     { id: 'routine' as const,      label: 'Rotina de Estudos',   icon: Clock         },
@@ -781,8 +865,15 @@ export default function PerfilPage() {
 
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
 
-          {/* Navegação lateral */}
-          <RevealItem className="-mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:w-60 md:flex-shrink-0 md:overflow-visible md:px-0 md:pb-0">
+          {/* Navegação lateral — no mobile é uma fileira horizontal que rola.
+              Afordância de que dá pra puxar: degradê esmaecendo as bordas
+              (funciona sempre, sem JS) + setinha pulsante que some assim que
+              o aluno rolar uma vez. */}
+          <RevealItem className="relative -mx-4 md:mx-0 md:w-60 md:flex-shrink-0">
+            <div
+              onScroll={handleTabNavScroll}
+              className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-1 [mask-image:linear-gradient(to_right,transparent,black_20px,black_calc(100%-32px),transparent)] [-webkit-mask-image:linear-gradient(to_right,transparent,black_20px,black_calc(100%-32px),transparent)] md:overflow-visible md:px-0 md:pb-0 md:[mask-image:none] md:[-webkit-mask-image:none]"
+            >
             <nav className="flex gap-2 md:grid md:grid-cols-1">
               {navItems.map((item) => {
                 const Icon = item.icon
@@ -808,6 +899,14 @@ export default function PerfilPage() {
                 )
               })}
             </nav>
+            </div>
+            {!tabNavScrolled && (
+              <div className="pointer-events-none absolute inset-y-0 right-0 z-10 flex items-center pb-1 pr-1 md:hidden">
+                <span className="flex h-6 w-6 animate-pulse items-center justify-center rounded-full bg-white text-slate-400 shadow-md ring-1 ring-slate-200 dark:bg-slate-800 dark:text-white/50 dark:ring-slate-700">
+                  <ChevronRight className="h-4 w-4" />
+                </span>
+              </div>
+            )}
           </RevealItem>
 
           {/* Conteúdo */}
@@ -936,6 +1035,130 @@ export default function PerfilPage() {
                     </CardFooter>
                   </Card>
                 )
+              )}
+
+              {/* ── TAB: CONQUISTAS ─────────────────────────────────────── */}
+              {activeTab === 'achievements' && (
+                <Card className={sectionCardClassName}>
+                  <CardHeader className="border-b border-slate-100 dark:border-slate-800 px-5 pb-5 pt-6 sm:px-8 sm:pb-6 sm:pt-8">
+                    <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                      <div>
+                        <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Conquistas</CardTitle>
+                        <CardDescription className="text-sm mt-1 dark:text-slate-400">
+                          Marcos permanentes da sua jornada — não resetam com o mês.
+                        </CardDescription>
+                      </div>
+                      {achievementsLoaded && (
+                        <span
+                          className="shrink-0 rounded-full px-3 py-1.5 text-xs font-bold"
+                          style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)', color: brandPrimaryText }}
+                        >
+                          {achievementsUnlockedCount} / {achievements.length} desbloqueadas
+                        </span>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="px-5 pt-6 sm:px-8 sm:pt-8">
+                    {/* Cabeçalho de Nível — é pra onde o card "Nível" do dashboard leva,
+                        então precisa fazer sentido chegar aqui vindo de lá (mesma cor
+                        violeta, mesma lógica de progresso). */}
+                    {levelTotalPoints !== null && (() => {
+                      const level = getAccountLevel(levelTotalPoints)
+                      const xpToNext = level.xpForNextLevel - level.xpIntoLevel
+                      return (
+                        <div className="mb-6 overflow-hidden rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5 dark:border-violet-500/20 dark:from-violet-500/[0.07] dark:to-transparent">
+                          <div className="flex items-center gap-4">
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-400/20 text-violet-600 dark:text-violet-400">
+                              <Trophy className="h-7 w-7" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-500 dark:text-violet-400">
+                                Nível {level.level}
+                              </p>
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                {levelTotalPoints.toLocaleString('pt-BR')} XP acumulado
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-4">
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-white/70 dark:bg-white/10">
+                              <div
+                                className="h-full rounded-full transition-[width] duration-700 ease-out"
+                                style={{ width: `${Math.min(100, level.pct)}%`, background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)' }}
+                              />
+                            </div>
+                            <p className="mt-1.5 text-[11px] font-semibold text-violet-500/80 dark:text-violet-400/80">
+                              Faltam {xpToNext.toLocaleString('pt-BR')} XP para o nível {level.level + 1}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                    {loadingAchievements && !achievementsLoaded ? (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-white/5" />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {achievements.map((a) => {
+                          const Icon = getAchievementIcon(a.icon)
+                          const pct = Math.min(100, Math.round((a.progress / a.target) * 100))
+                          // A cor da raridade só aparece desbloqueada — é a recompensa
+                          // visual do desbloqueio, não um spoiler de quão rara ela é.
+                          const style = a.unlocked ? getDifficultyStyle(a.difficulty) : null
+                          return (
+                            <div
+                              key={a.id}
+                              className={`relative overflow-hidden rounded-xl border p-4 transition-all ${
+                                style
+                                  ? `${style.cardBorder} ${style.cardBg} ${style.glow ?? ''}`
+                                  : 'border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-white/[0.03]'
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div
+                                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                                    style
+                                      ? `${style.iconBg} ${style.iconText}`
+                                      : 'bg-slate-200/70 text-slate-400 dark:bg-white/10 dark:text-slate-500'
+                                  }`}
+                                >
+                                  {a.unlocked ? <Icon className="h-5 w-5" /> : <Lock className="h-4 w-4" />}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className={`text-sm font-bold ${a.unlocked ? 'text-slate-900 dark:text-slate-50' : 'text-slate-500 dark:text-slate-400'}`}>
+                                    {a.title}
+                                  </p>
+                                  <p className="mt-0.5 text-xs leading-snug text-slate-500 dark:text-slate-400">{a.description}</p>
+                                  {a.difficulty_label && formatChancePct(a.chance_pct) && (
+                                    <p className={`mt-1.5 text-[11px] font-bold ${style ? style.chanceText : 'text-slate-400 dark:text-slate-500'}`}>
+                                      {a.difficulty_label} · {formatChancePct(a.chance_pct)} de chance
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {!a.unlocked && (
+                                <div className="mt-3">
+                                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                                    <div
+                                      className="h-full rounded-full bg-slate-400 dark:bg-slate-500"
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <p className="mt-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+                                    {a.progress.toLocaleString('pt-BR')} / {a.target.toLocaleString('pt-BR')}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               )}
 
               {activeTab === 'plan' && (

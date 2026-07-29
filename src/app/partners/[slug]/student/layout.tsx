@@ -57,10 +57,10 @@ export default async function PartnerStudentLayout({ children, params }: Student
   const adminClient = createAdminClient();
 
   // 2. Busca perfil via adminClient para garantir leitura de organization_id sem bloqueio de RLS
-  type ProfileRow = { role: string | null; organization_id: string | null; plan_tier: string | null; full_name: string | null; avatar_url: string | null; theme_preference: string | null; must_change_password: boolean | null };
+  type ProfileRow = { role: string | null; organization_id: string | null; plan_tier: string | null; full_name: string | null; avatar_url: string | null; theme_preference: string | null; must_change_password: boolean | null; username: string | null; birth_date: string | null };
   const profileRes = await adminClient
     .from('profiles')
-    .select('role, organization_id, plan_tier, full_name, avatar_url, theme_preference, must_change_password')
+    .select('role, organization_id, plan_tier, full_name, avatar_url, theme_preference, must_change_password, username, birth_date')
     .eq('id', user.id)
     .single();
   const profile = profileRes.data as ProfileRow | null;
@@ -144,6 +144,8 @@ export default async function PartnerStudentLayout({ children, params }: Student
         avatarUrl: profile.avatar_url ?? null,
         role,
         isTestAccount: profile.plan_tier === 'b2b_test',
+        username: profile.username ?? null,
+        birthDate: profile.birth_date ?? null,
       }}
     >
       {/* Inline script: resolve o tema a partir do localStorage antes do primeiro paint do React,

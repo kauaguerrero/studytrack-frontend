@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion, useAnimation } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, FileText, Flame, Trophy, ArrowRight, ArrowUp, ArrowDown, GraduationCap, Shield, User, Zap, Play, Crown, Target, CheckCircle2, Circle, Swords } from 'lucide-react';
+import { BookOpen, FileText, Flame, Trophy, ArrowRight, ArrowUp, ArrowDown, GraduationCap, Shield, User, Zap, Play, Crown, Target, CheckCircle2, Circle, Swords, X, PartyPopper } from 'lucide-react';
 import { toast } from 'sonner';
 import { ActivityHistoryModal } from '@/components/partners/ActivityHistoryModal';
 import { AnnouncementBell } from '@/components/announcements/AnnouncementBell';
@@ -23,7 +23,6 @@ import {
   BrandHero, HERO_ACCENT_COLOR,
 } from '@/components/partners/founder-ui';
 import { OnboardingDiagnosticModal } from '@/components/partners/gamification/OnboardingDiagnosticModal';
-import { RankingPopup } from '@/components/partners/gamification/RankingPopup';
 import { StreakPopup } from '@/components/partners/gamification/StreakPopup';
 import { ShieldPopup } from '@/components/partners/gamification/ShieldPopup';
 import { ContextualPopup } from '@/components/partners/gamification/ContextualPopup';
@@ -31,6 +30,7 @@ import { Top3Popup } from '@/components/partners/gamification/Top3Popup';
 import { StreakBrokenPopup } from '@/components/partners/gamification/StreakBrokenPopup';
 import { StreakPointsLostPopup } from '@/components/partners/gamification/StreakPointsLostPopup';
 import { MonthEndScreen } from '@/components/partners/gamification/MonthEndScreen';
+import { AchievementUnlockedPopup } from '@/components/partners/gamification/AchievementUnlockedPopup';
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
 import type { MonthlyCheckInResult } from '@/types/gamification';
 
@@ -51,6 +51,38 @@ interface DailyMissionStatus {
   completed?: boolean;
   just_completed?: boolean;
   points_awarded?: number;
+}
+
+interface OnboardingChecklistStep {
+  id: string;
+  title: string;
+  done: boolean;
+  rewarded: boolean;
+  just_rewarded: boolean;
+  bonus_points: number;
+}
+
+interface OnboardingChecklistStatus {
+  steps: OnboardingChecklistStep[];
+  all_done: boolean;
+  newly_rewarded_titles: string[];
+}
+
+interface AchievementSummary {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  difficulty: string;
+  difficulty_label: string;
+  chance_pct: number;
+  unlocked: boolean;
+}
+
+interface AchievementsResponse {
+  achievements: AchievementSummary[];
+  unlocked_count: number;
+  total_count: number;
 }
 
 interface FeedItem {
@@ -352,6 +384,126 @@ export function DashboardClient({
     // refreshSummary é estável (vem do hook); busca única por montagem.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Checklist de primeiros passos ───────────────────────────────────────────
+  const [onboardingChecklist, setOnboardingChecklist] = useState<OnboardingChecklistStatus | null>(null);
+  const [onboardingChecklistDismissed, setOnboardingChecklistDismissed] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(`st:onboarding-checklist-dismissed:${slug}`) === '1') {
+        setOnboardingChecklistDismissed(true);
+      }
+    } catch {
+      // localStorage indisponível — checklist só some quando all_done
+    }
+
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+      fetch(`${api}/api/partner/gamification/onboarding-checklist`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: OnboardingChecklistStatus | null) => {
+          if (!data) return;
+          setOnboardingChecklist(data);
+          if (data.newly_rewarded_titles.length > 0) {
+            for (const title of data.newly_rewarded_titles) {
+              toast.success(`"${title}" concluído! +10 pts`);
+            }
+            void refreshSummary();
+          }
+        })
+        .catch(() => {});
+    });
+    // refreshSummary é estável (vem do hook); busca única por montagem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  const dismissOnboardingChecklist = useCallback(() => {
+    setOnboardingChecklistDismissed(true);
+    try {
+      window.localStorage.setItem(`st:onboarding-checklist-dismissed:${slug}`, '1');
+    } catch {
+      // segue só em memória nesta sessão
+    }
+  }, [slug]);
+
+  // ── Conquistas permanentes ───────────────────────────────────────────────────
+  // Fica escondido na aba de perfil, então o dashboard é a "base": mostra a
+  // contagem no card Nível (que já leva pra lá) e dispara um popup pra cada
+  // conquista nova desde a última visita — comparação feita em localStorage
+  // (achievements não têm timestamp de desbloqueio no backend, são puramente
+  // derivadas; comparar o conjunto de IDs já vistos é o suficiente aqui).
+  const [achievementsUnlockedCount, setAchievementsUnlockedCount] = useState<number | null>(null);
+  const [achievementsTotalCount, setAchievementsTotalCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+      fetch(`${api}/api/partner/gamification/achievements`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: AchievementsResponse | null) => {
+          if (!data) return;
+          setAchievementsUnlockedCount(data.unlocked_count);
+          setAchievementsTotalCount(data.total_count);
+
+          const userId = session.user?.id;
+          if (!userId) return;
+          // ":v2" força um reset silencioso único (uma vez, em todo navegador)
+          // pra quem foi bombardeado por conquistas retroativas antes desta
+          // correção — depois disso a chave nunca mais precisa mudar.
+          const seenKey = `st:achievements-seen:v2:${slug}:${userId}`;
+          let seenIds: string[] = [];
+          try {
+            seenIds = JSON.parse(window.localStorage.getItem(seenKey) ?? '[]');
+          } catch {
+            seenIds = [];
+          }
+          const seenSet = new Set(seenIds);
+          const unlocked = data.achievements.filter((a) => a.unlocked);
+          const newlyUnlocked = seenIds.length === 0
+            ? [] // primeira visita da conta: não enfileira o histórico inteiro de uma vez
+            : unlocked.filter((a) => !seenSet.has(a.id));
+
+          for (const achievement of newlyUnlocked) {
+            enqueuePopup({
+              kind: 'achievement_unlocked',
+              routeScope: 'dashboard',
+              title: achievement.title,
+              description: achievement.description,
+              icon: achievement.icon,
+              difficulty: achievement.difficulty,
+              difficultyLabel: achievement.difficulty_label,
+              chancePct: achievement.chance_pct,
+              slug,
+              dedupeKey: `achievement:${achievement.id}`,
+            });
+          }
+
+          try {
+            // União, nunca substituição — uma vez visto, "visto" pra sempre.
+            // Se o backend computar uma conquista como desbloqueada e depois
+            // travada de novo (uma redação recorrigida, uma inconsistência
+            // passageira), ela não pode "sumir" da lista de vistas e voltar
+            // a disparar popup quando desbloquear de novo.
+            const mergedSeen = new Set([...seenIds, ...unlocked.map((a) => a.id)]);
+            window.localStorage.setItem(seenKey, JSON.stringify([...mergedSeen]));
+          } catch {
+            // segue só em memória nesta sessão
+          }
+        })
+        .catch(() => {});
+    });
+    // enqueuePopup é estável (vem do contexto); busca única por montagem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
   // ── Popup orchestration state ──────────────────────────────────────────────
   const [isResolvingStreakBroken, setIsResolvingStreakBroken] = useState(false);
@@ -702,6 +854,47 @@ export function DashboardClient({
             </BrandHero>
           </RevealItem>
 
+          {/* ── Checklist de primeiros passos ─────────────────────────────── */}
+          {onboardingChecklist && !onboardingChecklist.all_done && !onboardingChecklistDismissed && (
+            <RevealItem>
+              <ElevatedCard accentColor="#10b981">
+                <div className="relative p-5">
+                  <button
+                    onClick={dismissOnboardingChecklist}
+                    aria-label="Esconder checklist"
+                    className="absolute right-4 top-4 rounded-full p-1 text-slate-400 transition-colors hover:text-slate-700 dark:text-white/30 dark:hover:text-white/70"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  <SectionTitle
+                    kicker="Primeiros passos"
+                    title="Comece por aqui"
+                    hex="#10b981"
+                    colorVar="#10b981"
+                  />
+                  <ul className="space-y-2.5">
+                    {onboardingChecklist.steps.map((step) => (
+                      <li key={step.id} className="flex items-center gap-2.5">
+                        {step.done ? (
+                          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+                        ) : (
+                          <Circle className="h-5 w-5 shrink-0 text-slate-300 dark:text-white/20" />
+                        )}
+                        <span className={`text-[13.5px] font-medium ${step.done ? 'text-slate-400 line-through dark:text-white/30' : 'text-slate-700 dark:text-white/70'}`}>
+                          {step.title}
+                        </span>
+                        <span className="ml-auto flex items-center gap-1 text-[12px] font-bold text-emerald-500">
+                          <PartyPopper className="h-3 w-3" />
+                          +{step.bonus_points}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </ElevatedCard>
+            </RevealItem>
+          )}
+
           {/* ── KPIs pessoais ─────────────────────────────────────────────── */}
           <RevealItem className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
             <KpiCard
@@ -769,10 +962,19 @@ export function DashboardClient({
               value={accountLevel.level}
               subtitle={formatStudyTimeToday(summary?.study_minutes_today ?? 0)}
               icon={Zap}
-              href={`/partners/${slug}/student/titulos`}
+              href={`/partners/${slug}/student/perfil?tab=achievements`}
               loading={summary === null}
               accentColor="#8b5cf6"
               accentHex="#8b5cf6"
+              topRightBadge={achievementsUnlockedCount !== null && achievementsTotalCount !== null ? (
+                <span
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-600 dark:bg-amber-500/15 dark:text-amber-400"
+                  title="Conquistas desbloqueadas"
+                >
+                  <Trophy className="h-3 w-3" />
+                  {achievementsUnlockedCount}/{achievementsTotalCount}
+                </span>
+              ) : undefined}
               iconAdornment={xpRank !== null ? (
                 <span
                   className="flex min-w-0 items-center gap-0.5 text-[11px] font-bold text-violet-500 dark:text-violet-400"
@@ -1221,13 +1423,6 @@ export function DashboardClient({
           />
         )}
 
-        {currentPopup?.kind === 'ranking_popup' && (
-          <RankingPopup
-            ranking={currentPopup.ranking}
-            onClose={dismissCurrentPopup}
-          />
-        )}
-
         {currentPopup?.kind === 'streak' && (
           <StreakPopup
             streak={currentPopup.streak}
@@ -1247,6 +1442,19 @@ export function DashboardClient({
           <ContextualPopup
             popupState={currentPopup.popupState}
             ranking={currentPopup.ranking}
+            slug={currentPopup.slug}
+            onDismiss={dismissCurrentPopup}
+          />
+        )}
+
+        {currentPopup?.kind === 'achievement_unlocked' && (
+          <AchievementUnlockedPopup
+            title={currentPopup.title}
+            description={currentPopup.description}
+            icon={currentPopup.icon}
+            difficulty={currentPopup.difficulty}
+            difficultyLabel={currentPopup.difficultyLabel}
+            chancePct={currentPopup.chancePct}
             slug={currentPopup.slug}
             onDismiss={dismissCurrentPopup}
           />

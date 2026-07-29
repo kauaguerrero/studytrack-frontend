@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from 'react';
 import { LifeBuoy, Search, MessageSquare, Mail, ChevronRight, ChevronDown } from 'lucide-react';
-import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { useOrg } from '@/contexts/OrgContext';
 import { Badge } from '@/components/ui/badge';
@@ -26,27 +25,73 @@ function getNextWhatsAppNumber(slug: string): string {
   }
 }
 
-const SUPPORT_EMAIL_TO = 'igorsilvacruz284@gmail.com';
+// TODO: idealmente ler de org.contact_email (já existe no backend,
+// enterprise/partners.py PATCH /settings) — ainda não é exposto no
+// OrgContext do frontend. Até isso ser fiado, usa o contato genérico da
+// StudyTrack em vez do e-mail pessoal de um dev, que estava hardcoded aqui.
+const SUPPORT_EMAIL_TO = 'suporte@studytrack.com.br';
 const SUPPORT_EMAIL_SUBJECT = encodeURIComponent('Suporte StudyTrack');
 const SUPPORT_EMAIL_BODY = encodeURIComponent(
   'Olá, equipe StudyTrack!\n\nPreciso de ajuda com:\n\n[Descreva aqui sua dúvida, problema técnico ou solicitação]\n\nMeus dados (opcional):\n- Nome:\n- E-mail da conta:\n\nObrigado(a)!'
 );
 const SUPPORT_GMAIL_URL = `https://mail.google.com/mail/?view=cm&fs=1&to=${SUPPORT_EMAIL_TO}&su=${SUPPORT_EMAIL_SUBJECT}&body=${SUPPORT_EMAIL_BODY}`;
-const PARTNER_FAQS: never[] = [];
+
+interface FaqItem {
+  category: string;
+  question: string;
+  answer: string;
+}
+
+const PARTNER_FAQS: FaqItem[] = [
+  {
+    category: 'Sequência',
+    question: 'Como funciona a sequência de dias (streak)?',
+    answer: 'Toda vez que você responde uma questão ou conclui um simulado, sua sequência avança um dia. Sábado e domingo não quebram a sequência — você pode descansar no fim de semana sem perder o progresso. Se ficar um dia útil sem estudar, a sequência reseta, a menos que você use um escudo de proteção.',
+  },
+  {
+    category: 'Sequência',
+    question: 'O que é o escudo de proteção da sequência?',
+    answer: 'É um item que salva sua sequência caso você perca um dia. Você ganha um escudo automaticamente ao manter uma sequência ativa por 7 dias seguidos. Ele é usado automaticamente (ou você pode escolher usá-lo) quando sua sequência estaria prestes a quebrar.',
+  },
+  {
+    category: 'Pontuação',
+    question: 'Como ganho pontos e subo no ranking?',
+    answer: 'Você ganha pontos ao acertar questões (na primeira tentativa), concluir simulados e enviar redações. Esses pontos valem para o ranking mensal da sua turma, que reseta todo início de mês. Já o seu Nível de conta é permanente: o XP dele nunca reseta.',
+  },
+  {
+    category: 'Redação',
+    question: 'Quanto tempo leva para minha redação ser corrigida?',
+    answer: 'O prazo depende do seu cursinho, mas você recebe uma notificação assim que a correção do professor fica disponível. Você pode acompanhar o status (pendente, corrigida, vista) na aba Redações.',
+  },
+  {
+    category: 'Conta',
+    question: 'Esqueci minha senha, como recupero o acesso?',
+    answer: 'Na tela de login, clique em "Esqueci minha senha" e siga as instruções enviadas para o seu e-mail cadastrado. Se você não tiver mais acesso a esse e-mail, fale com o suporte do seu cursinho.',
+  },
+  {
+    category: 'Notificações',
+    question: 'Como ativo notificações no celular ou computador?',
+    answer: 'Vá em Perfil → Preferências e ative "Notificações Push". Você também pode instalar o StudyTrack como aplicativo na tela de início do seu celular para uma experiência mais rápida.',
+  },
+];
 
 export default function StudentSuportePage() {
   const { org } = useOrg();
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-  const filteredFaqs = useMemo(() => PARTNER_FAQS, []);
-
-  // suppress unused var warnings
-  void expandedIndex;
-  void setExpandedIndex;
+  const filteredFaqs = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return PARTNER_FAQS;
+    return PARTNER_FAQS.filter(
+      (faq) =>
+        faq.question.toLowerCase().includes(query) ||
+        faq.answer.toLowerCase().includes(query) ||
+        faq.category.toLowerCase().includes(query),
+    );
+  }, [searchQuery]);
 
   return (
     <ModuleGuard permKey="suporte_enabled">
-    <PartnerLayout variant="student">
       <div className="min-h-full bg-[#F4F7FA] dark:bg-slate-900 font-sans text-slate-900 dark:text-slate-50 -m-4 md:-m-8 pb-16">
         <RevealGroup>
 
@@ -167,10 +212,10 @@ export default function StudentSuportePage() {
               </ElevatedCard>
             ) : (
               <div className="space-y-3">
-                {filteredFaqs.map((_, idx) => {
+                {filteredFaqs.map((faq, idx) => {
                   const isExpanded = expandedIndex === idx;
                   return (
-                    <ElevatedCard key={idx}>
+                    <ElevatedCard key={faq.question}>
                       <button
                         type="button"
                         onClick={() => setExpandedIndex(isExpanded ? null : idx)}
@@ -178,10 +223,10 @@ export default function StudentSuportePage() {
                       >
                         <div className="min-w-0 flex-1 pr-4">
                           <Badge variant="secondary" className="mb-2 bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                            categoria
+                            {faq.category}
                           </Badge>
                           <p className="text-base font-bold leading-snug text-slate-800 dark:text-slate-50">
-                            pergunta
+                            {faq.question}
                           </p>
                         </div>
                         <div
@@ -191,6 +236,11 @@ export default function StudentSuportePage() {
                           {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5 text-slate-400 dark:text-slate-500" />}
                         </div>
                       </button>
+                      {isExpanded && (
+                        <div className="border-t border-slate-100 px-5 py-4 dark:border-slate-800">
+                          <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">{faq.answer}</p>
+                        </div>
+                      )}
                     </ElevatedCard>
                   );
                 })}
@@ -201,7 +251,6 @@ export default function StudentSuportePage() {
         </div>
         </RevealGroup>
       </div>
-    </PartnerLayout>
     </ModuleGuard>
   );
 }
