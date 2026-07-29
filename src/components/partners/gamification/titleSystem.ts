@@ -186,3 +186,72 @@ export function getIdentityTitleIcon(iconName?: string | null): LucideIcon {
   if (!iconName) return ShieldCheck;
   return IDENTITY_ICON_MAP[iconName] ?? ShieldCheck;
 }
+
+// ─── Progresso de tier no cliente ───────────────────────────────────────────
+// Espelha o _PROGRESS_TIER_MAP do backend (gamification_service.py). Usado
+// pelos popups de recompensa, que só recebem a pontuação mensal crua.
+
+const PROGRESS_TIER_MIN_POINTS: Array<{ tier: ProgressTier; minPoints: number }> = [
+  { tier: 'Explorador', minPoints: 0 },
+  { tier: 'Estrategista', minPoints: 200 },
+  { tier: 'Veterano', minPoints: 450 },
+  { tier: 'Elite', minPoints: 700 },
+  { tier: 'Lendário', minPoints: 1000 },
+];
+
+export function getTierProgress(monthlyPoints: number): {
+  current: ProgressTier;
+  next: ProgressTier | null;
+  nextMinPoints: number | null;
+  pct: number;
+} {
+  const pts = Math.max(0, monthlyPoints);
+  let currentIdx = 0;
+  for (let i = PROGRESS_TIER_MIN_POINTS.length - 1; i >= 0; i--) {
+    if (pts >= PROGRESS_TIER_MIN_POINTS[i].minPoints) { currentIdx = i; break; }
+  }
+  const nextEntry = PROGRESS_TIER_MIN_POINTS[currentIdx + 1] ?? null;
+  return {
+    current: PROGRESS_TIER_MIN_POINTS[currentIdx].tier,
+    next: nextEntry?.tier ?? null,
+    nextMinPoints: nextEntry?.minPoints ?? null,
+    pct: nextEntry ? Math.min(100, Math.round((pts / nextEntry.minPoints) * 100)) : 100,
+  };
+}
+
+// ─── Nível de conta (XP permanente) ─────────────────────────────────────────
+// Derivado de profiles.total_points, que nunca reseta com o mês — é a camada
+// de progresso de longo prazo do aluno. O XP espelha os lançamentos positivos
+// do gamification_ledger (+2/1º acerto, +25/redação, simulado variável,
+// diagnóstico 50–247), rendendo ~300–600 XP/mês para um aluno ativo.
+//
+// Curva triangular: subir do nível N para N+1 custa 250×N XP.
+// L2 aos 250 (1ª semana, vitória rápida), L3 aos 750, L4 aos 1.500,
+// L5 aos 2.500 — ~L6-7 ao fim de um ano letivo ativo.
+
+export const ACCOUNT_LEVEL_BASE_STEP = 250;
+
+export function getAccountLevel(totalPoints: number): {
+  level: number;
+  /** XP já ganho dentro do nível atual. */
+  xpIntoLevel: number;
+  /** XP total necessário para completar o nível atual. */
+  xpForNextLevel: number;
+  pct: number;
+} {
+  const xp = Math.max(0, totalPoints);
+  let level = 1;
+  let remaining = xp;
+  let step = ACCOUNT_LEVEL_BASE_STEP;
+  while (remaining >= step) {
+    remaining -= step;
+    level += 1;
+    step = ACCOUNT_LEVEL_BASE_STEP * level;
+  }
+  return {
+    level,
+    xpIntoLevel: remaining,
+    xpForNextLevel: step,
+    pct: Math.round((remaining / step) * 100),
+  };
+}

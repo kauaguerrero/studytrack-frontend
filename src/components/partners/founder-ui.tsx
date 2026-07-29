@@ -98,6 +98,7 @@ export function KpiCard({
   deltaLabel,
   topRightBadge,
   iconAdornment,
+  footer,
 }: {
   title: string;
   value: number | string;
@@ -114,6 +115,8 @@ export function KpiCard({
   topRightBadge?: React.ReactNode;
   /** Conteúdo extra ao lado do ícone principal (ex: escudo de proteção de sequência). */
   iconAdornment?: React.ReactNode;
+  /** Conteúdo extra abaixo do subtitle (ex: mini barra de progresso de marco). */
+  footer?: React.ReactNode;
 }) {
   const iconBg = `color-mix(in srgb, ${accentColor} 16%, white)`;
   const iconColor = readableBrandText(accentHex, accentColor, 46);
@@ -187,6 +190,7 @@ export function KpiCard({
           {deltaLabel && delta !== null && delta !== undefined && !loading && (
             <p className="text-[10px] text-slate-400 dark:text-white/25 mt-0.5">{deltaLabel}</p>
           )}
+          {footer && !loading && <div className="mt-2">{footer}</div>}
         </div>
       </div>
     </div>
