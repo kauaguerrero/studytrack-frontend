@@ -66,6 +66,7 @@ interface ProfileData {
   target_university: string | null
   school_year: string | null
   onboarding_completed: boolean
+  personal_monthly_goal: number | null
   created_at: string | null
   updated_at: string | null
   email_notifications: boolean
@@ -156,6 +157,9 @@ export default function PerfilPage() {
   const [studyPeriod, setStudyPeriod] = useState('')
   const [daysPerWeek, setDaysPerWeek] = useState<number>(5)
   const [hoursPerDay, setHoursPerDay] = useState<number>(2)
+  // Meta Pessoal de pontos do mês — null = sem meta. Exibida como barra própria
+  // no dashboard; nunca entra no cálculo de tier/ranking.
+  const [personalGoal, setPersonalGoal] = useState<number | null>(null)
   const [savingRoutine, setSavingRoutine] = useState(false)
 
   // States - Segurança
@@ -257,6 +261,7 @@ export default function PerfilPage() {
     setStudyPeriod(p.study_period ?? '')
     setDaysPerWeek(typeof p.days_per_week === 'number' ? Math.min(7, Math.max(1, p.days_per_week)) : 5)
     setHoursPerDay(typeof p.hours_per_day === 'number' ? Math.min(12, Math.max(1, p.hours_per_day)) : 2)
+    setPersonalGoal(typeof p.personal_monthly_goal === 'number' && p.personal_monthly_goal > 0 ? p.personal_monthly_goal : null)
     // Sincroniza o tema do contexto com o valor salvo no banco ao carregar o perfil.
     // Garante que o SELECT reflita o que está no DB, independente do initialTheme do SSR.
     const savedTheme = p.theme_preference as 'light' | 'dark' | 'system' | null
@@ -524,6 +529,7 @@ export default function PerfilPage() {
       study_period: studyPeriod || null,
       days_per_week: daysPerWeek,
       hours_per_day: hoursPerDay,
+      personal_monthly_goal: personalGoal,
     }, setSavingRoutine)
   }
 
@@ -1046,7 +1052,7 @@ export default function PerfilPage() {
                   <CardHeader className="border-b border-slate-100 dark:border-slate-800 px-5 pb-5 pt-6 sm:px-8 sm:pb-6 sm:pt-8">
                     <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Rotina de Estudos</CardTitle>
                     <CardDescription className="text-sm mt-1 dark:text-slate-400">
-                      Alinhe ritmo, dias e horas ao seu planejamento. Usados pela IA para sugerir cronogramas personalizados.
+                      Alinhe ritmo, dias e horas ao seu planejamento e complete seu perfil.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8 px-5 pt-6 sm:px-8 sm:pt-8">
@@ -1104,6 +1110,26 @@ export default function PerfilPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-700 dark:text-slate-200 font-bold">Meta Pessoal de pontos (mês)</Label>
+                      <Select
+                        value={personalGoal === null ? 'none' : String(personalGoal)}
+                        onValueChange={(v) => setPersonalGoal(v === 'none' ? null : parseInt(v, 10))}
+                      >
+                        <SelectTrigger className={`w-full rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 sm:max-w-xs ${focusRingStyle}`}>
+                          <SelectValue placeholder="Sem meta definida" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          <SelectItem value="none">Sem meta</SelectItem>
+                          {[250, 500, 750, 1000, 1500, 2000].map((n) => (
+                            <SelectItem key={n} value={String(n)}>🎯 {n.toLocaleString('pt-BR')} pts/mês</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        Aparece como barra &quot;Meta Pessoal&quot; no seu dashboard. Não afeta ranking nem níveis.
+                      </p>
                     </div>
                   </CardContent>
                   <CardFooter className="bg-slate-50/60 dark:bg-white/[0.03] px-5 py-4 sm:px-8 sm:py-5 flex justify-end">

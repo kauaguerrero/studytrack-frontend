@@ -121,7 +121,7 @@ interface PartnerSummary {
   points_to_top3: number;
   prize_cutoff: number;
   month_label: string;
-  monthly_goal: number;
+  monthly_goal: number | null;
   goal_reached: boolean;
   goal_progress_pct: number;
   shield_count: number;

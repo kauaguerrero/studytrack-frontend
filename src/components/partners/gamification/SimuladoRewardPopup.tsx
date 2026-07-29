@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { usePopupTheme } from './popupTheme';
+import { getTierProgress } from './titleSystem';
 
 interface Props {
   pointsAwarded: number;
@@ -12,8 +13,6 @@ interface Props {
   onDismiss: () => void;
   onViewRanking: () => void;
 }
-
-const MONTHLY_GOAL = 1000;
 
 // ── Confetti: 20 partículas irradiam do centro para fora (sem lib externa) ───
 
@@ -70,7 +69,8 @@ export function SimuladoRewardPopup({
     return () => cancelAnimationFrame(raf);
   }, [pointsAwarded, shouldReduce]);
 
-  const monthlyBarPct = Math.min((newMonthlyPoints / MONTHLY_GOAL) * 100, 100);
+  const tierProgress = getTierProgress(newMonthlyPoints);
+  const monthlyBarPct = tierProgress.pct;
   const renderedPoints = shouldReduce ? pointsAwarded : displayPoints;
 
   return (
@@ -205,9 +205,15 @@ export function SimuladoRewardPopup({
           {/* ── Seção 4: Barra de progresso mensal ───────────────────────── */}
           <div>
             <div className="flex justify-between items-baseline mb-2">
-              <p className={`text-xs ${theme.mutedClass}`}>Progresso no ranking do mês</p>
+              <p className={`text-xs ${theme.mutedClass}`}>
+                {tierProgress.next
+                  ? `Progresso para o nível ${tierProgress.next}`
+                  : 'Nível máximo do mês alcançado'}
+              </p>
               <p className={`text-xs font-semibold ${theme.titleClass}`}>
-                {newMonthlyPoints.toLocaleString('pt-BR')} / 1.000 pts
+                {tierProgress.next && tierProgress.nextMinPoints
+                  ? `${newMonthlyPoints.toLocaleString('pt-BR')} / ${tierProgress.nextMinPoints.toLocaleString('pt-BR')} pts`
+                  : `${newMonthlyPoints.toLocaleString('pt-BR')} pts`}
               </p>
             </div>
             <div

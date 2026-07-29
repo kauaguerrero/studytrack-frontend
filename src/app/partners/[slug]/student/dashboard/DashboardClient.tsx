@@ -4,14 +4,14 @@ import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap, Shield, User, Zap, Play, Crown, Target } from 'lucide-react';
+import { BookOpen, FileText, Flame, Trophy, ArrowRight, ArrowUp, ArrowDown, GraduationCap, Shield, User, Zap, Play, Crown, Target } from 'lucide-react';
 import { ActivityHistoryModal } from '@/components/partners/ActivityHistoryModal';
 import { AnnouncementBell } from '@/components/announcements/AnnouncementBell';
 import { Typewriter } from '@/components/ui/typewriter';
 import { SmokeBackground } from '@/components/ui/spooky-smoke-animation';
 import { createClient } from '@/lib/supabase/client';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
-import { getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
+import { getProgressTierMeta, getAccountLevel } from '@/components/partners/gamification/titleSystem';
 import { summarizePodiumStreaks } from '@/lib/podium-streak';
 import { useOrg } from '@/contexts/OrgContext';
 import { readableBrandText, readableBrandTextOnDark, resolveAccentColor } from '@/lib/brand-color';
@@ -118,15 +118,39 @@ function timeAgo(ts?: string | null): string {
   return `${Math.floor(diff / 86400)}d atrás`;
 }
 
-// ─── Streak progress helper (kept intact) ───────────────────────────────────
+// ─── Streak progress helper ──────────────────────────────────────────────────
 
 const STREAK_MILESTONES = [1, 3, 7, 14, 30, 60, 90];
+const MAX_STREAK_MILESTONE = STREAK_MILESTONES[STREAK_MILESTONES.length - 1];
 
 function getStreakProgress(streak: number): { next: number; pct: number } {
   const next = STREAK_MILESTONES.find((m) => m > streak) ?? 100;
   const prev = [...STREAK_MILESTONES].reverse().find((m) => m <= streak) ?? 0;
   const pct = prev === next ? 100 : Math.round(((streak - prev) / (next - prev)) * 100);
   return { next, pct: Math.min(pct, 100) };
+}
+
+/** Mini barra de progresso usada nos footers dos KPIs (marco de streak, XP). */
+function KpiProgressBar({ pct, color, label }: { pct: number; color: string; label: string }) {
+  return (
+    <div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/8">
+        <div
+          className="h-full rounded-full transition-[width] duration-700 ease-out"
+          style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: color }}
+        />
+      </div>
+      <p className="mt-1 text-[10px] leading-snug text-slate-400 dark:text-white/30">{label}</p>
+    </div>
+  );
+}
+
+function formatStudyTimeToday(minutes: number): string {
+  if (minutes <= 0) return 'Nada estudado hoje ainda';
+  if (minutes < 60) return `${minutes}min de estudo hoje`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h${String(m).padStart(2, '0')} de estudo hoje` : `${h}h de estudo hoje`;
 }
 
 function getTop3Position(position: number | undefined): 1 | 2 | 3 {
@@ -190,10 +214,13 @@ export function DashboardClient({
     return () => window.clearInterval(timer);
   }, [approvedPhotos.length]);
 
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { setFeedLoading(false); return; }
+      setSessionUserId(session.user?.id ?? null);
       const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
       fetch(`${api}/api/student/analytics/activity-feed?limit=15`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -220,9 +247,9 @@ export function DashboardClient({
         ? `/partners/${slug}/student/banco-de-questoes?subject=${encodeURIComponent(lastActivity.subject)}`
         : `/partners/${slug}/student/banco-de-questoes`;
 
-  // Streak milestone progress (kept intact for hero badge)
+  // Streak milestone progress — alimenta a mini barra no KPI de Sequência
   const { next: nextMilestone, pct: streakPct } = getStreakProgress(effectiveCurrentStreak);
-  void nextMilestone; void streakPct; // retained for potential future use
+  const daysToMilestone = Math.max(0, nextMilestone - effectiveCurrentStreak);
 
   // ── Gamification hook ──────────────────────────────────────────────────────
   const {
@@ -412,8 +439,36 @@ export function DashboardClient({
 
   // ── Monthly ranking progress ───────────────────────────────────────────────
   const monthlyPts = summary?.monthly_points ?? 0;
-  const monthlyGoal = summary?.monthly_goal ?? 1000;
+  // Meta Pessoal definida pelo aluno — null quando não definida. Exibição
+  // apenas: nunca entra no cálculo de tier/progresso.
+  const monthlyGoal = summary?.monthly_goal ?? null;
+  const goalProgressPct = summary?.goal_progress_pct ?? 0;
   const goalReached = summary?.goal_reached ?? false;
+  // XP permanente (nunca reseta) → nível de conta de longo prazo.
+  const accountLevel = getAccountLevel(summary?.total_points ?? 0);
+  const xpToNextLevel = accountLevel.xpForNextLevel - accountLevel.xpIntoLevel;
+
+  // Colocação por XP na org + delta vs. última visita (setinha verde/vermelha).
+  // Última posição vista fica em localStorage por usuário — nudge visual leve,
+  // sem precisar de coluna nova no banco.
+  const xpRank = summary?.xp_rank ?? null;
+  const [xpRankDelta, setXpRankDelta] = useState<'up' | 'down' | null>(null);
+  useEffect(() => {
+    if (xpRank === null || !sessionUserId) return;
+    const key = `st:xp-rank-seen:${slug}:${sessionUserId}`;
+    try {
+      const stored = window.localStorage.getItem(key);
+      if (stored !== null) {
+        const prevRank = parseInt(stored, 10);
+        if (Number.isFinite(prevRank) && prevRank !== xpRank) {
+          setXpRankDelta(xpRank < prevRank ? 'up' : 'down');
+        }
+      }
+      window.localStorage.setItem(key, String(xpRank));
+    } catch {
+      // localStorage indisponível (modo privado etc.) — segue sem a setinha
+    }
+  }, [xpRank, sessionUserId, slug]);
   const monthLabel = summary?.month_label ?? '';
   const shieldCount = summary?.shield_count ?? 0;
   const hasShield = shieldCount > 0;
@@ -426,6 +481,10 @@ export function DashboardClient({
   const tierProgressPct = nextTierMeta
     ? Math.min(100, (monthlyPts / Math.max(tierTargetPts, 1)) * 100)
     : 100;
+  // Cor de destaque do card "Corrida" — acompanha o próximo nível (mesma cor da
+  // barra principal); dourado quando já está no nível máximo do mês.
+  const raceAccent = !summary ? 'var(--brand-primary)' : (nextTierMeta?.color ?? '#F59E0B');
+  const raceAccentHex = !summary ? org.brand_primary : (nextTierMeta?.color ?? '#F59E0B');
 
   // ── Badges de liderança/pódio (KPIs) ────────────────────────────────────────
   // Contas de teste (plan_tier "b2b_test", já sinalizadas em userProfile.isTestAccount
@@ -570,6 +629,19 @@ export function DashboardClient({
                   <Shield className="h-3 w-3" strokeWidth={2.4} style={{ color: '#3b82f6' }} />
                 </span>
               ) : undefined}
+              footer={
+                <KpiProgressBar
+                  pct={effectiveCurrentStreak >= MAX_STREAK_MILESTONE ? 100 : streakPct}
+                  color="linear-gradient(90deg, #F97316, #EF4444)"
+                  label={
+                    effectiveCurrentStreak >= MAX_STREAK_MILESTONE
+                      ? `Marco máximo de ${MAX_STREAK_MILESTONE} dias alcançado!`
+                      : daysToMilestone === 1
+                        ? `Falta 1 dia para o marco de ${nextMilestone}`
+                        : `Faltam ${daysToMilestone} dias para o marco de ${nextMilestone}`
+                  }
+                />
+              }
             />
             <KpiCard
               title="Questões"
@@ -600,20 +672,34 @@ export function DashboardClient({
               accentHex={org.brand_accent}
             />
             <KpiCard
-              title={`Pontos · ${monthLabel || 'Mês'}`}
-              value={monthlyPts.toLocaleString('pt-BR')}
-              subtitle="Na corrida deste mês"
+              title="Nível"
+              value={accountLevel.level}
+              subtitle={formatStudyTimeToday(summary?.study_minutes_today ?? 0)}
               icon={Zap}
-              href={`/partners/${slug}/student/ranking`}
+              href={`/partners/${slug}/student/titulos`}
               loading={summary === null}
               accentColor="#8b5cf6"
               accentHex="#8b5cf6"
-              topRightBadge={isLeader ? (
-                <KpiTopBadge
-                  icon={Crown}
-                  label={leaderMonths >= 2 ? `${leaderMonths} meses na liderança!` : 'Líder do mês!'}
-                  colorLight="#B45309"
-                  colorDark="#FBBF24"
+              iconAdornment={xpRank !== null ? (
+                <span
+                  className="flex min-w-0 items-center gap-0.5 text-[11px] font-bold text-violet-500 dark:text-violet-400"
+                  title={`Sua colocação por XP em ${orgName}`}
+                >
+                  <span className="tabular-nums">#{xpRank}</span>
+                  <span className="hidden min-w-0 truncate lg:inline lg:max-w-[110px]">da {orgName}</span>
+                  {xpRankDelta === 'up' && (
+                    <ArrowUp className="h-3.5 w-3.5 shrink-0 text-emerald-500" strokeWidth={3} aria-label="Subiu de posição" />
+                  )}
+                  {xpRankDelta === 'down' && (
+                    <ArrowDown className="h-3.5 w-3.5 shrink-0 text-red-500" strokeWidth={3} aria-label="Desceu de posição" />
+                  )}
+                </span>
+              ) : undefined}
+              footer={summary?.total_points !== undefined ? (
+                <KpiProgressBar
+                  pct={accountLevel.pct}
+                  color="linear-gradient(90deg, #8b5cf6, #a78bfa)"
+                  label={`Faltam ${xpToNextLevel.toLocaleString('pt-BR')} XP para o nível ${accountLevel.level + 1}`}
                 />
               ) : undefined}
             />
@@ -622,22 +708,33 @@ export function DashboardClient({
           {/* ── 2. Corrida para aprovação ──────────────────────────────────── */}
           <RevealItem>
             <Link href={`/partners/${slug}/student/ranking`} className="block cursor-pointer">
-            <ElevatedCard accentColor="var(--brand-primary)">
+            <ElevatedCard accentColor={raceAccent}>
               <div className="p-5">
                 <SectionTitle
                   kicker="Gamificação"
                   title="Corrida para aprovação"
-                  hex={org.brand_primary}
+                  hex={raceAccentHex ?? undefined}
+                  colorVar={raceAccent}
                   action={
-                    <span
-                      className="brand-text-adaptive text-[11px] font-bold px-2.5 py-1 rounded-full"
-                      style={{
-                        background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)',
-                        ...adaptiveTextStyle(org.brand_primary, 'var(--brand-primary)'),
-                      }}
-                    >
-                      {monthLabel || 'Este mês'}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {isLeader && (
+                        <KpiTopBadge
+                          icon={Crown}
+                          label={leaderMonths >= 2 ? `${leaderMonths} meses na liderança!` : 'Líder do mês!'}
+                          colorLight="#B45309"
+                          colorDark="#FBBF24"
+                        />
+                      )}
+                      <span
+                        className="brand-text-adaptive text-[11px] font-bold px-2.5 py-1 rounded-full"
+                        style={{
+                          background: `color-mix(in srgb, ${raceAccent} 10%, transparent)`,
+                          ...adaptiveTextStyle(raceAccentHex, raceAccent),
+                        }}
+                      >
+                        {monthLabel || 'Este mês'}
+                      </span>
+                    </div>
                   }
                 />
 
@@ -645,7 +742,7 @@ export function DashboardClient({
                 <div className="mb-4 flex items-end gap-2">
                   <span
                     className="brand-text-adaptive font-display text-[34px] font-black leading-none tabular-nums"
-                    style={adaptiveTextStyle(org.brand_primary, 'var(--brand-primary)')}
+                    style={adaptiveTextStyle(raceAccentHex, raceAccent)}
                   >
                     {monthlyPts.toLocaleString('pt-BR')}
                   </span>
@@ -661,7 +758,7 @@ export function DashboardClient({
                   <motion.div
                     className="h-full rounded-full"
                     style={{
-                      background: goalReached || !nextTierMeta
+                      background: !nextTierMeta
                         ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
                         : `linear-gradient(90deg, color-mix(in srgb, ${nextTierMeta.color} 65%, white), ${nextTierMeta.color})`,
                       boxShadow: `0 0 12px color-mix(in srgb, ${nextTierMeta?.color ?? 'var(--brand-primary)'} 40%, transparent)`,
@@ -680,8 +777,6 @@ export function DashboardClient({
                 <p className="mt-3 flex items-center gap-1.5 text-[11px] font-medium text-slate-400 dark:text-white/30">
                   {!summary ? (
                     'Carregando…'
-                  ) : goalReached ? (
-                    <><Trophy className="h-3 w-3 shrink-0 text-amber-400" /> Você está entre os líderes do mês!</>
                   ) : nextTierMeta ? (
                     <>
                       <nextTierMeta.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: nextTierMeta.color }} />
@@ -691,9 +786,39 @@ export function DashboardClient({
                       </span>
                     </>
                   ) : (
-                    `Faltam ${(monthlyGoal - monthlyPts).toLocaleString('pt-BR')} pts para entrar na disputa`
+                    <><Trophy className="h-3 w-3 shrink-0 text-amber-400" /> Nível máximo do mês alcançado — defenda sua posição!</>
                   )}
                 </p>
+
+                {/* Meta Pessoal — definida pelo próprio aluno no perfil. Exibição
+                    apenas; não participa do cálculo de tier/progresso acima. */}
+                {monthlyGoal !== null && monthlyGoal > 0 && (
+                  <div className="mt-4 border-t border-slate-100 pt-3.5 dark:border-white/6">
+                    <div className="mb-1.5 flex items-baseline justify-between">
+                      <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-white/50">
+                        <Target className="h-3 w-3 shrink-0 text-emerald-500" />
+                        Meta Pessoal
+                      </p>
+                      <p className="text-[11px] font-semibold tabular-nums text-slate-400 dark:text-white/30">
+                        {monthlyPts.toLocaleString('pt-BR')} / {monthlyGoal.toLocaleString('pt-BR')} pts
+                      </p>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/6">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ background: 'linear-gradient(90deg, #10b981, #34d399)' }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(100, goalProgressPct)}%` }}
+                        transition={shouldReduce ? { duration: 0 } : { duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.6 }}
+                      />
+                    </div>
+                    {goalReached && (
+                      <p className="mt-1.5 text-[11px] font-semibold text-emerald-500">
+                        Meta pessoal batida — parabéns!
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </ElevatedCard>
             </Link>
