@@ -2,6 +2,7 @@
 /* eslint-disable react-hooks/static-components */
 
 import { ReactNode, useEffect, useState, useRef } from 'react';
+import { motion, useReducedMotion, useAnimation } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -12,6 +13,7 @@ import { AnnouncementBell } from '@/components/announcements/AnnouncementBell';
 import {
   LayoutDashboard,
   Users,
+  UsersRound,
   UserPlus,
   Settings,
   LogOut,
@@ -29,6 +31,8 @@ import {
   Video,
   FlaskConical,
   GraduationCap,
+  Upload,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -44,6 +48,44 @@ interface NavItemDef {
   icon: React.ElementType;
   label: string;
   shortLabel: string;
+}
+
+function MobileAveBirdHeader() {
+  const reduced = !!useReducedMotion();
+  const controls = useAnimation();
+
+  useEffect(() => {
+    if (reduced) return;
+    void controls.start({
+      scaleY: [1,    0.50, 1.12, 1],
+      scaleX: [1,    1.30, 0.88, 1],
+      y:      [0,    3,    -2,   0],
+      transition: {
+        duration: 2.2,
+        repeat: Infinity,
+        ease: ['easeIn', 'easeOut', 'easeInOut'],
+        times: [0, 0.28, 0.58, 1],
+      },
+    });
+  }, [controls, reduced]);
+
+  const bird = (className: string) => (
+    <motion.img
+      src="/marketing/logo_ave-removebg-preview.png"
+      alt="" aria-hidden
+      animate={controls}
+      style={{ transformOrigin: '50% 68%' }}
+      className={`absolute w-auto ${className}`}
+    />
+  );
+
+  return (
+    <div className="relative h-14 w-12 shrink-0 overflow-hidden md:hidden" aria-hidden>
+      {bird('bottom-[2%] left-[5%] h-[54%]')}
+      {bird('bottom-[32%] left-[36%] h-[32%] opacity-75')}
+      {bird('bottom-[58%] left-[60%] h-[18%] opacity-55')}
+    </div>
+  );
 }
 
 function MobileApprovedPhotosHeaderCluster({ photos }: { photos: OrgApprovedPhoto[] }) {
@@ -183,7 +225,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const [passwordModalDismissed, setPasswordModalDismissed] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
-  const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
+  const isAssociate = userProfile.role === 'associate';
   const isPartnerStudent = variant === 'student';
   const approvedPhotos = normalizeOrgApprovedPhotos(org.approved_student_photos);
 
@@ -203,6 +245,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
     ...(perm('suporte_enabled')   ? [{ href: `/partners/${org.slug}/suporte`,   icon: LifeBuoy,        label: 'Suporte',          shortLabel: 'Suporte'   }] : []),
+    ...(org.hasAssociates        ? [{ href: `/partners/${org.slug}/associados`, icon: UsersRound,      label: 'Associados',        shortLabel: 'Equipe'    }] : []),
     { href: `/partners/${org.slug}/configuracoes`,   icon: Settings,        label: 'Configurações',   shortLabel: 'Config'    },
   ];
 
@@ -219,8 +262,22 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/student/perfil`,             icon: User,           label: 'Perfil',         shortLabel: 'Perfil'      },
   ];
 
+  const associatePerms = userProfile.associatePermissions ?? { can_correct: true, can_import: false, can_view_students: false };
   const associateNavItems: NavItemDef[] = [
-    { href: `/partners/${org.slug}/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redações' },
+    ...(associatePerms.can_view_students
+      ? [{ href: `/partners/${org.slug}/alunos`, icon: Users, label: 'Alunos', shortLabel: 'Alunos' }]
+      : []),
+    ...(associatePerms.can_correct
+      ? [{ href: `/partners/${org.slug}/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redações' }]
+      : []),
+    ...(associatePerms.can_import
+      ? [
+          { href: `/partners/${org.slug}/redacoes/minhas-importacoes`, icon: History, label: 'Minhas Importações', shortLabel: 'Importações' },
+          { href: `/partners/${org.slug}/redacoes/importar`, icon: Upload, label: 'Importar', shortLabel: 'Importar' },
+        ]
+      : []),
+    ...(perm('suporte_enabled') ? [{ href: `/partners/${org.slug}/suporte`, icon: LifeBuoy, label: 'Suporte', shortLabel: 'Suporte' }] : []),
+    { href: `/partners/${org.slug}/perfil`, icon: User, label: 'Perfil', shortLabel: 'Perfil' },
   ];
 
   const navItems = variant === 'student'
@@ -440,7 +497,10 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
 
             {(isPartnerStudent || !isAssociate) ? (
               <div className="flex h-full shrink-0 items-center gap-0.5">
-                {!isAssociate && <MobileApprovedPhotosHeaderCluster photos={approvedPhotos} />}
+                {org.slug === 'ave-palavra'
+                  ? <MobileAveBirdHeader />
+                  : (!isAssociate && <MobileApprovedPhotosHeaderCluster photos={approvedPhotos} />)
+                }
                 {isPartnerStudent && <AnnouncementBell />}
                 <Button
                   type="button"

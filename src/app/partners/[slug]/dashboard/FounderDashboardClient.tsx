@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { motion, useReducedMotion, useAnimation } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
@@ -78,6 +79,44 @@ interface Student {
   simulados_month: number;
   simulados_total: number;
   accuracy_pct: number | null;
+}
+
+function FounderAveBirdAnimation() {
+  const reduced = !!useReducedMotion();
+  const controls = useAnimation();
+
+  useEffect(() => {
+    if (reduced) return;
+    void controls.start({
+      scaleY: [1,    0.50, 1.12, 1],
+      scaleX: [1,    1.30, 0.88, 1],
+      y:      [0,    8,    -5,   0],
+      transition: {
+        duration: 2.2,
+        repeat: Infinity,
+        ease: ['easeIn', 'easeOut', 'easeInOut'],
+        times: [0, 0.28, 0.58, 1],
+      },
+    });
+  }, [controls, reduced]);
+
+  const bird = (className: string) => (
+    <motion.img
+      src="/marketing/logo_ave-removebg-preview.png"
+      alt="" aria-hidden
+      animate={controls}
+      style={{ transformOrigin: '50% 68%' }}
+      className={`absolute w-auto ${className}`}
+    />
+  );
+
+  return (
+    <div className="pointer-events-none absolute inset-y-0 right-8 z-[1] hidden w-[160px] lg:block xl:right-12 xl:w-[180px]">
+      {bird('bottom-[2%] left-[5%] h-[54%]')}
+      {bird('bottom-[32%] left-[36%] h-[32%] opacity-75')}
+      {bird('bottom-[58%] left-[60%] h-[18%] opacity-55')}
+    </div>
+  );
 }
 
 function FounderApprovedPhotoOverlay({
@@ -487,7 +526,11 @@ export default function FounderDashboardClient({
           <BrandHero
             smokeColorHex={org.brand_primary ?? undefined}
             halftone={false}
-            overlay={<FounderApprovedPhotoOverlay photos={approvedPhotos} activeIndex={activeApprovedPhotoIndex} />}
+            overlay={
+              org.slug === 'ave-palavra'
+                ? <FounderAveBirdAnimation />
+                : <FounderApprovedPhotoOverlay photos={approvedPhotos} activeIndex={activeApprovedPhotoIndex} />
+            }
           >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
               <div className="min-w-0 lg:max-w-[calc(100%-190px)] xl:max-w-[calc(100%-220px)]">

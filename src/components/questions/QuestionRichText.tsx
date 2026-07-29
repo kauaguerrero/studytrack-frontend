@@ -8,7 +8,7 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { formatScientificText } from '@/lib/scientific-text'
 
-const mathSegmentRegex = /(\$\$[\s\S]+?(?<!\\)\$\$|\$(?!\$)[\s\S]+?(?<!\\)\$)/g
+const mathSegmentRegex = /(\$\$[\s\S]+?(?<!\\)\$\$|(?<![\\A-Za-z0-9])\$(?!\$)[^$\n|]+?(?<!\\)\$)/g
 const underlineSegmentRegex = /<u>([\s\S]*?)<\/u>/gi
 type KatexRenderOptions = Parameters<typeof katex.renderToString>[1] & {
   output?: 'html' | 'mathml' | 'htmlAndMathml'

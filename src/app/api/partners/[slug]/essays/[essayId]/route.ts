@@ -8,6 +8,43 @@ type ProfileRow = {
   organization_id: string | null;
 };
 
+type CorrectorProfile = {
+  id: string;
+  full_name: string | null;
+  role: string | null;
+  organization_id?: string | null;
+  associate_permissions: { can_correct?: boolean; can_import?: boolean } | null;
+};
+
+type DbError = { message: string } | null;
+
+type InsertRowsTable<T extends Record<string, unknown>> = {
+  insert: (values: T[]) => PromiseLike<{ error: DbError }>;
+};
+
+type UpsertRowTable<T extends Record<string, unknown>> = {
+  upsert: (value: T, options?: { onConflict?: string }) => PromiseLike<{ error: DbError }>;
+};
+
+type EssayUpdateTable = {
+  update: (value: Record<string, unknown>) => {
+    eq: (column: string, value: string) => {
+      eq: (column: string, value: string) => {
+        eq: (column: string, value: string) => {
+          select: (columns: string) => PromiseLike<{ error: DbError; data: Array<{ id: string }> | null }>;
+        };
+      };
+    };
+  };
+};
+
+function canCorrectEssays(profile: Pick<CorrectorProfile, 'role' | 'associate_permissions'>): boolean {
+  const role = String(profile.role || '').toLowerCase();
+  if (role === 'admin' || role === 'founder' || role === 'teacher') return true;
+  if (role === 'associate') return profile.associate_permissions?.can_correct !== false;
+  return false;
+}
+
 const MAX_GENERAL_COMMENT_LEN = 5000;
 const MAX_COMP_COMMENT_LEN = 2000;
 const MAX_ANNOTATION_TEXT_LEN = 3000;
@@ -89,6 +126,7 @@ async function insertEssayAnnotationsCompat(
       comment_text: typeof row.comment_text === 'string' ? row.comment_text : null,
       original_text: typeof row.original_text === 'string' ? row.original_text : null,
       corrected_text: typeof row.corrected_text === 'string' ? row.corrected_text : null,
+      correction_round: Number(row.correction_round ?? 1),
       created_at: new Date().toISOString(),
     };
   });
@@ -105,6 +143,7 @@ async function insertEssayAnnotationsCompat(
       comment_text: row.comment_text,
       original_text: row.original_text,
       corrected_text: row.corrected_text,
+      correction_round: row.correction_round,
       created_at: row.created_at,
     })),
     // Formato atual.
@@ -117,6 +156,7 @@ async function insertEssayAnnotationsCompat(
       comment_text: row.comment_text,
       original_text: row.original_text,
       corrected_text: row.corrected_text,
+      correction_round: row.correction_round,
     })),
     // Formato legado com coluna `comment`.
     base.map((row) => ({
@@ -128,6 +168,7 @@ async function insertEssayAnnotationsCompat(
       comment: row.comment_text,
       original_text: row.original_text,
       corrected_text: row.corrected_text,
+      correction_round: row.correction_round,
     })),
     // Formato mínimo.
     base.map((row) => ({
@@ -136,11 +177,12 @@ async function insertEssayAnnotationsCompat(
       start_offset: row.start_offset,
       end_offset: row.end_offset,
       type: row.type,
+      correction_round: row.correction_round,
     })),
   ];
 
   let lastErrorMessage = 'Formato de anotações incompatível com o schema.';
-  const annotationsTable = admin.from('essay_annotations') as any;
+  const annotationsTable = admin.from('essay_annotations') as unknown as InsertRowsTable<Record<string, unknown>>;
   for (const rows of attempts) {
     const { error } = await annotationsTable.insert(rows);
     if (!error) return { ok: true as const };
@@ -173,7 +215,7 @@ async function authorize(slug: string) {
   const role = String(requester.role || '').toLowerCase();
   const isAdmin = role === 'admin';
   const isFounder = role === 'founder';
-  const isAssociate = role === 'associate' || role === 'teacher';
+  const isAssociate = role === 'associate';
   if (!isAdmin && !isFounder && !isAssociate) {
     return { ok: false as const, response: NextResponse.json({ error: 'Acesso negado.' }, { status: 403 }) };
   }
@@ -211,7 +253,7 @@ export async function GET(
   const role = String(requester.role || '').toLowerCase();
   const isAdmin = role === 'admin';
   const isFounder = role === 'founder';
-  const isAssociate = role === 'associate' || role === 'teacher';
+  const isAssociate = role === 'associate';
   const isStudent = role === 'student';
   if (!isAdmin && !isFounder && !isAssociate && !isStudent) {
     return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
@@ -255,9 +297,10 @@ export async function GET(
   const jsonCompetencyScores = normalizeCompetencyScores(essay.competency_scores);
   const jsonAnnotations = normalizeAnnotations(essay.annotations);
 
-  const [{ data: scoreRows }, { data: annotationRows }] = await Promise.all([
-    admin.from('essay_competency_scores').select('*').eq('essay_id', essayId),
+  const [{ data: scoreRows }, { data: annotationRows }, { data: correctionRows }] = await Promise.all([
+    admin.from('essay_competency_scores').select('*').eq('essay_id', essayId).order('competency'),
     admin.from('essay_annotations').select('*').eq('essay_id', essayId),
+    admin.from('essay_corrections').select('*, corrector:profiles!essay_corrections_corrector_id_fkey(full_name, avatar_url)').eq('essay_id', essayId).order('round'),
   ]);
 
   // Prioriza tabelas relacionais quando houver dados.
@@ -265,6 +308,49 @@ export async function GET(
   const relationalAnnotations = normalizeAnnotations(annotationRows);
   const competencyScores = relationalCompetencyScores.length > 0 ? relationalCompetencyScores : jsonCompetencyScores;
   const annotations = relationalAnnotations.length > 0 ? relationalAnnotations : jsonAnnotations;
+
+  // Inclui correction_round nas scores e annotations quando disponível
+  const scoresWithRound = scoreRows
+    ? scoreRows.map((r: Record<string, unknown>) => ({
+        competency: Number(r.competency),
+        score: Number(r.score),
+        comment: typeof r.comment === 'string' ? r.comment : null,
+        correction_round: Number(r.correction_round ?? 1),
+      }))
+    : competencyScores.map((s) => ({ ...s, correction_round: 1 }));
+
+  const annotationsWithRound = annotationRows
+    ? annotationRows.map((r: Record<string, unknown>) => ({
+        id: String(r.id || crypto.randomUUID()),
+        start_offset: Number(r.start_offset ?? 0),
+        end_offset: Number(r.end_offset ?? 0),
+        type: r.type === 'correction' ? 'correction' : 'comment',
+        comment_text: typeof r.comment_text === 'string' ? r.comment_text : null,
+        original_text: typeof r.original_text === 'string' ? r.original_text : null,
+        corrected_text: typeof r.corrected_text === 'string' ? r.corrected_text : null,
+        correction_round: Number(r.correction_round ?? 1),
+      }))
+    : annotations.map((a) => ({ ...a, correction_round: 1 }));
+
+  // Monta o array de correções (para staff: inclui nome do corretor; para aluno: sem identificação)
+  const corrections = (correctionRows || []).map((c: Record<string, unknown>) => ({
+    round: Number(c.round),
+    total_score: Number(c.total_score),
+    general_comment: typeof c.general_comment === 'string' ? c.general_comment : null,
+    corrected_at: typeof c.corrected_at === 'string' ? c.corrected_at : null,
+    ...(!isStudent && {
+      corrector_name: (c.corrector as Record<string, unknown> | null)?.full_name ?? null,
+      corrector_avatar_url: (c.corrector as Record<string, unknown> | null)?.avatar_url ?? null,
+    }),
+  }));
+
+  // Busca nome do segundo corretor para exibir no lock warning
+  let secondCorrectorName: string | null = null;
+  const secondCorrectorId = essay.second_corrector_id as string | null;
+  if (secondCorrectorId) {
+    const { data: scRow } = await admin.from('profiles').select('full_name').eq('id', secondCorrectorId).maybeSingle<{ full_name: string | null }>();
+    secondCorrectorName = scRow?.full_name ?? null;
+  }
 
   // Gerar URL assinada para imagem original (falha silenciosa — imagem é referência opcional)
   let signedImageUrl: string | null = null;
@@ -284,6 +370,10 @@ export async function GET(
     }
   }
 
+  // Bucket é público — a URL armazenada no DB já é acessível diretamente.
+  const rawHistoricalFileUrl = essay.historical_file_url as string | null;
+  const signedHistoricalFileUrl: string | null = rawHistoricalFileUrl ?? null;
+
   return NextResponse.json({
     id: String(essay.id),
     status: (essay.status as string) || 'pending',
@@ -292,12 +382,22 @@ export async function GET(
     text: String(essay.text || ''),
     submitted_at: String(essay.submitted_at || ''),
     corrected_at: (essay.corrected_at as string) || null,
+    second_corrected_at: (essay.second_corrected_at as string) || null,
     total_score: typeof essay.total_score === 'number' ? essay.total_score : null,
+    average_score: typeof essay.average_score === 'number' ? essay.average_score : null,
     general_comment: typeof essay.general_comment === 'string' ? essay.general_comment : null,
-    competency_scores: competencyScores,
-    annotations,
+    competency_scores: scoresWithRound,
+    annotations: annotationsWithRound,
+    corrections,
+    second_corrector_id: secondCorrectorId,
+    second_corrector_name: secondCorrectorName,
+    second_correction_requested_at: (essay.second_correction_requested_at as string) || null,
     student,
     signed_image_url: signedImageUrl,
+    is_historical: Boolean(essay.is_historical),
+    historical_date: (essay.historical_date as string) || null,
+    imported_at: (essay.imported_at as string) || null,
+    signed_historical_file_url: signedHistoricalFileUrl,
   });
 }
 
@@ -316,12 +416,16 @@ export async function POST(
     competency_scores?: Array<{ competency: number; score: number; comment?: string }>;
     annotations?: unknown[];
     general_comment?: string;
+    request_second_correction?: boolean;
+    second_corrector_id?: string | null;
   }));
 
   const rawScores = Array.isArray(payload.competency_scores) ? payload.competency_scores : [];
   const safeGeneralComment = typeof payload.general_comment === 'string'
     ? payload.general_comment.trim().slice(0, MAX_GENERAL_COMMENT_LEN)
     : '';
+  const requestSecond = Boolean(payload.request_second_correction);
+  const chosenSecondCorrectorId = typeof payload.second_corrector_id === 'string' ? payload.second_corrector_id : null;
 
   const { data: essay, error: fetchError } = await auth.admin
     .from('essays')
@@ -333,12 +437,62 @@ export async function POST(
   if (fetchError || !essay) {
     return NextResponse.json({ error: 'Redação não encontrada.' }, { status: 404 });
   }
-  if (String(essay.status || '').toLowerCase() !== 'pending') {
-    return NextResponse.json({ error: 'A redação não está pendente para correção.' }, { status: 400 });
+
+  const essayStatus = String(essay.status || '').toLowerCase();
+  const secondCorrectorId = essay.second_corrector_id as string | null;
+  const lockUserId = typeof essay.correction_lock_user_id === 'string' ? essay.correction_lock_user_id : null;
+  const lockAt = typeof essay.correction_lock_at === 'string' ? essay.correction_lock_at : null;
+  const lockAgeMs = lockAt ? Date.now() - new Date(lockAt).getTime() : Number.POSITIVE_INFINITY;
+  if (
+    (essayStatus === 'pending' || essayStatus === 'awaiting_second')
+    && lockUserId
+    && lockUserId !== auth.userId
+    && lockAgeMs >= 0
+    && lockAgeMs < 90_000
+  ) {
+    const { data: locker } = await auth.admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', lockUserId)
+      .maybeSingle<{ full_name: string | null }>();
+    return NextResponse.json(
+      {
+        error: `${locker?.full_name || 'Outro corretor'} já está corrigindo esta redação.`,
+        locked: true,
+      },
+      { status: 409 },
+    );
+  }
+
+  // Determina rodada de correção
+  let correctionRound = 1;
+  if (essayStatus === 'pending') {
+    correctionRound = 1;
+  } else if (essayStatus === 'awaiting_second') {
+    // Apenas o segundo corretor alocado (ou admin/founder) pode fazer a segunda correção
+    const { data: callerProfile } = await auth.admin
+      .from('profiles')
+      .select('role')
+      .eq('id', auth.userId)
+      .maybeSingle<{ role: string | null }>();
+    const callerRole = String(callerProfile?.role || '').toLowerCase();
+    if (callerRole !== 'admin' && callerRole !== 'founder' && auth.userId !== secondCorrectorId) {
+      const scName = secondCorrectorId
+        ? (await auth.admin.from('profiles').select('full_name').eq('id', secondCorrectorId).maybeSingle<{ full_name: string | null }>()).data?.full_name ?? 'outro corretor'
+        : 'outro corretor';
+      return NextResponse.json({
+        error: `Esta redação está reservada para segunda correção por ${scName}.`,
+        locked: true,
+        second_corrector_name: scName,
+      }, { status: 403 });
+    }
+    correctionRound = 2;
+  } else {
+    return NextResponse.json({ error: 'A redação não está disponível para correção.' }, { status: 400 });
   }
 
   const rawType = String(essay.essay_type || 'enem').toLowerCase();
-  const essayType: EssayType = (rawType === 'ufu' || rawType === 'ueg' || rawType === 'fuvest' || rawType === 'vunesp') ? (rawType as EssayType) : 'enem';
+  const essayType: EssayType = (rawType === 'ufu' || rawType === 'ueg' || rawType === 'fuvest' || rawType === 'vunesp' || rawType === 'geral') ? (rawType as EssayType) : 'enem';
   const typeConfig = ESSAY_TYPE_CONFIGS[essayType] ?? ESSAY_TYPE_CONFIGS.enem;
   const compMaxes = typeConfig.score_options.map((opts) =>
     Array.isArray(opts) && opts.length > 0 ? Math.max(...opts) : 200,
@@ -373,19 +527,7 @@ export async function POST(
 
   const totalScore = competencyScores.reduce((sum: number, item: { score: number }) => sum + Number(item.score || 0), 0);
 
-  const updatePayload: Record<string, unknown> = {
-    status: 'corrected',
-    total_score: totalScore,
-    general_comment: safeGeneralComment,
-    corrected_at: new Date().toISOString(),
-  };
-
-  if (Object.prototype.hasOwnProperty.call(essay, 'competency_scores')) {
-    updatePayload.competency_scores = competencyScores;
-  }
-  if (Object.prototype.hasOwnProperty.call(essay, 'updated_at')) {
-    updatePayload.updated_at = new Date().toISOString();
-  }
+  const nowIso = new Date().toISOString();
   const incomingAnnotations: unknown[] = Array.isArray(payload.annotations) ? payload.annotations.slice(0, MAX_ANNOTATIONS) : [];
   const sanitizedAnnotations = incomingAnnotations
     .map((item: unknown) => {
@@ -408,15 +550,163 @@ export async function POST(
     return NextResponse.json({ error: 'Anotações inválidas no texto selecionado.' }, { status: 400 });
   }
 
-  if (Object.prototype.hasOwnProperty.call(essay, 'annotations')) {
-    updatePayload.annotations = sanitizedAnnotations;
+  // Resolve segundo corretor (apenas rodada 1 com segunda correção solicitada)
+  let resolvedSecondCorrectorId: string | null = null;
+  let resolvedSecondCorrectorName: string | null = null;
+  if (correctionRound === 1 && requestSecond) {
+    if (chosenSecondCorrectorId) {
+      const { data: scProfile } = await auth.admin
+        .from('profiles')
+        .select('id, full_name, role, organization_id, associate_permissions')
+        .eq('id', chosenSecondCorrectorId)
+        .maybeSingle<CorrectorProfile>();
+      if (!scProfile || scProfile.organization_id !== auth.orgId) {
+        return NextResponse.json({ error: 'Corretor selecionado não pertence a esta organização.' }, { status: 400 });
+      }
+      if (!canCorrectEssays(scProfile)) {
+        return NextResponse.json({ error: 'Usuário selecionado não tem permissão para corrigir redações.' }, { status: 400 });
+      }
+      resolvedSecondCorrectorId = chosenSecondCorrectorId;
+      resolvedSecondCorrectorName = scProfile.full_name;
+    } else {
+      // Aleatório: seleciona um staff da org excluindo o corretor atual
+      const { data: staffList } = await auth.admin
+        .from('profiles')
+        .select('id, full_name, role, associate_permissions')
+        .eq('organization_id', auth.orgId)
+        .in('role', ['founder', 'associate'])
+        .neq('id', auth.userId)
+        .limit(10)
+        .returns<CorrectorProfile[]>();
+      const eligibleStaff = (staffList || []).filter(canCorrectEssays);
+      if (eligibleStaff.length === 0) {
+        return NextResponse.json({ error: 'Não há outros corretores disponíveis para segunda correção.' }, { status: 400 });
+      }
+      const chosen = eligibleStaff[Math.floor(Math.random() * eligibleStaff.length)];
+      resolvedSecondCorrectorId = chosen.id;
+      resolvedSecondCorrectorName = chosen.full_name;
+    }
   }
 
-  const essaysTable = auth.admin.from('essays') as any;
-  const { error: updateError } = await essaysTable
+  // Busca nota da rodada 1 em essay_corrections (fonte autoritativa para o average)
+  let round1ScoreForAverage = 0;
+  if (correctionRound === 2) {
+    const r1Result = await auth.admin
+      .from('essay_corrections')
+      .select('total_score')
+      .eq('essay_id', essayId)
+      .eq('round', 1)
+      .maybeSingle();
+    const r1Correction = r1Result.data as { total_score: number | null } | null;
+    round1ScoreForAverage = Number(r1Correction?.total_score ?? essay.total_score ?? 0);
+  }
+
+  // Monta o payload de atualização do essay
+  let updatePayload: Record<string, unknown>;
+  if (correctionRound === 1) {
+    if (requestSecond && resolvedSecondCorrectorId) {
+      updatePayload = {
+        status: 'awaiting_second',
+        total_score: totalScore,
+        general_comment: safeGeneralComment,
+        corrected_at: nowIso,
+        seen_at: null,
+        second_corrector_id: resolvedSecondCorrectorId,
+        second_correction_requested_by: auth.userId,
+        second_correction_requested_at: nowIso,
+      };
+    } else {
+      updatePayload = {
+        status: 'corrected',
+        total_score: totalScore,
+        general_comment: safeGeneralComment,
+        corrected_at: nowIso,
+        seen_at: null,
+      };
+    }
+  } else {
+    const averageScore = Math.round(((round1ScoreForAverage + totalScore) / 2) * 100) / 100;
+    updatePayload = {
+      status: 'second_corrected',
+      second_corrected_at: nowIso,
+      average_score: averageScore,
+      seen_at: null,
+    };
+  }
+
+  if (Object.prototype.hasOwnProperty.call(essay, 'updated_at')) {
+    updatePayload.updated_at = nowIso;
+  }
+  updatePayload.correction_lock_user_id = null;
+  updatePayload.correction_lock_at = null;
+
+  // Persiste scores ANTES de atualizar status: se falhar, corretor pode retentar (status inalterado)
+  if (competencyScores.length > 0) {
+    await auth.admin
+      .from('essay_competency_scores')
+      .delete()
+      .eq('essay_id', essayId)
+      .eq('correction_round', correctionRound);
+
+    const scoreRows = competencyScores.map((item: { competency: number; score: number; comment: string }) => ({
+      essay_id: essayId,
+      competency: Number(item.competency),
+      score: Number(item.score),
+      comment: typeof item.comment === 'string' ? item.comment : null,
+      correction_round: correctionRound,
+    }));
+
+    const scoreInsertTable = auth.admin
+      .from('essay_competency_scores') as unknown as InsertRowsTable<(typeof scoreRows)[number]>;
+    const { error: insertScoresError } = await scoreInsertTable.insert(scoreRows);
+    if (insertScoresError) {
+      return NextResponse.json(
+        {
+          error: 'Falha ao gravar notas por competência.',
+          details: process.env.NODE_ENV === 'development' ? insertScoresError.message : undefined,
+        },
+        { status: 500 },
+      );
+    }
+  }
+
+  // Registra a rodada de correção em essay_corrections
+  const correctionsTable = auth.admin.from('essay_corrections') as unknown as UpsertRowTable<{
+    essay_id: string;
+    corrector_id: string;
+    round: number;
+    total_score: number;
+    general_comment: string;
+    corrected_at: string;
+  }>;
+  await correctionsTable.upsert({
+    essay_id: essayId,
+    corrector_id: auth.userId,
+    round: correctionRound,
+    total_score: totalScore,
+    general_comment: safeGeneralComment,
+    corrected_at: nowIso,
+  }, { onConflict: 'essay_id,round' });
+
+  // Persiste annotations ANTES de atualizar status
+  let annotationWarning: string | null = null;
+  if (sanitizedAnnotations.length > 0) {
+    await auth.admin.from('essay_annotations').delete().eq('essay_id', essayId).eq('correction_round', correctionRound);
+    const annotationsWithRound = sanitizedAnnotations.map((a) => ({ ...a, correction_round: correctionRound }));
+    const insertResult = await insertEssayAnnotationsCompat(auth.admin, essayId, auth.userId, annotationsWithRound);
+    if (!insertResult.ok) {
+      annotationWarning = insertResult.error;
+    }
+  }
+
+  // Atualiza status do essay POR ÚLTIMO com lock otimista (evita race conditions)
+  const essaysTable = auth.admin.from('essays') as unknown as EssayUpdateTable;
+  const { error: updateError, data: updatedEssays } = await essaysTable
     .update(updatePayload)
     .eq('id', essayId)
-    .eq('org_id', auth.orgId);
+    .eq('org_id', auth.orgId)
+    .eq('status', essayStatus)
+    .select('id');
 
   if (updateError) {
     return NextResponse.json(
@@ -428,60 +718,26 @@ export async function POST(
     );
   }
 
-  // Persistência relacional (compatibilidade com schema normalizado).
-  if (competencyScores.length > 0) {
-    const { error: clearScoresError } = await auth.admin
-      .from('essay_competency_scores')
-      .delete()
-      .eq('essay_id', essayId);
-    if (clearScoresError) {
-      return NextResponse.json(
-        {
-          error: 'Correção salva, mas não foi possível atualizar notas por competência.',
-          details: process.env.NODE_ENV === 'development' ? clearScoresError.message : undefined,
-        },
-        { status: 500 },
-      );
-    }
-
-    const scoreRows = competencyScores.map((item: { competency: number; score: number; comment: string }) => ({
-      essay_id: essayId,
-      competency: Number(item.competency),
-      score: Number(item.score),
-      comment: typeof item.comment === 'string' ? item.comment : null,
-    }));
-
-    const { error: insertScoresError } = await (auth.admin.from('essay_competency_scores') as any)
-      .insert(scoreRows);
-    if (insertScoresError) {
-      return NextResponse.json(
-        {
-          error: 'Correção salva, mas falhou ao gravar notas por competência.',
-          details: process.env.NODE_ENV === 'development' ? insertScoresError.message : undefined,
-        },
-        { status: 500 },
-      );
-    }
+  if (!updatedEssays || (updatedEssays as unknown[]).length === 0) {
+    return NextResponse.json(
+      { error: 'A redação foi modificada por outro usuário. Recarregue e tente novamente.', retry: true },
+      { status: 409 },
+    );
   }
 
-  let annotationWarning: string | null = null;
-  if (sanitizedAnnotations.length > 0) {
-    const { error: clearAnnotationsError } = await auth.admin
-      .from('essay_annotations')
-      .delete()
-      .eq('essay_id', essayId);
-    if (!clearAnnotationsError) {
-      const insertResult = await insertEssayAnnotationsCompat(auth.admin, essayId, auth.userId, sanitizedAnnotations);
-      if (!insertResult.ok) {
-        annotationWarning = insertResult.error;
-      }
-    } else {
-      annotationWarning = clearAnnotationsError.message || 'Falha ao limpar anotações anteriores.';
-    }
+  if (correctionRound === 1 && requestSecond && resolvedSecondCorrectorId) {
+    return NextResponse.json({
+      ok: true,
+      action: 'second_correction_requested',
+      second_corrector: { id: resolvedSecondCorrectorId, full_name: resolvedSecondCorrectorName },
+      warning: annotationWarning ? 'Anotações não puderam ser persistidas totalmente.' : null,
+    });
   }
 
   return NextResponse.json({
     ok: true,
+    total_score: totalScore,
+    ...(correctionRound === 2 && { average_score: Math.round(((Number(essay.total_score ?? 0) + totalScore) / 2) * 100) / 100 }),
     warning: annotationWarning ? 'Correção salva, mas as anotações não puderam ser persistidas totalmente.' : null,
     details: process.env.NODE_ENV === 'development' ? annotationWarning : undefined,
   });
@@ -511,11 +767,37 @@ export async function DELETE(
 
   const { data: essay } = await auth.admin
     .from('essays')
-    .select('id')
+    .select('id, status, correction_lock_user_id, correction_lock_at')
     .eq('id', essayId)
     .eq('org_id', auth.orgId)
-    .maybeSingle<{ id: string }>();
+    .maybeSingle<{ id: string; status: string; correction_lock_user_id: string | null; correction_lock_at: string | null }>();
   if (!essay) return NextResponse.json({ error: 'Redação não encontrada.' }, { status: 404 });
+
+  const lockAgeMs = essay.correction_lock_at ? Date.now() - new Date(essay.correction_lock_at).getTime() : Number.POSITIVE_INFINITY;
+  if (
+    essay.status === 'pending'
+    && essay.correction_lock_user_id
+    && essay.correction_lock_user_id !== auth.userId
+    && lockAgeMs >= 0
+    && lockAgeMs < 90_000
+  ) {
+    const { data: locker } = await auth.admin
+      .from('profiles')
+      .select('full_name')
+      .eq('id', essay.correction_lock_user_id)
+      .maybeSingle<{ full_name: string | null }>();
+    return NextResponse.json(
+      { error: `${locker?.full_name || 'Outro corretor'} está corrigindo esta redação. Não é possível excluir agora.` },
+      { status: 409 },
+    );
+  }
+
+  if (essay.status === 'awaiting_second') {
+    return NextResponse.json(
+      { error: 'Esta redação está aguardando segunda correção e não pode ser excluída agora.' },
+      { status: 409 },
+    );
+  }
 
   // Compatibilidade quando não há CASCADE no banco.
   await auth.admin.from('essay_annotations').delete().eq('essay_id', essayId);

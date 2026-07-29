@@ -97,14 +97,25 @@ function LoginForm() {
       const userId = authData.user.id;
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('role, organization_id')
+        .select('role, organization_id, associate_permissions')
         .eq('id', userId)
         .maybeSingle();
 
       if (profileError) {
         throw new Error('Falha ao carregar o perfil após autenticação.');
       }
-      
+
+      // Bloqueia associate desativado antes de qualquer redirecionamento
+      if (profile?.role === 'associate') {
+        const perms = profile.associate_permissions as { active?: boolean } | null;
+        if (perms?.active === false) {
+          await supabase.auth.signOut();
+          setError('Sua conta está inativa. Entre em contato com o gestor da instituição.');
+          setIsLoading(false);
+          return;
+        }
+      }
+
       const role = profile?.role ?? null;
       const roleToPath: Record<string, string> = {
         admin: '/portal/admin',
@@ -117,7 +128,7 @@ function LoginForm() {
       const safeNext = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : null;
 
       let partnerTarget: string | null = null;
-      if (profile?.organization_id && (role === 'student' || role === 'founder' || role === 'admin' || role === 'associate' || role === 'teacher')) {
+      if (profile?.organization_id && (role === 'student' || role === 'founder' || role === 'admin' || role === 'associate')) {
         const { data: org, error: orgError } = await supabase
           .from('organizations')
           .select('slug')
@@ -132,7 +143,7 @@ function LoginForm() {
           partnerTarget =
             role === 'founder' || role === 'admin'
               ? `/partners/${org.slug}/dashboard`
-              : role === 'associate' || role === 'teacher'
+              : role === 'associate'
                 ? `/partners/${org.slug}/redacoes`
                 : `/partners/${org.slug}/student/dashboard`;
         }
