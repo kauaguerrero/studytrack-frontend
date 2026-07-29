@@ -42,7 +42,9 @@ import {
   Palette,
   CheckCircle2,
   WalletCards,
+  Bell,
 } from 'lucide-react'
+import { isPushSupported, hasActiveSubscription, requestAndSubscribe, disablePush } from '@/lib/push'
 
 /** Modelo 1:1 com a tabela profiles e resposta GET /api/account/profile */
 interface ProfileData {
@@ -160,6 +162,10 @@ export default function PerfilPage() {
   // Meta Pessoal de pontos do mês — null = sem meta. Exibida como barra própria
   // no dashboard; nunca entra no cálculo de tier/ranking.
   const [personalGoal, setPersonalGoal] = useState<number | null>(null)
+  // Web push deste dispositivo (assinatura local + backend)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushSupported, setPushSupported] = useState(false)
   const [savingRoutine, setSavingRoutine] = useState(false)
 
   // States - Segurança
@@ -522,6 +528,40 @@ export default function PerfilPage() {
     school_year: schoolYear || null,
     focus_area: focusArea || 'enem_geral',
   }, setSavingJourney)
+
+  useEffect(() => {
+    setPushSupported(isPushSupported())
+    void hasActiveSubscription().then(setPushEnabled)
+  }, [])
+
+  const handleTogglePush = async () => {
+    setPushBusy(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('Sessão inválida.')
+      if (pushEnabled) {
+        await disablePush(session.access_token)
+        setPushEnabled(false)
+        toast.success('Notificações push desativadas neste dispositivo.')
+      } else {
+        const result = await requestAndSubscribe(session.access_token)
+        if (result === 'subscribed') {
+          setPushEnabled(true)
+          toast.success('Notificações push ativadas!')
+        } else if (result === 'denied') {
+          toast.error('Permissão negada pelo navegador. Habilite nas configurações do site.')
+        } else if (result === 'unsupported') {
+          toast.error('Este navegador não suporta notificações push.')
+        } else {
+          toast.error('Não foi possível ativar as notificações agora.')
+        }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao alterar notificações.')
+    } finally {
+      setPushBusy(false)
+    }
+  }
 
   const handleSaveRoutine = () => {
     handleUpdateProfile({
@@ -1260,6 +1300,27 @@ export default function PerfilPage() {
                             <SelectItem value="system">Sistema</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="space-y-1">
+                          <p className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            <Bell size={18} style={{ color: brandPrimaryText }} />
+                            Notificações Push
+                          </p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Avisos de sequência em risco e redação corrigida neste dispositivo, mesmo com o site fechado.
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={handleTogglePush}
+                          disabled={pushBusy || !pushSupported}
+                          className="w-full rounded-xl border-slate-200 font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 sm:w-[140px]"
+                        >
+                          {pushBusy && <Loader2 size={16} className="mr-2 animate-spin" />}
+                          {!pushSupported ? 'Não suportado' : pushEnabled ? 'Desativar' : 'Ativar'}
+                        </Button>
                       </div>
 
                     </CardContent>

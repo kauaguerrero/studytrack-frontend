@@ -4,7 +4,8 @@ import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion, useAnimation } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, FileText, Flame, Trophy, ArrowRight, ArrowUp, ArrowDown, GraduationCap, Shield, User, Zap, Play, Crown, Target } from 'lucide-react';
+import { BookOpen, FileText, Flame, Trophy, ArrowRight, ArrowUp, ArrowDown, GraduationCap, Shield, User, Zap, Play, Crown, Target, CheckCircle2, Circle, Swords } from 'lucide-react';
+import { toast } from 'sonner';
 import { ActivityHistoryModal } from '@/components/partners/ActivityHistoryModal';
 import { AnnouncementBell } from '@/components/announcements/AnnouncementBell';
 import { Typewriter } from '@/components/ui/typewriter';
@@ -34,6 +35,23 @@ import { usePopupQueue } from '@/components/partners/gamification/PopupQueueCont
 import type { MonthlyCheckInResult } from '@/types/gamification';
 
 // ─── Types & helpers ─────────────────────────────────────────────────────────
+
+interface DailyMissionAction {
+  type: string;
+  label: string;
+  qty: number;
+  progress: number;
+  done: boolean;
+}
+
+interface DailyMissionStatus {
+  available: boolean;
+  mission?: { id: string; title: string; description: string; bonus_points: number };
+  actions?: DailyMissionAction[];
+  completed?: boolean;
+  just_completed?: boolean;
+  points_awarded?: number;
+}
 
 interface FeedItem {
   type: 'question' | 'simulado' | 'essay';
@@ -308,6 +326,32 @@ export function DashboardClient({
     refreshSummary,
   } = usePartnerGamification();
   const { currentPopup, enqueuePopup, dismissCurrentPopup } = usePopupQueue();
+
+  // ── Missão do dia ──────────────────────────────────────────────────────────
+  const [dailyMission, setDailyMission] = useState<DailyMissionStatus | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+      fetch(`${api}/api/partner/gamification/daily-mission`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: DailyMissionStatus | null) => {
+          if (!data) return;
+          setDailyMission(data);
+          if (data.just_completed && data.points_awarded) {
+            toast.success(`Missão do dia concluída! +${data.points_awarded} pts`);
+            void refreshSummary();
+          }
+        })
+        .catch(() => {});
+    });
+    // refreshSummary é estável (vem do hook); busca única por montagem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Popup orchestration state ──────────────────────────────────────────────
   const [isResolvingStreakBroken, setIsResolvingStreakBroken] = useState(false);
@@ -872,6 +916,63 @@ export function DashboardClient({
             </ElevatedCard>
             </Link>
           </RevealItem>
+
+          {/* ── 2.5 Missão do dia — checklist (de propósito NÃO é mais uma barra) ── */}
+          {dailyMission?.available && dailyMission.mission && (
+            <RevealItem>
+              <ElevatedCard accentColor="#f59e0b">
+                <div className="p-5">
+                  <SectionTitle
+                    kicker="Missão do dia"
+                    title={dailyMission.mission.title}
+                    hex="#f59e0b"
+                    colorVar="#f59e0b"
+                    action={
+                      dailyMission.completed ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Concluída · +{dailyMission.mission.bonus_points} pts
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-600 dark:bg-amber-500/15 dark:text-amber-400">
+                          <Swords className="h-3.5 w-3.5" />
+                          +{dailyMission.mission.bonus_points} pts
+                        </span>
+                      )
+                    }
+                  />
+                  <p className="mb-3 text-[13px] text-slate-500 dark:text-white/40">
+                    {dailyMission.mission.description}
+                  </p>
+                  <ul className="space-y-2">
+                    {(dailyMission.actions ?? []).map((action) => (
+                      <li key={action.type} className="flex items-center gap-2.5">
+                        {action.done ? (
+                          <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-emerald-500" />
+                        ) : (
+                          <Circle className="h-4.5 w-4.5 shrink-0 text-slate-300 dark:text-white/20" />
+                        )}
+                        <span className={`text-[13px] font-medium ${action.done ? 'text-slate-400 line-through dark:text-white/30' : 'text-slate-700 dark:text-white/70'}`}>
+                          {action.qty} {action.label}
+                        </span>
+                        <span className="ml-auto text-[12px] font-bold tabular-nums text-slate-400 dark:text-white/30">
+                          {action.progress}/{action.qty}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {!dailyMission.completed && (
+                    <Link
+                      href={`/partners/${slug}/student/banco-de-questoes`}
+                      className="mt-4 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-amber-600 hover:underline dark:text-amber-400"
+                    >
+                      Começar agora <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  )}
+                </div>
+              </ElevatedCard>
+            </RevealItem>
+          )}
 
           {/* ── 3. Feed de atividades ────────────────────────────────────────── */}
           <RevealItem>
