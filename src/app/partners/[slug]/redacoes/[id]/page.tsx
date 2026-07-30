@@ -12,6 +12,11 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Info, MessageCircle, PenLine, Pen
 import { useOrg } from '@/contexts/OrgContext';
 import { useOrgCorrectionPresence } from '@/hooks/useOrgCorrectionPresence';
 import { createClient } from '@/lib/supabase/client';
+import {
+  isDemoOrg,
+  MOCK_ESSAYS_OVERVIEW,
+  MOCK_STUDENT_ESSAY_COMPETENCY_SCORES,
+} from '../../../../../../studytrack-tutorial-mock';
 
 type Annotation = {
   id: string;
@@ -269,6 +274,35 @@ export default function CorrecaoRedacaoPage() {
     async function loadEssay() {
       setLoading(true);
       setError(null);
+
+      // [isDemoOrg] mock guard — remove isDemoOrg imports/calls for rollback
+      if (isDemoOrg(slug)) {
+        if (!mounted) return;
+        const corrected = MOCK_ESSAYS_OVERVIEW.corrected_items as Array<{ id: string; status: string; essay_type: string; theme: string; submitted_at: string; corrected_at: string; total_score: number; average_score: null; text: string; student: { id: string; full_name: string; email: string; avatar_url: null } }>;
+        const mockEssay = corrected.find(e => e.id === id) ?? corrected[0];
+        const rawScores = (MOCK_STUDENT_ESSAY_COMPETENCY_SCORES as unknown as Array<{ essay_id: string; competency: number; score: number; correction_round: number }>);
+        const filteredScores = rawScores.filter(s => s.essay_id === mockEssay.id);
+        const mockScores = (filteredScores.length > 0 ? filteredScores : rawScores.slice(0, 5))
+          .map(s => ({ competency: s.competency, score: s.score, comment: '' }));
+        const generalComment = 'Redação de alto nível. A proposta de intervenção foi bem articulada com os mecanismos linguísticos e demonstra visão crítica aprofundada.';
+        setEssay({
+          ...mockEssay,
+          annotations: [],
+          corrections: [{ round: 1, total_score: mockEssay.total_score, general_comment: generalComment, corrected_at: mockEssay.corrected_at, corrector_name: 'Prof. Carla Mendes', corrector_avatar_url: null }],
+          second_corrector_id: null,
+          second_corrector_name: null,
+          second_corrected_at: null,
+          average_score: null,
+          second_correction_requested_at: null,
+          general_comment: generalComment,
+          competency_scores: mockScores,
+        } as unknown as EssayDetail);
+        setAnnotations([]);
+        setScores(mockScores);
+        setGeneralComment(generalComment);
+        setLoading(false);
+        return;
+      }
 
       try {
         const res = await fetch(`/api/partners/${slug}/essays/${id}`, {

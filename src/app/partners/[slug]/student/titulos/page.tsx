@@ -16,6 +16,7 @@ import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { useOrg } from '@/contexts/OrgContext';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { getIdentityTitleIcon, getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
+import { isDemoOrg, MOCK_TITLES_JOURNEY, MOCK_TITLES_HISTORY, MOCK_CHECKIN_STATUS } from '../../../../../../studytrack-tutorial-mock';
 
 function formatMonthLabel(monthRef: string): string {
   const date = new Date(`${monthRef}T12:00:00`);
@@ -62,20 +63,26 @@ export default function PartnerStudentTitlesPage() {
     refreshCheckInStatus,
   } = usePartnerGamification({ fetchPopupStateOnMount: false });
 
+  const isDemo = isDemoOrg(org.slug);
+  const effectiveTitlesJourney = isDemo ? (MOCK_TITLES_JOURNEY as unknown as typeof titlesJourney) : titlesJourney;
+  const effectiveTitlesHistory = isDemo ? (MOCK_TITLES_HISTORY as unknown as typeof titlesHistory) : titlesHistory;
+  const effectiveCheckIn = isDemo ? (MOCK_CHECKIN_STATUS as unknown as typeof checkInStatus) : checkInStatus;
+  const effectiveLoading = isDemo ? false : isLoading;
+
   useEffect(() => {
-    if (isLoading) return;
+    if (effectiveLoading) return;
     void Promise.allSettled([
       refreshTitlesJourney(),
       refreshTitlesHistory(),
       refreshCheckInStatus(),
     ]);
-  }, [isLoading, refreshCheckInStatus, refreshTitlesHistory, refreshTitlesJourney]);
+  }, [effectiveLoading, refreshCheckInStatus, refreshTitlesHistory, refreshTitlesJourney]);
 
-  const identity = titlesJourney?.identity_profile;
+  const identity = effectiveTitlesJourney?.identity_profile;
   const IdentityIcon = getIdentityTitleIcon(identity?.identity_title_icon);
-  const currentTierMeta = getProgressTierMeta(titlesJourney?.progress_tier);
+  const currentTierMeta = getProgressTierMeta(effectiveTitlesJourney?.progress_tier);
 
-  if (isLoading && !titlesJourney) {
+  if (effectiveLoading && !effectiveTitlesJourney) {
     return (
       <div className="space-y-4">
         <div className="h-24 animate-pulse rounded-3xl bg-slate-200/70 dark:bg-slate-800/70" />
@@ -84,7 +91,7 @@ export default function PartnerStudentTitlesPage() {
     );
   }
 
-  if (error && !titlesJourney) {
+  if (error && !effectiveTitlesJourney) {
     return (
       <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300">
         {error}
@@ -92,7 +99,7 @@ export default function PartnerStudentTitlesPage() {
     );
   }
 
-  if (titlesJourney && !titlesJourney.enabled) {
+  if (effectiveTitlesJourney && !effectiveTitlesJourney.enabled) {
     return (
       <div className="rounded-[2rem] border border-slate-200 bg-white p-8 dark:border-slate-800 dark:bg-[#0F1115]">
         <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
@@ -138,7 +145,7 @@ export default function PartnerStudentTitlesPage() {
               </p>
 
               <div className="mt-5 flex flex-wrap gap-2.5">
-                {checkInStatus?.required ? (
+                {effectiveCheckIn?.required ? (
                   <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/80 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 dark:border-amber-700/40 dark:bg-amber-400/10 dark:text-amber-200">
                     <Sparkles className="h-3.5 w-3.5" />
                     Check-in deste mês pendente
@@ -159,7 +166,7 @@ export default function PartnerStudentTitlesPage() {
                   Mês ativo
                 </p>
                 <p className="mt-2 text-base font-black text-slate-950 dark:text-white">
-                  {formatMonthLabel(titlesJourney?.month_reference ?? '')}
+                  {formatMonthLabel(effectiveTitlesJourney?.month_reference ?? '')}
                 </p>
               </div>
 
@@ -168,7 +175,7 @@ export default function PartnerStudentTitlesPage() {
                   Pontos do mês
                 </p>
                 <p className="mt-2 text-2xl font-black text-slate-950 dark:text-white">
-                  {(titlesJourney?.monthly_points ?? 0).toLocaleString('pt-BR')}
+                  {(effectiveTitlesJourney?.monthly_points ?? 0).toLocaleString('pt-BR')}
                 </p>
               </div>
 
@@ -185,7 +192,7 @@ export default function PartnerStudentTitlesPage() {
                 <div className="mt-2 flex items-center gap-2">
                   <currentTierMeta.Icon className="h-4 w-4 shrink-0" style={{ color: currentTierMeta.color }} />
                   <p className="text-base font-black" style={{ color: currentTierMeta.color }}>
-                    {titlesJourney?.progress_tier ?? 'Explorador'}
+                    {effectiveTitlesJourney?.progress_tier ?? 'Explorador'}
                   </p>
                 </div>
               </div>
@@ -253,11 +260,11 @@ export default function PartnerStudentTitlesPage() {
                           Próximo salto
                         </p>
                         <p className="mt-3 text-sm font-black text-slate-950 dark:text-white">
-                          {titlesJourney?.next_tier ?? 'Topo da trilha'}
+                          {effectiveTitlesJourney?.next_tier ?? 'Topo da trilha'}
                         </p>
                         <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-white/64">
-                          {titlesJourney?.next_tier
-                            ? `${titlesJourney.points_to_next_tier.toLocaleString('pt-BR')} pts para avançar`
+                          {effectiveTitlesJourney?.next_tier
+                            ? `${effectiveTitlesJourney.points_to_next_tier.toLocaleString('pt-BR')} pts para avançar`
                             : 'Você já está no nível máximo do mês.'}
                         </p>
                       </div>
@@ -315,16 +322,16 @@ export default function PartnerStudentTitlesPage() {
                     Próximo passo
                   </p>
                   <p className="mt-1 text-sm font-black text-slate-950 dark:text-white">
-                    {titlesJourney?.next_tier ?? 'Lendário'}
+                    {effectiveTitlesJourney?.next_tier ?? 'Lendário'}
                   </p>
                 </div>
               </div>
 
               <div className="mt-4 space-y-0">
-                {titlesJourney?.milestones.map((milestone, index) => {
+                {effectiveTitlesJourney?.milestones.map((milestone, index) => {
                   const meta = getProgressTierMeta(milestone.tier);
-                  const isLast = index === (titlesJourney.milestones.length - 1);
-                  const monthlyPoints = titlesJourney.monthly_points ?? 0;
+                  const isLast = index === (effectiveTitlesJourney.milestones.length - 1);
+                  const monthlyPoints = effectiveTitlesJourney.monthly_points ?? 0;
                   const progressWidth = (() => {
                     if (milestone.max_points == null) {
                       return monthlyPoints >= milestone.min_points ? 100 : 0;
@@ -437,14 +444,14 @@ export default function PartnerStudentTitlesPage() {
           </div>
 
           <div className="mt-6 grid gap-4">
-            {(titlesHistory?.history ?? []).length === 0 ? (
+            {(effectiveTitlesHistory?.history ?? []).length === 0 ? (
               <div className="rounded-[1.6rem] border border-dashed border-slate-300 bg-slate-50/80 p-5 dark:border-white/12 dark:bg-white/[0.03]">
                 <p className="text-sm font-semibold text-slate-600 dark:text-white/62">
                   O histórico aparece quando o primeiro mês for fechado.
                 </p>
               </div>
             ) : (
-              titlesHistory?.history.map((item) => {
+              effectiveTitlesHistory?.history.map((item) => {
                 const meta = getProgressTierMeta(item.final_progress_tier);
                 const HistoryIcon = getIdentityTitleIcon(item.identity_title_icon);
                 return (

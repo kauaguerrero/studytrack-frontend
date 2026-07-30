@@ -39,6 +39,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { ModuleGuard } from '@/components/partners/ModuleGuard'
 import { SimuladoComposerModal, type SimuladoComposition } from '@/components/partners/simulado/SimuladoComposerModal'
+import { isDemoOrg, MOCK_SIMULADO_RANKING_STUDENT, MOCK_SCHEDULED_SIMULADOS_STUDENT } from '../../../../../../studytrack-tutorial-mock'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -788,6 +789,12 @@ export default function SimuladoPage() {
     if (!accessToken) return
     const fetchDashboard = async () => {
       setDashLoading(true)
+      if (isDemoOrg(slug)) {
+        setRankingData(MOCK_SIMULADO_RANKING_STUDENT as unknown as RankingData);
+        setScheduledSimulados(MOCK_SCHEDULED_SIMULADOS_STUDENT as unknown as typeof scheduledSimulados);
+        setDashLoading(false);
+        return;
+      }
       try {
         const supabase = createClient()
         const { data: { session: freshSession } } = await supabase.auth.getSession()
