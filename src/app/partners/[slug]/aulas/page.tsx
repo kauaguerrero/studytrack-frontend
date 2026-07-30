@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import AulasFounderClient, { type VideoModulesPayload } from './AulasFounderClient';
+import { isDemoOrg, MOCK_VIDEO_MODULES } from '../../../../../studytrack-tutorial-mock';
 
 export default async function AulasFounderPage({
   params,
@@ -7,6 +8,10 @@ export default async function AulasFounderPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+
+  if (isDemoOrg(slug)) {
+    return <AulasFounderClient slug={slug} initialData={MOCK_VIDEO_MODULES as unknown as VideoModulesPayload} />;
+  }
 
   const headersList = await headers();
   const cookie = headersList.get('cookie') ?? '';

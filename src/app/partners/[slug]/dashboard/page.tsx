@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import FounderDashboardClient from './FounderDashboardClient';
+import { isDemoOrg, MOCK_STATS, MOCK_STUDENTS, MOCK_ESSAYS_COUNT } from '../../../../../studytrack-tutorial-mock';
 
 interface OrgStats {
   total_students: number;
@@ -60,6 +61,18 @@ export default async function FounderDashboardPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+
+  if (isDemoOrg(slug)) {
+    return (
+      <FounderDashboardClient
+        slug={slug}
+        initialStats={MOCK_STATS}
+        initialStudents={MOCK_STUDENTS as unknown as Student[]}
+        initialStudentsTotal={MOCK_STUDENTS.length}
+        initialEssaysCounts={MOCK_ESSAYS_COUNT}
+      />
+    );
+  }
 
   const API = (process.env.API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { isDemoOrg, MOCK_STUDENT_ESSAYS_FOR_REDACOES, MOCK_STUDENT_ESSAY_COMPETENCY_SCORES } from '../../../../../../studytrack-tutorial-mock';
 import { createClient } from '@/lib/supabase/client';
 import { getApiBaseUrl } from '@/lib/api-base';
 import { cn } from '@/lib/utils';
@@ -131,6 +132,12 @@ export default function StudentRedacoesPage() {
     let mounted = true;
 
     async function loadEssays() {
+      if (isDemoOrg(slug)) {
+        setEssays(MOCK_STUDENT_ESSAYS_FOR_REDACOES as unknown as Essay[]);
+        setCompetencyScores(MOCK_STUDENT_ESSAY_COMPETENCY_SCORES);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError(null);
 
