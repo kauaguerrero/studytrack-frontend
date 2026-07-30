@@ -1093,3 +1093,62 @@ export const MOCK_SCHEDULED_SIMULADOS_STUDENT = [
 
 export const DEMO_SLUG = 'studytrack';
 export const isDemoOrg = (slug: string): boolean => slug === DEMO_SLUG;
+
+// ─── Founder Ranking ────────────────────────────────────────────────────────
+export const MOCK_FOUNDER_RANKING = {
+  prize_cutoff: 3,
+  ranking: [
+    { user_id: '00000001-0000-4000-8000-000000000001', full_name: 'Ana Paula Costa',  avatar_url: null, monthly_points: 4203, rank: 1, current_streak: 12 },
+    { user_id: '00000004-0000-4000-8000-000000000004', full_name: 'Gabriela Alves',   avatar_url: null, monthly_points: 3871, rank: 2, current_streak: 8 },
+    { user_id: '00000005-0000-4000-8000-000000000005', full_name: 'Rafael Santos',    avatar_url: null, monthly_points: 3412, rank: 3, current_streak: 6 },
+    { user_id: '00000008-0000-4000-8000-000000000008', full_name: 'Camila Pereira',   avatar_url: null, monthly_points: 3108, rank: 4, current_streak: 5 },
+    { user_id: '00000006-0000-4000-8000-000000000006', full_name: 'Isabela Lima',     avatar_url: null, monthly_points: 2847, rank: 5, current_streak: 4 },
+    { user_id: '00000013-0000-4000-8000-000000000013', full_name: 'Leonardo Nunes',   avatar_url: null, monthly_points: 2634, rank: 6, current_streak: 7 },
+    { user_id: '00000011-0000-4000-8000-000000000011', full_name: 'Diego Carvalho',   avatar_url: null, monthly_points: 2441, rank: 7, current_streak: 3 },
+    { user_id: '00000027-0000-4000-8000-000000000027', full_name: 'Samuel Xavier',    avatar_url: null, monthly_points: 2287, rank: 8, current_streak: 9 },
+    { user_id: '00000024-0000-4000-8000-000000000024', full_name: 'Gustavo Teixeira', avatar_url: null, monthly_points: 2103, rank: 9, current_streak: 2 },
+    { user_id: '00000002-0000-4000-8000-000000000002', full_name: 'Lucas Ferreira',   avatar_url: null, monthly_points: 1928, rank: 10, current_streak: 5 },
+  ],
+};
+
+// ─── Titles Journey (student/titulos) ───────────────────────────────────────
+export const MOCK_TITLES_JOURNEY = {
+  enabled: true,
+  month_reference: '2026-07-01',
+  monthly_points: 4203,
+  progress_tier: 'gold',
+  next_tier: 'diamond',
+  points_to_next_tier: 797,
+  identity_profile: {
+    identity_title: 'Estudante Dedicado',
+    identity_title_icon: null,
+  },
+  milestones: [
+    { tier: 'bronze',   label: 'Bronze',   min_points: 0,    max_points: 999,   reached: true },
+    { tier: 'silver',   label: 'Prata',    min_points: 1000, max_points: 1999,  reached: true },
+    { tier: 'gold',     label: 'Ouro',     min_points: 2000, max_points: 4999,  reached: true },
+    { tier: 'diamond',  label: 'Diamante', min_points: 5000, max_points: 9999,  reached: false },
+    { tier: 'legend',   label: 'Lendário', min_points: 10000, max_points: null, reached: false },
+  ],
+};
+
+export const MOCK_TITLES_HISTORY = {
+  history: [
+    { month_reference: '2026-06-01', progress_tier: 'silver', monthly_points: 2847, rank_position: 2 },
+    { month_reference: '2026-05-01', progress_tier: 'silver', monthly_points: 2103, rank_position: 4 },
+    { month_reference: '2026-04-01', progress_tier: 'bronze', monthly_points: 1241, rank_position: 7 },
+  ],
+};
+
+export const MOCK_CHECKIN_STATUS = { required: false, completed: false };
+
+// ─── Simulado Resultados (founder) ──────────────────────────────────────────
+export const MOCK_SIMULADO_PARTICIPANTS = [
+  { id: 'p001', source: 'online' as const, student_id: '00000001-0000-4000-8000-000000000001', student_name: 'Ana Paula Costa',  score: 80, total_questions: 90, percentage: 88.9, graded_at: '2026-07-14T18:03:20Z', results_by_subject: { 'Língua Portuguesa': { correct: 19, total: 20, percentage: 95 }, 'História': { correct: 16, total: 18, percentage: 88.9 } } },
+  { id: 'p002', source: 'online' as const, student_id: '00000008-0000-4000-8000-000000000008', student_name: 'Camila Pereira',   score: 75, total_questions: 90, percentage: 83.3, graded_at: '2026-07-14T18:23:20Z', results_by_subject: { 'Língua Portuguesa': { correct: 17, total: 20, percentage: 85 }, 'História': { correct: 14, total: 18, percentage: 77.8 } } },
+  { id: 'p003', source: 'online' as const, student_id: '00000004-0000-4000-8000-000000000004', student_name: 'Gabriela Alves',   score: 72, total_questions: 90, percentage: 80.0, graded_at: '2026-07-14T18:30:00Z', results_by_subject: { 'Inglês': { correct: 5, total: 5, percentage: 100 }, 'História': { correct: 13, total: 18, percentage: 72.2 } } },
+  { id: 'p004', source: 'online' as const, student_id: '00000005-0000-4000-8000-000000000005', student_name: 'Rafael Santos',    score: 67, total_questions: 90, percentage: 74.4, graded_at: '2026-07-14T18:16:40Z', results_by_subject: { 'Língua Portuguesa': { correct: 16, total: 20, percentage: 80 }, 'Artes': { correct: 2, total: 5, percentage: 40 } } },
+  { id: 'p005', source: 'online' as const, student_id: '00000006-0000-4000-8000-000000000006', student_name: 'Isabela Lima',     score: 65, total_questions: 90, percentage: 72.2, graded_at: '2026-07-14T18:40:00Z', results_by_subject: { 'História': { correct: 9, total: 11, percentage: 81.8 } } },
+  { id: 'p006', source: 'online' as const, student_id: '00000002-0000-4000-8000-000000000002', student_name: 'Lucas Ferreira',   score: 57, total_questions: 90, percentage: 63.3, graded_at: '2026-07-14T19:10:00Z', results_by_subject: { 'Inglês': { correct: 4, total: 5, percentage: 80 } } },
+  { id: 'p007', source: 'online' as const, student_id: '00000003-0000-4000-8000-000000000003', student_name: 'Bruno Mendes',     score: 38, total_questions: 90, percentage: 42.2, graded_at: '2026-07-14T22:10:00Z', results_by_subject: { 'Língua Portuguesa': { correct: 9, total: 20, percentage: 45 } } },
+];

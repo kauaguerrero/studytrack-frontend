@@ -40,6 +40,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+  isDemoOrg,
+  MOCK_ASSOCIATE_SUMMARY,
+  MOCK_ASSOCIATE_TREND,
+  MOCK_ASSOCIATE_STATS_VARIANTS,
+} from '../../../../../studytrack-tutorial-mock';
+import {
   BarChart,
   Bar,
   XAxis,
@@ -201,6 +207,15 @@ export default function AssociadosPage() {
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchList = useCallback(async () => {
+    // [isDemoOrg] mock guard — remove isDemoOrg imports/calls for rollback
+    if (isDemoOrg(org.slug)) {
+      setAssociates([
+        { id: 'assoc-demo-01', full_name: 'Prof. Carla Mendes',    email: 'carla.mendes@studytrack.com.br',    avatar_url: null, active: true, associate_permissions: { can_correct: true,  can_import: true,  can_view_students: true  } },
+        { id: 'assoc-demo-02', full_name: 'Prof. Ricardo Souza',   email: 'ricardo.souza@studytrack.com.br',   avatar_url: null, active: true, associate_permissions: { can_correct: true,  can_import: false, can_view_students: true  } },
+        { id: 'assoc-demo-03', full_name: 'Prof. Mariana Teixeira', email: 'mariana.teixeira@studytrack.com.br', avatar_url: null, active: true, associate_permissions: { can_correct: true,  can_import: false, can_view_students: false } },
+      ] as Associate[]);
+      return;
+    }
     const res = await fetch(`/api/partners/${org.slug}/associates`);
     if (res.ok) {
       const d = await res.json() as { associates?: Associate[] };
@@ -211,6 +226,17 @@ export default function AssociadosPage() {
   const fetchStats = useCallback(async (win: MetricWindow, initial = false) => {
     if (initial) setLoading(true); else setStatsLoading(true);
     try {
+      // [isDemoOrg] mock guard — remove isDemoOrg imports/calls for rollback
+      if (isDemoOrg(org.slug)) {
+        setSummary(MOCK_ASSOCIATE_SUMMARY as unknown as OrgSummary);
+        setStats({
+          'assoc-demo-01': MOCK_ASSOCIATE_STATS_VARIANTS[0] as unknown as AssociateStats,
+          'assoc-demo-02': MOCK_ASSOCIATE_STATS_VARIANTS[1] as unknown as AssociateStats,
+          'assoc-demo-03': MOCK_ASSOCIATE_STATS_VARIANTS[2] as unknown as AssociateStats,
+        });
+        setTrend(MOCK_ASSOCIATE_TREND as unknown as TrendPoint[]);
+        return;
+      }
       const res = await fetch(`/api/partners/${org.slug}/associates/stats?window=${win}`);
       if (res.ok) {
         const d = await res.json() as {

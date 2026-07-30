@@ -47,6 +47,13 @@ import {
   Line,
   CartesianGrid,
 } from 'recharts';
+import {
+  isDemoOrg,
+  MOCK_ASSOC_METRICS,
+  MOCK_ASSOC_DAILY_EVOLUTION,
+  MOCK_ASSOC_COMPETENCY_AVGS,
+  MOCK_ASSOC_RECENT_CORRECTIONS,
+} from '../../../../../../studytrack-tutorial-mock';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -181,6 +188,17 @@ export default function AssociadoDetailPage() {
   const fetchData = useCallback(async (d: number) => {
     setLoading(true);
     try {
+      // [isDemoOrg] mock guard — remove isDemoOrg imports/calls for rollback
+      if (isDemoOrg(org.slug)) {
+        setData({
+          profile: { id: associateId, full_name: 'Prof. Carla Mendes', email: 'carla.mendes@studytrack.com.br', avatar_url: null, active: true, associate_permissions: { can_correct: true, can_import: true, can_view_students: true } },
+          metrics: MOCK_ASSOC_METRICS,
+          daily_evolution: MOCK_ASSOC_DAILY_EVOLUTION,
+          competency_avgs: MOCK_ASSOC_COMPETENCY_AVGS,
+          recent_corrections: MOCK_ASSOC_RECENT_CORRECTIONS,
+        } as unknown as AssocDetailData);
+        return;
+      }
       const res = await fetch(`/api/partners/${org.slug}/associates/${associateId}/profile?days=${d}`);
       if (res.status === 404) {
         router.push(`/partners/${org.slug}/associados`);

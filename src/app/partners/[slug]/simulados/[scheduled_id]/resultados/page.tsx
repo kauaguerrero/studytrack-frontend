@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { animate, motion, useMotionValue, useTransform } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
+import { isDemoOrg, MOCK_SIMULADO_PARTICIPANTS } from '../../../../../../../studytrack-tutorial-mock';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import {
   ArrowRight,
@@ -147,6 +148,12 @@ export default function PrintedExamResultsPage() {
   async function loadResults() {
     setLoading(true);
     setError(null);
+
+    if (isDemoOrg(slug)) {
+      setParticipants(MOCK_SIMULADO_PARTICIPANTS as unknown as Participant[]);
+      setLoading(false);
+      return;
+    }
     try {
       const examsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams?scheduled_simulado_id=${scheduledId}`);
       if (!examsRes.ok) {

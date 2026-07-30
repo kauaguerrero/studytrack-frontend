@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, CalendarDays, MessageSquare, PenLine } from 'lucide-react';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
+import { isDemoOrg, MOCK_STUDENT_ESSAYS_FOR_REDACOES, MOCK_STUDENT_ESSAY_COMPETENCY_SCORES } from '../../../../../../../studytrack-tutorial-mock';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
@@ -260,6 +261,24 @@ export default function RedacaoDetailPage() {
     async function loadEssay() {
       setLoading(true);
       setError(null);
+
+      const allMockEssays = [
+        ...MOCK_STUDENT_ESSAYS_FOR_REDACOES,
+      ];
+      const mockEssay = allMockEssays.find((e) => e.id === id) ?? allMockEssays[0];
+      if (isDemoOrg(slug) && mockEssay) {
+        setEssay({
+          ...mockEssay,
+          text: mockEssay.text_preview ?? '',
+          general_comment: 'Redação de alto nível! Foco em aprimorar a proposta de intervenção nas próximas redações.',
+          competency_scores: MOCK_STUDENT_ESSAY_COMPETENCY_SCORES
+            .filter((c) => c.essay_id === mockEssay.id)
+            .map((c) => ({ competency: c.competency, score: c.score, comment: null })),
+          annotations: [],
+        } as unknown as EssayDetail);
+        setLoading(false);
+        return;
+      }
 
       try {
         const res = await fetch(`/api/partners/${slug}/essays/${id}`, {
