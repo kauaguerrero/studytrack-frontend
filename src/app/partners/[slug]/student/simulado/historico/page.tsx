@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { ArrowLeft, Brain, ChevronLeft, ChevronRight, Clock, Target } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { isDemoOrg, MOCK_SIMULADO_HISTORY } from '../../../../../../../studytrack-tutorial-mock'
 
 interface SimuladoSession {
     id: string
@@ -103,6 +104,13 @@ export default function SimuladoHistoricoPage() {
     }, [])
 
     const fetchHistory = useCallback(async (p: number) => {
+        if (isDemoOrg(slug)) {
+            setSessions(MOCK_SIMULADO_HISTORY as unknown as SimuladoSession[])
+            setTotal(MOCK_SIMULADO_HISTORY.length)
+            setTotalPages(1)
+            setLoading(false)
+            return
+        }
         if (!accessToken) return
         setLoading(true)
         try {

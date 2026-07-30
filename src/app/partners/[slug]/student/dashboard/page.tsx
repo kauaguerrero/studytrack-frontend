@@ -12,6 +12,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { DashboardClient } from './DashboardClient';
+import { isDemoOrg } from '../../../../../../studytrack-tutorial-mock';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -19,6 +20,21 @@ interface Props {
 
 export default async function PartnerStudentDashboard({ params }: Props) {
   const { slug } = await params;
+
+  if (isDemoOrg(slug)) {
+    return (
+      <DashboardClient
+        firstName="Aluno"
+        orgName="Study Track"
+        orgLogoUrl={null}
+        slug={slug}
+        currentStreak={12}
+        questionsCount={4832}
+        simuladosCount={51}
+      />
+    );
+  }
+
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();

@@ -1,6 +1,6 @@
 'use client';
 
-import { Children, Fragment, useState, useEffect, useMemo } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -10,9 +10,6 @@ import {
 } from '@/components/questions/rendering';
 import { QuestionDisplay } from '@/components/questions/QuestionDisplay';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
-import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
-import katex from 'katex';
-import 'katex/dist/katex.min.css';
 import { formatScientificText } from '@/lib/scientific-text';
 import {
   CheckCircle2,
@@ -115,7 +112,6 @@ interface AuditQuestionItem {
 }
 
 const markdownImageRegex = /!\[[^\]]*]\((.*?)\)/g;
-const mathSegmentRegex = /(\$\$[\s\S]+?(?<!\\)\$\$|(?<![\\A-Za-z0-9])\$(?!\$)[^$\n|]+?(?<!\\)\$)/g;
 const ufuSyntheticTitleRegex = /^Questão\s+\d+\s*-\s*UFU Vestibular\s+\d{4}\/[12]\s*$/i;
 
 function normalizeSourceLabel(value: string | null | undefined): string | null {
@@ -251,6 +247,22 @@ function getDisplayTitle(question?: AdminQuestion): string {
     return '';
   }
   return title;
+}
+
+function getQuestionHeaderLabel(question?: AdminQuestion | null): string {
+  const title = getDisplayTitle(question as AdminQuestion);
+  if (title) return title;
+
+  const intro = String(question?.alternatives_intro || '').trim();
+  if (!intro) return '';
+
+  // Strip $...$ math delimiters so raw LaTeX doesn't appear in plain-text <h2> headers
+  return intro
+    .replace(/\$\$[\s\S]*?\$\$/g, ' ')
+    .replace(/\$[^$\n]*\$/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .slice(0, 140);
 }
 
 const DEFAULT_FILTERS: QuestionFiltersState = {
@@ -413,54 +425,6 @@ function extractImageUrls(value: unknown): string[] {
   return direct ? [direct] : [];
 }
 
-function normalizeLatexForKatex(value: string): string {
-  return value
-    .replace(/\$\$/g, '')
-    .replace(/^\$/g, '')
-    .replace(/\$$/g, '')
-    .trim();
-}
-
-function normalizePlainLatexText(value: string): string {
-  return normalizeLatexForKatex(value)
-    .replace(/\\%/g, '%')
-    .replace(/\\\$/g, '$')
-    .replace(/\\&/g, '&')
-    .replace(/\\#/g, '#')
-    .replace(/\\_/g, '_')
-    .replace(/\\,/g, ',')
-    .replace(/\\:/g, ':')
-    .replace(/\\;/g, ';')
-    .replace(/\\!/g, '!')
-    .replace(/\\\?/g, '?')
-    .replace(/\\text\{([^}]+)\}/g, '$1')
-    .replace(/\\mathrm\{([^}]+)\}/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function isLikelyMathSegment(segment: string): boolean {
-  const latex = normalizeLatexForKatex(segment);
-  if (!latex) return false;
-
-  // Avoid sending currency/price-like fragments to KaTeX.
-  if (/^[\d\s.,]+$/.test(latex)) return false;
-
-  if (/[\\^_{}()=<>+\-*/]/.test(latex) || latex.includes('[') || latex.includes(']')) return true;
-  if (/[±×÷∑∫√∞≈≠≤≥]/.test(latex)) return true;
-
-  // Allow simple inline variables like $x$ or $y1$.
-  if (/^[A-Za-z](?:[A-Za-z0-9]{0,2})?$/.test(latex)) return true;
-
-  // Allow compact algebraic expressions without LaTeX commands.
-  if (/^[A-Za-z0-9]+(?:\s*[=+\-*/<>]\s*[A-Za-z0-9]+)+$/.test(latex)) return true;
-
-  return false;
-}
-
-function normalizeQuestionText(text?: string | null): string {
-  return formatScientificText(text || '');
-}
 
 function getQuestionComment(question?: AdminQuestion | null): string {
   const aiReasoning = question?.ai_reasoning;
@@ -476,120 +440,6 @@ function getQuestionComment(question?: AdminQuestion | null): string {
   return '';
 }
 
-function splitMarkdownTableRow(row: string): string[] {
-  return row
-    .trim()
-    .replace(/^\|/, '')
-    .replace(/\|$/, '')
-    .split('|')
-    .map((cell) => cell.trim());
-}
-
-function parseMarkdownTable(block: string): {
-  headers: string[];
-  aligns: Array<'left' | 'center' | 'right'>;
-  rows: string[][];
-} | null {
-  const lines = block
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (lines.length < 2) return null;
-  if (!lines[0].includes('|') || !lines[1].includes('|')) return null;
-
-  const headers = splitMarkdownTableRow(lines[0]);
-  const separators = splitMarkdownTableRow(lines[1]);
-
-  if (headers.length === 0 || headers.length !== separators.length) return null;
-
-  const aligns = separators.map((separator) => {
-    if (!/^:?-{3,}:?$/.test(separator)) return null;
-    const startsWithColon = separator.startsWith(':');
-    const endsWithColon = separator.endsWith(':');
-    if (startsWithColon && endsWithColon) return 'center';
-    if (endsWithColon) return 'right';
-    return 'left';
-  });
-
-  if (aligns.some((align) => align == null)) return null;
-
-  const rows = lines.slice(2).map(splitMarkdownTableRow);
-  if (rows.some((row) => row.length !== headers.length)) return null;
-
-  return {
-    headers,
-    aligns: aligns as Array<'left' | 'center' | 'right'>,
-    rows,
-  };
-}
-
-function isMarkdownBlock(text: string): boolean {
-  return /^\s*(#{1,6}\s|>|\|.*\||[-*+]\s|\d+\.\s|!\[)/m.test(text);
-}
-
-function renderInlineRichText(text: string, keyPrefix: string) {
-  const segments = text.split(mathSegmentRegex).filter(Boolean);
-
-  return segments.map((segment, segmentIndex) => {
-    const previousSegment = segments[segmentIndex - 1] || '';
-    const nextSegment = segments[segmentIndex + 1] || '';
-    const isMath =
-      (segment.startsWith('$$') || (segment.startsWith('$') && segment.endsWith('$'))) &&
-      isLikelyMathSegment(segment);
-
-    if (!isMath) {
-      const lines = segment.split('\n');
-      return (
-        <span
-          key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`}
-          className="whitespace-pre-wrap"
-        >
-          {lines.map((line, lineIndex) => (
-            <Fragment key={lineIndex}>
-              {lineIndex > 0 && <br />}
-              {normalizePlainLatexText(line)}
-            </Fragment>
-          ))}
-        </span>
-      );
-    }
-
-    const rawLatex = normalizeLatexForKatex(segment);
-    const latex = rawLatex.replace(/(?<!\\)%/g, '\\%');
-    const needsLeadingSpace = /\s$/.test(previousSegment);
-    const needsTrailingSpace = /^\s/.test(nextSegment);
-    const isDisplayMath = segment.startsWith('$$');
-    try {
-      const html = katex.renderToString(latex, {
-        throwOnError: false,
-        displayMode: isDisplayMath,
-        output: 'html',
-      } as Parameters<typeof katex.renderToString>[1] & {
-        output?: 'html' | 'mathml' | 'htmlAndMathml'
-      });
-      return (
-        <Fragment key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}>
-          {needsLeadingSpace ? ' ' : null}
-          <span
-            className={isDisplayMath ? 'katex-fragment katex-display-wrap my-3 block max-w-full' : 'katex-fragment inline-block max-w-full align-baseline'}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-          {needsTrailingSpace ? ' ' : null}
-        </Fragment>
-      );
-    } catch {
-      return (
-        <code
-          key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}
-          className="rounded bg-slate-100 px-1.5 py-0.5 text-sm text-slate-700"
-        >
-          {latex}
-        </code>
-      );
-    }
-  });
-}
 
 function applyInlineFormattingShortcut(
   event: ReactKeyboardEvent<HTMLTextAreaElement>,
@@ -647,115 +497,6 @@ function applyInlineFormattingShortcut(
   return false;
 }
 
-function RichText({ text, className }: { text?: string | null; className?: string }) {
-  const normalized = normalizeQuestionText(text);
-  const paragraphs = useMemo(
-    () => normalized.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean),
-    [normalized],
-  );
-
-  return (
-    <div className={className}>
-      {paragraphs.map((paragraph, paragraphIndex) => {
-        const table = parseMarkdownTable(paragraph);
-        if (table) {
-          return (
-            <div key={`${paragraphIndex}-${paragraph.slice(0, 20)}`} className="my-4 overflow-x-auto">
-              <table className="min-w-full border-collapse rounded-xl border border-slate-300 bg-white text-sm">
-                <thead>
-                  <tr className="bg-slate-100">
-                    {table.headers.map((header, headerIndex) => (
-                      <th
-                        key={`${paragraphIndex}-header-${headerIndex}`}
-                        className={`border border-slate-300 px-4 py-2 font-semibold text-slate-900 ${
-                          table.aligns[headerIndex] === 'center'
-                            ? 'text-center'
-                            : table.aligns[headerIndex] === 'right'
-                              ? 'text-right'
-                              : 'text-left'
-                        }`}
-                      >
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {table.rows.map((row, rowIndex) => (
-                    <tr key={`${paragraphIndex}-row-${rowIndex}`} className="odd:bg-white even:bg-slate-50">
-                      {row.map((cell, cellIndex) => (
-                        <td
-                          key={`${paragraphIndex}-row-${rowIndex}-cell-${cellIndex}`}
-                          className={`border border-slate-300 px-4 py-2 text-slate-700 ${
-                            table.aligns[cellIndex] === 'center'
-                              ? 'text-center'
-                              : table.aligns[cellIndex] === 'right'
-                                ? 'text-right'
-                                : 'text-left'
-                          }`}
-                        >
-                          {renderInlineRichText(normalizeQuestionText(cell), `${paragraphIndex}-row-${rowIndex}-cell-${cellIndex}`)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          );
-        }
-
-        if (isMarkdownBlock(paragraph)) {
-          const renderMdChildren = (children: React.ReactNode, prefix: string) =>
-            Children.map(children, (child, i) =>
-              typeof child === 'string'
-                ? renderInlineRichText(child, `${prefix}-${i}`)
-                : child
-            );
-          return (
-            <SafeMarkdown
-              key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}
-              components={{
-                p: ({ children }) => (
-                  <p className="my-2 leading-relaxed">
-                    {renderMdChildren(children, `${paragraphIndex}-p`)}
-                  </p>
-                ),
-                strong: ({ children }) => (
-                  <strong className="font-semibold">
-                    {renderMdChildren(children, `${paragraphIndex}-strong`)}
-                  </strong>
-                ),
-                em: ({ children }) => (
-                  <em className="italic">
-                    {renderMdChildren(children, `${paragraphIndex}-em`)}
-                  </em>
-                ),
-                img: ({ src, alt }) => (
-                  <img
-                    src={src || ''}
-                    alt={alt || 'Imagem da questão'}
-                    className="my-4 h-auto max-h-40 md:max-h-52 w-auto max-w-full rounded-lg border border-slate-200 bg-white object-contain shadow-sm"
-                  />
-                ),
-              }}
-            >
-              {paragraph}
-            </SafeMarkdown>
-          );
-        }
-
-        const segments = paragraph.split(mathSegmentRegex).filter(Boolean);
-
-        return (
-          <div key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>
-            {renderInlineRichText(paragraph, `${paragraphIndex}`)}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 export default function AdminQuestionApproval() {
   const [questions, setQuestions] = useState<AdminQuestion[]>([]);
@@ -1978,7 +1719,7 @@ export default function AdminQuestionApproval() {
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h2 className="text-lg font-bold tracking-tight text-slate-950 md:text-[1.35rem]">
-                            {activeQuestionDisplayTitle || activeQuestion.alternatives_intro || 'Questão em revisão'}
+                            {getQuestionHeaderLabel(activeQuestion) || 'Questão em revisão'}
                           </h2>
                         </div>
                         {mode === 'curation' ? (

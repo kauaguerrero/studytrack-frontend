@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import PartnerRedacoesClient, { type EssaysOverviewPayload } from './PartnerRedacoesClient';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
+import { isDemoOrg, MOCK_ESSAYS_OVERVIEW } from '../../../../../studytrack-tutorial-mock';
 
 export default async function PartnerRedacoesPage({
   params,
@@ -8,6 +9,14 @@ export default async function PartnerRedacoesPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+
+  if (isDemoOrg(slug)) {
+    return (
+      <ModuleGuard permKey="redacoes_enabled">
+        <PartnerRedacoesClient slug={slug} initialOverview={MOCK_ESSAYS_OVERVIEW as unknown as EssaysOverviewPayload} />
+      </ModuleGuard>
+    );
+  }
 
   const headersList = await headers();
   const cookie = headersList.get('cookie') ?? '';

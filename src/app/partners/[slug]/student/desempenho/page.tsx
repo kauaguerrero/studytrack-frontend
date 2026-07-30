@@ -7,6 +7,7 @@ import DesempenhoClient, {
   type EssayDetail,
   type EssayListItem,
 } from './DesempenhoClient';
+import { isDemoOrg, MOCK_STUDENT_DASHBOARD_STATE } from '../../../../../../studytrack-tutorial-mock';
 
 export default async function DesempenhoPage({
   params,
@@ -14,6 +15,14 @@ export default async function DesempenhoPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+
+  if (isDemoOrg(slug)) {
+    return (
+      <ModuleGuard permKey="desempenho_enabled">
+        <DesempenhoClient slug={slug} initialState={MOCK_STUDENT_DASHBOARD_STATE as unknown as DashboardState} />
+      </ModuleGuard>
+    );
+  }
 
   const API = (process.env.API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
 

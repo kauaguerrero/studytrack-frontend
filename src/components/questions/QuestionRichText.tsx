@@ -44,6 +44,8 @@ function isLikelyMathSegment(segment: string): boolean {
   const latex = normalizeLatexForKatex(segment)
   if (!latex) return false
   if (/^[\d\s.,]+$/.test(latex)) return false
+  // Valor monetário escapado do PDF: \$ seguido de número (ex: \$ 500,000)
+  if (/^\\\$\s*[\d,.\s]+$/.test(latex)) return false
   if (/[\\^_{}()=<>+\-*/]/.test(latex) || latex.includes('[') || latex.includes(']')) return true
   if (/[±×÷∑∫√∞≈≠≤≥]/.test(latex)) return true
   if (/^[A-Za-z](?:[A-Za-z0-9]{0,2})?$/.test(latex)) return true

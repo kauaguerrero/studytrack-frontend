@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { isDemoOrg, MOCK_STUDENTS } from '../../../../../studytrack-tutorial-mock';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
@@ -203,6 +204,12 @@ export default function AlunosPage() {
   const fetchStudents = useCallback(async (
     p: number, s: string, plan: string, sf: ApiSortField, order: 'asc' | 'desc',
   ) => {
+    if (isDemoOrg(org.slug)) {
+      setStudents(MOCK_STUDENTS as unknown as Student[]);
+      setTotal(MOCK_STUDENTS.length);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();

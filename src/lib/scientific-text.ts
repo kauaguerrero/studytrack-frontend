@@ -127,7 +127,12 @@ function formatChemicalFormulaSegments(text: string): string {
 
 function normalizeLatexArtifacts(text: string): string {
   return text
-    .replace(/\\\[([\s\S]*?)\\\]/g, (_match, expression: string) => `$$${expression.trim()}$$`)
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_match, expression: string) => {
+      const trimmed = expression.trim()
+      // Lacuna editorial (reticências, pontos) — preservar como texto, não math
+      if (/^[.…\s]+$/.test(trimmed)) return `[${trimmed}]`
+      return `$$${trimmed}$$`
+    })
     .replace(/\\\(([\s\S]*?)\\\)/g, (_match, expression: string) => `$${expression.trim()}$`)
     .replace(/\$\s*\\mathrm\{R\}\s*\\\$\s*([\d.]+(?:,\d+)?)\s*\$/g, 'R$ $1')
     .replace(/\$\$\s*([\s\S]*?)\s*\$\$\s*0(?=\s|$)/g, '$$$$ $1 $$$$')
@@ -155,8 +160,8 @@ function normalizeParagraphBreaks(text: string): string {
   return text
     .replace(/\r\n?/g, '\n')
     .split(/\n{2,}/)
-    .map((block) => block.trim())
-    .filter(Boolean)
+    .map((block) => block.replace(/^\s+/, ''))
+    .filter((block) => block.trim())
     .join('\n\n');
 }
 
@@ -175,7 +180,11 @@ export function formatScientificText(text?: string | null): string {
   if (!text) return '';
 
   const withNormalizedMathDelimiters = String(text)
-    .replace(/\\\[([\s\S]*?)\\\]/g, (_match, expression: string) => `$$${expression.trim()}$$`)
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_match, expression: string) => {
+      const trimmed = expression.trim();
+      if (/^[.…\s]+$/.test(trimmed)) return `[${trimmed}]`;
+      return `$$${trimmed}$$`;
+    })
     .replace(/\\\(([\s\S]*?)\\\)/g, (_match, expression: string) => `$${expression.trim()}$`);
 
   return withNormalizedMathDelimiters
