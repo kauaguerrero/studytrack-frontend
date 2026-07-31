@@ -86,7 +86,7 @@ interface AchievementsResponse {
 }
 
 interface FeedItem {
-  type: 'question' | 'simulado' | 'essay';
+  type: 'question' | 'simulado' | 'essay' | 'achievement';
   student_id?: string | null;
   student_name?: string | null;
   student_avatar_url?: string | null;
@@ -96,6 +96,10 @@ interface FeedItem {
   status?: string | null;
   score?: number | null;
   essay_type?: string | null;
+  achievement_id?: string | null;
+  achievement_title?: string | null;
+  achievement_icon?: string | null;
+  difficulty?: string | null;
   timestamp?: string | null;
 }
 
@@ -1227,14 +1231,17 @@ export function DashboardClient({
                     {activityFeed.slice(0, 3).map((item, i) => {
                       const isQuestion = item.type === 'question';
                       const isSimulado = item.type === 'simulado';
+                      const isAchievement = item.type === 'achievement';
                       const peerFirstName = (item.student_name || 'Aluno').split(' ')[0];
                       const verb = isQuestion
                         ? 'fez uma questão de'
                         : isSimulado ? 'realizou um'
+                        : isAchievement ? 'desbloqueou a conquista'
                         : 'enviou uma';
                       const actionLabel = isQuestion
                         ? (item.subject || 'Questão')
                         : isSimulado ? 'Simulado'
+                        : isAchievement ? (item.achievement_title || 'Conquista')
                         : 'Redação';
 
                       return (

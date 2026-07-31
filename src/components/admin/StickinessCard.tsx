@@ -1,7 +1,12 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { reportError } from "@/lib/reportError";
 import { Badge } from "@/components/ui/badge";
-import { Activity, AlertTriangle, Zap, Flame, CheckCircle2, XCircle, RotateCcw, Target } from "lucide-react";
+import { Activity, AlertTriangle, Zap, Flame, CheckCircle2, XCircle, RotateCcw, Target, Trophy, ChevronRight } from "lucide-react";
+import { getAchievementIcon, getDifficultyStyle } from "@/lib/achievement-icons";
+import AchievementsDetailModal from "./AchievementsDetailModal";
 
 interface WhatsappInfo {
   last_at: string | null;
@@ -36,6 +41,18 @@ interface HealthData {
   expired_trials?: number;
   churn_risk_users?: number;
   dau_profiles?: DauProfile[];
+}
+
+interface RecentAchievement {
+  student_id: string;
+  student_name: string;
+  avatar_url: string | null;
+  organization_name: string | null;
+  achievement_id: string;
+  achievement_title: string;
+  achievement_icon: string | null;
+  difficulty: string | null;
+  unlocked_at: string;
 }
 
 interface Props {
@@ -103,9 +120,34 @@ function StatTile({ label, value, valueClassName, accentColor }: {
   );
 }
 
-export default function StickinessCard({ health }: Props) {
+export default function StickinessCard({ health, apiUrl }: Props) {
   // b2b_test já é filtrado no backend, mas mantemos o filtro aqui como reforço.
   const profiles = (health.dau_profiles ?? []).filter((p) => p.plan_tier !== "b2b_test");
+
+  const [recentAchievements, setRecentAchievements] = useState<RecentAchievement[]>([]);
+  const [loadingAchievements, setLoadingAchievements] = useState(true);
+  const [achievementsModalOpen, setAchievementsModalOpen] = useState(false);
+
+  const fetchRecentAchievements = useCallback(async () => {
+    setLoadingAchievements(true);
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const res = await fetch(`${apiUrl}/api/admin/achievements/recent?limit=5`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) setRecentAchievements((await res.json()).achievements ?? []);
+    } catch (err) {
+      console.error("Erro ao buscar conquistas recentes:", err);
+      void reportError("StickinessCardAchievementsError", String(err));
+    } finally {
+      setLoadingAchievements(false);
+    }
+  }, [apiUrl]);
+
+  useEffect(() => { fetchRecentAchievements(); }, [fetchRecentAchievements]);
 
   // Estatísticas derivadas dos alunos ativos hoje — dá contexto além da contagem crua.
   const activeCount = profiles.length;
@@ -253,6 +295,59 @@ export default function StickinessCard({ health }: Props) {
           </>
         )}
       </div>
+
+      {/* CONQUISTAS RECENTES */}
+      <div className="mt-5">
+        <button
+          type="button"
+          onClick={() => setAchievementsModalOpen(true)}
+          className="w-full rounded-xl border border-slate-100 p-3.5 text-left transition-colors hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5"
+        >
+          <div className="mb-2.5 flex items-center justify-between">
+            <p className="flex items-center gap-1.5 text-[13px] font-bold text-slate-700 dark:text-white/80">
+              <Trophy className="h-3.5 w-3.5 text-amber-500" /> Conquistas recentes
+            </p>
+            <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-white/25" />
+          </div>
+
+          {loadingAchievements ? (
+            <p className="text-sm italic text-slate-400 dark:text-white/30">Carregando...</p>
+          ) : recentAchievements.length === 0 ? (
+            <p className="text-sm italic text-slate-400 dark:text-white/30">Nenhuma conquista desbloqueada ainda</p>
+          ) : (
+            <div className="space-y-1.5">
+              {recentAchievements.map((a, idx) => {
+                const Icon = getAchievementIcon(a.achievement_icon);
+                const style = getDifficultyStyle(a.difficulty);
+                return (
+                  <div key={`${a.student_id}-${a.achievement_id}-${idx}`} className="flex items-center gap-2.5">
+                    <StudentAvatar name={a.student_name} avatarUrl={a.avatar_url} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold text-slate-800 dark:text-white/85">
+                        {a.student_name}
+                        {a.organization_name && (
+                          <span className="ml-1.5 font-normal text-slate-400 dark:text-white/35">· {a.organization_name}</span>
+                        )}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-500 dark:text-white/50">
+                        <span className={`flex h-4 w-4 items-center justify-center rounded ${style.iconBg} ${style.iconText}`}>
+                          <Icon className="h-2.5 w-2.5" />
+                        </span>
+                        {a.achievement_title}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[10.5px] text-slate-400 dark:text-white/35">{fmtRelative(a.unlocked_at)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </button>
+      </div>
+
+      {achievementsModalOpen && (
+        <AchievementsDetailModal apiUrl={apiUrl} onClose={() => setAchievementsModalOpen(false)} />
+      )}
     </div>
   );
 }
