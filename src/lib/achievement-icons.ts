@@ -69,6 +69,7 @@ export const DIFFICULTY_STYLES: Record<string, DifficultyStyle> = {
     iconBg: 'bg-emerald-400/20',
     iconText: 'text-emerald-600 dark:text-emerald-400',
     chanceText: 'text-emerald-600 dark:text-emerald-400',
+    glow: 'shadow-[0_0_16px_-6px_rgba(16,185,129,0.4)]',
   },
   uncommon: {
     cardBorder: 'border-blue-200 dark:border-blue-500/25',
@@ -76,6 +77,7 @@ export const DIFFICULTY_STYLES: Record<string, DifficultyStyle> = {
     iconBg: 'bg-blue-400/20',
     iconText: 'text-blue-600 dark:text-blue-400',
     chanceText: 'text-blue-600 dark:text-blue-400',
+    glow: 'shadow-[0_0_16px_-6px_rgba(59,130,246,0.4)]',
   },
   rare: {
     cardBorder: 'border-violet-200 dark:border-violet-500/25',
@@ -83,6 +85,7 @@ export const DIFFICULTY_STYLES: Record<string, DifficultyStyle> = {
     iconBg: 'bg-violet-400/20',
     iconText: 'text-violet-600 dark:text-violet-400',
     chanceText: 'text-violet-600 dark:text-violet-400',
+    glow: 'shadow-[0_0_16px_-6px_rgba(139,92,246,0.4)]',
   },
   epic: {
     cardBorder: 'border-fuchsia-200 dark:border-fuchsia-500/25',
@@ -90,6 +93,7 @@ export const DIFFICULTY_STYLES: Record<string, DifficultyStyle> = {
     iconBg: 'bg-fuchsia-400/20',
     iconText: 'text-fuchsia-600 dark:text-fuchsia-400',
     chanceText: 'text-fuchsia-600 dark:text-fuchsia-400',
+    glow: 'shadow-[0_0_16px_-6px_rgba(217,70,239,0.4)]',
   },
   legendary: {
     cardBorder: 'border-amber-200 dark:border-amber-500/25',
@@ -97,6 +101,7 @@ export const DIFFICULTY_STYLES: Record<string, DifficultyStyle> = {
     iconBg: 'bg-amber-400/20',
     iconText: 'text-amber-600 dark:text-amber-400',
     chanceText: 'text-amber-600 dark:text-amber-400',
+    glow: 'shadow-[0_0_16px_-6px_rgba(245,158,11,0.4)]',
   },
   ultra_rare: {
     cardBorder: 'border-rose-300 dark:border-rose-500/30',
