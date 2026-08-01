@@ -31,6 +31,8 @@ import { StreakBrokenPopup } from '@/components/partners/gamification/StreakBrok
 import { StreakPointsLostPopup } from '@/components/partners/gamification/StreakPointsLostPopup';
 import { MonthEndScreen } from '@/components/partners/gamification/MonthEndScreen';
 import { AchievementUnlockedPopup } from '@/components/partners/gamification/AchievementUnlockedPopup';
+import { AchievementInfoModal } from '@/components/partners/AchievementInfoModal';
+import { getAchievementIcon, getDifficultyStyle } from '@/lib/achievement-icons';
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
 import type { MonthlyCheckInResult } from '@/types/gamification';
 
@@ -86,20 +88,27 @@ interface AchievementsResponse {
 }
 
 interface FeedItem {
-  type: 'question' | 'simulado' | 'essay' | 'achievement';
+  type: 'question' | 'simulado' | 'essay' | 'achievement' | 'congrats_received';
   student_id?: string | null;
   student_name?: string | null;
   student_avatar_url?: string | null;
   subject?: string | null;
   is_correct?: boolean | null;
+  question_count?: number | null;
   total_questions?: number | null;
   status?: string | null;
   score?: number | null;
   essay_type?: string | null;
+  student_achievement_id?: string | null;
   achievement_id?: string | null;
   achievement_title?: string | null;
+  achievement_description?: string | null;
   achievement_icon?: string | null;
   difficulty?: string | null;
+  already_congratulated?: boolean;
+  pinned?: boolean;
+  congratulator_name?: string | null;
+  congratulator_avatar_url?: string | null;
   timestamp?: string | null;
 }
 
@@ -296,6 +305,13 @@ export function DashboardClient({
   const [lastActivity, setLastActivity] = useState<{ type: 'question' | 'simulado' | 'essay' | null; subject: string | null }>({ type: null, subject: null });
   const [feedInfoOpen, setFeedInfoOpen] = useState(false);
   const [activityModalOpen, setActivityModalOpen] = useState(false);
+  const [achievementModalItem, setAchievementModalItem] = useState<FeedItem | null>(null);
+
+  const markFeedItemCongratulated = (studentAchievementId: string) => {
+    setActivityFeed((prev) => prev.map((it) =>
+      it.student_achievement_id === studentAchievementId ? { ...it, already_congratulated: true } : it
+    ));
+  };
   // Painel de dev (só aparece pra conta de teste) — liga/desliga cada badge individualmente.
   const [devBadgeOverrides, setDevBadgeOverrides] = useState({
     streak: true,
@@ -1232,30 +1248,47 @@ export function DashboardClient({
                       const isQuestion = item.type === 'question';
                       const isSimulado = item.type === 'simulado';
                       const isAchievement = item.type === 'achievement';
+                      const isCongratsReceived = item.type === 'congrats_received';
+                      const questionCount = item.question_count ?? 1;
                       const peerFirstName = (item.student_name || 'Aluno').split(' ')[0];
-                      const verb = isQuestion
-                        ? 'fez uma questão de'
+                      const verb = isCongratsReceived
+                        ? 'te deu os parabéns por desbloquear'
+                        : isQuestion
+                        ? (questionCount > 1 ? 'fez' : 'fez uma questão de')
                         : isSimulado ? 'realizou um'
                         : isAchievement ? 'desbloqueou a conquista'
                         : 'enviou uma';
-                      const actionLabel = isQuestion
-                        ? (item.subject || 'Questão')
+                      const actionLabel = isCongratsReceived
+                        ? (item.achievement_title || 'Conquista')
+                        : isQuestion
+                        ? (questionCount > 1 ? `${questionCount} Questões` : (item.subject || 'Questão'))
                         : isSimulado ? 'Simulado'
                         : isAchievement ? (item.achievement_title || 'Conquista')
                         : 'Redação';
+                      const rowName = isCongratsReceived ? (item.congratulator_name || 'Um colega') : peerFirstName;
+                      const rowAvatar = isCongratsReceived ? item.congratulator_avatar_url : item.student_avatar_url;
+                      const achievementGlow = isAchievement && item.pinned ? getDifficultyStyle(item.difficulty).glow : '';
+                      const AchievementIcon = isAchievement ? getAchievementIcon(item.achievement_icon) : null;
 
                       return (
                         <div
                           key={i}
-                          className="relative flex items-center h-[46px] rounded-[16px] bg-slate-50 dark:bg-white/[0.05] overflow-hidden"
+                          onClick={() => {
+                            if (isAchievement) setAchievementModalItem(item);
+                          }}
+                          className={`relative flex items-center h-[46px] rounded-[16px] bg-slate-50 dark:bg-white/[0.05] overflow-hidden ${isAchievement ? 'cursor-pointer transition-transform active:scale-[0.98]' : ''} ${achievementGlow}`}
                         >
                           {/* Avatar */}
                           <div className="absolute left-[13px] h-[22px] w-[22px] rounded-full overflow-hidden shrink-0 ring-1 ring-black/5 dark:ring-white/10">
-                            {item.student_avatar_url ? (
+                            {isAchievement && AchievementIcon ? (
+                              <div className={`w-full h-full flex items-center justify-center ${getDifficultyStyle(item.difficulty).iconBg} ${getDifficultyStyle(item.difficulty).iconText}`}>
+                                <AchievementIcon className="h-3 w-3" />
+                              </div>
+                            ) : rowAvatar ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
-                                src={item.student_avatar_url}
-                                alt={item.student_name || ''}
+                                src={rowAvatar}
+                                alt={rowName || ''}
                                 className="w-full h-full object-cover"
                               />
                             ) : (
@@ -1273,14 +1306,16 @@ export function DashboardClient({
                           {/* Name + action — vertically centred */}
                           <div className="absolute left-[43px] right-3 top-1/2 -translate-y-1/2 flex items-baseline gap-1 leading-none">
                             <span className="text-[11px] text-slate-700 dark:text-white/85 whitespace-nowrap">
-                              {peerFirstName} {verb}
+                              {rowName} {verb}
                             </span>
-                            <span
-                              className="brand-text-adaptive text-[12px] font-bold tracking-[-0.35px] truncate"
-                              style={adaptiveTextStyle(secondaryAccent.hex, secondaryAccent.cssVar)}
-                            >
-                              {actionLabel}
-                            </span>
+                            {actionLabel && (
+                              <span
+                                className="brand-text-adaptive text-[12px] font-bold tracking-[-0.35px] truncate"
+                                style={adaptiveTextStyle(secondaryAccent.hex, secondaryAccent.cssVar)}
+                              >
+                                {actionLabel}
+                              </span>
+                            )}
                           </div>
                           {/* Timestamp — bottom-right corner */}
                           <p className="absolute bottom-[7px] right-[12px] text-[7px] font-bold text-slate-400 dark:text-white/50 leading-none">
@@ -1417,6 +1452,24 @@ export function DashboardClient({
       {/* ── Modal histórico de atividades ──────────────────────────────── */}
       {activityModalOpen && (
         <ActivityHistoryModal onClose={() => setActivityModalOpen(false)} />
+      )}
+
+      {/* ── Info-card de conquista (clicada no feed) ───────────────────── */}
+      {achievementModalItem && achievementModalItem.student_achievement_id && (
+        <AchievementInfoModal
+          data={{
+            student_achievement_id: achievementModalItem.student_achievement_id,
+            student_name: achievementModalItem.student_name || 'Aluno',
+            achievement_title: achievementModalItem.achievement_title || 'Conquista',
+            achievement_description: achievementModalItem.achievement_description,
+            achievement_icon: achievementModalItem.achievement_icon,
+            difficulty: achievementModalItem.difficulty,
+            already_congratulated: achievementModalItem.already_congratulated,
+            is_own: achievementModalItem.student_id === sessionUserId,
+          }}
+          onClose={() => setAchievementModalItem(null)}
+          onCongratulated={markFeedItemCongratulated}
+        />
       )}
 
       {/* ── Popups (Fila central) ───────────────────────────────────────── */}
