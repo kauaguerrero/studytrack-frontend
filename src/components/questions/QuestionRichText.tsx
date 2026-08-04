@@ -1,6 +1,6 @@
 'use client'
 
-import { Children, Fragment, isValidElement, useMemo } from 'react'
+import { Children, Fragment, isValidElement, useMemo, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
@@ -8,7 +8,7 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { formatScientificText } from '@/lib/scientific-text'
 
-const mathSegmentRegex = /(\$\$[\s\S]+?(?<!\\)\$\$|(?<![\\A-Za-z0-9])\$(?!\$)[^$\n|]+?(?<!\\)\$)/g
+const mathSegmentRegex = /(\$\$[\s\S]+?(?<!\\)\$\$|(?<![\\A-Za-z0-9])\$(?!\$)[^$\n]+?(?<!\\)\$)/g
 const underlineSegmentRegex = /<u>([\s\S]*?)<\/u>/gi
 type KatexRenderOptions = Parameters<typeof katex.renderToString>[1] & {
   output?: 'html' | 'mathml' | 'htmlAndMathml'
@@ -105,7 +105,7 @@ function parseMarkdownTable(block: string): {
 }
 
 function isMarkdownBlock(text: string): boolean {
-  return /^\s*(#{1,6}\s|>|\|.*\||[-*+]\s|\d+\.\s|!\[)/m.test(text)
+  return /^\s*(#{1,6}\s|>|\|.*\||[-*+]\s|\d+\.\s)/m.test(text)
 }
 
 function stripDiacritics(value: string): string {
@@ -122,6 +122,7 @@ function shouldPreserveManualLineBreaks(paragraph: string, previousParagraph?: s
   if (lines.length <= 1) return false
   if (/^\s*(```|~~~)/m.test(paragraph)) return true
   if (/^\s*\$\$/m.test(paragraph) || /\$\$\s*$/m.test(paragraph)) return true
+  if (/!\[/.test(paragraph)) return true
   if (parseMarkdownTable(paragraph) || isMarkdownBlock(paragraph)) return true
   if (hasLiteraryIntro(previousParagraph || '')) return true
   if (lines.length >= 3 && hasLiteraryIntro(lines[0] || '')) return true
@@ -188,6 +189,7 @@ function renderInlineMarkdown(text: string, key: string) {
         ul: ({ children }) => <Fragment>{children}</Fragment>,
         ol: ({ children }) => <Fragment>{children}</Fragment>,
         li: ({ children }) => <Fragment>{children} </Fragment>,
+        img: ({ src, alt }) => <MarkdownImage src={src} alt={alt} />,
       }}
     >
       {String(text ?? '')}
@@ -223,6 +225,27 @@ function renderInlineMarkdownWithUnderline(text: string, keyPrefix: string): Rea
   return parts.length > 0 ? parts : renderInlineMarkdown(text, `${keyPrefix}-plain`)
 }
 
+function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+  const [failed, setFailed] = useState(false)
+
+  if (!src || failed) {
+    return <span className="text-sm italic text-slate-400 dark:text-slate-500">(Imagem indisponível)</span>
+  }
+
+  return (
+    <span className="my-4 block max-w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/50">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt || ''}
+        className="mx-auto block h-auto max-h-[26rem] w-auto max-w-full object-contain"
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+    </span>
+  )
+}
+
 const markdownComponents: Components = {
   p: ({ children }) => <p className="my-3 leading-relaxed">{renderMarkdownChildren(children, 'md-p')}</p>,
   h1: ({ children }) => <h1 className="mt-5 mb-3 text-xl font-bold leading-tight">{renderMarkdownChildren(children, 'md-h1')}</h1>,
@@ -239,17 +262,7 @@ const markdownComponents: Components = {
   ),
   strong: ({ children }) => <strong className="font-semibold">{renderMarkdownChildren(children, 'md-strong')}</strong>,
   em: ({ children }) => <em className="italic">{renderMarkdownChildren(children, 'md-em')}</em>,
-  img: ({ src, alt }) => (
-    <span className="my-4 block max-w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/50">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src || ''}
-        alt={alt || 'Imagem da questão'}
-        className="mx-auto block h-auto max-h-[26rem] w-auto max-w-full object-contain"
-        loading="lazy"
-      />
-    </span>
-  ),
+  img: ({ src, alt }) => <MarkdownImage src={src} alt={alt} />,
   a: ({ href, children }) => (
     <a
       href={href}

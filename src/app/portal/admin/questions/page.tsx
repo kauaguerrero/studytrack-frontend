@@ -1237,7 +1237,7 @@ export default function AdminQuestionApproval() {
       } else if (mode === 'curation' && isModifierPressed && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         void handleArchive(activeQuestion.id);
-      } else if (mode === 'curation' && isModifierPressed && e.key.toLowerCase() === 'q') {
+      } else if (mode === 'curation' && !isModifierPressed && e.key.toLowerCase() === 'e') {
         e.preventDefault();
         startEditing();
       }
@@ -1727,7 +1727,7 @@ export default function AdminQuestionApproval() {
                             <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-[10px] text-slate-500">Enter aprova</Badge>
                             <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-[10px] text-slate-500">Delete deleta</Badge>
                             <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-[10px] text-slate-500">Ctrl/Cmd + A arquiva</Badge>
-                            <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-[10px] text-slate-500">Ctrl/Cmd + Q edita</Badge>
+                            <Badge variant="outline" className="cursor-pointer rounded-full border-slate-200 bg-white text-[10px] text-slate-500 hover:bg-slate-100" onClick={startEditing}>Editar questão</Badge>
                           </div>
                         ) : null}
                       </div>
