@@ -189,7 +189,7 @@ function renderInlineMarkdown(text: string, key: string) {
         ul: ({ children }) => <Fragment>{children}</Fragment>,
         ol: ({ children }) => <Fragment>{children}</Fragment>,
         li: ({ children }) => <Fragment>{children} </Fragment>,
-        img: ({ src, alt }) => <MarkdownImage src={src} alt={alt} />,
+        img: ({ src, alt }) => <MarkdownImage src={typeof src === 'string' ? src : undefined} alt={alt} />,
       }}
     >
       {String(text ?? '')}
@@ -262,7 +262,7 @@ const markdownComponents: Components = {
   ),
   strong: ({ children }) => <strong className="font-semibold">{renderMarkdownChildren(children, 'md-strong')}</strong>,
   em: ({ children }) => <em className="italic">{renderMarkdownChildren(children, 'md-em')}</em>,
-  img: ({ src, alt }) => <MarkdownImage src={src} alt={alt} />,
+  img: ({ src, alt }) => <MarkdownImage src={typeof src === 'string' ? src : undefined} alt={alt} />,
   a: ({ href, children }) => (
     <a
       href={href}
