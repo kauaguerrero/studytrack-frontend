@@ -7,18 +7,18 @@ import { reportError } from '@/lib/reportError';
 import { toast } from 'sonner';
 import PeakHoursCard from "@/components/admin/PeakHoursCard";
 import UsageTimeCard from "@/components/admin/UsageTimeCard";
-import StickinessCard from "@/components/admin/StickinessCard";
+import StickinessCard, { type HealthData } from "@/components/admin/StickinessCard";
 import AIUsageRecentCard from "@/components/admin/AIUsageRecentCard";
 import { KpiCard, ElevatedCard } from "@/components/partners/founder-ui";
 import { SmokeBackground } from "@/components/ui/spooky-smoke-animation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Users, Brain, Database, GraduationCap, BarChart3,
   Calculator, ListChecks, Flag, ClipboardList, Plus, X,
   ExternalLink, Target, Activity, Github, TrendingUp, TrendingDown,
   Settings, Puzzle, Trophy, WalletCards, PenLine, ClipboardCheck,
-  Video, LifeBuoy, BookOpen, BadgeCheck, ChevronRight, Trash2, AlertTriangle,
+  Video, LifeBuoy, BookOpen, BadgeCheck, ChevronRight, ChevronDown, Trash2, AlertTriangle,
+  EyeOff,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -44,6 +44,8 @@ interface Org {
   contact_email: string | null;
   has_video_library: boolean;
   monthly_value: number | null;
+  billing_enabled: boolean;
+  is_active: boolean;
   is_mock: boolean;
   created_at: string;
   allow_multiple_pending_essays: boolean;
@@ -101,6 +103,47 @@ interface B2BStats {
   period: string;
 }
 
+// ── /api/admin/stats (Flask) ─────────────────────────────────────────────────
+interface AdminStats {
+  health: HealthData;
+  product: {
+    stuck_essays: number;
+    plan_adherence: number;
+    active_pros: number;
+    active_elite: number;
+    active_paid: number;
+    active_users_in_adherence: number;
+  };
+  education: {
+    hardest_subject: string;
+    lowest_accuracy: number;
+    total_answers_analyzed: number;
+  };
+  b2b: { active_schools: number; webhook_errors: number };
+  financial: {
+    mrr_brl: number;
+    ai_cost_brl: number;
+    net_profit_brl: number;
+    ai_total_tokens: number;
+  };
+  infrastructure: { db_size_bytes: number; db_limit_bytes: number };
+}
+
+// ── /api/admin/stats/distribution (Flask) ────────────────────────────────────
+interface DistItem {
+  name: string;
+  count: number;
+}
+interface DistributionStats {
+  total: number;
+  by_subject: DistItem[];
+  by_year: DistItem[];
+  by_difficulty: DistItem[];
+  by_topic: DistItem[];
+  by_bank: DistItem[];
+  by_bank_subject: Record<string, DistItem[]>;
+}
+
 type OrgPeriod = 'day' | 'week' | 'month' | 'semester' | 'year' | 'all';
 const ORG_PERIODS: { key: OrgPeriod; label: string }[] = [
   { key: 'day',      label: 'Dia'      },
@@ -151,10 +194,111 @@ function DeltaBadge({ current, prev }: { current: number; prev: number }) {
   );
 }
 
+function OrgCard({ org, perOrgStats, hasPrev, loadingMetrics, onOpenSettings }: {
+  org: Org;
+  perOrgStats: PerOrgStats | undefined;
+  hasPrev: boolean;
+  loadingMetrics: boolean;
+  onOpenSettings: (org: Org) => void;
+}) {
+  const plan = PLAN_LABELS[org.plan_tier] ?? { label: org.plan_tier, cls: 'bg-slate-100 text-slate-600' };
+  const fillPct = Math.round((org.student_count / org.max_students) * 100);
+  const p = perOrgStats;
+  const accentColor = org.is_mock ? '#F59E0B' : (org.is_active === false ? '#94A3B8' : org.brand_primary);
+  return (
+    <ElevatedCard accentColor={accentColor}>
+      <CardContent className="p-4">
+        {/* Cabeçalho */}
+        <div className="flex items-start gap-3 mb-3">
+          {org.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- logo_url é uma URL externa arbitrária colada pelo admin, fora dos remotePatterns do next/image
+            <img src={org.logo_url} alt={org.name} className="w-10 h-10 rounded-lg object-contain border border-slate-100 dark:border-zinc-700 bg-white shrink-0" />
+          ) : (
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ backgroundColor: org.brand_primary }}>
+              {org.name[0]}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{org.name}</p>
+            <p className="text-xs text-slate-400 dark:text-zinc-500">/{org.slug}</p>
+          </div>
+          {org.is_mock && (
+            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">Demo</span>
+          )}
+          {org.is_active === false && (
+            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600 dark:bg-zinc-700 dark:text-zinc-300">Inativo</span>
+          )}
+          <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${plan.cls}`}>{plan.label}</span>
+          <button
+            onClick={() => onOpenSettings(org)}
+            title="Configurações da instituição"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors"
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Capacidade + Mensalidade */}
+        <div className={`grid gap-2 mb-3 text-xs ${org.billing_enabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <div className="bg-slate-50 dark:bg-zinc-800 rounded-lg px-2.5 py-1.5">
+            <p className="text-slate-400 font-medium">Alunos</p>
+            <p className="font-bold text-slate-700 dark:text-slate-200">{org.student_count} / {org.max_students}</p>
+            <div className="mt-1 h-1 bg-slate-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${fillPct > 90 ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(fillPct, 100)}%` }} />
+            </div>
+          </div>
+          {org.billing_enabled && (
+            <div className="bg-slate-50 dark:bg-zinc-800 rounded-lg px-2.5 py-1.5">
+              <p className="text-slate-400 font-medium">Mensalidade</p>
+              <p className="font-bold text-slate-700 dark:text-slate-200">
+                {org.monthly_value ? `R$ ${Number(org.monthly_value).toFixed(0)}` : '—'}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Métricas do período */}
+        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-1.5 mb-3 text-xs transition-opacity ${loadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
+          {[
+            { label: 'Questões',  value: p?.questions_period,  prev: p?.prev_questions_period,  color: 'text-blue-600 dark:text-blue-400'     },
+            { label: 'Simulados', value: p?.simulados_period,  prev: p?.prev_simulados_period,  color: 'text-violet-600 dark:text-violet-400' },
+            { label: 'Ativos',    value: p?.active_period,     prev: p?.prev_active_period,     color: 'text-emerald-600 dark:text-emerald-400'},
+            { label: 'Redações',  value: p?.essays_period,     prev: p?.prev_essays_period,     color: 'text-amber-600 dark:text-amber-400'   },
+          ].map(({ label, value, prev, color }) => (
+            <div key={label} className="bg-slate-50 dark:bg-zinc-800 rounded-lg px-1.5 py-1.5 text-center">
+              <p className={`font-bold text-sm ${color}`}>{value ?? '—'}</p>
+              <p className="text-slate-400 text-[10px] leading-tight mt-0.5">{label}</p>
+              {hasPrev && value != null && prev != null && (
+                <div className="flex justify-center mt-0.5">
+                  <DeltaBadge current={value} prev={prev} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {org.founder && (
+          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mb-3 truncate">
+            {org.founder.full_name ?? org.founder.email}
+          </p>
+        )}
+
+        <Link
+          href={`/partners/${encodeURIComponent(org.slug)}/dashboard`}
+          target="_blank"
+          className="flex items-center justify-center gap-1.5 w-full rounded-lg border border-indigo-200 dark:border-indigo-500/30 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
+        >
+          <ExternalLink className="w-3.5 h-3.5" /> Ver portal
+        </Link>
+      </CardContent>
+    </ElevatedCard>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function SuperAdminDashboard() {
-  const [stats, setStats]         = useState<any>(null);
-  const [dist, setDist]           = useState<any>(null);
+  const [stats, setStats]         = useState<AdminStats | null>(null);
+  const [dist, setDist]           = useState<DistributionStats | null>(null);
   const [orgs, setOrgs]           = useState<Org[]>([]);
   const [b2bStats, setB2bStats]   = useState<B2BStats | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -170,6 +314,7 @@ export default function SuperAdminDashboard() {
     contact_email: '', monthly_value: '', logo_url: '',
     brand_primary: '#6366f1', brand_secondary: '#8b5cf6', brand_accent: '#f59e0b',
     allow_multiple_pending_essays: false,
+    billing_enabled: true, is_active: true,
   });
   const [savingSettings, setSavingSettings] = useState(false);
   const [modulesModal, setModulesModal]   = useState<{ open: boolean; org: Org | null }>({ open: false, org: null });
@@ -184,6 +329,8 @@ export default function SuperAdminDashboard() {
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [deletingOrg, setDeletingOrg]     = useState(false);
   const [orgPeriod, setOrgPeriod]         = useState<OrgPeriod>('month');
+  const [activeOrgsOpen, setActiveOrgsOpen]     = useState(true);
+  const [inactiveOrgsOpen, setInactiveOrgsOpen] = useState(true);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [distBankFilter, setDistBankFilter] = useState<string | null>(null);
   const supabaseRef = useState(() => createClient())[0];
@@ -261,6 +408,8 @@ export default function SuperAdminDashboard() {
       brand_secondary: org.brand_secondary || '#8b5cf6',
       brand_accent: org.brand_accent || '#f59e0b',
       allow_multiple_pending_essays: org.allow_multiple_pending_essays ?? false,
+      billing_enabled: org.billing_enabled ?? true,
+      is_active: org.is_active ?? true,
     });
     setOrgSettingsModal({ open: true, org });
   }
@@ -338,6 +487,8 @@ export default function SuperAdminDashboard() {
         brand_secondary: settingsForm.brand_secondary,
         brand_accent: settingsForm.brand_accent,
         allow_multiple_pending_essays: settingsForm.allow_multiple_pending_essays,
+        billing_enabled: settingsForm.billing_enabled,
+        is_active: settingsForm.is_active,
       };
       const res = await fetch(`/api/admin/b2b/organizations/${orgSettingsModal.org.id}`, {
         method: 'PATCH',
@@ -400,6 +551,8 @@ export default function SuperAdminDashboard() {
   const { health, financial, infrastructure } = stats || {};
   const dbUsagePercent = infrastructure?.db_size_bytes ? (infrastructure.db_size_bytes / SUPABASE_FREE_LIMIT) * 100 : 0;
   const dbSizeMB = infrastructure?.db_size_bytes ? (infrastructure.db_size_bytes / 1024 / 1024).toFixed(1) : "0";
+  const activeOrgs = orgs.filter(o => !o.is_mock && o.is_active !== false);
+  const inactiveOrgs = orgs.filter(o => o.is_mock || o.is_active === false);
 
   return (
     <div className="p-4 md:p-8 space-y-6 md:space-y-8 bg-slate-50/50 dark:bg-slate-900/50 min-h-screen font-sans text-slate-900 dark:text-slate-100 overflow-x-hidden">
@@ -466,7 +619,7 @@ export default function SuperAdminDashboard() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-4">
         {([
           { label: 'Alunos B2B', value: b2bStats?.total_students ?? 0, prev: null,                                 icon: Users,         accentColor: '#2563eb' },
-          { label: 'Parceiros',  value: orgs.length,                    prev: null,                                 icon: GraduationCap, accentColor: '#4f46e5' },
+          { label: 'Parceiros',  value: activeOrgs.length,               prev: null,                                 icon: GraduationCap, accentColor: '#4f46e5' },
           { label: 'Ativos',     value: b2bStats?.active_period ?? 0,   prev: b2bStats?.prev_active_period ?? null, icon: Activity,      accentColor: '#059669' },
         ] as const).map(({ label, value, prev, icon: Icon, accentColor }) => {
           const hasPrev = prev !== null && !!STATS_PERIOD_MAP[orgPeriod];
@@ -494,7 +647,7 @@ export default function SuperAdminDashboard() {
       )}
 
       {/* ── Tempo de Uso da Plataforma ─────────────────────────────────────── */}
-      <UsageTimeCard orgs={orgs.map((o) => ({ id: o.id, name: o.name }))} />
+      <UsageTimeCard orgs={activeOrgs.map((o) => ({ id: o.id, name: o.name }))} />
 
       {/* ── Horários de Pico ───────────────────────────────────────────────── */}
       <PeakHoursCard />
@@ -502,9 +655,13 @@ export default function SuperAdminDashboard() {
       {/* ── Gestão de Parceiros ────────────────────────────────────────────── */}
       <div className="pt-2">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
-            <GraduationCap className="w-5 h-5 text-indigo-500" /> Parceiros ({orgs.length})
-          </h2>
+          <button
+            onClick={() => setActiveOrgsOpen(v => !v)}
+            className="flex items-center gap-2 text-xl font-bold text-slate-900 dark:text-slate-100 hover:opacity-80 transition-opacity"
+          >
+            <GraduationCap className="w-5 h-5 text-indigo-500" /> Parceiros ({activeOrgs.length})
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${activeOrgsOpen ? 'rotate-180' : ''}`} />
+          </button>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Seletor de período */}
             <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 gap-0.5">
@@ -556,96 +713,46 @@ export default function SuperAdminDashboard() {
           );
         })()}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {orgs.map((org) => {
-            const plan = PLAN_LABELS[org.plan_tier] ?? { label: org.plan_tier, cls: 'bg-slate-100 text-slate-600' };
-            const fillPct = Math.round((org.student_count / org.max_students) * 100);
-            const p = b2bStats?.per_org?.find(x => x.org_id === org.id);
-            const hasPrev = !!STATS_PERIOD_MAP[orgPeriod];
-            return (
-              <ElevatedCard key={org.id} accentColor={org.is_mock ? '#F59E0B' : org.brand_primary}>
-                <CardContent className="p-4">
-                  {/* Cabeçalho */}
-                  <div className="flex items-start gap-3 mb-3">
-                    {org.logo_url ? (
-                      <img src={org.logo_url} alt={org.name} className="w-10 h-10 rounded-lg object-contain border border-slate-100 dark:border-zinc-700 bg-white shrink-0" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ backgroundColor: org.brand_primary }}>
-                        {org.name[0]}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{org.name}</p>
-                      <p className="text-xs text-slate-400 dark:text-zinc-500">/{org.slug}</p>
-                    </div>
-                    {org.is_mock && (
-                      <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">Demo</span>
-                    )}
-                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${plan.cls}`}>{plan.label}</span>
-                    <button
-                      onClick={() => openOrgSettings(org)}
-                      title="Configurações da instituição"
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors"
-                    >
-                      <Settings className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+        {activeOrgsOpen && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {activeOrgs.map((org) => (
+              <OrgCard
+                key={org.id}
+                org={org}
+                perOrgStats={b2bStats?.per_org?.find(x => x.org_id === org.id)}
+                hasPrev={!!STATS_PERIOD_MAP[orgPeriod]}
+                loadingMetrics={loadingMetrics}
+                onOpenSettings={openOrgSettings}
+              />
+            ))}
+          </div>
+        )}
 
-                  {/* Capacidade + Mensalidade */}
-                  <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
-                    <div className="bg-slate-50 dark:bg-zinc-800 rounded-lg px-2.5 py-1.5">
-                      <p className="text-slate-400 font-medium">Alunos</p>
-                      <p className="font-bold text-slate-700 dark:text-slate-200">{org.student_count} / {org.max_students}</p>
-                      <div className="mt-1 h-1 bg-slate-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${fillPct > 90 ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${Math.min(fillPct, 100)}%` }} />
-                      </div>
-                    </div>
-                    <div className="bg-slate-50 dark:bg-zinc-800 rounded-lg px-2.5 py-1.5">
-                      <p className="text-slate-400 font-medium">Mensalidade</p>
-                      <p className="font-bold text-slate-700 dark:text-slate-200">
-                        {org.monthly_value ? `R$ ${Number(org.monthly_value).toFixed(0)}` : '—'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Métricas do período */}
-                  <div className={`grid grid-cols-2 lg:grid-cols-4 gap-1.5 mb-3 text-xs transition-opacity ${loadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
-                    {[
-                      { label: 'Questões',  value: p?.questions_period,  prev: p?.prev_questions_period,  color: 'text-blue-600 dark:text-blue-400'     },
-                      { label: 'Simulados', value: p?.simulados_period,  prev: p?.prev_simulados_period,  color: 'text-violet-600 dark:text-violet-400' },
-                      { label: 'Ativos',    value: p?.active_period,     prev: p?.prev_active_period,     color: 'text-emerald-600 dark:text-emerald-400'},
-                      { label: 'Redações',  value: p?.essays_period,     prev: p?.prev_essays_period,     color: 'text-amber-600 dark:text-amber-400'   },
-                    ].map(({ label, value, prev, color }) => (
-                      <div key={label} className="bg-slate-50 dark:bg-zinc-800 rounded-lg px-1.5 py-1.5 text-center">
-                        <p className={`font-bold text-sm ${color}`}>{value ?? '—'}</p>
-                        <p className="text-slate-400 text-[10px] leading-tight mt-0.5">{label}</p>
-                        {hasPrev && value != null && prev != null && (
-                          <div className="flex justify-center mt-0.5">
-                            <DeltaBadge current={value} prev={prev} />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {org.founder && (
-                    <p className="text-[11px] text-slate-400 dark:text-zinc-500 mb-3 truncate">
-                      {org.founder.full_name ?? org.founder.email}
-                    </p>
-                  )}
-
-                  <Link
-                    href={`/partners/${encodeURIComponent(org.slug)}/dashboard`}
-                    target="_blank"
-                    className="flex items-center justify-center gap-1.5 w-full rounded-lg border border-indigo-200 dark:border-indigo-500/30 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> Ver portal
-                  </Link>
-                </CardContent>
-              </ElevatedCard>
-            );
-          })}
-        </div>
+        {inactiveOrgs.length > 0 && (
+          <div className="mt-6 pt-4 border-t border-dashed border-slate-200 dark:border-zinc-700">
+            <button
+              onClick={() => setInactiveOrgsOpen(v => !v)}
+              className="flex items-center gap-2 text-sm font-bold text-slate-400 dark:text-zinc-500 hover:opacity-80 transition-opacity mb-3"
+            >
+              <EyeOff className="w-4 h-4" /> Não ativos/DEMO ({inactiveOrgs.length})
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${inactiveOrgsOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {inactiveOrgsOpen && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 opacity-90">
+              {inactiveOrgs.map((org) => (
+                <OrgCard
+                  key={org.id}
+                  org={org}
+                  perOrgStats={b2bStats?.per_org?.find(x => x.org_id === org.id)}
+                  hasPrev={!!STATS_PERIOD_MAP[orgPeriod]}
+                  loadingMetrics={loadingMetrics}
+                  onOpenSettings={openOrgSettings}
+                />
+              ))}
+            </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Raio-X do Conteúdo ─────────────────────────────────────────────── */}
@@ -675,7 +782,7 @@ export default function SuperAdminDashboard() {
               <CardHeader className="pb-2 space-y-2">
                 <CardTitle className="text-sm font-bold text-slate-500 uppercase">Por Matéria</CardTitle>
                 <div className="flex flex-wrap gap-1">
-                  {[null, ...(dist.by_bank ?? []).map((b: any) => b.name)].map((bank) => (
+                  {[null, ...(dist.by_bank ?? []).map((b) => b.name)].map((bank) => (
                     <button
                       key={bank ?? 'all'}
                       onClick={() => setDistBankFilter(bank)}
@@ -692,14 +799,14 @@ export default function SuperAdminDashboard() {
               </CardHeader>
               <CardContent className="h-60 overflow-y-auto pr-2 custom-scrollbar">
                 {(() => {
-                  const rows: { name: string; count: number }[] =
+                  const rows: DistItem[] =
                     distBankFilter && dist.by_bank_subject?.[distBankFilter]
                       ? dist.by_bank_subject[distBankFilter]
                       : dist.by_subject;
-                  const rowTotal = rows.reduce((acc: number, s: any) => acc + s.count, 0);
+                  const rowTotal = rows.reduce((acc, s) => acc + s.count, 0);
                   return (
                     <div className="space-y-1.5">
-                      {rows.map((s: any) => (
+                      {rows.map((s) => (
                         <div key={s.name} className="flex items-center gap-2 text-sm">
                           <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-center mb-0.5">
@@ -726,7 +833,7 @@ export default function SuperAdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex gap-2 flex-wrap">
-                    {dist.by_difficulty.map((d: any) => (
+                    {dist.by_difficulty.map((d) => (
                       <div key={d.name} className="flex-1 bg-slate-50 dark:bg-slate-800 p-3 rounded text-center border border-slate-100 dark:border-slate-800">
                         <div className="text-2xl font-bold text-slate-800 dark:text-slate-200">{d.count}</div>
                         <div className="text-xs text-slate-500 font-bold uppercase mt-1">{d.name}</div>
@@ -742,7 +849,7 @@ export default function SuperAdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {dist.by_year.slice(0, 5).map((y: any) => (
+                    {dist.by_year.slice(0, 5).map((y) => (
                       <div key={y.name} className="flex items-center gap-3">
                         <span className="text-sm font-bold w-12 text-slate-600 dark:text-slate-400">{y.name}</span>
                         <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -763,8 +870,8 @@ export default function SuperAdminDashboard() {
               </CardHeader>
               <CardContent>
                 {(() => {
-                  const banks: { name: string; count: number }[] = dist.by_bank ?? [];
-                  const bankTotal = banks.reduce((acc: number, b: any) => acc + b.count, 0);
+                  const banks: DistItem[] = dist.by_bank ?? [];
+                  const bankTotal = banks.reduce((acc, b) => acc + b.count, 0);
                   const BANK_COLORS: Record<string, string> = {
                     ENEM: 'bg-blue-500',
                     UFU:  'bg-violet-500',
@@ -774,7 +881,7 @@ export default function SuperAdminDashboard() {
                     <div className="space-y-4">
                       {/* Stacked bar */}
                       <div className="flex h-3 rounded-full overflow-hidden gap-0.5">
-                        {banks.map((b: any) => (
+                        {banks.map((b) => (
                           <div
                             key={b.name}
                             className={`${BANK_COLORS[b.name] ?? 'bg-slate-400'} transition-all`}
@@ -785,7 +892,7 @@ export default function SuperAdminDashboard() {
                       </div>
                       {/* Legenda */}
                       <div className="space-y-4">
-                        {banks.map((b: any) => {
+                        {banks.map((b) => {
                           const pct = bankTotal > 0 ? (b.count / bankTotal) * 100 : 0;
                           const pctLabel = pct.toFixed(1);
                           return (
@@ -878,6 +985,7 @@ export default function SuperAdminDashboard() {
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-zinc-800">
                 <div className="flex items-center gap-3">
                   {settingsForm.logo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- logo_url é uma URL externa arbitrária colada pelo admin, fora dos remotePatterns do next/image
                     <img src={settingsForm.logo_url} alt="" className="w-9 h-9 rounded-lg object-contain border border-slate-100 dark:border-zinc-700 bg-white" />
                   ) : (
                     <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: settingsForm.brand_primary }}>
@@ -952,8 +1060,35 @@ export default function SuperAdminDashboard() {
                         value={settingsForm.monthly_value}
                         onChange={e => setSettingsForm(f => ({ ...f, monthly_value: e.target.value }))}
                         placeholder="0"
-                        className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400"
+                        disabled={!settingsForm.billing_enabled}
+                        className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50 dark:disabled:bg-zinc-800"
                       />
+                    </div>
+                    <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2">
+                      <label className="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50 px-4 py-3 cursor-pointer">
+                        <div
+                          onClick={() => setSettingsForm(f => ({ ...f, billing_enabled: !f.billing_enabled }))}
+                          className={`w-9 h-5 rounded-full relative transition-colors cursor-pointer shrink-0 ${settingsForm.billing_enabled ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-zinc-600'}`}
+                        >
+                          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${settingsForm.billing_enabled ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Faturar?</p>
+                          <p className="text-[11px] text-slate-400">Quando desativado, a mensalidade não é cobrada e some do card desta instituição.</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50 px-4 py-3 cursor-pointer">
+                        <div
+                          onClick={() => setSettingsForm(f => ({ ...f, is_active: !f.is_active }))}
+                          className={`w-9 h-5 rounded-full relative transition-colors cursor-pointer shrink-0 ${settingsForm.is_active ? 'bg-indigo-500' : 'bg-slate-300 dark:bg-zinc-600'}`}
+                        >
+                          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${settingsForm.is_active ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Cliente Ativo?</p>
+                          <p className="text-[11px] text-slate-400">Quando desativado, a instituição sai dos KPIs agregados e passa para a seção &quot;Não ativos/DEMO&quot; abaixo.</p>
+                        </div>
+                      </label>
                     </div>
                   </div>
                 </section>
@@ -964,6 +1099,7 @@ export default function SuperAdminDashboard() {
                     <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Founder</p>
                     <div className="flex items-center gap-3 rounded-xl border border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50 px-4 py-3">
                       {org.founder.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- avatar_url pode vir de fora do Supabase Storage (ex: provider OAuth), fora dos remotePatterns do next/image
                         <img src={org.founder.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-zinc-600" />
                       ) : (
                         <div className="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-600 font-bold text-sm">
