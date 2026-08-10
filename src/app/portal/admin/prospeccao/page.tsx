@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
-import { Target, MapPin, Download, List, LayoutGrid, Plus } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import Link from 'next/link';
+import { Target, MapPin, Download, List, LayoutGrid, Plus, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLeads, useLeadsStats, reloadAllLeadsData } from './hooks/useLeads';
 import { KPICards } from './components/KPICards';
@@ -11,7 +12,7 @@ import { KanbanBoard } from './components/KanbanBoard';
 import { LeadDrawer } from './components/LeadDrawer';
 import { ImportModal } from './components/ImportModal';
 import { CreateLeadModal } from './components/CreateLeadModal';
-import type { Lead, LeadFilters } from './types';
+import type { LeadFilters } from './types';
 
 const EMPTY_FILTERS: LeadFilters = {
   uf: '',
@@ -26,19 +27,16 @@ type View = 'table' | 'kanban';
 export default function ProspeccaoPage() {
   const [view, setView] = useState<View>('table');
   const [filters, setFilters] = useState<LeadFilters>(EMPTY_FILTERS);
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
   const { leads, isLoading: leadsLoading, error } = useLeads(filters);
   const { stats, isLoading: statsLoading } = useLeadsStats();
 
-  // Mantém o drawer sincronizado quando o SWR revalida os dados
-  useEffect(() => {
-    if (!selectedLead) return;
-    const fresh = leads.find((l) => l.id === selectedLead.id);
-    if (fresh) setSelectedLead(fresh);
-  }, [leads]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Derivado da lista (não guardado à parte) — assim o drawer sempre reflete o
+  // dado mais recente do SWR sem precisar de um efeito pra "sincronizar" os dois.
+  const selectedLead = selectedLeadId ? (leads.find((l) => l.id === selectedLeadId) ?? null) : null;
 
   // Client-side filtering for kanban (SWR já filtra na tabela via query string,
   // mas o Kanban precisa de todos os leads sem filtros de UF/status para as colunas)
@@ -62,12 +60,6 @@ export default function ProspeccaoPage() {
   }
 
   function handleLeadUpdate() {
-    reloadAllLeadsData();
-    // Refresh selected lead from updated list (will sync on re-render via SWR)
-  }
-
-  function handleLeadDelete() {
-    setSelectedLead(null);
     reloadAllLeadsData();
   }
 
@@ -104,6 +96,14 @@ export default function ProspeccaoPage() {
         </div>
 
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <Link
+            href="/portal/admin/prospeccao/automacao"
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-sm font-semibold text-slate-600 dark:text-zinc-300 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <Bot className="w-4 h-4" />
+            Automação WhatsApp
+          </Link>
+
           <button
             onClick={handleExportCSV}
             className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-sm font-semibold text-slate-600 dark:text-zinc-300 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
@@ -177,7 +177,7 @@ export default function ProspeccaoPage() {
           isLoading={leadsLoading}
           error={error}
           totalLeads={totalLeads}
-          onSelectLead={setSelectedLead}
+          onSelectLead={(lead) => setSelectedLeadId(lead.id)}
           onLeadUpdate={handleLeadUpdate}
           onImportClick={() => setImportOpen(true)}
           onClearFilters={handleClearFilters}
@@ -185,7 +185,7 @@ export default function ProspeccaoPage() {
       ) : (
         <KanbanBoard
           leads={filteredLeads}
-          onSelectLead={setSelectedLead}
+          onSelectLead={(lead) => setSelectedLeadId(lead.id)}
           onLeadUpdate={handleLeadUpdate}
         />
       )}
@@ -194,11 +194,8 @@ export default function ProspeccaoPage() {
       {selectedLead && (
         <LeadDrawer
           lead={selectedLead}
-          onClose={() => setSelectedLead(null)}
-          onLeadUpdate={() => {
-            handleLeadUpdate();
-            // Atualizar o lead selecionado com dados frescos quando SWR revalidar
-          }}
+          onClose={() => setSelectedLeadId(null)}
+          onLeadUpdate={handleLeadUpdate}
         />
       )}
 

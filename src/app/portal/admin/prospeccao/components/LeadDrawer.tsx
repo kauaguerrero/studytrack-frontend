@@ -27,6 +27,8 @@ import {
   apiAddContact,
   apiCreateMockOrg,
   apiConvertLead,
+  apiGetWhatsappMessages,
+  type LeadWhatsappMessage,
 } from '../hooks/useLeads';
 import { STATUS_CONFIG } from './LeadsTable';
 import type {
@@ -108,11 +110,25 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
   const [savingObs, setSavingObs] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
   const [obsText, setObsText] = useState(lead.observacoes ?? '');
+  const [waMessages, setWaMessages] = useState<LeadWhatsappMessage[]>([]);
+  const [waLoading, setWaLoading] = useState(false);
 
   // Sincroniza obsText quando o lead é refreshado pelo pai (após salvar)
   useEffect(() => {
     setObsText(lead.observacoes ?? '');
   }, [lead.observacoes]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setWaLoading(true);
+    apiGetWhatsappMessages(lead.id)
+      .then(({ messages }) => !cancelled && setWaMessages(messages))
+      .catch(() => !cancelled && setWaMessages([]))
+      .finally(() => !cancelled && setWaLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [lead.id]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setIsOpen(true));
@@ -460,6 +476,37 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
               )}
             </div>
           </div>
+
+          {/* Conversa automática do bot de WhatsApp (se houver) */}
+          {(waLoading || waMessages.length > 0) && (
+            <div className="space-y-2">
+              <p className={labelCls}>Conversa automática (bot) {waMessages.length > 0 && `(${waMessages.length})`}</p>
+              <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-200 dark:border-zinc-700 p-3 space-y-2 bg-slate-50 dark:bg-zinc-950">
+                {waLoading ? (
+                  <p className="text-xs text-slate-400 dark:text-zinc-500 text-center py-2">Carregando...</p>
+                ) : (
+                  waMessages.map((m) => (
+                    <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-start' : 'justify-end'}`}>
+                      <div
+                        className={`max-w-[80%] rounded-xl px-3 py-1.5 text-xs ${
+                          m.direction === 'outbound'
+                            ? 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700'
+                            : 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-200'
+                        }`}
+                      >
+                        {m.direction === 'outbound' && m.node_title && (
+                          <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500 mb-0.5">
+                            {m.node_title}
+                          </p>
+                        )}
+                        <p className="whitespace-pre-wrap">{m.body}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Histórico de abordagens */}
           <div className="space-y-3">

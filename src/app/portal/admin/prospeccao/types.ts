@@ -64,6 +64,12 @@ export interface Lead {
   updated_at: string;
   // Relações
   lead_contacts: LeadContact[];
+  // Automação WhatsApp (sessão ativa do fluxo, se houver) — ausente em respostas
+  // que não fazem essa junção (ex. PATCH de status/observações).
+  automation?: {
+    node_title: string | null;
+    session_status: 'ativo' | 'aguardando_humano' | 'assumido' | null;
+  } | null;
 }
 
 export interface LeadsStats {

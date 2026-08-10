@@ -102,6 +102,23 @@ export async function apiCreateLead(body: {
   });
 }
 
+export async function apiGetLead(id: string): Promise<{ lead: Lead }> {
+  return fetchJSON(`${LEADS_BASE}/${id}`);
+}
+
+export interface LeadWhatsappMessage {
+  id: string;
+  direction: 'inbound' | 'outbound';
+  body: string;
+  node_id: string | null;
+  node_title: string | null;
+  created_at: string;
+}
+
+export async function apiGetWhatsappMessages(leadId: string): Promise<{ messages: LeadWhatsappMessage[] }> {
+  return fetchJSON(`${LEADS_BASE}/${leadId}/whatsapp-messages`);
+}
+
 export async function apiDeleteLead(id: string): Promise<void> {
   const res = await fetch(`${LEADS_BASE}/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
