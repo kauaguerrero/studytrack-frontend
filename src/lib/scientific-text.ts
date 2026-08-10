@@ -45,7 +45,7 @@ const UNIT_EXPONENT_RE = new RegExp(
   `(^|[^A-Za-z0-9_])(${UNIT_PATTERN})(\\s*)([23])(?=(?:[.,;:)\\]/]|\\s|$))`,
   'g'
 );
-const MATH_SEGMENT_RE = /(\$\$[\s\S]+?(?<!\\)\$\$|(?<![\\A-Za-z0-9])\$(?!\$)[^$\n|]+?(?<!\\)\$)/g;
+const MATH_SEGMENT_RE = /(\$\$[\s\S]+?(?<!\\)\$\$|(?<![\\A-Za-z0-9])\$(?!\$)[^$\n]+?(?<!\\)\$)/g;
 
 function toSubscriptDigits(value: string): string {
   return value.replace(/\d/g, (digit) => SUBSCRIPT_DIGITS[digit] || digit);

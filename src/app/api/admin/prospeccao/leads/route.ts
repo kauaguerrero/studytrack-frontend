@@ -67,9 +67,34 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Enrich with WhatsApp automation session (nó atual do fluxo, se houver)
+  const leadIds = leads.map((l) => l.id as string);
+  let automationByLeadId = new Map<string, { node_title: string | null; session_status: string | null }>();
+  if (leadIds.length > 0) {
+    const { data: sessions } = await db
+      .from('prospeccao_whatsapp_sessions')
+      .select('lead_id, status, current_node_id')
+      .in('lead_id', leadIds);
+
+    const nodeIds = [...new Set((sessions ?? []).map((s: { current_node_id: string }) => s.current_node_id).filter(Boolean))];
+    let nodeTitleById = new Map<string, string>();
+    if (nodeIds.length > 0) {
+      const { data: nodes } = await db.from('prospeccao_flow_nodes').select('id, title').in('id', nodeIds);
+      nodeTitleById = new Map((nodes ?? []).map((n: { id: string; title: string }) => [n.id, n.title]));
+    }
+
+    automationByLeadId = new Map(
+      (sessions ?? []).map((s: { lead_id: string; status: string; current_node_id: string }) => [
+        s.lead_id,
+        { node_title: nodeTitleById.get(s.current_node_id) ?? null, session_status: s.status },
+      ])
+    );
+  }
+
   const enriched = leads.map((l) => ({
     ...l,
     org: l.org_id ? (orgsById.get(l.org_id as string) ?? null) : null,
+    automation: automationByLeadId.get(l.id as string) ?? null,
   }));
 
   return NextResponse.json({ leads: enriched });
@@ -112,5 +137,5 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ lead: { ...lead, lead_contacts: [] } }, { status: 201 });
+  return NextResponse.json({ lead: { ...lead, lead_contacts: [], automation: null } }, { status: 201 });
 }

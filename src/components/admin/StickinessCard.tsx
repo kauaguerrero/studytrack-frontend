@@ -34,7 +34,7 @@ interface DauProfile {
   returned_after_days: number | null;
 }
 
-interface HealthData {
+export interface HealthData {
   dau: number;
   mau: number;
   stickiness: number;

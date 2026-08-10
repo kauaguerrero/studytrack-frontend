@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { mutate } from 'swr';
-import { Calendar, Flame, GripVertical, LayoutGrid, Snowflake, Wind } from 'lucide-react';
+import { Bot, Calendar, Flame, GripVertical, LayoutGrid, Snowflake, UserCheck, Wind } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUpdateLead } from '../hooks/useLeads';
 import { STATUS_CONFIG } from './LeadsTable';
@@ -267,6 +267,23 @@ export function KanbanBoard({ leads, onSelectLead, onLeadUpdate }: KanbanBoardPr
                         </span>
                       )}
                     </div>
+
+                    {lead.automation?.node_title && (
+                      <span
+                        className={`mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          lead.automation.session_status === 'aguardando_humano'
+                            ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                            : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'
+                        }`}
+                      >
+                        {lead.automation.session_status === 'aguardando_humano' ? (
+                          <UserCheck className="w-3 h-3" />
+                        ) : (
+                          <Bot className="w-3 h-3" />
+                        )}
+                        {lead.automation.node_title}
+                      </span>
+                    )}
 
                     {lead.next_followup_at && (
                       <div
