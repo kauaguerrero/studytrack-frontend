@@ -7,6 +7,7 @@ import {
   Bot,
   ChevronDown,
   Clock,
+  History,
   Inbox,
   Loader2,
   LogOut,
@@ -50,6 +51,18 @@ function isHeartbeatFresh(lastHeartbeat: string | null): boolean {
   if (!lastHeartbeat) return false;
   return Date.now() - new Date(lastHeartbeat).getTime() < 30_000;
 }
+
+// Cor/tag por categoria do evento no terminal — level (warn/error) sempre
+// sobrepõe a cor (âmbar/vermelho), independente da categoria.
+const CATEGORY_META: Record<string, { tag: string; color: string }> = {
+  conexao: { tag: 'CONEXÃO', color: 'text-sky-400' },
+  recebido: { tag: 'RECEBIDO', color: 'text-blue-300' },
+  envio: { tag: 'ENVIO', color: 'text-emerald-400' },
+  fluxo: { tag: 'FLUXO', color: 'text-violet-400' },
+  handoff: { tag: 'HANDOFF', color: 'text-fuchsia-400' },
+  cron: { tag: 'CRON', color: 'text-zinc-500' },
+  sistema: { tag: 'SISTEMA', color: 'text-zinc-300' },
+};
 
 function WorkerCard() {
   const { worker, isLoading } = useWorkerStatus();
@@ -156,16 +169,16 @@ function WorkerCard() {
             {logs.length === 0 ? (
               <p className="text-zinc-600">Aguardando atividade do worker...</p>
             ) : (
-              logs.map((l) => (
-                <p
-                  key={l.id}
-                  className={
-                    l.level === 'error' ? 'text-red-400' : l.level === 'warn' ? 'text-amber-400' : 'text-emerald-400'
-                  }
-                >
-                  <span className="text-zinc-600">{new Date(l.created_at).toLocaleTimeString('pt-BR')}</span> {l.message}
-                </p>
-              ))
+              logs.map((l) => {
+                const meta = CATEGORY_META[l.category] ?? CATEGORY_META.sistema;
+                const color = l.level === 'error' ? 'text-red-400' : l.level === 'warn' ? 'text-amber-400' : meta.color;
+                return (
+                  <p key={l.id} className={color}>
+                    <span className="text-zinc-600">{new Date(l.created_at).toLocaleTimeString('pt-BR')}</span>{' '}
+                    <span className="opacity-60">[{meta.tag}]</span> {l.message}
+                  </p>
+                );
+              })
             )}
           </div>
         </>
@@ -854,12 +867,20 @@ export default function AutomacaoPage() {
           </Link>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Automação via WhatsApp</h1>
         </div>
-        <Link
-          href="/portal/admin/prospeccao/handoff"
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-slate-600 dark:text-zinc-300 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
-        >
-          <Inbox className="w-4 h-4" /> Painel de handoff
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/portal/admin/prospeccao/automacao/historico"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-slate-600 dark:text-zinc-300 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <History className="w-4 h-4" /> Histórico de envios
+          </Link>
+          <Link
+            href="/portal/admin/prospeccao/handoff"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-slate-600 dark:text-zinc-300 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <Inbox className="w-4 h-4" /> Painel de handoff
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">

@@ -10,6 +10,7 @@ import type {
   HandoffItem,
   LeadFilterOptions,
   ManualQueueItem,
+  OutboundHistoryItem,
   WorkerLog,
   WorkerStatus,
 } from '../types';
@@ -22,6 +23,7 @@ const INSIGHTS_KEY = '/api/admin/prospeccao/automacao/insights';
 const HANDOFF_KEY = '/api/admin/prospeccao/automacao/handoff';
 const LEAD_FILTER_OPTIONS_KEY = '/api/admin/prospeccao/automacao/lead-filter-options';
 const MANUAL_QUEUE_KEY = '/api/admin/prospeccao/automacao/manual-queue';
+const OUTBOUND_HISTORY_KEY = '/api/admin/prospeccao/automacao/outbound-history';
 
 async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...init });
@@ -219,4 +221,31 @@ export async function apiDispatchNextInQueue(): Promise<{ dispatched?: string; s
   });
   void mutate(MANUAL_QUEUE_KEY);
   return result;
+}
+
+// ── Histórico de envios (com filtro e exclusão manual) ──────────────────────
+
+export function useOutboundHistory(params: { status?: string; search?: string; limit?: number; offset?: number }) {
+  const qs = new URLSearchParams();
+  if (params.status) qs.set('status', params.status);
+  if (params.search) qs.set('search', params.search);
+  qs.set('limit', String(params.limit ?? 50));
+  qs.set('offset', String(params.offset ?? 0));
+  const key = `${OUTBOUND_HISTORY_KEY}?${qs.toString()}`;
+
+  const { data, error, isLoading } = useSWR<{ items: OutboundHistoryItem[]; total: number }>(key, apiFetcher, {
+    revalidateOnFocus: false,
+  });
+  return {
+    items: data?.items ?? [],
+    total: data?.total ?? 0,
+    isLoading,
+    error: error as Error | undefined,
+    reload: () => mutate((k) => typeof k === 'string' && k.startsWith(OUTBOUND_HISTORY_KEY)),
+  };
+}
+
+export async function apiDeleteOutboundHistory(ids: string[]): Promise<void> {
+  await fetchJSON(OUTBOUND_HISTORY_KEY, { method: 'DELETE', body: JSON.stringify({ ids }) });
+  void mutate((k) => typeof k === 'string' && k.startsWith(OUTBOUND_HISTORY_KEY));
 }
