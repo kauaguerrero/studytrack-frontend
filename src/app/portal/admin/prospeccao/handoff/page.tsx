@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Inbox, MessageCircle, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Inbox, MessageCircle, MessageSquareText, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useHandoff, apiAssumirHandoff } from '../automacao/hooks/useAutomacao';
 import { apiGetLead } from '../hooks/useLeads';
@@ -126,9 +126,9 @@ export default function HandoffPage() {
                         )}
                         <button
                           onClick={() => handleOpenLead(item)}
-                          className="px-2.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-zinc-300 rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-zinc-300 rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800"
                         >
-                          Ver detalhes
+                          <MessageSquareText className="w-3.5 h-3.5" /> Ver conversa
                         </button>
                         <button
                           onClick={() => handleAssumir(item.session_phone)}

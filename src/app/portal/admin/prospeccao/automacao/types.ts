@@ -109,6 +109,26 @@ export interface ManualQueueItem {
   } | null;
 }
 
+export interface OutboundHistoryItem {
+  id: string;
+  lead_id: string;
+  phone: string;
+  body: string;
+  node_id: string | null;
+  node_title: string | null;
+  status: 'pending' | 'sent' | 'failed';
+  wa_message_id: string | null;
+  error_message: string | null;
+  created_at: string;
+  sent_at: string | null;
+  lead: {
+    id: string;
+    razao_social: string;
+    nome_fantasia: string | null;
+    uf: string | null;
+  } | null;
+}
+
 export type WorkerConnectionStatus = 'disconnected' | 'awaiting_qr' | 'connected' | 'error';
 
 export interface WorkerStatus {
@@ -121,10 +141,13 @@ export interface WorkerStatus {
   updated_at: string;
 }
 
+export type WorkerLogCategory = 'conexao' | 'recebido' | 'envio' | 'fluxo' | 'handoff' | 'cron' | 'sistema';
+
 export interface WorkerLog {
   id: number;
   message: string;
   level: 'info' | 'warn' | 'error';
+  category: WorkerLogCategory;
   created_at: string;
 }
 
