@@ -34,7 +34,7 @@ export async function GET() {
   const by_uf: Record<string, number> = {};
 
   const STATUS_EM_ANDAMENTO = new Set([
-    'contatado', 'respondeu', 'demo_agendada', 'proposta_enviada',
+    'contatado', 'respondeu', 'handoff', 'esperando_contato_gestor', 'call_agendado', 'interesse', 'enviar_proposta', 'proposta_enviada',
   ]);
 
   for (const row of rows) {

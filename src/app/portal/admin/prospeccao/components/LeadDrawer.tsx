@@ -66,7 +66,7 @@ const RESPONSE_CONFIG: Record<ContactResponse, { label: string; cls: string }> =
 };
 
 const ACTIVE_STATUSES: LeadStatusCRM[] = [
-  'novo', 'contatado', 'respondeu', 'handoff', 'call_agendado', 'demo_agendada', 'proposta_enviada',
+  'novo', 'contatado', 'respondeu', 'handoff', 'esperando_contato_gestor', 'call_agendado', 'interesse', 'enviar_proposta', 'proposta_enviada',
 ];
 
 function formatDate(v: string | null) {

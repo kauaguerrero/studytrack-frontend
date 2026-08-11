@@ -37,13 +37,21 @@ export const STATUS_CONFIG: Record<
     label: 'Hand-off',
     cls: 'bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-500/10 dark:text-fuchsia-300',
   },
+  esperando_contato_gestor: {
+    label: 'Esperando Contato do Gestor',
+    cls: 'bg-pink-50 text-pink-700 dark:bg-pink-500/10 dark:text-pink-300',
+  },
   call_agendado: {
     label: 'Call/Reunião Marcada',
     cls: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-300',
   },
-  demo_agendada: {
-    label: 'Demo agendada',
+  interesse: {
+    label: 'Interesse',
     cls: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
+  },
+  enviar_proposta: {
+    label: 'Enviar proposta',
+    cls: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400',
   },
   proposta_enviada: {
     label: 'Proposta enviada',
