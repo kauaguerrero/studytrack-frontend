@@ -5,7 +5,6 @@ import { apiFetcher } from '@/lib/api-fetcher';
 import type {
   ActiveSessionItem,
   AutomationConfig,
-  DailyInsight,
   Flow,
   FlowDetail,
   HandoffItem,
@@ -20,7 +19,6 @@ const WORKER_KEY = '/api/admin/prospeccao/automacao/worker';
 const WORKER_LOGS_KEY = '/api/admin/prospeccao/automacao/worker/logs';
 const FLOWS_KEY = '/api/admin/prospeccao/automacao/flows';
 const CONFIG_KEY = '/api/admin/prospeccao/automacao/config';
-const INSIGHTS_KEY = '/api/admin/prospeccao/automacao/insights';
 const HANDOFF_KEY = '/api/admin/prospeccao/automacao/handoff';
 const ACTIVE_SESSIONS_KEY = '/api/admin/prospeccao/automacao/active-sessions';
 const LEAD_FILTER_OPTIONS_KEY = '/api/admin/prospeccao/automacao/lead-filter-options';
@@ -139,18 +137,6 @@ export async function apiPatchConfig(patch: Partial<AutomationConfig>): Promise<
   return result;
 }
 
-// ── Insights diários (Gemini) ───────────────────────────────────────────────
-
-export function useDailyInsights() {
-  const { data, error, isLoading } = useSWR<{ insights: DailyInsight[] }>(INSIGHTS_KEY, apiFetcher, {
-    revalidateOnFocus: false,
-  });
-  return {
-    insights: data?.insights ?? [],
-    isLoading,
-    error: error as Error | undefined,
-  };
-}
 
 // ── Handoff (conversas aguardando ação humana) ─────────────────────────────
 

@@ -19,12 +19,15 @@ export type DetectionConfig =
   | Partial<GeminiDetectionConfig>
   | Partial<ActiveQuestionDetectionConfig>;
 
+export type NodeActionType = 'discard_lead';
+
 export interface FlowNode {
   id: string;
   flow_id?: string;
   title: string;
   message_body: string;
   is_start: boolean;
+  action_type: NodeActionType | null;
   position_x: number;
   position_y: number;
 }
@@ -38,6 +41,7 @@ export interface FlowEdge {
   is_fallback: boolean;
   detection_method: DetectionMethod;
   detection_config: DetectionConfig;
+  traversal_count: number;
 }
 
 export interface Flow {
@@ -68,14 +72,6 @@ export interface AutomationConfig {
   sent_today: number;
   remaining_today: number;
   resets_at: string;
-}
-
-export interface DailyInsight {
-  id: string;
-  insight_date: string;
-  summary_md: string;
-  stats: Record<string, unknown>;
-  created_at: string;
 }
 
 export interface HandoffItem {
@@ -188,6 +184,6 @@ export interface LeadFilterOptions {
 //   PUT  body: Partial<Flow> & { nodes: FlowNode[], edges: FlowEdge[] } → { ok: true }
 //
 // GET/PATCH /api/admin/prospeccao/automacao/config       → { config: AutomationConfig }
-// GET       /api/admin/prospeccao/automacao/insights     → { insights: DailyInsight[] }
+// GET       /api/admin/prospeccao/automacao/export-conversations?start=&end= → arquivo markdown (download)
 // GET       /api/admin/prospeccao/automacao/handoff      → { handoff: HandoffItem[] }
 // POST      /api/admin/prospeccao/automacao/handoff/:phone/assumir → { ok: true }

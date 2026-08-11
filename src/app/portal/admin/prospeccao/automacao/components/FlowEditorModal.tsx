@@ -20,15 +20,26 @@ import {
   type NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { X, Plus, Save, Play, Tag, Sparkles, MessageCircleQuestion, AlertTriangle } from 'lucide-react';
+import { X, Plus, Save, Play, Tag, Sparkles, MessageCircleQuestion, AlertTriangle, UserX, MessageSquare, Zap, Flag } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiGetFlowDetail, apiSaveFlowGraph } from '../hooks/useAutomacao';
-import type { DetectionConfig, DetectionMethod } from '../types';
+import type { DetectionConfig, DetectionMethod, NodeActionType } from '../types';
+
+const ACTION_LABEL: Record<NodeActionType, string> = {
+  discard_lead: 'Descartar lead',
+};
+
+const ACTION_ICON: Record<NodeActionType, typeof UserX> = {
+  discard_lead: UserX,
+};
 
 interface StepNodeData {
   title: string;
   message_body: string;
   is_start: boolean;
+  action_type: NodeActionType | null;
+  // computado a partir das arestas pra colorir visualmente, não vem da API nem é salvo
+  isTerminal?: boolean;
   [key: string]: unknown;
 }
 
@@ -39,6 +50,9 @@ interface EdgeData {
   detection_config: DetectionConfig;
   priority: number;
   is_fallback: boolean;
+  traversal_count: number;
+  // computado entre arestas irmãs (mesmo nó de origem) pra destacar a mais tomada
+  isTopSibling?: boolean;
   [key: string]: unknown;
 }
 
@@ -57,11 +71,17 @@ const METHOD_LABEL: Record<DetectionMethod, string> = {
 };
 
 function StepNodeCard({ data, selected }: NodeProps<StepNode>) {
+  const isAction = !!data.action_type;
+  const ActionIcon = data.action_type ? ACTION_ICON[data.action_type] : null;
+  const borderCls = selected
+    ? 'border-violet-500'
+    : data.isTerminal
+      ? 'border-fuchsia-400 dark:border-fuchsia-600'
+      : 'border-slate-200 dark:border-zinc-700';
+
   return (
     <div
-      className={`w-56 rounded-xl border-2 bg-white dark:bg-zinc-900 shadow-md px-3 py-2.5 transition-colors ${
-        selected ? 'border-violet-500' : 'border-slate-200 dark:border-zinc-700'
-      }`}
+      className={`w-56 rounded-xl border-2 bg-white dark:bg-zinc-900 shadow-md px-3 py-2.5 transition-colors ${borderCls}`}
     >
       <Handle
         type="target"
@@ -69,15 +89,33 @@ function StepNodeCard({ data, selected }: NodeProps<StepNode>) {
         className="!bg-slate-400 !w-2.5 !h-2.5 !border-2 !border-white dark:!border-zinc-900"
         title="Arraste daqui pra puxar uma conexão, ou solte aqui pra receber uma"
       />
-      {data.is_start && (
-        <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300">
-          <Play className="w-2.5 h-2.5" /> Início
-        </span>
-      )}
+      <div className="flex items-center gap-1.5 flex-wrap mb-1">
+        {data.is_start && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300">
+            <Play className="w-2.5 h-2.5" /> Início
+          </span>
+        )}
+        {data.isTerminal && !isAction && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-fuchsia-100 dark:bg-fuchsia-900/40 px-2 py-0.5 text-[10px] font-bold uppercase text-fuchsia-700 dark:text-fuchsia-300">
+            <Flag className="w-2.5 h-2.5" /> Fim (Hand-off)
+          </span>
+        )}
+        {isAction && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 dark:bg-orange-900/40 px-2 py-0.5 text-[10px] font-bold uppercase text-orange-700 dark:text-orange-300">
+            <Zap className="w-2.5 h-2.5" /> Ação
+          </span>
+        )}
+      </div>
       <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{data.title || 'Passo sem título'}</p>
-      <p className="text-xs text-slate-500 dark:text-zinc-400 line-clamp-2 mt-0.5">
-        {data.message_body || <span className="italic">sem mensagem</span>}
-      </p>
+      {isAction && ActionIcon ? (
+        <p className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400 mt-0.5">
+          <ActionIcon className="w-3.5 h-3.5 shrink-0" /> {ACTION_LABEL[data.action_type as NodeActionType]}
+        </p>
+      ) : (
+        <p className="text-xs text-slate-500 dark:text-zinc-400 line-clamp-2 mt-0.5">
+          {data.message_body || <span className="italic">sem mensagem</span>}
+        </p>
+      )}
       <Handle
         type="source"
         position={Position.Bottom}
@@ -120,7 +158,7 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
             id: n.id,
             type: 'step',
             position: { x: n.position_x, y: n.position_y },
-            data: { title: n.title, message_body: n.message_body, is_start: n.is_start },
+            data: { title: n.title, message_body: n.message_body, is_start: n.is_start, action_type: n.action_type ?? null },
           }))
         );
         setEdges(
@@ -135,6 +173,7 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
               detection_config: e.detection_config,
               priority: e.priority,
               is_fallback: e.is_fallback,
+              traversal_count: e.traversal_count ?? 0,
             },
           }))
         );
@@ -162,7 +201,7 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
           id: newId(),
           type: 'smoothstep',
           label: METHOD_LABEL.keyword,
-          data: { detection_method: 'keyword', detection_config: { keywords: [] }, priority: eds.length, is_fallback: false },
+          data: { detection_method: 'keyword', detection_config: { keywords: [] }, priority: eds.length, is_fallback: false, traversal_count: 0 },
         },
         eds
       )
@@ -177,7 +216,7 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
         id,
         type: 'step',
         position: { x: 120 + nds.length * 40, y: 120 + nds.length * 30 },
-        data: { title: 'Novo passo', message_body: '', is_start: nds.length === 0 },
+        data: { title: 'Novo passo', message_body: '', is_start: nds.length === 0, action_type: null },
       },
     ]);
     setSelectedNodeId(id);
@@ -242,6 +281,48 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
     return list;
   }, [nodes, edges]);
 
+  // Nós sem nenhuma aresta de saída são fim de fluxo — é ali que o handoff
+  // acontece (_advance_session em prospeccao_whatsapp_service.py). Colore
+  // roxo/fúcsia só pra visualização, não é salvo.
+  const displayNodes = useMemo(() => {
+    const hasOutgoing = new Set(edges.map((e) => e.source));
+    return nodes.map((n) => ({
+      ...n,
+      data: { ...n.data, isTerminal: !hasOutgoing.has(n.id) },
+    }));
+  }, [nodes, edges]);
+
+  // Contador visual de quantas vezes o fluxo real passou por cada aresta
+  // (traversal_count, vindo do backend) — e destaque na mais tomada entre
+  // arestas que saem do mesmo nó (decisão com 2+ opções).
+  const displayEdges = useMemo(() => {
+    const bySource = new Map<string, StepEdge[]>();
+    for (const e of edges) {
+      bySource.set(e.source, [...(bySource.get(e.source) ?? []), e]);
+    }
+    const topIds = new Set<string>();
+    for (const siblings of bySource.values()) {
+      if (siblings.length < 2) continue;
+      const maxCount = Math.max(...siblings.map((e) => e.data?.traversal_count ?? 0));
+      if (maxCount <= 0) continue;
+      for (const e of siblings) {
+        if ((e.data?.traversal_count ?? 0) === maxCount) topIds.add(e.id);
+      }
+    }
+    return edges.map((e) => {
+      const count = e.data?.traversal_count ?? 0;
+      const isTop = topIds.has(e.id);
+      const baseLabel = typeof e.label === 'string' ? e.label : '';
+      return {
+        ...e,
+        label: count > 0 ? `${baseLabel} · ${count}x` : baseLabel,
+        style: isTop ? { stroke: '#059669', strokeWidth: 2.5 } : undefined,
+        labelStyle: isTop ? { fontWeight: 700, fill: '#059669' } : undefined,
+        data: { ...e.data!, isTopSibling: isTop },
+      };
+    });
+  }, [edges]);
+
   async function handleSave() {
     const starts = nodes.filter((n) => n.data.is_start);
     if (starts.length !== 1) {
@@ -256,6 +337,7 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
           title: n.data.title,
           message_body: n.data.message_body,
           is_start: n.data.is_start,
+          action_type: n.data.action_type,
           position_x: n.position.x,
           position_y: n.position.y,
         })),
@@ -321,8 +403,8 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
           <div className="flex h-full items-center justify-center text-sm text-slate-400 dark:text-zinc-500">Carregando fluxo...</div>
         ) : (
           <ReactFlow<StepNode, StepEdge>
-            nodes={nodes}
-            edges={edges}
+            nodes={displayNodes}
+            edges={displayEdges}
             nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
@@ -355,7 +437,12 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
               position="bottom-right"
               className="!m-3 !rounded-xl !border !border-slate-200 dark:!border-zinc-700 !bg-white dark:!bg-zinc-900 !shadow-lg overflow-hidden"
               maskColor="rgba(15, 23, 42, 0.06)"
-              nodeColor={(n) => ((n.data as { is_start?: boolean } | undefined)?.is_start ? '#10b981' : '#8b5cf6')}
+              nodeColor={(n) => {
+                const d = n.data as { is_start?: boolean; isTerminal?: boolean } | undefined;
+                if (d?.is_start) return '#10b981';
+                if (d?.isTerminal) return '#d946ef';
+                return '#8b5cf6';
+              }}
               nodeStrokeWidth={0}
               nodeBorderRadius={4}
               style={{ width: 160, height: 110 }}
@@ -424,23 +511,73 @@ function NodeConfigPanel({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  const isAction = !!data.action_type;
+
   return (
     <SidePanel title="Passo" onClose={onClose} onDelete={onDelete}>
       <div>
         <label className={labelCls}>Título</label>
         <input value={data.title} onChange={(e) => onChange({ title: e.target.value })} className={inputCls} placeholder="Ex: Abertura" />
       </div>
+
       <div>
-        <label className={labelCls}>Mensagem enviada ao lead</label>
-        <textarea
-          value={data.message_body}
-          onChange={(e) => onChange({ message_body: e.target.value })}
-          rows={5}
-          className={`${inputCls} resize-none`}
-          placeholder="Boa tarde, tudo bem?"
-        />
-        <p className="text-[11px] text-slate-400 dark:text-zinc-500 mt-1">Deixe em branco pra um passo que só roteia, sem mandar mensagem.</p>
+        <label className={labelCls}>Tipo de passo</label>
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            onClick={() => onChange({ action_type: null })}
+            className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-semibold transition-colors ${
+              !isAction
+                ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
+                : 'border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" /> Mensagem
+          </button>
+          <button
+            onClick={() => onChange({ action_type: 'discard_lead', message_body: '' })}
+            className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-semibold transition-colors ${
+              isAction
+                ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
+                : 'border-slate-200 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800'
+            }`}
+          >
+            <Zap className="w-4 h-4" /> Ação
+          </button>
+        </div>
       </div>
+
+      {isAction ? (
+        <div>
+          <label className={labelCls}>Ação a executar</label>
+          <select
+            value={data.action_type ?? 'discard_lead'}
+            onChange={(e) => onChange({ action_type: e.target.value as NodeActionType })}
+            className={inputCls}
+          >
+            {(Object.keys(ACTION_LABEL) as NodeActionType[]).map((a) => (
+              <option key={a} value={a}>
+                {ACTION_LABEL[a]}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mt-1">
+            Executa a ação e encerra o fluxo automático ali mesmo — não manda mensagem, não vai pra handoff.
+          </p>
+        </div>
+      ) : (
+        <div>
+          <label className={labelCls}>Mensagem enviada ao lead</label>
+          <textarea
+            value={data.message_body}
+            onChange={(e) => onChange({ message_body: e.target.value })}
+            rows={5}
+            className={`${inputCls} resize-none`}
+            placeholder="Boa tarde, tudo bem?"
+          />
+          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mt-1">Deixe em branco pra um passo que só roteia, sem mandar mensagem.</p>
+        </div>
+      )}
+
       <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300">
         <input type="checkbox" checked={data.is_start} onChange={(e) => onChange({ is_start: e.target.checked })} />
         Este é o passo inicial do fluxo
