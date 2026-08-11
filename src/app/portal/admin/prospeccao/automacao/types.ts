@@ -94,6 +94,7 @@ export interface ManualQueueItem {
   id: string;
   lead_id: string;
   status: 'pending' | 'sent' | 'skipped' | 'removed';
+  source: 'manual' | 'auto';
   created_at: string;
   processed_at: string | null;
   lead: {
