@@ -4,7 +4,12 @@ import { useState } from 'react';
 import { X, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiCreateLead, reloadAllLeadsData } from '../hooks/useLeads';
+import { STATUS_CONFIG } from './LeadsTable';
 import type { LeadStatusCRM, LeadTemperature } from '../types';
+
+const INITIAL_STATUS_OPTIONS: LeadStatusCRM[] = [
+  'novo', 'contatado', 'respondeu', 'esperando_contato_gestor', 'call_agendado', 'interesse', 'enviar_proposta', 'proposta_enviada',
+];
 
 const inputCls =
   'h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400 dark:focus:border-indigo-500 transition-colors';
@@ -174,13 +179,11 @@ export function CreateLeadModal({ open, onClose }: CreateLeadModalProps) {
               onChange={(e) => setForm((f) => ({ ...f, status_crm: e.target.value as LeadStatusCRM }))}
               className={inputCls}
             >
-              {(['novo', 'contatado', 'respondeu', 'demo_agendada', 'proposta_enviada'] as const).map(
-                (s) => (
-                  <option key={s} value={s}>
-                    {s === 'novo' ? 'Novo' : s === 'contatado' ? 'Contatado' : s === 'respondeu' ? 'Respondeu' : s === 'demo_agendada' ? 'Demo agendada' : 'Proposta enviada'}
-                  </option>
-                )
-              )}
+              {INITIAL_STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {STATUS_CONFIG[s].label}
+                </option>
+              ))}
             </select>
           </div>
 

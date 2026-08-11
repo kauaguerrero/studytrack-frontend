@@ -3,8 +3,10 @@ export type LeadStatusCRM =
   | 'contatado'
   | 'respondeu'
   | 'handoff'
+  | 'esperando_contato_gestor'
   | 'call_agendado'
-  | 'demo_agendada'
+  | 'interesse'
+  | 'enviar_proposta'
   | 'proposta_enviada'
   | 'fechado'
   | 'perdido';
