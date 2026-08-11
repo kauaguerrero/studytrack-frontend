@@ -174,9 +174,9 @@ function WorkerCard() {
   );
 }
 
-// Estimativa client-side de quando o cron.org deve bater de novo — assume um
-// agendamento alinhado a cada 15min (:00/:15/:30/:45). Não temos como saber
-// o agendamento real sem consultar a API do cron.org; isso é só uma referência.
+// Cron.org está configurado pra bater exatamente a cada 15min (:00/:15/:30/:45,
+// horário de Brasília) — calculado aqui no cliente, sem precisar consultar a
+// API do cron.org, já que o agendamento real usa essa mesma marcação.
 function CronCountdown() {
   const { logs } = useWorkerLogs();
   const [now, setNow] = useState(() => new Date());
@@ -199,7 +199,7 @@ function CronCountdown() {
   return (
     <p className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-zinc-500 mb-3">
       <Clock className="w-3 h-3 shrink-0" />
-      Próximo cron (estimado, a cada 15min) em{' '}
+      Próximo cron em{' '}
       <span className="font-mono font-semibold text-slate-600 dark:text-zinc-300">
         {minutesLeft}min{secondsLeft.toString().padStart(2, '0')}s
       </span>
