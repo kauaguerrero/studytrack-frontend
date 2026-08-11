@@ -33,6 +33,14 @@ export const STATUS_CONFIG: Record<
     label: 'Respondeu',
     cls: 'bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300',
   },
+  handoff: {
+    label: 'Hand-off',
+    cls: 'bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-500/10 dark:text-fuchsia-300',
+  },
+  call_agendado: {
+    label: 'Call/Reunião Marcada',
+    cls: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-300',
+  },
   demo_agendada: {
     label: 'Demo agendada',
     cls: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',

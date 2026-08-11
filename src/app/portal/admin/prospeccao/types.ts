@@ -2,6 +2,8 @@ export type LeadStatusCRM =
   | 'novo'
   | 'contatado'
   | 'respondeu'
+  | 'handoff'
+  | 'call_agendado'
   | 'demo_agendada'
   | 'proposta_enviada'
   | 'fechado'

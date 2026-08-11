@@ -10,6 +10,8 @@ const STATUS_OPTIONS: { value: LeadStatusCRM; label: string }[] = [
   { value: 'novo', label: 'Novo' },
   { value: 'contatado', label: 'Contatado' },
   { value: 'respondeu', label: 'Respondeu' },
+  { value: 'handoff', label: 'Hand-off' },
+  { value: 'call_agendado', label: 'Call/Reunião Marcada' },
   { value: 'demo_agendada', label: 'Demo agendada' },
   { value: 'proposta_enviada', label: 'Proposta enviada' },
   { value: 'fechado', label: 'Fechado' },
