@@ -6,12 +6,14 @@ import {
   ArrowLeft,
   Bot,
   ChevronDown,
+  Clock,
   Inbox,
   Loader2,
   LogOut,
   Plus,
   Power,
   QrCode,
+  Send,
   Sparkles,
   Trash2,
   Wifi,
@@ -30,8 +32,13 @@ import {
   apiPatchConfig,
   useDailyInsights,
   useLeadFilterOptions,
+  useManualQueue,
+  apiAddToManualQueue,
+  apiClearManualQueue,
+  apiDispatchNextInQueue,
 } from './hooks/useAutomacao';
 import { FlowEditorModal } from './components/FlowEditorModal';
+import { useLeads } from '../hooks/useLeads';
 import type { Flow } from './types';
 
 const cardCls = 'rounded-2xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5';
@@ -167,6 +174,40 @@ function WorkerCard() {
   );
 }
 
+// Estimativa client-side de quando o cron.org deve bater de novo — assume um
+// agendamento alinhado a cada 15min (:00/:15/:30/:45). Não temos como saber
+// o agendamento real sem consultar a API do cron.org; isso é só uma referência.
+function CronCountdown() {
+  const { logs } = useWorkerLogs();
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const nextMark = new Date(now);
+  nextMark.setSeconds(0, 0);
+  const minutesToAdd = 15 - (nextMark.getMinutes() % 15 || 15);
+  nextMark.setMinutes(nextMark.getMinutes() + (minutesToAdd === 0 ? 15 : minutesToAdd));
+  const msLeft = Math.max(0, nextMark.getTime() - now.getTime());
+  const minutesLeft = Math.floor(msLeft / 60000);
+  const secondsLeft = Math.floor((msLeft % 60000) / 1000);
+
+  const lastCronLog = [...logs].reverse().find((l) => l.message.startsWith('Cron rodou'));
+
+  return (
+    <p className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-zinc-500 mb-3">
+      <Clock className="w-3 h-3 shrink-0" />
+      Próximo cron (estimado, a cada 15min) em{' '}
+      <span className="font-mono font-semibold text-slate-600 dark:text-zinc-300">
+        {minutesLeft}min{secondsLeft.toString().padStart(2, '0')}s
+      </span>
+      {lastCronLog && <span> — último rodou às {new Date(lastCronLog.created_at).toLocaleTimeString('pt-BR')}</span>}
+    </p>
+  );
+}
+
 function ConfigCard() {
   const { config, isLoading, reload } = useAutomationConfig();
   const [saving, setSaving] = useState(false);
@@ -208,6 +249,8 @@ function ConfigCard() {
           Controla quando e com que frequência o bot manda mensagem, pra imitar um comportamento humano e reduzir o risco de o número ser banido.
         </p>
       </div>
+
+      <CronCountdown />
 
       <label
         className={`mb-4 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 cursor-pointer transition-colors ${
@@ -472,6 +515,197 @@ function CreateFlowModal({ open, onClose, onCreated }: { open: boolean; onClose:
   );
 }
 
+function LeadPickerModal({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded: () => void }) {
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState(false);
+  const { leads, isLoading } = useLeads({ uf: '', status: '', has_phone: false, search, temperature: '' });
+
+  if (!open) return null;
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleAdd() {
+    if (selected.size === 0) return;
+    setAdding(true);
+    try {
+      await apiAddToManualQueue([...selected]);
+      toast.success(`${selected.size} lead(s) adicionado(s) à fila`);
+      onAdded();
+      onClose();
+      setSelected(new Set());
+      setSearch('');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao adicionar à fila');
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-6 space-y-3 max-h-[85vh] flex flex-col">
+        <p className="text-base font-bold text-slate-900 dark:text-white">Adicionar lead à fila manual</p>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nome..."
+          className={inputCls}
+          autoFocus
+        />
+        <div className="flex-1 overflow-y-auto space-y-0.5 border border-slate-100 dark:border-zinc-800 rounded-xl p-2 min-h-[240px]">
+          {isLoading ? (
+            <p className="text-sm text-slate-400 dark:text-zinc-500 text-center py-8">Carregando...</p>
+          ) : leads.length === 0 ? (
+            <p className="text-sm text-slate-400 dark:text-zinc-500 text-center py-8">Nenhum lead encontrado</p>
+          ) : (
+            leads.map((lead) => (
+              <label
+                key={lead.id}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-zinc-800 cursor-pointer text-sm"
+              >
+                <input type="checkbox" checked={selected.has(lead.id)} onChange={() => toggle(lead.id)} />
+                <span className="flex-1 min-w-0 truncate text-slate-700 dark:text-zinc-300">
+                  {lead.nome_fantasia ?? lead.razao_social}
+                </span>
+                <span className="text-xs text-slate-400 dark:text-zinc-500 shrink-0">{lead.uf}</span>
+              </label>
+            ))
+          )}
+        </div>
+        <div className="flex justify-between items-center gap-2 pt-1">
+          <p className="text-xs text-slate-400 dark:text-zinc-500">{selected.size} selecionado(s)</p>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleAdd}
+              disabled={adding || selected.size === 0}
+              className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 disabled:opacity-50"
+            >
+              {adding ? 'Adicionando...' : `Adicionar (${selected.size})`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ManualQueueCard() {
+  const { queue, reload } = useManualQueue();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [sendingNext, setSendingNext] = useState(false);
+
+  async function handleClear() {
+    if (queue.length === 0) return;
+    const ok = window.confirm(`Limpar a fila manual? ${queue.length} lead(s) serão removidos — nenhuma mensagem é enviada.`);
+    if (!ok) return;
+    setClearing(true);
+    try {
+      await apiClearManualQueue();
+      toast.success('Fila manual limpa');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao limpar fila');
+    } finally {
+      setClearing(false);
+    }
+  }
+
+  async function handleSendNext() {
+    setSendingNext(true);
+    try {
+      const result = await apiDispatchNextInQueue();
+      if (result.dispatched) {
+        toast.success('Mensagem enviada pro próximo da fila!');
+      } else if (result.skipped === 'fila_vazia') {
+        toast.error('A fila manual está vazia');
+      } else if (result.skipped === 'fora_horario_comercial') {
+        toast.error('Fora do horário comercial configurado');
+      } else if (result.skipped === 'limite_diario_atingido') {
+        toast.error('Limite diário de envios já foi atingido');
+      } else {
+        toast.error(`Lead pulado: ${result.skipped}`);
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao enviar');
+    } finally {
+      setSendingNext(false);
+    }
+  }
+
+  return (
+    <div className={cardCls}>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-sm font-bold text-slate-900 dark:text-white">Fila manual</p>
+          <p className="text-xs text-slate-400 dark:text-zinc-500 mt-0.5">
+            Leads com prioridade — sempre processados no próximo cron, mesmo com a automação em massa desligada.
+          </p>
+        </div>
+        <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">
+          {queue.length}
+        </span>
+      </div>
+
+      <div className="max-h-48 overflow-y-auto space-y-1 mb-3">
+        {queue.length === 0 ? (
+          <p className="text-xs text-slate-400 dark:text-zinc-500 italic py-3 text-center">Fila vazia</p>
+        ) : (
+          queue.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800 text-xs"
+            >
+              <span className="truncate text-slate-700 dark:text-zinc-300">
+                {item.lead?.nome_fantasia ?? item.lead?.razao_social ?? item.lead_id}
+              </span>
+              <span className="text-slate-400 dark:text-zinc-500 shrink-0">{item.lead?.uf}</span>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        <button
+          onClick={() => setPickerOpen(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-zinc-300 rounded-lg border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" /> Adicionar lead
+        </button>
+        <button
+          onClick={handleClear}
+          disabled={clearing || queue.length === 0}
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-50 transition-colors"
+        >
+          <Trash2 className="w-3.5 h-3.5" /> Limpar fila
+        </button>
+        <button
+          onClick={handleSendNext}
+          disabled={sendingNext || queue.length === 0}
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:opacity-50 transition-all ml-auto"
+        >
+          {sendingNext ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} Enviar próximo
+        </button>
+      </div>
+
+      <LeadPickerModal open={pickerOpen} onClose={() => setPickerOpen(false)} onAdded={reload} />
+    </div>
+  );
+}
+
 function filterSummary(flow: Flow): string {
   const entries = Object.entries(flow.filter_config || {});
   if (entries.length === 0) return flow.is_default ? 'Padrão (sem filtro)' : 'Sem filtro';
@@ -614,6 +848,8 @@ export default function AutomacaoPage() {
         <WorkerCard />
         <ConfigCard />
       </div>
+
+      <ManualQueueCard />
 
       <FlowsCard onEdit={setEditingFlow} />
       <InsightsCard />

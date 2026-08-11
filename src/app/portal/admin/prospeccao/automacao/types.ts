@@ -90,6 +90,24 @@ export interface HandoffItem {
   handoff_at: string | null;
 }
 
+export interface ManualQueueItem {
+  id: string;
+  lead_id: string;
+  status: 'pending' | 'sent' | 'skipped' | 'removed';
+  created_at: string;
+  processed_at: string | null;
+  lead: {
+    id: string;
+    razao_social: string;
+    nome_fantasia: string | null;
+    telefone1: string | null;
+    telefone2: string | null;
+    uf: string | null;
+    municipio: string | null;
+    status_crm: string;
+  } | null;
+}
+
 export type WorkerConnectionStatus = 'disconnected' | 'awaiting_qr' | 'connected' | 'error';
 
 export interface WorkerStatus {

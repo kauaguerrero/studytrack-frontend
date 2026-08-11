@@ -9,6 +9,7 @@ import type {
   FlowDetail,
   HandoffItem,
   LeadFilterOptions,
+  ManualQueueItem,
   WorkerLog,
   WorkerStatus,
 } from '../types';
@@ -20,6 +21,7 @@ const CONFIG_KEY = '/api/admin/prospeccao/automacao/config';
 const INSIGHTS_KEY = '/api/admin/prospeccao/automacao/insights';
 const HANDOFF_KEY = '/api/admin/prospeccao/automacao/handoff';
 const LEAD_FILTER_OPTIONS_KEY = '/api/admin/prospeccao/automacao/lead-filter-options';
+const MANUAL_QUEUE_KEY = '/api/admin/prospeccao/automacao/manual-queue';
 
 async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...init });
@@ -180,4 +182,41 @@ export function useLeadFilterOptions(selectedUfs: string[]) {
     isLoading,
     error: error as Error | undefined,
   };
+}
+
+// ── Fila manual de disparo prioritário ─────────────────────────────────────
+
+export function useManualQueue() {
+  const { data, error, isLoading } = useSWR<{ queue: ManualQueueItem[] }>(MANUAL_QUEUE_KEY, apiFetcher, {
+    refreshInterval: 5_000,
+    revalidateOnFocus: false,
+  });
+  return {
+    queue: data?.queue ?? [],
+    isLoading,
+    error: error as Error | undefined,
+    reload: () => mutate(MANUAL_QUEUE_KEY),
+  };
+}
+
+export async function apiAddToManualQueue(leadIds: string[]): Promise<{ added: string[] }> {
+  const result = await fetchJSON<{ added: string[] }>(MANUAL_QUEUE_KEY, {
+    method: 'POST',
+    body: JSON.stringify({ lead_ids: leadIds }),
+  });
+  void mutate(MANUAL_QUEUE_KEY);
+  return result;
+}
+
+export async function apiClearManualQueue(): Promise<void> {
+  await fetchJSON(MANUAL_QUEUE_KEY, { method: 'DELETE' });
+  void mutate(MANUAL_QUEUE_KEY);
+}
+
+export async function apiDispatchNextInQueue(): Promise<{ dispatched?: string; skipped?: string }> {
+  const result = await fetchJSON<{ dispatched?: string; skipped?: string }>(`${MANUAL_QUEUE_KEY}/dispatch-next`, {
+    method: 'POST',
+  });
+  void mutate(MANUAL_QUEUE_KEY);
+  return result;
 }
