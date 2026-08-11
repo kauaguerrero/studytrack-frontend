@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Bot,
   Clock,
+  Download,
   History,
   Inbox,
   Loader2,
@@ -18,7 +19,6 @@ import {
   QrCode,
   Send,
   Settings,
-  Sparkles,
   Sun,
   Trash2,
   Wifi,
@@ -37,7 +37,6 @@ import {
   useAutomationConfig,
   apiPatchConfig,
   useActiveSessions,
-  useDailyInsights,
   useLeadFilterOptions,
   useManualQueue,
   apiAddToManualQueue,
@@ -1004,29 +1003,64 @@ function FlowsCard({ onEdit }: { onEdit: (flow: Flow) => void }) {
   );
 }
 
-function InsightsCard() {
-  const { insights, isLoading } = useDailyInsights();
+function ExportConversationsCard() {
+  const today = new Date().toISOString().slice(0, 10);
+  const [start, setStart] = useState(today);
+  const [end, setEnd] = useState(today);
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload() {
+    if (!start || !end) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/admin/prospeccao/automacao/export-conversations?start=${start}&end=${end}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Erro ao baixar (${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `prospeccao-conversas-${start}_a_${end}.md`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Download iniciado');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao baixar dados');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <div className={cardCls}>
-      <p className="text-sm font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
-        <Sparkles className="w-4 h-4 text-violet-500" /> Insights diários (Gemini)
+      <p className="text-sm font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+        <Download className="w-4 h-4 text-violet-500" /> Exportar conversas
       </p>
-      {isLoading ? (
-        <p className="text-sm text-slate-400 dark:text-zinc-500">Carregando...</p>
-      ) : insights.length === 0 ? (
-        <p className="text-sm text-slate-400 dark:text-zinc-500">Nenhuma síntese gerada ainda.</p>
-      ) : (
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          {insights.map((insight) => (
-            <div key={insight.id} className="rounded-xl border border-slate-100 dark:border-zinc-800 px-3 py-2.5">
-              <p className="text-xs font-bold text-slate-500 dark:text-zinc-400 mb-1">
-                {new Date(insight.insight_date).toLocaleDateString('pt-BR')}
-              </p>
-              <p className="text-sm text-slate-700 dark:text-zinc-300 whitespace-pre-wrap">{insight.summary_md}</p>
-            </div>
-          ))}
+      <p className="text-xs text-slate-400 dark:text-zinc-500 mb-3">
+        Baixa as conversas do bot com os leads no período escolhido, organizadas por lead num arquivo markdown — pra você analisar como quiser.
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className={labelCls}>De</label>
+          <input type="date" value={start} max={end || undefined} onChange={(e) => setStart(e.target.value)} className={inputCls} />
         </div>
-      )}
+        <div>
+          <label className={labelCls}>Até</label>
+          <input type="date" value={end} min={start || undefined} onChange={(e) => setEnd(e.target.value)} className={inputCls} />
+        </div>
+        <button
+          onClick={handleDownload}
+          disabled={downloading || !start || !end}
+          className="h-9 inline-flex items-center gap-1.5 px-3.5 text-sm font-semibold text-white rounded-lg bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 disabled:opacity-50 transition-all"
+        >
+          {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          Baixar dados para análise
+        </button>
+      </div>
     </div>
   );
 }
@@ -1071,7 +1105,7 @@ export default function AutomacaoPage() {
       <ManualQueueCard />
 
       <FlowsCard onEdit={setEditingFlow} />
-      <InsightsCard />
+      <ExportConversationsCard />
 
       {editingFlow && (
         <FlowEditorModal
