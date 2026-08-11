@@ -3,6 +3,7 @@
 import useSWR, { mutate } from 'swr';
 import { apiFetcher } from '@/lib/api-fetcher';
 import type {
+  ActiveSessionItem,
   AutomationConfig,
   DailyInsight,
   Flow,
@@ -21,6 +22,7 @@ const FLOWS_KEY = '/api/admin/prospeccao/automacao/flows';
 const CONFIG_KEY = '/api/admin/prospeccao/automacao/config';
 const INSIGHTS_KEY = '/api/admin/prospeccao/automacao/insights';
 const HANDOFF_KEY = '/api/admin/prospeccao/automacao/handoff';
+const ACTIVE_SESSIONS_KEY = '/api/admin/prospeccao/automacao/active-sessions';
 const LEAD_FILTER_OPTIONS_KEY = '/api/admin/prospeccao/automacao/lead-filter-options';
 const MANUAL_QUEUE_KEY = '/api/admin/prospeccao/automacao/manual-queue';
 const OUTBOUND_HISTORY_KEY = '/api/admin/prospeccao/automacao/outbound-history';
@@ -117,6 +119,7 @@ export async function apiSaveFlowGraph(id: string, body: Partial<Flow> & Record<
 
 export function useAutomationConfig() {
   const { data, error, isLoading } = useSWR<{ config: AutomationConfig }>(CONFIG_KEY, apiFetcher, {
+    refreshInterval: 20_000,
     revalidateOnFocus: false,
   });
   return {
@@ -167,6 +170,20 @@ export function useHandoff() {
 export async function apiAssumirHandoff(phone: string): Promise<void> {
   await fetchJSON(`${HANDOFF_KEY}/${phone}/assumir`, { method: 'POST' });
   void mutate(HANDOFF_KEY);
+}
+
+// ── Sessões ativas (bot ainda conduzindo, sem handoff) ─────────────────────
+
+export function useActiveSessions() {
+  const { data, error, isLoading } = useSWR<{ sessions: ActiveSessionItem[] }>(ACTIVE_SESSIONS_KEY, apiFetcher, {
+    refreshInterval: 10_000,
+    revalidateOnFocus: false,
+  });
+  return {
+    sessions: data?.sessions ?? [],
+    isLoading,
+    error: error as Error | undefined,
+  };
 }
 
 // ── Opções de filtro de leads (seletor cascade do "Novo fluxo") ────────────

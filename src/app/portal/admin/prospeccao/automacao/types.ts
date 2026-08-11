@@ -64,6 +64,10 @@ export interface AutomationConfig {
   send_delay_min_seconds: number;
   send_delay_max_seconds: number;
   daily_send_limit: number;
+  inbound_debounce_seconds: number;
+  sent_today: number;
+  remaining_today: number;
+  resets_at: string;
 }
 
 export interface DailyInsight {
@@ -88,6 +92,22 @@ export interface HandoffItem {
   flow_name: string | null;
   node_title: string | null;
   handoff_at: string | null;
+}
+
+export interface ActiveSessionItem {
+  session_phone: string;
+  lead: {
+    id: string;
+    razao_social: string;
+    nome_fantasia: string | null;
+    telefone1: string | null;
+    telefone2: string | null;
+    uf: string | null;
+    municipio: string | null;
+  } | null;
+  node_title: string | null;
+  created_at: string | null;
+  last_activity: string | null;
 }
 
 export interface ManualQueueItem {
