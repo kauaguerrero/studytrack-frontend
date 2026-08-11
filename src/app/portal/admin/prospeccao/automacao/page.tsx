@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner';
 import {
   useWorkerStatus,
+  useWorkerLogs,
   apiSetWorkerCommand,
   useFlows,
   apiCreateFlow,
@@ -28,6 +29,7 @@ import {
   useAutomationConfig,
   apiPatchConfig,
   useDailyInsights,
+  useLeadFilterOptions,
 } from './hooks/useAutomacao';
 import { FlowEditorModal } from './components/FlowEditorModal';
 import type { Flow } from './types';
@@ -44,11 +46,18 @@ function isHeartbeatFresh(lastHeartbeat: string | null): boolean {
 
 function WorkerCard() {
   const { worker, isLoading } = useWorkerStatus();
+  const { logs } = useWorkerLogs();
   const [busy, setBusy] = useState(false);
   // Some pra esconder o QR na hora do clique — o worker local só processa o
   // 'logout' (e limpa qr_code no banco) no próximo ciclo de polling dele, então
   // não dá pra confiar só no estado vindo do SWR pra sumir o QR imediatamente.
   const [qrHidden, setQrHidden] = useState(false);
+  const terminalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = terminalRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [logs]);
 
   async function toggle(command: 'start' | 'stop' | 'logout') {
     if (command === 'logout') {
@@ -131,6 +140,26 @@ function WorkerCard() {
             >
               <LogOut className="w-4 h-4" /> Cancelar conexão
             </button>
+          </div>
+
+          <div
+            ref={terminalRef}
+            className="mt-3 h-56 overflow-y-auto rounded-xl bg-black border border-zinc-800 p-3 font-mono text-[11px] leading-relaxed"
+          >
+            {logs.length === 0 ? (
+              <p className="text-zinc-600">Aguardando atividade do worker...</p>
+            ) : (
+              logs.map((l) => (
+                <p
+                  key={l.id}
+                  className={
+                    l.level === 'error' ? 'text-red-400' : l.level === 'warn' ? 'text-amber-400' : 'text-emerald-400'
+                  }
+                >
+                  <span className="text-zinc-600">{new Date(l.created_at).toLocaleTimeString('pt-BR')}</span> {l.message}
+                </p>
+              ))
+            )}
           </div>
         </>
       )}
@@ -309,28 +338,72 @@ function ConfigCard() {
   );
 }
 
-const FILTER_FIELDS: { key: string; label: string }[] = [
-  { key: 'uf', label: 'UF' },
-  { key: 'municipio', label: 'Município' },
-  { key: 'temperature', label: 'Temperatura' },
-  { key: 'source_channel', label: 'Canal de origem' },
-];
+const TEMPERATURE_OPTIONS = ['quente', 'morno', 'frio'];
+
+function MultiSelectField({
+  label,
+  options,
+  selected,
+  onChange,
+  emptyHint,
+}: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  emptyHint?: string;
+}) {
+  function toggle(value: string) {
+    onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value]);
+  }
+  return (
+    <div>
+      <label className={labelCls}>
+        {label} {selected.length > 0 && <span className="text-violet-500">({selected.length})</span>}
+      </label>
+      {options.length === 0 ? (
+        <p className="text-xs text-slate-400 dark:text-zinc-500 italic py-1.5">{emptyHint ?? 'Nenhuma opção disponível'}</p>
+      ) : (
+        <div className="max-h-28 overflow-y-auto rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-1.5 space-y-0.5">
+          {options.map((opt) => (
+            <label
+              key={opt}
+              className="flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-slate-50 dark:hover:bg-zinc-800 cursor-pointer text-xs text-slate-700 dark:text-zinc-300"
+            >
+              <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggle(opt)} />
+              {opt}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function CreateFlowModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState('');
   const [isDefault, setIsDefault] = useState(false);
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string[]>>({});
   const [saving, setSaving] = useState(false);
+  const { ufs, municipios, source_channels } = useLeadFilterOptions(filters.uf ?? []);
 
   if (!open) return null;
+
+  function setField(key: string, values: string[]) {
+    setFilters((prev) => {
+      const next = { ...prev, [key]: values };
+      if (key === 'uf') next.municipio = []; // trocou a UF — reseta município (cascade)
+      return next;
+    });
+  }
 
   async function handleCreate() {
     if (!name.trim()) return;
     setSaving(true);
     try {
       const filter_config: Record<string, string[]> = {};
-      for (const [key, value] of Object.entries(filters)) {
-        if (value.trim()) filter_config[key] = value.split(',').map((v) => v.trim()).filter(Boolean);
+      for (const [key, values] of Object.entries(filters)) {
+        if (values.length > 0) filter_config[key] = values;
       }
       await apiCreateFlow({ name: name.trim(), is_default: isDefault, filter_config });
       toast.success('Fluxo criado — configure os passos em "Editar"');
@@ -360,17 +433,26 @@ function CreateFlowModal({ open, onClose, onCreated }: { open: boolean; onClose:
         </label>
         {!isDefault && (
           <div className="grid grid-cols-2 gap-2">
-            {FILTER_FIELDS.map((f) => (
-              <div key={f.key}>
-                <label className={labelCls}>{f.label}</label>
-                <input
-                  value={filters[f.key] ?? ''}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                  className={inputCls}
-                  placeholder="separado por vírgula"
-                />
-              </div>
-            ))}
+            <MultiSelectField label="UF" options={ufs} selected={filters.uf ?? []} onChange={(v) => setField('uf', v)} />
+            <MultiSelectField
+              label="Município"
+              options={municipios}
+              selected={filters.municipio ?? []}
+              onChange={(v) => setField('municipio', v)}
+              emptyHint="Selecione uma UF primeiro"
+            />
+            <MultiSelectField
+              label="Temperatura"
+              options={TEMPERATURE_OPTIONS}
+              selected={filters.temperature ?? []}
+              onChange={(v) => setField('temperature', v)}
+            />
+            <MultiSelectField
+              label="Canal de origem"
+              options={source_channels}
+              selected={filters.source_channel ?? []}
+              onChange={(v) => setField('source_channel', v)}
+            />
           </div>
         )}
         <div className="flex justify-end gap-2 pt-2">
