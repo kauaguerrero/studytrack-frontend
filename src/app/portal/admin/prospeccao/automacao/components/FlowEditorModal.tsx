@@ -329,6 +329,9 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
             onConnect={onConnect}
             connectionMode={ConnectionMode.Loose}
             defaultEdgeOptions={{ type: 'smoothstep' }}
+            zoomOnPinch
+            zoomOnScroll
+            panOnScroll={false}
             onNodeClick={(_, node) => {
               setSelectedNodeId(node.id);
               setSelectedEdgeId(null);
@@ -370,6 +373,7 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
         )}
         {selectedEdge && (
           <EdgeConfigPanel
+            key={selectedEdge.id}
             data={selectedEdge.data!}
             label={typeof selectedEdge.label === 'string' ? selectedEdge.label : ''}
             onChange={updateSelectedEdge}
@@ -465,17 +469,40 @@ function EdgeConfigPanel({
   const method = data.detection_method;
   const config = data.detection_config as Record<string, unknown>;
 
+  // Texto bruto do campo fica num state local, separado do array já processado —
+  // se o value do input viesse de `keywords.join(', ')` a cada tecla, um espaço ou
+  // vírgula digitado por último é descartado no próprio re-render seguinte (o
+  // split+trim+filter de-para some antes do usuário conseguir digitar a próxima
+  // palavra), dando a impressão de que essas teclas simplesmente não funcionam.
+  const [keywordsText, setKeywordsText] = useState(((config.keywords as string[] | undefined) ?? []).join(', '));
+  const [yesKeywordsText, setYesKeywordsText] = useState(((config.yes_keywords as string[] | undefined) ?? []).join(', '));
+  const [noKeywordsText, setNoKeywordsText] = useState(((config.no_keywords as string[] | undefined) ?? []).join(', '));
+
   function setMethod(next: DetectionMethod) {
     const defaults: Record<DetectionMethod, DetectionConfig> = {
       keyword: { keywords: [] },
       gemini: { instruction: '' },
       active_question: { question: '', yes_keywords: [], no_keywords: [] },
     };
+    setKeywordsText('');
+    setYesKeywordsText('');
+    setNoKeywordsText('');
     onChange({ detection_method: next, detection_config: defaults[next] });
   }
 
-  function setKeywords(raw: string) {
+  function commitKeywords(raw: string) {
+    setKeywordsText(raw);
     onChange({ detection_config: { ...config, keywords: raw.split(',').map((k) => k.trim()).filter(Boolean) } });
+  }
+
+  function commitYesKeywords(raw: string) {
+    setYesKeywordsText(raw);
+    onChange({ detection_config: { ...config, yes_keywords: raw.split(',').map((k) => k.trim()).filter(Boolean) } });
+  }
+
+  function commitNoKeywords(raw: string) {
+    setNoKeywordsText(raw);
+    onChange({ detection_config: { ...config, no_keywords: raw.split(',').map((k) => k.trim()).filter(Boolean) } });
   }
 
   return (
@@ -512,8 +539,8 @@ function EdgeConfigPanel({
         <div>
           <label className={labelCls}>Palavras-chave (separadas por vírgula)</label>
           <textarea
-            value={((config.keywords as string[] | undefined) ?? []).join(', ')}
-            onChange={(e) => setKeywords(e.target.value)}
+            value={keywordsText}
+            onChange={(e) => commitKeywords(e.target.value)}
             rows={3}
             className={`${inputCls} resize-none`}
             placeholder="sobre o que, o que é, como funciona"
@@ -548,12 +575,19 @@ function EdgeConfigPanel({
           <div>
             <label className={labelCls}>Palavras que confirmam (sim)</label>
             <input
-              value={((config.yes_keywords as string[] | undefined) ?? []).join(', ')}
-              onChange={(e) =>
-                onChange({ detection_config: { ...config, yes_keywords: e.target.value.split(',').map((k) => k.trim()).filter(Boolean) } })
-              }
+              value={yesKeywordsText}
+              onChange={(e) => commitYesKeywords(e.target.value)}
               className={inputCls}
               placeholder="sim, é ele, pode falar"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Palavras que negam (não)</label>
+            <input
+              value={noKeywordsText}
+              onChange={(e) => commitNoKeywords(e.target.value)}
+              className={inputCls}
+              placeholder="não, ele não está, depois"
             />
           </div>
         </div>

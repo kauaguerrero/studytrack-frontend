@@ -94,12 +94,25 @@ export type WorkerConnectionStatus = 'disconnected' | 'awaiting_qr' | 'connected
 
 export interface WorkerStatus {
   status: WorkerConnectionStatus;
-  command: 'start' | 'stop' | null;
+  command: 'start' | 'stop' | 'logout' | null;
   qr_code: string | null;
   error_message: string | null;
   last_heartbeat: string | null;
   paired_at: string | null;
   updated_at: string;
+}
+
+export interface WorkerLog {
+  id: number;
+  message: string;
+  level: 'info' | 'warn' | 'error';
+  created_at: string;
+}
+
+export interface LeadFilterOptions {
+  ufs: string[];
+  municipios: string[];
+  source_channels: string[];
 }
 
 // ── Contratos de API (Next.js route handlers em /api/admin/prospeccao/automacao/) ──

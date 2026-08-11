@@ -8,14 +8,18 @@ import type {
   Flow,
   FlowDetail,
   HandoffItem,
+  LeadFilterOptions,
+  WorkerLog,
   WorkerStatus,
 } from '../types';
 
 const WORKER_KEY = '/api/admin/prospeccao/automacao/worker';
+const WORKER_LOGS_KEY = '/api/admin/prospeccao/automacao/worker/logs';
 const FLOWS_KEY = '/api/admin/prospeccao/automacao/flows';
 const CONFIG_KEY = '/api/admin/prospeccao/automacao/config';
 const INSIGHTS_KEY = '/api/admin/prospeccao/automacao/insights';
 const HANDOFF_KEY = '/api/admin/prospeccao/automacao/handoff';
+const LEAD_FILTER_OPTIONS_KEY = '/api/admin/prospeccao/automacao/lead-filter-options';
 
 async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...init });
@@ -48,6 +52,18 @@ export async function apiSetWorkerCommand(command: 'start' | 'stop' | 'logout'):
   });
   void mutate(WORKER_KEY);
   return result;
+}
+
+export function useWorkerLogs() {
+  const { data, error, isLoading } = useSWR<{ logs: WorkerLog[] }>(WORKER_LOGS_KEY, apiFetcher, {
+    refreshInterval: 2_000,
+    revalidateOnFocus: false,
+  });
+  return {
+    logs: data?.logs ?? [],
+    isLoading,
+    error: error as Error | undefined,
+  };
 }
 
 // ── Fluxos ──────────────────────────────────────────────────────────────────
@@ -147,4 +163,21 @@ export function useHandoff() {
 export async function apiAssumirHandoff(phone: string): Promise<void> {
   await fetchJSON(`${HANDOFF_KEY}/${phone}/assumir`, { method: 'POST' });
   void mutate(HANDOFF_KEY);
+}
+
+// ── Opções de filtro de leads (seletor cascade do "Novo fluxo") ────────────
+
+export function useLeadFilterOptions(selectedUfs: string[]) {
+  const ufsKey = [...selectedUfs].sort().join(',');
+  const key = ufsKey ? `${LEAD_FILTER_OPTIONS_KEY}?ufs=${encodeURIComponent(ufsKey)}` : LEAD_FILTER_OPTIONS_KEY;
+  const { data, error, isLoading } = useSWR<LeadFilterOptions>(key, apiFetcher, {
+    revalidateOnFocus: false,
+  });
+  return {
+    ufs: data?.ufs ?? [],
+    municipios: data?.municipios ?? [],
+    source_channels: data?.source_channels ?? [],
+    isLoading,
+    error: error as Error | undefined,
+  };
 }
