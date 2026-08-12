@@ -69,7 +69,12 @@ export default function HandoffPage() {
   const recent = handoff.filter((item) => !isOverdue(item.handoff_at));
 
   async function handleCopyMarkdown() {
-    const markdown = recent.map((item) => `- ${item.session_phone} — ${item.node_title ?? '—'}`).join('\n');
+    const markdown = recent
+      .map((item) => {
+        const name = item.lead?.nome_fantasia ?? item.lead?.razao_social ?? item.session_phone;
+        return `- **${name}** — ${item.session_phone} — ${item.node_title ?? '—'}`;
+      })
+      .join('\n');
     try {
       await navigator.clipboard.writeText(markdown);
       toast.success('Lista copiada em markdown!');
