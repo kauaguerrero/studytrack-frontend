@@ -4,14 +4,18 @@ export type LeadStatusCRM =
   | 'respondeu'
   | 'handoff'
   | 'esperando_contato_gestor'
+  | 'aguardando_confirmacao_call'
   | 'call_agendado'
   | 'interesse'
+  | 'demo_teste'
   | 'enviar_proposta'
   | 'proposta_enviada'
   | 'fechado'
   | 'perdido';
 
 export type LeadTemperature = 'quente' | 'morno' | 'frio';
+
+export type LeadCallOutcome = 'pendente' | 'ocorreu' | 'nao_ocorreu';
 
 export type ContactChannel =
   | 'whatsapp'
@@ -59,6 +63,13 @@ export interface Lead {
   source_channel: string | null;
   next_followup_at: string | null;
   observacoes: string | null;
+  // Call agendada (Google Meet) — preenchidos via POST .../schedule-call
+  call_scheduled_at: string | null;
+  call_ends_at: string | null;
+  call_title: string | null;
+  call_meet_link: string | null;
+  call_calendar_event_id: string | null;
+  call_outcome: LeadCallOutcome;
   // Demo org
   org_id: string | null;
   org: { id: string; name: string; slug: string; brand_primary: string } | null;
@@ -101,7 +112,7 @@ export interface ImportJob {
 
 export interface LeadFilters {
   uf: string;
-  status: LeadStatusCRM | '';
+  status: LeadStatusCRM[];
   has_phone: boolean;
   search: string;
   temperature: LeadTemperature | '';
@@ -110,8 +121,9 @@ export interface LeadFilters {
 // ── Contratos de API (Next.js route handlers em /api/admin/prospeccao/) ──────
 //
 // GET    /api/admin/prospeccao/leads
-//        query: uf?, status?: LeadStatusCRM, has_phone?: '1',
-//               search?, temperature?: LeadTemperature
+//        query: uf?, status?: LeadStatusCRM (repetível — ?status=a&status=b
+//               filtra por múltiplas fases), has_phone?: '1', search?,
+//               temperature?: LeadTemperature
 //        → { leads: Lead[] }
 //
 // POST   /api/admin/prospeccao/leads
@@ -121,10 +133,18 @@ export interface LeadFilters {
 //        → { lead: Lead }
 //
 // PATCH  /api/admin/prospeccao/leads/:id
-//        body: Partial<{ status_crm, temperature, observacoes, next_followup_at }>
+//        body: Partial<{ status_crm, temperature, observacoes, next_followup_at,
+//                cnpj, razao_social, nome_fantasia, nome_socio, uf, municipio,
+//                telefone1, telefone2, email, website, call_outcome }>
 //        → { lead: Lead }
 //
 // DELETE /api/admin/prospeccao/leads/:id  → { ok: true }
+//
+// POST   /api/admin/prospeccao/leads/:id/schedule-call
+//        body: { title, start: ISO, end: ISO, time_zone?, attendee_email? }
+//        Cria o evento no Google Calendar (com Meet) e move o lead pra
+//        call_agendado com os dados da call preenchidos.
+//        → { lead: Lead, meet_link: string }
 //
 // GET    /api/admin/prospeccao/stats  → LeadsStats
 //

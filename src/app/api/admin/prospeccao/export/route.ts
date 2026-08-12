@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const uf          = searchParams.get('uf');
-  const status      = searchParams.get('status');
+  const statusList  = searchParams.getAll('status');
   const has_email   = searchParams.get('has_email') === '1';
   const has_phone   = searchParams.get('has_phone') === '1';
   const search      = searchParams.get('search');
@@ -31,9 +31,9 @@ export async function GET(request: NextRequest) {
     .select('cnpj, razao_social, nome_fantasia, uf, municipio, telefone1, telefone2, email, nome_socio, data_abertura, status_crm, temperature, source_channel, observacoes, created_at')
     .order('created_at', { ascending: false });
 
-  if (uf)          query = query.eq('uf', uf);
-  if (status)      query = query.eq('status_crm', status);
-  if (temperature) query = query.eq('temperature', temperature);
+  if (uf)               query = query.eq('uf', uf);
+  if (statusList.length) query = query.in('status_crm', statusList);
+  if (temperature)      query = query.eq('temperature', temperature);
   if (has_email)   query = query.not('email', 'is', null);
   if (has_phone)   query = query.or('telefone1.not.is.null,telefone2.not.is.null');
   if (search) {

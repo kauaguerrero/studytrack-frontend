@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useHandoff, apiAssumirHandoff } from '../automacao/hooks/useAutomacao';
 import { apiGetLead } from '../hooks/useLeads';
 import { LeadDrawer } from '../components/LeadDrawer';
+import { ScheduleCallModal } from '../components/ScheduleCallModal';
 import type { Lead } from '../types';
 import type { HandoffItem } from '../automacao/types';
 
@@ -38,6 +39,18 @@ export default function HandoffPage() {
   const { handoff, isLoading, reload } = useHandoff();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [assumindo, setAssumindo] = useState<string | null>(null);
+  const [scheduleCallLead, setScheduleCallLead] = useState<Lead | null>(null);
+
+  async function handleLeadUpdate() {
+    reload();
+    if (!selectedLead) return;
+    try {
+      const { lead } = await apiGetLead(selectedLead.id);
+      setSelectedLead(lead);
+    } catch {
+      // ignore — o drawer só fica com dado levemente desatualizado até fechar/reabrir
+    }
+  }
 
   async function handleOpenLead(item: HandoffItem) {
     if (!item.lead) {
@@ -212,9 +225,16 @@ export default function HandoffPage() {
         <LeadDrawer
           lead={selectedLead}
           onClose={() => setSelectedLead(null)}
-          onLeadUpdate={() => {}}
+          onLeadUpdate={handleLeadUpdate}
+          onRequestScheduleCall={setScheduleCallLead}
         />
       )}
+
+      <ScheduleCallModal
+        lead={scheduleCallLead}
+        onClose={() => setScheduleCallLead(null)}
+        onScheduled={handleLeadUpdate}
+      />
     </div>
   );
 }

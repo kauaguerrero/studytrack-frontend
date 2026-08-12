@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useOutboundHistory, apiDeleteOutboundHistory } from '../hooks/useAutomacao';
 import { apiGetLead } from '../../hooks/useLeads';
 import { LeadDrawer } from '../../components/LeadDrawer';
+import { ScheduleCallModal } from '../../components/ScheduleCallModal';
 import type { Lead } from '../../types';
 import type { OutboundHistoryItem } from '../types';
 
@@ -38,8 +39,19 @@ export default function OutboundHistoryPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [scheduleCallLead, setScheduleCallLead] = useState<Lead | null>(null);
 
   const { items, total, isLoading, reload } = useOutboundHistory({ status, search, limit: PAGE_SIZE, offset });
+
+  async function handleLeadUpdate() {
+    if (!selectedLead) return;
+    try {
+      const { lead } = await apiGetLead(selectedLead.id);
+      setSelectedLead(lead);
+    } catch {
+      // ignore — o drawer só fica com dado levemente desatualizado até fechar/reabrir
+    }
+  }
 
   function applySearch() {
     setSearch(searchInput.trim());
@@ -241,7 +253,20 @@ export default function OutboundHistoryPage() {
         </div>
       )}
 
-      {selectedLead && <LeadDrawer lead={selectedLead} onClose={() => setSelectedLead(null)} onLeadUpdate={() => {}} />}
+      {selectedLead && (
+        <LeadDrawer
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+          onLeadUpdate={handleLeadUpdate}
+          onRequestScheduleCall={setScheduleCallLead}
+        />
+      )}
+
+      <ScheduleCallModal
+        lead={scheduleCallLead}
+        onClose={() => setScheduleCallLead(null)}
+        onScheduled={handleLeadUpdate}
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import type { LeadFilters, LeadStatusCRM, LeadTemperature, LeadsStats } from '../types';
@@ -12,8 +12,10 @@ const STATUS_OPTIONS: { value: LeadStatusCRM; label: string }[] = [
   { value: 'respondeu', label: 'Respondeu' },
   { value: 'handoff', label: 'Hand-off' },
   { value: 'esperando_contato_gestor', label: 'Esperando Contato do Gestor' },
+  { value: 'aguardando_confirmacao_call', label: 'Aguardando Confirmação da Call' },
   { value: 'call_agendado', label: 'Call/Reunião Marcada' },
   { value: 'interesse', label: 'Interesse' },
+  { value: 'demo_teste', label: 'Demo / Em Testes' },
   { value: 'enviar_proposta', label: 'Enviar proposta' },
   { value: 'proposta_enviada', label: 'Proposta enviada' },
   { value: 'fechado', label: 'Fechado' },
@@ -28,6 +30,82 @@ const TEMP_OPTIONS: { value: LeadTemperature; label: string }[] = [
 
 const selectCls =
   'h-8 w-full md:w-auto rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 text-sm text-slate-700 dark:text-zinc-200 outline-none focus:border-indigo-400 dark:focus:border-indigo-500 cursor-pointer transition-colors';
+
+interface StatusMultiSelectProps {
+  selected: LeadStatusCRM[];
+  onChange: (statuses: LeadStatusCRM[]) => void;
+}
+
+function StatusMultiSelect({ selected, onChange }: StatusMultiSelectProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [open]);
+
+  function toggle(value: LeadStatusCRM) {
+    onChange(
+      selected.includes(value) ? selected.filter((s) => s !== value) : [...selected, value]
+    );
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          selectCls,
+          'flex items-center gap-1.5',
+          selected.length > 0 &&
+            'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-300'
+        )}
+      >
+        <span>{selected.length > 0 ? `Fases do CRM (${selected.length})` : 'Fases do CRM'}</span>
+        <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+      </button>
+
+      {open && (
+        <div className="absolute z-20 mt-1 max-h-80 w-64 max-w-[calc(100vw-3rem)] overflow-y-auto rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-1.5 shadow-lg">
+          <div className="flex items-center justify-between px-1.5 py-1">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500">
+              Ocultar outras fases
+            </span>
+            {selected.length > 0 && (
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+          {STATUS_OPTIONS.map((o) => (
+            <label
+              key={o.value}
+              className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-sm text-slate-700 hover:bg-slate-50 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(o.value)}
+                onChange={() => toggle(o.value)}
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-zinc-600"
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface FilterBarProps {
   filters: LeadFilters;
@@ -69,7 +147,7 @@ export function FilterBar({
 
   const activeFilterCount = [
     filters.uf,
-    filters.status,
+    filters.status.length > 0,
     filters.has_phone,
     filters.search,
     filters.temperature,
@@ -79,7 +157,7 @@ export function FilterBar({
     setSearchInput('');
     onChange({
       uf: '',
-      status: '',
+      status: [],
       has_phone: false,
       search: '',
       temperature: '',
@@ -107,21 +185,11 @@ export function FilterBar({
           ))}
         </select>
 
-        {/* Status CRM */}
-        <select
-          value={filters.status}
-          onChange={(e) =>
-            onChange({ ...filters, status: e.target.value as LeadStatusCRM | '' })
-          }
-          className={selectCls}
-        >
-          <option value="">Status</option>
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+        {/* Status CRM — multi-seleção: oculta as fases não marcadas no kanban */}
+        <StatusMultiSelect
+          selected={filters.status}
+          onChange={(status) => onChange({ ...filters, status })}
+        />
 
         {/* Temperatura */}
         {TEMP_OPTIONS.map((t) => (
@@ -164,7 +232,7 @@ export function FilterBar({
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Buscar por nome..."
+            placeholder="Buscar por nome, telefone, email, cidade, sócio..."
             className="h-9 w-full rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 pl-8 pr-3 text-sm text-slate-700 dark:text-zinc-200 outline-none focus:border-indigo-400 dark:focus:border-indigo-500 transition-colors"
           />
         </div>
@@ -197,7 +265,7 @@ export function FilterBar({
           <input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Buscar por nome..."
+            placeholder="Buscar por nome, telefone, email, cidade, sócio..."
             className="h-8 w-52 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 pl-8 pr-3 text-sm text-slate-700 dark:text-zinc-200 outline-none focus:border-indigo-400 dark:focus:border-indigo-500 transition-colors"
           />
         </div>
