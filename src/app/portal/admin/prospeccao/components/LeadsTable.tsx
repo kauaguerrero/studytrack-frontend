@@ -41,6 +41,10 @@ export const STATUS_CONFIG: Record<
     label: 'Esperando Contato do Gestor',
     cls: 'bg-pink-50 text-pink-700 dark:bg-pink-500/10 dark:text-pink-300',
   },
+  aguardando_confirmacao_call: {
+    label: 'Aguardando Confirmação da Call',
+    cls: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
+  },
   call_agendado: {
     label: 'Call/Reunião Marcada',
     cls: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-300',
@@ -48,6 +52,10 @@ export const STATUS_CONFIG: Record<
   interesse: {
     label: 'Interesse',
     cls: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
+  },
+  demo_teste: {
+    label: 'Demo / Em Testes',
+    cls: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300',
   },
   enviar_proposta: {
     label: 'Enviar proposta',
@@ -86,6 +94,7 @@ interface LeadsTableProps {
   onLeadUpdate: () => void;
   onImportClick: () => void;
   onClearFilters: () => void;
+  onRequestScheduleCall: (lead: Lead) => void;
 }
 
 export function LeadsTable({
@@ -97,6 +106,7 @@ export function LeadsTable({
   onLeadUpdate,
   onImportClick,
   onClearFilters,
+  onRequestScheduleCall,
 }: LeadsTableProps) {
   const [localStatuses, setLocalStatuses] = useState<
     Record<string, LeadStatusCRM>
@@ -107,6 +117,13 @@ export function LeadsTable({
   }
 
   async function handleStatusChange(lead: Lead, newStatus: LeadStatusCRM) {
+    // Mover pra "call_agendado" abre o modal de agendamento — não mexe no
+    // select local, então ele volta sozinho pro valor atual do lead.
+    if (newStatus === 'call_agendado') {
+      onRequestScheduleCall(lead);
+      return;
+    }
+
     const prev = lead.status_crm;
     setLocalStatuses((s) => ({ ...s, [lead.id]: newStatus }));
     try {

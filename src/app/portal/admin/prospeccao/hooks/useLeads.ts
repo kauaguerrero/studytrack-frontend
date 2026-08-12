@@ -18,7 +18,7 @@ const STATS_KEY = '/api/admin/prospeccao/stats';
 function buildLeadsKey(filters: LeadFilters): string {
   const params = new URLSearchParams();
   if (filters.uf) params.set('uf', filters.uf);
-  if (filters.status) params.set('status', filters.status);
+  for (const s of filters.status) params.append('status', s);
   if (filters.has_phone) params.set('has_phone', '1');
   if (filters.search) params.set('search', filters.search);
   if (filters.temperature) params.set('temperature', filters.temperature);
@@ -74,11 +74,40 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
 
 export async function apiUpdateLead(
   id: string,
-  patch: Partial<Pick<Lead, 'status_crm' | 'temperature' | 'observacoes' | 'next_followup_at'>>
+  patch: Partial<
+    Pick<
+      Lead,
+      | 'status_crm'
+      | 'temperature'
+      | 'observacoes'
+      | 'next_followup_at'
+      | 'cnpj'
+      | 'razao_social'
+      | 'nome_fantasia'
+      | 'nome_socio'
+      | 'uf'
+      | 'municipio'
+      | 'telefone1'
+      | 'telefone2'
+      | 'email'
+      | 'website'
+      | 'call_outcome'
+    >
+  >
 ): Promise<{ lead: Lead }> {
   return fetchJSON(`${LEADS_BASE}/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
+  });
+}
+
+export async function apiScheduleCall(
+  leadId: string,
+  body: { title: string; start: string; end: string; time_zone?: string; attendee_email?: string }
+): Promise<{ lead: Lead; meet_link: string }> {
+  return fetchJSON(`${LEADS_BASE}/${leadId}/schedule-call`, {
+    method: 'POST',
+    body: JSON.stringify(body),
   });
 }
 

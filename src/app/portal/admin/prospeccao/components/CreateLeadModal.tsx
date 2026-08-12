@@ -8,7 +8,8 @@ import { STATUS_CONFIG } from './LeadsTable';
 import type { LeadStatusCRM, LeadTemperature } from '../types';
 
 const INITIAL_STATUS_OPTIONS: LeadStatusCRM[] = [
-  'novo', 'contatado', 'respondeu', 'esperando_contato_gestor', 'call_agendado', 'interesse', 'enviar_proposta', 'proposta_enviada',
+  'novo', 'contatado', 'respondeu', 'esperando_contato_gestor', 'aguardando_confirmacao_call',
+  'call_agendado', 'interesse', 'demo_teste', 'enviar_proposta', 'proposta_enviada',
 ];
 
 const inputCls =

@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const uf          = searchParams.get('uf');
-  const status      = searchParams.get('status');
+  const statusList  = searchParams.getAll('status');
   const has_email   = searchParams.get('has_email') === '1';
   const has_phone   = searchParams.get('has_phone') === '1';
   const search      = searchParams.get('search');
@@ -25,14 +25,26 @@ export async function GET(request: NextRequest) {
     .select('*, lead_contacts(id, channel, contact_date, response, notes, next_action)')
     .order('created_at', { ascending: false });
 
-  if (uf)          query = query.eq('uf', uf);
-  if (status)      query = query.eq('status_crm', status);
-  if (temperature) query = query.eq('temperature', temperature);
+  if (uf)               query = query.eq('uf', uf);
+  if (statusList.length) query = query.in('status_crm', statusList);
+  if (temperature)      query = query.eq('temperature', temperature);
   if (has_email)   query = query.not('email', 'is', null);
   if (has_phone)   query = query.or('telefone1.not.is.null,telefone2.not.is.null');
   if (search) {
-    const q = search.replace(/'/g, "''");
-    query = query.or(`nome_fantasia.ilike.%${q}%,razao_social.ilike.%${q}%`);
+    const q = search.replace(/'/g, "''").replace(/[%,()]/g, '');
+    const digits = q.replace(/\D/g, '');
+    const fields = [
+      `nome_fantasia.ilike.%${q}%`,
+      `razao_social.ilike.%${q}%`,
+      `nome_socio.ilike.%${q}%`,
+      `municipio.ilike.%${q}%`,
+      `email.ilike.%${q}%`,
+    ];
+    // Telefone/CNPJ são buscados só pelos dígitos, pra funcionar com ou sem máscara.
+    if (digits) {
+      fields.push(`cnpj.ilike.%${digits}%`, `telefone1.ilike.%${digits}%`, `telefone2.ilike.%${digits}%`);
+    }
+    query = query.or(fields.join(','));
   }
   if (tipo === 'empresa') {
     // Qualquer natureza que não seja Empresário Individual

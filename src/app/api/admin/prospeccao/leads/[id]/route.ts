@@ -61,10 +61,19 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { id } = await params;
   const body = await request.json();
 
-  const ALLOWED = ['status_crm', 'temperature', 'observacoes', 'next_followup_at'] as const;
+  const ALLOWED = [
+    'status_crm', 'temperature', 'observacoes', 'next_followup_at',
+    'cnpj', 'razao_social', 'nome_fantasia', 'nome_socio',
+    'uf', 'municipio', 'telefone1', 'telefone2', 'email', 'website',
+    'call_outcome',
+  ] as const;
   const update: Record<string, unknown> = {};
   for (const key of ALLOWED) {
     if (key in body) update[key] = body[key];
+  }
+
+  if ('razao_social' in update && !(update.razao_social as string | null)?.trim()) {
+    return NextResponse.json({ error: 'razao_social não pode ficar vazia' }, { status: 400 });
   }
 
   if (Object.keys(update).length === 0) {

@@ -12,11 +12,12 @@ import { KanbanBoard } from './components/KanbanBoard';
 import { LeadDrawer } from './components/LeadDrawer';
 import { ImportModal } from './components/ImportModal';
 import { CreateLeadModal } from './components/CreateLeadModal';
-import type { LeadFilters } from './types';
+import { ScheduleCallModal } from './components/ScheduleCallModal';
+import type { Lead, LeadFilters } from './types';
 
 const EMPTY_FILTERS: LeadFilters = {
   uf: '',
-  status: '',
+  status: [],
   has_phone: false,
   search: '',
   temperature: '',
@@ -30,6 +31,7 @@ export default function ProspeccaoPage() {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [scheduleCallLead, setScheduleCallLead] = useState<Lead | null>(null);
 
   const { leads, isLoading: leadsLoading, error } = useLeads(filters);
   const { stats, isLoading: statsLoading } = useLeadsStats();
@@ -46,8 +48,22 @@ export default function ProspeccaoPage() {
     return leads.filter((l) => {
       if (filters.search) {
         const q = filters.search.toLowerCase();
-        const name = (l.nome_fantasia ?? l.razao_social).toLowerCase();
-        if (!name.includes(q)) return false;
+        const digits = q.replace(/\D/g, '');
+        const haystack = [
+          l.nome_fantasia,
+          l.razao_social,
+          l.nome_socio,
+          l.municipio,
+          l.email,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        const matchesText = haystack.includes(q);
+        const matchesDigits =
+          digits.length > 0 &&
+          [l.cnpj, l.telefone1, l.telefone2].some((v) => v?.replace(/\D/g, '').includes(digits));
+        if (!matchesText && !matchesDigits) return false;
       }
       if (filters.has_phone && !l.telefone1 && !l.telefone2) return false;
       if (filters.temperature && l.temperature !== filters.temperature) return false;
@@ -66,7 +82,7 @@ export default function ProspeccaoPage() {
   function handleExportCSV() {
     const params = new URLSearchParams();
     if (filters.uf) params.set('uf', filters.uf);
-    if (filters.status) params.set('status', filters.status);
+    for (const s of filters.status) params.append('status', s);
     if (filters.has_phone) params.set('has_phone', '1');
     if (filters.search) params.set('search', filters.search);
     if (filters.temperature) params.set('temperature', filters.temperature);
@@ -181,12 +197,15 @@ export default function ProspeccaoPage() {
           onLeadUpdate={handleLeadUpdate}
           onImportClick={() => setImportOpen(true)}
           onClearFilters={handleClearFilters}
+          onRequestScheduleCall={setScheduleCallLead}
         />
       ) : (
         <KanbanBoard
           leads={filteredLeads}
+          visibleStatuses={filters.status}
           onSelectLead={(lead) => setSelectedLeadId(lead.id)}
           onLeadUpdate={handleLeadUpdate}
+          onRequestScheduleCall={setScheduleCallLead}
         />
       )}
 
@@ -196,8 +215,16 @@ export default function ProspeccaoPage() {
           lead={selectedLead}
           onClose={() => setSelectedLeadId(null)}
           onLeadUpdate={handleLeadUpdate}
+          onRequestScheduleCall={setScheduleCallLead}
         />
       )}
+
+      {/* Modal de agendamento de call (Google Meet) */}
+      <ScheduleCallModal
+        lead={scheduleCallLead}
+        onClose={() => setScheduleCallLead(null)}
+        onScheduled={handleLeadUpdate}
+      />
 
       {/* Modal de importação */}
       <ImportModal
