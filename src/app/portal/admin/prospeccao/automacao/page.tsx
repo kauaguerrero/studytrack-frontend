@@ -796,6 +796,9 @@ function ManualQueueCard() {
   const [clearing, setClearing] = useState(false);
   const [sendingNext, setSendingNext] = useState(false);
   const pendingCount = queue.filter((item) => item.status === 'pending').length;
+  // "queued" já foi disparado (agendado) mas ainda não confirmado como
+  // entregue pelo worker — pro badge do topo isso ainda conta como "esperando".
+  const waitingCount = queue.filter((item) => item.status === 'pending' || item.status === 'queued').length;
 
   async function handleClear() {
     if (queue.length === 0) return;
@@ -840,8 +843,10 @@ function ManualQueueCard() {
 
   const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
     pending: { label: 'Aguardando', cls: 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300' },
+    queued: { label: 'Enfileirado', cls: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' },
     sent: { label: 'Enviado', cls: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' },
     skipped: { label: 'Pulado', cls: 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' },
+    failed: { label: 'Falhou', cls: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300' },
   };
 
   return (
@@ -854,32 +859,33 @@ function ManualQueueCard() {
           </p>
         </div>
         <span className="shrink-0 px-2.5 py-1 rounded-full text-xs font-bold bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">
-          {pendingCount} aguardando
+          {waitingCount} aguardando
         </span>
       </div>
 
-      <div className="max-h-56 overflow-y-auto space-y-1 mb-3">
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
         {queue.length === 0 ? (
-          <p className="text-xs text-slate-400 dark:text-zinc-500 italic py-3 text-center">Fila vazia</p>
+          <p className="text-xs text-slate-400 dark:text-zinc-500 italic py-3 text-center w-full">Fila vazia</p>
         ) : (
           queue.map((item) => {
             const status = STATUS_LABEL[item.status] ?? { label: item.status, cls: 'bg-slate-100 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400' };
+            const name = item.lead?.nome_fantasia ?? item.lead?.razao_social ?? item.lead_id;
             return (
               <div
                 key={item.id}
-                className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-zinc-800 text-xs"
+                className="shrink-0 w-44 flex flex-col gap-2 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-100 dark:border-zinc-700"
               >
-                <span className="truncate text-slate-700 dark:text-zinc-300">
-                  {item.lead?.nome_fantasia ?? item.lead?.razao_social ?? item.lead_id}
+                <span className="text-xs font-semibold text-slate-700 dark:text-zinc-300 truncate" title={name}>
+                  {name}
                 </span>
-                <span className="flex items-center gap-1.5 shrink-0">
+                <span className="flex items-center gap-1.5 flex-wrap">
                   {item.source === 'auto' && (
                     <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-200 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400">
                       auto
                     </span>
                   )}
                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${status.cls}`}>{status.label}</span>
-                  <span className="text-slate-400 dark:text-zinc-500">{item.lead?.uf}</span>
+                  {item.lead?.uf && <span className="text-[10px] text-slate-400 dark:text-zinc-500">{item.lead.uf}</span>}
                 </span>
               </div>
             );
