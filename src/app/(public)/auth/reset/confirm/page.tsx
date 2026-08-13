@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { ArrowLeft, Lock, Eye, EyeOff, Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import Image from 'next/image';
 import { Suspense } from 'react';
+import { PasswordStrengthMeter } from '@/components/ui/password-strength';
 
 function ConfirmResetPasswordForm() {
   const router = useRouter();
@@ -85,7 +86,7 @@ function ConfirmResetPasswordForm() {
       setTimeout(() => {
         router.push('/auth/login');
       }, 3000);
-    } catch (err: any) {
+    } catch {
       setError("Não foi possível redefinir a senha. Tente novamente.");
     } finally {
       setIsLoading(false);
@@ -208,6 +209,8 @@ function ConfirmResetPasswordForm() {
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
+
+                <PasswordStrengthMeter password={formData.password} />
 
                 {/* Checklist de validação de senha */}
                 {formData.password && (

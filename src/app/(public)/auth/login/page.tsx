@@ -4,10 +4,11 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
-import Image from 'next/image'; 
-import { 
-  Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertTriangle
+import Image from 'next/image';
+import {
+  Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertTriangle,
 } from 'lucide-react';
+import { LegoApprovalStack } from '@/components/ui/lego-approval-stack';
 
 const EMAIL_MAX_LENGTH = 254;
 const PASSWORD_MIN_LENGTH = 8;
@@ -32,15 +33,69 @@ const GoogleIcon = () => (
   </svg>
 );
 
-function LoginForm() {
+// ─── Painel direito ──────────────────────────────────────────────────────────
+
+function VisualPanel({ progress }: { progress: number }) {
+  const pct = Math.round(progress * 100);
+
+  return (
+    <div className="relative hidden w-1/2 items-center justify-center overflow-hidden bg-gradient-to-b from-[#0B1220] via-[#0F172A] to-[#0B1220] min-[901px]:flex">
+      {/* Glows de fundo, com respiração sutil pra não ficar chapado */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute right-[-25%] top-[-25%] h-[700px] w-[700px] animate-pulse rounded-full bg-blue-600/25 blur-[130px]" />
+        <div className="absolute bottom-[-25%] left-[-25%] h-[700px] w-[700px] animate-pulse rounded-full bg-violet-600/20 blur-[130px] [animation-delay:1s]" />
+        <div className="absolute bottom-[10%] left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-amber-500/10 blur-[110px]" />
+      </div>
+
+      {/* Textura de pontos — mesma linguagem visual dos cards do dashboard */}
+      <div className="partner-halftone pointer-events-none absolute inset-0 opacity-[0.25] [mask-image:radial-gradient(ellipse_at_center,black_0%,transparent_72%)]" />
+
+      {/* Vinheta pra dar profundidade nas bordas */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(0,0,0,0.45)_100%)]" />
+
+      {/* Sombra de contato no chão, sob a torre */}
+      <div className="pointer-events-none absolute bottom-[26%] left-1/2 h-8 w-72 -translate-x-1/2 rounded-[50%] bg-black/50 blur-2xl" />
+
+      {/* Torre de habilidades — monta com e-mail/senha e desmonta ao apagar */}
+      <LegoApprovalStack progress={progress} className="relative z-10" />
+
+      {/* Barra de progresso da montagem */}
+      <div className="absolute bottom-10 left-1/2 z-10 h-1.5 w-full max-w-sm -translate-x-1/2 overflow-hidden rounded-full bg-white/10">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-400 transition-all duration-700 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Formulário (lógica de auth 100% preservada) ─────────────────────────────
+
+function LoginForm({ onProgress }: { onProgress: (p: number) => void }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({ email: '', password: '' });
-  
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
+
+  const emailOk = isValidEmail(sanitizeEmailInput(formData.email).toLowerCase());
+  const passwordOk = formData.password.length >= PASSWORD_MIN_LENGTH;
+
+  // Alimenta a animação do painel de forma gradual, caractere a caractere:
+  // metade do progresso vem do e-mail (rampa por tamanho até virar válido,
+  // onde trava em 1), a outra metade da senha (rampa linear até o mínimo
+  // exigido). Cada bloco cai conforme cruza seu próprio degrau nessa rampa.
+  const emailChars = sanitizeEmailInput(formData.email).length;
+  const emailProgress = emailOk ? 1 : Math.min(0.85, emailChars / 20);
+  const passwordProgress = Math.min(1, formData.password.length / PASSWORD_MIN_LENGTH);
+  useEffect(() => {
+    onProgress(0.5 * emailProgress + 0.5 * passwordProgress);
+  }, [emailProgress, passwordProgress, onProgress]);
 
   useEffect(() => {
     const errorMsg = searchParams.get('error');
@@ -155,7 +210,7 @@ function LoginForm() {
       // Atualiza o cache do roteador do Next.js para que o Middleware leia os novos cookies
       router.refresh();
       router.push(target);
-      
+
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '';
       if (message.includes('Invalid login credentials') || message.includes('Email not confirmed')) {
@@ -192,32 +247,37 @@ function LoginForm() {
   };
 
   return (
-    <div className="w-full max-w-[440px] min-w-0 mx-auto pb-4 pr-0 box-border">
-      <div className="mb-6 min-w-0 overflow-hidden"> 
-        <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-3xl xl:text-4xl font-extrabold text-slate-900 mb-2 tracking-tight break-words">
-          Bem-vindo de volta! <span className="inline-block hover:animate-pulse cursor-default" aria-hidden>👋</span>
+    <div className="w-full max-w-[440px] min-w-0 mx-auto pb-4 box-border min-[901px]:my-auto">
+      <div className="mb-7 min-w-0">
+        <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.16em] text-blue-600">
+          Área do aluno e do gestor
+        </p>
+        <h1 className="font-display text-[30px] font-black leading-[1.05] tracking-tight text-slate-900 sm:text-[36px] xl:text-[40px]">
+          Bem-vindo de volta.
         </h1>
-        <p className="text-slate-500 text-base sm:text-lg leading-relaxed break-words min-w-0 overflow-hidden">
-          Sua meta de hoje está te esperando.
+        <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
+          Entre para continuar de onde parou.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 mb-6">
-        <button onClick={() => handleSocialLogin('google')} type="button" className="flex items-center justify-center gap-3 min-h-[48px] h-12 border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-200 hover:shadow-md transition-all duration-300 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
-          <div className="group-hover:scale-110 transition-transform" aria-hidden><GoogleIcon /></div>
-          <span className="font-semibold text-sm text-slate-700">Google</span>
-        </button>
-      </div>
+      <button
+        onClick={() => handleSocialLogin('google')}
+        type="button"
+        className="mb-6 flex w-full items-center justify-center gap-3 min-h-[48px] h-12 rounded-2xl border border-slate-300 bg-white font-semibold text-sm text-slate-700 transition-all duration-300 hover:border-blue-300 hover:bg-slate-50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 group"
+      >
+        <div className="group-hover:scale-110 transition-transform" aria-hidden><GoogleIcon /></div>
+        Continuar com Google
+      </button>
 
       <div className="relative mb-6">
-        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
         <div className="relative flex justify-center text-xs uppercase font-bold tracking-widest">
-          <span className="px-4 bg-white text-slate-400">ou via e-mail</span>
+          <span className="px-4 bg-white text-slate-500">ou via e-mail</span>
         </div>
       </div>
 
       {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm font-medium flex items-start gap-2 animate-pulse min-w-0">
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium flex items-start gap-2 min-w-0">
               <AlertTriangle className="w-5 h-5 shrink-0 flex-none" />
               <span className="min-w-0 break-words">{error}</span>
           </div>
@@ -225,14 +285,14 @@ function LoginForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
-          <label className="text-sm font-bold text-slate-700 block" htmlFor="email">E-mail</label>
+          <label className="text-[13px] font-bold text-slate-700 block" htmlFor="email">E-mail</label>
           <div className="relative">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+            <div className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${emailOk ? 'text-blue-500' : 'text-slate-400'}`}>
               <Mail className="w-5 h-5" />
             </div>
-            <input 
-              id="email" type="email" placeholder="aluno@studytrack.com" required
-              className="w-full pl-12 pr-4 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+            <input
+              id="email" type="email" placeholder="voce@studytrack.com" required
+              className="w-full pl-12 pr-4 h-14 rounded-2xl border border-slate-300 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
               value={formData.email}
               maxLength={EMAIL_MAX_LENGTH}
               autoComplete="email"
@@ -244,23 +304,23 @@ function LoginForm() {
 
         <div className="space-y-1.5">
           <div className="flex justify-between items-center">
-            <label className="text-sm font-bold text-slate-700" htmlFor="password">Senha</label>
-            <a href="/auth/reset" className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline">Esqueceu?</a>
+            <label className="text-[13px] font-bold text-slate-700" htmlFor="password">Senha</label>
+            <a href="/auth/reset" className="text-[13px] font-semibold text-blue-600 hover:text-blue-700 hover:underline">Esqueceu?</a>
           </div>
           <div className="relative">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+            <div className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${passwordOk ? 'text-blue-500' : 'text-slate-400'}`}>
               <Lock className="w-5 h-5" />
             </div>
-            <input 
+            <input
               id="password" type={showPassword ? "text" : "password"} placeholder="••••••••" required
-              className="w-full pl-12 pr-14 h-14 rounded-2xl border border-slate-200 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+              className="w-full pl-12 pr-14 h-14 rounded-2xl border border-slate-300 bg-slate-50 outline-none text-slate-900 font-medium focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
               value={formData.password}
               minLength={PASSWORD_MIN_LENGTH}
               maxLength={PASSWORD_MAX_LENGTH}
               autoComplete="current-password"
               onChange={(e) => setFormData({...formData, password: e.target.value.slice(0, PASSWORD_MAX_LENGTH)})}
             />
-            <button 
+            <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-2 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
@@ -271,7 +331,7 @@ function LoginForm() {
           </div>
         </div>
 
-        <button 
+        <button
           type="submit"
           disabled={isLoading || !formData.email || !formData.password}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold min-h-[48px] h-14 rounded-2xl shadow-xl shadow-blue-600/20 flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed transition-all mt-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
@@ -290,26 +350,37 @@ function LoginForm() {
         </button>
       </form>
 
+      {/* Frase manuscrita — só no mobile, onde o painel visual não existe.
+          text-shadow desenha a sombra glifo a glifo, como escrita real sobre o papel. */}
+      <p
+        className="font-script mt-8 text-center text-[24px] leading-tight text-slate-700 min-[901px]:hidden"
+        style={{ textShadow: '2px 3px 3px rgba(15, 23, 42, 0.22)' }}
+      >
+        Seja <span className="text-blue-900">insistente</span> quando o assunto for{' '}
+        <span className="text-violet-600">SONHO</span>
+      </p>
     </div>
   );
 }
 
+// ─── Página ──────────────────────────────────────────────────────────────────
+
 export default function LoginPage() {
   const router = useRouter();
+  const [progress, setProgress] = useState(0.25);
 
   return (
     <div className="min-h-screen w-full flex bg-white font-sans text-slate-900 overflow-x-hidden">
-      {/* --- LADO ESQUERDO: INTERATIVO --- */}
-      <div className="w-full min-w-0 lg:w-1/2 flex flex-col h-screen min-h-0 relative z-20 bg-white shrink-0">
-        
-        <div className="flex-none shrink-0 p-4 sm:p-6 lg:p-6 xl:p-8 min-w-0">
+      {/* ── Esquerda: formulário ── */}
+      <div className="w-full min-w-0 min-[901px]:w-1/2 flex flex-col h-screen min-h-0 relative z-20 bg-white shrink-0">
+        <div className="flex-none shrink-0 p-4 sm:p-6 xl:p-8 min-w-0">
           <div className="flex items-center gap-0 group cursor-pointer w-fit min-w-0 max-w-full flex-wrap" onClick={() => router.push('/')}>
              <div className="group-hover:scale-110 transition-transform duration-300 flex items-center justify-center -mr-3 shrink-0">
-               <Image 
-                 src="/logost-transparente-sombra.png" 
-                 alt="Logo StudyTrack" 
-                 width={80} 
-                 height={80} 
+               <Image
+                 src="/logost-transparente-sombra.png"
+                 alt="Logo StudyTrack"
+                 width={80}
+                 height={80}
                  className="w-20 h-20 object-contain"
                  priority={true}
                  unoptimized
@@ -321,24 +392,18 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 min-w-0 flex flex-col justify-center px-4 sm:px-6 md:px-8 lg:px-8 xl:px-12 overflow-y-auto overflow-x-auto custom-scrollbar">
+        <div
+          className="flex-1 min-h-0 min-w-0 flex flex-col justify-start pt-2 pb-8 min-[901px]:pt-0 min-[901px]:pb-0 px-4 sm:px-6 md:px-8 xl:px-12 overflow-y-auto custom-scrollbar"
+          style={{ overflowAnchor: 'none' }}
+        >
           <Suspense fallback={<div>Carregando...</div>}>
-            <LoginForm />
+            <LoginForm onProgress={setProgress} />
           </Suspense>
         </div>
       </div>
 
-      {/* --- LADO DIREITO (VISUAL) --- */}
-      <div className="hidden lg:flex w-1/2 bg-[#0F172A] relative items-center justify-center overflow-hidden">
-        <div className="absolute inset-0">
-            <div className="absolute top-[-20%] right-[-20%] w-[800px] h-[800px] bg-blue-600/30 rounded-full blur-[120px] animate-pulse"></div>
-            <div className="absolute bottom-[-20%] left-[-20%] w-[800px] h-[800px] bg-violet-600/20 rounded-full blur-[120px] animate-pulse delay-1000"></div>
-        </div>
-        <div className="relative z-10 max-w-md w-full p-8">
-            <h2 className="text-4xl font-bold text-white mb-4">Foco total.</h2>
-            <p className="text-slate-400 text-lg">A plataforma que organiza sua vida acadêmica enquanto você dorme.</p>
-        </div>
-      </div>
+      {/* ── Direita: painel visual com canvas ── */}
+      <VisualPanel progress={progress} />
     </div>
   );
 }
