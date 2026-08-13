@@ -55,16 +55,33 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { id, callId } = await params;
   const body = await request.json();
 
-  const postCallStatus = body.post_call_status ?? null;
-  if (postCallStatus !== null && !ALLOWED_STATUSES.has(postCallStatus)) {
-    return NextResponse.json({ error: 'Status inválido' }, { status: 400 });
+  const updates: Record<string, unknown> = {};
+
+  if ('post_call_status' in body) {
+    const s = body.post_call_status ?? null;
+    if (s !== null && !ALLOWED_STATUSES.has(s)) {
+      return NextResponse.json({ error: 'Status inválido' }, { status: 400 });
+    }
+    updates.post_call_status = s;
+  }
+
+  if ('claude_analysis' in body) {
+    const analysis = body.claude_analysis;
+    if (analysis !== null && typeof analysis !== 'string') {
+      return NextResponse.json({ error: 'claude_analysis deve ser string ou null' }, { status: 400 });
+    }
+    updates.claude_analysis = analysis ?? null;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = auth.supabaseAdmin as any;
   const { data: call, error } = await db
     .from('lead_calls')
-    .update({ post_call_status: postCallStatus })
+    .update(updates)
     .eq('id', callId)
     .eq('lead_id', id)
     .select()

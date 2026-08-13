@@ -26,6 +26,7 @@ import {
   Mic,
   Download,
   ClipboardCopy,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -170,6 +171,12 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall,
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
   const [deletingCallId, setDeletingCallId] = useState<string | null>(null);
 
+  // Análise Claude por call
+  const [openAnalysisId, setOpenAnalysisId]     = useState<string | null>(null);
+  const [editingAnalysisId, setEditingAnalysisId] = useState<string | null>(null);
+  const [analysisDraft, setAnalysisDraft]         = useState('');
+  const [savingAnalysisId, setSavingAnalysisId]   = useState<string | null>(null);
+
   // Sincroniza obsText quando o lead é refreshado pelo pai (após salvar)
   useEffect(() => {
     setObsText(lead.observacoes ?? '');
@@ -205,6 +212,20 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall,
       cancelled = true;
     };
   }, [lead.id, callsKey]);
+
+  // Polling: re-busca calls enquanto alguma estiver em 'processing'
+  useEffect(() => {
+    const hasProcessing = calls.some((c) => c.transcription_status === 'processing');
+    if (!hasProcessing) return;
+
+    const timer = setInterval(() => {
+      apiGetCalls(lead.id)
+        .then(({ calls: data }) => setCalls(data))
+        .catch(() => {});
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [lead.id, calls]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setIsOpen(true));
@@ -402,6 +423,46 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall,
       toast.error('Erro ao converter lead');
     } finally {
       setConverting(false);
+    }
+  }
+
+  async function saveAnalysis(callId: string) {
+    const text = analysisDraft.trim();
+    if (!text) return;
+    setSavingAnalysisId(callId);
+    try {
+      const res = await fetch(`/api/admin/prospeccao/leads/${lead.id}/calls/${callId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claude_analysis: text }),
+      });
+      if (!res.ok) throw new Error();
+      setCalls((prev) => prev.map((c) => c.id === callId ? { ...c, claude_analysis: text } : c));
+      setEditingAnalysisId(null);
+    } catch {
+      toast.error('Erro ao salvar análise');
+    } finally {
+      setSavingAnalysisId(null);
+    }
+  }
+
+  async function deleteAnalysis(callId: string) {
+    if (!confirm('Excluir análise do Claude desta ligação?')) return;
+    setSavingAnalysisId(callId);
+    try {
+      const res = await fetch(`/api/admin/prospeccao/leads/${lead.id}/calls/${callId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ claude_analysis: null }),
+      });
+      if (!res.ok) throw new Error();
+      setCalls((prev) => prev.map((c) => c.id === callId ? { ...c, claude_analysis: null } : c));
+      setOpenAnalysisId(null);
+      setEditingAnalysisId(null);
+    } catch {
+      toast.error('Erro ao excluir análise');
+    } finally {
+      setSavingAnalysisId(null);
     }
   }
 
@@ -1211,28 +1272,129 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall,
                     </details>
                   )}
 
-                  {/* Botões de ação */}
-                  <div className="flex items-center gap-2 pt-0.5">
-                    <button
-                      onClick={handleCopyPrompt}
-                      className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 transition-colors"
-                    >
-                      {copiedPromptId === call.id ? (
-                        <Check className="w-3 h-3" />
-                      ) : (
-                        <ClipboardCopy className="w-3 h-3" />
-                      )}
-                      {copiedPromptId === call.id ? 'Copiado!' : 'Copiar para o Claude'}
-                    </button>
-                    <span className="text-slate-200 dark:text-zinc-700">|</span>
-                    <button
-                      onClick={handleDownloadTxt}
-                      className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors"
-                    >
-                      <Download className="w-3 h-3" />
-                      Baixar .txt
-                    </button>
-                  </div>
+                  {/* Análise Claude */}
+                  {(() => {
+                    const isOpen    = openAnalysisId === call.id;
+                    const isEditing = editingAnalysisId === call.id;
+                    const isSaving  = savingAnalysisId === call.id;
+                    const hasAnalysis = !!call.claude_analysis;
+
+                    return (
+                      <div className="border-t border-slate-100 dark:border-zinc-800 pt-2">
+                        {/* Cabeçalho toggle */}
+                        <button
+                          onClick={() => {
+                            if (isOpen) {
+                              setOpenAnalysisId(null);
+                              setEditingAnalysisId(null);
+                            } else {
+                              setOpenAnalysisId(call.id);
+                              if (!hasAnalysis) {
+                                setEditingAnalysisId(call.id);
+                                setAnalysisDraft('');
+                              }
+                            }
+                          }}
+                          className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-600 dark:text-violet-400 hover:text-violet-800 dark:hover:text-violet-200 transition-colors w-full text-left"
+                        >
+                          <Sparkles className="w-3 h-3 shrink-0" />
+                          {isOpen
+                            ? (hasAnalysis ? '▼ Ocultar análise Claude' : '▼ Fechar')
+                            : (hasAnalysis ? '▶ Ver análise Claude' : '▶ Adicionar análise Claude')}
+                        </button>
+
+                        {/* Painel aberto */}
+                        {isOpen && (
+                          <div className="mt-2 space-y-2">
+                            {/* Modo edição / criação */}
+                            {isEditing ? (
+                              <>
+                                <textarea
+                                  value={analysisDraft}
+                                  onChange={(e) => setAnalysisDraft(e.target.value)}
+                                  placeholder="Cole aqui a análise gerada pelo Claude..."
+                                  rows={8}
+                                  className="w-full text-xs rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-2.5 text-slate-800 dark:text-zinc-200 placeholder-slate-300 dark:placeholder-zinc-600 resize-none outline-none focus:border-violet-400 dark:focus:border-violet-500 transition-colors"
+                                />
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => saveAnalysis(call.id)}
+                                    disabled={isSaving || !analysisDraft.trim()}
+                                    className="flex items-center gap-1 text-[11px] font-semibold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 px-2.5 py-1 rounded-lg transition-colors"
+                                  >
+                                    {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                    Salvar
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingAnalysisId(null);
+                                      if (!hasAnalysis) setOpenAnalysisId(null);
+                                    }}
+                                    className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              /* Modo leitura */
+                              <>
+                                <p className="text-xs text-slate-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto">
+                                  {call.claude_analysis}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setEditingAnalysisId(call.id);
+                                      setAnalysisDraft(call.claude_analysis ?? '');
+                                    }}
+                                    className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                    Editar
+                                  </button>
+                                  <span className="text-slate-200 dark:text-zinc-700">|</span>
+                                  <button
+                                    onClick={() => deleteAnalysis(call.id)}
+                                    disabled={isSaving}
+                                    className="flex items-center gap-1 text-[11px] font-semibold text-red-400 hover:text-red-600 disabled:opacity-50 transition-colors"
+                                  >
+                                    {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                                    Excluir
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Botões de ação — só aparecem quando a transcrição está disponível */}
+                  {call.transcription && (
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <button
+                        onClick={handleCopyPrompt}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 transition-colors"
+                      >
+                        {copiedPromptId === call.id ? (
+                          <Check className="w-3 h-3" />
+                        ) : (
+                          <ClipboardCopy className="w-3 h-3" />
+                        )}
+                        {copiedPromptId === call.id ? 'Copiado!' : 'Copiar para o Claude'}
+                      </button>
+                      <span className="text-slate-200 dark:text-zinc-700">|</span>
+                      <button
+                        onClick={handleDownloadTxt}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors"
+                      >
+                        <Download className="w-3 h-3" />
+                        Baixar .txt
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

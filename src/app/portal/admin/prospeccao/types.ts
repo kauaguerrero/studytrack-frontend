@@ -133,6 +133,7 @@ export interface LeadCall {
   transcription: string | null;
   transcription_status: 'processing' | 'done' | 'failed';
   post_call_status: PostCallStatus | null;
+  claude_analysis: string | null;
   created_at: string;
 }
 
