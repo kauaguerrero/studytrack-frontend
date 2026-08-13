@@ -15,6 +15,10 @@ import { CreateLeadModal } from './components/CreateLeadModal';
 import { ScheduleCallModal } from './components/ScheduleCallModal';
 import type { Lead, LeadFilters } from './types';
 
+function normalizeStr(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
 const EMPTY_FILTERS: LeadFilters = {
   uf: '',
   status: [],
@@ -47,18 +51,13 @@ export default function ProspeccaoPage() {
     // Para kanban, aplicar filtros de busca/temperatura/contato client-side
     return leads.filter((l) => {
       if (filters.search) {
-        const q = filters.search.toLowerCase();
-        const digits = q.replace(/\D/g, '');
-        const haystack = [
-          l.nome_fantasia,
-          l.razao_social,
-          l.nome_socio,
-          l.municipio,
-          l.email,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
+        const q = normalizeStr(filters.search);
+        const digits = filters.search.replace(/\D/g, '');
+        const haystack = normalizeStr(
+          [l.nome_fantasia, l.razao_social, l.nome_socio, l.municipio, l.email]
+            .filter(Boolean)
+            .join(' ')
+        );
         const matchesText = haystack.includes(q);
         const matchesDigits =
           digits.length > 0 &&
