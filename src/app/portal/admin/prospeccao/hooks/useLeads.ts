@@ -4,6 +4,7 @@ import useSWR, { mutate } from 'swr';
 import { apiFetcher } from '@/lib/api-fetcher';
 import type {
   Lead,
+  LeadCall,
   LeadContact,
   LeadFilters,
   LeadsStats,
@@ -92,6 +93,7 @@ export async function apiUpdateLead(
       | 'email'
       | 'website'
       | 'call_outcome'
+      | 'valor_proposta_mensal'
     >
   >
 ): Promise<{ lead: Lead }> {
@@ -199,4 +201,24 @@ export async function apiStartImport(
 
 export async function apiGetImportJob(jobId: string): Promise<ImportJob> {
   return fetchJSON(`/api/admin/prospeccao/import/${jobId}`);
+}
+
+export async function apiGetCalls(leadId: string): Promise<{ calls: LeadCall[] }> {
+  return fetchJSON(`${LEADS_BASE}/${leadId}/calls`);
+}
+
+export async function apiUpdateCallStatus(
+  leadId: string,
+  callId: string,
+  postCallStatus: string
+): Promise<void> {
+  await fetchJSON(`${LEADS_BASE}/${leadId}/calls/${callId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ post_call_status: postCallStatus }),
+  });
+}
+
+export async function apiDeleteCall(leadId: string, callId: string): Promise<void> {
+  const res = await fetch(`${LEADS_BASE}/${leadId}/calls/${callId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }

@@ -11,6 +11,7 @@ import {
   AlertCircle,
   RefreshCw,
   MapPin,
+  Mic,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -95,6 +96,7 @@ interface LeadsTableProps {
   onImportClick: () => void;
   onClearFilters: () => void;
   onRequestScheduleCall: (lead: Lead) => void;
+  onRequestCallMode: (lead: Lead) => void;
 }
 
 export function LeadsTable({
@@ -107,6 +109,7 @@ export function LeadsTable({
   onImportClick,
   onClearFilters,
   onRequestScheduleCall,
+  onRequestCallMode,
 }: LeadsTableProps) {
   const [localStatuses, setLocalStatuses] = useState<
     Record<string, LeadStatusCRM>
@@ -427,6 +430,13 @@ export function LeadsTable({
                         <MessageCircle className="w-3.5 h-3.5" />
                       </a>
                     )}
+                    <button
+                      onClick={() => onRequestCallMode(lead)}
+                      title="Modo Call — gravar e transcrever ligação"
+                      className="flex items-center justify-center w-7 h-7 rounded-lg text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-500/10 hover:text-violet-600 dark:hover:text-violet-300 transition-colors"
+                    >
+                      <Mic className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={() => onSelectLead(lead)}
                       title="Ver detalhes e registrar observação"

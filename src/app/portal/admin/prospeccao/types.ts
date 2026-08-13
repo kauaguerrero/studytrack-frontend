@@ -54,6 +54,8 @@ export interface Lead {
   email: string | null;
   website: string | null;
   place_id: string | null;
+  lat: number | null;
+  lng: number | null;
   nome_socio: string | null;
   data_abertura: string | null;
   codigo_natureza_juridica: string | null;
@@ -63,6 +65,7 @@ export interface Lead {
   source_channel: string | null;
   next_followup_at: string | null;
   observacoes: string | null;
+  valor_proposta_mensal: number | null;
   // Call agendada (Google Meet) — preenchidos via POST .../schedule-call
   call_scheduled_at: string | null;
   call_ends_at: string | null;
@@ -116,6 +119,21 @@ export interface LeadFilters {
   has_phone: boolean;
   search: string;
   temperature: LeadTemperature | '';
+}
+
+export type PostCallStatus = 'quer_proposta' | 'sem_interesse' | 'retornar_depois' | 'agendou_videochamada';
+
+export interface LeadCall {
+  id: string;
+  lead_id: string;
+  recorded_by: string;
+  recorded_by_name: string | null;
+  audio_url: string;
+  duration_seconds: number | null;
+  transcription: string | null;
+  transcription_status: 'processing' | 'done' | 'failed';
+  post_call_status: PostCallStatus | null;
+  created_at: string;
 }
 
 // ── Contratos de API (Next.js route handlers em /api/admin/prospeccao/) ──────
