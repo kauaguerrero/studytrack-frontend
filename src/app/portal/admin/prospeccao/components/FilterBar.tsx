@@ -130,7 +130,7 @@ export function FilterBar({
       if (searchInput !== filters.search) {
         onChange({ ...filters, search: searchInput });
       }
-    }, 300);
+    }, 150);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchInput]);

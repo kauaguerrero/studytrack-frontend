@@ -104,7 +104,7 @@ export async function apiUpdateLead(
 export async function apiScheduleCall(
   leadId: string,
   body: { title: string; start: string; end: string; time_zone?: string; attendee_email?: string }
-): Promise<{ lead: Lead; meet_link: string }> {
+): Promise<{ lead: Lead; meet_link: string | null; calendar_created: boolean }> {
   return fetchJSON(`${LEADS_BASE}/${leadId}/schedule-call`, {
     method: 'POST',
     body: JSON.stringify(body),

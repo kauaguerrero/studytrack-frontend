@@ -36,6 +36,7 @@ export function ScheduleCallModal({ lead, onClose, onScheduled }: ScheduleCallMo
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [message, setMessage] = useState('');
+  const [calendarCreated, setCalendarCreated] = useState(false);
 
   const [form, setForm] = useState({
     title: '',
@@ -89,13 +90,14 @@ export function ScheduleCallModal({ lead, onClose, onScheduled }: ScheduleCallMo
     setSaving(true);
     setError(null);
     try {
-      const { meet_link } = await apiScheduleCall(lead.id, {
+      const { meet_link, calendar_created } = await apiScheduleCall(lead.id, {
         title: form.title.trim(),
         start: startISO,
         end: endISO,
         time_zone: TIME_ZONE,
         attendee_email: form.attendee_email.trim() || undefined,
       });
+      setCalendarCreated(calendar_created);
       setMessage(
         formatCallMessage({
           title: form.title.trim(),
@@ -226,7 +228,9 @@ export function ScheduleCallModal({ lead, onClose, onScheduled }: ScheduleCallMo
           <>
             <div className="min-h-0 overflow-y-auto px-6 py-4 space-y-3">
               <p className="text-xs text-slate-500 dark:text-zinc-400">
-                Evento criado no Google Calendar com Meet. Copie a mensagem abaixo e envie pro lead:
+                {calendarCreated
+                  ? 'Evento criado no Google Calendar com Meet. Copie a mensagem abaixo e envie pro lead:'
+                  : 'Call registrada. Copie a mensagem abaixo e envie pro lead:'}
               </p>
               <pre className="whitespace-pre-wrap rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 p-3.5 text-sm text-slate-700 dark:text-zinc-200 font-sans">
                 {message}

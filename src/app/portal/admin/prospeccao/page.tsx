@@ -13,7 +13,12 @@ import { LeadDrawer } from './components/LeadDrawer';
 import { ImportModal } from './components/ImportModal';
 import { CreateLeadModal } from './components/CreateLeadModal';
 import { ScheduleCallModal } from './components/ScheduleCallModal';
+import { GoogleCalendarTokenBadge } from './components/GoogleCalendarTokenBadge';
 import type { Lead, LeadFilters } from './types';
+
+function normalizeStr(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
 
 const EMPTY_FILTERS: LeadFilters = {
   uf: '',
@@ -47,18 +52,13 @@ export default function ProspeccaoPage() {
     // Para kanban, aplicar filtros de busca/temperatura/contato client-side
     return leads.filter((l) => {
       if (filters.search) {
-        const q = filters.search.toLowerCase();
-        const digits = q.replace(/\D/g, '');
-        const haystack = [
-          l.nome_fantasia,
-          l.razao_social,
-          l.nome_socio,
-          l.municipio,
-          l.email,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
+        const q = normalizeStr(filters.search);
+        const digits = filters.search.replace(/\D/g, '');
+        const haystack = normalizeStr(
+          [l.nome_fantasia, l.razao_social, l.nome_socio, l.municipio, l.email]
+            .filter(Boolean)
+            .join(' ')
+        );
         const matchesText = haystack.includes(q);
         const matchesDigits =
           digits.length > 0 &&
@@ -109,6 +109,9 @@ export default function ProspeccaoPage() {
           <p className="text-xs text-slate-400 dark:text-zinc-500">
             {statsLoading ? 'Carregando...' : `${totalLeads} leads na base`}
           </p>
+          <div className="mt-2">
+            <GoogleCalendarTokenBadge />
+          </div>
         </div>
 
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">

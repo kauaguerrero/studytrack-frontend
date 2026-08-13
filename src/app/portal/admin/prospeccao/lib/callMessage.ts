@@ -31,17 +31,9 @@ export interface CallMessageInput {
   start: Date;
   end: Date;
   timeZone: string;
-  meetLink: string;
+  meetLink?: string | null;
 }
 
-/**
- * Ex.:
- * Reunião Onboarding - Cursinho X x StudyTrack
- * Terça-feira, 18 de agosto 3:30–4:30pm
- * Fuso horário: America/Sao_Paulo
- * Como participar do Google Meet
- * Link da videochamada: https://meet.google.com/xxx-xxxx-xxx
- */
 export function formatCallMessage({ title, start, end, timeZone, meetLink }: CallMessageInput): string {
   const weekday = capitalize(
     new Intl.DateTimeFormat('pt-BR', { weekday: 'long', timeZone }).format(start)
@@ -54,11 +46,14 @@ export function formatCallMessage({ title, start, end, timeZone, meetLink }: Cal
   const startTime = formatTimePart(start, timeZone, !sameMeridiem);
   const endTime = formatTimePart(end, timeZone, true);
 
-  return [
+  const lines = [
     title,
     `${weekday}, ${dayMonth} ${startTime}–${endTime}`,
     `Fuso horário: ${timeZone}`,
-    'Como participar do Google Meet',
-    `Link da videochamada: ${meetLink}`,
-  ].join('\n');
+  ];
+  if (meetLink) {
+    lines.push('Como participar do Google Meet');
+    lines.push(`Link da videochamada: ${meetLink}`);
+  }
+  return lines.join('\n');
 }

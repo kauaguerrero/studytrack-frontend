@@ -31,20 +31,29 @@ export async function GET(request: NextRequest) {
   if (has_email)   query = query.not('email', 'is', null);
   if (has_phone)   query = query.or('telefone1.not.is.null,telefone2.not.is.null');
   if (search) {
-    const q = search.replace(/'/g, "''").replace(/[%,()]/g, '');
-    const digits = q.replace(/\D/g, '');
-    const fields = [
-      `nome_fantasia.ilike.%${q}%`,
-      `razao_social.ilike.%${q}%`,
-      `nome_socio.ilike.%${q}%`,
-      `municipio.ilike.%${q}%`,
-      `email.ilike.%${q}%`,
-    ];
-    // Telefone/CNPJ são buscados só pelos dígitos, pra funcionar com ou sem máscara.
-    if (digits) {
-      fields.push(`cnpj.ilike.%${digits}%`, `telefone1.ilike.%${digits}%`, `telefone2.ilike.%${digits}%`);
+    const { data: matchingIds, error: rpcError } = await db.rpc('search_leads_by_text', { search_term: search });
+    if (rpcError || !matchingIds) {
+      // Fallback: ilike simples sem unaccent
+      const q = search.replace(/'/g, "''").replace(/[%,()]/g, '');
+      const digits = q.replace(/\D/g, '');
+      const fields = [
+        `nome_fantasia.ilike.%${q}%`,
+        `razao_social.ilike.%${q}%`,
+        `nome_socio.ilike.%${q}%`,
+        `municipio.ilike.%${q}%`,
+        `email.ilike.%${q}%`,
+      ];
+      if (digits) {
+        fields.push(`cnpj.ilike.%${digits}%`, `telefone1.ilike.%${digits}%`, `telefone2.ilike.%${digits}%`);
+      }
+      query = query.or(fields.join(','));
+    } else {
+      const ids = (matchingIds as { id: string }[]).map((r) => r.id);
+      if (ids.length === 0) {
+        return NextResponse.json({ leads: [] });
+      }
+      query = query.in('id', ids);
     }
-    query = query.or(fields.join(','));
   }
   if (tipo === 'empresa') {
     // Qualquer natureza que não seja Empresário Individual
