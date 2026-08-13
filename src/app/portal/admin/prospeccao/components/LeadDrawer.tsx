@@ -23,6 +23,9 @@ import {
   Copy,
   Check,
   XCircle,
+  Mic,
+  Download,
+  ClipboardCopy,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -32,12 +35,15 @@ import {
   apiCreateMockOrg,
   apiConvertLead,
   apiGetWhatsappMessages,
+  apiGetCalls,
+  apiDeleteCall,
   type LeadWhatsappMessage,
 } from '../hooks/useLeads';
 import { formatCallMessage } from '../lib/callMessage';
 import { STATUS_CONFIG } from './LeadsTable';
 import type {
   Lead,
+  LeadCall,
   LeadStatusCRM,
   LeadTemperature,
   ContactChannel,
@@ -122,6 +128,7 @@ function leadToEditForm(lead: Lead) {
     email: lead.email ?? '',
     website: lead.website ?? '',
     next_followup_at: lead.next_followup_at ? lead.next_followup_at.slice(0, 10) : '',
+    valor_proposta_mensal: lead.valor_proposta_mensal != null ? String(lead.valor_proposta_mensal) : '',
   };
 }
 
@@ -138,9 +145,11 @@ interface LeadDrawerProps {
   onClose: () => void;
   onLeadUpdate: () => void;
   onRequestScheduleCall: (lead: Lead) => void;
+  onRequestCallMode?: (lead: Lead) => void;
+  callsKey?: number;
 }
 
-export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall }: LeadDrawerProps) {
+export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall, onRequestCallMode, callsKey = 0 }: LeadDrawerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [creatingMock, setCreatingMock] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -156,6 +165,10 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall 
   const [updatingTemp, setUpdatingTemp] = useState(false);
   const [updatingCallOutcome, setUpdatingCallOutcome] = useState(false);
   const [copiedCallMsg, setCopiedCallMsg] = useState(false);
+  const [calls, setCalls] = useState<LeadCall[]>([]);
+  const [callsLoading, setCallsLoading] = useState(false);
+  const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
+  const [deletingCallId, setDeletingCallId] = useState<string | null>(null);
 
   // Sincroniza obsText quando o lead é refreshado pelo pai (após salvar)
   useEffect(() => {
@@ -180,6 +193,18 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall 
       cancelled = true;
     };
   }, [lead.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCallsLoading(true);
+    apiGetCalls(lead.id)
+      .then(({ calls: data }) => !cancelled && setCalls(data))
+      .catch(() => !cancelled && setCalls([]))
+      .finally(() => !cancelled && setCallsLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [lead.id, callsKey]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setIsOpen(true));
@@ -278,6 +303,7 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall 
         email: editForm.email.trim() || null,
         website: editForm.website.trim() || null,
         next_followup_at: editForm.next_followup_at || null,
+        valor_proposta_mensal: editForm.valor_proposta_mensal ? parseFloat(editForm.valor_proposta_mensal) || null : null,
       });
       onLeadUpdate();
       setEditing(false);
@@ -438,6 +464,13 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall 
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => onRequestCallMode?.(lead)}
+              title="Modo Call — gravar e transcrever ligação"
+              className="text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 mt-0.5 transition-colors"
+            >
+              <Mic className="w-4 h-4" />
+            </button>
             {!editing && (
               <button
                 onClick={() => setEditing(true)}
@@ -559,6 +592,18 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall 
                   type="date"
                   value={editForm.next_followup_at}
                   onChange={(e) => updateEditField('next_followup_at', e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Proposta mensal (R$)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="50"
+                  placeholder="ex: 1500"
+                  value={editForm.valor_proposta_mensal}
+                  onChange={(e) => updateEditField('valor_proposta_mensal', e.target.value)}
                   className={inputCls}
                 />
               </div>
@@ -1018,6 +1063,179 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall 
                 Nenhuma abordagem registrada ainda
               </p>
             )}
+          </div>
+
+          {/* Ligações gravadas */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className={labelCls}>
+                Ligações gravadas ({callsLoading ? '…' : calls.length})
+              </p>
+              <button
+                onClick={() => onRequestCallMode?.(lead)}
+                className="flex items-center gap-1 text-[11px] font-semibold text-violet-500 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
+              >
+                <Mic className="w-3 h-3" />
+                Iniciar
+              </button>
+            </div>
+
+            {callsLoading && (
+              <div className="flex justify-center py-3">
+                <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+              </div>
+            )}
+
+            {!callsLoading && calls.length === 0 && (
+              <p className="text-xs text-slate-400 dark:text-zinc-500 text-center py-2">
+                Nenhuma ligação gravada ainda
+              </p>
+            )}
+
+            {calls.map((call) => {
+              const callDate = new Date(call.created_at).toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+              const dur = call.duration_seconds
+                ? call.duration_seconds >= 60
+                  ? `${Math.floor(call.duration_seconds / 60)}min${call.duration_seconds % 60 > 0 ? ` ${call.duration_seconds % 60}s` : ''}`
+                  : `${call.duration_seconds}s`
+                : null;
+
+              const structuredPrompt = `Você é um especialista em vendas B2B. Abaixo está a transcrição fiel de uma ligação fria de prospecção da StudyTrack (plataforma B2B para cursinhos pré-vestibular). Analise e retorne:\n\n1. Resumo da ligação (3-4 linhas)\n2. Objeções levantadas pelo lead\n3. Nível de interesse percebido (alto / médio / baixo / sem interesse)\n4. Próxima ação recomendada (ex: reenviar proposta, ligar em X dias, descartar)\n5. Trechos que indicam se esse lead deveria mudar de status no funil\n\n--- TRANSCRIÇÃO ---\n${call.transcription ?? '(transcrição não disponível)'}`;
+
+              const POST_CALL_LABELS: Record<string, string> = {
+                quer_proposta: 'Quer proposta',
+                sem_interesse: 'Sem interesse',
+                retornar_depois: 'Retornar depois',
+                agendou_videochamada: 'Agendou videochamada',
+              };
+
+              async function handleDeleteCall() {
+                if (!confirm('Excluir esta ligação e o áudio?')) return;
+                setDeletingCallId(call.id);
+                try {
+                  await apiDeleteCall(lead.id, call.id);
+                  setCalls((prev) => prev.filter((c) => c.id !== call.id));
+                } catch {
+                  toast.error('Erro ao excluir ligação');
+                } finally {
+                  setDeletingCallId(null);
+                }
+              }
+
+              async function handleCopyPrompt() {
+                try {
+                  await navigator.clipboard.writeText(structuredPrompt);
+                  setCopiedPromptId(call.id);
+                  setTimeout(() => setCopiedPromptId(null), 2000);
+                } catch {
+                  toast.error('Não foi possível copiar automaticamente');
+                }
+              }
+
+              function handleDownloadTxt() {
+                const blob = new Blob([structuredPrompt], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ligacao-${call.id.slice(0, 8)}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }
+
+              return (
+                <div
+                  key={call.id}
+                  className="rounded-xl border border-slate-200 dark:border-zinc-700 p-3 space-y-2"
+                >
+                  {/* Cabeçalho do card */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-zinc-200">
+                        {callDate}{dur && <span className="text-slate-400 dark:text-zinc-500 font-normal"> · {dur}</span>}
+                      </p>
+                      {call.recorded_by_name && (
+                        <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">
+                          por {call.recorded_by_name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {call.post_call_status && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300">
+                          {POST_CALL_LABELS[call.post_call_status] ?? call.post_call_status}
+                        </span>
+                      )}
+                      {call.transcription_status === 'processing' && (
+                        <span className="flex items-center gap-0.5 text-[10px] text-amber-500">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Transcrevendo
+                        </span>
+                      )}
+                      {call.transcription_status === 'failed' && (
+                        <span className="text-[10px] text-red-400">Transcrição falhou</span>
+                      )}
+                      <button
+                        onClick={handleDeleteCall}
+                        disabled={deletingCallId === call.id}
+                        title="Excluir ligação"
+                        className="text-slate-300 hover:text-red-500 dark:text-zinc-600 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+                      >
+                        {deletingCallId === call.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Player */}
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                  <audio controls src={call.audio_url} className="w-full h-8" />
+
+                  {/* Transcrição colapsável */}
+                  {call.transcription && (
+                    <details className="group">
+                      <summary className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400 cursor-pointer select-none list-none flex items-center gap-1">
+                        <span className="group-open:hidden">▶ Ver transcrição</span>
+                        <span className="hidden group-open:inline">▼ Ocultar transcrição</span>
+                      </summary>
+                      <p className="mt-2 text-xs text-slate-600 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                        {call.transcription}
+                      </p>
+                    </details>
+                  )}
+
+                  {/* Botões de ação */}
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <button
+                      onClick={handleCopyPrompt}
+                      className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 transition-colors"
+                    >
+                      {copiedPromptId === call.id ? (
+                        <Check className="w-3 h-3" />
+                      ) : (
+                        <ClipboardCopy className="w-3 h-3" />
+                      )}
+                      {copiedPromptId === call.id ? 'Copiado!' : 'Copiar para o Claude'}
+                    </button>
+                    <span className="text-slate-200 dark:text-zinc-700">|</span>
+                    <button
+                      onClick={handleDownloadTxt}
+                      className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors"
+                    >
+                      <Download className="w-3 h-3" />
+                      Baixar .txt
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

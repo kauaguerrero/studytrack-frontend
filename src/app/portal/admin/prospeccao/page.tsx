@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { Target, MapPin, Download, List, LayoutGrid, Plus, Bot } from 'lucide-react';
+import { Target, MapPin, Download, List, LayoutGrid, Plus, Bot, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLeads, useLeadsStats, reloadAllLeadsData } from './hooks/useLeads';
 import { KPICards } from './components/KPICards';
@@ -14,6 +14,7 @@ import { ImportModal } from './components/ImportModal';
 import { CreateLeadModal } from './components/CreateLeadModal';
 import { ScheduleCallModal } from './components/ScheduleCallModal';
 import { GoogleCalendarTokenBadge } from './components/GoogleCalendarTokenBadge';
+import { CallModeModal } from './components/CallModeModal';
 import type { Lead, LeadFilters } from './types';
 
 function normalizeStr(s: string): string {
@@ -37,6 +38,8 @@ export default function ProspeccaoPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [scheduleCallLead, setScheduleCallLead] = useState<Lead | null>(null);
+  const [callModalLead, setCallModalLead] = useState<Lead | null>(null);
+  const [callsKey, setCallsKey] = useState(0);
 
   const { leads, isLoading: leadsLoading, error } = useLeads(filters);
   const { stats, isLoading: statsLoading } = useLeadsStats();
@@ -102,6 +105,13 @@ export default function ProspeccaoPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
+          <Link
+            href="/portal/admin/radar-comercial"
+            className="inline-flex items-center gap-1.5 text-xs text-slate-400 dark:text-zinc-500 hover:text-violet-600 dark:hover:text-violet-400 transition-colors mb-2"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Radar Comercial
+          </Link>
           <div className="flex items-center gap-2 mb-0.5">
             <Target className="w-5 h-5 text-violet-500" />
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">Prospecção</h1>
@@ -201,6 +211,7 @@ export default function ProspeccaoPage() {
           onImportClick={() => setImportOpen(true)}
           onClearFilters={handleClearFilters}
           onRequestScheduleCall={setScheduleCallLead}
+          onRequestCallMode={setCallModalLead}
         />
       ) : (
         <KanbanBoard
@@ -219,6 +230,8 @@ export default function ProspeccaoPage() {
           onClose={() => setSelectedLeadId(null)}
           onLeadUpdate={handleLeadUpdate}
           onRequestScheduleCall={setScheduleCallLead}
+          onRequestCallMode={setCallModalLead}
+          callsKey={callsKey}
         />
       )}
 
@@ -227,6 +240,17 @@ export default function ProspeccaoPage() {
         lead={scheduleCallLead}
         onClose={() => setScheduleCallLead(null)}
         onScheduled={handleLeadUpdate}
+      />
+
+      {/* Modal de gravação e transcrição (Modo Call) */}
+      <CallModeModal
+        lead={callModalLead}
+        isOpen={!!callModalLead}
+        onClose={() => setCallModalLead(null)}
+        onCallSaved={() => {
+          setCallsKey((k) => k + 1);
+          reloadAllLeadsData();
+        }}
       />
 
       {/* Modal de importação */}
