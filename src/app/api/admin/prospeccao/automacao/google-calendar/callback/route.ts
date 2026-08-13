@@ -25,11 +25,11 @@ function htmlPage(title: string, bodyHtml: string) {
 async function markDeploying(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any,
-  deploymentId: string | null
+  deployingSince: string
 ) {
   await db
     .from('google_calendar_token_status')
-    .update({ status: 'deploying', pending_deployment_id: deploymentId, error_message: null })
+    .update({ status: 'deploying', deploying_since: deployingSince, error_message: null })
     .eq('id', 'singleton');
 }
 
@@ -80,8 +80,9 @@ export async function GET(request: NextRequest) {
   // fallback manual de sempre em vez de perder o token.
   try {
     await updateVercelEnvVar('GOOGLE_CALENDAR_REFRESH_TOKEN', refreshToken);
-    const { deploymentId } = await triggerVercelDeploy();
-    await markDeploying(db, deploymentId);
+    const deployingSince = new Date().toISOString();
+    await triggerVercelDeploy();
+    await markDeploying(db, deployingSince);
 
     return htmlPage(
       'Token atualizado',
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
     const message = e instanceof Error ? e.message : 'Erro desconhecido';
     await db
       .from('google_calendar_token_status')
-      .update({ status: 'error', error_message: message, pending_deployment_id: null })
+      .update({ status: 'error', error_message: message, deploying_since: null })
       .eq('id', 'singleton');
 
     return htmlPage(

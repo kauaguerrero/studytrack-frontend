@@ -74,15 +74,17 @@ export async function updateVercelEnvVar(key: string, value: string): Promise<vo
   }
 }
 
-export async function triggerVercelDeploy(): Promise<{ deploymentId: string | null }> {
+export async function triggerVercelDeploy(): Promise<void> {
   const hookUrl = getDeployHookUrl();
   const res = await fetch(hookUrl, { method: 'POST' });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`Falha ao disparar deploy hook (${res.status}): ${body}`);
   }
-  const json = (await res.json().catch(() => ({}))) as { job?: { id?: string } };
-  return { deploymentId: json.job?.id ?? null };
+  // A resposta do hook traz um "job id" que NÃO é um ID de deployment de
+  // verdade (esses começam com "dpl_") — não dá pra usar pra consultar
+  // status depois. Em vez disso, correlacionamos por horário (ver
+  // findProductionDeploymentSince).
 }
 
 export type VercelDeploymentState =
@@ -93,9 +95,29 @@ export type VercelDeploymentState =
   | 'CANCELED'
   | 'INITIALIZING';
 
-export async function getVercelDeploymentState(deploymentId: string): Promise<VercelDeploymentState> {
-  const json = (await vercelFetch(`/v13/deployments/${deploymentId}`)) as {
-    readyState: VercelDeploymentState;
-  };
-  return json.readyState;
+export interface VercelDeploymentSummary {
+  id: string;
+  state: VercelDeploymentState;
+  createdAt: number;
+}
+
+/**
+ * Busca o deployment de produção mais recente criado depois de `sinceMs`
+ * — usado pra correlacionar com um deploy disparado via hook, já que o
+ * hook não devolve um ID de deployment utilizável.
+ */
+export async function findProductionDeploymentSince(
+  sinceMs: number
+): Promise<VercelDeploymentSummary | null> {
+  const json = (await vercelFetch(
+    `/v6/deployments?projectId=${PROJECT_ID}&target=production&limit=10`
+  )) as { deployments: { uid: string; state: VercelDeploymentState; created: number }[] };
+
+  const candidates = json.deployments
+    .filter((d) => d.created >= sinceMs - 5_000)
+    .sort((a, b) => a.created - b.created);
+
+  const match = candidates[0];
+  if (!match) return null;
+  return { id: match.uid, state: match.state, createdAt: match.created };
 }

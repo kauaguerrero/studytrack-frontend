@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/app/api/admin/_utils';
-import { getVercelDeploymentState } from '@/lib/vercel-api';
+import { findProductionDeploymentSince } from '@/lib/vercel-api';
 
 export const dynamic = 'force-dynamic';
 
 const TOKEN_LIFETIME_DAYS = 7;
+const DEPLOY_STUCK_TIMEOUT_MS = 15 * 60_000;
 
 export type TokenBadgeColor = 'gray' | 'blue' | 'green' | 'yellow' | 'red';
 
@@ -34,28 +35,39 @@ export async function GET() {
   let updatedAt: string | null = row?.updated_at ?? null;
   let errorMessage: string | null = row?.error_message ?? null;
 
-  // Se tem um deploy pendente, confere se já terminou (tolera falha de config
-  // da API da Vercel sem quebrar a rota — só não atualiza o status agora).
-  if (status === 'deploying' && row?.pending_deployment_id) {
+  // Se tem um deploy em andamento, confere se já terminou — correlaciona
+  // pelo horário em que foi disparado (o deploy hook não devolve um ID de
+  // deployment utilizável, ver vercel-api.ts).
+  if (status === 'deploying' && row?.deploying_since) {
+    const sinceMs = new Date(row.deploying_since).getTime();
     try {
-      const state = await getVercelDeploymentState(row.pending_deployment_id);
-      if (state === 'READY') {
+      const deployment = await findProductionDeploymentSince(sinceMs);
+      if (deployment?.state === 'READY') {
         updatedAt = new Date().toISOString();
         status = 'active';
         errorMessage = null;
         await db
           .from('google_calendar_token_status')
-          .update({ status, updated_at: updatedAt, pending_deployment_id: null, error_message: null })
+          .update({ status, updated_at: updatedAt, deploying_since: null, error_message: null })
           .eq('id', 'singleton');
-      } else if (state === 'ERROR' || state === 'CANCELED') {
+      } else if (deployment?.state === 'ERROR' || deployment?.state === 'CANCELED') {
         status = 'error';
-        errorMessage = `Deploy ${state === 'ERROR' ? 'falhou' : 'foi cancelado'} na Vercel.`;
+        errorMessage = `Deploy ${deployment.state === 'ERROR' ? 'falhou' : 'foi cancelado'} na Vercel.`;
         await db
           .from('google_calendar_token_status')
-          .update({ status, error_message: errorMessage, pending_deployment_id: null })
+          .update({ status, error_message: errorMessage, deploying_since: null })
+          .eq('id', 'singleton');
+      } else if (Date.now() - sinceMs > DEPLOY_STUCK_TIMEOUT_MS) {
+        // Sem sinal do deployment depois de muito tempo — evita ficar preso
+        // pra sempre em "Atualizando...".
+        status = 'error';
+        errorMessage = 'Não foi possível confirmar o deploy depois de 15 minutos.';
+        await db
+          .from('google_calendar_token_status')
+          .update({ status, error_message: errorMessage, deploying_since: null })
           .eq('id', 'singleton');
       }
-      // QUEUED/BUILDING/INITIALIZING: continua "deploying", sem mudar nada.
+      // QUEUED/BUILDING/INITIALIZING (ou ainda não achou o deployment): continua "deploying".
     } catch {
       // API da Vercel não configurada/indisponível — mantém o status atual.
     }
