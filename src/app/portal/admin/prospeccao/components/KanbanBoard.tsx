@@ -17,6 +17,7 @@ import {
 import { toast } from 'sonner';
 import { apiUpdateLead } from '../hooks/useLeads';
 import { STATUS_CONFIG } from './LeadsTable';
+import { CallAgendaModal } from './CallAgendaModal';
 import type { Lead, LeadStatusCRM, LeadTemperature } from '../types';
 
 const ACTIVE_STATUSES: LeadStatusCRM[] = [
@@ -140,6 +141,7 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
   const [dragging, setDragging] = useState<Lead | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<LeadStatusCRM | null>(null);
+  const [agendaOpen, setAgendaOpen] = useState(false);
 
   async function handleDrop(targetStatus: LeadStatusCRM) {
     if (!dragging || dragging.status_crm === targetStatus) {
@@ -194,7 +196,17 @@ export function KanbanBoard({
   }
 
   function byStatus(status: LeadStatusCRM) {
-    return leads.filter((l) => l.status_crm === status);
+    const filtered = leads.filter((l) => l.status_crm === status);
+    if (status === 'call_agendado') {
+      // Call mais próxima primeiro, sem data vai pro fim.
+      return [...filtered].sort((a, b) => {
+        if (!a.call_scheduled_at && !b.call_scheduled_at) return 0;
+        if (!a.call_scheduled_at) return 1;
+        if (!b.call_scheduled_at) return -1;
+        return new Date(a.call_scheduled_at).getTime() - new Date(b.call_scheduled_at).getTime();
+      });
+    }
+    return filtered;
   }
 
   const displayedStatuses =
@@ -246,7 +258,13 @@ export function KanbanBoard({
                       className="w-2 h-2 rounded-full flex-shrink-0"
                       style={{ backgroundColor: accent, boxShadow: `0 0 6px ${accent}` }}
                     />
-                    <span className="text-[13px] font-bold text-slate-800 dark:text-zinc-200 tracking-tight">
+                    <span
+                      onDoubleClick={status === 'call_agendado' ? () => setAgendaOpen(true) : undefined}
+                      title={status === 'call_agendado' ? 'Duplo clique para ver a agenda' : undefined}
+                      className={`text-[13px] font-bold text-slate-800 dark:text-zinc-200 tracking-tight ${
+                        status === 'call_agendado' ? 'cursor-pointer select-none' : ''
+                      }`}
+                    >
                       {cfg.label}
                     </span>
                   </div>
@@ -402,6 +420,14 @@ export function KanbanBoard({
           </div>
         );
       })}
+
+      {agendaOpen && (
+        <CallAgendaModal
+          leads={byStatus('call_agendado')}
+          onClose={() => setAgendaOpen(false)}
+          onSelectLead={onSelectLead}
+        />
+      )}
     </div>
   );
 }
