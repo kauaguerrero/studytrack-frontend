@@ -283,7 +283,7 @@ export default function FounderDashboardClient({
   const [students, setStudents] = useState<Student[]>(filterOutTestAccounts(initialStudents));
   const [rankingStudents, setRankingStudents] = useState<Student[]>(filterOutTestAccounts(initialStudents));
   const [essaysCounts, setEssaysCounts] = useState(initialEssaysCounts);
-  const [metricWindow, setMetricWindow] = useState<MetricWindow>('week');
+  const [metricWindow, setMetricWindow] = useState<MetricWindow>('total');
   const [associatesCount, setAssociatesCount] = useState<number | null>(null);
   const [videoAdoption, setVideoAdoption] = useState<VideoAdoptionKpi | null>(null);
   const [videoAdoptionLoading, setVideoAdoptionLoading] = useState(isVideoToolEnabled);
