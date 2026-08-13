@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const ASSOCIATE_DB_ROLE = 'associate';
-const LEGACY_ASSOCIATE_ROLE = 'teacher';
 const CSRF_HEADER = 'x-studytrack-csrf';
 
 type RequesterRow = {
@@ -93,24 +92,57 @@ export async function PATCH(
   if (!auth.ok) return auth.response;
 
   const profilesTable = auth.adminClient.from('profiles') as any;
+  type AssocRow = {
+    id: string; role: string | null; organization_id: string | null;
+    associate_permissions: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean; active?: boolean } | null;
+  };
   const { data: associate } = await profilesTable
-    .select('id, role, organization_id')
+    .select('id, role, organization_id, associate_permissions')
     .eq('id', associateId)
-    .maybeSingle() as { data: { id: string; role: string | null; organization_id: string | null } | null };
+    .maybeSingle() as { data: AssocRow | null };
 
-  if (!associate || ![ASSOCIATE_DB_ROLE, LEGACY_ASSOCIATE_ROLE].includes(associate.role || '') || associate.organization_id !== auth.orgId) {
+  if (!associate || associate.role !== ASSOCIATE_DB_ROLE || associate.organization_id !== auth.orgId) {
     return NextResponse.json({ error: 'Associado não encontrado nesta organização.' }, { status: 404 });
   }
 
-  const body = await request.json().catch(() => ({} as { active?: boolean }));
-  if (typeof body.active !== 'boolean') {
-    return NextResponse.json({ error: 'Campo "active" inválido.' }, { status: 400 });
+  const body = await request.json().catch(() => ({} as { active?: boolean; permissions?: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean } }));
+
+  // Atualização de permissões funcionais
+  if (body.permissions !== undefined) {
+    const canCorrect = Boolean(body.permissions?.can_correct);
+    const canImport = Boolean(body.permissions?.can_import);
+    const canViewStudents = Boolean(body.permissions?.can_view_students);
+    if (!canCorrect && !canImport && !canViewStudents) {
+      return NextResponse.json({ error: 'O associate deve ter ao menos uma permissão ativa.' }, { status: 400 });
+    }
+    const currentPerms = associate.associate_permissions ?? {};
+    const { error } = await profilesTable
+      .update({
+        associate_permissions: {
+          ...currentPerms,
+          can_correct: canCorrect,
+          can_import: canImport,
+          can_view_students: canViewStudents,
+        },
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq('id', associateId);
+    if (error) {
+      return NextResponse.json({ error: 'Não foi possível atualizar permissões.' }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
   }
 
+  // Ativar / desativar — o estado é salvo em associate_permissions.active;
+  // organization_id NÃO é alterado (desativar ≠ remover).
+  if (typeof body.active !== 'boolean') {
+    return NextResponse.json({ error: 'Campo "active" ou "permissions" é obrigatório.' }, { status: 400 });
+  }
+
+  const currentPerms = associate.associate_permissions ?? {};
   const { error } = await profilesTable
     .update({
-      organization_id: body.active ? auth.orgId : null,
-      role: associate.role || ASSOCIATE_DB_ROLE,
+      associate_permissions: { ...currentPerms, active: body.active },
       updated_at: new Date().toISOString(),
     } as never)
     .eq('id', associateId);
@@ -141,7 +173,7 @@ export async function DELETE(
     .eq('id', associateId)
     .maybeSingle() as { data: { id: string; role: string | null; organization_id: string | null } | null };
 
-  if (!associate || ![ASSOCIATE_DB_ROLE, LEGACY_ASSOCIATE_ROLE].includes(associate.role || '') || associate.organization_id !== auth.orgId) {
+  if (!associate || associate.role !== ASSOCIATE_DB_ROLE || associate.organization_id !== auth.orgId) {
     return NextResponse.json({ error: 'Associado não encontrado nesta organização.' }, { status: 404 });
   }
 

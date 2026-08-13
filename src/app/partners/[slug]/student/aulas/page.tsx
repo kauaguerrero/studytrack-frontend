@@ -11,6 +11,7 @@ import {
   KpiCard, BrandButton, MiniBar,
 } from '@/components/partners/founder-ui';
 import { BookOpen, CheckCircle2, Play, ChevronDown, NotebookPen, Target } from 'lucide-react';
+import { isDemoOrg, MOCK_VIDEO_MODULES } from '../../../../../../studytrack-tutorial-mock';
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,11 @@ export default function StudentAulasPage() {
 
   async function loadModules() {
     setLoading(true);
+    if (isDemoOrg(slug)) {
+      setModules(MOCK_VIDEO_MODULES.modules as unknown as VideoModule[]);
+      setLoading(false);
+      return;
+    }
     try {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();

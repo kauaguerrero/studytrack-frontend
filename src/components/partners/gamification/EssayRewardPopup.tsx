@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { FileText, Sparkles, Trophy, X } from 'lucide-react';
 import { usePopupTheme } from './popupTheme';
+import { getTierProgress } from './titleSystem';
 
 interface Props {
   pointsAwarded: number;
@@ -12,8 +13,6 @@ interface Props {
   onDismiss: () => void;
   onContinue: () => void;
 }
-
-const MONTHLY_GOAL = 1000;
 
 export function EssayRewardPopup({
   pointsAwarded,
@@ -25,7 +24,8 @@ export function EssayRewardPopup({
 }: Props) {
   const shouldReduce = useReducedMotion();
   const theme = usePopupTheme('celebration');
-  const monthlyBarPct = Math.min((newMonthlyPoints / MONTHLY_GOAL) * 100, 100);
+  const tierProgress = getTierProgress(newMonthlyPoints);
+  const monthlyBarPct = tierProgress.pct;
 
   return (
     <motion.div
@@ -149,9 +149,15 @@ export function EssayRewardPopup({
 
           <div>
             <div className="mb-2 flex items-baseline justify-between">
-              <p className={`text-xs ${theme.mutedClass}`}>Progresso para os 1.000 pts</p>
+              <p className={`text-xs ${theme.mutedClass}`}>
+                {tierProgress.next
+                  ? `Progresso para o nível ${tierProgress.next}`
+                  : 'Nível máximo do mês alcançado'}
+              </p>
               <p className={`text-xs font-semibold ${theme.titleClass}`}>
-                {newMonthlyPoints.toLocaleString('pt-BR')} / 1.000 pts
+                {tierProgress.next && tierProgress.nextMinPoints
+                  ? `${newMonthlyPoints.toLocaleString('pt-BR')} / ${tierProgress.nextMinPoints.toLocaleString('pt-BR')} pts`
+                  : `${newMonthlyPoints.toLocaleString('pt-BR')} pts`}
               </p>
             </div>
             <div className="h-2.5 overflow-hidden rounded-full" style={theme.panelStyle}>

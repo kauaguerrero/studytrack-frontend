@@ -19,6 +19,13 @@ import {
   Loader2,
   Calendar,
   Save,
+  Pencil,
+  Copy,
+  Check,
+  XCircle,
+  Mic,
+  Download,
+  ClipboardCopy,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -27,10 +34,16 @@ import {
   apiAddContact,
   apiCreateMockOrg,
   apiConvertLead,
+  apiGetWhatsappMessages,
+  apiGetCalls,
+  apiDeleteCall,
+  type LeadWhatsappMessage,
 } from '../hooks/useLeads';
+import { formatCallMessage } from '../lib/callMessage';
 import { STATUS_CONFIG } from './LeadsTable';
 import type {
   Lead,
+  LeadCall,
   LeadStatusCRM,
   LeadTemperature,
   ContactChannel,
@@ -64,8 +77,22 @@ const RESPONSE_CONFIG: Record<ContactResponse, { label: string; cls: string }> =
 };
 
 const ACTIVE_STATUSES: LeadStatusCRM[] = [
-  'novo', 'contatado', 'respondeu', 'demo_agendada', 'proposta_enviada',
+  'novo', 'contatado', 'respondeu', 'handoff', 'esperando_contato_gestor',
+  'aguardando_confirmacao_call', 'call_agendado', 'interesse', 'demo_teste',
+  'enviar_proposta', 'proposta_enviada',
 ];
+
+const TEMPERATURE_OPTIONS: { value: LeadTemperature; label: string; icon: React.ReactNode }[] = [
+  { value: 'quente', label: 'Quente', icon: <Flame className="w-3.5 h-3.5" /> },
+  { value: 'morno', label: 'Morno', icon: <Wind className="w-3.5 h-3.5" /> },
+  { value: 'frio', label: 'Frio', icon: <Snowflake className="w-3.5 h-3.5" /> },
+];
+
+const TEMPERATURE_BUTTON_CLS: Record<LeadTemperature, string> = {
+  quente: 'border-orange-400 bg-orange-50 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300',
+  morno: 'border-amber-400 bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300',
+  frio: 'border-blue-400 bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300',
+};
 
 function formatDate(v: string | null) {
   if (!v) return '—';
@@ -88,6 +115,25 @@ function getExternalUrl(url: string) {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
 
+function leadToEditForm(lead: Lead) {
+  return {
+    cnpj: lead.cnpj ?? '',
+    razao_social: lead.razao_social,
+    nome_fantasia: lead.nome_fantasia ?? '',
+    nome_socio: lead.nome_socio ?? '',
+    uf: lead.uf ?? '',
+    municipio: lead.municipio ?? '',
+    telefone1: lead.telefone1 ?? '',
+    telefone2: lead.telefone2 ?? '',
+    email: lead.email ?? '',
+    website: lead.website ?? '',
+    next_followup_at: lead.next_followup_at ? lead.next_followup_at.slice(0, 10) : '',
+    valor_proposta_mensal: lead.valor_proposta_mensal != null ? String(lead.valor_proposta_mensal) : '',
+  };
+}
+
+type LeadEditForm = ReturnType<typeof leadToEditForm>;
+
 const inputCls =
   'h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400 dark:focus:border-indigo-500 transition-colors';
 
@@ -98,9 +144,12 @@ interface LeadDrawerProps {
   lead: Lead;
   onClose: () => void;
   onLeadUpdate: () => void;
+  onRequestScheduleCall: (lead: Lead) => void;
+  onRequestCallMode?: (lead: Lead) => void;
+  callsKey?: number;
 }
 
-export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
+export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall, onRequestCallMode, callsKey = 0 }: LeadDrawerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [creatingMock, setCreatingMock] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -108,11 +157,54 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
   const [savingObs, setSavingObs] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
   const [obsText, setObsText] = useState(lead.observacoes ?? '');
+  const [waMessages, setWaMessages] = useState<LeadWhatsappMessage[]>([]);
+  const [waLoading, setWaLoading] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState(() => leadToEditForm(lead));
+  const [updatingTemp, setUpdatingTemp] = useState(false);
+  const [updatingCallOutcome, setUpdatingCallOutcome] = useState(false);
+  const [copiedCallMsg, setCopiedCallMsg] = useState(false);
+  const [calls, setCalls] = useState<LeadCall[]>([]);
+  const [callsLoading, setCallsLoading] = useState(false);
+  const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
+  const [deletingCallId, setDeletingCallId] = useState<string | null>(null);
 
   // Sincroniza obsText quando o lead é refreshado pelo pai (após salvar)
   useEffect(() => {
     setObsText(lead.observacoes ?? '');
   }, [lead.observacoes]);
+
+  // Sai do modo de edição / re-sincroniza o form quando o lead é trocado ou refreshado
+  useEffect(() => {
+    setEditing(false);
+    setEditForm(leadToEditForm(lead));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lead.id, lead.updated_at]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setWaLoading(true);
+    apiGetWhatsappMessages(lead.id)
+      .then(({ messages }) => !cancelled && setWaMessages(messages))
+      .catch(() => !cancelled && setWaMessages([]))
+      .finally(() => !cancelled && setWaLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [lead.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCallsLoading(true);
+    apiGetCalls(lead.id)
+      .then(({ calls: data }) => !cancelled && setCalls(data))
+      .catch(() => !cancelled && setCalls([]))
+      .finally(() => !cancelled && setCallsLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [lead.id, callsKey]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setIsOpen(true));
@@ -133,12 +225,112 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
   const hasCadastro = Boolean(lead.uf || lead.municipio || lead.website);
 
   async function handleUpdateStatus(status: LeadStatusCRM) {
+    // Mover pra "call_agendado" abre o modal de agendamento — o status só
+    // muda de fato quando a call é criada com sucesso lá dentro.
+    if (status === 'call_agendado') {
+      onRequestScheduleCall(lead);
+      return;
+    }
     try {
       await apiUpdateLead(lead.id, { status_crm: status });
       onLeadUpdate();
       toast.success('Status atualizado');
     } catch {
       toast.error('Erro ao atualizar status');
+    }
+  }
+
+  async function handleCallOutcome(outcome: 'ocorreu' | 'nao_ocorreu') {
+    setUpdatingCallOutcome(true);
+    try {
+      if (outcome === 'nao_ocorreu') {
+        await apiUpdateLead(lead.id, {
+          call_outcome: 'nao_ocorreu',
+          status_crm: 'aguardando_confirmacao_call',
+        });
+        toast.success('Lead movido pra "Aguardando Confirmação da Call"');
+      } else {
+        await apiUpdateLead(lead.id, { call_outcome: 'ocorreu' });
+        toast.success('Call marcada como realizada');
+      }
+      onLeadUpdate();
+    } catch {
+      toast.error('Erro ao registrar o resultado da call');
+    } finally {
+      setUpdatingCallOutcome(false);
+    }
+  }
+
+  async function handleUpdateTemperature(temperature: LeadTemperature) {
+    if (temperature === lead.temperature) return;
+    setUpdatingTemp(true);
+    try {
+      await apiUpdateLead(lead.id, { temperature });
+      onLeadUpdate();
+      toast.success('Temperatura atualizada');
+    } catch {
+      toast.error('Erro ao atualizar temperatura');
+    } finally {
+      setUpdatingTemp(false);
+    }
+  }
+
+  function updateEditField<K extends keyof LeadEditForm>(key: K, value: LeadEditForm[K]) {
+    setEditForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function cancelEdit() {
+    setEditForm(leadToEditForm(lead));
+    setEditing(false);
+  }
+
+  async function handleSaveEdit() {
+    if (!editForm.razao_social.trim()) {
+      toast.error('Razão social não pode ficar vazia');
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await apiUpdateLead(lead.id, {
+        cnpj: editForm.cnpj.trim() || null,
+        razao_social: editForm.razao_social.trim(),
+        nome_fantasia: editForm.nome_fantasia.trim() || null,
+        nome_socio: editForm.nome_socio.trim() || null,
+        uf: editForm.uf.trim().toUpperCase() || null,
+        municipio: editForm.municipio.trim() || null,
+        telefone1: editForm.telefone1.trim() || null,
+        telefone2: editForm.telefone2.trim() || null,
+        email: editForm.email.trim() || null,
+        website: editForm.website.trim() || null,
+        next_followup_at: editForm.next_followup_at || null,
+        valor_proposta_mensal: editForm.valor_proposta_mensal ? parseFloat(editForm.valor_proposta_mensal) || null : null,
+      });
+      onLeadUpdate();
+      setEditing(false);
+      toast.success('Lead atualizado');
+    } catch {
+      toast.error('Erro ao salvar alterações');
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleCopyCallMessage() {
+    if (!lead.call_scheduled_at || !lead.call_ends_at || !lead.call_meet_link) return;
+    const text = formatCallMessage({
+      title: lead.call_title || displayName,
+      start: new Date(lead.call_scheduled_at),
+      end: new Date(lead.call_ends_at),
+      timeZone: 'America/Sao_Paulo',
+      meetLink: lead.call_meet_link,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedCallMsg(true);
+      toast.success('Mensagem copiada');
+      setTimeout(() => setCopiedCallMsg(false), 2000);
+    } catch {
+      toast.error('Não deu pra copiar automaticamente');
     }
   }
 
@@ -271,95 +463,381 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
               )}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 dark:hover:text-white mt-0.5 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => onRequestCallMode?.(lead)}
+              title="Modo Call — gravar e transcrever ligação"
+              className="text-violet-400 hover:text-violet-600 dark:hover:text-violet-300 mt-0.5 transition-colors"
+            >
+              <Mic className="w-4 h-4" />
+            </button>
+            {!editing && (
+              <button
+                onClick={() => setEditing(true)}
+                title="Editar dados do lead"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white mt-0.5 transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-slate-700 dark:hover:text-white mt-0.5 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Conteúdo rolável */}
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
 
-          {/* Dados cadastrais */}
-          {hasCadastro && (
-            <div className="space-y-2">
-              <p className={labelCls}>Dados cadastrais</p>
-              <div className="rounded-xl bg-slate-50 dark:bg-zinc-800/50 p-3.5 space-y-2 text-sm">
-              {(lead.uf || lead.municipio) && (
-                <div className="flex justify-between">
-                  <span className="text-slate-400 dark:text-zinc-500">Localidade</span>
-                  <span className="text-slate-700 dark:text-zinc-200">
-                    {[lead.municipio, lead.uf].filter(Boolean).join(' · ')}
-                  </span>
+          {editing ? (
+            /* Formulário de edição — dados cadastrais + contatos + follow-up */
+            <div className="space-y-3 rounded-xl border border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/40 dark:bg-indigo-500/5 p-3.5">
+              <p className={labelCls}>Editar dados do lead</p>
+
+              <div>
+                <label className={labelCls}>Razão social *</label>
+                <input
+                  value={editForm.razao_social}
+                  onChange={(e) => updateEditField('razao_social', e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Nome fantasia</label>
+                <input
+                  value={editForm.nome_fantasia}
+                  onChange={(e) => updateEditField('nome_fantasia', e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={labelCls}>Responsável</label>
+                  <input
+                    value={editForm.nome_socio}
+                    onChange={(e) => updateEditField('nome_socio', e.target.value)}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>CNPJ</label>
+                  <input
+                    value={editForm.cnpj}
+                    onChange={(e) => updateEditField('cnpj', e.target.value)}
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-[80px_1fr] gap-2">
+                <div>
+                  <label className={labelCls}>UF</label>
+                  <input
+                    value={editForm.uf}
+                    onChange={(e) => updateEditField('uf', e.target.value.toUpperCase().slice(0, 2))}
+                    maxLength={2}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Município</label>
+                  <input
+                    value={editForm.municipio}
+                    onChange={(e) => updateEditField('municipio', e.target.value)}
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Website</label>
+                <input
+                  value={editForm.website}
+                  onChange={(e) => updateEditField('website', e.target.value)}
+                  placeholder="cursinho.com.br"
+                  className={inputCls}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={labelCls}>Telefone 1</label>
+                  <input
+                    value={editForm.telefone1}
+                    onChange={(e) => updateEditField('telefone1', e.target.value)}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Telefone 2</label>
+                  <input
+                    value={editForm.telefone2}
+                    onChange={(e) => updateEditField('telefone2', e.target.value)}
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Email</label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => updateEditField('email', e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Próximo follow-up</label>
+                <input
+                  type="date"
+                  value={editForm.next_followup_at}
+                  onChange={(e) => updateEditField('next_followup_at', e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Proposta mensal (R$)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="50"
+                  placeholder="ex: 1500"
+                  value={editForm.valor_proposta_mensal}
+                  onChange={(e) => updateEditField('valor_proposta_mensal', e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  onClick={cancelEdit}
+                  disabled={savingEdit}
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={savingEdit}
+                  className="flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50 transition-colors"
+                >
+                  {savingEdit ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" />Salvando...</>
+                  ) : (
+                    <><Save className="w-3.5 h-3.5" />Salvar alterações</>
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Dados cadastrais */}
+              {(hasCadastro || lead.nome_socio || lead.cnpj) && (
+                <div className="space-y-2">
+                  <p className={labelCls}>Dados cadastrais</p>
+                  <div className="rounded-xl bg-slate-50 dark:bg-zinc-800/50 p-3.5 space-y-2 text-sm">
+                  {(lead.uf || lead.municipio) && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400 dark:text-zinc-500">Localidade</span>
+                      <span className="text-slate-700 dark:text-zinc-200">
+                        {[lead.municipio, lead.uf].filter(Boolean).join(' · ')}
+                      </span>
+                    </div>
+                  )}
+                  {lead.nome_socio && (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-slate-400 dark:text-zinc-500">Responsável</span>
+                      <span className="text-slate-700 dark:text-zinc-200 truncate">{lead.nome_socio}</span>
+                    </div>
+                  )}
+                  {lead.cnpj && (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-slate-400 dark:text-zinc-500">CNPJ</span>
+                      <span className="text-slate-700 dark:text-zinc-200">{lead.cnpj}</span>
+                    </div>
+                  )}
+                  {lead.website && (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-slate-400 dark:text-zinc-500">Website</span>
+                      <a
+                        href={getExternalUrl(lead.website)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-w-0 items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline"
+                      >
+                        <span className="truncate">{lead.website}</span>
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                      </a>
+                    </div>
+                  )}
+                  {lead.next_followup_at && (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-slate-400 dark:text-zinc-500">Próximo follow-up</span>
+                      <span className="text-slate-700 dark:text-zinc-200">{formatDate(lead.next_followup_at)}</span>
+                    </div>
+                  )}
+                  </div>
                 </div>
               )}
-              {lead.website && (
-                <div className="flex justify-between gap-3">
-                  <span className="text-slate-400 dark:text-zinc-500">Website</span>
+
+              {/* Contatos */}
+              <div className="space-y-2">
+                <p className={labelCls}>Contatos</p>
+                <div className="space-y-1.5">
+                  {lead.telefone1 && (
+                    <a
+                      href={getWhatsAppUrl(lead.telefone1)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-2.5 text-sm font-bold text-white hover:bg-emerald-600 transition-colors"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Abrir WhatsApp
+                    </a>
+                  )}
+                  {lead.telefone1 && (
+                    <a
+                      href={`tel:${lead.telefone1}`}
+                      className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    >
+                      <Phone className="w-4 h-4 text-slate-400" />
+                      {lead.telefone1}
+                    </a>
+                  )}
+                  {lead.telefone2 && (
+                    <a
+                      href={`tel:${lead.telefone2}`}
+                      className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    >
+                      <Phone className="w-4 h-4 text-slate-400" />
+                      {lead.telefone2}
+                    </a>
+                  )}
+                  {lead.email && (
+                    <a
+                      href={`mailto:${lead.email}`}
+                      className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                    >
+                      <Mail className="w-4 h-4 text-slate-400" />
+                      {lead.email}
+                    </a>
+                  )}
+                  {!lead.telefone1 && !lead.telefone2 && !lead.email && (
+                    <p className="text-xs text-slate-400 dark:text-zinc-500">
+                      Nenhum contato disponível
+                    </p>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Chamada agendada (Google Meet) */}
+          {lead.call_scheduled_at && (
+            <div className="space-y-2">
+              <p className={labelCls}>Chamada agendada</p>
+              <div className="rounded-xl border border-cyan-200 dark:border-cyan-500/30 bg-cyan-50/40 dark:bg-cyan-500/5 p-3.5 space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                      {lead.call_title || 'Call agendada'}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                      {new Date(lead.call_scheduled_at).toLocaleDateString('pt-BR', {
+                        weekday: 'long',
+                        day: '2-digit',
+                        month: 'long',
+                        timeZone: 'America/Sao_Paulo',
+                      })}{' '}
+                      ·{' '}
+                      {new Date(lead.call_scheduled_at).toLocaleTimeString('pt-BR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        timeZone: 'America/Sao_Paulo',
+                      })}
+                      {lead.call_ends_at &&
+                        `–${new Date(lead.call_ends_at).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          timeZone: 'America/Sao_Paulo',
+                        })}`}
+                    </p>
+                  </div>
+                  {lead.call_outcome === 'ocorreu' && (
+                    <span className="flex items-center gap-1 shrink-0 rounded-full bg-emerald-100 dark:bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Realizada
+                    </span>
+                  )}
+                </div>
+
+                {lead.call_meet_link && (
                   <a
-                    href={getExternalUrl(lead.website)}
+                    href={lead.call_meet_link}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex min-w-0 items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline"
+                    className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline truncate"
                   >
-                    <span className="truncate">{lead.website}</span>
-                    <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                    <Video className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{lead.call_meet_link}</span>
                   </a>
-                </div>
-              )}
+                )}
+
+                <button
+                  onClick={handleCopyCallMessage}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+                >
+                  {copiedCallMsg ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
+                  {copiedCallMsg ? 'Copiado!' : 'Copiar mensagem do convite'}
+                </button>
+
+                {lead.status_crm === 'call_agendado' && lead.call_outcome === 'pendente' && (
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={() => handleCallOutcome('ocorreu')}
+                      disabled={updatingCallOutcome}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 py-2 text-xs font-bold text-white disabled:opacity-50 transition-colors"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Call ocorreu!
+                    </button>
+                    <button
+                      onClick={() => handleCallOutcome('nao_ocorreu')}
+                      disabled={updatingCallOutcome}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-red-600 hover:bg-red-700 py-2 text-xs font-bold text-white disabled:opacity-50 transition-colors"
+                    >
+                      <XCircle className="w-3.5 h-3.5" />
+                      Melou
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* Contatos */}
-          <div className="space-y-2">
-            <p className={labelCls}>Contatos</p>
-            <div className="space-y-1.5">
-              {lead.telefone1 && (
-                <a
-                  href={getWhatsAppUrl(lead.telefone1)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-2.5 text-sm font-bold text-white hover:bg-emerald-600 transition-colors"
+          {/* Temperatura */}
+          <div>
+            <p className={labelCls}>Temperatura</p>
+            <div className="flex flex-wrap gap-1.5">
+              {TEMPERATURE_OPTIONS.map((t) => (
+                <button
+                  key={t.value}
+                  disabled={updatingTemp || lead.temperature === t.value}
+                  onClick={() => handleUpdateTemperature(t.value)}
+                  className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-40 ${
+                    lead.temperature === t.value
+                      ? `${TEMPERATURE_BUTTON_CLS[t.value]} border-transparent`
+                      : 'border-slate-200 dark:border-zinc-700 text-slate-500 hover:border-indigo-300 dark:hover:border-indigo-500/40'
+                  }`}
                 >
-                  <MessageCircle className="w-4 h-4" />
-                  Abrir WhatsApp
-                </a>
-              )}
-              {lead.telefone1 && (
-                <a
-                  href={`tel:${lead.telefone1}`}
-                  className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                >
-                  <Phone className="w-4 h-4 text-slate-400" />
-                  {lead.telefone1}
-                </a>
-              )}
-              {lead.telefone2 && (
-                <a
-                  href={`tel:${lead.telefone2}`}
-                  className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                >
-                  <Phone className="w-4 h-4 text-slate-400" />
-                  {lead.telefone2}
-                </a>
-              )}
-              {lead.email && (
-                <a
-                  href={`mailto:${lead.email}`}
-                  className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-200 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                >
-                  <Mail className="w-4 h-4 text-slate-400" />
-                  {lead.email}
-                </a>
-              )}
-              {!lead.telefone1 && !lead.telefone2 && !lead.email && (
-                <p className="text-xs text-slate-400 dark:text-zinc-500">
-                  Nenhum contato disponível
-                </p>
-              )}
+                  {t.icon}
+                  {t.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -461,6 +939,37 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
             </div>
           </div>
 
+          {/* Conversa automática do bot de WhatsApp (se houver) */}
+          {(waLoading || waMessages.length > 0) && (
+            <div className="space-y-2">
+              <p className={labelCls}>Conversa automática (bot) {waMessages.length > 0 && `(${waMessages.length})`}</p>
+              <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-200 dark:border-zinc-700 p-3 space-y-2 bg-slate-50 dark:bg-zinc-950">
+                {waLoading ? (
+                  <p className="text-xs text-slate-400 dark:text-zinc-500 text-center py-2">Carregando...</p>
+                ) : (
+                  waMessages.map((m) => (
+                    <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-start' : 'justify-end'}`}>
+                      <div
+                        className={`max-w-[80%] rounded-xl px-3 py-1.5 text-xs ${
+                          m.direction === 'outbound'
+                            ? 'bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700'
+                            : 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-200'
+                        }`}
+                      >
+                        {m.direction === 'outbound' && m.node_title && (
+                          <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400 dark:text-zinc-500 mb-0.5">
+                            {m.node_title}
+                          </p>
+                        )}
+                        <p className="whitespace-pre-wrap">{m.body}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Histórico de abordagens */}
           <div className="space-y-3">
             <p className={labelCls}>
@@ -554,6 +1063,179 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate }: LeadDrawerProps) {
                 Nenhuma abordagem registrada ainda
               </p>
             )}
+          </div>
+
+          {/* Ligações gravadas */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className={labelCls}>
+                Ligações gravadas ({callsLoading ? '…' : calls.length})
+              </p>
+              <button
+                onClick={() => onRequestCallMode?.(lead)}
+                className="flex items-center gap-1 text-[11px] font-semibold text-violet-500 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
+              >
+                <Mic className="w-3 h-3" />
+                Iniciar
+              </button>
+            </div>
+
+            {callsLoading && (
+              <div className="flex justify-center py-3">
+                <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+              </div>
+            )}
+
+            {!callsLoading && calls.length === 0 && (
+              <p className="text-xs text-slate-400 dark:text-zinc-500 text-center py-2">
+                Nenhuma ligação gravada ainda
+              </p>
+            )}
+
+            {calls.map((call) => {
+              const callDate = new Date(call.created_at).toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+              const dur = call.duration_seconds
+                ? call.duration_seconds >= 60
+                  ? `${Math.floor(call.duration_seconds / 60)}min${call.duration_seconds % 60 > 0 ? ` ${call.duration_seconds % 60}s` : ''}`
+                  : `${call.duration_seconds}s`
+                : null;
+
+              const structuredPrompt = `Você é um especialista em vendas B2B. Abaixo está a transcrição fiel de uma ligação fria de prospecção da StudyTrack (plataforma B2B para cursinhos pré-vestibular). Analise e retorne:\n\n1. Resumo da ligação (3-4 linhas)\n2. Objeções levantadas pelo lead\n3. Nível de interesse percebido (alto / médio / baixo / sem interesse)\n4. Próxima ação recomendada (ex: reenviar proposta, ligar em X dias, descartar)\n5. Trechos que indicam se esse lead deveria mudar de status no funil\n\n--- TRANSCRIÇÃO ---\n${call.transcription ?? '(transcrição não disponível)'}`;
+
+              const POST_CALL_LABELS: Record<string, string> = {
+                quer_proposta: 'Quer proposta',
+                sem_interesse: 'Sem interesse',
+                retornar_depois: 'Retornar depois',
+                agendou_videochamada: 'Agendou videochamada',
+              };
+
+              async function handleDeleteCall() {
+                if (!confirm('Excluir esta ligação e o áudio?')) return;
+                setDeletingCallId(call.id);
+                try {
+                  await apiDeleteCall(lead.id, call.id);
+                  setCalls((prev) => prev.filter((c) => c.id !== call.id));
+                } catch {
+                  toast.error('Erro ao excluir ligação');
+                } finally {
+                  setDeletingCallId(null);
+                }
+              }
+
+              async function handleCopyPrompt() {
+                try {
+                  await navigator.clipboard.writeText(structuredPrompt);
+                  setCopiedPromptId(call.id);
+                  setTimeout(() => setCopiedPromptId(null), 2000);
+                } catch {
+                  toast.error('Não foi possível copiar automaticamente');
+                }
+              }
+
+              function handleDownloadTxt() {
+                const blob = new Blob([structuredPrompt], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ligacao-${call.id.slice(0, 8)}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }
+
+              return (
+                <div
+                  key={call.id}
+                  className="rounded-xl border border-slate-200 dark:border-zinc-700 p-3 space-y-2"
+                >
+                  {/* Cabeçalho do card */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-zinc-200">
+                        {callDate}{dur && <span className="text-slate-400 dark:text-zinc-500 font-normal"> · {dur}</span>}
+                      </p>
+                      {call.recorded_by_name && (
+                        <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-0.5">
+                          por {call.recorded_by_name}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {call.post_call_status && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300">
+                          {POST_CALL_LABELS[call.post_call_status] ?? call.post_call_status}
+                        </span>
+                      )}
+                      {call.transcription_status === 'processing' && (
+                        <span className="flex items-center gap-0.5 text-[10px] text-amber-500">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Transcrevendo
+                        </span>
+                      )}
+                      {call.transcription_status === 'failed' && (
+                        <span className="text-[10px] text-red-400">Transcrição falhou</span>
+                      )}
+                      <button
+                        onClick={handleDeleteCall}
+                        disabled={deletingCallId === call.id}
+                        title="Excluir ligação"
+                        className="text-slate-300 hover:text-red-500 dark:text-zinc-600 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+                      >
+                        {deletingCallId === call.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Player */}
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                  <audio controls src={call.audio_url} className="w-full h-8" />
+
+                  {/* Transcrição colapsável */}
+                  {call.transcription && (
+                    <details className="group">
+                      <summary className="text-[11px] font-semibold text-slate-500 dark:text-zinc-400 cursor-pointer select-none list-none flex items-center gap-1">
+                        <span className="group-open:hidden">▶ Ver transcrição</span>
+                        <span className="hidden group-open:inline">▼ Ocultar transcrição</span>
+                      </summary>
+                      <p className="mt-2 text-xs text-slate-600 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                        {call.transcription}
+                      </p>
+                    </details>
+                  )}
+
+                  {/* Botões de ação */}
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <button
+                      onClick={handleCopyPrompt}
+                      className="flex items-center gap-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 transition-colors"
+                    >
+                      {copiedPromptId === call.id ? (
+                        <Check className="w-3 h-3" />
+                      ) : (
+                        <ClipboardCopy className="w-3 h-3" />
+                      )}
+                      {copiedPromptId === call.id ? 'Copiado!' : 'Copiar para o Claude'}
+                    </button>
+                    <span className="text-slate-200 dark:text-zinc-700">|</span>
+                    <button
+                      onClick={handleDownloadTxt}
+                      className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors"
+                    >
+                      <Download className="w-3 h-3" />
+                      Baixar .txt
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

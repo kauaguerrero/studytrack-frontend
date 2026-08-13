@@ -8,7 +8,7 @@ export async function updateSession(request: NextRequest) {
   const normalizeRole = (role: unknown): UserRole | null => {
     if (!role) return null;
     const s = String(role).trim().toLowerCase();
-    const allowed: UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat', 'founder', 'associate', 'dev'];
+    const allowed: UserRole[] = ['student', 'admin', 'founder', 'associate', 'dev'];
     return allowed.includes(s as UserRole) ? (s as UserRole) : null;
   };
 
@@ -98,7 +98,7 @@ export async function updateSession(request: NextRequest) {
     let currentRole: UserRole = (normalizeRole(user.user_metadata?.role) ?? 'student') as UserRole;
     let profileRoleForLog: unknown = null;
 
-    if (path.startsWith('/portal/teacher') || path.startsWith('/portal/manager') || path.startsWith('/portal/secretariat') || path.startsWith('/portal/onboarding') || path.startsWith('/portal/admin')) {
+    if (path.startsWith('/portal/onboarding') || path.startsWith('/portal/admin')) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('role, organization_id')
@@ -108,24 +108,7 @@ export async function updateSession(request: NextRequest) {
         const dbRole = normalizeRole(profile?.role);
         if (dbRole) currentRole = dbRole;
 
-        // Teacher legado vinculado a org parceira vai para a área viva de redações.
-        if (path.startsWith('/portal/teacher') && dbRole === 'teacher' && profile?.organization_id) {
-          const { data: org } = await supabase
-            .from('organizations')
-            .select('slug')
-            .eq('id', profile.organization_id)
-            .maybeSingle();
-          if (org?.slug) {
-            return NextResponse.redirect(new URL(`/partners/${org.slug}/redacoes`, request.url));
-          }
-        }
-
-        if (
-          path.startsWith('/portal/teacher') ||
-          path.startsWith('/portal/manager') ||
-          path.startsWith('/portal/secretariat') ||
-          path.startsWith('/portal/onboarding')
-        ) {
+        if (path.startsWith('/portal/onboarding')) {
           return NextResponse.redirect(new URL('/', request.url));
         }
     }

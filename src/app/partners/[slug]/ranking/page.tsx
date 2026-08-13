@@ -23,6 +23,7 @@ import { RevealGroup, RevealItem, ElevatedCard, BrandHero } from '@/components/p
 import type { PartnerRankingEntry } from '@/types/gamification';
 import { getInitials, getRankingDisplayName, isAnonymousRankingEntry } from '@/lib/ranking-privacy';
 import { summarizePodiumStreaks } from '@/lib/podium-streak';
+import { isDemoOrg, MOCK_FOUNDER_RANKING } from '../../../../../studytrack-tutorial-mock';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 
@@ -389,16 +390,21 @@ export default function FounderRankingPage() {
     fetchPopupStateOnMount: false,
   });
 
+  const isDemo = isDemoOrg(org.slug);
+  const effectiveSummary = isDemo ? null : summary;
+  const effectiveRanking = isDemo ? (MOCK_FOUNDER_RANKING as unknown as typeof ranking) : ranking;
+  const effectiveLoading = isDemo ? false : isLoading;
+
   useEffect(() => {
-    if (!isLoading) {
+    if (!effectiveLoading) {
       refreshRanking(TOP_LIMIT, org.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
+  }, [effectiveLoading]);
 
-  const monthLabel = summary?.month_label ?? 'Este mês';
-  const topCutoff = ranking?.prize_cutoff ?? 3;
-  const fullList = ranking?.ranking ?? [];
+  const monthLabel = effectiveSummary?.month_label ?? 'Este mês';
+  const topCutoff = effectiveRanking?.prize_cutoff ?? 3;
+  const fullList = effectiveRanking?.ranking ?? [];
   const visibleList = fullList.slice(0, TOP_LIMIT);
 
   const top3 = visibleList.slice(0, 3);
@@ -430,7 +436,7 @@ export default function FounderRankingPage() {
                   {monthLabel}
                 </h1>
                 <p className="mt-0.5 text-[13px] text-slate-500 dark:text-white/40">
-                  {isLoading ? 'Carregando...' : `${visibleList.length} aluno${visibleList.length !== 1 ? 's' : ''} no ranking`}
+                  {effectiveLoading ? 'Carregando...' : `${visibleList.length} aluno${visibleList.length !== 1 ? 's' : ''} no ranking`}
                 </p>
               </div>
 
@@ -442,7 +448,7 @@ export default function FounderRankingPage() {
             </RevealItem>
 
             {/* ── Pódio ─────────────────────────────────────────────────── */}
-            {(isLoading || fullList.length > 0) && (
+            {(effectiveLoading || fullList.length > 0) && (
               <RevealItem>
                 <BrandHero smokeColorHex={primaryAccent.hex ?? undefined} halftone={false}>
                   <div className="mb-5 flex items-center gap-2">
@@ -450,7 +456,7 @@ export default function FounderRankingPage() {
                     <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/50">Pódio</p>
                   </div>
 
-                  {isLoading || fullList.length === 0 ? (
+                  {effectiveLoading || fullList.length === 0 ? (
                     <div className="flex gap-3 items-end justify-center h-36">
                       {[1, 2, 3].map((i) => (
                         <div key={i} className="flex flex-col items-center gap-2 flex-1">
@@ -486,7 +492,7 @@ export default function FounderRankingPage() {
                 </div>
 
                 <div className="p-2 space-y-0.5">
-                  {isLoading ? (
+                  {effectiveLoading ? (
                     Array.from({ length: 6 }).map((_, i) => (
                       <div key={i} className="flex items-center gap-3 px-3 py-2.5">
                         <Skeleton className="h-7 w-7 rounded-lg" />
@@ -520,7 +526,7 @@ export default function FounderRankingPage() {
             </RevealItem>
 
             {/* ── Footer ────────────────────────────────────────────────── */}
-            {!isLoading && visibleList.length > 0 && (
+            {!effectiveLoading && visibleList.length > 0 && (
               <RevealItem className="flex items-center justify-center gap-2 py-1">
                 <div className="h-px w-8 bg-gradient-to-r from-transparent to-slate-300 dark:to-white/10" />
                 <p className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 dark:text-white/25">

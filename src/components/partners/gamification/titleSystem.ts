@@ -186,3 +186,85 @@ export function getIdentityTitleIcon(iconName?: string | null): LucideIcon {
   if (!iconName) return ShieldCheck;
   return IDENTITY_ICON_MAP[iconName] ?? ShieldCheck;
 }
+
+// ─── Progresso de tier no cliente ───────────────────────────────────────────
+// Espelha o _PROGRESS_TIER_MAP do backend (gamification_service.py). Usado
+// pelos popups de recompensa, que só recebem a pontuação mensal crua.
+
+const PROGRESS_TIER_MIN_POINTS: Array<{ tier: ProgressTier; minPoints: number }> = [
+  { tier: 'Explorador', minPoints: 0 },
+  { tier: 'Estrategista', minPoints: 200 },
+  { tier: 'Veterano', minPoints: 450 },
+  { tier: 'Elite', minPoints: 700 },
+  { tier: 'Lendário', minPoints: 1000 },
+];
+
+export function getTierProgress(monthlyPoints: number): {
+  current: ProgressTier;
+  next: ProgressTier | null;
+  nextMinPoints: number | null;
+  pct: number;
+} {
+  const pts = Math.max(0, monthlyPoints);
+  let currentIdx = 0;
+  for (let i = PROGRESS_TIER_MIN_POINTS.length - 1; i >= 0; i--) {
+    if (pts >= PROGRESS_TIER_MIN_POINTS[i].minPoints) { currentIdx = i; break; }
+  }
+  const nextEntry = PROGRESS_TIER_MIN_POINTS[currentIdx + 1] ?? null;
+  return {
+    current: PROGRESS_TIER_MIN_POINTS[currentIdx].tier,
+    next: nextEntry?.tier ?? null,
+    nextMinPoints: nextEntry?.minPoints ?? null,
+    pct: nextEntry ? Math.min(100, Math.round((pts / nextEntry.minPoints) * 100)) : 100,
+  };
+}
+
+// ─── Nível de conta (XP permanente) ─────────────────────────────────────────
+// Derivado de profiles.total_points, que nunca reseta com o mês — é a camada
+// de progresso de longo prazo do aluno. O XP espelha os lançamentos positivos
+// do gamification_ledger (+2/1º acerto, +25/redação, simulado variável,
+// diagnóstico 50–247).
+//
+// Curva calibrada em 29/07/2026 nos dados reais de produção: o aluno mais
+// ativo da base tinha 3.100 XP (1.132 questões, 789 acertos, 127 simulados).
+// Com a curva antiga (passo triangular 250×N) isso o deixava só no nível 5 —
+// achatado, dado o quanto ele já tinha estudado. Quem responde centenas de
+// questões precisa sentir progresso real, não estagnação.
+//
+// XP acumulado para alcançar o nível N = 50 × (N-1)^1.7 (arredondado).
+// Nível 2 custa só 50 XP (~1 semana ativa, vitória rápida), e a curva
+// acelera suavemente depois. Nos dados reais: 3.100 XP ≈ nível 12,
+// ~1.400 XP ≈ nível 9, ~500 XP ≈ nível 4-5, ~100 XP ≈ nível 2.
+
+const ACCOUNT_LEVEL_XP_BASE = 50;
+const ACCOUNT_LEVEL_XP_EXPONENT = 1.7;
+
+function cumulativeXpForLevel(level: number): number {
+  if (level <= 1) return 0;
+  return Math.round(ACCOUNT_LEVEL_XP_BASE * Math.pow(level - 1, ACCOUNT_LEVEL_XP_EXPONENT));
+}
+
+export function getAccountLevel(totalPoints: number): {
+  level: number;
+  /** XP já ganho dentro do nível atual. */
+  xpIntoLevel: number;
+  /** XP total necessário para completar o nível atual. */
+  xpForNextLevel: number;
+  pct: number;
+} {
+  const xp = Math.max(0, totalPoints);
+  let level = 1;
+  while (cumulativeXpForLevel(level + 1) <= xp) {
+    level += 1;
+  }
+  const currentThreshold = cumulativeXpForLevel(level);
+  const nextThreshold = cumulativeXpForLevel(level + 1);
+  const xpIntoLevel = xp - currentThreshold;
+  const xpForNextLevel = nextThreshold - currentThreshold;
+  return {
+    level,
+    xpIntoLevel,
+    xpForNextLevel,
+    pct: Math.round((xpIntoLevel / xpForNextLevel) * 100),
+  };
+}

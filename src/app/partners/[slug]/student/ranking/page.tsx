@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { isDemoOrg, MOCK_STUDENT_DASHBOARD_STATE } from '../../../../../../studytrack-tutorial-mock';
 import {
   Trophy,
   Medal,
@@ -758,16 +759,21 @@ export default function RankingPage() {
   const primaryAccent = resolveAccentColor(org, 'brand_primary');
   const TOP_LIMIT = 5;
 
-  const { summary, ranking, isLoading, refreshRanking } = usePartnerGamification({
+  const _gamification = usePartnerGamification({
     fetchPopupStateOnMount: false,
   });
+  const isDemo = isDemoOrg(org.slug);
+  const summary = isDemo ? (MOCK_STUDENT_DASHBOARD_STATE.summary as typeof _gamification.summary) : _gamification.summary;
+  const ranking = isDemo ? (MOCK_STUDENT_DASHBOARD_STATE.ranking as typeof _gamification.ranking) : _gamification.ranking;
+  const isLoading = isDemo ? false : _gamification.isLoading;
+  const refreshRanking = _gamification.refreshRanking;
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isDemo && !isLoading) {
       refreshRanking(TOP_LIMIT);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading]);
+  }, [isLoading, isDemo]);
 
   const monthLabel = summary?.month_label ?? 'Este mês';
   const myPosition = summary?.rank_position ?? null;

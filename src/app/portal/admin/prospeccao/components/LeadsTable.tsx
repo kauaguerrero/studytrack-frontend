@@ -11,6 +11,7 @@ import {
   AlertCircle,
   RefreshCw,
   MapPin,
+  Mic,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -33,9 +34,33 @@ export const STATUS_CONFIG: Record<
     label: 'Respondeu',
     cls: 'bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300',
   },
-  demo_agendada: {
-    label: 'Demo agendada',
+  handoff: {
+    label: 'Hand-off',
+    cls: 'bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-500/10 dark:text-fuchsia-300',
+  },
+  esperando_contato_gestor: {
+    label: 'Esperando Contato do Gestor',
+    cls: 'bg-pink-50 text-pink-700 dark:bg-pink-500/10 dark:text-pink-300',
+  },
+  aguardando_confirmacao_call: {
+    label: 'Aguardando Confirmação da Call',
+    cls: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
+  },
+  call_agendado: {
+    label: 'Call/Reunião Marcada',
+    cls: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-300',
+  },
+  interesse: {
+    label: 'Interesse',
     cls: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
+  },
+  demo_teste: {
+    label: 'Demo / Em Testes',
+    cls: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300',
+  },
+  enviar_proposta: {
+    label: 'Enviar proposta',
+    cls: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400',
   },
   proposta_enviada: {
     label: 'Proposta enviada',
@@ -70,6 +95,8 @@ interface LeadsTableProps {
   onLeadUpdate: () => void;
   onImportClick: () => void;
   onClearFilters: () => void;
+  onRequestScheduleCall: (lead: Lead) => void;
+  onRequestCallMode: (lead: Lead) => void;
 }
 
 export function LeadsTable({
@@ -81,6 +108,8 @@ export function LeadsTable({
   onLeadUpdate,
   onImportClick,
   onClearFilters,
+  onRequestScheduleCall,
+  onRequestCallMode,
 }: LeadsTableProps) {
   const [localStatuses, setLocalStatuses] = useState<
     Record<string, LeadStatusCRM>
@@ -91,6 +120,13 @@ export function LeadsTable({
   }
 
   async function handleStatusChange(lead: Lead, newStatus: LeadStatusCRM) {
+    // Mover pra "call_agendado" abre o modal de agendamento — não mexe no
+    // select local, então ele volta sozinho pro valor atual do lead.
+    if (newStatus === 'call_agendado') {
+      onRequestScheduleCall(lead);
+      return;
+    }
+
     const prev = lead.status_crm;
     setLocalStatuses((s) => ({ ...s, [lead.id]: newStatus }));
     try {
@@ -394,6 +430,13 @@ export function LeadsTable({
                         <MessageCircle className="w-3.5 h-3.5" />
                       </a>
                     )}
+                    <button
+                      onClick={() => onRequestCallMode(lead)}
+                      title="Modo Call — gravar e transcrever ligação"
+                      className="flex items-center justify-center w-7 h-7 rounded-lg text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-500/10 hover:text-violet-600 dark:hover:text-violet-300 transition-colors"
+                    >
+                      <Mic className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={() => onSelectLead(lead)}
                       title="Ver detalhes e registrar observação"

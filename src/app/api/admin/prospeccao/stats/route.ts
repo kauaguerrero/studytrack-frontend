@@ -34,7 +34,7 @@ export async function GET() {
   const by_uf: Record<string, number> = {};
 
   const STATUS_EM_ANDAMENTO = new Set([
-    'contatado', 'respondeu', 'demo_agendada', 'proposta_enviada',
+    'contatado', 'respondeu', 'handoff', 'esperando_contato_gestor', 'call_agendado', 'interesse', 'enviar_proposta', 'proposta_enviada',
   ]);
 
   for (const row of rows) {
@@ -58,11 +58,13 @@ export async function GET() {
     }
   }
 
-  const perdidos = by_status['perdido'] ?? 0;
+  // Denominador = leads que já saíram de "novo" (foram contatados em diante,
+  // até fechado/perdido) — evita que a base toda (incl. leads nunca abordados)
+  // dilua a taxa de conversão.
+  const novos = by_status['novo'] ?? 0;
+  const abordados = total - novos;
   const conversion_rate =
-    conversoes + perdidos > 0
-      ? Math.round((conversoes / (conversoes + perdidos)) * 1000) / 10
-      : 0;
+    abordados > 0 ? Math.round((conversoes / abordados) * 1000) / 10 : 0;
 
   return NextResponse.json({
     total,

@@ -1,4 +1,4 @@
-export type EssayType = 'enem' | 'ufu' | 'ueg' | 'fuvest' | 'vunesp';
+export type EssayType = 'enem' | 'ufu' | 'ueg' | 'fuvest' | 'vunesp' | 'geral';
 
 export interface EssayTypeConfig {
   label: string;
@@ -86,6 +86,12 @@ export const ESSAY_TYPE_CONFIGS: Record<EssayType, EssayTypeConfig> = {
       [0, 1, 2],         // D – Coesão (máx 2)
     ],
     total_max: 11,
+  },
+  geral: {
+    label: 'Geral',
+    competencies: [],
+    score_options: [],
+    total_max: 1000,
   },
 };
 

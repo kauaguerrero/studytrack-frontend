@@ -1,17 +1,18 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion, useAnimation } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, FileText, Flame, Trophy, ArrowRight, GraduationCap, Shield, User, Zap, Play, Crown, Target } from 'lucide-react';
+import { BookOpen, FileText, Flame, Trophy, ArrowRight, ArrowUp, ArrowDown, GraduationCap, Shield, User, Zap, Play, Crown, Target, CheckCircle2, Circle, Swords, X, PartyPopper } from 'lucide-react';
+import { toast } from 'sonner';
 import { ActivityHistoryModal } from '@/components/partners/ActivityHistoryModal';
 import { AnnouncementBell } from '@/components/announcements/AnnouncementBell';
 import { Typewriter } from '@/components/ui/typewriter';
 import { SmokeBackground } from '@/components/ui/spooky-smoke-animation';
 import { createClient } from '@/lib/supabase/client';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
-import { getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
+import { getProgressTierMeta, getAccountLevel } from '@/components/partners/gamification/titleSystem';
 import { summarizePodiumStreaks } from '@/lib/podium-streak';
 import { useOrg } from '@/contexts/OrgContext';
 import { readableBrandText, readableBrandTextOnDark, resolveAccentColor } from '@/lib/brand-color';
@@ -22,7 +23,6 @@ import {
   BrandHero, HERO_ACCENT_COLOR,
 } from '@/components/partners/founder-ui';
 import { OnboardingDiagnosticModal } from '@/components/partners/gamification/OnboardingDiagnosticModal';
-import { RankingPopup } from '@/components/partners/gamification/RankingPopup';
 import { StreakPopup } from '@/components/partners/gamification/StreakPopup';
 import { ShieldPopup } from '@/components/partners/gamification/ShieldPopup';
 import { ContextualPopup } from '@/components/partners/gamification/ContextualPopup';
@@ -30,22 +30,85 @@ import { Top3Popup } from '@/components/partners/gamification/Top3Popup';
 import { StreakBrokenPopup } from '@/components/partners/gamification/StreakBrokenPopup';
 import { StreakPointsLostPopup } from '@/components/partners/gamification/StreakPointsLostPopup';
 import { MonthEndScreen } from '@/components/partners/gamification/MonthEndScreen';
+import { AchievementUnlockedPopup } from '@/components/partners/gamification/AchievementUnlockedPopup';
+import { AchievementInfoModal } from '@/components/partners/AchievementInfoModal';
+import { getAchievementIcon, getDifficultyStyle } from '@/lib/achievement-icons';
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
 import type { MonthlyCheckInResult } from '@/types/gamification';
 
 // ─── Types & helpers ─────────────────────────────────────────────────────────
 
+interface DailyMissionAction {
+  type: string;
+  label: string;
+  qty: number;
+  progress: number;
+  done: boolean;
+}
+
+interface DailyMissionStatus {
+  available: boolean;
+  mission?: { id: string; title: string; description: string; bonus_points: number };
+  actions?: DailyMissionAction[];
+  completed?: boolean;
+  just_completed?: boolean;
+  points_awarded?: number;
+}
+
+interface OnboardingChecklistStep {
+  id: string;
+  title: string;
+  done: boolean;
+  rewarded: boolean;
+  just_rewarded: boolean;
+  bonus_points: number;
+}
+
+interface OnboardingChecklistStatus {
+  steps: OnboardingChecklistStep[];
+  all_done: boolean;
+  newly_rewarded_titles: string[];
+}
+
+interface AchievementSummary {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  difficulty: string;
+  difficulty_label: string;
+  chance_pct: number;
+  unlocked: boolean;
+}
+
+interface AchievementsResponse {
+  achievements: AchievementSummary[];
+  unlocked_count: number;
+  total_count: number;
+}
+
 interface FeedItem {
-  type: 'question' | 'simulado' | 'essay';
+  type: 'question' | 'simulado' | 'essay' | 'achievement' | 'congrats_received';
   student_id?: string | null;
   student_name?: string | null;
   student_avatar_url?: string | null;
   subject?: string | null;
   is_correct?: boolean | null;
+  question_count?: number | null;
   total_questions?: number | null;
   status?: string | null;
   score?: number | null;
   essay_type?: string | null;
+  student_achievement_id?: string | null;
+  achievement_id?: string | null;
+  achievement_title?: string | null;
+  achievement_description?: string | null;
+  achievement_icon?: string | null;
+  difficulty?: string | null;
+  already_congratulated?: boolean;
+  pinned?: boolean;
+  congratulator_name?: string | null;
+  congratulator_avatar_url?: string | null;
   timestamp?: string | null;
 }
 
@@ -84,6 +147,50 @@ function KpiTopBadge({
   );
 }
 
+
+function AveBirdAnimation() {
+  const reduced = !!useReducedMotion();
+  const controls = useAnimation();
+
+  useEffect(() => {
+    if (reduced) return;
+    void controls.start({
+      scaleY: [1,    0.50, 1.12, 1],
+      scaleX: [1,    1.30, 0.88, 1],
+      y:      [0,    8,    -5,   0],
+      transition: {
+        duration: 2.2,
+        repeat: Infinity,
+        ease: ['easeIn', 'easeOut', 'easeInOut'],
+        times: [0, 0.28, 0.58, 1],
+      },
+    });
+  }, [controls, reduced]);
+
+  const birdClass = (extra: string) =>
+    `absolute w-auto drop-shadow-[0_20px_20px_rgba(0,0,0,0.32)] ${extra}`;
+
+  return (
+    <div className="pointer-events-none absolute inset-y-0 left-[58%] right-[205px] z-[1] hidden lg:block xl:left-[60%] xl:right-[235px]">
+      {/* Grande — base da diagonal */}
+      <motion.img src="/marketing/logo_ave-removebg-preview.png"
+        alt="" aria-hidden animate={controls}
+        style={{ transformOrigin: '50% 68%' }}
+        className={birdClass('bottom-[2%] left-[5%] h-[54%]')} />
+      {/* Média — meio da diagonal */}
+      <motion.img src="/marketing/logo_ave-removebg-preview.png"
+        alt="" aria-hidden animate={controls}
+        style={{ transformOrigin: '50% 68%' }}
+        className={birdClass('bottom-[32%] left-[36%] h-[32%] opacity-75')} />
+      {/* Pequena — topo da diagonal */}
+      <motion.img src="/marketing/logo_ave-removebg-preview.png"
+        alt="" aria-hidden animate={controls}
+        style={{ transformOrigin: '50% 68%' }}
+        className={birdClass('bottom-[58%] left-[60%] h-[18%] opacity-55')} />
+    </div>
+  );
+}
+
 function ApprovedPhotosHeroStrip({
   photos,
   activeIndex,
@@ -118,15 +225,39 @@ function timeAgo(ts?: string | null): string {
   return `${Math.floor(diff / 86400)}d atrás`;
 }
 
-// ─── Streak progress helper (kept intact) ───────────────────────────────────
+// ─── Streak progress helper ──────────────────────────────────────────────────
 
 const STREAK_MILESTONES = [1, 3, 7, 14, 30, 60, 90];
+const MAX_STREAK_MILESTONE = STREAK_MILESTONES[STREAK_MILESTONES.length - 1];
 
 function getStreakProgress(streak: number): { next: number; pct: number } {
   const next = STREAK_MILESTONES.find((m) => m > streak) ?? 100;
   const prev = [...STREAK_MILESTONES].reverse().find((m) => m <= streak) ?? 0;
   const pct = prev === next ? 100 : Math.round(((streak - prev) / (next - prev)) * 100);
   return { next, pct: Math.min(pct, 100) };
+}
+
+/** Mini barra de progresso usada nos footers dos KPIs (marco de streak, XP). */
+function KpiProgressBar({ pct, color, label }: { pct: number; color: string; label: string }) {
+  return (
+    <div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/8">
+        <div
+          className="h-full rounded-full transition-[width] duration-700 ease-out"
+          style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: color }}
+        />
+      </div>
+      <p className="mt-1 text-[10px] leading-snug text-slate-400 dark:text-white/30">{label}</p>
+    </div>
+  );
+}
+
+function formatStudyTimeToday(minutes: number): string {
+  if (minutes <= 0) return 'Nada estudado hoje ainda';
+  if (minutes < 60) return `${minutes}min de estudo hoje`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h${String(m).padStart(2, '0')} de estudo hoje` : `${h}h de estudo hoje`;
 }
 
 function getTop3Position(position: number | undefined): 1 | 2 | 3 {
@@ -174,6 +305,13 @@ export function DashboardClient({
   const [lastActivity, setLastActivity] = useState<{ type: 'question' | 'simulado' | 'essay' | null; subject: string | null }>({ type: null, subject: null });
   const [feedInfoOpen, setFeedInfoOpen] = useState(false);
   const [activityModalOpen, setActivityModalOpen] = useState(false);
+  const [achievementModalItem, setAchievementModalItem] = useState<FeedItem | null>(null);
+
+  const markFeedItemCongratulated = (studentAchievementId: string) => {
+    setActivityFeed((prev) => prev.map((it) =>
+      it.student_achievement_id === studentAchievementId ? { ...it, already_congratulated: true } : it
+    ));
+  };
   // Painel de dev (só aparece pra conta de teste) — liga/desliga cada badge individualmente.
   const [devBadgeOverrides, setDevBadgeOverrides] = useState({
     streak: true,
@@ -190,10 +328,13 @@ export function DashboardClient({
     return () => window.clearInterval(timer);
   }, [approvedPhotos.length]);
 
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { setFeedLoading(false); return; }
+      setSessionUserId(session.user?.id ?? null);
       const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
       fetch(`${api}/api/student/analytics/activity-feed?limit=15`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -220,9 +361,9 @@ export function DashboardClient({
         ? `/partners/${slug}/student/banco-de-questoes?subject=${encodeURIComponent(lastActivity.subject)}`
         : `/partners/${slug}/student/banco-de-questoes`;
 
-  // Streak milestone progress (kept intact for hero badge)
+  // Streak milestone progress — alimenta a mini barra no KPI de Sequência
   const { next: nextMilestone, pct: streakPct } = getStreakProgress(effectiveCurrentStreak);
-  void nextMilestone; void streakPct; // retained for potential future use
+  const daysToMilestone = Math.max(0, nextMilestone - effectiveCurrentStreak);
 
   // ── Gamification hook ──────────────────────────────────────────────────────
   const {
@@ -237,6 +378,152 @@ export function DashboardClient({
     refreshSummary,
   } = usePartnerGamification();
   const { currentPopup, enqueuePopup, dismissCurrentPopup } = usePopupQueue();
+
+  // ── Missão do dia ──────────────────────────────────────────────────────────
+  const [dailyMission, setDailyMission] = useState<DailyMissionStatus | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+      fetch(`${api}/api/partner/gamification/daily-mission`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: DailyMissionStatus | null) => {
+          if (!data) return;
+          setDailyMission(data);
+          if (data.just_completed && data.points_awarded) {
+            toast.success(`Missão do dia concluída! +${data.points_awarded} pts`);
+            void refreshSummary();
+          }
+        })
+        .catch(() => {});
+    });
+    // refreshSummary é estável (vem do hook); busca única por montagem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Checklist de primeiros passos ───────────────────────────────────────────
+  const [onboardingChecklist, setOnboardingChecklist] = useState<OnboardingChecklistStatus | null>(null);
+  const [onboardingChecklistDismissed, setOnboardingChecklistDismissed] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(`st:onboarding-checklist-dismissed:${slug}`) === '1') {
+        setOnboardingChecklistDismissed(true);
+      }
+    } catch {
+      // localStorage indisponível — checklist só some quando all_done
+    }
+
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+      fetch(`${api}/api/partner/gamification/onboarding-checklist`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: OnboardingChecklistStatus | null) => {
+          if (!data) return;
+          setOnboardingChecklist(data);
+          if (data.newly_rewarded_titles.length > 0) {
+            for (const title of data.newly_rewarded_titles) {
+              toast.success(`"${title}" concluído! +10 pts`);
+            }
+            void refreshSummary();
+          }
+        })
+        .catch(() => {});
+    });
+    // refreshSummary é estável (vem do hook); busca única por montagem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  const dismissOnboardingChecklist = useCallback(() => {
+    setOnboardingChecklistDismissed(true);
+    try {
+      window.localStorage.setItem(`st:onboarding-checklist-dismissed:${slug}`, '1');
+    } catch {
+      // segue só em memória nesta sessão
+    }
+  }, [slug]);
+
+  // ── Conquistas permanentes ───────────────────────────────────────────────────
+  // Fica escondido na aba de perfil, então o dashboard é a "base": mostra a
+  // contagem no card Nível (que já leva pra lá) e dispara um popup pra cada
+  // conquista nova desde a última visita — comparação feita em localStorage
+  // (achievements não têm timestamp de desbloqueio no backend, são puramente
+  // derivadas; comparar o conjunto de IDs já vistos é o suficiente aqui).
+  const [achievementsUnlockedCount, setAchievementsUnlockedCount] = useState<number | null>(null);
+  const [achievementsTotalCount, setAchievementsTotalCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+      fetch(`${api}/api/partner/gamification/achievements`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: AchievementsResponse | null) => {
+          if (!data) return;
+          setAchievementsUnlockedCount(data.unlocked_count);
+          setAchievementsTotalCount(data.total_count);
+
+          const userId = session.user?.id;
+          if (!userId) return;
+          // ":v2" força um reset silencioso único (uma vez, em todo navegador)
+          // pra quem foi bombardeado por conquistas retroativas antes desta
+          // correção — depois disso a chave nunca mais precisa mudar.
+          const seenKey = `st:achievements-seen:v2:${slug}:${userId}`;
+          let seenIds: string[] = [];
+          try {
+            seenIds = JSON.parse(window.localStorage.getItem(seenKey) ?? '[]');
+          } catch {
+            seenIds = [];
+          }
+          const seenSet = new Set(seenIds);
+          const unlocked = data.achievements.filter((a) => a.unlocked);
+          const newlyUnlocked = seenIds.length === 0
+            ? [] // primeira visita da conta: não enfileira o histórico inteiro de uma vez
+            : unlocked.filter((a) => !seenSet.has(a.id));
+
+          for (const achievement of newlyUnlocked) {
+            enqueuePopup({
+              kind: 'achievement_unlocked',
+              routeScope: 'dashboard',
+              title: achievement.title,
+              description: achievement.description,
+              icon: achievement.icon,
+              difficulty: achievement.difficulty,
+              difficultyLabel: achievement.difficulty_label,
+              chancePct: achievement.chance_pct,
+              slug,
+              dedupeKey: `achievement:${achievement.id}`,
+            });
+          }
+
+          try {
+            // União, nunca substituição — uma vez visto, "visto" pra sempre.
+            // Se o backend computar uma conquista como desbloqueada e depois
+            // travada de novo (uma redação recorrigida, uma inconsistência
+            // passageira), ela não pode "sumir" da lista de vistas e voltar
+            // a disparar popup quando desbloquear de novo.
+            const mergedSeen = new Set([...seenIds, ...unlocked.map((a) => a.id)]);
+            window.localStorage.setItem(seenKey, JSON.stringify([...mergedSeen]));
+          } catch {
+            // segue só em memória nesta sessão
+          }
+        })
+        .catch(() => {});
+    });
+    // enqueuePopup é estável (vem do contexto); busca única por montagem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
   // ── Popup orchestration state ──────────────────────────────────────────────
   const [isResolvingStreakBroken, setIsResolvingStreakBroken] = useState(false);
@@ -412,8 +699,36 @@ export function DashboardClient({
 
   // ── Monthly ranking progress ───────────────────────────────────────────────
   const monthlyPts = summary?.monthly_points ?? 0;
-  const monthlyGoal = summary?.monthly_goal ?? 1000;
+  // Meta Pessoal definida pelo aluno — null quando não definida. Exibição
+  // apenas: nunca entra no cálculo de tier/progresso.
+  const monthlyGoal = summary?.monthly_goal ?? null;
+  const goalProgressPct = summary?.goal_progress_pct ?? 0;
   const goalReached = summary?.goal_reached ?? false;
+  // XP permanente (nunca reseta) → nível de conta de longo prazo.
+  const accountLevel = getAccountLevel(summary?.total_points ?? 0);
+  const xpToNextLevel = accountLevel.xpForNextLevel - accountLevel.xpIntoLevel;
+
+  // Colocação por XP na org + delta vs. última visita (setinha verde/vermelha).
+  // Última posição vista fica em localStorage por usuário — nudge visual leve,
+  // sem precisar de coluna nova no banco.
+  const xpRank = summary?.xp_rank ?? null;
+  const [xpRankDelta, setXpRankDelta] = useState<'up' | 'down' | null>(null);
+  useEffect(() => {
+    if (xpRank === null || !sessionUserId) return;
+    const key = `st:xp-rank-seen:${slug}:${sessionUserId}`;
+    try {
+      const stored = window.localStorage.getItem(key);
+      if (stored !== null) {
+        const prevRank = parseInt(stored, 10);
+        if (Number.isFinite(prevRank) && prevRank !== xpRank) {
+          setXpRankDelta(xpRank < prevRank ? 'up' : 'down');
+        }
+      }
+      window.localStorage.setItem(key, String(xpRank));
+    } catch {
+      // localStorage indisponível (modo privado etc.) — segue sem a setinha
+    }
+  }, [xpRank, sessionUserId, slug]);
   const monthLabel = summary?.month_label ?? '';
   const shieldCount = summary?.shield_count ?? 0;
   const hasShield = shieldCount > 0;
@@ -426,6 +741,10 @@ export function DashboardClient({
   const tierProgressPct = nextTierMeta
     ? Math.min(100, (monthlyPts / Math.max(tierTargetPts, 1)) * 100)
     : 100;
+  // Cor de destaque do card "Corrida" — acompanha o próximo nível (mesma cor da
+  // barra principal); dourado quando já está no nível máximo do mês.
+  const raceAccent = !summary ? 'var(--brand-primary)' : (nextTierMeta?.color ?? '#F59E0B');
+  const raceAccentHex = !summary ? org.brand_primary : (nextTierMeta?.color ?? '#F59E0B');
 
   // ── Badges de liderança/pódio (KPIs) ────────────────────────────────────────
   // Contas de teste (plan_tier "b2b_test", já sinalizadas em userProfile.isTestAccount
@@ -464,7 +783,11 @@ export function DashboardClient({
               smokeColorHex={org.brand_primary ?? undefined}
               halftone={false}
               lighten
-              overlay={<ApprovedPhotosHeroStrip photos={approvedPhotos} activeIndex={activeApprovedPhotoIndex} />}
+              overlay={
+                slug === 'ave-palavra'
+                  ? <AveBirdAnimation />
+                  : <ApprovedPhotosHeroStrip photos={approvedPhotos} activeIndex={activeApprovedPhotoIndex} />
+              }
             >
               <div className="relative z-10 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
               <div className="flex min-w-0 flex-col gap-1 lg:flex-1">
@@ -490,6 +813,7 @@ export function DashboardClient({
                     style={{ background: 'color-mix(in srgb, var(--brand-primary) 22%, transparent)' }}
                     iconStyle={{ color: 'color-mix(in srgb, var(--brand-primary) 70%, white)' }}
                   />
+
                 </div>
 
                 {/* Greeting */}
@@ -550,6 +874,47 @@ export function DashboardClient({
             </BrandHero>
           </RevealItem>
 
+          {/* ── Checklist de primeiros passos ─────────────────────────────── */}
+          {onboardingChecklist && !onboardingChecklist.all_done && !onboardingChecklistDismissed && (
+            <RevealItem>
+              <ElevatedCard accentColor="#10b981">
+                <div className="relative p-5">
+                  <button
+                    onClick={dismissOnboardingChecklist}
+                    aria-label="Esconder checklist"
+                    className="absolute right-4 top-4 rounded-full p-1 text-slate-400 transition-colors hover:text-slate-700 dark:text-white/30 dark:hover:text-white/70"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  <SectionTitle
+                    kicker="Primeiros passos"
+                    title="Comece por aqui"
+                    hex="#10b981"
+                    colorVar="#10b981"
+                  />
+                  <ul className="space-y-2.5">
+                    {onboardingChecklist.steps.map((step) => (
+                      <li key={step.id} className="flex items-center gap-2.5">
+                        {step.done ? (
+                          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+                        ) : (
+                          <Circle className="h-5 w-5 shrink-0 text-slate-300 dark:text-white/20" />
+                        )}
+                        <span className={`text-[13.5px] font-medium ${step.done ? 'text-slate-400 line-through dark:text-white/30' : 'text-slate-700 dark:text-white/70'}`}>
+                          {step.title}
+                        </span>
+                        <span className="ml-auto flex items-center gap-1 text-[12px] font-bold text-emerald-500">
+                          <PartyPopper className="h-3 w-3" />
+                          +{step.bonus_points}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </ElevatedCard>
+            </RevealItem>
+          )}
+
           {/* ── KPIs pessoais ─────────────────────────────────────────────── */}
           <RevealItem className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
             <KpiCard
@@ -570,6 +935,19 @@ export function DashboardClient({
                   <Shield className="h-3 w-3" strokeWidth={2.4} style={{ color: '#3b82f6' }} />
                 </span>
               ) : undefined}
+              footer={
+                <KpiProgressBar
+                  pct={effectiveCurrentStreak >= MAX_STREAK_MILESTONE ? 100 : streakPct}
+                  color="linear-gradient(90deg, #F97316, #EF4444)"
+                  label={
+                    effectiveCurrentStreak >= MAX_STREAK_MILESTONE
+                      ? `Marco máximo de ${MAX_STREAK_MILESTONE} dias alcançado!`
+                      : daysToMilestone === 1
+                        ? `Falta 1 dia para o marco de ${nextMilestone}`
+                        : `Faltam ${daysToMilestone} dias para o marco de ${nextMilestone}`
+                  }
+                />
+              }
             />
             <KpiCard
               title="Questões"
@@ -600,20 +978,43 @@ export function DashboardClient({
               accentHex={org.brand_accent}
             />
             <KpiCard
-              title={`Pontos · ${monthLabel || 'Mês'}`}
-              value={monthlyPts.toLocaleString('pt-BR')}
-              subtitle="Na corrida deste mês"
+              title="Nível"
+              value={accountLevel.level}
+              subtitle={formatStudyTimeToday(summary?.study_minutes_today ?? 0)}
               icon={Zap}
-              href={`/partners/${slug}/student/ranking`}
+              href={`/partners/${slug}/student/perfil?tab=achievements`}
               loading={summary === null}
               accentColor="#8b5cf6"
               accentHex="#8b5cf6"
-              topRightBadge={isLeader ? (
-                <KpiTopBadge
-                  icon={Crown}
-                  label={leaderMonths >= 2 ? `${leaderMonths} meses na liderança!` : 'Líder do mês!'}
-                  colorLight="#B45309"
-                  colorDark="#FBBF24"
+              topRightBadge={achievementsUnlockedCount !== null && achievementsTotalCount !== null ? (
+                <span
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-600 dark:bg-amber-500/15 dark:text-amber-400"
+                  title="Conquistas desbloqueadas"
+                >
+                  <Trophy className="h-3 w-3" />
+                  {achievementsUnlockedCount}/{achievementsTotalCount}
+                </span>
+              ) : undefined}
+              iconAdornment={xpRank !== null ? (
+                <span
+                  className="flex min-w-0 items-center gap-0.5 text-[11px] font-bold text-violet-500 dark:text-violet-400"
+                  title={`Sua colocação por XP em ${orgName}`}
+                >
+                  <span className="tabular-nums">#{xpRank}</span>
+                  <span className="hidden min-w-0 truncate lg:inline lg:max-w-[110px]">da {orgName}</span>
+                  {xpRankDelta === 'up' && (
+                    <ArrowUp className="h-3.5 w-3.5 shrink-0 text-emerald-500" strokeWidth={3} aria-label="Subiu de posição" />
+                  )}
+                  {xpRankDelta === 'down' && (
+                    <ArrowDown className="h-3.5 w-3.5 shrink-0 text-red-500" strokeWidth={3} aria-label="Desceu de posição" />
+                  )}
+                </span>
+              ) : undefined}
+              footer={summary?.total_points !== undefined ? (
+                <KpiProgressBar
+                  pct={accountLevel.pct}
+                  color="linear-gradient(90deg, #8b5cf6, #a78bfa)"
+                  label={`Faltam ${xpToNextLevel.toLocaleString('pt-BR')} XP para o nível ${accountLevel.level + 1}`}
                 />
               ) : undefined}
             />
@@ -622,22 +1023,33 @@ export function DashboardClient({
           {/* ── 2. Corrida para aprovação ──────────────────────────────────── */}
           <RevealItem>
             <Link href={`/partners/${slug}/student/ranking`} className="block cursor-pointer">
-            <ElevatedCard accentColor="var(--brand-primary)">
+            <ElevatedCard accentColor={raceAccent}>
               <div className="p-5">
                 <SectionTitle
                   kicker="Gamificação"
                   title="Corrida para aprovação"
-                  hex={org.brand_primary}
+                  hex={raceAccentHex ?? undefined}
+                  colorVar={raceAccent}
                   action={
-                    <span
-                      className="brand-text-adaptive text-[11px] font-bold px-2.5 py-1 rounded-full"
-                      style={{
-                        background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)',
-                        ...adaptiveTextStyle(org.brand_primary, 'var(--brand-primary)'),
-                      }}
-                    >
-                      {monthLabel || 'Este mês'}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {isLeader && (
+                        <KpiTopBadge
+                          icon={Crown}
+                          label={leaderMonths >= 2 ? `${leaderMonths} meses na liderança!` : 'Líder do mês!'}
+                          colorLight="#B45309"
+                          colorDark="#FBBF24"
+                        />
+                      )}
+                      <span
+                        className="brand-text-adaptive text-[11px] font-bold px-2.5 py-1 rounded-full"
+                        style={{
+                          background: `color-mix(in srgb, ${raceAccent} 10%, transparent)`,
+                          ...adaptiveTextStyle(raceAccentHex, raceAccent),
+                        }}
+                      >
+                        {monthLabel || 'Este mês'}
+                      </span>
+                    </div>
                   }
                 />
 
@@ -645,7 +1057,7 @@ export function DashboardClient({
                 <div className="mb-4 flex items-end gap-2">
                   <span
                     className="brand-text-adaptive font-display text-[34px] font-black leading-none tabular-nums"
-                    style={adaptiveTextStyle(org.brand_primary, 'var(--brand-primary)')}
+                    style={adaptiveTextStyle(raceAccentHex, raceAccent)}
                   >
                     {monthlyPts.toLocaleString('pt-BR')}
                   </span>
@@ -661,7 +1073,7 @@ export function DashboardClient({
                   <motion.div
                     className="h-full rounded-full"
                     style={{
-                      background: goalReached || !nextTierMeta
+                      background: !nextTierMeta
                         ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
                         : `linear-gradient(90deg, color-mix(in srgb, ${nextTierMeta.color} 65%, white), ${nextTierMeta.color})`,
                       boxShadow: `0 0 12px color-mix(in srgb, ${nextTierMeta?.color ?? 'var(--brand-primary)'} 40%, transparent)`,
@@ -680,8 +1092,6 @@ export function DashboardClient({
                 <p className="mt-3 flex items-center gap-1.5 text-[11px] font-medium text-slate-400 dark:text-white/30">
                   {!summary ? (
                     'Carregando…'
-                  ) : goalReached ? (
-                    <><Trophy className="h-3 w-3 shrink-0 text-amber-400" /> Você está entre os líderes do mês!</>
                   ) : nextTierMeta ? (
                     <>
                       <nextTierMeta.Icon className="h-3.5 w-3.5 shrink-0" style={{ color: nextTierMeta.color }} />
@@ -691,13 +1101,100 @@ export function DashboardClient({
                       </span>
                     </>
                   ) : (
-                    `Faltam ${(monthlyGoal - monthlyPts).toLocaleString('pt-BR')} pts para entrar na disputa`
+                    <><Trophy className="h-3 w-3 shrink-0 text-amber-400" /> Nível máximo do mês alcançado — defenda sua posição!</>
                   )}
                 </p>
+
+                {/* Meta Pessoal — definida pelo próprio aluno no perfil. Exibição
+                    apenas; não participa do cálculo de tier/progresso acima. */}
+                {monthlyGoal !== null && monthlyGoal > 0 && (
+                  <div className="mt-4 border-t border-slate-100 pt-3.5 dark:border-white/6">
+                    <div className="mb-1.5 flex items-baseline justify-between">
+                      <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-white/50">
+                        <Target className="h-3 w-3 shrink-0 text-emerald-500" />
+                        Meta Pessoal
+                      </p>
+                      <p className="text-[11px] font-semibold tabular-nums text-slate-400 dark:text-white/30">
+                        {monthlyPts.toLocaleString('pt-BR')} / {monthlyGoal.toLocaleString('pt-BR')} pts
+                      </p>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/6">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ background: 'linear-gradient(90deg, #10b981, #34d399)' }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.min(100, goalProgressPct)}%` }}
+                        transition={shouldReduce ? { duration: 0 } : { duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.6 }}
+                      />
+                    </div>
+                    {goalReached && (
+                      <p className="mt-1.5 text-[11px] font-semibold text-emerald-500">
+                        Meta pessoal batida — parabéns!
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </ElevatedCard>
             </Link>
           </RevealItem>
+
+          {/* ── 2.5 Missão do dia — checklist (de propósito NÃO é mais uma barra) ── */}
+          {dailyMission?.available && dailyMission.mission && (
+            <RevealItem>
+              <ElevatedCard accentColor="#f59e0b">
+                <div className="p-5">
+                  <SectionTitle
+                    kicker="Missão do dia"
+                    title={dailyMission.mission.title}
+                    hex="#f59e0b"
+                    colorVar="#f59e0b"
+                    action={
+                      dailyMission.completed ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Concluída · +{dailyMission.mission.bonus_points} pts
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-600 dark:bg-amber-500/15 dark:text-amber-400">
+                          <Swords className="h-3.5 w-3.5" />
+                          +{dailyMission.mission.bonus_points} pts
+                        </span>
+                      )
+                    }
+                  />
+                  <p className="mb-3 text-[13px] text-slate-500 dark:text-white/40">
+                    {dailyMission.mission.description}
+                  </p>
+                  <ul className="space-y-2">
+                    {(dailyMission.actions ?? []).map((action) => (
+                      <li key={action.type} className="flex items-center gap-2.5">
+                        {action.done ? (
+                          <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-emerald-500" />
+                        ) : (
+                          <Circle className="h-4.5 w-4.5 shrink-0 text-slate-300 dark:text-white/20" />
+                        )}
+                        <span className={`text-[13px] font-medium ${action.done ? 'text-slate-400 line-through dark:text-white/30' : 'text-slate-700 dark:text-white/70'}`}>
+                          {action.qty} {action.label}
+                        </span>
+                        <span className="ml-auto text-[12px] font-bold tabular-nums text-slate-400 dark:text-white/30">
+                          {action.progress}/{action.qty}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {!dailyMission.completed && (
+                    <Link
+                      href={`/partners/${slug}/student/banco-de-questoes`}
+                      className="mt-4 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-amber-600 hover:underline dark:text-amber-400"
+                    >
+                      Começar agora <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  )}
+                </div>
+              </ElevatedCard>
+            </RevealItem>
+          )}
 
           {/* ── 3. Feed de atividades ────────────────────────────────────────── */}
           <RevealItem>
@@ -750,28 +1247,48 @@ export function DashboardClient({
                     {activityFeed.slice(0, 3).map((item, i) => {
                       const isQuestion = item.type === 'question';
                       const isSimulado = item.type === 'simulado';
+                      const isAchievement = item.type === 'achievement';
+                      const isCongratsReceived = item.type === 'congrats_received';
+                      const questionCount = item.question_count ?? 1;
                       const peerFirstName = (item.student_name || 'Aluno').split(' ')[0];
-                      const verb = isQuestion
-                        ? 'fez uma questão de'
+                      const verb = isCongratsReceived
+                        ? 'te deu os parabéns por desbloquear'
+                        : isQuestion
+                        ? (questionCount > 1 ? 'fez' : 'fez uma questão de')
                         : isSimulado ? 'realizou um'
+                        : isAchievement ? 'desbloqueou a conquista'
                         : 'enviou uma';
-                      const actionLabel = isQuestion
-                        ? (item.subject || 'Questão')
+                      const actionLabel = isCongratsReceived
+                        ? (item.achievement_title || 'Conquista')
+                        : isQuestion
+                        ? (questionCount > 1 ? `${questionCount} Questões` : (item.subject || 'Questão'))
                         : isSimulado ? 'Simulado'
+                        : isAchievement ? (item.achievement_title || 'Conquista')
                         : 'Redação';
+                      const rowName = isCongratsReceived ? (item.congratulator_name || 'Um colega') : peerFirstName;
+                      const rowAvatar = isCongratsReceived ? item.congratulator_avatar_url : item.student_avatar_url;
+                      const achievementGlow = isAchievement && item.pinned ? getDifficultyStyle(item.difficulty).glow : '';
+                      const AchievementIcon = isAchievement ? getAchievementIcon(item.achievement_icon) : null;
 
                       return (
                         <div
                           key={i}
-                          className="relative flex items-center h-[46px] rounded-[16px] bg-slate-50 dark:bg-white/[0.05] overflow-hidden"
+                          onClick={() => {
+                            if (isAchievement) setAchievementModalItem(item);
+                          }}
+                          className={`relative flex items-center h-[46px] rounded-[16px] bg-slate-50 dark:bg-white/[0.05] overflow-hidden ${isAchievement ? 'cursor-pointer transition-transform active:scale-[0.98]' : ''} ${achievementGlow}`}
                         >
                           {/* Avatar */}
                           <div className="absolute left-[13px] h-[22px] w-[22px] rounded-full overflow-hidden shrink-0 ring-1 ring-black/5 dark:ring-white/10">
-                            {item.student_avatar_url ? (
+                            {isAchievement && AchievementIcon ? (
+                              <div className={`w-full h-full flex items-center justify-center ${getDifficultyStyle(item.difficulty).iconBg} ${getDifficultyStyle(item.difficulty).iconText}`}>
+                                <AchievementIcon className="h-3 w-3" />
+                              </div>
+                            ) : rowAvatar ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
-                                src={item.student_avatar_url}
-                                alt={item.student_name || ''}
+                                src={rowAvatar}
+                                alt={rowName || ''}
                                 className="w-full h-full object-cover"
                               />
                             ) : (
@@ -789,14 +1306,16 @@ export function DashboardClient({
                           {/* Name + action — vertically centred */}
                           <div className="absolute left-[43px] right-3 top-1/2 -translate-y-1/2 flex items-baseline gap-1 leading-none">
                             <span className="text-[11px] text-slate-700 dark:text-white/85 whitespace-nowrap">
-                              {peerFirstName} {verb}
+                              {rowName} {verb}
                             </span>
-                            <span
-                              className="brand-text-adaptive text-[12px] font-bold tracking-[-0.35px] truncate"
-                              style={adaptiveTextStyle(secondaryAccent.hex, secondaryAccent.cssVar)}
-                            >
-                              {actionLabel}
-                            </span>
+                            {actionLabel && (
+                              <span
+                                className="brand-text-adaptive text-[12px] font-bold tracking-[-0.35px] truncate"
+                                style={adaptiveTextStyle(secondaryAccent.hex, secondaryAccent.cssVar)}
+                              >
+                                {actionLabel}
+                              </span>
+                            )}
                           </div>
                           {/* Timestamp — bottom-right corner */}
                           <p className="absolute bottom-[7px] right-[12px] text-[7px] font-bold text-slate-400 dark:text-white/50 leading-none">
@@ -935,6 +1454,24 @@ export function DashboardClient({
         <ActivityHistoryModal onClose={() => setActivityModalOpen(false)} />
       )}
 
+      {/* ── Info-card de conquista (clicada no feed) ───────────────────── */}
+      {achievementModalItem && achievementModalItem.student_achievement_id && (
+        <AchievementInfoModal
+          data={{
+            student_achievement_id: achievementModalItem.student_achievement_id,
+            student_name: achievementModalItem.student_name || 'Aluno',
+            achievement_title: achievementModalItem.achievement_title || 'Conquista',
+            achievement_description: achievementModalItem.achievement_description,
+            achievement_icon: achievementModalItem.achievement_icon,
+            difficulty: achievementModalItem.difficulty,
+            already_congratulated: achievementModalItem.already_congratulated,
+            is_own: achievementModalItem.student_id === sessionUserId,
+          }}
+          onClose={() => setAchievementModalItem(null)}
+          onCongratulated={markFeedItemCongratulated}
+        />
+      )}
+
       {/* ── Popups (Fila central) ───────────────────────────────────────── */}
       <AnimatePresence>
         {currentPopup?.kind === 'onboarding' && (
@@ -943,13 +1480,6 @@ export function DashboardClient({
             organizationName={orgName}
             onComplete={handleDiagnosticComplete}
             submitMonthlyCheckIn={submitMonthlyCheckIn}
-          />
-        )}
-
-        {currentPopup?.kind === 'ranking_popup' && (
-          <RankingPopup
-            ranking={currentPopup.ranking}
-            onClose={dismissCurrentPopup}
           />
         )}
 
@@ -972,6 +1502,19 @@ export function DashboardClient({
           <ContextualPopup
             popupState={currentPopup.popupState}
             ranking={currentPopup.ranking}
+            slug={currentPopup.slug}
+            onDismiss={dismissCurrentPopup}
+          />
+        )}
+
+        {currentPopup?.kind === 'achievement_unlocked' && (
+          <AchievementUnlockedPopup
+            title={currentPopup.title}
+            description={currentPopup.description}
+            icon={currentPopup.icon}
+            difficulty={currentPopup.difficulty}
+            difficultyLabel={currentPopup.difficultyLabel}
+            chancePct={currentPopup.chancePct}
             slug={currentPopup.slug}
             onDismiss={dismissCurrentPopup}
           />

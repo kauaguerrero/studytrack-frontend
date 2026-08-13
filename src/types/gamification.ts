@@ -97,11 +97,19 @@ export interface PopupState {
 
 export interface MonthlySummary {
   monthly_points: number;
+  /** XP permanente acumulado (nunca reseta com o mês). */
+  total_points?: number;
+  /** Colocação por XP vitalício dentro da org; null p/ contas fora do ranking. */
+  xp_rank?: number | null;
+  xp_rank_total?: number;
+  /** Tempo de estudo de hoje (BRT) em minutos, reconstruído dos usage_pings. */
+  study_minutes_today?: number;
   rank_position: number;
   points_to_top3: number;
   prize_cutoff: number;
   month_label: string;
-  monthly_goal: number;
+  /** Meta Pessoal definida pelo aluno; null quando não definida. Exibição apenas. */
+  monthly_goal: number | null;
   goal_reached: boolean;
   goal_progress_pct: number;
   shield_count: number;

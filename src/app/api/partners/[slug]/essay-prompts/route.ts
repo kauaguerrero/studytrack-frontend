@@ -88,7 +88,7 @@ async function getOrgAndRequester(slug: string) {
   const role = profile?.role ?? '';
   const isAdmin = role === 'admin';
   const isFounder = role === 'founder' && profile?.organization_id === org.id;
-  const isAssociate = (role === 'associate' || role === 'teacher') && profile?.organization_id === org.id;
+  const isAssociate = role === 'associate' && profile?.organization_id === org.id;
   const isStudent = role === 'student' && profile?.organization_id === org.id;
 
   if (!isAdmin && !isFounder && !isAssociate && !isStudent) {

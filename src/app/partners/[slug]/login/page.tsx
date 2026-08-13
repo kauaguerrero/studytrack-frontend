@@ -49,6 +49,7 @@ export default function PartnerLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
@@ -68,17 +69,27 @@ export default function PartnerLoginPage() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, associate_permissions')
         .eq('id', session.user.id)
         .maybeSingle();
 
       if (cancelled) return;
 
+      // Bloqueia associate desativado — encerra sessão e exibe aviso
+      if (profile?.role === 'associate') {
+        const perms = profile.associate_permissions as { active?: boolean } | null;
+        if (perms?.active === false) {
+          await supabase.auth.signOut();
+          setError('Sua conta está inativa. Entre em contato com o gestor da instituição.');
+          return;
+        }
+      }
+
       const next = searchParams.get('next');
       const safeNextRedirect = (next && next.startsWith('/') && !next.startsWith('//')) ? next : null;
 
       const isManagementRole = profile?.role === 'founder' || profile?.role === 'admin'
-        || profile?.role === 'associate' || profile?.role === 'teacher';
+        || profile?.role === 'associate';
       const nextIsStudentPath = safeNextRedirect?.includes('/student/');
 
       if (safeNextRedirect && !(isManagementRole && nextIsStudentPath)) {
@@ -90,7 +101,7 @@ export default function PartnerLoginPage() {
         window.location.replace(`/partners/${slug}/dashboard`);
         return;
       }
-      if (profile?.role === 'associate' || profile?.role === 'teacher') {
+      if (profile?.role === 'associate') {
         window.location.replace(`/partners/${slug}/redacoes`);
         return;
       }
@@ -102,6 +113,10 @@ export default function PartnerLoginPage() {
   }, [searchParams, slug, supabase]);
 
   useEffect(() => {
+    if (searchParams.get('password_changed') === '1') {
+      setInfoMessage('Senha atualizada. Entre novamente com sua nova senha.');
+    }
+
     const errorMsg = searchParams.get('error');
     if (!errorMsg) return;
 
@@ -122,6 +137,7 @@ export default function PartnerLoginPage() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
+    setInfoMessage(null);
 
     try {
       const normalizedEmail = sanitizeEmailInput(email).toLowerCase();
@@ -155,7 +171,7 @@ export default function PartnerLoginPage() {
       const userId = authData.user.id;
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('role, organization_id')
+        .select('role, organization_id, associate_permissions')
         .eq('id', userId)
         .maybeSingle();
 
@@ -163,15 +179,25 @@ export default function PartnerLoginPage() {
         throw new Error('Falha ao carregar o perfil após autenticação.');
       }
 
+      // Bloqueia associate desativado antes de qualquer redirecionamento
+      if (profile?.role === 'associate') {
+        const perms = profile.associate_permissions as { active?: boolean } | null;
+        if (perms?.active === false) {
+          await supabase.auth.signOut();
+          setError('Sua conta está inativa. Entre em contato com o gestor da instituição.');
+          return;
+        }
+      }
+
       const role = profile?.role ?? null;
       const roleTarget =
         role === 'founder' || role === 'admin'
           ? `/partners/${slug}/dashboard`
-          : role === 'associate' || role === 'teacher'
+          : role === 'associate'
             ? `/partners/${slug}/redacoes`
             : `/partners/${slug}/student/dashboard`;
 
-      const isManagementRole = role === 'founder' || role === 'admin' || role === 'associate' || role === 'teacher';
+      const isManagementRole = role === 'founder' || role === 'admin' || role === 'associate';
       const nextIsStudentPath = safeNext?.includes('/student/');
       // Impede que um founder/associate caia em rota de aluno via ?next stale
       const target = (safeNext && !(isManagementRole && nextIsStudentPath)) ? safeNext : roleTarget;
@@ -228,6 +254,11 @@ export default function PartnerLoginPage() {
             {error && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
                 {error}
+              </div>
+            )}
+            {infoMessage && !error && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                {infoMessage}
               </div>
             )}
 

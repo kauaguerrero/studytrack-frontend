@@ -50,8 +50,8 @@ export default async function Page() {
     if (org?.slug) redirect(`/partners/${org.slug}/student/dashboard`);
   }
 
-  // Associado técnico: role associate (ou teacher legado) com org vinculada → correção de redações no parceiro
-  if ((roleStr === 'associate' || roleStr === 'teacher') && profile?.organization_id) {
+  // Associado técnico com org vinculada → correção de redações no parceiro
+  if (roleStr === 'associate' && profile?.organization_id) {
     const orgRes = await adminClient
       .from('organizations')
       .select('slug')
@@ -61,7 +61,7 @@ export default async function Page() {
     if (org?.slug) redirect(`/partners/${org.slug}/redacoes`);
   }
 
-  const validRoles: readonly UserRole[] = ['student', 'teacher', 'manager', 'admin', 'secretariat', 'dev'];
+  const validRoles: readonly UserRole[] = ['student', 'admin', 'dev'];
   const role: UserRole = validRoles.includes(roleStr as UserRole)
     ? (roleStr as UserRole)
     : 'student';

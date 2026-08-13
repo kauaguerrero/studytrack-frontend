@@ -2,17 +2,35 @@
 
 import { useState } from 'react';
 import { mutate } from 'swr';
-import { Calendar, Flame, GripVertical, LayoutGrid, Snowflake, Wind } from 'lucide-react';
+import {
+  Bot,
+  Calendar,
+  CheckCircle2,
+  Flame,
+  GripVertical,
+  LayoutGrid,
+  Snowflake,
+  UserCheck,
+  Video,
+  Wind,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { apiUpdateLead } from '../hooks/useLeads';
 import { STATUS_CONFIG } from './LeadsTable';
+import { CallAgendaModal } from './CallAgendaModal';
 import type { Lead, LeadStatusCRM, LeadTemperature } from '../types';
 
 const ACTIVE_STATUSES: LeadStatusCRM[] = [
   'novo',
   'contatado',
   'respondeu',
-  'demo_agendada',
+  'handoff',
+  'esperando_contato_gestor',
+  'aguardando_confirmacao_call',
+  'call_agendado',
+  'interesse',
+  'demo_teste',
+  'enviar_proposta',
   'proposta_enviada',
 ];
 
@@ -22,7 +40,13 @@ const COLUMN_ACCENT: Record<LeadStatusCRM, string> = {
   novo: '#64748b',
   contatado: '#3b82f6',
   respondeu: '#8b5cf6',
-  demo_agendada: '#f59e0b',
+  handoff: '#d946ef',
+  esperando_contato_gestor: '#ec4899',
+  aguardando_confirmacao_call: '#fb7185',
+  call_agendado: '#06b6d4',
+  interesse: '#f59e0b',
+  demo_teste: '#fb923c',
+  enviar_proposta: '#ea580c',
   proposta_enviada: '#f97316',
   fechado: '#10b981',
   perdido: '#ef4444',
@@ -32,7 +56,13 @@ const COLUMN_GUIDANCE: Record<LeadStatusCRM, string> = {
   novo: 'Leads recém encontrados e ainda não abordados.',
   contatado: 'Primeira abordagem feita, aguardando retorno.',
   respondeu: 'Houve resposta e existe conversa ativa.',
-  demo_agendada: 'Demonstração marcada ou em negociação de agenda.',
+  handoff: 'O bot encerrou o script e está esperando um humano assumir a conversa.',
+  esperando_contato_gestor: 'Aguardando o lead passar o contato de quem decide, pra marcar a call.',
+  aguardando_confirmacao_call: 'O gestor chegou a marcar a call mas sumiu antes de confirmar — retomar contato.',
+  call_agendado: 'Ligação ou reunião marcada com o lead.',
+  interesse: 'Demonstrou interesse na call/reunião — falta preparar e enviar a proposta.',
+  demo_teste: 'Cursinho testando a org de demonstração antes de receber a proposta.',
+  enviar_proposta: 'Proposta pronta ou em preparação, falta enviar.',
   proposta_enviada: 'Proposta enviada, acompanhar decisão.',
   fechado: 'Lead convertido em parceiro.',
   perdido: 'Sem fit ou oportunidade encerrada.',
@@ -75,6 +105,17 @@ function isOverdue(date: string | null) {
   return new Date(date) < new Date();
 }
 
+function formatCallDateTime(v: string) {
+  const date = new Date(v);
+  const datePart = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const timePart = date.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Sao_Paulo',
+  });
+  return `${datePart} às ${timePart}`;
+}
+
 function daysSince(v: string) {
   const diff = Date.now() - new Date(v).getTime();
   const days = Math.floor(diff / 86400000);
@@ -85,13 +126,22 @@ function daysSince(v: string) {
 
 interface KanbanBoardProps {
   leads: Lead[];
+  visibleStatuses?: LeadStatusCRM[];
   onSelectLead: (lead: Lead) => void;
   onLeadUpdate: () => void;
+  onRequestScheduleCall: (lead: Lead) => void;
 }
 
-export function KanbanBoard({ leads, onSelectLead, onLeadUpdate }: KanbanBoardProps) {
+export function KanbanBoard({
+  leads,
+  visibleStatuses,
+  onSelectLead,
+  onLeadUpdate,
+  onRequestScheduleCall,
+}: KanbanBoardProps) {
   const [dragging, setDragging] = useState<Lead | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<LeadStatusCRM | null>(null);
+  const [agendaOpen, setAgendaOpen] = useState(false);
 
   async function handleDrop(targetStatus: LeadStatusCRM) {
     if (!dragging || dragging.status_crm === targetStatus) {
@@ -101,9 +151,17 @@ export function KanbanBoard({ leads, onSelectLead, onLeadUpdate }: KanbanBoardPr
     }
 
     const lead = dragging;
-    const previousLeads = leads;
     setDragging(null);
     setDragOverStatus(null);
+
+    // Mover pra "call_agendado" abre o modal de agendamento — o status só
+    // muda de fato quando a call é criada com sucesso lá dentro.
+    if (targetStatus === 'call_agendado') {
+      onRequestScheduleCall(lead);
+      return;
+    }
+
+    const previousLeads = leads;
 
     mutate(
       (key: unknown) => typeof key === 'string' && key.startsWith('/api/admin/prospeccao/leads'),
@@ -138,12 +196,27 @@ export function KanbanBoard({ leads, onSelectLead, onLeadUpdate }: KanbanBoardPr
   }
 
   function byStatus(status: LeadStatusCRM) {
-    return leads.filter((l) => l.status_crm === status);
+    const filtered = leads.filter((l) => l.status_crm === status);
+    if (status === 'call_agendado') {
+      // Call mais próxima primeiro, sem data vai pro fim.
+      return [...filtered].sort((a, b) => {
+        if (!a.call_scheduled_at && !b.call_scheduled_at) return 0;
+        if (!a.call_scheduled_at) return 1;
+        if (!b.call_scheduled_at) return -1;
+        return new Date(a.call_scheduled_at).getTime() - new Date(b.call_scheduled_at).getTime();
+      });
+    }
+    return filtered;
   }
+
+  const displayedStatuses =
+    visibleStatuses && visibleStatuses.length > 0
+      ? BOARD_STATUSES.filter((s) => visibleStatuses.includes(s))
+      : BOARD_STATUSES;
 
   return (
     <div className="flex gap-4 items-start overflow-x-auto pb-8">
-      {BOARD_STATUSES.map((status) => {
+      {displayedStatuses.map((status) => {
         const cards = byStatus(status);
         const cfg = STATUS_CONFIG[status];
         const isActive = ACTIVE_STATUSES.includes(status);
@@ -185,7 +258,13 @@ export function KanbanBoard({ leads, onSelectLead, onLeadUpdate }: KanbanBoardPr
                       className="w-2 h-2 rounded-full flex-shrink-0"
                       style={{ backgroundColor: accent, boxShadow: `0 0 6px ${accent}` }}
                     />
-                    <span className="text-[13px] font-bold text-slate-800 dark:text-zinc-200 tracking-tight">
+                    <span
+                      onDoubleClick={status === 'call_agendado' ? () => setAgendaOpen(true) : undefined}
+                      title={status === 'call_agendado' ? 'Duplo clique para ver a agenda' : undefined}
+                      className={`text-[13px] font-bold text-slate-800 dark:text-zinc-200 tracking-tight ${
+                        status === 'call_agendado' ? 'cursor-pointer select-none' : ''
+                      }`}
+                    >
                       {cfg.label}
                     </span>
                   </div>
@@ -268,6 +347,34 @@ export function KanbanBoard({ leads, onSelectLead, onLeadUpdate }: KanbanBoardPr
                       )}
                     </div>
 
+                    {lead.automation?.node_title && (
+                      <span
+                        className={`mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          lead.automation.session_status === 'aguardando_humano'
+                            ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                            : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'
+                        }`}
+                      >
+                        {lead.automation.session_status === 'aguardando_humano' ? (
+                          <UserCheck className="w-3 h-3" />
+                        ) : (
+                          <Bot className="w-3 h-3" />
+                        )}
+                        {lead.automation.node_title}
+                      </span>
+                    )}
+
+                    {lead.call_scheduled_at && (
+                      <div className="flex items-center gap-1 text-[10px] font-semibold mt-1 text-cyan-600 dark:text-cyan-400">
+                        {lead.call_outcome === 'ocorreu' ? (
+                          <CheckCircle2 className="w-3 h-3" />
+                        ) : (
+                          <Video className="w-3 h-3" />
+                        )}
+                        Call {formatCallDateTime(lead.call_scheduled_at)}
+                      </div>
+                    )}
+
                     {lead.next_followup_at && (
                       <div
                         className={`flex items-center gap-1 text-[10px] font-semibold mt-1 ${
@@ -313,6 +420,14 @@ export function KanbanBoard({ leads, onSelectLead, onLeadUpdate }: KanbanBoardPr
           </div>
         );
       })}
+
+      {agendaOpen && (
+        <CallAgendaModal
+          leads={byStatus('call_agendado')}
+          onClose={() => setAgendaOpen(false)}
+          onSelectLead={onSelectLead}
+        />
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ export interface OrgBranding {
   permissions?: Record<string, boolean>;
   typewriter_tagline?: OrgTypewriterTagline | null;
   approved_student_photos?: OrgApprovedPhoto[] | null;
+  hasAssociates?: boolean;
 }
 
 interface UserProfile {
@@ -28,6 +29,10 @@ interface UserProfile {
   isTestAccount?: boolean;
   themePreference?: 'light' | 'dark' | 'system' | null;
   mustChangePassword?: boolean;
+  associatePermissions?: { can_correct: boolean; can_import: boolean; can_view_students: boolean };
+  /** Usados só pelo nudge "Complete seu perfil" da sidebar do aluno. */
+  username?: string | null;
+  birthDate?: string | null;
 }
 
 interface OrgContextValue {

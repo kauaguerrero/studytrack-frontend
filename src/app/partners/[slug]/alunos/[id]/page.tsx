@@ -24,6 +24,7 @@ import {
   Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { toast } from 'sonner';
+import { isDemoOrg, MOCK_STUDENT_DETAILS } from '../../../../../../studytrack-tutorial-mock';
 import { BRT_TIMEZONE, toBrtDateKey } from '@/lib/brt-date';
 
 interface StudentDetail {
@@ -69,10 +70,11 @@ interface StudentDetail {
   };
   essay_evolution?: {
     id: string;
-    status: 'pending' | 'corrected' | 'seen';
+    status: 'pending' | 'awaiting_second' | 'corrected' | 'second_corrected' | 'seen';
     submitted_at: string;
     corrected_at: string | null;
     total_score: number | null;
+    average_score?: number | null;
   }[];
   essay_competency_avgs?: {
     competency: number;
@@ -89,10 +91,11 @@ interface StudentDetail {
     trend_delta: number | null;
     evolution: {
       id: string;
-      status: 'pending' | 'corrected' | 'seen';
+      status: 'pending' | 'awaiting_second' | 'corrected' | 'second_corrected' | 'seen';
       submitted_at: string;
       corrected_at: string | null;
       total_score: number | null;
+      average_score?: number | null;
     }[];
     competency_avgs: {
       competency: number;
@@ -104,10 +107,11 @@ interface StudentDetail {
 
 interface StudentEssayListItem {
   id: string;
-  status: 'pending' | 'corrected' | 'seen';
+  status: 'pending' | 'awaiting_second' | 'corrected' | 'second_corrected' | 'seen';
   submitted_at: string;
   corrected_at: string | null;
   total_score: number | null;
+  average_score?: number | null;
   theme: string | null;
 }
 
@@ -118,6 +122,22 @@ interface OrgPlanOption {
 }
 
 const PACE_LABELS: Record<string, string> = { slow: 'Leve', moderate: 'Moderado', intense: 'Intensivo' };
+
+function isEssayPending(status: StudentEssayListItem['status']): boolean {
+  return status === 'pending' || status === 'awaiting_second';
+}
+
+function isEssayCorrected(status: StudentEssayListItem['status']): boolean {
+  return status === 'corrected' || status === 'second_corrected' || status === 'seen';
+}
+
+function effectiveEssayScore(essay: Pick<StudentEssayListItem, 'status' | 'total_score' | 'average_score'>): number | null {
+  if (!isEssayCorrected(essay.status)) return null;
+  const score = essay.status === 'second_corrected' && typeof essay.average_score === 'number'
+    ? essay.average_score
+    : essay.total_score;
+  return typeof score === 'number' ? score : null;
+}
 
 const COMPETENCY_NAMES = [
   'Norma Culta',
@@ -182,7 +202,8 @@ const SIM_FORMAT_LABELS: Record<string, string> = {
 };
 
 export default function StudentProfilePage() {
-  const { org } = useOrg();
+  const { org, userProfile } = useOrg();
+  const canManageStudents = userProfile.role === 'founder' || userProfile.role === 'admin';
   const params = useParams<{ slug: string; id: string }>();
   const studentId = params.id;
 
@@ -219,6 +240,14 @@ export default function StudentProfilePage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
+      if (isDemoOrg(org.slug)) {
+        const detail = (MOCK_STUDENT_DETAILS as Record<string, unknown>)[studentId]
+          ?? Object.values(MOCK_STUDENT_DETAILS)[0];
+        setData(detail as unknown as StudentDetail);
+        setLoading(false);
+        return;
+      }
+
       const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
       try {
         const [resProfile, resEssays, resPlans] = await Promise.all([
@@ -243,12 +272,13 @@ export default function StudentProfilePage() {
           const payload = await resEssays.json();
           const items = (payload?.items || []) as Array<{
             id?: string;
-            status?: 'pending' | 'corrected' | 'seen';
+            status?: StudentEssayListItem['status'];
             student?: { id?: string } | Array<{ id?: string }>;
             student_id?: string;
             submitted_at?: string;
             corrected_at?: string | null;
             total_score?: number | null;
+            average_score?: number | null;
             theme?: string | null;
             essay_theme?: string | null;
             tema?: string | null;
@@ -271,6 +301,7 @@ export default function StudentProfilePage() {
                 submitted_at: String(e.submitted_at || ''),
                 corrected_at: e.corrected_at ?? null,
                 total_score: typeof e.total_score === 'number' ? e.total_score : null,
+                average_score: typeof e.average_score === 'number' ? e.average_score : null,
                 theme: themeFound ? themeFound.trim() : null,
               };
             })
@@ -281,7 +312,7 @@ export default function StudentProfilePage() {
 
           setFallbackEssayStats({
             delivered: fromStudent.length,
-            corrected: fromStudent.filter((e) => e.total_score !== null && e.total_score !== undefined).length,
+            corrected: normalizedEssays.filter((e) => effectiveEssayScore(e) !== null).length,
           });
         }
 
@@ -478,23 +509,25 @@ export default function StudentProfilePage() {
                     <p>Plano atual</p>
                     <p className="font-semibold text-slate-700 dark:text-slate-100">{currentPlanLabel}</p>
                   </div>
-                  <Select
-                    value={selectedPlanValue}
-                    onValueChange={handlePlanChange}
-                    disabled={updatingPlan}
-                  >
-                    <SelectTrigger className="w-44 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sem plano vinculado</SelectItem>
-                      {plans.map((plan) => (
-                        <SelectItem key={plan.id} value={plan.id}>
-                          {plan.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {canManageStudents && (
+                    <Select
+                      value={selectedPlanValue}
+                      onValueChange={handlePlanChange}
+                      disabled={updatingPlan}
+                    >
+                      <SelectTrigger className="w-44 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem plano vinculado</SelectItem>
+                        {plans.map((plan) => (
+                          <SelectItem key={plan.id} value={plan.id}>
+                            {plan.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               </div>
             )}
@@ -969,19 +1002,29 @@ export default function StudentProfilePage() {
                     <div className="flex shrink-0 items-center gap-2">
                       {essay.total_score !== null && (
                         <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
-                          {essay.total_score}/1000
+                          {effectiveEssayScore(essay) ?? essay.total_score}/1000
                         </span>
                       )}
                       <span
                         className={
-                          essay.status === 'pending'
+                          isEssayPending(essay.status)
                             ? 'rounded-md bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
                             : essay.status === 'corrected'
                               ? 'rounded-md bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                              : essay.status === 'second_corrected'
+                                ? 'rounded-md bg-indigo-100 px-2 py-1 text-xs font-semibold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300'
                               : 'rounded-md bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200'
                         }
                       >
-                        {essay.status === 'pending' ? 'Pendente' : essay.status === 'corrected' ? 'Corrigida' : 'Arquivada'}
+                        {essay.status === 'pending'
+                          ? 'Pendente'
+                          : essay.status === 'awaiting_second'
+                            ? '2ª correção'
+                            : essay.status === 'corrected'
+                              ? 'Corrigida'
+                              : essay.status === 'second_corrected'
+                                ? 'Duas correções'
+                                : 'Arquivada'}
                       </span>
                     </div>
                   </Link>

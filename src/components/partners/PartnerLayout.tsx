@@ -2,6 +2,7 @@
 /* eslint-disable react-hooks/static-components */
 
 import { ReactNode, useEffect, useState, useRef } from 'react';
+import { motion, useReducedMotion, useAnimation } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -12,6 +13,7 @@ import { AnnouncementBell } from '@/components/announcements/AnnouncementBell';
 import {
   LayoutDashboard,
   Users,
+  UsersRound,
   UserPlus,
   Settings,
   LogOut,
@@ -29,6 +31,9 @@ import {
   Video,
   FlaskConical,
   GraduationCap,
+  Upload,
+  History,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -44,6 +49,44 @@ interface NavItemDef {
   icon: React.ElementType;
   label: string;
   shortLabel: string;
+}
+
+function MobileAveBirdHeader() {
+  const reduced = !!useReducedMotion();
+  const controls = useAnimation();
+
+  useEffect(() => {
+    if (reduced) return;
+    void controls.start({
+      scaleY: [1,    0.50, 1.12, 1],
+      scaleX: [1,    1.30, 0.88, 1],
+      y:      [0,    3,    -2,   0],
+      transition: {
+        duration: 2.2,
+        repeat: Infinity,
+        ease: ['easeIn', 'easeOut', 'easeInOut'],
+        times: [0, 0.28, 0.58, 1],
+      },
+    });
+  }, [controls, reduced]);
+
+  const bird = (className: string) => (
+    <motion.img
+      src="/marketing/logo_ave-removebg-preview.png"
+      alt="" aria-hidden
+      animate={controls}
+      style={{ transformOrigin: '50% 68%' }}
+      className={`absolute w-auto ${className}`}
+    />
+  );
+
+  return (
+    <div className="relative h-14 w-12 shrink-0 overflow-hidden md:hidden" aria-hidden>
+      {bird('bottom-[2%] left-[5%] h-[54%]')}
+      {bird('bottom-[32%] left-[36%] h-[32%] opacity-75')}
+      {bird('bottom-[58%] left-[60%] h-[18%] opacity-55')}
+    </div>
+  );
 }
 
 function MobileApprovedPhotosHeaderCluster({ photos }: { photos: OrgApprovedPhoto[] }) {
@@ -123,6 +166,80 @@ function SidebarNavItem({
   return linkEl;
 }
 
+// ─── Nudge "Complete seu perfil" (sidebar do aluno) ────────────────────────────
+// Ocupa o espaço vazio entre a navegação e o rodapé de usuário — some sozinho
+// assim que os 3 campos (foto, @ de usuário, data de nascimento) existirem.
+
+function ProfileCompletionNudge({
+  collapsed,
+  slug,
+  completedCount,
+  totalCount,
+  onNavigate,
+}: {
+  collapsed: boolean;
+  slug: string;
+  completedCount: number;
+  totalCount: number;
+  onNavigate?: () => void;
+}) {
+  const pct = Math.round((completedCount / totalCount) * 100);
+  const href = `/partners/${slug}/student/perfil`;
+
+  if (collapsed) {
+    return (
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>
+          <Link
+            href={href}
+            onClick={onNavigate}
+            className="mx-auto flex h-9 w-9 shrink-0 items-center justify-center"
+            aria-label={`Complete seu perfil — ${completedCount} de ${totalCount} concluído`}
+          >
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-full"
+              style={{ background: `conic-gradient(var(--brand-primary) ${pct}%, rgb(226 232 240) ${pct}%)` }}
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white dark:bg-slate-900">
+                <Sparkles className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
+              </div>
+            </div>
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={8}>
+          Complete seu perfil ({completedCount}/{totalCount})
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className="mx-3 block shrink-0 rounded-xl border p-3 transition-colors hover:bg-slate-50 dark:hover:bg-white/5"
+      style={{
+        borderColor: 'color-mix(in srgb, var(--brand-primary) 22%, transparent)',
+        background: 'color-mix(in srgb, var(--brand-primary) 6%, transparent)',
+      }}
+    >
+      <div className="flex items-center gap-1.5">
+        <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
+        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">Complete seu perfil!</p>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+        <div
+          className="h-full rounded-full transition-[width] duration-500 ease-out"
+          style={{ width: `${pct}%`, background: 'var(--brand-primary)' }}
+        />
+      </div>
+      <p className="mt-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+        {completedCount}/{totalCount} concluído — clique para finalizar
+      </p>
+    </Link>
+  );
+}
+
 // ─── Bottom tab item (mobile) ─────────────────────────────────────────────────
 
 function BottomTabItem({ href, icon: Icon, shortLabel, showNotification }: NavItemDef & { showNotification?: boolean }) {
@@ -183,7 +300,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const [passwordModalDismissed, setPasswordModalDismissed] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
-  const isAssociate = userProfile.role === 'associate' || userProfile.role === 'teacher';
+  const isAssociate = userProfile.role === 'associate';
   const isPartnerStudent = variant === 'student';
   const approvedPhotos = normalizeOrgApprovedPhotos(org.approved_student_photos);
 
@@ -203,6 +320,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
     ...(perm('suporte_enabled')   ? [{ href: `/partners/${org.slug}/suporte`,   icon: LifeBuoy,        label: 'Suporte',          shortLabel: 'Suporte'   }] : []),
+    ...(org.hasAssociates        ? [{ href: `/partners/${org.slug}/associados`, icon: UsersRound,      label: 'Associados',        shortLabel: 'Equipe'    }] : []),
     { href: `/partners/${org.slug}/configuracoes`,   icon: Settings,        label: 'Configurações',   shortLabel: 'Config'    },
   ];
 
@@ -219,8 +337,22 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     { href: `/partners/${org.slug}/student/perfil`,             icon: User,           label: 'Perfil',         shortLabel: 'Perfil'      },
   ];
 
+  const associatePerms = userProfile.associatePermissions ?? { can_correct: true, can_import: false, can_view_students: false };
   const associateNavItems: NavItemDef[] = [
-    { href: `/partners/${org.slug}/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redações' },
+    ...(associatePerms.can_view_students
+      ? [{ href: `/partners/${org.slug}/alunos`, icon: Users, label: 'Alunos', shortLabel: 'Alunos' }]
+      : []),
+    ...(associatePerms.can_correct
+      ? [{ href: `/partners/${org.slug}/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redações' }]
+      : []),
+    ...(associatePerms.can_import
+      ? [
+          { href: `/partners/${org.slug}/redacoes/minhas-importacoes`, icon: History, label: 'Minhas Importações', shortLabel: 'Importações' },
+          { href: `/partners/${org.slug}/redacoes/importar`, icon: Upload, label: 'Importar', shortLabel: 'Importar' },
+        ]
+      : []),
+    ...(perm('suporte_enabled') ? [{ href: `/partners/${org.slug}/suporte`, icon: LifeBuoy, label: 'Suporte', shortLabel: 'Suporte' }] : []),
+    { href: `/partners/${org.slug}/perfil`, icon: User, label: 'Perfil', shortLabel: 'Perfil' },
   ];
 
   const navItems = variant === 'student'
@@ -245,6 +377,17 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     : isAssociate
       ? navItems
       : navItems.filter((item) => founderBottomHrefs.has(item.href));
+
+  // Nudge "Complete seu perfil" — só faz sentido pro aluno, e some sozinho
+  // quando os 3 campos existirem.
+  const profileCompletionFlags = [
+    Boolean(userProfile.avatarUrl),
+    Boolean(userProfile.username && userProfile.username.trim().length > 0),
+    Boolean(userProfile.birthDate),
+  ];
+  const profileCompletedCount = profileCompletionFlags.filter(Boolean).length;
+  const profileTotalCount = profileCompletionFlags.length;
+  const showProfileCompletionNudge = isPartnerStudent && profileCompletedCount < profileTotalCount;
 
   const initials = userProfile.fullName
     .split(' ')
@@ -312,22 +455,41 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className={cn('partner-sidebar-links flex-1 space-y-1 py-4', c ? 'px-2' : 'px-3')}>
-        {navItems.map((item) => (
-          <SidebarNavItem
-            key={item.href}
-            {...item}
-            collapsed={c}
-            onClick={onNavigate}
-            showNotification={
-              variant === 'student'
-                && item.href === `/partners/${org.slug}/student/redacoes`
-                && hasPendingCorrection
-            }
-          />
-        ))}
-      </nav>
+      {/* Navigation — nav items no topo, nudge de perfil grudado embaixo do
+          espaço restante (mt-auto), preenchendo o vão antes do rodapé.
+          Sem overflow-hidden aqui de propósito: o <nav> original nunca teve
+          corte nenhum, e cortar essa área faz o card sumir se, por um
+          instante durante a transição de largura do hover, o conteúdo
+          ultrapassar por qualquer pixel o espaço disponível. */}
+      <div className="flex flex-1 flex-col">
+        <nav className={cn('partner-sidebar-links space-y-1 py-4', c ? 'px-2' : 'px-3')}>
+          {navItems.map((item) => (
+            <SidebarNavItem
+              key={item.href}
+              {...item}
+              collapsed={c}
+              onClick={onNavigate}
+              showNotification={
+                variant === 'student'
+                  && item.href === `/partners/${org.slug}/student/redacoes`
+                  && hasPendingCorrection
+              }
+            />
+          ))}
+        </nav>
+
+        {showProfileCompletionNudge && (
+          <div className="mt-auto pb-3 pt-2">
+            <ProfileCompletionNudge
+              collapsed={c}
+              slug={org.slug}
+              completedCount={profileCompletedCount}
+              totalCount={profileTotalCount}
+              onNavigate={onNavigate}
+            />
+          </div>
+        )}
+      </div>
 
       {/* User footer */}
       <div className={cn('border-t dark:border-slate-800 py-3', c ? 'px-2' : 'px-3')}>
@@ -440,7 +602,10 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
 
             {(isPartnerStudent || !isAssociate) ? (
               <div className="flex h-full shrink-0 items-center gap-0.5">
-                {!isAssociate && <MobileApprovedPhotosHeaderCluster photos={approvedPhotos} />}
+                {org.slug === 'ave-palavra'
+                  ? <MobileAveBirdHeader />
+                  : (!isAssociate && <MobileApprovedPhotosHeaderCluster photos={approvedPhotos} />)
+                }
                 {isPartnerStudent && <AnnouncementBell />}
                 <Button
                   type="button"

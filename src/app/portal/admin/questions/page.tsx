@@ -1,6 +1,6 @@
 'use client';
 
-import { Children, Fragment, useState, useEffect, useMemo } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -10,9 +10,6 @@ import {
 } from '@/components/questions/rendering';
 import { QuestionDisplay } from '@/components/questions/QuestionDisplay';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
-import { SafeMarkdown } from '@/components/ui/SafeMarkdown';
-import katex from 'katex';
-import 'katex/dist/katex.min.css';
 import { formatScientificText } from '@/lib/scientific-text';
 import {
   CheckCircle2,
@@ -27,9 +24,12 @@ import {
   Save,
   LoaderCircle,
   ImagePlus,
-  ShieldCheck,
   Archive,
   ArchiveRestore,
+  FileText,
+  Filter,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -38,7 +38,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -112,62 +111,7 @@ interface AuditQuestionItem {
   question: AdminQuestion;
 }
 
-interface ValidationCheck {
-  key: string;
-  label: string;
-  weight: number;
-  score: number;
-  status: 'pass' | 'warning' | 'fail';
-  summary: string;
-  issues: string[];
-  hard_block?: boolean;
-}
-
-interface QuestionCurationValidation {
-  available: boolean;
-  source?: string;
-  exam_id?: string;
-  question_number?: number;
-  variant?: string;
-  editorial_score?: number;
-  editorial_status?: 'green' | 'yellow' | 'red';
-  parser_score?: number;
-  parser_status?: 'green' | 'yellow' | 'red';
-  comparison_confidence?: 'high' | 'reduced' | 'low';
-  summary?: string;
-  editorial_reasons?: string[];
-  parser_reasons?: string[];
-  editorial_checks?: ValidationCheck[];
-  parser_checks?: ValidationCheck[];
-  evidence?: {
-    source?: string;
-    exam_id?: string;
-    question_number?: number;
-    variant?: string;
-    official_answer?: string | null;
-    parser_context?: string | null;
-    parser_alternatives_intro?: string | null;
-    chunk_image_urls: string[];
-    chunk_excerpt?: string;
-    detected_flags: string[];
-    parser_metrics?: Record<string, number>;
-  };
-  score?: number;
-  status?: 'green' | 'yellow' | 'red';
-  reasons?: string[];
-  checks?: ValidationCheck[];
-  parser_snapshot?: {
-    chunk_excerpt?: string;
-    parser_context?: string | null;
-    parser_alternatives_intro?: string | null;
-    chunk_image_urls: string[];
-    official_answer?: string | null;
-  };
-  reason?: string;
-}
-
 const markdownImageRegex = /!\[[^\]]*]\((.*?)\)/g;
-const mathSegmentRegex = /(\$\$[\s\S]+?(?<!\\)\$\$|\$(?!\$)[\s\S]+?(?<!\\)\$)/g;
 const ufuSyntheticTitleRegex = /^Questão\s+\d+\s*-\s*UFU Vestibular\s+\d{4}\/[12]\s*$/i;
 
 function normalizeSourceLabel(value: string | null | undefined): string | null {
@@ -303,6 +247,22 @@ function getDisplayTitle(question?: AdminQuestion): string {
     return '';
   }
   return title;
+}
+
+function getQuestionHeaderLabel(question?: AdminQuestion | null): string {
+  const title = getDisplayTitle(question as AdminQuestion);
+  if (title) return title;
+
+  const intro = String(question?.alternatives_intro || '').trim();
+  if (!intro) return '';
+
+  // Strip $...$ math delimiters so raw LaTeX doesn't appear in plain-text <h2> headers
+  return intro
+    .replace(/\$\$[\s\S]*?\$\$/g, ' ')
+    .replace(/\$[^$\n]*\$/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    .slice(0, 140);
 }
 
 const DEFAULT_FILTERS: QuestionFiltersState = {
@@ -465,54 +425,6 @@ function extractImageUrls(value: unknown): string[] {
   return direct ? [direct] : [];
 }
 
-function normalizeLatexForKatex(value: string): string {
-  return value
-    .replace(/\$\$/g, '')
-    .replace(/^\$/g, '')
-    .replace(/\$$/g, '')
-    .trim();
-}
-
-function normalizePlainLatexText(value: string): string {
-  return normalizeLatexForKatex(value)
-    .replace(/\\%/g, '%')
-    .replace(/\\\$/g, '$')
-    .replace(/\\&/g, '&')
-    .replace(/\\#/g, '#')
-    .replace(/\\_/g, '_')
-    .replace(/\\,/g, ',')
-    .replace(/\\:/g, ':')
-    .replace(/\\;/g, ';')
-    .replace(/\\!/g, '!')
-    .replace(/\\\?/g, '?')
-    .replace(/\\text\{([^}]+)\}/g, '$1')
-    .replace(/\\mathrm\{([^}]+)\}/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function isLikelyMathSegment(segment: string): boolean {
-  const latex = normalizeLatexForKatex(segment);
-  if (!latex) return false;
-
-  // Avoid sending currency/price-like fragments to KaTeX.
-  if (/^[\d\s.,]+$/.test(latex)) return false;
-
-  if (/[\\^_{}()=<>+\-*/]/.test(latex) || latex.includes('[') || latex.includes(']')) return true;
-  if (/[±×÷∑∫√∞≈≠≤≥]/.test(latex)) return true;
-
-  // Allow simple inline variables like $x$ or $y1$.
-  if (/^[A-Za-z](?:[A-Za-z0-9]{0,2})?$/.test(latex)) return true;
-
-  // Allow compact algebraic expressions without LaTeX commands.
-  if (/^[A-Za-z0-9]+(?:\s*[=+\-*/<>]\s*[A-Za-z0-9]+)+$/.test(latex)) return true;
-
-  return false;
-}
-
-function normalizeQuestionText(text?: string | null): string {
-  return formatScientificText(text || '');
-}
 
 function getQuestionComment(question?: AdminQuestion | null): string {
   const aiReasoning = question?.ai_reasoning;
@@ -528,149 +440,6 @@ function getQuestionComment(question?: AdminQuestion | null): string {
   return '';
 }
 
-function getValidationTone(status?: 'green' | 'yellow' | 'red') {
-  switch (status) {
-    case 'green':
-      return {
-        badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-        bar: 'bg-emerald-500',
-        track: 'bg-emerald-100',
-      };
-    case 'yellow':
-      return {
-        badge: 'border-amber-200 bg-amber-50 text-amber-700',
-        bar: 'bg-amber-500',
-        track: 'bg-amber-100',
-      };
-    case 'red':
-      return {
-        badge: 'border-rose-200 bg-rose-50 text-rose-700',
-        bar: 'bg-rose-500',
-        track: 'bg-rose-100',
-      };
-    default:
-      return {
-        badge: 'border-amber-200 bg-amber-50 text-amber-700',
-        bar: 'bg-amber-500',
-        track: 'bg-amber-100',
-      };
-  }
-}
-
-function splitMarkdownTableRow(row: string): string[] {
-  return row
-    .trim()
-    .replace(/^\|/, '')
-    .replace(/\|$/, '')
-    .split('|')
-    .map((cell) => cell.trim());
-}
-
-function parseMarkdownTable(block: string): {
-  headers: string[];
-  aligns: Array<'left' | 'center' | 'right'>;
-  rows: string[][];
-} | null {
-  const lines = block
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (lines.length < 2) return null;
-  if (!lines[0].includes('|') || !lines[1].includes('|')) return null;
-
-  const headers = splitMarkdownTableRow(lines[0]);
-  const separators = splitMarkdownTableRow(lines[1]);
-
-  if (headers.length === 0 || headers.length !== separators.length) return null;
-
-  const aligns = separators.map((separator) => {
-    if (!/^:?-{3,}:?$/.test(separator)) return null;
-    const startsWithColon = separator.startsWith(':');
-    const endsWithColon = separator.endsWith(':');
-    if (startsWithColon && endsWithColon) return 'center';
-    if (endsWithColon) return 'right';
-    return 'left';
-  });
-
-  if (aligns.some((align) => align == null)) return null;
-
-  const rows = lines.slice(2).map(splitMarkdownTableRow);
-  if (rows.some((row) => row.length !== headers.length)) return null;
-
-  return {
-    headers,
-    aligns: aligns as Array<'left' | 'center' | 'right'>,
-    rows,
-  };
-}
-
-function isMarkdownBlock(text: string): boolean {
-  return /^\s*(#{1,6}\s|>|\|.*\||[-*+]\s|\d+\.\s|!\[)/m.test(text);
-}
-
-function renderInlineRichText(text: string, keyPrefix: string) {
-  const segments = text.split(mathSegmentRegex).filter(Boolean);
-
-  return segments.map((segment, segmentIndex) => {
-    const previousSegment = segments[segmentIndex - 1] || '';
-    const nextSegment = segments[segmentIndex + 1] || '';
-    const isMath =
-      (segment.startsWith('$$') || (segment.startsWith('$') && segment.endsWith('$'))) &&
-      isLikelyMathSegment(segment);
-
-    if (!isMath) {
-      const lines = segment.split('\n');
-      return (
-        <span
-          key={`${keyPrefix}-${segmentIndex}-${segment.slice(0, 20)}`}
-          className="whitespace-pre-wrap"
-        >
-          {lines.map((line, lineIndex) => (
-            <Fragment key={lineIndex}>
-              {lineIndex > 0 && <br />}
-              {normalizePlainLatexText(line)}
-            </Fragment>
-          ))}
-        </span>
-      );
-    }
-
-    const rawLatex = normalizeLatexForKatex(segment);
-    const latex = rawLatex.replace(/(?<!\\)%/g, '\\%');
-    const needsLeadingSpace = /\s$/.test(previousSegment);
-    const needsTrailingSpace = /^\s/.test(nextSegment);
-    const isDisplayMath = segment.startsWith('$$');
-    try {
-      const html = katex.renderToString(latex, {
-        throwOnError: false,
-        displayMode: isDisplayMath,
-        output: 'html',
-      } as Parameters<typeof katex.renderToString>[1] & {
-        output?: 'html' | 'mathml' | 'htmlAndMathml'
-      });
-      return (
-        <Fragment key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}>
-          {needsLeadingSpace ? ' ' : null}
-          <span
-            className={isDisplayMath ? 'katex-fragment katex-display-wrap my-3 block max-w-full' : 'katex-fragment inline-block max-w-full align-baseline'}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-          {needsTrailingSpace ? ' ' : null}
-        </Fragment>
-      );
-    } catch {
-      return (
-        <code
-          key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}
-          className="rounded bg-slate-100 px-1.5 py-0.5 text-sm text-slate-700"
-        >
-          {latex}
-        </code>
-      );
-    }
-  });
-}
 
 function applyInlineFormattingShortcut(
   event: ReactKeyboardEvent<HTMLTextAreaElement>,
@@ -728,115 +497,6 @@ function applyInlineFormattingShortcut(
   return false;
 }
 
-function RichText({ text, className }: { text?: string | null; className?: string }) {
-  const normalized = normalizeQuestionText(text);
-  const paragraphs = useMemo(
-    () => normalized.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean),
-    [normalized],
-  );
-
-  return (
-    <div className={className}>
-      {paragraphs.map((paragraph, paragraphIndex) => {
-        const table = parseMarkdownTable(paragraph);
-        if (table) {
-          return (
-            <div key={`${paragraphIndex}-${paragraph.slice(0, 20)}`} className="my-4 overflow-x-auto">
-              <table className="min-w-full border-collapse rounded-xl border border-slate-300 bg-white text-sm">
-                <thead>
-                  <tr className="bg-slate-100">
-                    {table.headers.map((header, headerIndex) => (
-                      <th
-                        key={`${paragraphIndex}-header-${headerIndex}`}
-                        className={`border border-slate-300 px-4 py-2 font-semibold text-slate-900 ${
-                          table.aligns[headerIndex] === 'center'
-                            ? 'text-center'
-                            : table.aligns[headerIndex] === 'right'
-                              ? 'text-right'
-                              : 'text-left'
-                        }`}
-                      >
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {table.rows.map((row, rowIndex) => (
-                    <tr key={`${paragraphIndex}-row-${rowIndex}`} className="odd:bg-white even:bg-slate-50">
-                      {row.map((cell, cellIndex) => (
-                        <td
-                          key={`${paragraphIndex}-row-${rowIndex}-cell-${cellIndex}`}
-                          className={`border border-slate-300 px-4 py-2 text-slate-700 ${
-                            table.aligns[cellIndex] === 'center'
-                              ? 'text-center'
-                              : table.aligns[cellIndex] === 'right'
-                                ? 'text-right'
-                                : 'text-left'
-                          }`}
-                        >
-                          {renderInlineRichText(normalizeQuestionText(cell), `${paragraphIndex}-row-${rowIndex}-cell-${cellIndex}`)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          );
-        }
-
-        if (isMarkdownBlock(paragraph)) {
-          const renderMdChildren = (children: React.ReactNode, prefix: string) =>
-            Children.map(children, (child, i) =>
-              typeof child === 'string'
-                ? renderInlineRichText(child, `${prefix}-${i}`)
-                : child
-            );
-          return (
-            <SafeMarkdown
-              key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}
-              components={{
-                p: ({ children }) => (
-                  <p className="my-2 leading-relaxed">
-                    {renderMdChildren(children, `${paragraphIndex}-p`)}
-                  </p>
-                ),
-                strong: ({ children }) => (
-                  <strong className="font-semibold">
-                    {renderMdChildren(children, `${paragraphIndex}-strong`)}
-                  </strong>
-                ),
-                em: ({ children }) => (
-                  <em className="italic">
-                    {renderMdChildren(children, `${paragraphIndex}-em`)}
-                  </em>
-                ),
-                img: ({ src, alt }) => (
-                  <img
-                    src={src || ''}
-                    alt={alt || 'Imagem da questão'}
-                    className="my-4 h-auto max-h-40 md:max-h-52 w-auto max-w-full rounded-lg border border-slate-200 bg-white object-contain shadow-sm"
-                  />
-                ),
-              }}
-            >
-              {paragraph}
-            </SafeMarkdown>
-          );
-        }
-
-        const segments = paragraph.split(mathSegmentRegex).filter(Boolean);
-
-        return (
-          <div key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>
-            {renderInlineRichText(paragraph, `${paragraphIndex}`)}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 export default function AdminQuestionApproval() {
   const [questions, setQuestions] = useState<AdminQuestion[]>([]);
@@ -854,9 +514,6 @@ export default function AdminQuestionApproval() {
   // Controle de Edição
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editForm, setEditForm] = useState<AdminQuestion | null>(null);
-  const [validation, setValidation] = useState<QuestionCurationValidation | null>(null);
-  const [validationLoading, setValidationLoading] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
   const [questionPublishingAction, setQuestionPublishingAction] = useState<'approve' | 'delete' | 'archive' | 'unarchive' | null>(null);
   const [archivedQuestions, setArchivedQuestions] = useState<AdminQuestion[]>([]);
   const [archivedLoading, setArchivedLoading] = useState(false);
@@ -864,6 +521,11 @@ export default function AdminQuestionApproval() {
   const [questionImageUploading, setQuestionImageUploading] = useState(false);
   const [alternativeImageInputs, setAlternativeImageInputs] = useState<Record<string, string>>({});
   const [alternativeImageUploading, setAlternativeImageUploading] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showPdf, setShowPdf] = useState(true);
+  const [sourcePdfUrl, setSourcePdfUrl] = useState<string | null>(null);
+  const [sourcePdfLoading, setSourcePdfLoading] = useState(false);
+  const [sourcePdfError, setSourcePdfError] = useState<string | null>(null);
 
   const supabase = createClient();
   const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
@@ -1479,77 +1141,55 @@ export default function AdminQuestionApproval() {
       metadata: activeQuestion.metadata,
     };
   }, [activeQuestion, activeQuestionComment]);
-  const activeValidationStatus = validation?.editorial_status || validation?.status || 'red';
-  const activeValidationScore = typeof validation?.editorial_score === 'number'
-    ? validation.editorial_score
-    : typeof validation?.score === 'number'
-      ? validation.score
-      : 0;
-  const validationAvailable = validation?.available ?? false;
-  const activeValidationTone = getValidationTone(activeValidationStatus);
-  const comparisonConfidence = validation?.comparison_confidence || (validation?.available ? 'high' : 'low');
-  const editorialChecks = validation?.editorial_checks || validation?.checks || [];
-  const editorialReasons = validation?.editorial_reasons || validation?.reasons || [];
-  const validationEvidenceSource = normalizeSourceLabel(validation?.evidence?.source) || resolveQuestionSource(activeQuestion);
-  const validationEvidenceExamId = validation?.evidence?.exam_id || activeQuestion?.external_id;
-  const validationOfficialAnswer = validation?.evidence?.official_answer || validation?.parser_snapshot?.official_answer || null;
-
   useEffect(() => {
     let cancelled = false;
+    let objectUrl: string | null = null;
 
-    const fetchValidation = async () => {
-      if (!activeQuestion?.id || isEditing) {
-        setValidation(null);
-        setValidationError(null);
-        setValidationLoading(false);
+    const fetchSourcePdf = async () => {
+      if (!activeQuestion?.id || isEditing || !showPdf) {
+        setSourcePdfUrl(null);
+        setSourcePdfError(null);
+        setSourcePdfLoading(false);
         return;
       }
 
-      setValidationLoading(true);
-      setValidationError(null);
+      setSourcePdfLoading(true);
+      setSourcePdfError(null);
+      setSourcePdfUrl(null);
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const headers: HeadersInit = session?.access_token
           ? { Authorization: `Bearer ${session.access_token}` }
           : {};
-        const response = await fetch(`${apiUrl}/api/enterprise/assessment/admin/questions/${activeQuestion.id}/curation-validation`, {
+        const response = await fetch(`${apiUrl}/api/admin/questions/${activeQuestion.id}/source-pdf`, {
           headers,
         });
-        const payload = await response.json().catch(() => null);
         if (cancelled) return;
 
         if (!response.ok) {
-          const message = payload?.error || payload?.message || `Falha ao carregar validação (HTTP ${response.status}).`;
-          setValidation(null);
-          setValidationError(message);
+          const payload = await response.json().catch(() => null);
+          setSourcePdfError(payload?.error || payload?.message || `Falha ao carregar PDF (HTTP ${response.status}).`);
           return;
         }
 
-        const nextValidation = payload?.validation || null;
-        setValidation(nextValidation);
-        if (!nextValidation?.available) {
-          setValidationError(
-            nextValidation?.reason
-            || nextValidation?.editorial_reasons?.[0]
-            || nextValidation?.reasons?.[0]
-            || payload?.error
-            || 'Validação estrutural indisponível para esta questão.'
-          );
-        }
+        const blob = await response.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setSourcePdfUrl(objectUrl);
       } catch (error: any) {
         if (cancelled) return;
-        setValidation(null);
-        setValidationError(error?.message || 'Falha ao carregar validação estrutural.');
+        setSourcePdfError(error?.message || 'Falha ao carregar PDF da prova.');
       } finally {
-        if (!cancelled) setValidationLoading(false);
+        if (!cancelled) setSourcePdfLoading(false);
       }
     };
 
-    void fetchValidation();
+    void fetchSourcePdf();
     return () => {
       cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [activeQuestion?.id, isEditing, apiUrl, supabase]);
+  }, [activeQuestion?.id, isEditing, showPdf, apiUrl, supabase]);
 
   useEffect(() => {
     setCurrentIndex(0);
@@ -1597,7 +1237,7 @@ export default function AdminQuestionApproval() {
       } else if (mode === 'curation' && isModifierPressed && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         void handleArchive(activeQuestion.id);
-      } else if (mode === 'curation' && isModifierPressed && e.key.toLowerCase() === 'q') {
+      } else if (mode === 'curation' && !isModifierPressed && e.key.toLowerCase() === 'e') {
         e.preventDefault();
         startEditing();
       }
@@ -1658,7 +1298,7 @@ export default function AdminQuestionApproval() {
     ? `${currentIndex + 1} de ${currentItems.length} na fila`
     : '0 na fila';
   const activeSource = resolveQuestionSource(activeQuestion);
-  const activeQuestionVariant = activeQuestion?.metadata?.tipo || validation?.variant || '';
+  const activeQuestionVariant = activeQuestion?.metadata?.tipo || activeQuestion?.metadata?.variant || '';
   const modeTitle = mode === 'curation' ? 'Curadoria' : mode === 'audit' ? 'Auditoria' : 'Arquivados';
   const modeBadge = mode === 'curation' ? 'Workspace Editorial' : mode === 'audit' ? 'Qualidade & Diagnóstico' : 'Histórico';
   const modeDescription = mode === 'curation'
@@ -1671,7 +1311,46 @@ export default function AdminQuestionApproval() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-2 font-sans text-slate-900 md:p-4 xl:p-6">
       <div className="mx-auto flex w-full max-w-[1760px] flex-col gap-4">
 
+        {!showFilters && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 shadow-sm backdrop-blur md:px-4">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Badge className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white hover:bg-slate-900">
+                {modeTitle}
+              </Badge>
+              <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-slate-600">
+                {queueLabel}
+              </Badge>
+              <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-slate-600">
+                {activeFilterCount > 0 ? `${activeFilterCount} filtro(s)` : 'Filtros ocultos'}
+              </Badge>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 rounded-xl bg-white px-3 text-sm"
+                onClick={() => setShowFilters(true)}
+              >
+                <Filter className="mr-2 h-4 w-4" />
+                Mostrar filtros
+              </Button>
+              {!isEditing && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 rounded-xl bg-white px-3 text-sm"
+                  onClick={() => setShowPdf(current => !current)}
+                >
+                  {showPdf ? <PanelRightClose className="mr-2 h-4 w-4" /> : <PanelRightOpen className="mr-2 h-4 w-4" />}
+                  {showPdf ? 'Ocultar PDF' : 'Mostrar PDF'}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* --- HEADER & TOOLBAR --- */}
+        {showFilters && (
         <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white/90 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur">
           <div className="border-b border-slate-200/80 bg-[linear-gradient(135deg,_rgba(15,23,42,0.04),_rgba(59,130,246,0.06))] px-3 py-4 md:px-5 lg:px-6">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -1736,22 +1415,47 @@ export default function AdminQuestionApproval() {
 
           <div className="px-3 py-3 md:px-5 lg:px-6">
             <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant={mode === 'curation' ? 'default' : 'outline'}
-                  className={mode === 'curation' ? 'h-9 rounded-xl bg-slate-900 px-3 text-sm text-white hover:bg-slate-800' : 'h-9 rounded-xl bg-white px-3 text-sm'}
-                  onClick={() => setMode('curation')}
-                >
-                  Curadoria
-                </Button>
-                <Button
-                  variant={mode === 'archived' ? 'default' : 'outline'}
-                  className={mode === 'archived' ? 'h-9 rounded-xl bg-slate-500 px-3 text-sm text-white hover:bg-slate-600' : 'h-9 rounded-xl bg-white px-3 text-sm'}
-                  onClick={() => setMode('archived')}
-                >
-                  <Archive className="mr-2 h-4 w-4" />
-                  Arquivados
-                </Button>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant={mode === 'curation' ? 'default' : 'outline'}
+                    className={mode === 'curation' ? 'h-9 rounded-xl bg-slate-900 px-3 text-sm text-white hover:bg-slate-800' : 'h-9 rounded-xl bg-white px-3 text-sm'}
+                    onClick={() => setMode('curation')}
+                  >
+                    Curadoria
+                  </Button>
+                  <Button
+                    variant={mode === 'archived' ? 'default' : 'outline'}
+                    className={mode === 'archived' ? 'h-9 rounded-xl bg-slate-500 px-3 text-sm text-white hover:bg-slate-600' : 'h-9 rounded-xl bg-white px-3 text-sm'}
+                    onClick={() => setMode('archived')}
+                  >
+                    <Archive className="mr-2 h-4 w-4" />
+                    Arquivados
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 rounded-xl bg-white px-3 text-sm"
+                    onClick={() => setShowFilters(false)}
+                  >
+                    <Filter className="mr-2 h-4 w-4" />
+                    Ocultar filtros
+                  </Button>
+                  {!isEditing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 rounded-xl bg-white px-3 text-sm"
+                      onClick={() => setShowPdf(current => !current)}
+                    >
+                      {showPdf ? <PanelRightClose className="mr-2 h-4 w-4" /> : <PanelRightOpen className="mr-2 h-4 w-4" />}
+                      {showPdf ? 'Ocultar PDF' : 'Mostrar PDF'}
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {mode === 'audit' && (
@@ -1905,6 +1609,7 @@ export default function AdminQuestionApproval() {
             </div>
           </div>
         </section>
+        )}
 
         {/* --- CONTENT AREA: THE QUEUE --- */}
         <div className="flex flex-col">
@@ -2014,12 +1719,17 @@ export default function AdminQuestionApproval() {
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h2 className="text-lg font-bold tracking-tight text-slate-950 md:text-[1.35rem]">
-                            {activeQuestionDisplayTitle || activeQuestion.alternatives_intro || 'Questão em revisão'}
+                            {getQuestionHeaderLabel(activeQuestion) || 'Questão em revisão'}
                           </h2>
                         </div>
-                        <p className="mt-1 text-[13px] leading-5 text-slate-600">
-                          Leia, edite e publique sem perder o contexto da prova e do parser.
-                        </p>
+                        {mode === 'curation' ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-[10px] text-slate-500">Enter aprova</Badge>
+                            <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-[10px] text-slate-500">Delete deleta</Badge>
+                            <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-[10px] text-slate-500">Ctrl/Cmd + A arquiva</Badge>
+                            <Badge variant="outline" className="cursor-pointer rounded-full border-slate-200 bg-white text-[10px] text-slate-500 hover:bg-slate-100" onClick={startEditing}>Editar questão</Badge>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 
@@ -2345,308 +2055,99 @@ export default function AdminQuestionApproval() {
                 </div>
               ) : (
                 <div className="px-3 py-5 md:px-5 lg:px-6">
-                  <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)] 2xl:grid-cols-[minmax(0,1.1fr)_minmax(390px,0.9fr)] xl:gap-6">
-                    <div className="space-y-8 min-w-0">
-
-                  {mode === 'audit' && activeAuditItem && (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle size={16} className="text-amber-700" />
-                        <span className="text-sm font-bold text-amber-900 uppercase tracking-wider">Achados da Auditoria</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {activeAuditItem.issue_codes.map(code => (
-                          <Badge key={code} variant="outline" className="bg-white border-amber-200 text-amber-800">
-                            {code}
-                          </Badge>
-                        ))}
-                      </div>
-                      <p className="text-xs text-amber-900">
-                        Última execução: {activeAuditItem.latest_run_at ? new Date(activeAuditItem.latest_run_at).toLocaleString('pt-BR') : 'N/A'}
-                        {activeAuditItem.latest_run_version ? ` • versão ${activeAuditItem.latest_run_version}` : ''}
-                      </p>
-                    </div>
-                  )}
-
-                  {activeQuestionPreview ? (
-                    <QuestionDisplay
-                      question={activeQuestionPreview}
-                      showAnswer
-                      readOnly
-                      footer={activeQuestionComment ? (
-                        <div className="mt-8 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
-                          <div className="mb-3 flex items-center gap-2">
-                            <div className="rounded-lg bg-blue-100 p-2 text-blue-600">
-                              <Bot size={18} />
+                  <div className={`grid grid-cols-1 items-start gap-5 ${showPdf ? 'xl:grid-cols-2' : ''} xl:gap-6`}>
+                    <section className={`min-w-0 overflow-y-auto pr-1 ${showFilters ? 'xl:h-[calc(100vh-320px)]' : 'xl:h-[calc(100vh-210px)]'} xl:min-h-[620px]`}>
+                      <div className="space-y-8">
+                        {mode === 'audit' && activeAuditItem && (
+                          <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                            <div className="flex items-center gap-2">
+                              <AlertCircle size={16} className="text-amber-700" />
+                              <span className="text-sm font-bold uppercase tracking-wider text-amber-900">Achados da Auditoria</span>
                             </div>
-                            <h3 className="font-semibold text-blue-950">Comentário do Professor</h3>
+                            <div className="flex flex-wrap gap-2">
+                              {activeAuditItem.issue_codes.map(code => (
+                                <Badge key={code} variant="outline" className="border-amber-200 bg-white text-amber-800">
+                                  {code}
+                                </Badge>
+                              ))}
+                            </div>
+                            <p className="text-xs text-amber-900">
+                              Última execução: {activeAuditItem.latest_run_at ? new Date(activeAuditItem.latest_run_at).toLocaleString('pt-BR') : 'N/A'}
+                              {activeAuditItem.latest_run_version ? ` • versão ${activeAuditItem.latest_run_version}` : ''}
+                            </p>
                           </div>
-                          <QuestionRichText text={activeQuestionComment} className="text-sm leading-relaxed text-slate-700" />
-                        </div>
-                      ) : undefined}
-                    />
-                  ) : (
-                    <div className="flex items-center gap-3 p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200">
-                      <AlertCircle size={20} className="shrink-0" />
-                      <span className="font-medium">ATENÇÃO:</span> Nenhuma questão selecionada.
-                    </div>
-                  )}
-                    </div>
+                        )}
 
-                    <aside className="min-w-0 space-y-4 xl:sticky xl:top-6">
-                      <div className="hidden overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm xl:block">
-                        <div className="border-b border-slate-200 px-4 py-3">
-                          <p className="text-sm font-semibold text-slate-900">Ferramentas de curadoria</p>
-                          <p className="mt-0.5 text-xs text-slate-500">Ações editoriais da questão selecionada.</p>
-                        </div>
-
-                        <div className="space-y-3 p-4">
-                          {mode === 'audit' ? (
-                            <>
-                              <Button
-                                variant="outline"
-                                className="h-11 w-full justify-start rounded-xl border-slate-300 text-sm font-semibold text-slate-700"
-                                onClick={fetchAuditQueue}
-                                disabled={!!auditProcessingId}
-                              >
-                                Recarregar Auditoria
-                              </Button>
-
-                              <Button
-                                className="h-11 w-full justify-start rounded-xl bg-amber-600 text-sm font-semibold text-white shadow-lg shadow-amber-600/20 hover:bg-amber-700"
-                                onClick={() => handleDecision(activeQuestion.id, 'approve')}
-                                disabled={!!auditProcessingId || activeQuestion.is_verified === true}
-                              >
-                                {activeQuestion.is_verified === true ? 'Já publicada' : 'Aprovar após Correção'}
-                              </Button>
-
-                              <Button
-                                variant="outline"
-                                className="h-11 w-full justify-start rounded-xl border-amber-300 text-sm font-semibold text-amber-700 hover:bg-amber-50 hover:text-amber-800"
-                                onClick={() => moveQuestionToCuration(activeQuestion.id)}
-                                disabled={!!auditProcessingId || activeQuestion.is_verified === false}
-                              >
-                                {auditProcessingId === activeQuestion.id ? 'Movendo...' : (activeQuestion.is_verified === false ? 'Já está na Curadoria' : 'Mover para Curadoria')}
-                              </Button>
-                            </>
-                          ) : mode === 'archived' ? (
-                            <>
-                              <Button
-                                variant="outline"
-                                className="h-11 w-full justify-start rounded-xl border-slate-300 text-sm font-semibold text-slate-700"
-                                onClick={fetchArchived}
-                                disabled={!!questionPublishingAction}
-                              >
-                                Recarregar Arquivo
-                              </Button>
-
-                              <Button
-                                className="h-11 w-full justify-start rounded-xl bg-slate-700 text-sm font-semibold text-white shadow-lg shadow-slate-700/20 hover:bg-slate-800"
-                                onClick={() => void handleUnarchive(activeQuestion.id)}
-                                disabled={!!questionPublishingAction}
-                              >
-                                {questionPublishingAction === 'unarchive' ? (
-                                  <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Desarquivando...</>
-                                ) : (
-                                  <>
-                                    <ArchiveRestore className="mr-2 h-4 w-4" />
-                                    Desarquivar
-                                  </>
-                                )}
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                variant="outline"
-                                className="h-11 w-full justify-start rounded-xl border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-100 hover:text-slate-900"
-                                onClick={startEditing}
-                                disabled={!!processingId}
-                              >
-                                <Edit3 className="mr-2 h-4 w-4" />
-                                Editar questão
-                              </Button>
-
-                              <Button
-                                className="h-11 w-full justify-start rounded-xl bg-slate-900 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 hover:bg-slate-800"
-                                onClick={() => {
-                                  setQuestionPublishingAction('approve');
-                                  void handleDecision(activeQuestion.id, 'approve');
-                                }}
-                                disabled={!!processingId || questionPublishingAction !== null}
-                              >
-                                {processingId === activeQuestion.id || questionPublishingAction === 'approve' ? (
-                                  <><LoaderCircle className="mr-2 h-4 w-4 animate-spin" />Processando...</>
-                                ) : (
-                                  <>
-                                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                                    Aprovar e publicar
-                                  </>
-                                )}
-                              </Button>
-
-                              <div className="grid grid-cols-2 gap-2">
-                                <Button
-                                  variant="outline"
-                                  className="h-10 rounded-xl border-slate-300 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                                  onClick={() => void handleArchive(activeQuestion.id)}
-                                  disabled={!!processingId || questionPublishingAction !== null}
-                                >
-                                  {questionPublishingAction === 'archive' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Archive className="mr-2 h-4 w-4" />}
-                                  Arquivar
-                                </Button>
-
-                                <Button
-                                  variant="outline"
-                                  className="h-10 rounded-xl border-red-200 text-sm font-semibold text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
-                                  onClick={() => {
-                                    setQuestionPublishingAction('delete');
-                                    void handleDecision(activeQuestion.id, 'reject');
-                                  }}
-                                  disabled={!!processingId || questionPublishingAction !== null}
-                                >
-                                  {questionPublishingAction === 'delete' ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                                  Deletar
-                                </Button>
+                        {activeQuestionPreview ? (
+                          <QuestionDisplay
+                            question={activeQuestionPreview}
+                            showAnswer
+                            readOnly
+                            footer={activeQuestionComment ? (
+                              <div className="mt-8 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
+                                <div className="mb-3 flex items-center gap-2">
+                                  <div className="rounded-lg bg-blue-100 p-2 text-blue-600">
+                                    <Bot size={18} />
+                                  </div>
+                                  <h3 className="font-semibold text-blue-950">Comentário do Professor</h3>
+                                </div>
+                                <QuestionRichText text={activeQuestionComment} className="text-sm leading-relaxed text-slate-700" />
                               </div>
-
-                              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-[11px] text-slate-500">
-                                <p className="font-semibold uppercase tracking-wide text-slate-600">Atalhos</p>
-                                <p className="mt-1">Enter aprova, A arquiva, Delete deleta e E edita.</p>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                            ) : undefined}
+                          />
+                        ) : (
+                          <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+                            <AlertCircle size={20} className="shrink-0" />
+                            <span className="font-medium">ATENÇÃO:</span> Nenhuma questão selecionada.
+                          </div>
+                        )}
                       </div>
+                    </section>
 
-                      <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-slate-50/90 shadow-sm">
+                    {showPdf && (
+                      <aside className="min-w-0 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm xl:sticky xl:top-6">
                         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <ShieldCheck size={16} className="text-slate-600" />
+                            <FileText size={16} className="text-slate-600" />
                             <div>
-                              <p className="text-sm font-semibold text-slate-900">Confiabilidade editorial</p>
-                              <p className="text-xs text-slate-500">Resumo editorial para apoiar a aprovação da questão.</p>
+                              <p className="text-sm font-semibold text-slate-900">PDF da prova</p>
+                              <p className="text-xs text-slate-500">{activeQuestion.external_id || activeQuestion.id}</p>
                             </div>
                           </div>
-                          <Badge variant="outline" className={activeValidationTone.badge}>
-                            {validationAvailable ? `${activeValidationStatus.toUpperCase()} • ${activeValidationScore.toFixed(0)}%` : 'INDISPONÍVEL'}
-                          </Badge>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="h-8 rounded-lg px-2.5 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                            onClick={() => setShowPdf(false)}
+                          >
+                            Ocultar
+                          </Button>
                         </div>
 
-                        <div className="space-y-4 p-4">
-                          {validationLoading ? (
-                            <div className="space-y-3">
-                              <Skeleton className="h-8 w-36" />
-                              <Skeleton className="h-4 w-full" />
-                              <Skeleton className="h-36 w-full rounded-xl" />
+                        <div className={`h-[70vh] min-h-[560px] bg-slate-100 ${showFilters ? 'xl:h-[calc(100vh-320px)]' : 'xl:h-[calc(100vh-210px)]'} xl:min-h-[620px]`}>
+                          {sourcePdfLoading ? (
+                            <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+                              <LoaderCircle className="h-8 w-8 animate-spin text-slate-500" />
+                              <p className="text-sm text-slate-500">Carregando PDF da prova...</p>
                             </div>
+                          ) : sourcePdfUrl ? (
+                            <iframe
+                              title={`PDF da prova ${activeQuestion.external_id || activeQuestion.id}`}
+                              src={sourcePdfUrl}
+                              className="h-full w-full border-0 bg-white"
+                            />
                           ) : (
-                            <>
-                              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                                <div className="mb-3 flex items-end justify-between gap-3">
-                                  <div>
-                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Confiabilidade Editorial</p>
-                                    <p className="text-3xl font-bold text-slate-900">
-                                      {validationAvailable ? `${activeValidationScore.toFixed(1)}%` : 'Indisponível'}
-                                    </p>
-                                  </div>
-                                  <div className="text-right text-xs text-slate-500">
-                                    <p>{validationEvidenceSource}</p>
-                                    <p>{validationEvidenceExamId}</p>
-                                  </div>
-                                </div>
-                                <Progress
-                                  value={validationAvailable ? activeValidationScore : 0}
-                                  className={activeValidationTone.track + ' h-3'}
-                                  indicatorClassName={activeValidationTone.bar}
-                                />
-                                <div className="mt-3 flex flex-wrap items-center gap-2">
-                                  <p className="text-xs text-slate-500">
-                                    {validationAvailable
-                                      ? 'Verde a partir de 85%. Amarelo entre 60% e 84,9%. Vermelho abaixo disso.'
-                                      : 'Validação estrutural indisponível para esta fonte ou para esta questão.'}
-                                  </p>
-                                  {comparisonConfidence !== 'high' ? (
-                                    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-                                      Confiança {comparisonConfidence === 'reduced' ? 'reduzida' : 'baixa'}
-                                    </Badge>
-                                  ) : null}
-                                </div>
-                                {validation?.summary ? (
-                                  <p className="mt-3 text-sm text-slate-600">{validation.summary}</p>
-                                ) : null}
-                              </div>
-
-                              {validationError && (
-                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                                  {validationError}
-                                </div>
-                              )}
-
-                              {editorialChecks.length ? (
-                                <div className="space-y-3">
-                                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-                                    <p className="text-sm font-semibold text-slate-900">Checks editoriais</p>
-                                  </div>
-                                  {editorialChecks.map((check) => (
-                                    <div key={check.key} className="rounded-xl border border-slate-200 bg-white p-4">
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div>
-                                          <p className="text-sm font-semibold text-slate-900">{check.label}</p>
-                                          <p className="mt-1 text-xs text-slate-500">{check.summary}</p>
-                                        </div>
-                                        <Badge
-                                          variant="outline"
-                                          className={check.status === 'pass'
-                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                            : check.status === 'warning'
-                                              ? 'border-amber-200 bg-amber-50 text-amber-700'
-                                              : 'border-rose-200 bg-rose-50 text-rose-700'}
-                                        >
-                                          {check.score.toFixed(0)}%
-                                        </Badge>
-                                      </div>
-                                      <Progress
-                                        value={check.score}
-                                        className="mt-3 h-2 bg-slate-100"
-                                        indicatorClassName={check.status === 'pass' ? 'bg-emerald-500' : check.status === 'warning' ? 'bg-amber-500' : 'bg-rose-500'}
-                                      />
-                                      {check.issues.length > 0 && (
-                                        <div className="mt-3 space-y-1 text-xs text-slate-600">
-                                          {check.issues.map((issue, index) => (
-                                            <p key={`${check.key}-${index}`}>• {issue}</p>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : null}
-
-                              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                                <p className="text-sm font-semibold text-slate-900">Motivos principais</p>
-                                <div className="mt-3 space-y-2 text-sm text-slate-600">
-                                  {editorialReasons.length ? editorialReasons.map((reason, index) => (
-                                    <p key={`${activeQuestion.id}-editorial-reason-${index}`}>• {reason}</p>
-                                  )) : (
-                                    <p>• Nenhum motivo editorial relevante.</p>
-                                  )}
-                                </div>
-                              </div>
-
-                              {validationOfficialAnswer ? (
-                                <div className="rounded-xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
-                                  <p className="font-semibold text-slate-900">Evidências</p>
-                                  <p className="mt-2">
-                                    Gabarito oficial: <span className="font-semibold text-slate-900">{normalizeQuestionText(validationOfficialAnswer)}</span>
-                                  </p>
-                                </div>
-                              ) : null}
-                            </>
+                            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+                              <FileText className="h-10 w-10 text-slate-400" />
+                              <p className="text-sm font-semibold text-slate-800">PDF indisponível</p>
+                              <p className="max-w-sm text-xs leading-5 text-slate-500">
+                                {sourcePdfError || 'Não foi possível localizar o PDF de origem para esta questão.'}
+                              </p>
+                            </div>
                           )}
                         </div>
-                      </div>
-                    </aside>
+                      </aside>
+                    )}
                   </div>
                 </div>
               )}
@@ -2745,7 +2246,7 @@ export default function AdminQuestionApproval() {
                       Delete = Deletar
                     </span>
                     <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 shadow-sm">
-                      A = Arquivar
+                      Ctrl/Cmd + A = Arquivar
                     </span>
                     <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 shadow-sm">
                       Enter = Aprovar
@@ -2757,7 +2258,7 @@ export default function AdminQuestionApproval() {
                       DELETE = Deletar
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
-                      A = Arquivar
+                      Ctrl/Cmd + A = Arquivar
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
                       ENTER = Aprovar

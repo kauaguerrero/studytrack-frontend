@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useStudentTheme } from '@/contexts/StudentThemeContext'
 import useSWR from 'swr'
 import { createClient } from '@/lib/supabase/client'
@@ -42,7 +42,14 @@ import {
   Palette,
   CheckCircle2,
   WalletCards,
+  Bell,
+  Trophy,
+  Lock,
+  ChevronRight,
 } from 'lucide-react'
+import { isPushSupported, hasActiveSubscription, requestAndSubscribe, disablePush } from '@/lib/push'
+import { getAchievementIcon, getDifficultyStyle, formatChancePct } from '@/lib/achievement-icons'
+import { getAccountLevel } from '@/components/partners/gamification/titleSystem'
 
 /** Modelo 1:1 com a tabela profiles e resposta GET /api/account/profile */
 interface ProfileData {
@@ -66,6 +73,7 @@ interface ProfileData {
   target_university: string | null
   school_year: string | null
   onboarding_completed: boolean
+  personal_monthly_goal: number | null
   created_at: string | null
   updated_at: string | null
   email_notifications: boolean
@@ -109,7 +117,27 @@ interface StudentCurrentPlan {
   profile_plan_tier: string | null
 }
 
-type TabKey = 'personal' | 'plan' | 'journey' | 'routine' | 'security' | 'preferences'
+type TabKey = 'personal' | 'achievements' | 'plan' | 'journey' | 'routine' | 'security' | 'preferences'
+
+const VALID_TABS: readonly TabKey[] = ['personal', 'achievements', 'plan', 'journey', 'routine', 'security', 'preferences']
+
+function isValidTab(value: string | null): value is TabKey {
+  return value !== null && (VALID_TABS as readonly string[]).includes(value)
+}
+
+interface Achievement {
+  id: string
+  category: string
+  title: string
+  description: string
+  icon: string
+  target: number
+  progress: number
+  unlocked: boolean
+  difficulty: string
+  difficulty_label: string
+  chance_pct: number
+}
 
 const BRAND_PRIMARY = 'var(--brand-primary)'
 const BRAND_SECONDARY = 'var(--brand-secondary)'
@@ -127,11 +155,26 @@ function formatPlanPeriod(period?: 'week' | 'month' | null) {
 export default function PerfilPage() {
   const router = useRouter()
   const { slug } = useParams<{ slug: string }>()
+  const searchParams = useSearchParams()
   const { org } = useOrg()
   const { theme: studentTheme, setTheme: setStudentTheme } = useStudentTheme()
   const [profileState, setProfileState] = useState<ProfileData | null>(null)
   const [userState, setUserState] = useState<UserData | null>(null)
-  const [activeTab, setActiveTab] = useState<TabKey>('personal')
+  // Deep-link (?tab=achievements) — o card Nível do dashboard leva direto pra
+  // aba de conquistas. Só lido na montagem; trocar de aba depois não reescreve
+  // a URL de propósito, pra não brigar com o histórico de navegação.
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    const fromQuery = searchParams.get('tab')
+    return isValidTab(fromQuery) ? fromQuery : 'personal'
+  })
+
+  // Affordance da navegação de abas no mobile (rolagem horizontal): a setinha
+  // some sozinha assim que o aluno rolar uma vez — depois disso o degradê nas
+  // bordas já basta como sinal de "tem mais pra puxar".
+  const [tabNavScrolled, setTabNavScrolled] = useState(false)
+  const handleTabNavScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (e.currentTarget.scrollLeft > 4) setTabNavScrolled(true)
+  }, [])
 
   // States - Identidade
   const [fullName, setFullName] = useState('')
@@ -156,6 +199,13 @@ export default function PerfilPage() {
   const [studyPeriod, setStudyPeriod] = useState('')
   const [daysPerWeek, setDaysPerWeek] = useState<number>(5)
   const [hoursPerDay, setHoursPerDay] = useState<number>(2)
+  // Meta Pessoal de pontos do mês — null = sem meta. Exibida como barra própria
+  // no dashboard; nunca entra no cálculo de tier/ranking.
+  const [personalGoal, setPersonalGoal] = useState<number | null>(null)
+  // Web push deste dispositivo (assinatura local + backend)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushBusy, setPushBusy] = useState(false)
+  const [pushSupported, setPushSupported] = useState(false)
   const [savingRoutine, setSavingRoutine] = useState(false)
 
   // States - Segurança
@@ -257,6 +307,7 @@ export default function PerfilPage() {
     setStudyPeriod(p.study_period ?? '')
     setDaysPerWeek(typeof p.days_per_week === 'number' ? Math.min(7, Math.max(1, p.days_per_week)) : 5)
     setHoursPerDay(typeof p.hours_per_day === 'number' ? Math.min(12, Math.max(1, p.hours_per_day)) : 2)
+    setPersonalGoal(typeof p.personal_monthly_goal === 'number' && p.personal_monthly_goal > 0 ? p.personal_monthly_goal : null)
     // Sincroniza o tema do contexto com o valor salvo no banco ao carregar o perfil.
     // Garante que o SELECT reflita o que está no DB, independente do initialTheme do SSR.
     const savedTheme = p.theme_preference as 'light' | 'dark' | 'system' | null
@@ -297,6 +348,49 @@ export default function PerfilPage() {
   useEffect(() => {
     if (activeTab === 'security') fetchSessions()
   }, [activeTab, fetchSessions])
+
+  const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [achievementsUnlockedCount, setAchievementsUnlockedCount] = useState(0)
+  const [loadingAchievements, setLoadingAchievements] = useState(false)
+  const [achievementsLoaded, setAchievementsLoaded] = useState(false)
+  // Nível (XP permanente) — mostrado num cabeçalho no topo da aba de
+  // Conquistas, pra fazer sentido chegar aqui vindo do card Nível do
+  // dashboard. Busca em paralelo com as conquistas, não bloqueia uma a outra.
+  const [levelTotalPoints, setLevelTotalPoints] = useState<number | null>(null)
+
+  const fetchAchievements = useCallback(async () => {
+    setLoadingAchievements(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) return
+      const [achievementsRes, summaryRes] = await Promise.all([
+        fetch(`${apiUrl}/api/partner/gamification/achievements`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }),
+        fetch(`${apiUrl}/api/partner/gamification/summary`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }),
+      ])
+      if (!achievementsRes.ok) throw new Error('Falha ao carregar conquistas.')
+      const data = await achievementsRes.json()
+      setAchievements(data.achievements ?? [])
+      setAchievementsUnlockedCount(data.unlocked_count ?? 0)
+      setAchievementsLoaded(true)
+
+      if (summaryRes.ok) {
+        const summary = await summaryRes.json()
+        setLevelTotalPoints(typeof summary.total_points === 'number' ? summary.total_points : 0)
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao carregar conquistas.')
+    } finally {
+      setLoadingAchievements(false)
+    }
+  }, [apiUrl, supabase.auth])
+
+  useEffect(() => {
+    if (activeTab === 'achievements' && !achievementsLoaded) void fetchAchievements()
+  }, [activeTab, achievementsLoaded, fetchAchievements])
 
   const formatLastActive = (iso: string | null): string => {
     if (!iso) return '—'
@@ -518,12 +612,47 @@ export default function PerfilPage() {
     focus_area: focusArea || 'enem_geral',
   }, setSavingJourney)
 
+  useEffect(() => {
+    setPushSupported(isPushSupported())
+    void hasActiveSubscription().then(setPushEnabled)
+  }, [])
+
+  const handleTogglePush = async () => {
+    setPushBusy(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('Sessão inválida.')
+      if (pushEnabled) {
+        await disablePush(session.access_token)
+        setPushEnabled(false)
+        toast.success('Notificações push desativadas neste dispositivo.')
+      } else {
+        const result = await requestAndSubscribe(session.access_token)
+        if (result === 'subscribed') {
+          setPushEnabled(true)
+          toast.success('Notificações push ativadas!')
+        } else if (result === 'denied') {
+          toast.error('Permissão negada pelo navegador. Habilite nas configurações do site.')
+        } else if (result === 'unsupported') {
+          toast.error('Este navegador não suporta notificações push.')
+        } else {
+          toast.error('Não foi possível ativar as notificações agora.')
+        }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao alterar notificações.')
+    } finally {
+      setPushBusy(false)
+    }
+  }
+
   const handleSaveRoutine = () => {
     handleUpdateProfile({
       study_pace: studyPace || 'moderate',
       study_period: studyPeriod || null,
       days_per_week: daysPerWeek,
       hours_per_day: hoursPerDay,
+      personal_monthly_goal: personalGoal,
     }, setSavingRoutine)
   }
 
@@ -651,6 +780,7 @@ export default function PerfilPage() {
 
   const navItems = [
     { id: 'personal' as const,     label: 'Identidade',          icon: User          },
+    { id: 'achievements' as const, label: 'Conquistas',          icon: Trophy        },
     { id: 'plan' as const,         label: 'Meu Plano',           icon: WalletCards   },
     { id: 'journey' as const,      label: 'Jornada Acadêmica',   icon: GraduationCap },
     { id: 'routine' as const,      label: 'Rotina de Estudos',   icon: Clock         },
@@ -735,8 +865,15 @@ export default function PerfilPage() {
 
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
 
-          {/* Navegação lateral */}
-          <RevealItem className="-mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:w-60 md:flex-shrink-0 md:overflow-visible md:px-0 md:pb-0">
+          {/* Navegação lateral — no mobile é uma fileira horizontal que rola.
+              Afordância de que dá pra puxar: degradê esmaecendo as bordas
+              (funciona sempre, sem JS) + setinha pulsante que some assim que
+              o aluno rolar uma vez. */}
+          <RevealItem className="relative -mx-4 md:mx-0 md:w-60 md:flex-shrink-0">
+            <div
+              onScroll={handleTabNavScroll}
+              className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-1 [mask-image:linear-gradient(to_right,transparent,black_20px,black_calc(100%-32px),transparent)] [-webkit-mask-image:linear-gradient(to_right,transparent,black_20px,black_calc(100%-32px),transparent)] md:overflow-visible md:px-0 md:pb-0 md:[mask-image:none] md:[-webkit-mask-image:none]"
+            >
             <nav className="flex gap-2 md:grid md:grid-cols-1">
               {navItems.map((item) => {
                 const Icon = item.icon
@@ -762,6 +899,14 @@ export default function PerfilPage() {
                 )
               })}
             </nav>
+            </div>
+            {!tabNavScrolled && (
+              <div className="pointer-events-none absolute inset-y-0 right-0 z-10 flex items-center pb-1 pr-1 md:hidden">
+                <span className="flex h-6 w-6 animate-pulse items-center justify-center rounded-full bg-white text-slate-400 shadow-md ring-1 ring-slate-200 dark:bg-slate-800 dark:text-white/50 dark:ring-slate-700">
+                  <ChevronRight className="h-4 w-4" />
+                </span>
+              </div>
+            )}
           </RevealItem>
 
           {/* Conteúdo */}
@@ -890,6 +1035,130 @@ export default function PerfilPage() {
                     </CardFooter>
                   </Card>
                 )
+              )}
+
+              {/* ── TAB: CONQUISTAS ─────────────────────────────────────── */}
+              {activeTab === 'achievements' && (
+                <Card className={sectionCardClassName}>
+                  <CardHeader className="border-b border-slate-100 dark:border-slate-800 px-5 pb-5 pt-6 sm:px-8 sm:pb-6 sm:pt-8">
+                    <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                      <div>
+                        <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Conquistas</CardTitle>
+                        <CardDescription className="text-sm mt-1 dark:text-slate-400">
+                          Marcos permanentes da sua jornada — não resetam com o mês.
+                        </CardDescription>
+                      </div>
+                      {achievementsLoaded && (
+                        <span
+                          className="shrink-0 rounded-full px-3 py-1.5 text-xs font-bold"
+                          style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)', color: brandPrimaryText }}
+                        >
+                          {achievementsUnlockedCount} / {achievements.length} desbloqueadas
+                        </span>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="px-5 pt-6 sm:px-8 sm:pt-8">
+                    {/* Cabeçalho de Nível — é pra onde o card "Nível" do dashboard leva,
+                        então precisa fazer sentido chegar aqui vindo de lá (mesma cor
+                        violeta, mesma lógica de progresso). */}
+                    {levelTotalPoints !== null && (() => {
+                      const level = getAccountLevel(levelTotalPoints)
+                      const xpToNext = level.xpForNextLevel - level.xpIntoLevel
+                      return (
+                        <div className="mb-6 overflow-hidden rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-5 dark:border-violet-500/20 dark:from-violet-500/[0.07] dark:to-transparent">
+                          <div className="flex items-center gap-4">
+                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-violet-400/20 text-violet-600 dark:text-violet-400">
+                              <Trophy className="h-7 w-7" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-500 dark:text-violet-400">
+                                Nível {level.level}
+                              </p>
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                {levelTotalPoints.toLocaleString('pt-BR')} XP acumulado
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-4">
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-white/70 dark:bg-white/10">
+                              <div
+                                className="h-full rounded-full transition-[width] duration-700 ease-out"
+                                style={{ width: `${Math.min(100, level.pct)}%`, background: 'linear-gradient(90deg, #8b5cf6, #a78bfa)' }}
+                              />
+                            </div>
+                            <p className="mt-1.5 text-[11px] font-semibold text-violet-500/80 dark:text-violet-400/80">
+                              Faltam {xpToNext.toLocaleString('pt-BR')} XP para o nível {level.level + 1}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                    {loadingAchievements && !achievementsLoaded ? (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100 dark:bg-white/5" />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {achievements.map((a) => {
+                          const Icon = getAchievementIcon(a.icon)
+                          const pct = Math.min(100, Math.round((a.progress / a.target) * 100))
+                          // A cor da raridade só aparece desbloqueada — é a recompensa
+                          // visual do desbloqueio, não um spoiler de quão rara ela é.
+                          const style = a.unlocked ? getDifficultyStyle(a.difficulty) : null
+                          return (
+                            <div
+                              key={a.id}
+                              className={`relative overflow-hidden rounded-xl border p-4 transition-all ${
+                                style
+                                  ? `${style.cardBorder} ${style.cardBg} ${style.glow ?? ''}`
+                                  : 'border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-white/[0.03]'
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div
+                                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                                    style
+                                      ? `${style.iconBg} ${style.iconText}`
+                                      : 'bg-slate-200/70 text-slate-400 dark:bg-white/10 dark:text-slate-500'
+                                  }`}
+                                >
+                                  {a.unlocked ? <Icon className="h-5 w-5" /> : <Lock className="h-4 w-4" />}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className={`text-sm font-bold ${a.unlocked ? 'text-slate-900 dark:text-slate-50' : 'text-slate-500 dark:text-slate-400'}`}>
+                                    {a.title}
+                                  </p>
+                                  <p className="mt-0.5 text-xs leading-snug text-slate-500 dark:text-slate-400">{a.description}</p>
+                                  {a.difficulty_label && formatChancePct(a.chance_pct) && (
+                                    <p className={`mt-1.5 text-[11px] font-bold ${style ? style.chanceText : 'text-slate-400 dark:text-slate-500'}`}>
+                                      {a.difficulty_label} · {formatChancePct(a.chance_pct)} de chance
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {!a.unlocked && (
+                                <div className="mt-3">
+                                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+                                    <div
+                                      className="h-full rounded-full bg-slate-400 dark:bg-slate-500"
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <p className="mt-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500">
+                                    {a.progress.toLocaleString('pt-BR')} / {a.target.toLocaleString('pt-BR')}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               )}
 
               {activeTab === 'plan' && (
@@ -1046,7 +1315,7 @@ export default function PerfilPage() {
                   <CardHeader className="border-b border-slate-100 dark:border-slate-800 px-5 pb-5 pt-6 sm:px-8 sm:pb-6 sm:pt-8">
                     <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Rotina de Estudos</CardTitle>
                     <CardDescription className="text-sm mt-1 dark:text-slate-400">
-                      Alinhe ritmo, dias e horas ao seu planejamento. Usados pela IA para sugerir cronogramas personalizados.
+                      Alinhe ritmo, dias e horas ao seu planejamento e complete seu perfil.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8 px-5 pt-6 sm:px-8 sm:pt-8">
@@ -1104,6 +1373,26 @@ export default function PerfilPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-700 dark:text-slate-200 font-bold">Meta Pessoal de pontos (mês)</Label>
+                      <Select
+                        value={personalGoal === null ? 'none' : String(personalGoal)}
+                        onValueChange={(v) => setPersonalGoal(v === 'none' ? null : parseInt(v, 10))}
+                      >
+                        <SelectTrigger className={`w-full rounded-xl bg-slate-50/50 dark:bg-slate-800/50 dark:border-slate-700 dark:text-slate-100 sm:max-w-xs ${focusRingStyle}`}>
+                          <SelectValue placeholder="Sem meta definida" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          <SelectItem value="none">Sem meta</SelectItem>
+                          {[250, 500, 750, 1000, 1500, 2000].map((n) => (
+                            <SelectItem key={n} value={String(n)}>🎯 {n.toLocaleString('pt-BR')} pts/mês</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        Aparece como barra &quot;Meta Pessoal&quot; no seu dashboard. Não afeta ranking nem níveis.
+                      </p>
                     </div>
                   </CardContent>
                   <CardFooter className="bg-slate-50/60 dark:bg-white/[0.03] px-5 py-4 sm:px-8 sm:py-5 flex justify-end">
@@ -1234,6 +1523,27 @@ export default function PerfilPage() {
                             <SelectItem value="system">Sistema</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="space-y-1">
+                          <p className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            <Bell size={18} style={{ color: brandPrimaryText }} />
+                            Notificações Push
+                          </p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Avisos de sequência em risco e redação corrigida neste dispositivo, mesmo com o site fechado.
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={handleTogglePush}
+                          disabled={pushBusy || !pushSupported}
+                          className="w-full rounded-xl border-slate-200 font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 sm:w-[140px]"
+                        >
+                          {pushBusy && <Loader2 size={16} className="mr-2 animate-spin" />}
+                          {!pushSupported ? 'Não suportado' : pushEnabled ? 'Desativar' : 'Ativar'}
+                        </Button>
                       </div>
 
                     </CardContent>

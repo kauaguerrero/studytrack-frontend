@@ -4,6 +4,7 @@ import useSWR, { mutate } from 'swr';
 import { apiFetcher } from '@/lib/api-fetcher';
 import type {
   Lead,
+  LeadCall,
   LeadContact,
   LeadFilters,
   LeadsStats,
@@ -18,7 +19,7 @@ const STATS_KEY = '/api/admin/prospeccao/stats';
 function buildLeadsKey(filters: LeadFilters): string {
   const params = new URLSearchParams();
   if (filters.uf) params.set('uf', filters.uf);
-  if (filters.status) params.set('status', filters.status);
+  for (const s of filters.status) params.append('status', s);
   if (filters.has_phone) params.set('has_phone', '1');
   if (filters.search) params.set('search', filters.search);
   if (filters.temperature) params.set('temperature', filters.temperature);
@@ -74,11 +75,41 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
 
 export async function apiUpdateLead(
   id: string,
-  patch: Partial<Pick<Lead, 'status_crm' | 'temperature' | 'observacoes' | 'next_followup_at'>>
+  patch: Partial<
+    Pick<
+      Lead,
+      | 'status_crm'
+      | 'temperature'
+      | 'observacoes'
+      | 'next_followup_at'
+      | 'cnpj'
+      | 'razao_social'
+      | 'nome_fantasia'
+      | 'nome_socio'
+      | 'uf'
+      | 'municipio'
+      | 'telefone1'
+      | 'telefone2'
+      | 'email'
+      | 'website'
+      | 'call_outcome'
+      | 'valor_proposta_mensal'
+    >
+  >
 ): Promise<{ lead: Lead }> {
   return fetchJSON(`${LEADS_BASE}/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
+  });
+}
+
+export async function apiScheduleCall(
+  leadId: string,
+  body: { title: string; start: string; end: string; time_zone?: string; attendee_email?: string }
+): Promise<{ lead: Lead; meet_link: string | null; calendar_created: boolean }> {
+  return fetchJSON(`${LEADS_BASE}/${leadId}/schedule-call`, {
+    method: 'POST',
+    body: JSON.stringify(body),
   });
 }
 
@@ -100,6 +131,23 @@ export async function apiCreateLead(body: {
     method: 'POST',
     body: JSON.stringify(body),
   });
+}
+
+export async function apiGetLead(id: string): Promise<{ lead: Lead }> {
+  return fetchJSON(`${LEADS_BASE}/${id}`);
+}
+
+export interface LeadWhatsappMessage {
+  id: string;
+  direction: 'inbound' | 'outbound';
+  body: string;
+  node_id: string | null;
+  node_title: string | null;
+  created_at: string;
+}
+
+export async function apiGetWhatsappMessages(leadId: string): Promise<{ messages: LeadWhatsappMessage[] }> {
+  return fetchJSON(`${LEADS_BASE}/${leadId}/whatsapp-messages`);
 }
 
 export async function apiDeleteLead(id: string): Promise<void> {
@@ -153,4 +201,24 @@ export async function apiStartImport(
 
 export async function apiGetImportJob(jobId: string): Promise<ImportJob> {
   return fetchJSON(`/api/admin/prospeccao/import/${jobId}`);
+}
+
+export async function apiGetCalls(leadId: string): Promise<{ calls: LeadCall[] }> {
+  return fetchJSON(`${LEADS_BASE}/${leadId}/calls`);
+}
+
+export async function apiUpdateCallStatus(
+  leadId: string,
+  callId: string,
+  postCallStatus: string
+): Promise<void> {
+  await fetchJSON(`${LEADS_BASE}/${leadId}/calls/${callId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ post_call_status: postCallStatus }),
+  });
+}
+
+export async function apiDeleteCall(leadId: string, callId: string): Promise<void> {
+  const res = await fetch(`${LEADS_BASE}/${leadId}/calls/${callId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }

@@ -7,6 +7,7 @@ import DesempenhoClient, {
   type EssayDetail,
   type EssayListItem,
 } from './DesempenhoClient';
+import { isDemoOrg, MOCK_STUDENT_DASHBOARD_STATE } from '../../../../../../studytrack-tutorial-mock';
 
 export default async function DesempenhoPage({
   params,
@@ -14,6 +15,14 @@ export default async function DesempenhoPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+
+  if (isDemoOrg(slug)) {
+    return (
+      <ModuleGuard permKey="desempenho_enabled">
+        <DesempenhoClient slug={slug} initialState={MOCK_STUDENT_DASHBOARD_STATE as unknown as DashboardState} />
+      </ModuleGuard>
+    );
+  }
 
   const API = (process.env.API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
 
@@ -50,6 +59,7 @@ export default async function DesempenhoPage({
         submitted_at: string;
         corrected_at: string | null;
         total_score: number | null;
+        average_score?: number | null;
         theme?: string | null;
       }) => ({
         id: String(item.id),
@@ -62,11 +72,17 @@ export default async function DesempenhoPage({
         submitted_at: String(item.submitted_at),
         corrected_at: item.corrected_at ? String(item.corrected_at) : null,
         total_score: typeof item.total_score === 'number' ? item.total_score : null,
+        average_score: typeof item.average_score === 'number' ? item.average_score : null,
         theme: typeof item.theme === 'string' ? item.theme : null,
       }));
 
       const correctedRecent = essays
-        .filter((item) => item.total_score != null && (item.status === 'corrected' || item.status === 'seen'))
+        .filter((item) => {
+          const score = item.status === 'second_corrected' && typeof item.average_score === 'number'
+            ? item.average_score
+            : item.total_score;
+          return score != null && (item.status === 'corrected' || item.status === 'second_corrected' || item.status === 'seen');
+        })
         .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
 
       const detailResponses = await Promise.all(

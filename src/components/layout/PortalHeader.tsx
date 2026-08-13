@@ -15,9 +15,6 @@ interface PortalHeaderProps {
 
 const roleLabel: Record<UserRole, string> = {
   student: 'Aluno',
-  teacher: 'Docente',
-  manager: 'Gestão',
-  secretariat: 'Secretaria',
   admin: 'Admin',
   dev: 'Dev',
   founder: 'Parceiro',

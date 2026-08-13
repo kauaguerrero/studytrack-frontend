@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { isDemoOrg, MOCK_STUDENTS } from '../../../../../studytrack-tutorial-mock';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
@@ -171,7 +172,8 @@ function MetricChip({ icon: Icon, value, label, accent }: {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AlunosPage() {
-  const { org } = useOrg();
+  const { org, userProfile } = useOrg();
+  const isAssociate = userProfile.role === 'associate';
   const [students, setStudents]         = useState<Student[]>([]);
   const [total, setTotal]               = useState(0);
   const [page, setPage]                 = useState(1);
@@ -202,6 +204,12 @@ export default function AlunosPage() {
   const fetchStudents = useCallback(async (
     p: number, s: string, plan: string, sf: ApiSortField, order: 'asc' | 'desc',
   ) => {
+    if (isDemoOrg(org.slug)) {
+      setStudents(MOCK_STUDENTS as unknown as Student[]);
+      setTotal(MOCK_STUDENTS.length);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -505,9 +513,11 @@ export default function AlunosPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <BrandPill href={`/partners/${org.slug}/alunos/convidar`} hex={org.brand_primary} className="shrink-0 justify-center">
-                  <UserPlus className="h-4 w-4" /> Adicionar
-                </BrandPill>
+                {!isAssociate && (
+                  <BrandPill href={`/partners/${org.slug}/alunos/convidar`} hex={org.brand_primary} className="shrink-0 justify-center">
+                    <UserPlus className="h-4 w-4" /> Adicionar
+                  </BrandPill>
+                )}
               </div>
             </div>
           </ElevatedCard>
@@ -531,7 +541,7 @@ export default function AlunosPage() {
                   <p className="text-sm font-semibold text-slate-500 dark:text-white/50">
                     {search ? `Nenhum aluno encontrado para "${search}".` : 'Nenhum aluno cadastrado ainda.'}
                   </p>
-                  {!search && (
+                  {!search && !isAssociate && (
                     <BrandPill href={`/partners/${org.slug}/alunos/convidar`} hex={org.brand_primary} className="mt-4">
                       <UserPlus className="h-4 w-4" /> Importar alunos
                     </BrandPill>
@@ -589,13 +599,15 @@ export default function AlunosPage() {
                               </div>
                               <p className="truncate text-xs text-slate-400 dark:text-white/30 mt-0.5">{s.email}</p>
                             </div>
-                            <button
-                              onClick={() => setActionsStudentId(s.id)}
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:text-white/30 dark:hover:bg-white/10 dark:hover:text-white"
-                              title="Mais ações"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </button>
+                            {!isAssociate && (
+                              <button
+                                onClick={() => setActionsStudentId(s.id)}
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:text-white/30 dark:hover:bg-white/10 dark:hover:text-white"
+                                title="Mais ações"
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </button>
+                            )}
                           </div>
 
                           {/* Métricas — sempre visíveis, quebram linha em telas estreitas */}
@@ -650,7 +662,7 @@ export default function AlunosPage() {
       </div>
 
       {/* ── Sheet de ações do aluno (plano / perfil / remover) ──────────────── */}
-      <Sheet open={!!actionsStudent} onOpenChange={(open) => { if (!open) setActionsStudentId(null); }}>
+      <Sheet open={!isAssociate && !!actionsStudent} onOpenChange={(open) => { if (!open) setActionsStudentId(null); }}>
         <SheetContent
           side="bottom"
           className="rounded-t-2xl border-t bg-white p-5 dark:border-white/10 dark:bg-slate-900 sm:mx-auto sm:max-w-md"

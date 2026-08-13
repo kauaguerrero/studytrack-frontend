@@ -10,6 +10,7 @@ import { ForcePasswordChangeModal } from './ForcePasswordChangeModal'
 import { ShieldEarnedPopup } from './gamification/ShieldEarnedPopup'
 import { QuestionSessionRewardPopup } from './gamification/QuestionSessionRewardPopup'
 import { PopupQueueProvider, usePopupQueue } from './gamification/PopupQueueContext'
+import { PushManager } from './PushManager'
 import { fetchPartnerGamificationCheckInStatusCached } from '@/hooks/usePartnerGamification'
 
 /**
@@ -122,6 +123,11 @@ function StudentThemeShellContent({
       {showPasswordModal && (
         <ForcePasswordChangeModal onSuccess={() => setShowPasswordModal(false)} />
       )}
+
+      {/* Convites de push/instalação — vivem dentro do PopupQueueProvider para
+          poder checar currentPopup e nunca aparecer por cima de um popup de
+          gamificação (ver regras de convivência no próprio componente). */}
+      <PushManager />
 
       {currentPopup?.kind === 'shield_earned' && (
         <ShieldEarnedPopup onDismiss={dismissCurrentPopup} />

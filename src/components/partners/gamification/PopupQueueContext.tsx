@@ -1,5 +1,38 @@
 'use client';
 
+/**
+ * Fila de popups fullscreen da área do aluno — garante que só UM popup
+ * "de fila" fica visível por vez, em qualquer página, via um único
+ * `currentPopup` central (computado aqui, consumido por StudentThemeShell,
+ * DashboardClient, simulado/page.tsx etc. via usePopupQueue()).
+ *
+ * Contrato de z-index (auditado em 29/07/2026 — não quebre isso sem revisar
+ * de novo todos os popups fullscreen do app):
+ *   z-[9999]  ForcePasswordChangeModal — único, bloqueante, fora da fila.
+ *             Nada mais pode usar esse z.
+ *   z-[9500]  TODO popup registrado em QueuePopup['kind'] (StreakPopup,
+ *             ShieldPopup, MonthEndScreen, AchievementUnlockedPopup, etc.,
+ *             incluindo OnboardingDiagnosticModal). Novo kind → novo popup
+ *             component → sempre z-[9500], nunca outro valor. A mutual
+ *             exclusion do currentPopup já impede dois popups de fila
+ *             aparecerem juntos; usar um z diferente aqui não protege nada
+ *             a mais e só cria risco de um deles ficar "engolido" por algo
+ *             fora da fila.
+ *   z-[9000]  Modais abertos por ação do aluno (sino de novidades, "ver
+ *             mais atividades", convite de push/instalação) — abaixo da
+ *             fila de propósito: se um popup de fila abrir, ele sempre
+ *             vence.
+ *   z-50      Primitivas genéricas (Dialog/Sheet do shadcn) — nunca competem
+ *             com nada acima.
+ *
+ * Exceção fora da fila: EssayRewardPopup (redacoes/nova/page.tsx) usa estado
+ * local em vez do currentPopup compartilhado. Hoje isso é seguro porque
+ * nenhum popup com routeScope:'any' é renderizado a partir de um componente
+ * global (StudentThemeShell) — se isso mudar no futuro, EssayRewardPopup
+ * precisa migrar pra fila também, senão os dois podem aparecer ao mesmo
+ * tempo na página de redação.
+ */
+
 import {
   createContext,
   useCallback,
@@ -12,7 +45,6 @@ import {
 } from 'react';
 import { usePathname } from 'next/navigation';
 import type {
-  DiagnosticResult,
   PartnerRankingResponse,
   PopupState,
   StreakDecayResult,
@@ -35,10 +67,6 @@ export type QueuePopup =
       kind: 'onboarding';
       firstName: string;
       organizationName: string;
-    })
-  | (QueuePopupBase & {
-      kind: 'ranking_popup';
-      ranking: PartnerRankingResponse;
     })
   | (QueuePopupBase & {
       kind: 'streak';
@@ -95,6 +123,16 @@ export type QueuePopup =
       rankPosition: number | null;
       pointsToTop3: number | null;
       slug: string;
+    })
+  | (QueuePopupBase & {
+      kind: 'achievement_unlocked';
+      title: string;
+      description: string;
+      icon: string;
+      difficulty: string;
+      difficultyLabel: string;
+      chancePct: number;
+      slug: string;
     });
 
 type EnqueuePopupInput = DistributiveOmit<QueuePopup, 'id' | 'priority' | 'createdAt'> & {
@@ -116,10 +154,10 @@ const POPUP_PRIORITIES: Record<QueuePopup['kind'], number> = {
   streak_broken: 20,
   shield_popup: 30,
   streak_points_lost: 35,
-  ranking_popup: 40,
   shield_earned: 50,
   question_session_reward: 60,
   simulado_reward: 60,
+  achievement_unlocked: 65,
   top3_entered: 70,
   streak: 80,
   contextual: 90,
@@ -251,5 +289,3 @@ export function PopupQueueProvider({ children }: { children: ReactNode }) {
 export function usePopupQueue() {
   return useContext(PopupQueueContext);
 }
-
-export type { DiagnosticResult };

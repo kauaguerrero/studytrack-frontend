@@ -15,7 +15,6 @@ import {
   ChevronRight,
   ChevronDown,
   Activity,
-  Users,
   GraduationCap,
   Settings,
   BrainCircuit,
@@ -60,25 +59,25 @@ const GLOBAL_FAQS: FaqItem[] = [
     question: 'Como altero minha senha?',
     answer: 'Na tela de login, clique em "Esqueceu?" ao lado do campo de senha. Informe seu e-mail e você receberá um link por e-mail. Clique no link e defina sua nova senha na tela que abrir.',
     category: 'Conta',
-    roles: ['student', 'teacher', 'manager', 'secretariat'],
+    roles: ['student', 'admin', 'founder', 'associate', 'dev'],
   },
   {
     question: 'Não consigo acessar minha conta. O que fazer?',
     answer: 'Confira se está usando o e-mail com o qual se cadastrou. Se esqueceu a senha, use "Esqueceu?" na tela de login para receber o link de redefinição. Se o problema continuar, entre em contato pelo WhatsApp ou E-mail de Suporte (nesta página).',
     category: 'Conta',
-    roles: ['student', 'teacher', 'manager', 'secretariat'],
+    roles: ['student', 'admin', 'founder', 'associate', 'dev'],
   },
   {
     question: 'Como reportar um erro no gabarito de uma questão?',
     answer: 'No Banco de Questões, no card da questão, use o botão "Reportar Erro". Escolha o tipo (erro no enunciado, resposta incorreta, formatação, imagens ou outro), opcionalmente escreva uma descrição e envie. Para acompanhar: nesta página (Ajuda e Suporte), aba "Auditoria de Questões".',
     category: 'Banco de Questões',
-    roles: ['student', 'teacher'],
+    roles: ['student', 'admin'],
   },
   {
     question: 'Onde acompanho os reports de erro que enviei?',
     answer: 'Nesta mesma página (Central de Ajuda e Suporte), na aba "Auditoria de Questões". Lá aparecem todos os reports que você enviou pelo Banco de Questões, com status em auditoria ou solucionado.',
     category: 'Banco de Questões',
-    roles: ['student', 'teacher'],
+    roles: ['student', 'admin'],
   },
   {
     question: 'Como uso os filtros no Banco de Questões?',
@@ -108,7 +107,7 @@ const GLOBAL_FAQS: FaqItem[] = [
     question: 'Como falo com o suporte?',
     answer: 'Nesta página: use o card "Suporte via WhatsApp" para conversar com a equipe ou "E-mail de Suporte" para abrir o Gmail com um modelo de mensagem. Para tutoriais passo a passo, acesse o card "Base de Conhecimento" (Manual do Estudante).',
     category: 'Suporte',
-    roles: ['student', 'teacher', 'manager', 'secretariat'],
+    roles: ['student', 'admin', 'founder', 'associate', 'dev'],
   },
   {
     question: 'Como funcionam as metas?',
@@ -242,7 +241,7 @@ export default function AjudaESuportePage() {
     fetchReports();
   }, [fetchReports]);
 
-  const effectiveRole = currentRole === 'admin' ? 'manager' : currentRole;
+  const effectiveRole = currentRole;
 
   // Busca efetiva: índice (FAQs + KB) + pontuação por palavras-chave
   const searchResults = useMemo(() => {
@@ -258,7 +257,7 @@ export default function AjudaESuportePage() {
     return withScores.slice(0, 10).map(({ entry }) => entry);
   }, [searchQuery, effectiveRole]);
 
-  // Filtro de FAQs funcional (admin vê as mesmas FAQs que manager)
+  // Filtro de FAQs funcional por role viva.
   const filteredFAQs = useMemo(() => {
     return GLOBAL_FAQS.filter(faq => {
       const matchesRole = faq.roles.includes(effectiveRole);
@@ -268,11 +267,8 @@ export default function AjudaESuportePage() {
     });
   }, [currentRole, searchQuery, effectiveRole]);
 
-  // UI Helpers baseados na Role (admin usa estilo manager)
+  // UI Helpers baseados na Role.
   const roleConfig: Record<UserRole, { icon: typeof Settings; title: string; color: string; bgBadge: string }> = {
-    manager: { icon: Settings, title: 'Portal do Gestor', color: 'text-blue-100', bgBadge: 'bg-blue-800' },
-    secretariat: { icon: Users, title: 'Portal da Secretaria', color: 'text-purple-100', bgBadge: 'bg-purple-800' },
-    teacher: { icon: GraduationCap, title: 'Portal do Professor', color: 'text-amber-100', bgBadge: 'bg-amber-800' },
     student: { icon: BrainCircuit, title: 'Portal do Aluno', color: 'text-emerald-100', bgBadge: 'bg-emerald-800' },
     admin: { icon: Settings, title: 'Administração', color: 'text-slate-100', bgBadge: 'bg-slate-800' },
     dev: { icon: Settings, title: 'Portal Dev', color: 'text-fuchsia-100', bgBadge: 'bg-fuchsia-800' },
@@ -352,7 +348,7 @@ export default function AjudaESuportePage() {
             Visão Geral
           </button>
           
-          {(currentRole === 'student' || currentRole === 'teacher' || currentRole === 'admin') && (
+          {(currentRole === 'student' || currentRole === 'admin') && (
             <button
               onClick={() => setActiveTab('reports')}
               className={`px-8 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center gap-2 ${
@@ -442,11 +438,6 @@ export default function AjudaESuportePage() {
                   <p className="text-xs font-medium text-emerald-700 mt-0.5">Banco de questões, IA e integrações funcionando 100%.</p>
                 </div>
               </div>
-              {currentRole === 'manager' && (
-                <Button variant="outline" size="sm" className="bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-100 font-bold text-xs">
-                  Ver Log B2B
-                </Button>
-              )}
             </div>
 
             {/* Quick Links de Suporte - Links reais */}
@@ -494,7 +485,7 @@ export default function AjudaESuportePage() {
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-900 dark:text-slate-50 text-lg">
-                        {currentRole === 'manager' || currentRole === 'secretariat' ? 'Suporte Dedicado B2B' : 'E-mail de Suporte'}
+                        {currentRole === 'founder' || currentRole === 'associate' ? 'Suporte Dedicado B2B' : 'E-mail de Suporte'}
                       </h3>
                       <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 font-medium">
                         {currentRole === 'student' ? 'Dúvidas sobre sua assinatura ou conta.' : 'Abra um ticket para o time de engenharia ou financeiro.'}

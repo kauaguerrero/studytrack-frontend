@@ -58,12 +58,24 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  // PWA / iOS "Adicionar à Tela de Início" — usado pelo hint de instalação
+  // no app do aluno (PushManager.tsx). manifest.ts cobre o Android/Chrome;
+  // estes campos cobrem o Safari/iOS, que ignora o manifest para esse fim.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "StudyTrack",
+  },
+  icons: {
+    apple: "/logost.png",
+  },
 }
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  themeColor: "#0f172a",
 };
 
 export default function RootLayout({

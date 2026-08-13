@@ -163,7 +163,7 @@ export function MonthEndScreen({
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+        className="fixed inset-0 z-[9500] flex items-center justify-center p-4"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
