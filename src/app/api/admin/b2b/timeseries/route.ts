@@ -141,7 +141,8 @@ export async function GET(request: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
-  const { data: orgs } = await db.from('organizations').select('id').eq('is_mock', false).eq('is_active', true);
+  const { data: orgs } = await db.from('organizations').select('id')
+    .eq('is_mock', false).eq('is_active', true).eq('billing_enabled', true);
   const orgIds: string[] = (orgs ?? []).map((o: { id: string }) => o.id);
 
   if (orgIds.length === 0) {
