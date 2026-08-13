@@ -30,6 +30,7 @@
     "d3-geo": "^2.0.2",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.38.0",
+    "gsap": "^3.15.0",
     "html-to-image": "^1.11.13",
     "isomorphic-dompurify": "^3.0.0-rc.2",
     "jspdf": "^4.0.0",

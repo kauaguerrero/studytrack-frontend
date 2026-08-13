@@ -4,10 +4,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { GraduationCap, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { PasswordStrengthMeter } from '@/components/ui/password-strength';
+import { LayeredText } from '@/components/ui/layered-text';
+import {
+  GraduationCap, Eye, EyeOff, Loader2, Mail, Lock, CheckCircle2, ArrowRight, AlertTriangle,
+} from 'lucide-react';
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const EMAIL_MAX_LENGTH = 254;
@@ -26,6 +29,15 @@ function sanitizeEmailInput(value: string): string {
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= EMAIL_MAX_LENGTH;
 }
+
+const GoogleIcon = () => (
+  <svg className="h-4.5 w-4.5" viewBox="0 0 24 24">
+    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+  </svg>
+);
 
 interface OrgPublicInfo {
   name: string;
@@ -48,6 +60,7 @@ export default function PartnerLoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
@@ -216,78 +229,150 @@ export default function PartnerLoginPage() {
     }
   }
 
+  async function handleGoogleLogin() {
+    setGoogleLoading(true);
+    try {
+      const nextPath = searchParams.get('next') ?? '/portal';
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+          queryParams: { access_type: 'offline', prompt: 'consent' },
+        },
+      });
+      if (oauthError) throw oauthError;
+    } catch {
+      setError('Não foi possível iniciar o login com Google. Tente novamente.');
+      setGoogleLoading(false);
+    }
+  }
+
   const primary = sanitizeCssHexColor(org?.brand_primary, '#6366f1');
   const secondary = sanitizeCssHexColor(org?.brand_secondary, '#8b5cf6');
 
+  const emailValid = isValidEmail(sanitizeEmailInput(email).toLowerCase());
+  const passwordValid = password.length >= PASSWORD_MIN_LENGTH;
+
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center p-4"
-      style={{ background: `linear-gradient(135deg, ${primary}15 0%, ${secondary}15 100%)` }}
-    >
-      <div className="w-full max-w-md">
-        <div className="rounded-2xl border bg-white shadow-xl dark:bg-slate-900 overflow-hidden">
-          <div
-            className="px-8 py-6 text-center text-white"
-            style={{ background: `linear-gradient(135deg, ${primary}, ${secondary})` }}
+    <div className="flex min-h-screen w-full overflow-x-hidden bg-white font-sans text-slate-900">
+      {/* ── Esquerda: formulário ── */}
+      <div className="relative z-20 flex h-screen min-h-0 w-full min-w-0 shrink-0 flex-col bg-white min-[901px]:w-1/2">
+        <div className="flex-none min-w-0 p-4 sm:p-6 xl:p-8">
+          <Link
+            href={`/partners/${slug}/dashboard`}
+            className="group flex w-fit min-w-0 max-w-full flex-wrap items-center gap-0"
           >
             {loadingOrg ? (
-              <div className="h-14 w-14 rounded-xl bg-white/20 animate-pulse mx-auto mb-3" />
+              <div className="h-10 w-10 animate-pulse rounded-lg bg-slate-100" />
             ) : org?.logo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={org.logo_url}
-                alt={org.name}
-                className="h-14 w-14 mx-auto mb-3 rounded-xl object-contain"
-              />
+              <img src={org.logo_url} alt={org.name} className="h-10 w-10 rounded-lg object-contain" />
             ) : (
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/20 mx-auto mb-3">
-                <GraduationCap className="h-7 w-7" />
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-lg text-white"
+                style={{ background: `linear-gradient(135deg, ${primary}, ${secondary})` }}
+              >
+                <GraduationCap className="h-5 w-5" />
               </div>
             )}
-            <h1 className="text-xl font-bold">
-              {loadingOrg ? '\u00A0' : `Entrar — ${org?.name ?? slug}`}
-            </h1>
-            <p className="text-sm opacity-80 mt-0.5">Plataforma de Estudos StudyTrack</p>
-          </div>
+            <span className="ml-2.5 truncate text-lg font-extrabold tracking-tight text-slate-900">
+              {loadingOrg ? ' ' : (org?.name ?? slug)}
+            </span>
+          </Link>
+        </div>
 
-          <div className="px-8 py-6 space-y-4">
+        <div
+          className="flex min-h-0 flex-1 min-w-0 flex-col justify-start overflow-y-auto px-4 pb-8 pt-2 sm:px-6 md:px-8 min-[901px]:pb-0 min-[901px]:pt-0 xl:px-12"
+          style={{ overflowAnchor: 'none' }}
+        >
+          {/* my-auto (não justify-center no pai) centraliza só quando sobra espaço —
+              se o conteúdo for mais alto que a tela, volta pro topo em vez de
+              cortar simetricamente topo e rodapé. */}
+          <div className="mx-auto w-full max-w-[420px] min-w-0 min-[901px]:my-auto">
+            <div className="mb-7 min-w-0">
+              <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.16em]" style={{ color: primary }}>
+                Painel do aluno e do gestor
+              </p>
+              <h1 className="font-display text-[30px] font-black leading-[1.05] tracking-tight text-slate-900 sm:text-[34px]">
+                Bem-vindo de volta.
+              </h1>
+              <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
+                Entre para continuar de onde parou.
+              </p>
+            </div>
+
+            <button
+              onClick={handleGoogleLogin}
+              type="button"
+              disabled={googleLoading}
+              className="group mb-6 flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-slate-300 bg-white text-sm font-semibold text-slate-700 transition-all duration-300 hover:border-blue-300 hover:bg-slate-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {googleLoading
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <div className="transition-transform group-hover:scale-110" aria-hidden><GoogleIcon /></div>}
+              Continuar com Google
+            </button>
+
+            <div className="relative mb-6">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+              <div className="relative flex justify-center text-xs font-bold uppercase tracking-widest">
+                <span className="bg-white px-4 text-slate-500">ou via e-mail</span>
+              </div>
+            </div>
+
             {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-                {error}
+              <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-600">
+                <AlertTriangle className="h-5 w-5 shrink-0" />
+                <span>{error}</span>
               </div>
             )}
             {infoMessage && !error && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                {infoMessage}
+              <div className="mb-4 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
+                <CheckCircle2 className="h-5 w-5 shrink-0" />
+                <span>{infoMessage}</span>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-sm">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(sanitizeEmailInput(e.target.value))}
-                  placeholder="seu@email.com"
-                  autoComplete="email"
-                  maxLength={EMAIL_MAX_LENGTH}
-                />
+                <Label htmlFor="email" className="text-[13px] font-bold text-slate-700">Email</Label>
+                <div className="relative">
+                  <Mail
+                    className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400 transition-colors"
+                    style={emailValid ? { color: primary } : undefined}
+                  />
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(sanitizeEmailInput(e.target.value))}
+                    placeholder="seu@email.com"
+                    autoComplete="email"
+                    maxLength={EMAIL_MAX_LENGTH}
+                    className="h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 pr-10 font-medium focus-visible:border-blue-500 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0"
+                  />
+                  {emailValid && (
+                    <CheckCircle2 className="absolute right-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-emerald-500" />
+                  )}
+                </div>
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor="password" className="text-sm">Senha</Label>
+                  <Label htmlFor="password" className="text-[13px] font-bold text-slate-700">Senha</Label>
                   <Link
                     href={`/partners/${slug}/reset`}
-                    className="text-xs underline hover:opacity-80"
+                    className="text-[13px] font-semibold hover:underline"
                     style={{ color: primary }}
                   >
                     Esqueceu?
                   </Link>
                 </div>
                 <div className="relative">
+                  <Lock
+                    className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400 transition-colors"
+                    style={passwordValid ? { color: primary } : undefined}
+                  />
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
@@ -295,46 +380,71 @@ export default function PartnerLoginPage() {
                     onChange={(e) => setPassword(e.target.value.slice(0, PASSWORD_MAX_LENGTH))}
                     placeholder="Sua senha"
                     autoComplete="current-password"
-                    className="pr-10"
+                    className="h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 pr-12 font-medium focus-visible:border-blue-500 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-2 top-1/2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600"
                     tabIndex={-1}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                   </button>
                 </div>
+                <PasswordStrengthMeter password={password} />
               </div>
 
-              <Button
+              <button
                 type="submit"
-                className="w-full gap-2 text-white mt-2"
-                style={{ backgroundColor: primary }}
-                disabled={submitting}
+                disabled={submitting || !email || !password}
+                className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-sm font-bold text-white shadow-xl transition-all disabled:cursor-not-allowed disabled:opacity-70"
+                style={{ background: `linear-gradient(135deg, ${primary}, ${secondary})`, boxShadow: `0 12px 28px -10px ${primary}80` }}
               >
-                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {submitting ? 'Entrando...' : 'Entrar'}
-              </Button>
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Entrando...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Entrar Agora</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
             </form>
 
-            <Link
-              href={`/partners/${slug}/register`}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg border-2 px-4 py-2 text-sm font-semibold transition-colors hover:bg-opacity-10"
-              style={{ borderColor: primary, color: primary }}
-            >
-              Não tenho conta — Criar conta
-            </Link>
+            <p className="pt-4 text-center text-sm text-slate-500">
+              Não tenho conta{' '}
+              <Link
+                href={`/partners/${slug}/register`}
+                className="font-semibold underline hover:opacity-80"
+                style={{ color: primary }}
+              >
+                → Criar conta
+              </Link>
+            </p>
           </div>
         </div>
+      </div>
 
-        <p className="mt-6 text-center text-xs text-slate-400">
-          Powered by{' '}
-          <Link href="https://studytrack.com.br" className="underline hover:text-slate-600">
-            StudyTrack
-          </Link>
-        </p>
+      {/* ── Direita: painel visual ── */}
+      <div className="relative hidden w-1/2 items-center justify-center overflow-hidden bg-[#0a0e1a] min-[901px]:flex">
+        <div className="pointer-events-none absolute inset-0">
+          <div
+            className="absolute left-1/2 top-[-15%] h-[560px] w-[560px] -translate-x-1/2 rounded-full blur-[130px]"
+            style={{ background: `${primary}30` }}
+          />
+          <div
+            className="absolute bottom-[-20%] right-[-10%] h-[420px] w-[420px] rounded-full blur-[120px]"
+            style={{ background: `${secondary}22` }}
+          />
+        </div>
+        <div className="partner-halftone pointer-events-none absolute inset-0 opacity-[0.18] [mask-image:radial-gradient(ellipse_at_center,black_0%,transparent_70%)]" />
+
+        <div className="relative z-10 w-full overflow-hidden px-6">
+          <LayeredText className="mx-auto" />
+        </div>
       </div>
     </div>
   );

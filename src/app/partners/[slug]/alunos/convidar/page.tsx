@@ -6,8 +6,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import {
-  Card, CardContent, CardHeader, CardTitle, CardDescription,
-} from '@/components/ui/card';
+  RevealGroup, RevealItem, ElevatedCard, SectionTitle, BrandButton, BrandHero, HERO_ACCENT_COLOR,
+} from '@/components/partners/founder-ui';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -187,105 +187,95 @@ export default function ConvidarAlunosPage() {
 
   return (
     <PartnerLayout>
-      <div className="space-y-6 max-w-2xl w-full">
-        <Button variant="ghost" size="sm" asChild className="gap-1.5 -ml-2">
-          <Link href={`/partners/${org.slug}/alunos`}>
-            <ArrowLeft className="h-4 w-4" /> Voltar para Alunos
-          </Link>
-        </Button>
+      <div className="edificar-page-canvas min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 [--partner-surface-base:#ffffff] dark:[--partner-surface-base:#0f172a]">
+        <RevealGroup className="edificar-page-frame mx-auto w-full max-w-4xl p-3 md:p-4">
 
-        <section
-          className="relative overflow-hidden rounded-3xl border border-slate-200 p-6 shadow-sm dark:border-slate-700"
-          style={{
-            background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 14%, white) 0%, color-mix(in srgb, var(--brand-secondary) 10%, white) 100%)',
-          }}
-        >
-          <div
-            className="pointer-events-none absolute inset-0 hidden dark:block"
-            style={{
-              background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 24%, #0f172a) 0%, color-mix(in srgb, var(--brand-secondary) 18%, #0f172a) 100%)',
-            }}
-          />
-          <div
-            className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full blur-3xl opacity-60"
-            style={{ background: 'color-mix(in srgb, var(--brand-secondary) 48%, transparent)' }}
-          />
-          <div className="relative z-10">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border bg-white/70 px-3 py-1 text-xs font-semibold dark:bg-slate-900/60"
-              style={{
-                color: 'var(--brand-primary)',
-                borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
-              }}
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
+        <RevealItem className="mb-3">
+          <Button variant="ghost" size="sm" asChild className="gap-1.5 -ml-2">
+            <Link href={`/partners/${org.slug}/alunos`}>
+              <ArrowLeft className="h-4 w-4" /> Voltar para Alunos
+            </Link>
+          </Button>
+        </RevealItem>
+
+        <RevealItem className="mb-5">
+          <BrandHero>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/50">
+              <FileSpreadsheet className="mr-1.5 inline h-3.5 w-3.5" style={{ color: HERO_ACCENT_COLOR }} />
               Entrada de alunos
-            </div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Adicionar Alunos</h1>
-            <p className="mt-1 max-w-xl text-sm text-slate-600 dark:text-slate-300">
+            </p>
+            <h1 className="font-display text-[28px] font-black text-white lg:text-[34px]">Adicionar Alunos</h1>
+            <p className="mt-1 max-w-xl text-[13px] text-white/60">
               Importe via CSV ou compartilhe o link de convite em um fluxo mais leve e centralizado.
             </p>
-          </div>
-        </section>
+          </BrandHero>
+        </RevealItem>
+
+        <div className="flex flex-col gap-5">
 
         {/* Link de convite */}
-        <Card className="edificar-major-surface">
-          <CardHeader>
-            <CardTitle className="text-sm">Link de Convite</CardTitle>
-            <CardDescription>Compartilhe com os alunos para cadastro direto</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex gap-2">
-              <Input readOnly value={inviteUrl} className="text-xs text-slate-500 font-mono flex-1" />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleCopyInvite}
-                className="shrink-0"
-                title="Copiar link"
-              >
-                {copiedInvite ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={handleRefreshCode}
-                disabled={refreshingCode}
-                className="shrink-0"
-                title="Gerar novo código (invalida o anterior)"
-              >
-                <RefreshCw className={`h-4 w-4 ${refreshingCode ? 'animate-spin' : ''}`} />
-              </Button>
+        <RevealItem>
+        <ElevatedCard accentColor="var(--brand-primary)" className="edificar-major-surface">
+          <div className="p-5">
+            <SectionTitle kicker="Convite" title="Link de Convite" hex={org.brand_primary} />
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <Input readOnly value={inviteUrl} className="text-xs text-slate-500 font-mono flex-1" />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCopyInvite}
+                  className="shrink-0"
+                  title="Copiar link"
+                >
+                  {copiedInvite ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleRefreshCode}
+                  disabled={refreshingCode}
+                  className="shrink-0"
+                  title="Gerar novo código (invalida o anterior)"
+                >
+                  <RefreshCw className={`h-4 w-4 ${refreshingCode ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+              <p className="text-xs text-slate-400">
+                Ao clicar no link, o aluno é direcionado para criar uma conta vinculada a {org.name}.
+                Gere um novo código para invalidar o link atual.
+              </p>
             </div>
-            <p className="text-xs text-slate-400">
-              Ao clicar no link, o aluno é direcionado para criar uma conta vinculada a {org.name}.
-              Gere um novo código para invalidar o link atual.
-            </p>
-          </CardContent>
-        </Card>
+          </div>
+        </ElevatedCard>
+        </RevealItem>
 
         {/* Import CSV */}
-        <Card className="edificar-major-surface">
-          <CardHeader>
-            <CardTitle className="text-sm flex items-center gap-2">
-              <FileSpreadsheet className="h-4 w-4" />
-              Importação em Massa (CSV / Excel)
-            </CardTitle>
-            <CardDescription>
-              Faça upload de uma planilha com as colunas <code className="rounded bg-slate-100 px-1 text-xs dark:bg-slate-800">nome</code> e{' '}
-              <code className="rounded bg-slate-100 px-1 text-xs dark:bg-slate-800">email</code>. Alunos que já têm conta serão vinculados automaticamente.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <RevealItem>
+        <ElevatedCard accentColor="var(--brand-secondary)" className="edificar-major-surface">
+          <div className="p-5">
+            <SectionTitle
+              kicker="Importação"
+              title="Importação em Massa (CSV / Excel)"
+              hex={org.brand_secondary}
+              action={
+                <p className="max-w-[240px] text-right text-[11px] text-slate-400 dark:text-white/40">
+                  Colunas <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">nome</code> e{' '}
+                  <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">email</code>. Alunos com conta são vinculados automaticamente.
+                </p>
+              }
+            />
+            <div className="space-y-4">
             {/* Drop zone */}
             <div
-              className="cursor-pointer rounded-lg border-2 border-dashed border-slate-300 p-8 text-center transition-colors hover:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900/50"
+              className="cursor-pointer rounded-xl border-2 border-dashed border-slate-300 p-8 text-center transition-colors hover:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-white/5"
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="h-8 w-8 mx-auto text-slate-400 mb-2" />
               {fileName ? (
-                <p className="text-sm font-medium text-slate-700">{fileName}</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{fileName}</p>
               ) : (
                 <p className="text-sm text-slate-400">
                   Arraste um arquivo .csv aqui ou <span className="underline" style={{ color: 'var(--brand-primary)' }}>clique para selecionar</span>
@@ -304,7 +294,7 @@ export default function ConvidarAlunosPage() {
             {/* Preview das linhas */}
             {csvRows.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-500">
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                   <span>{validRows.length} válido{validRows.length !== 1 ? 's' : ''}</span>
                   {invalidRows.length > 0 && (
                     <span className="text-rose-500 flex items-center gap-1">
@@ -312,20 +302,20 @@ export default function ConvidarAlunosPage() {
                     </span>
                   )}
                 </div>
-                <div className="max-h-52 overflow-y-auto overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="max-h-52 overflow-y-auto overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
                   <table className="w-full text-xs">
-                    <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
+                    <thead className="bg-slate-50 dark:bg-white/5 sticky top-0">
                       <tr>
                         <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-300">Nome</th>
                         <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-300">Email</th>
                         <th className="px-3 py-2 text-center font-medium text-slate-500 dark:text-slate-300">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y">
+                    <tbody className="divide-y dark:divide-slate-700">
                       {csvRows.slice(0, 50).map((row, i) => (
                         <tr key={i} className={row.valid ? '' : 'bg-rose-50 dark:bg-rose-950/20'}>
-                          <td className="px-3 py-1.5">{row.name || '—'}</td>
-                          <td className="px-3 py-1.5 font-mono">{row.email}</td>
+                          <td className="px-3 py-1.5 text-slate-700 dark:text-slate-200">{row.name || '—'}</td>
+                          <td className="px-3 py-1.5 font-mono text-slate-700 dark:text-slate-200">{row.email}</td>
                           <td className="px-3 py-1.5 text-center">
                             {row.valid ? (
                               <Badge variant="outline" className="text-xs border-emerald-300 text-emerald-600">OK</Badge>
@@ -349,8 +339,8 @@ export default function ConvidarAlunosPage() {
             )}
 
             {/* Senha padrão */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">
+            <div className="space-y-1.5 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
                 Senha padrão para os alunos
               </Label>
               <div className="relative">
@@ -376,30 +366,30 @@ export default function ConvidarAlunosPage() {
               </p>
             </div>
 
-            <Button
-              className="w-full gap-2 text-white"
-              style={{ backgroundColor: 'var(--brand-primary)' }}
-              disabled={validRows.length === 0 || importing}
+            <BrandButton
+              className="w-full justify-center"
+              hex={org.brand_primary}
               onClick={handleImport}
+              disabled={validRows.length === 0 || importing}
             >
               <Upload className="h-4 w-4" />
               {importing
                 ? 'Importando...'
                 : `Importar ${validRows.length} aluno${validRows.length !== 1 ? 's' : ''}`}
-            </Button>
+            </BrandButton>
 
             {/* Credenciais após importação bem-sucedida */}
             {result && result.imported > 0 && (
               <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/40 dark:bg-emerald-900/20">
-                <p className="text-sm font-semibold text-emerald-800">
+                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
                   ✅ {result.imported} alunos importados com sucesso
                 </p>
                 <div className="space-y-2 rounded-lg border border-emerald-100 bg-white p-3 dark:border-emerald-500/30 dark:bg-slate-950/70">
-                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+                  <p className="text-xs font-bold text-slate-600 uppercase tracking-wide dark:text-slate-300">
                     Credenciais para repassar aos alunos:
                   </p>
                   <div className="flex items-center justify-between gap-2">
-                    <div className="space-y-1 text-xs text-slate-700">
+                    <div className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
                       <p>🌐 <span className="font-mono">{inviteUrl}</span></p>
                       <p>🔑 Senha: <span className="font-mono font-bold">{defaultPassword}</span></p>
                     </div>
@@ -411,9 +401,9 @@ export default function ConvidarAlunosPage() {
                         toast.success('Copiado!');
                       }}
                       className="shrink-0 p-2 rounded-lg bg-emerald-100
-                                 hover:bg-emerald-200 transition-colors"
+                                 hover:bg-emerald-200 transition-colors dark:bg-emerald-500/20 dark:hover:bg-emerald-500/30"
                     >
-                      <Copy size={14} className="text-emerald-700" />
+                      <Copy size={14} className="text-emerald-700 dark:text-emerald-300" />
                     </button>
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1">
@@ -425,11 +415,11 @@ export default function ConvidarAlunosPage() {
 
             {/* Resultado completo (erros e vinculados) */}
             {result && (result.linked > 0 || result.errors.length > 0) && (
-              <div className="space-y-2 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+              <div className="space-y-2 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
                 <p className="text-sm font-semibold text-slate-700 dark:text-white">Detalhes da importação</p>
                 <div className="flex gap-4 text-sm">
                   {result.linked > 0 && (
-                    <span className="text-blue-600 font-medium">⟳ {result.linked} contas vinculadas</span>
+                    <span className="text-blue-600 dark:text-blue-400 font-medium">⟳ {result.linked} contas vinculadas</span>
                   )}
                 </div>
                 {result.errors.length > 0 && (
@@ -446,8 +436,13 @@ export default function ConvidarAlunosPage() {
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        </ElevatedCard>
+        </RevealItem>
+
+        </div>
+        </RevealGroup>
       </div>
     </PartnerLayout>
   );
