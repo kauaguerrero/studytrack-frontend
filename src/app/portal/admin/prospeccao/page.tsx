@@ -13,6 +13,7 @@ import { LeadDrawer } from './components/LeadDrawer';
 import { ImportModal } from './components/ImportModal';
 import { CreateLeadModal } from './components/CreateLeadModal';
 import { ScheduleCallModal } from './components/ScheduleCallModal';
+import { GoogleCalendarTokenBadge } from './components/GoogleCalendarTokenBadge';
 import type { Lead, LeadFilters } from './types';
 
 function normalizeStr(s: string): string {
@@ -108,6 +109,9 @@ export default function ProspeccaoPage() {
           <p className="text-xs text-slate-400 dark:text-zinc-500">
             {statsLoading ? 'Carregando...' : `${totalLeads} leads na base`}
           </p>
+          <div className="mt-2">
+            <GoogleCalendarTokenBadge />
+          </div>
         </div>
 
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
