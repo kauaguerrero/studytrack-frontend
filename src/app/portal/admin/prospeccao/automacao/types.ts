@@ -26,6 +26,10 @@ export interface FlowNode {
   flow_id?: string;
   title: string;
   message_body: string;
+  /** Textos alternativos (mesmo sentido, redação diferente) sorteados junto
+   *  com message_body na hora do envio — evita mandar o texto idêntico pra
+   *  todo lead, reduzindo a chance de detecção anti-bot do WhatsApp. */
+  message_variants: string[];
   is_start: boolean;
   action_type: NodeActionType | null;
   position_x: number;
