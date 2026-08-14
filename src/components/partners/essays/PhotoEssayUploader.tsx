@@ -86,6 +86,25 @@ async function compressImage(file: File): Promise<File> {
   });
 }
 
+// Navegadores modernos já aplicam a rotação do EXIF ao decodificar pro <img>/
+// canvas, então width/height aqui refletem a orientação "como se vê" —
+// mesma leitura que o preview mostra pro aluno.
+function checkPortraitOrientation(file: File): Promise<boolean> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(img.width <= img.height);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(true); // não bloqueia por falha de leitura — backend valida de novo
+    };
+    img.src = objectUrl;
+  });
+}
+
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -238,7 +257,7 @@ export function PhotoEssayUploader({
     setShowModal(false);
   }
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -257,6 +276,16 @@ export function PhotoEssayUploader({
       setSelectedFile(null);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(null);
+      return;
+    }
+
+    const isPortrait = await checkPortraitOrientation(file);
+    if (!isPortrait) {
+      setFileError('A foto parece estar na horizontal. Fotografe a redação na vertical, com a folha em pé.');
+      setSelectedFile(null);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+      if (inputRef.current) inputRef.current.value = '';
       return;
     }
 
