@@ -36,6 +36,7 @@ const ACTION_ICON: Record<NodeActionType, typeof UserX> = {
 interface StepNodeData {
   title: string;
   message_body: string;
+  message_variants: string[];
   is_start: boolean;
   action_type: NodeActionType | null;
   // computado a partir das arestas pra colorir visualmente, não vem da API nem é salvo
@@ -112,9 +113,16 @@ function StepNodeCard({ data, selected }: NodeProps<StepNode>) {
           <ActionIcon className="w-3.5 h-3.5 shrink-0" /> {ACTION_LABEL[data.action_type as NodeActionType]}
         </p>
       ) : (
-        <p className="text-xs text-slate-500 dark:text-zinc-400 line-clamp-2 mt-0.5">
-          {data.message_body || <span className="italic">sem mensagem</span>}
-        </p>
+        <>
+          <p className="text-xs text-slate-500 dark:text-zinc-400 line-clamp-2 mt-0.5">
+            {data.message_body || <span className="italic">sem mensagem</span>}
+          </p>
+          {data.message_variants.length > 0 && (
+            <p className="text-[10px] text-violet-500 dark:text-violet-400 mt-0.5">
+              +{data.message_variants.length} variante{data.message_variants.length > 1 ? 's' : ''}
+            </p>
+          )}
+        </>
       )}
       <Handle
         type="source"
@@ -158,7 +166,7 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
             id: n.id,
             type: 'step',
             position: { x: n.position_x, y: n.position_y },
-            data: { title: n.title, message_body: n.message_body, is_start: n.is_start, action_type: n.action_type ?? null },
+            data: { title: n.title, message_body: n.message_body, message_variants: n.message_variants ?? [], is_start: n.is_start, action_type: n.action_type ?? null },
           }))
         );
         setEdges(
@@ -216,7 +224,7 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
         id,
         type: 'step',
         position: { x: 120 + nds.length * 40, y: 120 + nds.length * 30 },
-        data: { title: 'Novo passo', message_body: '', is_start: nds.length === 0, action_type: null },
+        data: { title: 'Novo passo', message_body: '', message_variants: [], is_start: nds.length === 0, action_type: null },
       },
     ]);
     setSelectedNodeId(id);
@@ -336,6 +344,7 @@ export function FlowEditorModal({ flowId, flowName, onClose, onSaved }: FlowEdit
           id: n.id,
           title: n.data.title,
           message_body: n.data.message_body,
+          message_variants: n.data.message_variants,
           is_start: n.data.is_start,
           action_type: n.data.action_type,
           position_x: n.position.x,
@@ -534,7 +543,7 @@ function NodeConfigPanel({
             <MessageSquare className="w-4 h-4" /> Mensagem
           </button>
           <button
-            onClick={() => onChange({ action_type: 'discard_lead', message_body: '' })}
+            onClick={() => onChange({ action_type: 'discard_lead', message_body: '', message_variants: [] })}
             className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-semibold transition-colors ${
               isAction
                 ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
@@ -565,16 +574,59 @@ function NodeConfigPanel({
           </p>
         </div>
       ) : (
-        <div>
-          <label className={labelCls}>Mensagem enviada ao lead</label>
-          <textarea
-            value={data.message_body}
-            onChange={(e) => onChange({ message_body: e.target.value })}
-            rows={5}
-            className={`${inputCls} resize-none`}
-            placeholder="Boa tarde, tudo bem?"
-          />
-          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mt-1">Deixe em branco pra um passo que só roteia, sem mandar mensagem.</p>
+        <div className="space-y-3">
+          <div>
+            <label className={labelCls}>Mensagem enviada ao lead</label>
+            <textarea
+              value={data.message_body}
+              onChange={(e) => onChange({ message_body: e.target.value })}
+              rows={5}
+              className={`${inputCls} resize-none`}
+              placeholder="Boa tarde, tudo bem?"
+            />
+            <p className="text-[11px] text-slate-400 dark:text-zinc-500 mt-1">Deixe em branco pra um passo que só roteia, sem mandar mensagem.</p>
+          </div>
+
+          {data.message_body.trim() && (
+            <div>
+              <div className="flex items-center justify-between">
+                <label className={labelCls}>Variantes (opcional)</label>
+                <button
+                  type="button"
+                  onClick={() => onChange({ message_variants: [...data.message_variants, ''] })}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300"
+                >
+                  <Plus className="w-3 h-3" /> Adicionar variante
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-400 dark:text-zinc-500 mb-1.5">
+                Textos com o mesmo sentido da mensagem acima, redigidos diferente. A cada envio um deles é sorteado, pra não mandar o texto idêntico pra todo lead.
+              </p>
+              {data.message_variants.map((variant, i) => (
+                <div key={i} className="flex gap-1.5 mb-1.5">
+                  <textarea
+                    value={variant}
+                    onChange={(e) => {
+                      const next = [...data.message_variants];
+                      next[i] = e.target.value;
+                      onChange({ message_variants: next });
+                    }}
+                    rows={3}
+                    className={`${inputCls} resize-none flex-1`}
+                    placeholder={`Variante ${i + 1}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onChange({ message_variants: data.message_variants.filter((_, idx) => idx !== i) })}
+                    className="h-fit shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 transition-colors"
+                    title="Remover variante"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
