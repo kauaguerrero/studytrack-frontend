@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 
 export default async function NotFound() {
   const supabase = await createClient();
@@ -18,22 +19,28 @@ export default async function NotFound() {
 
     if (role === 'admin') homeLink = '/portal/admin';
   } else {
-      homeLink = '/';
+    homeLink = '/';
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 text-slate-900">
-      <h1 className="text-6xl font-bold text-blue-600 mb-4">404</h1>
-      <h2 className="text-2xl font-semibold mb-6">Página não encontrada</h2>
-      <p className="text-slate-500 mb-8 max-w-md text-center">
-        Ops! Parece que você se perdeu nos estudos. A página que você está procurando não existe ou foi movida.
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center dark:bg-[#080808]">
+      <BrokenPencilIllustration className="mb-2 h-auto w-64 sm:w-80" />
+
+      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-white/40">
+        Erro 404
       </p>
-      
-      <Link 
+      <h1 className="font-display mt-1.5 text-[32px] font-black leading-tight text-slate-900 dark:text-white sm:text-[40px]">
+        Página não encontrada
+      </h1>
+      <p className="mt-3 max-w-md text-sm text-slate-500 dark:text-white/50">
+        Parece que você se perdeu nos estudos. A página que você está procurando não existe ou foi movida.
+      </p>
+
+      <Link
         href={homeLink}
-        className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20"
+        className="mt-8 inline-flex min-h-12 items-center justify-center rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-xl shadow-blue-600/20 transition-colors hover:bg-blue-700"
       >
-        Voltar para o Início
+        Voltar para o início
       </Link>
     </div>
   );

@@ -15,6 +15,7 @@ import { UsageHeartbeat } from '@/components/students/UsageHeartbeat';
 import { getStudentThemeStorageKey, type StudentTheme } from '@/lib/student-theme';
 import { normalizeOrgTypewriterTagline, type OrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
 import { normalizeOrgApprovedPhotos, type OrgApprovedPhoto } from '@/lib/org-approved-photos';
+import { pingDemoOrgAccess } from '@/lib/demo-org-access';
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 function sanitizeCssHexColor(value: string | null | undefined, fallback: string): string {
@@ -76,10 +77,11 @@ export default async function PartnerStudentLayout({ children, params }: Student
     permissions: Record<string, boolean> | null;
     typewriter_tagline: unknown;
     approved_student_photos: unknown;
+    is_mock: boolean | null;
   };
   const orgRes = await adminClient
     .from('organizations')
-    .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent, permissions, typewriter_tagline, approved_student_photos')
+    .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent, permissions, typewriter_tagline, approved_student_photos, is_mock')
     .eq('slug', slug)
     .single();
   const org = orgRes.data as OrgRow | null;
@@ -94,6 +96,13 @@ export default async function PartnerStudentLayout({ children, params }: Student
   }
   if (!['student', 'founder', 'admin'].includes(role)) {
     redirect(`/partners/${slug}/login?next=/partners/${slug}/student/dashboard`);
+  }
+
+  // Rastreia acesso real de aluno a org demo (credenciais liberadas a um
+  // prospect) — exclui admin de propósito, já que "Ver portal" reaproveita a
+  // própria sessão do admin sem nunca autenticar como o student demo.
+  if (org.is_mock && role === 'student' && profile.organization_id === org.id) {
+    await pingDemoOrgAccess(adminClient, org.id);
   }
 
   const brandPrimary = sanitizeCssHexColor(org.brand_primary, '#6366f1');
