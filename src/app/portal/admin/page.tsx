@@ -11,6 +11,7 @@ import StickinessCard, { type HealthData } from "@/components/admin/StickinessCa
 import AIUsageRecentCard from "@/components/admin/AIUsageRecentCard";
 import { KpiCard, ElevatedCard } from "@/components/partners/founder-ui";
 import { SmokeBackground } from "@/components/ui/spooky-smoke-animation";
+import { ExpandingIconButton } from "@/components/ui/expanding-icon-button";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Users, Brain, Database, GraduationCap, BarChart3,
@@ -18,7 +19,7 @@ import {
   ExternalLink, Target, Activity, Github, TrendingUp, TrendingDown,
   Settings, Puzzle, Trophy, WalletCards, PenLine, ClipboardCheck,
   Video, LifeBuoy, BookOpen, BadgeCheck, ChevronRight, ChevronDown, Trash2, AlertTriangle,
-  EyeOff,
+  EyeOff, UserPlus, Eye, Loader2,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,6 +48,8 @@ interface Org {
   billing_enabled: boolean;
   is_active: boolean;
   is_mock: boolean;
+  demo_first_accessed_at: string | null;
+  demo_last_accessed_at: string | null;
   created_at: string;
   allow_multiple_pending_essays: boolean;
   permissions?: Record<string, boolean>;
@@ -176,6 +179,12 @@ const STATS_PERIOD_MAP: Partial<Record<OrgPeriod, string>> = {
   // semester is not supported by stats API — badges hidden
 };
 
+function formatShortDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 function DeltaBadge({ current, prev }: { current: number; prev: number }) {
   const delta = current - prev;
   if (delta === 0) return null;
@@ -194,12 +203,13 @@ function DeltaBadge({ current, prev }: { current: number; prev: number }) {
   );
 }
 
-function OrgCard({ org, perOrgStats, hasPrev, loadingMetrics, onOpenSettings }: {
+function OrgCard({ org, perOrgStats, hasPrev, loadingMetrics, onOpenSettings, onCreateUser }: {
   org: Org;
   perOrgStats: PerOrgStats | undefined;
   hasPrev: boolean;
   loadingMetrics: boolean;
   onOpenSettings: (org: Org) => void;
+  onCreateUser: (org: Org) => void;
 }) {
   const plan = PLAN_LABELS[org.plan_tier] ?? { label: org.plan_tier, cls: 'bg-slate-100 text-slate-600' };
   const fillPct = Math.round((org.student_count / org.max_students) * 100);
@@ -228,7 +238,16 @@ function OrgCard({ org, perOrgStats, hasPrev, loadingMetrics, onOpenSettings }: 
           {org.is_active === false && (
             <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600 dark:bg-zinc-700 dark:text-zinc-300">Inativo</span>
           )}
+          {org.is_active !== false && !org.billing_enabled && (
+            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400">Sem faturamento</span>
+          )}
           <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${plan.cls}`}>{plan.label}</span>
+          <ExpandingIconButton
+            icon={UserPlus}
+            label="Criar usuário"
+            title="Criar usuário manualmente"
+            onClick={() => onCreateUser(org)}
+          />
           <button
             onClick={() => onOpenSettings(org)}
             title="Configurações da instituição"
@@ -278,8 +297,23 @@ function OrgCard({ org, perOrgStats, hasPrev, loadingMetrics, onOpenSettings }: 
         </div>
 
         {org.founder && (
-          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mb-3 truncate">
+          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mb-1 truncate">
             {org.founder.full_name ?? org.founder.email}
+          </p>
+        )}
+
+        {org.is_mock && (
+          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mb-3">
+            {org.demo_first_accessed_at ? (
+              <>
+                Acesso demo: <span className="font-semibold text-slate-600 dark:text-zinc-300">{formatShortDateTime(org.demo_first_accessed_at)}</span>
+                {org.demo_last_accessed_at && org.demo_last_accessed_at !== org.demo_first_accessed_at && (
+                  <> · últ. <span className="font-semibold text-slate-600 dark:text-zinc-300">{formatShortDateTime(org.demo_last_accessed_at)}</span></>
+                )}
+              </>
+            ) : (
+              <span className="text-amber-600 dark:text-amber-400">Credenciais demo ainda não acessadas</span>
+            )}
           </p>
         )}
 
@@ -328,6 +362,12 @@ export default function SuperAdminDashboard() {
   const [deleteOrgModal, setDeleteOrgModal] = useState<{ open: boolean; org: Org | null }>({ open: false, org: null });
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [deletingOrg, setDeletingOrg]     = useState(false);
+  const [createUserModal, setCreateUserModal] = useState<{ open: boolean; org: Org | null }>({ open: false, org: null });
+  const [createUserForm, setCreateUserForm] = useState({
+    role: 'student' as 'student' | 'founder', full_name: '', email: '', password: '',
+  });
+  const [createUserShowPassword, setCreateUserShowPassword] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
   const [orgPeriod, setOrgPeriod]         = useState<OrgPeriod>('month');
   const [activeOrgsOpen, setActiveOrgsOpen]     = useState(true);
   const [inactiveOrgsOpen, setInactiveOrgsOpen] = useState(true);
@@ -412,6 +452,36 @@ export default function SuperAdminDashboard() {
       is_active: org.is_active ?? true,
     });
     setOrgSettingsModal({ open: true, org });
+  }
+
+  function openCreateUser(org: Org) {
+    setCreateUserForm({ role: 'student', full_name: '', email: '', password: '' });
+    setCreateUserShowPassword(false);
+    setCreateUserModal({ open: true, org });
+  }
+
+  async function handleCreateUser() {
+    if (!createUserModal.org) return;
+    setCreatingUser(true);
+    try {
+      const res = await fetch(`/api/admin/b2b/organizations/${createUserModal.org.id}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createUserForm),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`${createUserForm.role === 'founder' ? 'Gestor' : 'Aluno'} criado em ${createUserModal.org.name}.`);
+        setCreateUserModal({ open: false, org: null });
+        await fetchData();
+      } else {
+        toast.error(data.error ?? 'Erro ao criar usuário.');
+      }
+    } catch {
+      toast.error('Erro de conexão ao criar usuário.');
+    } finally {
+      setCreatingUser(false);
+    }
   }
 
   function openModules(org: Org) {
@@ -551,8 +621,10 @@ export default function SuperAdminDashboard() {
   const { health, financial, infrastructure } = stats || {};
   const dbUsagePercent = infrastructure?.db_size_bytes ? (infrastructure.db_size_bytes / SUPABASE_FREE_LIMIT) * 100 : 0;
   const dbSizeMB = infrastructure?.db_size_bytes ? (infrastructure.db_size_bytes / 1024 / 1024).toFixed(1) : "0";
-  const activeOrgs = orgs.filter(o => !o.is_mock && o.is_active !== false);
-  const inactiveOrgs = orgs.filter(o => o.is_mock || o.is_active === false);
+  // "Parceiros" (KPI) e a lista "ativa" só devem contar orgs reais, ativas
+  // e com faturamento habilitado — mesmo critério do backend (_get_real_org_ids).
+  const activeOrgs = orgs.filter(o => !o.is_mock && o.is_active !== false && o.billing_enabled);
+  const inactiveOrgs = orgs.filter(o => o.is_mock || o.is_active === false || !o.billing_enabled);
 
   return (
     <div className="p-4 md:p-8 space-y-6 md:space-y-8 bg-slate-50/50 dark:bg-slate-900/50 min-h-screen font-sans text-slate-900 dark:text-slate-100 overflow-x-hidden">
@@ -723,6 +795,7 @@ export default function SuperAdminDashboard() {
                 hasPrev={!!STATS_PERIOD_MAP[orgPeriod]}
                 loadingMetrics={loadingMetrics}
                 onOpenSettings={openOrgSettings}
+                onCreateUser={openCreateUser}
               />
             ))}
           </div>
@@ -747,6 +820,7 @@ export default function SuperAdminDashboard() {
                   hasPrev={!!STATS_PERIOD_MAP[orgPeriod]}
                   loadingMetrics={loadingMetrics}
                   onOpenSettings={openOrgSettings}
+                  onCreateUser={openCreateUser}
                 />
               ))}
             </div>
@@ -1209,6 +1283,117 @@ export default function SuperAdminDashboard() {
                   className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 disabled:opacity-50 transition-all"
                 >
                   {savingSettings ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Modal Criar Usuário Manualmente ─────────────────────────────────── */}
+      {createUserModal.open && createUserModal.org && (() => {
+        const org = createUserModal.org;
+        const isFounder = createUserForm.role === 'founder';
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-zinc-800">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400">
+                    <UserPlus className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">Criar usuário</p>
+                    <p className="text-xs text-slate-400">Vinculado a {org.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => setCreateUserModal({ open: false, org: null })} className="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {/* Tipo de conta */}
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Tipo de conta</label>
+                  <select
+                    value={createUserForm.role}
+                    onChange={e => setCreateUserForm(f => ({ ...f, role: e.target.value as 'student' | 'founder' }))}
+                    className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400"
+                  >
+                    <option value="student">Aluno</option>
+                    <option value="founder">Gestor (founder)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Nome completo</label>
+                  <input
+                    value={createUserForm.full_name}
+                    onChange={e => setCreateUserForm(f => ({ ...f, full_name: e.target.value }))}
+                    placeholder={isFounder ? 'Ex: Gestor da instituição' : 'Ex: Aluno de teste'}
+                    className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">E-mail</label>
+                  <input
+                    type="email"
+                    value={createUserForm.email}
+                    onChange={e => setCreateUserForm(f => ({ ...f, email: e.target.value.trim() }))}
+                    placeholder="usuario@email.com"
+                    className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Senha</label>
+                  <div className="relative">
+                    <input
+                      type={createUserShowPassword ? 'text' : 'password'}
+                      value={createUserForm.password}
+                      onChange={e => setCreateUserForm(f => ({ ...f, password: e.target.value }))}
+                      placeholder="Mínimo 8 caracteres"
+                      className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 pl-3 pr-9 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCreateUserShowPassword(v => !v)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-300"
+                    >
+                      {createUserShowPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-400">
+                  A conta já sai vinculada a <strong>{org.name}</strong> (
+                  {isFounder ? 'papel: gestor/founder' : 'papel: aluno'}), com e-mail confirmado — pronta pra login imediato.
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-100 dark:border-zinc-800">
+                <button
+                  onClick={() => setCreateUserModal({ open: false, org: null })}
+                  className="px-4 py-2 text-sm text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCreateUser}
+                  disabled={
+                    creatingUser ||
+                    !createUserForm.full_name.trim() ||
+                    !createUserForm.email.trim() ||
+                    createUserForm.password.length < 8
+                  }
+                  className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 disabled:opacity-50 transition-all"
+                >
+                  {creatingUser && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {creatingUser ? 'Criando...' : 'Criar usuário'}
                 </button>
               </div>
             </div>

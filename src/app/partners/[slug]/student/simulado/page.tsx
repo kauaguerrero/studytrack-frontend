@@ -13,7 +13,7 @@ import { motion, AnimatePresence, useAnimation, useReducedMotion } from 'framer-
 import {
   Timer, ArrowRight, ArrowLeft, ArrowUp, CheckCircle2, Play, RotateCcw,
   Trophy, BookOpen, History, Brain, ChevronDown, ChevronLeft, TrendingUp,
-  Medal, BarChart3, Plus, Clock, Zap, Flag, Target, SlidersHorizontal,
+  Medal, BarChart3, Plus, Clock, Zap, Flag, Target, SlidersHorizontal, Filter,
 } from 'lucide-react'
 import { QuestionRichText } from '@/components/questions/QuestionRichText'
 import { AlternativeImages, QuestionContentBlocks, QuestionSupportImages } from '@/components/questions/QuestionMedia'
@@ -38,6 +38,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { ModuleGuard } from '@/components/partners/ModuleGuard'
+import { RevealGroup, RevealItem, ElevatedCard, SectionTitle, KpiCard } from '@/components/partners/founder-ui'
 import { SimuladoComposerModal, type SimuladoComposition } from '@/components/partners/simulado/SimuladoComposerModal'
 import { isDemoOrg, MOCK_SIMULADO_RANKING_STUDENT, MOCK_SCHEDULED_SIMULADOS_STUDENT } from '../../../../../../studytrack-tutorial-mock'
 
@@ -535,7 +536,6 @@ export default function SimuladoPage() {
 
   const [step, setStep] = useState<'setup' | 'quiz' | 'result'>('setup')
   const [showConfigModal, setShowConfigModal] = useState(false)
-  const [globalFilterOpen, setGlobalFilterOpen] = useState(true)
 
   // Config
   const [mode, setMode] = useState<'custom' | 'preset'>('custom')
@@ -605,6 +605,12 @@ export default function SimuladoPage() {
   }[]>([])
   const [nowTs, setNowTs] = useState<number>(Date.now())
   const [hybridConfirmSimId, setHybridConfirmSimId] = useState<string | null>(null)
+  const [activeSessionConflict, setActiveSessionConflict] = useState<{
+    id: string
+    started_at?: string | null
+    answered_count: number
+    total_questions: number
+  } | null>(null)
 
   // UI: result animation
   const [animatedScore, setAnimatedScore] = useState(0)
@@ -1054,7 +1060,7 @@ export default function SimuladoPage() {
   }, [presetFormats, enemFormat])
 
   // ── Handlers ──
-  const startSimulado = async (scheduledId?: string) => {
+  const startSimulado = async (scheduledId?: string, discardActive?: boolean) => {
     if (!accessToken) return
     setLoading(true)
     setStartStage(0)
@@ -1065,6 +1071,7 @@ export default function SimuladoPage() {
     ]
     try {
       const body: Record<string, unknown> = { difficulty }
+      if (discardActive) body.discard_active = true
       if (year !== 'Todos') body.year = Number(year)
       if (mode === 'custom') {
         body.format = 'custom'
@@ -1108,6 +1115,10 @@ export default function SimuladoPage() {
         toast.error('Acesso indisponível', { description: 'Seu acesso ao simulado está suspenso. Entre em contato com o administrador da sua organização.' }); setShowConfigModal(false); return
       }
       if (res.status === 404) { toast.error('Nenhuma questão encontrada', { description: 'Tente reduzir a quantidade ou mudar a dificuldade para "Misto".', duration: 6000 }); return }
+      if (res.status === 409 && data?.code === 'ACTIVE_SESSION_EXISTS') {
+        setActiveSessionConflict(data.active_session ?? null)
+        return
+      }
       if (!res.ok) { toast.error('Erro ao iniciar simulado', { description: data.error || 'Tente novamente em instantes.' }); return }
       setShowConfigModal(false)
       setSessionId(data.session_id)
@@ -1159,6 +1170,51 @@ export default function SimuladoPage() {
       stageTimers.forEach((t) => clearTimeout(t))
       setLoading(false)
       setStartStage(0)
+    }
+  }
+
+  const resumeSessionById = async (sid: string) => {
+    if (!accessToken) return
+    setLoading(true)
+    try {
+      const res = await fetch(`${apiUrl}/api/simulado/${sid}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+      const sessionData = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error('Não foi possível retomar o simulado.', { description: sessionData?.error }); return }
+      if (sessionData?.status === 'completed') {
+        toast.info('Esse simulado já havia sido finalizado.')
+        setActiveSessionConflict(null)
+        return
+      }
+
+      const restoredQuestions = Array.isArray(sessionData?.questions) ? sessionData.questions : []
+      const restoredAnswers = sessionData?.answers && typeof sessionData.answers === 'object' ? sessionData.answers : {}
+      const startedAtMs = sessionData?.started_at ? new Date(sessionData.started_at).getTime() : Date.now()
+      startTimeRef.current = Number.isNaN(startedAtMs) ? Date.now() : startedAtMs
+      lastAutosavedRef.current = JSON.stringify(restoredAnswers)
+      const sessionHasTimeLimit = Boolean(sessionData?.config?.time_limit_secs)
+      const initialTime = sessionHasTimeLimit
+        ? Math.max(0, Number(sessionData.config.time_limit_secs) - Math.floor((Date.now() - startTimeRef.current) / 1000))
+        : restoredQuestions.length * 3 * 60
+
+      setSessionId(sid)
+      setQuestions(restoredQuestions)
+      setUserAnswers(restoredAnswers)
+      setCurrentIdx(0)
+      setFinishResult(null)
+      setReportedQuestionIds(new Set())
+      setHasTimeLimit(sessionHasTimeLimit)
+      setTimeLeft(initialTime)
+      prevTimeLeftRef.current = initialTime
+      setShowConfigModal(false)
+      setActiveSessionConflict(null)
+      setStep('quiz')
+      toast.info('Sessão retomada', {
+        description: 'Você voltou para o simulado que estava em andamento em outro momento ou dispositivo.',
+      })
+    } catch {
+      toast.error('Erro de conexão', { description: 'Não foi possível conectar ao servidor.' })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -1676,7 +1732,7 @@ export default function SimuladoPage() {
 
       {/* ══════════════════════════ SETUP ════════════════════════════════════ */}
       {step === 'setup' && (
-        <div className="min-h-dvh bg-[#F5F5F7] dark:bg-slate-950/50">
+        <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 bg-slate-50 dark:bg-[#080808]">
           {loading && (
             <div className="fixed inset-0 z-[70] bg-black/35 backdrop-blur-[1px] flex items-center justify-center px-4">
               <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-2xl">
@@ -1706,113 +1762,117 @@ export default function SimuladoPage() {
               </div>
             </div>
           )}
-          <motion.div
-            className="max-w-6xl mx-auto px-4 py-6 md:py-8 space-y-5"
-            variants={shouldReduce ? {} : CONTAINER_VARIANTS}
-            initial="hidden"
-            animate="show"
-          >
+          <RevealGroup className="relative mx-auto max-w-6xl space-y-5 pb-8">
             {/* Hero */}
-            <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <RevealItem className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Link href={`/partners/${slug}/student/dashboard`} className="text-xs font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors flex items-center gap-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Link href={`/partners/${slug}/student/dashboard`} className="text-xs font-semibold text-slate-400 dark:text-white/40 hover:text-slate-600 dark:hover:text-white/70 transition-colors flex items-center gap-1">
                     <ChevronLeft size={14} /> Dashboard
                   </Link>
                 </div>
-                <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">Simulados</h1>
-                <div className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
+                <h1 className="font-display text-[28px] font-black leading-tight text-slate-900 dark:text-white sm:text-[32px]">Simulados</h1>
+                <div className="mt-0.5 text-[13px] text-slate-500 dark:text-white/40">
                   {dashLoading ? <Skeleton className="h-4 w-64" /> : heroSubtitle}
                 </div>
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                 <Link href={`/partners/${slug}/student/simulado/historico`}
-                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 font-bold text-slate-700 transition-all hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 sm:flex-none">
+                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10 sm:flex-none">
                   <History size={16} /> Histórico
                 </Link>
-                <div className="flex flex-col gap-0.5 flex-1 sm:flex-none">
-                  <button onClick={() => setShowConfigModal(true)}
-                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-5 py-3 font-bold shadow-sm transition-all cursor-pointer"
-                    style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
-                    <Plus size={18} /> Novo Simulado
-                  </button>
+                <button onClick={() => setShowConfigModal(true)}
+                  className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-extrabold transition-transform hover:scale-[1.02] active:scale-[0.97] sm:flex-none"
+                  style={{
+                    background: org.brand_primary || 'var(--brand-primary)',
+                    color: brandTextColor,
+                    boxShadow: `0 6px 16px -6px ${org.brand_primary || 'var(--brand-primary)'}`,
+                  }}>
+                  <Plus size={18} /> Novo Simulado
+                </button>
+              </div>
+            </RevealItem>
+
+            <RevealItem>
+            <ElevatedCard accentColor="var(--brand-primary)">
+              <div className="flex flex-col gap-4 p-4 sm:p-5">
+                <label className="space-y-1 sm:max-w-xs">
+                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-white/40">Filtro Global · Banca</span>
+                  <select
+                    value={pageBankFilter}
+                    onChange={(e) => setPageBankFilter(e.target.value as BankLabel)}
+                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
+                  >
+                    {BANK_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                <div className="flex items-start gap-3 rounded-xl bg-slate-50 dark:bg-white/[0.04] p-3.5">
+                  <Filter size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
+                  <p className="text-sm font-medium leading-snug text-slate-600 dark:text-white/60">
+                    Este filtro de banca, selecionado acima, é aplicado a{' '}
+                    <span className="font-bold text-slate-800 dark:text-white/85">
+                      cards, gráficos, histórico recente, ranking e configuração inicial do simulado
+                    </span>.
+                  </p>
                 </div>
               </div>
-            </motion.div>
+            </ElevatedCard>
+            </RevealItem>
 
-            <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-              {/* Header — clicável para expandir/colapsar */}
-              <button
-                onClick={() => setGlobalFilterOpen(v => !v)}
-                className="flex min-h-11 w-full items-center justify-between px-4 py-3.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 shrink-0">Filtro Global</p>
-                  {pageBankFilter !== 'Todas' && (
-                    <span
-                      className="truncate rounded-lg border px-2.5 py-1 text-xs font-bold"
-                      style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)', color: 'var(--brand-primary)', borderColor: 'color-mix(in srgb, var(--brand-primary) 25%, transparent)' }}
-                    >
-                      {pageBankFilter}
-                    </span>
-                  )}
-                </div>
-                <ChevronDown
-                  size={16}
-                  className={`text-slate-400 transition-transform duration-200 shrink-0 ${globalFilterOpen ? 'rotate-180' : ''}`}
-                />
-              </button>
-
-              {/* Opções colapsáveis */}
-              <AnimatePresence initial={false}>
-                {globalFilterOpen && (
+            {/* Modal de conflito: simulado avulso já em andamento (outro dispositivo/aba) */}
+            <AnimatePresence>
+              {activeSessionConflict && (
+                <motion.div
+                  key="active-session-conflict-modal"
+                  className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setActiveSessionConflict(null)}
+                >
                   <motion.div
-                    key="global-filter-options"
-                    initial={shouldReduce ? false : { height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
-                    className="overflow-hidden"
+                    className="max-h-[calc(100vh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:p-6"
+                    initial={{ scale: 0.94, opacity: 0, y: 12 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.94, opacity: 0, y: 12 }}
+                    transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="px-4 pb-4 pt-1 border-t border-slate-100 dark:border-slate-800">
-                      <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">
-                        Aplicado a cards, gráficos, histórico recente, ranking e configuração inicial do simulado.
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                        {BANK_OPTIONS.map((option) => {
-                          const isActive = pageBankFilter === option.value
-                          return (
-                            <button
-                              key={option.value}
-                              onClick={() => setPageBankFilter(option.value)}
-                              className={`relative min-h-11 rounded-xl border-2 px-3 py-3 text-center text-sm font-bold transition-all cursor-pointer select-none active:scale-[0.97] ${
-                                isActive
-                                  ? 'border-transparent shadow-sm'
-                                  : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                              }`}
-                              style={isActive ? { background: 'var(--brand-primary)', color: brandTextColor, borderColor: 'var(--brand-primary)' } : {}}
-                            >
-                              {option.label}
-                              {isActive && (
-                                <span
-                                  className="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900"
-                                  style={{ background: 'var(--brand-primary)' }}
-                                />
-                              )}
-                            </button>
-                          )
-                        })}
-                      </div>
+                    <p className="text-base font-extrabold text-slate-900 dark:text-white mb-2">Simulado em andamento</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                      Você já tem um simulado em andamento
+                      {activeSessionConflict.started_at ? ` desde ${formatDate(activeSessionConflict.started_at)}` : ''}
+                      {activeSessionConflict.total_questions > 0
+                        ? ` (${activeSessionConflict.answered_count} de ${activeSessionConflict.total_questions} questões respondidas)`
+                        : ''}
+                      . Ele pode ter sido iniciado em outro dispositivo ou aba. Quer continuar de onde parou, ou começar um novo (o anterior será descartado)?
+                    </p>
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => { setActiveSessionConflict(null); startSimulado(undefined, true); }}
+                        className="min-h-11 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+                      >
+                        Começar novo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => resumeSessionById(activeSessionConflict.id)}
+                        className="min-h-11 flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 cursor-pointer"
+                        style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
+                      >
+                        Continuar simulado
+                      </button>
                     </div>
                   </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Simulados da Turma */}
             {scheduledSimulados.length > 0 && (
-              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="space-y-3">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+              <RevealItem className="space-y-3">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 dark:text-white/40">
                   Simulados da Turma
                 </p>
                 {/* Modal de confirmação hybrid */}
@@ -1998,51 +2058,69 @@ export default function SimuladoPage() {
                   </div>
                   )
                 })}
-                <div className="h-px bg-slate-100 dark:bg-slate-800" />
-              </motion.div>
+                <div className="h-px bg-slate-100 dark:bg-white/10" />
+              </RevealItem>
             )}
 
             {/* KPI Cards */}
-            <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
-              {dashLoading ? (
-                Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)
-              ) : (
-                <>
-                    {[
-                    { icon: <BookOpen size={15} style={{ color: 'var(--brand-primary)' }} />, bg: 'bg-[var(--brand-primary)]/10', label: 'Realizados', value: totalSimuladosFiltered, sub: pageBankFilter === 'Todas' ? 'simulados no total' : `simulados ${pageBankFilter}`, valueClass: 'text-slate-900 dark:text-slate-100' },
-                    { icon: <TrendingUp size={15} className="text-green-600 dark:text-green-400" />, bg: 'bg-green-50 dark:bg-green-900/30', label: 'Média Geral', value: totalSimuladosFiltered > 0 ? `${avgPct}%` : '—', sub: 'de acertos', valueClass: totalSimuladosFiltered > 0 ? scoreColor(avgPct) : 'text-slate-300 dark:text-slate-700' },
-                    { icon: <Trophy size={15} className="text-yellow-500" />, bg: 'bg-yellow-50 dark:bg-yellow-900/30', label: 'Melhor', value: totalSimuladosFiltered > 0 ? `${bestPct}%` : '—', sub: 'melhor resultado', valueClass: totalSimuladosFiltered > 0 ? scoreColor(bestPct) : 'text-slate-300 dark:text-slate-700' },
-                    { icon: <Medal size={15} className="text-purple-600 dark:text-purple-400" />, bg: 'bg-purple-50 dark:bg-purple-900/30', label: 'Ranking', value: rankingPos != null ? `#${rankingPos}` : '—', sub: 'posição geral', valueClass: 'text-slate-900 dark:text-slate-100' },
-                  ].map((card) => (
-                    <div key={card.label} className="min-w-0 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className={`${card.bg} p-1.5 rounded-lg`}>{card.icon}</div>
-                        <span className="truncate text-xs font-bold uppercase tracking-wide text-slate-400">{card.label}</span>
-                      </div>
-                      <div className={`truncate text-3xl font-black ${card.valueClass}`}>{card.value}</div>
-                      <div className="mt-0.5 truncate text-xs text-slate-400">{card.sub}</div>
-                    </div>
-                  ))}
-                </>
-              )}
-            </motion.div>
+            {dashLoading ? (
+              <RevealItem className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
+                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-2xl" />)}
+              </RevealItem>
+            ) : (
+              <RevealItem className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
+                <KpiCard
+                  title="Realizados"
+                  value={totalSimuladosFiltered}
+                  subtitle={pageBankFilter === 'Todas' ? 'simulados no total' : `simulados ${pageBankFilter}`}
+                  icon={BookOpen}
+                  accentColor="var(--brand-primary)"
+                  accentHex={org.brand_primary}
+                />
+                <KpiCard
+                  title="Média Geral"
+                  value={totalSimuladosFiltered > 0 ? `${avgPct}%` : '—'}
+                  subtitle="de acertos"
+                  icon={TrendingUp}
+                  accentColor="#16a34a"
+                />
+                <KpiCard
+                  title="Melhor"
+                  value={totalSimuladosFiltered > 0 ? `${bestPct}%` : '—'}
+                  subtitle="melhor resultado"
+                  icon={Trophy}
+                  accentColor="#eab308"
+                />
+                <KpiCard
+                  title="Ranking"
+                  value={rankingPos != null ? `#${rankingPos}` : '—'}
+                  subtitle="posição geral"
+                  icon={Medal}
+                  accentColor="#9333ea"
+                />
+              </RevealItem>
+            )}
 
             {/* First-time welcome */}
             {!dashLoading && totalSimuladosFiltered === 0 && (
-              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-8 sm:p-10 text-center">
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5" style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}>
-                  <Trophy size={32} style={{ color: 'var(--brand-primary)' }} />
-                </div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 mb-2">Bem-vindo aos Simulados!</h2>
-                <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6 text-sm leading-relaxed">
-                  Monte simulados com questões reais de vários vestibulares. Acompanhe sua evolução por matéria e por banca.
-                </p>
-                <button onClick={() => setShowConfigModal(true)}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-8 py-3.5 font-bold shadow transition-all cursor-pointer"
-                  style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
-                  <Play size={18} /> Começar meu primeiro simulado
-                </button>
-              </motion.div>
+              <RevealItem>
+                <ElevatedCard>
+                  <div className="p-8 text-center sm:p-10">
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5" style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}>
+                      <Trophy size={32} style={{ color: 'var(--brand-primary)' }} />
+                    </div>
+                    <h2 className="font-display text-xl font-black text-slate-900 dark:text-white mb-2">Bem-vindo aos Simulados!</h2>
+                    <p className="text-slate-500 dark:text-white/40 max-w-md mx-auto mb-6 text-sm leading-relaxed">
+                      Monte simulados com questões reais de vários vestibulares. Acompanhe sua evolução por matéria e por banca.
+                    </p>
+                    <button onClick={() => setShowConfigModal(true)}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-8 py-3.5 font-bold shadow transition-all cursor-pointer"
+                      style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
+                      <Play size={18} /> Começar meu primeiro simulado
+                    </button>
+                  </div>
+                </ElevatedCard>
+              </RevealItem>
             )}
 
             {/* Charts skeleton */}
@@ -2055,24 +2133,24 @@ export default function SimuladoPage() {
 
             {/* Charts */}
             {!dashLoading && totalSimuladosFiltered > 0 && (
-              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <RevealItem className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Evolution */}
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
-                  <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp size={17} className="text-slate-400" />
-                      <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Evolução de Desempenho</h2>
-                    </div>
-                    {subjectOptions.length > 1 && (
+                <ElevatedCard accentColor="var(--brand-primary)">
+                <div className="p-6">
+                  <SectionTitle
+                    kicker="Progresso"
+                    title="Evolução de Desempenho"
+                    hex={org.brand_primary}
+                    action={subjectOptions.length > 1 ? (
                       <div className="relative">
                         <select value={evolutionSubject} onChange={e => setEvolutionSubject(e.target.value)}
-                          className="text-xs font-semibold border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 appearance-none pr-6 cursor-pointer outline-none">
+                          className="text-xs font-semibold border border-slate-200 dark:border-white/10 rounded-lg px-3 py-1.5 bg-white dark:bg-white/[0.05] text-slate-700 dark:text-white/80 appearance-none pr-6 cursor-pointer outline-none">
                           {subjectOptions.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                         <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                       </div>
-                    )}
-                  </div>
+                    ) : undefined}
+                  />
                   <div className="flex items-center gap-3 mb-4 flex-wrap">
                     {evolutionLegend.map((bankKey) => (
                       <div key={bankKey} className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
@@ -2122,13 +2200,12 @@ export default function SimuladoPage() {
                     </ResponsiveContainer>
                   )}
                 </div>
+                </ElevatedCard>
 
                 {/* Subject performance */}
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
-                  <div className="flex items-center gap-2 mb-5">
-                    <BarChart3 size={17} className="text-slate-400" />
-                    <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Desempenho por Matéria</h2>
-                  </div>
+                <ElevatedCard accentColor="var(--brand-secondary)">
+                <div className="p-6">
+                  <SectionTitle kicker="Por matéria" title="Desempenho por Matéria" hex={org.brand_secondary} />
                   <div className="flex items-center gap-3 mb-4 flex-wrap">
                     {subjectLegend.map((bankKey) => (
                       <div key={bankKey} className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
@@ -2165,47 +2242,48 @@ export default function SimuladoPage() {
                     </ResponsiveContainer>
                   )}
                 </div>
-              </motion.div>
+                </ElevatedCard>
+              </RevealItem>
             )}
 
             {!dashLoading && bankPerfData.length > 0 && (
-              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
-                <div className="flex items-center gap-2 mb-5">
-                  <Target size={17} className="text-slate-400" />
-                  <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Desempenho por Banca</h2>
-                </div>
+              <RevealItem>
+              <ElevatedCard accentColor="var(--brand-accent)">
+              <div className="p-6">
+                <SectionTitle kicker="Por banca" title="Desempenho por Banca" hex={org.brand_accent} />
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {bankPerfData.map((entry) => (
-                    <div key={entry.bank} className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
+                    <div key={entry.bank} className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.03] p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{entry.bank}</p>
-                          <p className={`mt-1 text-2xl font-black ${scoreColor(entry.pct)}`}>{entry.pct}%</p>
+                          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-white/40">{entry.bank}</p>
+                          <p className={`font-display mt-1 text-2xl font-black ${scoreColor(entry.pct)}`}>{entry.pct}%</p>
                         </div>
-                        <div className="text-right text-xs text-slate-400">
+                        <div className="text-right text-xs text-slate-400 dark:text-white/40">
                           <p>{entry.sessions} {entry.sessions === 1 ? 'Simulado' : 'Simulados'}</p>
                           <p>{entry.total} {entry.total === 1 ? 'Questão' : 'Questões'}</p>
                         </div>
                       </div>
-                      <div className="mt-3 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                      <div className="mt-3 h-2 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
                         <div className="h-2 rounded-full" style={{ width: `${entry.pct}%`, backgroundColor: scoreBarColor(entry.pct) }} />
                       </div>
                     </div>
                   ))}
                 </div>
-              </motion.div>
+              </div>
+              </ElevatedCard>
+              </RevealItem>
             )}
 
             {/* Recent simulados */}
             {dashLoading && <Skeleton className="h-72 w-full rounded-2xl" />}
             {!dashLoading && totalSimuladosFiltered > 0 && (
-              <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-2">
-                    <History size={17} className="text-slate-400" />
-                    <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Últimos Simulados</h2>
-                  </div>
-                  <Link href={`/partners/${slug}/student/simulado/historico`} className="text-xs font-bold text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">Ver todos →</Link>
+              <RevealItem>
+              <ElevatedCard>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <SectionTitle kicker="Histórico" title="Últimos Simulados" hex={org.brand_primary} />
+                  <Link href={`/partners/${slug}/student/simulado/historico`} className="text-xs font-bold text-slate-400 dark:text-white/40 hover:text-slate-700 dark:hover:text-white/70 transition-colors">Ver todos →</Link>
                 </div>
                 <div className="space-y-3">
                   {pageFilteredSessions.slice(0, 5).map(session => {
@@ -2234,18 +2312,21 @@ export default function SimuladoPage() {
                     )
                   })}
                 </div>
-              </motion.div>
+              </div>
+              </ElevatedCard>
+              </RevealItem>
             )}
 
             {/* Melhores resultados pessoais */}
-            <motion.div variants={shouldReduce ? {} : ITEM_VARIANTS} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
-              <div className="flex items-center gap-2 mb-1">
-                <Trophy size={17} className="text-yellow-500" />
-                <h2 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                  {pageBankFilter === 'Todas' ? 'Melhores Resultados' : `Melhores Resultados · ${pageBankFilter}`}
-                </h2>
-              </div>
-              <p className="text-xs text-slate-400 mb-5">
+            <RevealItem>
+            <ElevatedCard>
+            <div className="p-6">
+              <SectionTitle
+                kicker="Recordes"
+                title={pageBankFilter === 'Todas' ? 'Melhores Resultados' : `Melhores Resultados · ${pageBankFilter}`}
+                hex={org.brand_secondary}
+              />
+              <p className="-mt-3 text-xs text-slate-400 dark:text-white/40 mb-5">
                 {pageBankFilter === 'Todas'
                   ? 'Seus melhores desempenhos de todos os tempos'
                   : `Seus melhores desempenhos em ${pageBankFilter} de todos os tempos`}
@@ -2254,9 +2335,9 @@ export default function SimuladoPage() {
                 <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}</div>
               ) : bestPersonalResults.length === 0 ? (
                 <div className="text-center py-8">
-                  <Trophy size={28} className="text-slate-200 dark:text-slate-700 mx-auto mb-2" />
-                  <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">Nenhum simulado realizado ainda</p>
-                  <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">Faça seu primeiro simulado pra começar seu histórico!</p>
+                  <Trophy size={28} className="text-slate-200 dark:text-white/10 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-slate-400 dark:text-white/40">Nenhum simulado realizado ainda</p>
+                  <p className="text-xs text-slate-300 dark:text-white/30 mt-1">Faça seu primeiro simulado pra começar seu histórico!</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -2264,12 +2345,12 @@ export default function SimuladoPage() {
                     const medals = ['🥇', '🥈', '🥉']
                     const isTop = i < 3
                     return (
-                      <div key={session.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${isTop ? 'border' : 'bg-slate-50 dark:bg-slate-800/50'}`}
+                      <div key={session.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${isTop ? 'border' : 'bg-slate-50 dark:bg-white/[0.03]'}`}
                         style={isTop ? { background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)', borderColor: 'color-mix(in srgb, var(--brand-primary) 30%, transparent)' } : {}}>
                         <span className="text-lg w-7 text-center" role="img" aria-label={`${i + 1}º melhor resultado`}>{medals[i] ?? `#${i + 1}`}</span>
                         <span className="flex-1 min-w-0">
-                          <span className="block text-sm font-semibold truncate text-slate-700 dark:text-slate-300">{getConfigLabel(session)}</span>
-                          <span className="block text-xs text-slate-400">{formatDate(session.started_at)}</span>
+                          <span className="block text-sm font-semibold truncate text-slate-700 dark:text-white/70">{getConfigLabel(session)}</span>
+                          <span className="block text-xs text-slate-400 dark:text-white/40">{formatDate(session.started_at)}</span>
                         </span>
                         <span className={`text-sm font-black ${scoreColor(scoped.percentage)}`}>{scoped.percentage}%</span>
                       </div>
@@ -2277,8 +2358,10 @@ export default function SimuladoPage() {
                   })}
                 </div>
               )}
-            </motion.div>
-          </motion.div>
+            </div>
+            </ElevatedCard>
+            </RevealItem>
+          </RevealGroup>
         </div>
       )}
 

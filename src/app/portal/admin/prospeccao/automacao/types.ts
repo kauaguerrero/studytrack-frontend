@@ -26,6 +26,10 @@ export interface FlowNode {
   flow_id?: string;
   title: string;
   message_body: string;
+  /** Textos alternativos (mesmo sentido, redação diferente) sorteados junto
+   *  com message_body na hora do envio — evita mandar o texto idêntico pra
+   *  todo lead, reduzindo a chance de detecção anti-bot do WhatsApp. */
+  message_variants: string[];
   is_start: boolean;
   action_type: NodeActionType | null;
   position_x: number;
@@ -113,6 +117,9 @@ export interface ManualQueueItem {
   source: 'manual' | 'auto';
   created_at: string;
   processed_at: string | null;
+  /** Horário agendado de envio (created_at da fila de saída, escalonado pelo
+   *  dispatch) — só existe quando status é 'queued'. null enquanto 'pending'. */
+  scheduled_at: string | null;
   lead: {
     id: string;
     razao_social: string;

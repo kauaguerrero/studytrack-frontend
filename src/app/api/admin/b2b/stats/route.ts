@@ -130,7 +130,8 @@ export async function GET(request: NextRequest) {
   const admin = createAdminClient();
   const db = admin as any;
 
-  const { data: orgs } = await db.from('organizations').select('id').eq('is_mock', false).eq('is_active', true);
+  const { data: orgs } = await db.from('organizations').select('id')
+    .eq('is_mock', false).eq('is_active', true).eq('billing_enabled', true);
   const orgIds: string[] = (orgs ?? []).map((o: any) => o.id);
   const total_orgs = orgIds.length;
 

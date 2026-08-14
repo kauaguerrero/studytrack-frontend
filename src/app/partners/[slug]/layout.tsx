@@ -17,6 +17,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { OrgProvider } from '@/contexts/OrgContext';
 import { normalizeOrgTypewriterTagline, type OrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
 import { normalizeOrgApprovedPhotos, type OrgApprovedPhoto } from '@/lib/org-approved-photos';
+import { pingDemoOrgAccess } from '@/lib/demo-org-access';
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 function sanitizeCssHexColor(value: string | null | undefined, fallback: string): string {
@@ -127,6 +128,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     permissions: Record<string, boolean> | null;
     typewriter_tagline: unknown;
     approved_student_photos: unknown;
+    is_mock: boolean | null;
   };
   // Tenta o slug decodificado (Next.js já decodifica params, mas o encodeURIComponent
   // no Link do admin garante que %2B → + chega aqui corretamente).
@@ -136,7 +138,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
 
   let orgRes = await adminClient
     .from('organizations')
-    .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline, approved_student_photos')
+    .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline, approved_student_photos, is_mock')
     .eq('slug', decodedSlug)
     .single();
 
@@ -144,7 +146,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   if (!orgRes.data && decodedSlug !== slug) {
     orgRes = await adminClient
       .from('organizations')
-      .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline, approved_student_photos')
+      .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline, approved_student_photos, is_mock')
       .eq('slug', slug)
       .single();
   }
@@ -158,6 +160,13 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
   // Founder e associado técnico só acessam a própria org; admin acessa qualquer uma
   if ((profile.role === 'founder' || isAssociateRole(profile.role)) && profile.organization_id !== org.id) {
     redirect('/portal');
+  }
+
+  // Rastreia acesso real de founder a org demo (credenciais liberadas a um
+  // prospect) — exclui admin de propósito, já que "Ver portal" reaproveita a
+  // própria sessão do admin sem nunca autenticar como o founder demo.
+  if (org.is_mock && profile.role === 'founder' && profile.organization_id === org.id) {
+    await pingDemoOrgAccess(adminClient, org.id);
   }
 
   // Verifica se a org tem ao menos 1 associado (para exibir item na sidebar)

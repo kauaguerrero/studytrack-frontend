@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import FloatingActionMenu from '@/components/ui/floating-action-menu';
+import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 import { cn } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { ArrowLeft, ChevronLeft, ChevronRight, Info, MessageCircle, PenLine, PencilLine, Send, Users, X } from 'lucide-react';
@@ -780,8 +781,21 @@ export default function CorrecaoRedacaoPage() {
   if (error || !essay) {
     return (
       <PartnerLayout>
-        <div className="rounded-2xl border border-rose-500/40 bg-rose-950/30 p-5 text-sm text-rose-200">
-          {error || 'Redação não encontrada.'}
+        <div className="flex flex-col items-center rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <BrokenPencilIllustration className="mb-1 h-auto w-48 sm:w-56" />
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-red-500 dark:text-red-400">
+            Algo deu errado
+          </p>
+          <p className="font-display mt-1.5 max-w-sm text-base font-bold text-slate-900 dark:text-white">
+            {error || 'Redação não encontrada.'}
+          </p>
+          <Link
+            href={`/partners/${slug}/redacoes`}
+            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Voltar para redações
+          </Link>
         </div>
       </PartnerLayout>
     );
