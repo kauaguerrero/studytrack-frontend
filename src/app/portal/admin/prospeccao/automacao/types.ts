@@ -117,6 +117,9 @@ export interface ManualQueueItem {
   source: 'manual' | 'auto';
   created_at: string;
   processed_at: string | null;
+  /** Horário agendado de envio (created_at da fila de saída, escalonado pelo
+   *  dispatch) — só existe quando status é 'queued'. null enquanto 'pending'. */
+  scheduled_at: string | null;
   lead: {
     id: string;
     razao_social: string;
