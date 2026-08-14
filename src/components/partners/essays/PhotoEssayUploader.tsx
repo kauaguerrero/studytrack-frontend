@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ImageIcon, Loader2, RotateCcw, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 
 type UploadState = 'idle' | 'transcribing' | 'review' | 'confirming' | 'error';
 
@@ -766,16 +767,18 @@ export function PhotoEssayUploader({
   return (
     <>
       {modal}
-      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30">
-          <p className="text-sm font-medium text-red-700 dark:text-red-400">
-            {errorMessage || 'Ocorreu um erro inesperado.'}
-          </p>
-        </div>
+      <div className="flex flex-col items-center rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8">
+        <BrokenPencilIllustration className="mb-1 h-auto w-48 sm:w-56" />
+        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-red-500 dark:text-red-400">
+          Algo deu errado
+        </p>
+        <p className="font-display mt-1.5 max-w-sm text-base font-bold text-slate-900 dark:text-white">
+          {errorMessage || 'Ocorreu um erro inesperado.'}
+        </p>
         <button
           type="button"
           onClick={resetToIdle}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
+          className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
         >
           <RotateCcw className="h-4 w-4" />
           Tentar novamente

@@ -48,6 +48,8 @@ interface Org {
   billing_enabled: boolean;
   is_active: boolean;
   is_mock: boolean;
+  demo_first_accessed_at: string | null;
+  demo_last_accessed_at: string | null;
   created_at: string;
   allow_multiple_pending_essays: boolean;
   permissions?: Record<string, boolean>;
@@ -177,6 +179,12 @@ const STATS_PERIOD_MAP: Partial<Record<OrgPeriod, string>> = {
   // semester is not supported by stats API — badges hidden
 };
 
+function formatShortDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
+}
+
 function DeltaBadge({ current, prev }: { current: number; prev: number }) {
   const delta = current - prev;
   if (delta === 0) return null;
@@ -289,8 +297,23 @@ function OrgCard({ org, perOrgStats, hasPrev, loadingMetrics, onOpenSettings, on
         </div>
 
         {org.founder && (
-          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mb-3 truncate">
+          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mb-1 truncate">
             {org.founder.full_name ?? org.founder.email}
+          </p>
+        )}
+
+        {org.is_mock && (
+          <p className="text-[11px] text-slate-400 dark:text-zinc-500 mb-3">
+            {org.demo_first_accessed_at ? (
+              <>
+                Acesso demo: <span className="font-semibold text-slate-600 dark:text-zinc-300">{formatShortDateTime(org.demo_first_accessed_at)}</span>
+                {org.demo_last_accessed_at && org.demo_last_accessed_at !== org.demo_first_accessed_at && (
+                  <> · últ. <span className="font-semibold text-slate-600 dark:text-zinc-300">{formatShortDateTime(org.demo_last_accessed_at)}</span></>
+                )}
+              </>
+            ) : (
+              <span className="text-amber-600 dark:text-amber-400">Credenciais demo ainda não acessadas</span>
+            )}
           </p>
         )}
 
