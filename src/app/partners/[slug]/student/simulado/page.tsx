@@ -605,6 +605,12 @@ export default function SimuladoPage() {
   }[]>([])
   const [nowTs, setNowTs] = useState<number>(Date.now())
   const [hybridConfirmSimId, setHybridConfirmSimId] = useState<string | null>(null)
+  const [activeSessionConflict, setActiveSessionConflict] = useState<{
+    id: string
+    started_at?: string | null
+    answered_count: number
+    total_questions: number
+  } | null>(null)
 
   // UI: result animation
   const [animatedScore, setAnimatedScore] = useState(0)
@@ -1054,7 +1060,7 @@ export default function SimuladoPage() {
   }, [presetFormats, enemFormat])
 
   // ── Handlers ──
-  const startSimulado = async (scheduledId?: string) => {
+  const startSimulado = async (scheduledId?: string, discardActive?: boolean) => {
     if (!accessToken) return
     setLoading(true)
     setStartStage(0)
@@ -1065,6 +1071,7 @@ export default function SimuladoPage() {
     ]
     try {
       const body: Record<string, unknown> = { difficulty }
+      if (discardActive) body.discard_active = true
       if (year !== 'Todos') body.year = Number(year)
       if (mode === 'custom') {
         body.format = 'custom'
@@ -1108,6 +1115,10 @@ export default function SimuladoPage() {
         toast.error('Acesso indisponível', { description: 'Seu acesso ao simulado está suspenso. Entre em contato com o administrador da sua organização.' }); setShowConfigModal(false); return
       }
       if (res.status === 404) { toast.error('Nenhuma questão encontrada', { description: 'Tente reduzir a quantidade ou mudar a dificuldade para "Misto".', duration: 6000 }); return }
+      if (res.status === 409 && data?.code === 'ACTIVE_SESSION_EXISTS') {
+        setActiveSessionConflict(data.active_session ?? null)
+        return
+      }
       if (!res.ok) { toast.error('Erro ao iniciar simulado', { description: data.error || 'Tente novamente em instantes.' }); return }
       setShowConfigModal(false)
       setSessionId(data.session_id)
@@ -1159,6 +1170,51 @@ export default function SimuladoPage() {
       stageTimers.forEach((t) => clearTimeout(t))
       setLoading(false)
       setStartStage(0)
+    }
+  }
+
+  const resumeSessionById = async (sid: string) => {
+    if (!accessToken) return
+    setLoading(true)
+    try {
+      const res = await fetch(`${apiUrl}/api/simulado/${sid}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+      const sessionData = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error('Não foi possível retomar o simulado.', { description: sessionData?.error }); return }
+      if (sessionData?.status === 'completed') {
+        toast.info('Esse simulado já havia sido finalizado.')
+        setActiveSessionConflict(null)
+        return
+      }
+
+      const restoredQuestions = Array.isArray(sessionData?.questions) ? sessionData.questions : []
+      const restoredAnswers = sessionData?.answers && typeof sessionData.answers === 'object' ? sessionData.answers : {}
+      const startedAtMs = sessionData?.started_at ? new Date(sessionData.started_at).getTime() : Date.now()
+      startTimeRef.current = Number.isNaN(startedAtMs) ? Date.now() : startedAtMs
+      lastAutosavedRef.current = JSON.stringify(restoredAnswers)
+      const sessionHasTimeLimit = Boolean(sessionData?.config?.time_limit_secs)
+      const initialTime = sessionHasTimeLimit
+        ? Math.max(0, Number(sessionData.config.time_limit_secs) - Math.floor((Date.now() - startTimeRef.current) / 1000))
+        : restoredQuestions.length * 3 * 60
+
+      setSessionId(sid)
+      setQuestions(restoredQuestions)
+      setUserAnswers(restoredAnswers)
+      setCurrentIdx(0)
+      setFinishResult(null)
+      setReportedQuestionIds(new Set())
+      setHasTimeLimit(sessionHasTimeLimit)
+      setTimeLeft(initialTime)
+      prevTimeLeftRef.current = initialTime
+      setShowConfigModal(false)
+      setActiveSessionConflict(null)
+      setStep('quiz')
+      toast.info('Sessão retomada', {
+        description: 'Você voltou para o simulado que estava em andamento em outro momento ou dispositivo.',
+      })
+    } catch {
+      toast.error('Erro de conexão', { description: 'Não foi possível conectar ao servidor.' })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -1762,6 +1818,56 @@ export default function SimuladoPage() {
               </div>
             </ElevatedCard>
             </RevealItem>
+
+            {/* Modal de conflito: simulado avulso já em andamento (outro dispositivo/aba) */}
+            <AnimatePresence>
+              {activeSessionConflict && (
+                <motion.div
+                  key="active-session-conflict-modal"
+                  className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setActiveSessionConflict(null)}
+                >
+                  <motion.div
+                    className="max-h-[calc(100vh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:p-6"
+                    initial={{ scale: 0.94, opacity: 0, y: 12 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.94, opacity: 0, y: 12 }}
+                    transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="text-base font-extrabold text-slate-900 dark:text-white mb-2">Simulado em andamento</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                      Você já tem um simulado em andamento
+                      {activeSessionConflict.started_at ? ` desde ${formatDate(activeSessionConflict.started_at)}` : ''}
+                      {activeSessionConflict.total_questions > 0
+                        ? ` (${activeSessionConflict.answered_count} de ${activeSessionConflict.total_questions} questões respondidas)`
+                        : ''}
+                      . Ele pode ter sido iniciado em outro dispositivo ou aba. Quer continuar de onde parou, ou começar um novo (o anterior será descartado)?
+                    </p>
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => { setActiveSessionConflict(null); startSimulado(undefined, true); }}
+                        className="min-h-11 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+                      >
+                        Começar novo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => resumeSessionById(activeSessionConflict.id)}
+                        className="min-h-11 flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 cursor-pointer"
+                        style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
+                      >
+                        Continuar simulado
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Simulados da Turma */}
             {scheduledSimulados.length > 0 && (
