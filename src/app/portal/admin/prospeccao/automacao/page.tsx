@@ -790,6 +790,16 @@ function LeadPickerModal({ open, onClose, onAdded }: { open: boolean; onClose: (
   );
 }
 
+function formatScheduledTime(iso: string): string {
+  const time = new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const diffMin = Math.round((new Date(iso).getTime() - Date.now()) / 60_000);
+  if (diffMin <= 0) return `${time} · a qualquer momento`;
+  if (diffMin < 60) return `${time} · em ${diffMin} min`;
+  const h = Math.floor(diffMin / 60);
+  const min = diffMin % 60;
+  return `${time} · em ${h}h${min > 0 ? `${min}min` : ''}`;
+}
+
 function ManualQueueCard() {
   const { queue, reload } = useManualQueue();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -887,6 +897,15 @@ function ManualQueueCard() {
                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${status.cls}`}>{status.label}</span>
                   {item.lead?.uf && <span className="text-[10px] text-slate-400 dark:text-zinc-500">{item.lead.uf}</span>}
                 </span>
+                {item.status === 'queued' && item.scheduled_at ? (
+                  <span className="flex items-center gap-1 text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                    <Clock className="w-3 h-3 shrink-0" /> {formatScheduledTime(item.scheduled_at)}
+                  </span>
+                ) : item.status === 'pending' ? (
+                  <span className="flex items-center gap-1 text-[10px] text-slate-400 dark:text-zinc-500 italic">
+                    <Clock className="w-3 h-3 shrink-0" /> aguardando agendamento
+                  </span>
+                ) : null}
               </div>
             );
           })
