@@ -91,18 +91,23 @@ function TemperatureBadge({ t }: { t: LeadTemperature }) {
   );
 }
 
+// next_followup_at é uma data pura (sem hora), sempre gravada como meia-noite
+// UTC da data escolhida no <input type="date"> — nunca construir um Date()
+// com esse valor e formatar em horário local: em BRT (UTC-3) isso volta pro
+// dia anterior. Tratar como string YYYY-MM-DD evita o bug de fuso.
 function formatDate(v: string | null) {
   if (!v) return '—';
-  return new Date(v).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-  });
+  const [y, m, d] = v.slice(0, 10).split('-');
+  return `${d}/${m}/${y.slice(2)}`;
+}
+
+function todayBRT(): string {
+  return new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 function isOverdue(date: string | null) {
   if (!date) return false;
-  return new Date(date) < new Date();
+  return date.slice(0, 10) < todayBRT();
 }
 
 function formatCallDateTime(v: string) {
@@ -171,7 +176,9 @@ export function KanbanBoard({
         return {
           ...payload,
           leads: payload.leads.map((l) =>
-            l.id === lead.id ? { ...l, status_crm: targetStatus } : l
+            l.id === lead.id
+              ? { ...l, status_crm: targetStatus, status_changed_at: new Date().toISOString() }
+              : l
           ),
         };
       },
@@ -332,6 +339,10 @@ export function KanbanBoard({
                       </p>
                       {isActive && <TemperatureBadge t={lead.temperature} />}
                     </div>
+
+                    <p className="text-[10px] text-slate-400 dark:text-zinc-500 mb-2">
+                      Nesta etapa {daysSince(lead.status_changed_at)}
+                    </p>
 
                     <div className="flex flex-wrap gap-1 mb-2">
                       {lead.org_id && (

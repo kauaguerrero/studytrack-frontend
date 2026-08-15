@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const temperature = searchParams.get('temperature');
   const tipo        = searchParams.get('tipo');      // 'empresa' | 'pf'
   const max_anos    = searchParams.get('max_anos');  // '10' = últimos 10 anos
+  const followup_today = searchParams.get('followup_today') === '1';
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = auth.supabaseAdmin as any;
@@ -28,6 +29,15 @@ export async function GET(request: NextRequest) {
   if (uf)               query = query.eq('uf', uf);
   if (statusList.length) query = query.in('status_crm', statusList);
   if (temperature)      query = query.eq('temperature', temperature);
+  if (followup_today) {
+    // next_followup_at é uma data pura (sem hora) escolhida num <input
+    // type="date">, sempre gravada como meia-noite UTC da data escolhida
+    // (ver PATCH .../leads/[id]). BRT é sempre UTC-3 fixo (sem horário de
+    // verão desde 2019) — "hoje" tem que ser calculado em BRT, senão esse
+    // filtro herda o mesmo bug de fuso do cadastro.
+    const todayBRT = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    query = query.not('next_followup_at', 'is', null).lte('next_followup_at', todayBRT);
+  }
   if (has_email)   query = query.not('email', 'is', null);
   if (has_phone)   query = query.or('telefone1.not.is.null,telefone2.not.is.null');
   if (search) {

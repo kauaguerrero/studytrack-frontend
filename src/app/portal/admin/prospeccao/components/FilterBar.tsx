@@ -151,6 +151,7 @@ export function FilterBar({
     filters.has_phone,
     filters.search,
     filters.temperature,
+    filters.followup_today,
   ].filter(Boolean).length;
 
   function clearAll() {
@@ -161,6 +162,7 @@ export function FilterBar({
       has_phone: false,
       search: '',
       temperature: '',
+      followup_today: false,
     });
   }
 
@@ -217,6 +219,17 @@ export function FilterBar({
           />
           <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">
             Com telefone
+          </span>
+        </label>
+
+        {/* Toggle follow-up hoje + vencidos */}
+        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+          <Switch
+            checked={filters.followup_today}
+            onCheckedChange={(v) => onChange({ ...filters, followup_today: v })}
+          />
+          <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">
+            Follow-up hoje
           </span>
         </label>
       </>

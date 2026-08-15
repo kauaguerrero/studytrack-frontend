@@ -100,6 +100,16 @@ function formatDate(v: string | null) {
   return new Date(v).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
+// next_followup_at é uma data pura (sem hora), sempre gravada como meia-noite
+// UTC da data escolhida no <input type="date"> — formatar com Date()+timezone
+// local (como formatDate acima) volta pro dia anterior em BRT. Tratar como
+// string YYYY-MM-DD evita o bug.
+function formatFollowupDate(v: string | null) {
+  if (!v) return '—';
+  const [y, m, d] = v.slice(0, 10).split('-');
+  return `${d}/${m}/${y.slice(2)}`;
+}
+
 function daysSince(v: string) {
   const diff = Date.now() - new Date(v).getTime();
   const days = Math.floor(diff / 86400000);
@@ -734,7 +744,7 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall,
                   {lead.next_followup_at && (
                     <div className="flex justify-between gap-3">
                       <span className="text-slate-400 dark:text-zinc-500">Próximo follow-up</span>
-                      <span className="text-slate-700 dark:text-zinc-200">{formatDate(lead.next_followup_at)}</span>
+                      <span className="text-slate-700 dark:text-zinc-200">{formatFollowupDate(lead.next_followup_at)}</span>
                     </div>
                   )}
                   </div>

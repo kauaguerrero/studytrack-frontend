@@ -3,62 +3,28 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { RegionData, MetricLayer, SelectedRegion } from '../types';
-import type { Lead } from '../../prospeccao/types';
-import { choroplethColor, metricValue, STATE_CENTROIDS, FUNNEL_LABELS, CHANNEL_LABELS } from '../constants';
+import type { Lead, LeadStatusCRM } from '../../prospeccao/types';
+import { choroplethColor, metricValue, STATE_CENTROIDS, FUNNEL_ORDER, FUNNEL_LABELS, FUNNEL_COLORS, CHANNEL_LABELS } from '../constants';
 
 const NATIONAL_W = 1000;
 const NATIONAL_H = 912;
 const CITY_W = 800;
 const CITY_H = 640;
 
-// ── Pin visual specs per status category ─────────────────────────────────────
-
-type PinCat = 'novo' | 'em_andamento' | 'fechado';
-
-interface PinStyle {
-  fill: string;
-  stroke: string;
-  strokeWidth: number;
-  opacity: number;
-  r: number;
-  glowFilter?: string;
-}
-
-const PIN_STYLES: Record<PinCat, PinStyle> = {
-  novo: {
-    fill: '#cbd5e1',
-    stroke: '#000000',
-    strokeWidth: 1,
-    opacity: 1,
-    r: 4,
-  },
-  em_andamento: {
-    fill: '#fbbf24',
-    stroke: '#000000',
-    strokeWidth: 1,
-    opacity: 0.85,
-    r: 5,
-  },
-  fechado: {
-    fill: '#4ade80',
-    stroke: '#000000',
-    strokeWidth: 1,
-    opacity: 1,
-    r: 5.5,
-    glowFilter: 'url(#pin-glow-verde)',
-  },
+// ── Pin visual specs — cor sempre é a fase exata do CRM (FUNNEL_COLORS);
+// só o raio/opacidade/glow variam pra destacar "fechado" (conversão) e
+// esmaecer "perdido" (lead morto).
+const DEFAULT_PIN_R = 4.5;
+const PIN_R: Partial<Record<LeadStatusCRM, number>> = {
+  fechado: 5.5,
+  perdido: 3.5,
+};
+const PIN_OPACITY: Partial<Record<LeadStatusCRM, number>> = {
+  perdido: 0.55,
 };
 
-const PIN_LEGEND: { cat: PinCat; label: string }[] = [
-  { cat: 'novo',         label: 'Novo (sem contato)' },
-  { cat: 'em_andamento', label: 'Em andamento'       },
-  { cat: 'fechado',      label: 'Fechado / Parceiro' },
-];
-
-function pinCat(lead: Lead): PinCat {
-  if (lead.status_crm === 'fechado') return 'fechado';
-  if (lead.status_crm === 'novo')    return 'novo';
-  return 'em_andamento';
+function pinFill(status: LeadStatusCRM): string {
+  return FUNNEL_COLORS[status] ?? '#94a3b8';
 }
 
 // ── Deterministic jitter (stable across re-renders for the same lead ID) ─────
@@ -270,7 +236,6 @@ export function BrazilMap({
     lead: Lead;
     cx: number;
     cy: number;
-    cat: PinCat;
   }
 
   // When filteredLeadId is set, only show that lead
@@ -318,7 +283,7 @@ export function BrazilMap({
         cy = Math.max(bb[2] + 4, Math.min(bb[3] - 4, cy));
       }
 
-      positionedLeads.push({ lead, cx, cy, cat: pinCat(lead) });
+      positionedLeads.push({ lead, cx, cy });
     }
   } else if (region.level === 'state' && region.uf) {
     const ufLeads = visibleLeads.filter(l => l.uf === region.uf);
@@ -326,13 +291,16 @@ export function BrazilMap({
       const pos = lead.municipio ? cityBboxCenter.get(normalizeName(lead.municipio)) : undefined;
       if (!pos) continue;
       const [jx, jy] = jitter(lead.id, 9);
-      positionedLeads.push({ lead, cx: pos[0] + jx, cy: pos[1] + jy, cat: pinCat(lead) });
+      positionedLeads.push({ lead, cx: pos[0] + jx, cy: pos[1] + jy });
     }
   }
 
-  // Render order: novo first (bottom) → em_andamento → fechado (top with glow)
-  const CAT_ORDER: PinCat[] = ['novo', 'em_andamento', 'fechado'];
-  positionedLeads.sort((a, b) => CAT_ORDER.indexOf(a.cat) - CAT_ORDER.indexOf(b.cat));
+  // Render order segue a progressão do funil — fases mais avançadas desenham
+  // por cima das mais iniciais (mais leads em 'novo' não deve encobrir os
+  // poucos já em negociação avançada).
+  positionedLeads.sort(
+    (a, b) => FUNNEL_ORDER.indexOf(a.lead.status_crm) - FUNNEL_ORDER.indexOf(b.lead.status_crm)
+  );
 
   // ── Choropleth data for national view ────────────────────────────────────
   const maxValue = Math.max(1, ...regions.map(r => metricValue(r, activeMetric)));
@@ -411,21 +379,23 @@ export function BrazilMap({
               />
             ))}
 
-            {/* ── Lead pins — rendered in cat order (fechado on top) ─────────── */}
-            {positionedLeads.map(({ lead, cx, cy, cat }) => {
-              const s = PIN_STYLES[cat];
+            {/* ── Lead pins — cor = fase exata do CRM, ordenados pelo funil ─── */}
+            {positionedLeads.map(({ lead, cx, cy }) => {
+              const status = lead.status_crm;
+              const r = PIN_R[status] ?? DEFAULT_PIN_R;
+              const opacity = PIN_OPACITY[status] ?? 1;
               const isHovered = lead.id === hoveredId;
               return (
                 <circle
                   key={lead.id}
                   cx={cx}
                   cy={cy}
-                  r={isHovered ? s.r * 1.5 : s.r}
-                  fill={s.fill}
-                  stroke={s.stroke}
-                  strokeWidth={s.strokeWidth}
-                  opacity={isHovered ? 1 : s.opacity}
-                  filter={cat === 'fechado' ? s.glowFilter : undefined}
+                  r={isHovered ? r * 1.5 : r}
+                  fill={pinFill(status)}
+                  stroke="#000000"
+                  strokeWidth={1}
+                  opacity={isHovered ? 1 : opacity}
+                  filter={status === 'fechado' ? 'url(#pin-glow-verde)' : undefined}
                   style={{ cursor: 'pointer', transition: 'r 0.1s, opacity 0.1s' }}
                   onMouseEnter={() => setHoveredId(lead.id)}
                   onClick={() => onPinClick(lead)}
@@ -448,22 +418,23 @@ export function BrazilMap({
       </AnimatePresence>
 
       {/* ── Legend ──────────────────────────────────────────────────────────── */}
-      <div className="absolute bottom-3 left-3 flex items-center gap-4 text-xs text-slate-500 dark:text-zinc-400">
+      <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg bg-white/85 dark:bg-zinc-900/85 backdrop-blur-sm px-3 py-2 text-[11px] text-slate-500 dark:text-zinc-400">
         {region.level === 'national' && (
           <span className="flex items-center gap-1.5 mr-1">
             <span className="inline-block w-14 h-2 rounded" style={{ background: 'linear-gradient(to right, #f1f5f9, #7c3aed)' }} />
             volume
           </span>
         )}
-        {PIN_LEGEND.map(({ cat, label }) => {
-          const s = PIN_STYLES[cat];
+        {FUNNEL_ORDER.map(status => {
+          const r = PIN_R[status as LeadStatusCRM] ?? DEFAULT_PIN_R;
+          const opacity = PIN_OPACITY[status as LeadStatusCRM] ?? 1;
           return (
-            <span key={cat} className="flex items-center gap-1.5">
-              <svg width="12" height="12" style={{ overflow: 'visible' }}>
-                {cat === 'fechado' && <circle cx="6" cy="6" r="7" fill="#4ade80" fillOpacity="0.3" />}
-                <circle cx="6" cy="6" r={s.r - 0.5} fill={s.fill} stroke={s.stroke} strokeWidth={s.strokeWidth} opacity={s.opacity} />
+            <span key={status} className="flex items-center gap-1.5">
+              <svg width="12" height="12" style={{ overflow: 'visible', flexShrink: 0 }}>
+                {status === 'fechado' && <circle cx="6" cy="6" r="7" fill={FUNNEL_COLORS.fechado} fillOpacity="0.3" />}
+                <circle cx="6" cy="6" r={r - 0.5} fill={pinFill(status as LeadStatusCRM)} stroke="#000000" strokeWidth={1} opacity={opacity} />
               </svg>
-              {label}
+              {FUNNEL_LABELS[status] ?? status}
             </span>
           );
         })}

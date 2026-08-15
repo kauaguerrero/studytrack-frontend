@@ -23,6 +23,7 @@ function buildLeadsKey(filters: LeadFilters): string {
   if (filters.has_phone) params.set('has_phone', '1');
   if (filters.search) params.set('search', filters.search);
   if (filters.temperature) params.set('temperature', filters.temperature);
+  if (filters.followup_today) params.set('followup_today', '1');
   const qs = params.toString();
   return qs ? `${LEADS_BASE}?${qs}` : LEADS_BASE;
 }

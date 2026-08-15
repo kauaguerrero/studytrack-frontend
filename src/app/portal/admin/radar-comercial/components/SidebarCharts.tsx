@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import type { RegionData, MetricLayer } from '../types';
-import { FUNNEL_ORDER, FUNNEL_LABELS, metricValue, METRIC_LAYERS } from '../constants';
+import { FUNNEL_ORDER, FUNNEL_LABELS, FUNNEL_COLORS, metricValue, METRIC_LAYERS } from '../constants';
 
 function TopRanking({ regions, metric }: { regions: RegionData[]; metric: MetricLayer }) {
   const sorted = [...regions]
@@ -59,7 +59,7 @@ function TopRanking({ regions, metric }: { regions: RegionData[]; metric: Metric
 function FunnelChart({ funnel }: { funnel: Record<string, number> }) {
   const data = FUNNEL_ORDER
     .filter(s => (funnel[s] ?? 0) > 0)
-    .map(s => ({ label: FUNNEL_LABELS[s] ?? s, count: funnel[s] ?? 0 }));
+    .map(s => ({ status: s, label: FUNNEL_LABELS[s] ?? s, count: funnel[s] ?? 0 }));
 
   const maxCount = Math.max(1, ...data.map(d => d.count));
 
@@ -90,16 +90,7 @@ function FunnelChart({ funnel }: { funnel: Record<string, number> }) {
           />
           <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={14}>
             {data.map((entry, i) => (
-              <Cell
-                key={i}
-                fill={
-                  entry.label === FUNNEL_LABELS['fechado']
-                    ? '#10b981'
-                    : entry.label === FUNNEL_LABELS['perdido']
-                    ? '#f43f5e'
-                    : '#818cf8'
-                }
-              />
+              <Cell key={i} fill={FUNNEL_COLORS[entry.status] ?? '#818cf8'} />
             ))}
           </Bar>
         </BarChart>
