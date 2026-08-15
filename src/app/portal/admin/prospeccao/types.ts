@@ -80,6 +80,7 @@ export interface Lead {
   // Timestamps
   created_at: string;
   updated_at: string;
+  status_changed_at: string;
   // Relações
   lead_contacts: LeadContact[];
   // Automação WhatsApp (sessão ativa do fluxo, se houver) — ausente em respostas
@@ -119,6 +120,7 @@ export interface LeadFilters {
   has_phone: boolean;
   search: string;
   temperature: LeadTemperature | '';
+  followup_today: boolean;
 }
 
 export type PostCallStatus = 'quer_proposta' | 'sem_interesse' | 'retornar_depois' | 'agendou_videochamada';

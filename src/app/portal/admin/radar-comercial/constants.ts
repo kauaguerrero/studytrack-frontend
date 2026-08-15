@@ -47,6 +47,24 @@ export const FUNNEL_ORDER = [
   'enviar_proposta', 'proposta_enviada', 'fechado', 'perdido',
 ];
 
+// Mesma paleta usada nas colunas do kanban de prospecção (KanbanBoard.tsx
+// COLUMN_ACCENT) — mantém a linguagem de cor consistente entre as duas telas.
+export const FUNNEL_COLORS: Record<string, string> = {
+  novo: '#64748b',
+  contatado: '#3b82f6',
+  respondeu: '#8b5cf6',
+  handoff: '#d946ef',
+  esperando_contato_gestor: '#ec4899',
+  aguardando_confirmacao_call: '#fb7185',
+  call_agendado: '#06b6d4',
+  interesse: '#f59e0b',
+  demo_teste: '#fb923c',
+  enviar_proposta: '#ea580c',
+  proposta_enviada: '#f97316',
+  fechado: '#10b981',
+  perdido: '#ef4444',
+};
+
 export const FUNNEL_LABELS: Record<string, string> = {
   novo: 'Novo',
   contatado: 'Contatado',

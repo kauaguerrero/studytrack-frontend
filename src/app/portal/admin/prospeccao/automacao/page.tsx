@@ -706,7 +706,7 @@ function LeadPickerModal({ open, onClose, onAdded }: { open: boolean; onClose: (
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
-  const { leads, isLoading } = useLeads({ uf: '', status: [], has_phone: false, search, temperature: '' });
+  const { leads, isLoading } = useLeads({ uf: '', status: [], has_phone: false, search, temperature: '', followup_today: false });
 
   if (!open) return null;
 

@@ -27,6 +27,7 @@ const EMPTY_FILTERS: LeadFilters = {
   has_phone: false,
   search: '',
   temperature: '',
+  followup_today: false,
 };
 
 type View = 'table' | 'kanban';
