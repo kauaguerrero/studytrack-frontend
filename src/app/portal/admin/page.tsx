@@ -165,6 +165,13 @@ const PLAN_LABELS: Record<string, { label: string; cls: string }> = {
 
 const SUPABASE_FREE_LIMIT = 500 * 1024 * 1024;
 
+type DistVerifiedFilter = 'all' | 'public' | 'review';
+const DIST_VERIFIED_OPTIONS: { key: DistVerifiedFilter; label: string }[] = [
+  { key: 'all',    label: 'Todas'      },
+  { key: 'public', label: 'Públicas'   },
+  { key: 'review', label: 'Em análise' },
+];
+
 // Cores da própria marca StudyTrack (não confundir com brand_primary/accent dos parceiros)
 const STUDYTRACK_PRIMARY = '#6366F1';
 const STUDYTRACK_ACCENT = '#3B82F6';
@@ -373,6 +380,8 @@ export default function SuperAdminDashboard() {
   const [inactiveOrgsOpen, setInactiveOrgsOpen] = useState(true);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
   const [distBankFilter, setDistBankFilter] = useState<string | null>(null);
+  const [distVerifiedFilter, setDistVerifiedFilter] = useState<DistVerifiedFilter>('all');
+  const [loadingDist, setLoadingDist] = useState(false);
   const supabaseRef = useState(() => createClient())[0];
   const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000").replace(/\/$/, "");
 
@@ -386,6 +395,21 @@ export default function SuperAdminDashboard() {
     }
   }, []);
 
+  const fetchDist = useCallback(async (filter: DistVerifiedFilter) => {
+    const { data: { session } } = await supabaseRef.auth.getSession();
+    if (!session) return;
+    const headers = { Authorization: `Bearer ${session.access_token}` };
+    const qs = filter === 'public' ? '?is_verified=true' : filter === 'review' ? '?is_verified=false' : '';
+    setLoadingDist(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/stats/distribution${qs}`, { headers });
+      if (res.ok) setDist(await res.json());
+    } finally {
+      setLoadingDist(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchData = useCallback(async () => {
     const { data: { session } } = await supabaseRef.auth.getSession();
     if (!session) { setLoading(false); return; }
@@ -393,13 +417,11 @@ export default function SuperAdminDashboard() {
     const headers = { Authorization: `Bearer ${session.access_token}` };
 
     try {
-      const [resStats, resDist, resOrgs] = await Promise.all([
+      const [resStats, resOrgs] = await Promise.all([
         fetch(`${apiUrl}/api/admin/stats`, { headers }),
-        fetch(`${apiUrl}/api/admin/stats/distribution`, { headers }),
         fetch('/api/admin/b2b/organizations'),
       ]);
       if (resStats.ok) setStats(await resStats.json());
-      if (resDist.ok)  setDist(await resDist.json());
       if (resOrgs.ok)  setOrgs((await resOrgs.json()).organizations ?? []);
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
@@ -410,6 +432,7 @@ export default function SuperAdminDashboard() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchDist(distVerifiedFilter); }, [distVerifiedFilter, fetchDist]);
   useEffect(() => {
     setLoadingMetrics(true);
     fetchB2bStats(orgPeriod).finally(() => setLoadingMetrics(false));
@@ -833,9 +856,30 @@ export default function SuperAdminDashboard() {
       {dist && (
         <div className="pt-6 border-t border-slate-200 dark:border-slate-700">
           <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-slate-600 dark:text-slate-400" /> Raio-X do Conteúdo ({dist.total} questões)
-            </h2>
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <BarChart3 className="w-6 h-6 text-slate-600 dark:text-slate-400" /> Raio-X do Conteúdo
+                {loadingDist
+                  ? <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+                  : <span className="text-slate-400 font-normal text-lg">({dist.total} questões)</span>
+                }
+              </h2>
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 gap-0.5">
+                {DIST_VERIFIED_OPTIONS.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setDistVerifiedFilter(key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      distVerifiedFilter === key
+                        ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link href="/portal/admin/reports" prefetch={false}>
                 <button className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-3 md:px-4 text-sm rounded-md transition-all shadow-sm hover:shadow-md active:scale-95">
@@ -850,7 +894,7 @@ export default function SuperAdminDashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+          <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 transition-opacity ${loadingDist ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
             {/* Por Matéria */}
             <ElevatedCard accentColor="#6366F1">
               <CardHeader className="pb-2 space-y-2">
