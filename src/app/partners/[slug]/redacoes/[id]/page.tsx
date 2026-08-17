@@ -9,7 +9,7 @@ import FloatingActionMenu from '@/components/ui/floating-action-menu';
 import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 import { cn } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
-import { ArrowLeft, ChevronLeft, ChevronRight, Info, MessageCircle, PenLine, PencilLine, Send, Users, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Hand, Info, MessageCircle, MousePointer2, PenLine, PencilLine, Send, Users, X } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { useOrgCorrectionPresence } from '@/hooks/useOrgCorrectionPresence';
 import { createClient } from '@/lib/supabase/client';
@@ -903,20 +903,37 @@ export default function CorrecaoRedacaoPage() {
             </p>
           </div>
           <div className="relative z-10 rounded-xl border border-white/70 bg-white/88 p-3 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/80">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-primary)]">
+                <p className="mb-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-primary)]">
                   <Info className="h-3.5 w-3.5" />
                   Como corrigir rapidamente
                 </p>
-                <p className="text-sm text-slate-700 dark:text-slate-200">
-                  Selecione um trecho do texto para adicionar comentário ou correção.
-                  {queuedMode && (
-                    <span className="ml-1 font-semibold text-[var(--brand-primary)]">
-                      Ação escolhida: {queuedMode === 'comment' ? 'Comentário' : 'Correção'}.
+                <div className="space-y-1.5">
+                  <p className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    <MousePointer2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400 dark:text-slate-500" />
+                    <span>
+                      <span className="font-semibold">No computador:</span> clique no início do trecho, segure e
+                      arraste o mouse até o final para selecionar.
                     </span>
-                  )}
-                </p>
+                  </p>
+                  <p className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+                    <Hand className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400 dark:text-slate-500" />
+                    <span>
+                      <span className="font-semibold">No celular:</span> encoste o dedo no início do trecho, sem
+                      soltar, e arraste devagar até o final da parte que quer marcar.
+                    </span>
+                  </p>
+                  <p className="text-sm text-slate-700 dark:text-slate-200">
+                    Depois de marcar o trecho, toque em <span className="font-semibold">Comentar</span> ou{' '}
+                    <span className="font-semibold">Corrigir</span> no menu que aparece.
+                    {queuedMode && (
+                      <span className="ml-1 font-semibold text-[var(--brand-primary)]">
+                        Ação escolhida: {queuedMode === 'comment' ? 'Comentário' : 'Correção'}.
+                      </span>
+                    )}
+                  </p>
+                </div>
               </div>
               {/* Atalho redundante com "selecionar trecho → Comentar/Corrigir" — no
                   mobile o menu flutuante fica cortado/instável, então só aparece
