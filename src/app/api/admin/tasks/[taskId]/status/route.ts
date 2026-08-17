@@ -21,10 +21,14 @@ export async function PATCH(
   }
 
   if (newStatus === 'in_progress') {
+    // Só currently_doing é obrigatório pra iniciar — already_done não faz
+    // sentido no começo (o MoveToProgressModal sempre manda vazio de
+    // propósito) e remaining cai pro escopo da task se não for informado.
+    // Mesma regra do backend Flask (admin_tasks_service.update_status).
     const p = body.progress ?? {};
-    if (!p.already_done || !p.currently_doing || !p.remaining) {
+    if (!p.currently_doing) {
       return NextResponse.json(
-        { error: 'Campos already_done, currently_doing e remaining são obrigatórios ao mover para in_progress' },
+        { error: 'Campo currently_doing é obrigatório ao mover para in_progress' },
         { status: 400 }
       );
     }
