@@ -92,6 +92,7 @@ type Segment = {
   end: number;
   text: string;
   annotation: Annotation | null;
+  pending: boolean;
 };
 
 function formatDateBR(value: string | null | undefined): string {
@@ -145,7 +146,11 @@ function getOffsetWithinContainer(
   return null;
 }
 
-function buildSegments(text: string, annotations: Annotation[]): Segment[] {
+function buildSegments(
+  text: string,
+  annotations: Annotation[],
+  pendingRange: { start: number; end: number } | null,
+): Segment[] {
   if (!text.length) return [];
 
   const owner: Array<Annotation | null> = new Array(text.length).fill(null);
@@ -159,32 +164,49 @@ function buildSegments(text: string, annotations: Annotation[]): Segment[] {
     }
   });
 
+  // Trecho selecionado com o popup Comentar/Corrigir aberto — substitui o
+  // destaque nativo do navegador, que a gente derruba manualmente (ver
+  // handleTextMouseUp) pra não brigar com o menu de seleção do iOS.
+  const pending: boolean[] = new Array(text.length).fill(false);
+  if (pendingRange) {
+    const start = Math.max(0, Math.min(text.length, pendingRange.start));
+    const end = Math.max(start, Math.min(text.length, pendingRange.end));
+    for (let i = start; i < end; i += 1) {
+      pending[i] = true;
+    }
+  }
+
   const segments: Segment[] = [];
   let start = 0;
   let currentOwner = owner[0];
+  let currentPending = pending[0];
 
   for (let i = 1; i < text.length; i += 1) {
     const nextOwner = owner[i];
-    if (nextOwner !== currentOwner) {
+    const nextPending = pending[i];
+    if (nextOwner !== currentOwner || nextPending !== currentPending) {
       segments.push({
-        key: `${start}-${i}-${currentOwner?.id || 'plain'}`,
+        key: `${start}-${i}-${currentOwner?.id || 'plain'}-${currentPending ? 'p' : ''}`,
         start,
         end: i,
         text: text.slice(start, i),
         annotation: currentOwner,
+        pending: currentPending,
       });
       start = i;
       currentOwner = nextOwner;
+      currentPending = nextPending;
     }
   }
 
   // Fecha o último segmento (inclui o caso sem anotações).
   segments.push({
-    key: `${start}-${text.length}-${currentOwner?.id || 'plain'}`,
+    key: `${start}-${text.length}-${currentOwner?.id || 'plain'}-${currentPending ? 'p' : ''}`,
     start,
     end: text.length,
     text: text.slice(start, text.length),
     annotation: currentOwner,
+    pending: currentPending,
   });
 
   return segments;
@@ -446,8 +468,13 @@ export default function CorrecaoRedacaoPage() {
   }, [generalComment, submitting, isLockedForCurrentUser]);
 
   const segments = useMemo(
-    () => buildSegments(essay?.text || '', annotations),
-    [essay?.text, annotations],
+    () =>
+      buildSegments(
+        essay?.text || '',
+        annotations,
+        selectedText ? { start: selectedText.start, end: selectedText.end } : null,
+      ),
+    [essay?.text, annotations, selectedText],
   );
 
   function closePopup() {
@@ -496,6 +523,12 @@ export default function CorrecaoRedacaoPage() {
     // Mostra acima da seleção se não couber abaixo
     const fitsBelow = rect.bottom + POPUP_H_EST + MARGIN < vh;
     const clampedY = fitsBelow ? rect.bottom + 8 : Math.max(MARGIN, rect.top - POPUP_H_EST - 8);
+    // -webkit-touch-callout:none no container não basta pro iOS: o menu nativo
+    // de seleção (Copy/Look Up/...) é da API Selection, não do callout de
+    // toque em link/imagem. Limpar a seleção nativa aqui derruba esse menu na
+    // hora — o popup próprio (abaixo) já mostra o trecho selecionado.
+    selection.removeAllRanges();
+
     setSelectedText({
       start: offsetStart,
       end: offsetEnd,
@@ -641,8 +674,19 @@ export default function CorrecaoRedacaoPage() {
 
   function renderAnnotatedText(): ReactNode {
     return segments.map((segment) => {
+      // Substitui o destaque nativo de seleção do navegador (derrubado em
+      // handleTextMouseUp) enquanto o popup Comentar/Corrigir está aberto.
+      const pendingCls = segment.pending ? 'rounded bg-sky-300/60 dark:bg-sky-400/40' : '';
+
       if (!segment.annotation) {
-        return <Fragment key={segment.key}>{segment.text}</Fragment>;
+        if (!segment.pending) {
+          return <Fragment key={segment.key}>{segment.text}</Fragment>;
+        }
+        return (
+          <span key={segment.key} className={pendingCls}>
+            {segment.text}
+          </span>
+        );
       }
 
       if (segment.annotation.type === 'comment') {
@@ -650,7 +694,10 @@ export default function CorrecaoRedacaoPage() {
           <span
             key={segment.key}
             data-annotation-id={segment.annotation.id}
-            className="cursor-pointer rounded bg-amber-400/10 px-0.5 text-amber-700 underline decoration-amber-500/80 underline-offset-2 dark:text-amber-100 dark:decoration-amber-300/80"
+            className={cn(
+              'cursor-pointer rounded bg-amber-400/10 px-0.5 text-amber-700 underline decoration-amber-500/80 underline-offset-2 dark:text-amber-100 dark:decoration-amber-300/80',
+              pendingCls,
+            )}
             title={segment.annotation.comment_text || ''}
           >
             {segment.text}
@@ -664,7 +711,7 @@ export default function CorrecaoRedacaoPage() {
         <span
           key={segment.key}
           data-annotation-id={segment.annotation.id}
-          className="inline-flex items-center gap-1 rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-800/70"
+          className={cn('inline-flex items-center gap-1 rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-800/70', pendingCls)}
         >
           <span className="line-through text-rose-600 dark:text-rose-400">{original}</span>{' '}
           <span className="font-semibold text-emerald-600 dark:text-emerald-400" data-ignore-offset="true">
@@ -975,9 +1022,6 @@ export default function CorrecaoRedacaoPage() {
               ref={textContainerRef}
               onMouseUp={handleTextMouseUp}
               onTouchEnd={() => setTimeout(handleTextMouseUp, 50)}
-              // -webkit-touch-callout:none evita o menu nativo do iOS (Copiar/
-              // Consultar/...) por cima do popup próprio de Comentar/Corrigir
-              // ao selecionar texto — a seleção em si continua funcionando.
               className="max-h-[540px] overflow-auto rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap [-webkit-touch-callout:none] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
             >
               {renderAnnotatedText()}
