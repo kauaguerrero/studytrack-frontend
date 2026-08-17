@@ -871,7 +871,10 @@ export default function CorrecaoRedacaoPage() {
                   )}
                 </p>
               </div>
-              <div className="self-end sm:self-auto">
+              {/* Atalho redundante com "selecionar trecho → Comentar/Corrigir" — no
+                  mobile o menu flutuante fica cortado/instável, então só aparece
+                  a partir do breakpoint onde há espaço sobrando de verdade. */}
+              <div className="hidden self-end lg:block sm:self-auto">
                 <FloatingActionMenu
                   className="!static !bottom-auto !right-auto"
                   inline
@@ -972,7 +975,10 @@ export default function CorrecaoRedacaoPage() {
               ref={textContainerRef}
               onMouseUp={handleTextMouseUp}
               onTouchEnd={() => setTimeout(handleTextMouseUp, 50)}
-              className="max-h-[540px] overflow-auto rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+              // -webkit-touch-callout:none evita o menu nativo do iOS (Copiar/
+              // Consultar/...) por cima do popup próprio de Comentar/Corrigir
+              // ao selecionar texto — a seleção em si continua funcionando.
+              className="max-h-[540px] overflow-auto rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap [-webkit-touch-callout:none] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
             >
               {renderAnnotatedText()}
             </div>
@@ -1098,10 +1104,14 @@ export default function CorrecaoRedacaoPage() {
                 <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--brand-primary)]">
                   Notas por Competência
                 </h2>
+                {/* Colapsar a lateral só faz sentido no grid de 2 colunas do
+                    desktop — no mobile ela já aparece empilhada abaixo do
+                    texto, então esconder o botão evita um toggle sem efeito
+                    visível. */}
                 <button
                   type="button"
                   onClick={() => setShowCompetencyPanel(false)}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  className="hidden items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 lg:inline-flex dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
                   Ocultar lateral
