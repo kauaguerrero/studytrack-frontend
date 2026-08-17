@@ -623,7 +623,16 @@ export default function SimuladoPage() {
   const prevTimeLeftRef = useRef<number>(Infinity)
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000'
-  const apiHeaders = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` })
+  // accessToken do state só é preenchido uma vez no mount (linha ~666) — se a aba
+  // ficar aberta além da expiração do token, cliques em ações que dependem dele
+  // (retomar/descartar sessão em conflito) falhavam em silêncio. Busca um token
+  // fresco na hora, em vez de confiar no valor capturado no mount.
+  const getFreshAccessToken = async (): Promise<string | null> => {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) setAccessToken(session.access_token)
+    return session?.access_token ?? null
+  }
   const getDraftStorageKey = (sid: string) => `simulado-draft:${slug}:${currentUserId ?? 'anon'}:${sid}`
   const getActiveSessionStorageKey = () => `simulado-active:${slug}:${currentUserId ?? 'anon'}`
 
@@ -1061,7 +1070,8 @@ export default function SimuladoPage() {
 
   // ── Handlers ──
   const startSimulado = async (scheduledId?: string, discardActive?: boolean) => {
-    if (!accessToken) return
+    const token = await getFreshAccessToken()
+    if (!token) { toast.error('Sessão expirada', { description: 'Faça login novamente para continuar.' }); return }
     setLoading(true)
     setStartStage(0)
     const stageTimers: ReturnType<typeof setTimeout>[] = [
@@ -1091,7 +1101,7 @@ export default function SimuladoPage() {
         body.bank = presetBank
       }
       if (scheduledId) body.scheduled_simulado_id = scheduledId
-      const res = await fetch(`${apiUrl}/api/simulado/start`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) })
+      const res = await fetch(`${apiUrl}/api/simulado/start`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) })
       const data = await res.json()
       if (res.status === 403) {
         if (data?.code === 'SCHEDULED_SIMULADO_NOT_STARTED') {
@@ -1121,6 +1131,7 @@ export default function SimuladoPage() {
       }
       if (!res.ok) { toast.error('Erro ao iniciar simulado', { description: data.error || 'Tente novamente em instantes.' }); return }
       setShowConfigModal(false)
+      setActiveSessionConflict(null)
       setSessionId(data.session_id)
       setQuestions(data.questions)
       setHasTimeLimit(!!data.time_limit_secs)
@@ -1174,14 +1185,20 @@ export default function SimuladoPage() {
   }
 
   const resumeSessionById = async (sid: string) => {
-    if (!accessToken) return
+    const token = await getFreshAccessToken()
+    if (!token) { toast.error('Sessão expirada', { description: 'Faça login novamente para continuar.' }); return }
     setLoading(true)
     try {
-      const res = await fetch(`${apiUrl}/api/simulado/${sid}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+      const res = await fetch(`${apiUrl}/api/simulado/${sid}`, { headers: { Authorization: `Bearer ${token}` } })
       const sessionData = await res.json().catch(() => ({}))
       if (!res.ok) { toast.error('Não foi possível retomar o simulado.', { description: sessionData?.error }); return }
       if (sessionData?.status === 'completed') {
         toast.info('Esse simulado já havia sido finalizado.')
+        setActiveSessionConflict(null)
+        return
+      }
+      if (sessionData?.status === 'abandoned') {
+        toast.warning('Essa sessão foi descartada', { description: 'Ela foi iniciada de novo em outro dispositivo. Comece um novo simulado.' })
         setActiveSessionConflict(null)
         return
       }
@@ -1850,18 +1867,20 @@ export default function SimuladoPage() {
                     <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                       <button
                         type="button"
-                        onClick={() => { setActiveSessionConflict(null); startSimulado(undefined, true); }}
-                        className="min-h-11 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+                        disabled={loading}
+                        onClick={() => startSimulado(undefined, true)}
+                        className="min-h-11 flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
                       >
-                        Começar novo
+                        {loading ? 'Aguarde...' : 'Começar novo'}
                       </button>
                       <button
                         type="button"
+                        disabled={loading}
                         onClick={() => resumeSessionById(activeSessionConflict.id)}
-                        className="min-h-11 flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 cursor-pointer"
+                        className="min-h-11 flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                         style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
                       >
-                        Continuar simulado
+                        {loading ? 'Aguarde...' : 'Continuar simulado'}
                       </button>
                     </div>
                   </motion.div>
