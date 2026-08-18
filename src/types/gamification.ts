@@ -67,6 +67,51 @@ export interface PartnerRankingResponse {
   monthly_history: MonthlyHistoryEntry[];
 }
 
+// ─── Disputa Nacional ──────────────────────────────────────────────────────
+
+export interface NationalStatus {
+  qualified: boolean;
+  org_rank: number | null;
+  monthly_points: number;
+  cutoff_points: number | null;
+  points_to_qualify: number | null;
+  season_label: string;
+}
+
+export interface NationalRankingEntry {
+  source: 'real' | 'mock';
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  gamification_title: string | null;
+  org_name: string | null;
+  org_slug: string | null;
+  org_logo_url: string | null;
+  national_points: number;
+  rank: number;
+}
+
+export interface NationalUserContext {
+  position: number;
+  above: NationalRankingEntry[];
+  self: NationalRankingEntry;
+  below: NationalRankingEntry[];
+}
+
+export interface NationalRankingSettings {
+  season_label: string;
+  bonus_active: boolean;
+  bonus_multiplier: number;
+  bonus_questions_total: number;
+  questions_remaining: number | null;
+}
+
+export interface NationalRankingResponse {
+  ranking: NationalRankingEntry[];
+  user_context: NationalUserContext | null;
+  settings: NationalRankingSettings;
+}
+
 export type PopupType = 'onboarding' | 'streak' | 'streak_broken' | 'urgency' | 'motivation' | 'month_end' | 'top3_entered' | 'none';
 
 export interface PopupState {
@@ -204,4 +249,19 @@ export interface StreakDecayResult {
   current_rank: number;
   rank_dropped: boolean;
   rival_name: string | null;
+}
+
+// ─── Desafio de Reativação ("chame seu colega de volta") ───────────────────
+
+export interface ReactivationStatus {
+  enabled: boolean;
+  reactivated_count: number;
+  required_students: number;
+  required_questions: number;
+  required_distinct_days: number;
+  inactive_days_threshold: number;
+  bonus_active: boolean;
+  bonus_active_until: string | null;
+  bonus_multiplier: number;
+  bonus_duration_days: number;
 }

@@ -10,6 +10,9 @@ import type {
   MonthlyCheckInStatus,
   MonthlyCheckInAnswerInput,
   PartnerRankingResponse,
+  NationalStatus,
+  NationalRankingResponse,
+  ReactivationStatus,
   PopupState,
   StreakDecayResult,
   TitlesHistoryResponse,
@@ -108,6 +111,9 @@ export function usePartnerGamification(
   const [summary, setSummary] = useState<MonthlySummary | null>(null);
   const [popupState, setPopupState] = useState<PopupState | null>(null);
   const [ranking, setRanking] = useState<PartnerRankingResponse | null>(null);
+  const [nationalStatus, setNationalStatus] = useState<NationalStatus | null>(null);
+  const [nationalRanking, setNationalRanking] = useState<NationalRankingResponse | null>(null);
+  const [reactivationStatus, setReactivationStatus] = useState<ReactivationStatus | null>(null);
   const [checkInStatus, setCheckInStatus] = useState<MonthlyCheckInStatus | null>(null);
   const [titlesJourney, setTitlesJourney] = useState<TitlesJourneyResponse | null>(null);
   const [titlesHistory, setTitlesHistory] = useState<TitlesHistoryResponse | null>(null);
@@ -303,6 +309,58 @@ export function usePartnerGamification(
     }
   }, []);
 
+  // ── Lazy: fetch national status/ranking (Disputa Nacional) ─────────────────
+
+  const refreshNationalStatus = useCallback(async (): Promise<NationalStatus | null> => {
+    const token = tokenRef.current;
+    if (!token) return null;
+    const apiBase = getApiBaseUrl();
+    try {
+      const data = await apiFetcher<NationalStatus>(
+        `${apiBase}/api/partner/gamification/national-status`,
+        { headers: buildHeaders(token) },
+      );
+      setNationalStatus(data);
+      return data;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao carregar status nacional.');
+      return null;
+    }
+  }, []);
+
+  const refreshNationalRanking = useCallback(async (limit = 50): Promise<NationalRankingResponse | null> => {
+    const token = tokenRef.current;
+    if (!token) return null;
+    const apiBase = getApiBaseUrl();
+    try {
+      const data = await apiFetcher<NationalRankingResponse>(
+        `${apiBase}/api/partner/gamification/national-ranking?limit=${Math.min(limit, 100)}`,
+        { headers: buildHeaders(token) },
+      );
+      setNationalRanking(data);
+      return data;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao carregar ranking nacional.');
+      return null;
+    }
+  }, []);
+
+  const refreshReactivationStatus = useCallback(async (): Promise<ReactivationStatus | null> => {
+    const token = tokenRef.current;
+    if (!token) return null;
+    const apiBase = getApiBaseUrl();
+    try {
+      const data = await apiFetcher<ReactivationStatus>(
+        `${apiBase}/api/partner/gamification/reactivation-status`,
+        { headers: buildHeaders(token) },
+      );
+      setReactivationStatus(data);
+      return data;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const submitMonthlyCheckIn = useCallback(
     async (answers: MonthlyCheckInAnswerInput[]): Promise<MonthlyCheckInResult> => {
       const token = tokenRef.current;
@@ -375,6 +433,9 @@ export function usePartnerGamification(
     summary,
     popupState,
     ranking,
+    nationalStatus,
+    nationalRanking,
+    reactivationStatus,
     checkInStatus,
     titlesJourney,
     titlesHistory,
@@ -384,6 +445,9 @@ export function usePartnerGamification(
     submitMonthlyCheckIn,
     refreshSummary,
     refreshRanking,
+    refreshNationalStatus,
+    refreshNationalRanking,
+    refreshReactivationStatus,
     refreshCheckInStatus,
     refreshTitlesJourney,
     refreshTitlesHistory,
