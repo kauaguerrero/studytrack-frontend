@@ -145,7 +145,7 @@ function collapseSoftLineBreaks(paragraph: string): string {
 }
 
 function normalizeQuestionParagraphs(text: string): string[] {
-  const rawParagraphs = text.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean)
+  const rawParagraphs = text.split(/\n{2,}/).map((paragraph) => paragraph.trimEnd()).filter(p => !!p.trim())
 
   return rawParagraphs.map((paragraph, index) => {
     const previousParagraph = rawParagraphs[index - 1]
@@ -206,7 +206,9 @@ function renderInlineMarkdownWithUnderline(text: string, keyPrefix: string): Rea
   while ((match = underlineSegmentRegex.exec(text)) !== null) {
     const before = text.slice(lastIndex, match.index)
     if (before) {
-      parts.push(renderInlineMarkdown(before, `${keyPrefix}-plain-${parts.length}`))
+      const trimmed = before.trimEnd()
+      if (trimmed) parts.push(renderInlineMarkdown(trimmed, `${keyPrefix}-plain-${parts.length}`))
+      if (before.length > trimmed.length) parts.push(' ')
     }
 
     parts.push(
@@ -219,7 +221,9 @@ function renderInlineMarkdownWithUnderline(text: string, keyPrefix: string): Rea
 
   const after = text.slice(lastIndex)
   if (after) {
-    parts.push(renderInlineMarkdown(after, `${keyPrefix}-plain-${parts.length}`))
+    const trimmed = after.trimStart()
+    if (after.length > trimmed.length) parts.push(' ')
+    if (trimmed) parts.push(renderInlineMarkdown(trimmed, `${keyPrefix}-plain-${parts.length}`))
   }
 
   return parts.length > 0 ? parts : renderInlineMarkdown(text, `${keyPrefix}-plain`)
