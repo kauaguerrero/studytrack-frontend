@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Crown, Plus, Pencil, Trash2, X, ChevronLeft, ChevronRight,
-  ArrowLeft, Zap, ZapOff, Loader2, Medal, Building2,
+  ArrowLeft, Zap, ZapOff, Loader2, Medal, Building2, Sparkles,
 } from 'lucide-react';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
@@ -56,6 +56,8 @@ interface Settings {
   bonus_active: boolean;
   bonus_multiplier: number;
   bonus_questions_total: number;
+  daily_variation_min: number;
+  daily_variation_max: number;
 }
 
 const inputCls =
@@ -247,25 +249,150 @@ function CompetitorModal({
   );
 }
 
+function BulkCreateModal({
+  open, onClose, onCreated, token,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+  token: string;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [count, setCount] = useState(10);
+  const [orgLabel, setOrgLabel] = useState('');
+  const [pointsMin, setPointsMin] = useState('');
+  const [pointsMax, setPointsMax] = useState('');
+  const [questionsMin, setQuestionsMin] = useState('');
+  const [questionsMax, setQuestionsMax] = useState('');
+  const [accuracyMin, setAccuracyMin] = useState('');
+  const [accuracyMax, setAccuracyMax] = useState('');
+
+  if (!open) return null;
+
+  function numOrUndefined(v: string) {
+    return v.trim() === '' ? undefined : Number(v);
+  }
+
+  async function handleCreate() {
+    setSaving(true);
+    try {
+      const body = {
+        count,
+        org_label: orgLabel.trim() || undefined,
+        points_min: numOrUndefined(pointsMin),
+        points_max: numOrUndefined(pointsMax),
+        questions_min: numOrUndefined(questionsMin),
+        questions_max: numOrUndefined(questionsMax),
+        accuracy_min: numOrUndefined(accuracyMin),
+        accuracy_max: numOrUndefined(accuracyMax),
+      };
+      const res = await authedFetch<{ count: number }>(
+        token, '/api/admin/national-ranking/mock-competitors/bulk-create',
+        { method: 'POST', body: JSON.stringify(body) },
+      );
+      toast.success(`${res.count} competidores mock criados!`);
+      onCreated();
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao gerar competidores em massa');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const rangeField = (label: string, min: string, setMin: (v: string) => void, max: string, setMax: (v: string) => void, step = '1') => (
+    <div>
+      <label className={labelCls}>{label} <span className="normal-case font-normal text-slate-400">(opcional)</span></label>
+      <div className="flex items-center gap-2">
+        <input type="number" step={step} placeholder="mín" className={inputCls} value={min} onChange={(e) => setMin(e.target.value)} />
+        <span className="text-slate-400">–</span>
+        <input type="number" step={step} placeholder="máx" className={inputCls} value={max} onChange={(e) => setMax(e.target.value)} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 px-6 py-4">
+          <p className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
+            <Sparkles className="h-4 w-4 text-amber-500" />
+            Gerar competidores em massa
+          </p>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="max-h-[70vh] space-y-3 overflow-y-auto px-6 py-4">
+          <div>
+            <label className={labelCls}>Quantos competidores?</label>
+            <input
+              type="number" min={1} max={30}
+              className={inputCls} value={count}
+              onChange={(e) => setCount(Math.max(1, Math.min(30, Number(e.target.value))))}
+            />
+            <p className="mt-1 text-[11px] text-slate-400">Máximo 30 por vez. Nomes gerados automaticamente.</p>
+          </div>
+          <div>
+            <label className={labelCls}>Rótulo da org (opcional, aplicado a todos)</label>
+            <input className={inputCls} value={orgLabel} onChange={(e) => setOrgLabel(e.target.value)} placeholder="Ex: Cursinho Fictício SP" />
+          </div>
+          {rangeField('Faixa de pontos', pointsMin, setPointsMin, pointsMax, setPointsMax)}
+          {rangeField('Faixa de questões', questionsMin, setQuestionsMin, questionsMax, setQuestionsMax)}
+          {rangeField('Faixa de % de acerto', accuracyMin, setAccuracyMin, accuracyMax, setAccuracyMax, '0.1')}
+          <p className="text-[11px] text-slate-400">Sem faixa informada, o campo fica 0 pra todos (dá pra editar depois, um por um).</p>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-slate-100 dark:border-zinc-800 px-6 py-4">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500 dark:text-zinc-400">Cancelar</button>
+          <button
+            onClick={handleCreate}
+            disabled={saving}
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? <><Loader2 className="h-4 w-4 animate-spin" /> Gerando...</> : `Gerar ${count}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NationalTab({ token }: { token: string }) {
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState<LeaderboardEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [editing, setEditing] = useState<MockCompetitor | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const load = useCallback(() => {
     setLoading(true);
     authedFetch<{ ranking: LeaderboardEntry[]; total: number }>(
       token, `/api/admin/national-ranking/national?page=${page}&limit=${LIMIT}`
     )
-      .then((data) => { setRows(data.ranking); setTotal(data.total); })
+      .then((data) => { setRows(data.ranking); setTotal(data.total); setSelected(new Set()); })
       .catch((e) => toast.error(e instanceof Error ? e.message : 'Erro ao carregar ranking'))
       .finally(() => setLoading(false));
   }, [token, page]);
 
   useEffect(() => { load(); }, [load]);
+
+  const mockRows = rows.filter((r) => r.source === 'mock');
+  const allMockSelected = mockRows.length > 0 && mockRows.every((r) => selected.has(r.id));
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelected(allMockSelected ? new Set() : new Set(mockRows.map((r) => r.id)));
+  }
 
   async function handleDelete(id: string) {
     if (!confirm('Apagar este competidor mock?')) return;
@@ -278,24 +405,58 @@ function NationalTab({ token }: { token: string }) {
     }
   }
 
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`Apagar ${selected.size} competidores mock selecionados?`)) return;
+    try {
+      await authedFetch(token, '/api/admin/national-ranking/mock-competitors/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ ids: Array.from(selected) }),
+      });
+      toast.success(`${selected.size} competidores removidos.`);
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao apagar em massa');
+    }
+  }
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-slate-500 dark:text-zinc-400">
           Top-2 ao vivo de cada organização real + competidores mock, ordenados por pontuação nacional.
         </p>
-        <button
-          onClick={() => { setEditing(null); setModalOpen(true); }}
-          className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 text-sm font-semibold text-white"
-        >
-          <Plus className="h-4 w-4" /> Adicionar competidor mock
-        </button>
+        <div className="flex items-center gap-2">
+          {selected.size > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              className="flex items-center gap-1.5 rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-900/20"
+            >
+              <Trash2 className="h-4 w-4" /> Apagar selecionados ({selected.size})
+            </button>
+          )}
+          <button
+            onClick={() => setBulkModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            <Sparkles className="h-4 w-4" /> Gerar em massa
+          </button>
+          <button
+            onClick={() => { setEditing(null); setModalOpen(true); }}
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 text-sm font-semibold text-white"
+          >
+            <Plus className="h-4 w-4" /> Adicionar competidor mock
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-zinc-700">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-zinc-800/60 text-left text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-400">
             <tr>
+              <th className="w-8 px-4 py-3">
+                <input type="checkbox" checked={allMockSelected} onChange={toggleSelectAll} disabled={mockRows.length === 0} />
+              </th>
               <th className="px-4 py-3">#</th>
               <th className="px-4 py-3">Nome</th>
               <th className="px-4 py-3">Origem</th>
@@ -305,11 +466,16 @@ function NationalTab({ token }: { token: string }) {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
             {loading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Ninguém classificado ainda.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Ninguém classificado ainda.</td></tr>
             ) : rows.map((r) => (
               <tr key={`${r.source}-${r.id}`} className="text-slate-800 dark:text-zinc-200">
+                <td className="px-4 py-2.5">
+                  {r.source === 'mock' && (
+                    <input type="checkbox" checked={selected.has(r.id)} onChange={() => toggleSelected(r.id)} />
+                  )}
+                </td>
                 <td className="px-4 py-2.5 font-bold">
                   {r.rank <= 3 ? <Medal className="h-4 w-4 text-amber-500" /> : r.rank}
                 </td>
@@ -359,6 +525,12 @@ function NationalTab({ token }: { token: string }) {
         onSaved={load}
         token={token}
         editing={editing}
+      />
+      <BulkCreateModal
+        open={bulkModalOpen}
+        onClose={() => setBulkModalOpen(false)}
+        onCreated={load}
+        token={token}
       />
     </div>
   );
@@ -482,6 +654,8 @@ function ConfigTab({ token }: { token: string }) {
   const [seasonLabel, setSeasonLabel] = useState('');
   const [multiplier, setMultiplier] = useState(2);
   const [questionsTotal, setQuestionsTotal] = useState(10);
+  const [variationMin, setVariationMin] = useState(5);
+  const [variationMax, setVariationMax] = useState(40);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(() => {
@@ -490,6 +664,8 @@ function ConfigTab({ token }: { token: string }) {
       setSeasonLabel(s.season_label || '');
       setMultiplier(s.bonus_multiplier || 2);
       setQuestionsTotal(s.bonus_questions_total || 10);
+      setVariationMin(s.daily_variation_min ?? 5);
+      setVariationMax(s.daily_variation_max ?? 40);
     });
   }, [token]);
 
@@ -500,7 +676,11 @@ function ConfigTab({ token }: { token: string }) {
     try {
       await authedFetch(token, '/api/admin/national-ranking/settings', {
         method: 'PATCH',
-        body: JSON.stringify({ season_label: seasonLabel }),
+        body: JSON.stringify({
+          season_label: seasonLabel,
+          daily_variation_min: variationMin,
+          daily_variation_max: variationMax,
+        }),
       });
       toast.success('Configurações salvas.');
       load();
@@ -539,6 +719,15 @@ function ConfigTab({ token }: { token: string }) {
           <div>
             <label className={labelCls}>Rótulo da temporada</label>
             <input className={inputCls} value={seasonLabel} onChange={(e) => setSeasonLabel(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>Variação diária dos mocks (pts/dia)</label>
+            <div className="flex items-center gap-2">
+              <input type="number" min={0} className={inputCls} value={variationMin} onChange={(e) => setVariationMin(Number(e.target.value))} placeholder="mín" />
+              <span className="text-slate-400">–</span>
+              <input type="number" min={0} className={inputCls} value={variationMax} onChange={(e) => setVariationMax(Number(e.target.value))} placeholder="máx" />
+            </div>
+            <p className="mt-1 text-[11px] text-slate-400">Cada mock ativo ganha um valor aleatório dessa faixa por dia (via cron), pra não parecer ranking parado.</p>
           </div>
           <button
             onClick={saveSettings}
