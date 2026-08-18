@@ -19,6 +19,7 @@ import {
   Github,
   Presentation,
   Bell,
+  Crown,
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -237,6 +238,8 @@ export function SidebarContent({
             {renderNavItem({ href: '/portal/admin/announcements', icon: Bell, label: 'Novidades' })}
             {renderSectionTitle('Reports')}
             {renderNavItem({ href: '/portal/admin/reports', icon: Flag, label: 'Reports' })}
+            {renderSectionTitle('Ranking')}
+            {renderNavItem({ href: '/portal/admin/god-mode', icon: Crown, label: 'God Mode' })}
           </div>
         )}
 

@@ -19,7 +19,10 @@ import {
   ChevronDown,
   ChevronRight,
   X,
+  Globe,
+  Lock,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
@@ -29,6 +32,7 @@ import { RevealGroup, RevealItem, ElevatedCard, SectionTitle, BrandHero, HERO_AC
 import type {
   MonthlyHistoryEntry,
   PartnerRankingEntry,
+  NationalRankingEntry,
 } from '@/types/gamification';
 import { getInitials, getRankingDisplayName, isAnonymousRankingEntry } from '@/lib/ranking-privacy';
 import { summarizePodiumStreaks } from '@/lib/podium-streak';
@@ -578,6 +582,257 @@ function PrizeZoneDivider({ cutoff }: { cutoff: number }) {
   );
 }
 
+// ─── Divisória discreta da Disputa Nacional (abaixo do 2º lugar) ─────────────
+
+function NationalZoneDivider() {
+  return (
+    <div className="relative my-1.5 flex items-center gap-3 px-3 opacity-70">
+      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-sky-500/15 to-transparent" />
+      <span className="flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider text-sky-500/40">
+        <Globe className="h-2 w-2" />
+        classificação nacional
+      </span>
+      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-sky-500/15 to-transparent" />
+    </div>
+  );
+}
+
+// ─── Tema do pódio nacional — amarelo/verde/azul (cores do Brasil), em vez
+// do ouro/prata/bronze usado no ranking da própria org ────────────────────────
+
+const NATIONAL_RANK_THEMES = {
+  1: {
+    gradient: 'linear-gradient(135deg, #FFEE58 0%, #FEDD00 50%, #C9A600 100%)',
+    glow: '#FEDD00',
+    glowIntensity: '0 0 30px #FEDD0044, 0 0 60px #FEDD0022',
+    icon: Crown,
+    label: '1º',
+    bg: 'linear-gradient(180deg, #FEDD0018 0%, #FEDD0008 50%, transparent 100%)',
+    ring: '#FEDD0055',
+    textColor: '#FFEE58',
+    textOnLight: '#8A6D00',
+    pedestalBg: 'linear-gradient(180deg, #FFF176 0%, #FEDD00 55%, #B8960B 100%)',
+    pedestalRing: '#7A6208',
+    pedestalTextColor: '#2B2200',
+  },
+  2: {
+    gradient: 'linear-gradient(135deg, #4ADE80 0%, #16A34A 50%, #14532D 100%)',
+    glow: '#22C55E',
+    glowIntensity: '0 0 20px #22C55E44, 0 0 40px #22C55E22',
+    icon: Medal,
+    label: '2º',
+    bg: 'linear-gradient(180deg, #22C55E12 0%, #22C55E06 50%, transparent 100%)',
+    ring: '#22C55E44',
+    textColor: '#4ADE80',
+    textOnLight: '#15803D',
+    pedestalBg: 'linear-gradient(180deg, #6EE7A0 0%, #16A34A 55%, #14532D 100%)',
+    pedestalRing: '#052E12',
+    pedestalTextColor: '#ffffff',
+  },
+  3: {
+    gradient: 'linear-gradient(135deg, #60A5FA 0%, #2563EB 50%, #1E3A8A 100%)',
+    glow: '#3B82F6',
+    glowIntensity: '0 0 20px #3B82F644, 0 0 40px #3B82F622',
+    icon: Award,
+    label: '3º',
+    bg: 'linear-gradient(180deg, #3B82F612 0%, #3B82F606 50%, transparent 100%)',
+    ring: '#3B82F644',
+    textColor: '#60A5FA',
+    textOnLight: '#1D4ED8',
+    pedestalBg: 'linear-gradient(180deg, #93C5FD 0%, #2563EB 55%, #1E3A8A 100%)',
+    pedestalRing: '#0B1A3D',
+    pedestalTextColor: '#ffffff',
+  },
+} as const;
+
+// ─── Silhueta discreta do Brasil (decoração de fundo, sem tirar o foco) ──────
+// Reaproveita o mesmo SVG oficial (Simplemaps) usado no mapa do Radar Comercial
+// (`/geo/brazil-states.svg`) — junta os estados num único preenchimento sólido,
+// sem contorno, pra virar uma silhueta do país (não um mapa interativo).
+
+function BrazilSilhouette() {
+  const [paths, setPaths] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/geo/brazil-states.svg')
+      .then((r) => r.text())
+      .then((svgText) => {
+        if (cancelled) return;
+        const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+        const ds: string[] = [];
+        doc.querySelectorAll('path[id]').forEach((el) => {
+          const id = el.getAttribute('id') ?? '';
+          if (id.startsWith('BR') && id.length === 4) {
+            const d = el.getAttribute('d');
+            if (d) ds.push(d);
+          }
+        });
+        setPaths(ds);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  if (paths.length === 0) return null;
+
+  return (
+    <svg
+      viewBox="0 0 1000 912"
+      aria-hidden
+      className="pointer-events-none absolute -bottom-14 -right-16 w-[230px] opacity-[0.08] sm:w-[320px]"
+      style={{ aspectRatio: '1000 / 912', height: 'auto' }}
+    >
+      {paths.map((d, i) => (
+        <path key={i} d={d} fill="#ffffff" />
+      ))}
+    </svg>
+  );
+}
+
+// ─── Pódio e lista nacional (Disputa Nacional) ───────────────────────────────
+
+function NationalPodiumEntry({ entry, isSelf }: { entry: NationalRankingEntry; isSelf: boolean }) {
+  const theme = NATIONAL_RANK_THEMES[entry.rank as 1 | 2 | 3];
+  const isFirst = entry.rank === 1;
+  const Icon = theme.icon;
+  const pedestalHeight = isFirst ? 104 : entry.rank === 2 ? 76 : 60;
+
+  return (
+    <motion.div
+      className="flex min-w-0 flex-1 flex-col items-center gap-2"
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: isFirst ? 0.3 : entry.rank === 2 ? 0.15 : 0.45, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <motion.div
+        animate={isFirst ? { rotate: [0, -6, 6, -3, 3, 0] } : undefined}
+        transition={isFirst ? { duration: 2, repeat: Infinity, repeatDelay: 4 } : undefined}
+      >
+        <Icon className={isFirst ? 'h-6 w-6' : 'h-5 w-5'} style={{ color: theme.textColor, filter: `drop-shadow(0 0 8px ${theme.glow}66)` }} />
+      </motion.div>
+
+      <p
+        className="max-w-[68px] truncate text-center text-[10px] font-bold leading-tight sm:max-w-[80px] sm:text-[11px]"
+        style={{ color: isSelf ? '#FEDD00' : 'rgba(255,255,255,0.85)' }}
+      >
+        {entry.full_name}
+      </p>
+      <p className="max-w-[68px] truncate text-center text-[9px] text-white/45 sm:max-w-[80px]">
+        {entry.source === 'mock' ? (entry.org_name || 'Concorrente') : entry.org_name}
+      </p>
+
+      <div className="relative">
+        {isFirst && (
+          <motion.div
+            className="absolute -inset-1.5 rounded-full"
+            style={{ background: theme.gradient, opacity: 0.3 }}
+            animate={{ scale: [1, 1.15, 1], opacity: [0.2, 0.4, 0.2] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        )}
+        {entry.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={entry.avatar_url}
+            alt=""
+            className="relative h-10 w-10 rounded-full object-cover sm:h-11 sm:w-11"
+            style={{ border: `2.5px solid ${theme.glow}`, boxShadow: theme.glowIntensity }}
+          />
+        ) : (
+          <div
+            className="relative flex h-10 w-10 items-center justify-center rounded-full text-xs font-extrabold sm:h-11 sm:w-11 sm:text-sm"
+            style={{ background: theme.gradient, color: '#fff', boxShadow: theme.glowIntensity, border: `2.5px solid ${theme.glow}88` }}
+          >
+            {getInitials(entry.full_name || '?')}
+          </div>
+        )}
+      </div>
+
+      <motion.div
+        className="relative flex w-full flex-col items-center justify-center overflow-hidden rounded-t-xl"
+        style={{ height: pedestalHeight, background: theme.pedestalBg, borderTop: `2px solid ${theme.pedestalRing}`, borderLeft: `1px solid ${theme.pedestalRing}`, borderRight: `1px solid ${theme.pedestalRing}`, originY: 1 }}
+        variants={PODIUM_RISE}
+        custom={isFirst ? 0.2 : entry.rank === 2 ? 0.1 : 0.3}
+        initial="hidden"
+        animate="show"
+      >
+        <motion.div className="absolute inset-0 opacity-15" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.5) 0%, transparent 60%)' }} />
+        <span className="relative z-10 text-xl font-black sm:text-2xl" style={{ color: theme.pedestalTextColor, textShadow: '0 1px 3px rgba(0,0,0,0.35)' }}>
+          {theme.label}
+        </span>
+        <p className="relative z-10 mt-0.5 text-[9px] font-bold opacity-75 sm:text-[10px]" style={{ color: theme.pedestalTextColor, textShadow: '0 1px 3px rgba(0,0,0,0.35)' }}>
+          {formatPoints(entry.national_points)} pts
+        </p>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function NationalRow({ entry, isSelf, index }: { entry: NationalRankingEntry; isSelf: boolean; index: number }) {
+  const isTop3 = entry.rank <= 3;
+  const theme = isTop3 ? NATIONAL_RANK_THEMES[entry.rank as 1 | 2 | 3] : null;
+  const Icon = theme?.icon;
+
+  const rowStyle = isSelf
+    ? { background: 'rgba(16, 185, 129, 0.1)', boxShadow: 'inset 0 0 0 1px rgba(16, 185, 129, 0.3)' }
+    : theme
+      ? { background: theme.bg, boxShadow: `inset 0 0 0 1px ${theme.ring}` }
+      : undefined;
+
+  return (
+    <motion.div
+      className="flex items-center gap-3 rounded-2xl px-3 py-2.5"
+      style={rowStyle}
+      custom={index}
+      variants={ROW_VARIANTS}
+      initial="hidden"
+      animate="show"
+    >
+      {theme && Icon ? (
+        <div
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
+          style={{ background: theme.gradient, boxShadow: theme.glowIntensity }}
+        >
+          <Icon className="h-4 w-4" style={{ color: theme.pedestalTextColor }} />
+        </div>
+      ) : (
+        <span className="w-8 shrink-0 text-center text-sm font-bold text-slate-400 dark:text-white/25">{entry.rank}</span>
+      )}
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-white/70"
+        style={theme ? { boxShadow: `0 0 0 2px ${theme.glow}88` } : undefined}
+      >
+        {entry.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={entry.avatar_url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          getInitials(entry.full_name || '?')
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p
+          className={`truncate text-sm font-bold ${
+            isSelf ? 'text-emerald-600 dark:text-emerald-400' : !theme ? 'font-semibold text-slate-800 dark:text-white' : 'brand-text-adaptive'
+          }`}
+          style={!isSelf && theme ? { ['--bta-light' as string]: theme.textOnLight, ['--bta-dark' as string]: theme.textColor } : undefined}
+        >
+          {entry.full_name}
+        </p>
+        <p className="flex items-center gap-1 truncate text-[11px] text-slate-400 dark:text-white/40">
+          {entry.source === 'mock' && (
+            <span className="rounded-full bg-fuchsia-100 px-1.5 py-0 text-[8px] font-bold uppercase text-fuchsia-600 dark:bg-fuchsia-900/30 dark:text-fuchsia-400">
+              mock
+            </span>
+          )}
+          {entry.org_name}
+        </p>
+      </div>
+      <span className="text-sm font-black text-slate-800 dark:text-white">{formatPoints(entry.national_points)}</span>
+    </motion.div>
+  );
+}
+
 // ─── Concorrentes diretos ────────────────────────────────────────────────────
 
 function RivalRow({
@@ -767,6 +1022,10 @@ export default function RankingPage() {
   const ranking = isDemo ? (MOCK_STUDENT_DASHBOARD_STATE.ranking as typeof _gamification.ranking) : _gamification.ranking;
   const isLoading = isDemo ? false : _gamification.isLoading;
   const refreshRanking = _gamification.refreshRanking;
+  const nationalStatus = _gamification.nationalStatus;
+  const nationalRanking = _gamification.nationalRanking;
+  const refreshNationalStatus = _gamification.refreshNationalStatus;
+  const refreshNationalRanking = _gamification.refreshNationalRanking;
 
   useEffect(() => {
     if (!isDemo && !isLoading) {
@@ -774,6 +1033,44 @@ export default function RankingPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, isDemo]);
+
+  // Status da Disputa Nacional — leve, só pra saber se o switch pode ser usado.
+  // Precisa esperar !isLoading: só depois que o hook termina o getSession()
+  // inicial é que tokenRef.current existe — chamar antes disso falha em
+  // silêncio (refreshNationalStatus só retorna null) e nunca tenta de novo.
+  useEffect(() => {
+    if (!isDemo && !isLoading) {
+      refreshNationalStatus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isDemo]);
+
+  const [view, setView] = useState<'org' | 'national'>('org');
+  const [nationalLoading, setNationalLoading] = useState(false);
+  const isNationalQualified = Boolean(nationalStatus?.qualified);
+  const orgFirstName = (org.name || '').trim().split(/\s+/)[0] || org.name;
+
+  function handleSwitchView(next: 'org' | 'national') {
+    if (next === 'national' && !isNationalQualified) {
+      toast.info('Fique entre os 2 primeiros da sua turma pra desbloquear a Disputa Nacional.');
+      return;
+    }
+    setView(next);
+    if (next === 'national' && !nationalRanking) {
+      setNationalLoading(true);
+      refreshNationalRanking(50).finally(() => setNationalLoading(false));
+    }
+  }
+
+  const nationalList = nationalRanking?.ranking ?? [];
+  const nationalPodium = nationalList.slice(0, 3);
+  const nationalPodiumOrder =
+    nationalPodium.length === 3
+      ? [nationalPodium[1], nationalPodium[0], nationalPodium[2]]
+      : nationalPodium.length === 2
+        ? [nationalPodium[1], nationalPodium[0]]
+        : nationalPodium;
+  const nationalSelfId = nationalRanking?.user_context?.self.id;
 
   const monthLabel = summary?.month_label ?? 'Este mês';
   const myPosition = summary?.rank_position ?? null;
@@ -817,22 +1114,49 @@ export default function RankingPage() {
     <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 bg-slate-50 dark:bg-[#080808]">
       <RevealGroup className="relative mx-auto max-w-[900px] space-y-5 pb-8">
 
-        {/* ── Header ────────────────────────────────────────────────────── */}
+        {/* ── Header — switch Ranking (org) / Ranking Nacional ────────────── */}
         <RevealItem className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p
-              className="brand-text-adaptive text-[11px] font-bold uppercase tracking-[0.16em]"
-              style={adaptiveTextStyle(primaryAccent.hex, primaryAccent.cssVar)}
-            >
-              Competição mensal
+            <div className="relative inline-flex items-center gap-1 rounded-full bg-slate-100 p-1 dark:bg-white/5">
+              {(['org', 'national'] as const).map((key) => {
+                const isActive = view === key;
+                const isNational = key === 'national';
+                const locked = isNational && !isNationalQualified;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleSwitchView(key)}
+                    className={`relative rounded-full px-3.5 py-1.5 text-[13px] font-black transition-colors ${
+                      locked ? 'cursor-not-allowed opacity-45' : ''
+                    } ${isActive ? 'text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-700 dark:text-white/40 dark:hover:text-white/70'}`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="ranking-view-switch"
+                        className="absolute inset-0 rounded-full bg-white shadow-sm dark:bg-slate-800"
+                        transition={{ type: 'spring', stiffness: 500, damping: 34 }}
+                      />
+                    )}
+                    <span className="relative z-10 flex items-center gap-1.5">
+                      {isNational ? (
+                        locked ? <Lock className="h-3 w-3" /> : <span aria-hidden>🇧🇷</span>
+                      ) : org.logo_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={org.logo_url} alt="" className="h-4 w-4 shrink-0 rounded-full object-contain" />
+                      ) : null}
+                      {isNational ? 'Ranking Nacional' : `Ranking ${orgFirstName}`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[13px] text-slate-500 dark:text-white/40">
+              {view === 'org' ? monthLabel : (nationalRanking?.settings.season_label ?? 'Disputa Nacional')}
             </p>
-            <h1 className="font-display text-[28px] font-black leading-tight text-slate-900 dark:text-white sm:text-[32px]">
-              Ranking
-            </h1>
-            <p className="mt-0.5 text-[13px] text-slate-500 dark:text-white/40">{monthLabel}</p>
           </div>
 
-          {myPosition !== null && (
+          {view === 'org' && myPosition !== null && (
             <div className="flex items-center gap-2">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-[7px] shadow-sm dark:bg-white/[0.04] dark:shadow-none">
                 <TrendingUp className="h-3.5 w-3.5 text-slate-400 dark:text-white/30" />
@@ -854,8 +1178,11 @@ export default function RankingPage() {
               </div>
             </div>
           )}
+
         </RevealItem>
 
+        {view === 'org' && (
+        <>
         {/* ── Podium ────────────────────────────────────────────────────── */}
         {(isLoading || fullList.length > 0) && (
           <RevealItem>
@@ -934,26 +1261,83 @@ export default function RankingPage() {
 
             <BrandHero>
               <div className="flex h-full flex-col justify-center">
-                <div className="mb-1 flex items-center gap-2">
-                  <Target className="h-4 w-4" style={{ color: HERO_ACCENT_COLOR }} />
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.14em]" style={{ color: HERO_ACCENT_COLOR }}>
-                    Corrida para o topo
+                <div className={isLeader ? 'mb-2 flex items-center gap-2' : 'mb-1 flex items-center gap-2'}>
+                  {isLeader ? (
+                    <Crown className="h-[18px] w-[18px]" style={{ color: '#F59E0B' }} />
+                  ) : (
+                    <Target className="h-4 w-4" style={{ color: HERO_ACCENT_COLOR }} />
+                  )}
+                  <p
+                    className={isLeader ? 'text-[13px] font-extrabold uppercase tracking-[0.14em]' : 'text-[11px] font-extrabold uppercase tracking-[0.14em]'}
+                    style={{ color: isLeader ? '#F59E0B' : HERO_ACCENT_COLOR }}
+                  >
+                    {isLeader ? 'Liderando o mês' : 'Corrida para o topo'}
                   </p>
                 </div>
-                <div className="mb-1 flex items-baseline gap-1.5">
-                  <span className="font-display text-[38px] font-black tabular-nums text-white sm:text-[44px]">
-                    {formatPoints(myPoints)}
-                  </span>
-                  <span className="text-[13px] font-bold text-white/45">/ {formatPoints(leaderPts)} pts</span>
-                </div>
-                <MiniBar pct={raceProgressPct} color="var(--brand-accent)" glow height={8} />
-                <p className="mt-2 text-[12px] text-white/55">
-                  {isLeader ? (
-                    <span className="flex items-center gap-1"><Crown className="h-3.5 w-3.5" style={{ color: '#F59E0B' }} /> Você está em 1º lugar!</span>
-                  ) : (
-                    <>Faltam <span className="font-extrabold text-white">{formatPoints(pointsToLeader)} pts</span> para o 1º lugar.</>
-                  )}
-                </p>
+
+                {isLeader ? (
+                  <>
+                    <div className="mb-3 flex items-baseline gap-2">
+                      <span className="font-display text-[46px] font-black tabular-nums text-white sm:text-[54px]">
+                        {formatPoints(myPoints)}
+                      </span>
+                      <span className="text-[15px] font-bold text-white/45">pts no mês</span>
+                    </div>
+                    {(Boolean(selfEntry?.current_streak_days) || selfEntry?.monthly_accuracy_pct != null) && (
+                      <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+                        {Boolean(selfEntry?.current_streak_days) && (
+                          <span className="flex items-center gap-1.5 text-[14px] font-semibold text-white/70">
+                            <Flame className="h-4 w-4 text-orange-400" /> {selfEntry?.current_streak_days}d de sequência
+                          </span>
+                        )}
+                        {selfEntry?.monthly_accuracy_pct != null && (
+                          <span className="flex items-center gap-1.5 text-[14px] font-semibold text-white/70">
+                            <Target className="h-4 w-4" style={{ color: HERO_ACCENT_COLOR }} /> {Math.round(selfEntry.monthly_accuracy_pct)}% de acerto
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <p className="flex flex-wrap items-center gap-1.5 text-[14.5px] leading-relaxed text-white/55">
+                      {rivalBelow ? (
+                        <>
+                          <span>
+                            Vantagem de{' '}
+                            <span className="font-extrabold text-white">
+                              {formatPoints(Math.max(0, myPoints - rivalBelow.monthly_points))} pts
+                            </span>{' '}
+                            sobre
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            {rivalBelow.avatar_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={rivalBelow.avatar_url} alt="" className="h-5 w-5 rounded-full object-cover ring-1 ring-white/25" />
+                            ) : (
+                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/15 text-[8px] font-bold text-white/80">
+                                {getInitials(rivalBelow.full_name)}
+                              </span>
+                            )}
+                            <span className="font-semibold text-white/80">{getRankingDisplayName(rivalBelow, { short: true })}.</span>
+                          </span>
+                        </>
+                      ) : (
+                        'Continue respondendo pra manter a liderança.'
+                      )}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="mb-1 flex items-baseline gap-1.5">
+                      <span className="font-display text-[38px] font-black tabular-nums text-white sm:text-[44px]">
+                        {formatPoints(myPoints)}
+                      </span>
+                      <span className="text-[13px] font-bold text-white/45">/ {formatPoints(leaderPts)} pts</span>
+                    </div>
+                    <MiniBar pct={raceProgressPct} color="var(--brand-accent)" glow height={8} />
+                    <p className="mt-2 text-[12px] text-white/55">
+                      Faltam <span className="font-extrabold text-white">{formatPoints(pointsToLeader)} pts</span> para o 1º lugar.
+                    </p>
+                  </>
+                )}
               </div>
             </BrandHero>
           </RevealItem>
@@ -962,14 +1346,9 @@ export default function RankingPage() {
         {/* ── Full ranking list ─────────────────────────────────────────── */}
         <RevealItem>
           <ElevatedCard>
-            <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100 dark:border-white/5">
-              <div className="flex items-center gap-2">
-                <Flame className="h-3.5 w-3.5 text-orange-500/60" />
-                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">Top 5</p>
-              </div>
-              <span className="text-[10px] font-semibold text-slate-400 dark:text-white/20 tabular-nums">
-                {visibleList.length} alunos
-              </span>
+            <div className="px-4 py-3 flex items-center gap-2 border-b border-slate-100 dark:border-white/5">
+              <Flame className="h-3.5 w-3.5 text-orange-500/60" />
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">Top 5</p>
             </div>
 
             <div className="p-2 space-y-0.5">
@@ -997,6 +1376,7 @@ export default function RankingPage() {
                 <>
                   {visibleList.map((entry, i) => (
                     <div key={entry.user_id}>
+                      {i === 2 && visibleList.length > 2 && <NationalZoneDivider />}
                       {hasTopDivider && i === topCutoff && <PrizeZoneDivider cutoff={topCutoff} />}
                       <RankRow
                         entry={entry}
@@ -1081,6 +1461,104 @@ export default function RankingPage() {
               Top {topCutoff} lideram o mês — mas qualquer um pode virar o jogo
             </p>
             <div className="h-px w-8 bg-gradient-to-l from-transparent to-slate-300 dark:to-white/10" />
+          </RevealItem>
+        )}
+        </>
+        )}
+
+        {/* ── Disputa Nacional ─────────────────────────────────────────── */}
+        {view === 'national' && (
+          <RevealItem>
+            <div
+              className="relative overflow-hidden rounded-[22px] px-4 pb-2 pt-4 lg:px-6 lg:pb-3 lg:pt-6"
+              style={{
+                background: 'radial-gradient(130% 150% at 12% -10%, #0c5132 0%, #063a2e 30%, #05264a 62%, #030d22 100%)',
+                boxShadow: '0 20px 48px -20px rgba(3,13,34,0.65)',
+              }}
+            >
+              <div className="pointer-events-none absolute -top-12 -right-12 h-48 w-48 rounded-full bg-yellow-400/25 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-16 -left-12 h-48 w-48 rounded-full bg-emerald-500/20 blur-3xl" />
+              <BrazilSilhouette />
+              <div className="relative z-10">
+                <div className="mb-5 pr-6">
+                  <p
+                    className="font-script inline-block pb-1 pr-2 text-[32px] leading-normal sm:text-[38px]"
+                    style={{
+                      backgroundImage: 'linear-gradient(90deg, #8CE97A 0%, #FEDD00 55%, #FFFFFF 100%)',
+                      WebkitBackgroundClip: 'text',
+                      backgroundClip: 'text',
+                      color: 'transparent',
+                    }}
+                  >
+                    Pódio nacional
+                  </p>
+                </div>
+
+                {nationalRanking?.settings.bonus_active && (
+                  <div className="mb-4 flex w-fit items-center gap-2 rounded-full bg-amber-500/15 px-3.5 py-1.5 text-[11px] font-bold text-amber-300 ring-1 ring-amber-500/30">
+                    <Zap className="h-3.5 w-3.5" />
+                    Bônus ativo: próximas {nationalRanking.settings.questions_remaining ?? nationalRanking.settings.bonus_questions_total} questões valem {nationalRanking.settings.bonus_multiplier}x
+                  </div>
+                )}
+
+                {nationalLoading || nationalPodium.length === 0 ? (
+                  <div className="flex h-36 items-end justify-center gap-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex flex-1 flex-col items-center gap-2">
+                        <Skeleton className="h-10 w-10 rounded-full" />
+                        <Skeleton className="w-full rounded-t-xl" style={{ height: i === 1 ? 80 : i === 2 ? 112 : 64 }} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-end justify-center gap-2.5 sm:gap-3">
+                    {nationalPodiumOrder.map((entry) => entry && (
+                      <NationalPodiumEntry
+                        key={`${entry.source}-${entry.id}`}
+                        entry={entry}
+                        isSelf={entry.source === 'real' && entry.id === nationalSelfId}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </RevealItem>
+        )}
+
+        {view === 'national' && !nationalLoading && nationalList.length > 0 && (
+          <RevealItem>
+            <ElevatedCard>
+              <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 dark:border-white/5">
+                <Globe className="h-3.5 w-3.5 text-sky-500/70" />
+                <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-white/35">Ranking Nacional</p>
+              </div>
+              <div className="space-y-0.5 p-2">
+                {nationalList.map((entry, i) => (
+                  <NationalRow
+                    key={`${entry.source}-${entry.id}`}
+                    entry={entry}
+                    index={i}
+                    isSelf={entry.source === 'real' && entry.id === nationalSelfId}
+                  />
+                ))}
+
+                {nationalRanking?.user_context && !nationalList.some((e) => e.source === 'real' && e.id === nationalSelfId) && (
+                  <>
+                    <div className="relative my-2 flex items-center gap-3 px-3">
+                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-300/40 to-transparent dark:via-white/10" />
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-white/25">sua posição</span>
+                      <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-300/40 to-transparent dark:via-white/10" />
+                    </div>
+                    <NationalRow
+                      entry={nationalRanking.user_context.self}
+                      index={nationalList.length}
+                      isSelf
+                    />
+                  </>
+                )}
+              </div>
+            </ElevatedCard>
           </RevealItem>
         )}
       </RevealGroup>
