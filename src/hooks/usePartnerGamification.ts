@@ -12,6 +12,7 @@ import type {
   PartnerRankingResponse,
   NationalStatus,
   NationalRankingResponse,
+  ReactivationStatus,
   PopupState,
   StreakDecayResult,
   TitlesHistoryResponse,
@@ -112,6 +113,7 @@ export function usePartnerGamification(
   const [ranking, setRanking] = useState<PartnerRankingResponse | null>(null);
   const [nationalStatus, setNationalStatus] = useState<NationalStatus | null>(null);
   const [nationalRanking, setNationalRanking] = useState<NationalRankingResponse | null>(null);
+  const [reactivationStatus, setReactivationStatus] = useState<ReactivationStatus | null>(null);
   const [checkInStatus, setCheckInStatus] = useState<MonthlyCheckInStatus | null>(null);
   const [titlesJourney, setTitlesJourney] = useState<TitlesJourneyResponse | null>(null);
   const [titlesHistory, setTitlesHistory] = useState<TitlesHistoryResponse | null>(null);
@@ -343,6 +345,22 @@ export function usePartnerGamification(
     }
   }, []);
 
+  const refreshReactivationStatus = useCallback(async (): Promise<ReactivationStatus | null> => {
+    const token = tokenRef.current;
+    if (!token) return null;
+    const apiBase = getApiBaseUrl();
+    try {
+      const data = await apiFetcher<ReactivationStatus>(
+        `${apiBase}/api/partner/gamification/reactivation-status`,
+        { headers: buildHeaders(token) },
+      );
+      setReactivationStatus(data);
+      return data;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const submitMonthlyCheckIn = useCallback(
     async (answers: MonthlyCheckInAnswerInput[]): Promise<MonthlyCheckInResult> => {
       const token = tokenRef.current;
@@ -417,6 +435,7 @@ export function usePartnerGamification(
     ranking,
     nationalStatus,
     nationalRanking,
+    reactivationStatus,
     checkInStatus,
     titlesJourney,
     titlesHistory,
@@ -428,6 +447,7 @@ export function usePartnerGamification(
     refreshRanking,
     refreshNationalStatus,
     refreshNationalRanking,
+    refreshReactivationStatus,
     refreshCheckInStatus,
     refreshTitlesJourney,
     refreshTitlesHistory,

@@ -21,6 +21,9 @@ import {
   X,
   Globe,
   Lock,
+  Users,
+  Copy,
+  CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
@@ -819,12 +822,7 @@ function NationalRow({ entry, isSelf, index }: { entry: NationalRankingEntry; is
         >
           {entry.full_name}
         </p>
-        <p className="flex items-center gap-1 truncate text-[11px] text-slate-400 dark:text-white/40">
-          {entry.source === 'mock' && (
-            <span className="rounded-full bg-fuchsia-100 px-1.5 py-0 text-[8px] font-bold uppercase text-fuchsia-600 dark:bg-fuchsia-900/30 dark:text-fuchsia-400">
-              mock
-            </span>
-          )}
+        <p className="truncate text-[11px] text-slate-400 dark:text-white/40">
           {entry.org_name}
         </p>
       </div>
@@ -1026,6 +1024,8 @@ export default function RankingPage() {
   const nationalRanking = _gamification.nationalRanking;
   const refreshNationalStatus = _gamification.refreshNationalStatus;
   const refreshNationalRanking = _gamification.refreshNationalRanking;
+  const reactivationStatus = _gamification.reactivationStatus;
+  const refreshReactivationStatus = _gamification.refreshReactivationStatus;
 
   useEffect(() => {
     if (!isDemo && !isLoading) {
@@ -1041,6 +1041,14 @@ export default function RankingPage() {
   useEffect(() => {
     if (!isDemo && !isLoading) {
       refreshNationalStatus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isDemo]);
+
+  // Progresso do Desafio de Reativação — mesmo cuidado de esperar !isLoading.
+  useEffect(() => {
+    if (!isDemo && !isLoading) {
+      refreshReactivationStatus();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, isDemo]);
@@ -1062,7 +1070,19 @@ export default function RankingPage() {
     }
   }
 
-  const nationalList = nationalRanking?.ranking ?? [];
+  async function handleCopyReactivationLink() {
+    const loginUrl = `${window.location.origin}/partners/${org.slug}/login`;
+    try {
+      await navigator.clipboard.writeText(loginUrl);
+      toast.success('Link copiado! Manda pro seu colega no WhatsApp 📲');
+    } catch {
+      toast.error('Não foi possível copiar o link.');
+    }
+  }
+
+  const NATIONAL_TOP_LIMIT = 10;
+  const nationalFullList = nationalRanking?.ranking ?? [];
+  const nationalList = nationalFullList.slice(0, NATIONAL_TOP_LIMIT);
   const nationalPodium = nationalList.slice(0, 3);
   const nationalPodiumOrder =
     nationalPodium.length === 3
@@ -1104,7 +1124,8 @@ export default function RankingPage() {
 
   const hasTopDivider = visibleList.length > topCutoff;
 
-  const leaderPts = fullList[0]?.monthly_points ?? myPoints;
+  const leaderEntry = fullList[0] ?? null;
+  const leaderPts = leaderEntry?.monthly_points ?? myPoints;
   const isLeader = myPosition === 1;
   const pointsToLeader = Math.max(0, leaderPts - myPoints);
   const raceProgressPct = leaderPts > 0 ? Math.min(100, (myPoints / leaderPts) * 100) : 0;
@@ -1261,14 +1282,14 @@ export default function RankingPage() {
 
             <BrandHero>
               <div className="flex h-full flex-col justify-center">
-                <div className={isLeader ? 'mb-2 flex items-center gap-2' : 'mb-1 flex items-center gap-2'}>
+                <div className="mb-2 flex items-center gap-2">
                   {isLeader ? (
                     <Crown className="h-[18px] w-[18px]" style={{ color: '#F59E0B' }} />
                   ) : (
-                    <Target className="h-4 w-4" style={{ color: HERO_ACCENT_COLOR }} />
+                    <Target className="h-[18px] w-[18px]" style={{ color: HERO_ACCENT_COLOR }} />
                   )}
                   <p
-                    className={isLeader ? 'text-[13px] font-extrabold uppercase tracking-[0.14em]' : 'text-[11px] font-extrabold uppercase tracking-[0.14em]'}
+                    className="text-[13px] font-extrabold uppercase tracking-[0.14em]"
                     style={{ color: isLeader ? '#F59E0B' : HERO_ACCENT_COLOR }}
                   >
                     {isLeader ? 'Liderando o mês' : 'Corrida para o topo'}
@@ -1326,20 +1347,104 @@ export default function RankingPage() {
                   </>
                 ) : (
                   <>
-                    <div className="mb-1 flex items-baseline gap-1.5">
-                      <span className="font-display text-[38px] font-black tabular-nums text-white sm:text-[44px]">
+                    <div className="mb-3 flex items-baseline gap-2">
+                      <span className="font-display text-[46px] font-black tabular-nums text-white sm:text-[54px]">
                         {formatPoints(myPoints)}
                       </span>
-                      <span className="text-[13px] font-bold text-white/45">/ {formatPoints(leaderPts)} pts</span>
+                      <span className="text-[15px] font-bold text-white/45">/ {formatPoints(leaderPts)} pts</span>
                     </div>
-                    <MiniBar pct={raceProgressPct} color="var(--brand-accent)" glow height={8} />
-                    <p className="mt-2 text-[12px] text-white/55">
-                      Faltam <span className="font-extrabold text-white">{formatPoints(pointsToLeader)} pts</span> para o 1º lugar.
+                    <MiniBar pct={raceProgressPct} color="var(--brand-accent)" glow height={10} />
+                    <p className="mt-4 flex flex-wrap items-center gap-2 text-[14.5px] leading-relaxed text-white/55">
+                      {leaderEntry && leaderEntry.user_id !== selfEntry?.user_id ? (
+                        <>
+                          <span>
+                            Faltam{' '}
+                            <span className="font-extrabold text-white">{formatPoints(pointsToLeader)} pts</span>{' '}
+                            para
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            {leaderEntry.avatar_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={leaderEntry.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover ring-1 ring-white/25" />
+                            ) : (
+                              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/15 text-[9px] font-bold text-white/80">
+                                {getInitials(leaderEntry.full_name)}
+                              </span>
+                            )}
+                            <span className="font-semibold text-white/80">{getRankingDisplayName(leaderEntry, { short: true })}, o 1º lugar.</span>
+                          </span>
+                        </>
+                      ) : (
+                        <>Faltam <span className="font-extrabold text-white">{formatPoints(pointsToLeader)} pts</span> para o 1º lugar.</>
+                      )}
                     </p>
+                    {(Boolean(selfEntry?.current_streak_days) || selfEntry?.monthly_accuracy_pct != null) && (
+                      <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+                        {Boolean(selfEntry?.current_streak_days) && (
+                          <span className="flex items-center gap-1.5 text-[14px] font-semibold text-white/70">
+                            <Flame className="h-4 w-4 text-orange-400" /> {selfEntry?.current_streak_days}d de sequência
+                          </span>
+                        )}
+                        {selfEntry?.monthly_accuracy_pct != null && (
+                          <span className="flex items-center gap-1.5 text-[14px] font-semibold text-white/70">
+                            <CheckCircle2 className="h-4 w-4" style={{ color: HERO_ACCENT_COLOR }} /> {Math.round(selfEntry.monthly_accuracy_pct)}% de acerto
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
             </BrandHero>
+          </RevealItem>
+        )}
+
+        {/* ── Desafio de Reativação — "chame seu colega de volta" ─────────── */}
+        {reactivationStatus?.enabled && (
+          <RevealItem>
+            {reactivationStatus.bonus_active ? (
+              <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-500/15 to-orange-500/10 px-5 py-4 ring-1 ring-amber-500/30">
+                <Zap className="h-5 w-5 shrink-0 text-amber-500" />
+                <p className="text-[13px] font-semibold text-amber-700 dark:text-amber-300">
+                  🔥 Bônus da turma ativo
+                  {reactivationStatus.bonus_active_until && (
+                    <> até {new Date(reactivationStatus.bonus_active_until).toLocaleDateString('pt-BR')}</>
+                  )}{' '}
+                  — {reactivationStatus.bonus_multiplier}x pontos pra todo mundo!
+                </p>
+              </div>
+            ) : (
+              <button type="button" onClick={handleCopyReactivationLink} className="w-full text-left">
+                <ElevatedCard className="cursor-pointer transition-shadow hover:shadow-lg">
+                  <div className="p-5">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-emerald-500" />
+                        <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-emerald-600 dark:text-emerald-400">
+                          Chame seus colegas de volta
+                        </p>
+                      </div>
+                      <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
+                        <Copy className="h-3 w-3" /> Copiar link
+                      </span>
+                    </div>
+                    <p className="mb-1 text-[13px] font-semibold text-slate-700 dark:text-white/80">
+                      {reactivationStatus.reactivated_count} de {reactivationStatus.required_students} colegas sumidos já voltaram
+                    </p>
+                    <p className="mb-3 text-[12.5px] leading-relaxed text-slate-500 dark:text-white/50">
+                      Clique aqui pra copiar o link de login da turma e manda pra um colega que sumiu há mais de{' '}
+                      {reactivationStatus.inactive_days_threshold} dias. Se ele voltar e responder{' '}
+                      {reactivationStatus.required_questions} questões em pelo menos {reactivationStatus.required_distinct_days} dias diferentes, ele conta como reativado. Quando{' '}
+                      {reactivationStatus.required_students} colegas voltarem assim, a <strong className="text-slate-700 dark:text-white/70">turma inteira</strong> ganha {reactivationStatus.bonus_multiplier}x pontos por {reactivationStatus.bonus_duration_days} dias.
+                    </p>
+                    <MiniBar
+                      pct={Math.min(100, (reactivationStatus.reactivated_count / reactivationStatus.required_students) * 100)}
+                      color="#10b981"
+                    />
+                  </div>
+                </ElevatedCard>
+              </button>
+            )}
           </RevealItem>
         )}
 

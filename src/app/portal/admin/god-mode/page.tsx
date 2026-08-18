@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Crown, Plus, Pencil, Trash2, X, ChevronLeft, ChevronRight,
-  ArrowLeft, Zap, ZapOff, Loader2, Medal, Building2, Sparkles,
+  ArrowLeft, Zap, ZapOff, Loader2, Medal, Building2, Sparkles, Users,
 } from 'lucide-react';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
@@ -786,6 +786,186 @@ function ConfigTab({ token }: { token: string }) {
   );
 }
 
+interface ReactivationSettings {
+  enabled: boolean;
+  inactive_days_threshold: number;
+  required_students: number;
+  required_questions: number;
+  required_distinct_days: number;
+  bonus_multiplier: number;
+  bonus_duration_days: number;
+}
+
+interface OrgReactivationRow {
+  organization_id: string;
+  org_name: string;
+  org_slug: string;
+  reactivated_count: number;
+  bonus_active: boolean;
+  bonus_active_until: string | null;
+}
+
+function ReactivationTab({ token }: { token: string }) {
+  const [settings, setSettings] = useState<ReactivationSettings | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [inactiveDays, setInactiveDays] = useState(7);
+  const [requiredStudents, setRequiredStudents] = useState(5);
+  const [requiredQuestions, setRequiredQuestions] = useState(5);
+  const [requiredDistinctDays, setRequiredDistinctDays] = useState(2);
+  const [multiplier, setMultiplier] = useState(2);
+  const [durationDays, setDurationDays] = useState(3);
+  const [saving, setSaving] = useState(false);
+
+  const [orgs, setOrgs] = useState<OrgReactivationRow[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loadingOrgs, setLoadingOrgs] = useState(true);
+
+  const loadSettings = useCallback(() => {
+    authedFetch<ReactivationSettings>(token, '/api/admin/reactivation/settings').then((s) => {
+      setSettings(s);
+      setEnabled(s.enabled);
+      setInactiveDays(s.inactive_days_threshold);
+      setRequiredStudents(s.required_students);
+      setRequiredQuestions(s.required_questions);
+      setRequiredDistinctDays(s.required_distinct_days);
+      setMultiplier(s.bonus_multiplier);
+      setDurationDays(s.bonus_duration_days);
+    });
+  }, [token]);
+
+  const loadOrgs = useCallback(() => {
+    setLoadingOrgs(true);
+    authedFetch<{ orgs: OrgReactivationRow[]; total: number }>(
+      token, `/api/admin/reactivation/orgs-progress?page=${page}&limit=${LIMIT}`
+    ).then((data) => { setOrgs(data.orgs); setTotal(data.total); })
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Erro ao carregar progresso'))
+      .finally(() => setLoadingOrgs(false));
+  }, [token, page]);
+
+  useEffect(() => { loadSettings(); }, [loadSettings]);
+  useEffect(() => { loadOrgs(); }, [loadOrgs]);
+
+  async function saveSettings() {
+    setSaving(true);
+    try {
+      await authedFetch(token, '/api/admin/reactivation/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          enabled,
+          inactive_days_threshold: inactiveDays,
+          required_students: requiredStudents,
+          required_questions: requiredQuestions,
+          required_distinct_days: requiredDistinctDays,
+          bonus_multiplier: multiplier,
+          bonus_duration_days: durationDays,
+        }),
+      });
+      toast.success('Configurações salvas.');
+      loadSettings();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Erro ao salvar');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!settings) return <Loader2 className="h-5 w-5 animate-spin text-slate-400" />;
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-200 dark:border-zinc-700 p-5">
+        <p className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+          <Users className="h-4 w-4 text-emerald-500" />
+          Desafio de Reativação — &quot;chame seu colega de volta&quot;
+          {enabled && (
+            <span className="rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400">
+              Ativo
+            </span>
+          )}
+        </p>
+        <p className="mb-4 text-xs text-slate-500 dark:text-zinc-400">
+          Se N alunos inativos há X dias voltarem e responderem Y questões (em pelo menos Z dias diferentes), a org inteira ganha um bônus de pontos.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div>
+            <label className={labelCls}>Dias inativo pra contar como &quot;sumido&quot;</label>
+            <input type="number" min={1} className={inputCls} value={inactiveDays} onChange={(e) => setInactiveDays(Number(e.target.value))} />
+          </div>
+          <div>
+            <label className={labelCls}>Nº de alunos que precisam voltar</label>
+            <input type="number" min={1} className={inputCls} value={requiredStudents} onChange={(e) => setRequiredStudents(Number(e.target.value))} />
+          </div>
+          <div>
+            <label className={labelCls}>Questões por aluno</label>
+            <input type="number" min={1} className={inputCls} value={requiredQuestions} onChange={(e) => setRequiredQuestions(Number(e.target.value))} />
+          </div>
+          <div>
+            <label className={labelCls}>Espalhadas em quantos dias distintos</label>
+            <input type="number" min={1} className={inputCls} value={requiredDistinctDays} onChange={(e) => setRequiredDistinctDays(Number(e.target.value))} />
+          </div>
+          <div>
+            <label className={labelCls}>Multiplicador do bônus</label>
+            <input type="number" step="0.5" min="1.5" className={inputCls} value={multiplier} onChange={(e) => setMultiplier(Number(e.target.value))} />
+          </div>
+          <div>
+            <label className={labelCls}>Duração do bônus (dias)</label>
+            <input type="number" min={1} className={inputCls} value={durationDays} onChange={(e) => setDurationDays(Number(e.target.value))} />
+          </div>
+        </div>
+        <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-zinc-200">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          Desafio ativo
+        </label>
+        <button
+          onClick={saveSettings}
+          disabled={saving}
+          className="mt-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {saving ? 'Salvando...' : 'Salvar'}
+        </button>
+      </div>
+
+      <div>
+        <p className="mb-3 text-sm font-bold text-slate-900 dark:text-white">Progresso por organização</p>
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-zinc-700">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-zinc-800/60 text-left text-xs uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+              <tr>
+                <th className="px-4 py-3">Organização</th>
+                <th className="px-4 py-3">Reativados</th>
+                <th className="px-4 py-3">Bônus</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
+              {loadingOrgs ? (
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-400"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></td></tr>
+              ) : orgs.length === 0 ? (
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-slate-400">Nenhuma organização encontrada.</td></tr>
+              ) : orgs.map((o) => (
+                <tr key={o.organization_id} className="text-slate-800 dark:text-zinc-200">
+                  <td className="px-4 py-2.5 font-medium">{o.org_name}</td>
+                  <td className="px-4 py-2.5">{o.reactivated_count} / {settings.required_students}</td>
+                  <td className="px-4 py-2.5">
+                    {o.bonus_active ? (
+                      <span className="rounded-full bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-600 dark:text-amber-400">
+                        Ativo até {o.bonus_active_until ? new Date(o.bonus_active_until).toLocaleDateString('pt-BR') : ''}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 dark:text-zinc-500">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Pagination page={page} total={total} limit={LIMIT} onChange={setPage} />
+      </div>
+    </div>
+  );
+}
+
 export default function GodModePage() {
   const token = useAuthToken();
 
@@ -808,10 +988,12 @@ export default function GodModePage() {
           <TabsList>
             <TabsTrigger value="nacional">Ranking Nacional</TabsTrigger>
             <TabsTrigger value="orgs">Por Organização</TabsTrigger>
+            <TabsTrigger value="reativacao">Reativação</TabsTrigger>
             <TabsTrigger value="config">Configurações</TabsTrigger>
           </TabsList>
           <TabsContent value="nacional"><NationalTab token={token} /></TabsContent>
           <TabsContent value="orgs"><OrgsTab token={token} /></TabsContent>
+          <TabsContent value="reativacao"><ReactivationTab token={token} /></TabsContent>
           <TabsContent value="config"><ConfigTab token={token} /></TabsContent>
         </Tabs>
       )}

@@ -250,3 +250,18 @@ export interface StreakDecayResult {
   rank_dropped: boolean;
   rival_name: string | null;
 }
+
+// ─── Desafio de Reativação ("chame seu colega de volta") ───────────────────
+
+export interface ReactivationStatus {
+  enabled: boolean;
+  reactivated_count: number;
+  required_students: number;
+  required_questions: number;
+  required_distinct_days: number;
+  inactive_days_threshold: number;
+  bonus_active: boolean;
+  bonus_active_until: string | null;
+  bonus_multiplier: number;
+  bonus_duration_days: number;
+}
