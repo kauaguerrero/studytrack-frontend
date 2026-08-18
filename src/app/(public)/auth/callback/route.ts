@@ -65,6 +65,18 @@ export async function GET(request: Request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
+    if (error) {
+      // Sem isso, uma falha de troca de código (ex: PKCE "flow state not found",
+      // code_verifier ausente/expirado) desaparecia sem deixar rastro — o usuário
+      // só via "sessão expirada" e a gente não tinha como saber o motivo real.
+      console.error('[auth/callback] exchangeCodeForSession falhou', {
+        message: error.message,
+        status: error.status,
+        code: error.code,
+        requestedNext,
+      })
+    }
+
     if (!error) {
       const { data: { user } } = await supabase.auth.getUser()
       

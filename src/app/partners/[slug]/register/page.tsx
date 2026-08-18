@@ -214,10 +214,13 @@ export default function PartnerRegisterPage() {
     try {
       const supabase = createClient();
       const nextPath = `/partners/${slug}/register?invite=${encodeURIComponent(code)}`;
+      // Origem fixa — mesmo motivo do login: evita perder o cookie do PKCE
+      // code_verifier por inconsistência de host entre o início e a volta do OAuth.
+      const canonicalOrigin = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+          redirectTo: `${canonicalOrigin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
           queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       });

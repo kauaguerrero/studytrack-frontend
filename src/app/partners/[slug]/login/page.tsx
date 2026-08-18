@@ -233,10 +233,15 @@ export default function PartnerLoginPage() {
     setGoogleLoading(true);
     try {
       const nextPath = searchParams.get('next') ?? '/portal';
+      // Origem fixa (não window.location.origin) — evita que o cookie do PKCE
+      // code_verifier seja gravado num host (ex: com "www.") e o callback do
+      // Supabase devolva o navegador em outro, o que derruba a troca de código
+      // com "flow state not found" na primeira tentativa.
+      const canonicalOrigin = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+          redirectTo: `${canonicalOrigin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
           queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       });
