@@ -1,22 +1,23 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AnimatePresence } from 'framer-motion';
 import { RadarHeader } from './components/RadarHeader';
 import { KPIStrip } from './components/KPIStrip';
 import { BrazilMap } from './components/BrazilMap';
 import { MapControls } from './components/MapControls';
 import { SidebarCharts } from './components/SidebarCharts';
 import { KeyboardShortcutsHint } from './components/KeyboardShortcutsHint';
-import { LeadPinDetail } from './components/LeadPinDetail';
 import { useNationalGeo, useStateGeo, useAllLeads } from './hooks/useRadarData';
 import { METRIC_LAYERS, STATE_NAMES } from './constants';
 import type { MetricLayer, SelectedRegion } from './types';
 import type { Lead } from '../prospeccao/types';
 
-// Reuse existing Prospecção modals
+// Reuse existing Prospecção modals + drawer
 import { CreateLeadModal } from '../prospeccao/components/CreateLeadModal';
 import { ImportModal } from '../prospeccao/components/ImportModal';
+import { LeadDrawer } from '../prospeccao/components/LeadDrawer';
+import { ScheduleCallModal } from '../prospeccao/components/ScheduleCallModal';
+import { CallModeModal } from '../prospeccao/components/CallModeModal';
 import { reloadAllLeadsData } from '../prospeccao/hooks/useLeads';
 
 const INITIAL_REGION: SelectedRegion = { level: 'national' };
@@ -29,6 +30,9 @@ export default function RadarComercialPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [filteredLeadId, setFilteredLeadId] = useState<string | null>(null);
+  const [scheduleCallLead, setScheduleCallLead] = useState<Lead | null>(null);
+  const [callModalLead, setCallModalLead] = useState<Lead | null>(null);
+  const [callsKey, setCallsKey] = useState(0);
 
   const searchRef = useRef<HTMLInputElement | null>(null);
 
@@ -160,16 +164,17 @@ export default function RadarComercialPage() {
               onPinClick={setSelectedLead}
             />
 
-            {/* Lead detail panel slides in over the map */}
-            <AnimatePresence>
-              {selectedLead && (
-                <LeadPinDetail
-                  key={selectedLead.id}
-                  lead={selectedLead}
-                  onClose={() => setSelectedLead(null)}
-                />
-              )}
-            </AnimatePresence>
+            {/* Lead drawer — mesmo do kanban de prospecção */}
+            {selectedLead && (
+              <LeadDrawer
+                lead={selectedLead}
+                onClose={() => setSelectedLead(null)}
+                onLeadUpdate={() => { reloadAllLeadsData(); }}
+                onRequestScheduleCall={setScheduleCallLead}
+                onRequestCallMode={setCallModalLead}
+                callsKey={callsKey}
+              />
+            )}
           </div>
         </div>
 
@@ -194,6 +199,17 @@ export default function RadarComercialPage() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onImportDone={() => { reloadAllLeadsData(); setImportOpen(false); }}
+      />
+      <ScheduleCallModal
+        lead={scheduleCallLead}
+        onClose={() => setScheduleCallLead(null)}
+        onScheduled={() => { reloadAllLeadsData(); }}
+      />
+      <CallModeModal
+        lead={callModalLead}
+        isOpen={!!callModalLead}
+        onClose={() => setCallModalLead(null)}
+        onCallSaved={() => { setCallsKey(k => k + 1); reloadAllLeadsData(); }}
       />
     </div>
   );
