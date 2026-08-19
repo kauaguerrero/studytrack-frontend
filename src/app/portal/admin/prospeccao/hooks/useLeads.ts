@@ -100,7 +100,7 @@ export async function apiUpdateLead(
       | 'call_meet_link'
       | 'call_calendar_event_id'
       | 'valor_proposta_mensal'
-    > & { call_outcome?: LeadCallOutcome | null }
+    > & { call_outcome?: LeadCallOutcome }
   >
 ): Promise<{ lead: Lead }> {
   return fetchJSON(`${LEADS_BASE}/${id}`, {
