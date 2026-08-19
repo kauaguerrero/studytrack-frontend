@@ -1,9 +1,9 @@
 'use client';
 
-import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, ReactNode, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, CalendarDays, MessageSquare, PenLine } from 'lucide-react';
+import { ArrowLeft, CalendarDays, MessageSquare, PenLine, X } from 'lucide-react';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
 import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 import { isDemoOrg, MOCK_STUDENT_ESSAYS_FOR_REDACOES, MOCK_STUDENT_ESSAY_COMPETENCY_SCORES } from '../../../../../../../studytrack-tutorial-mock';
@@ -222,13 +222,10 @@ function renderAnnotatedText(
     const original = annotation.original_text || coveredText;
     const corrected = annotation.corrected_text || '';
     return (
-      <span
-        key={segment.key}
-        className="inline-flex flex-wrap items-center gap-1 rounded-md bg-slate-200 px-1 py-0.5 align-baseline dark:bg-slate-800/70"
-      >
-        <span className="text-red-600 dark:text-red-400 line-through">{original}</span>
-        {corrected && <span className="text-emerald-600 dark:text-emerald-400">{corrected}</span>}
-      </span>
+      <Fragment key={segment.key}>
+        <span className="text-red-600 line-through dark:text-red-400">{original}</span>
+        {corrected && <span className="ml-1 font-medium text-emerald-600 dark:text-emerald-400">{corrected}</span>}
+      </Fragment>
     );
   });
 
@@ -245,15 +242,11 @@ export default function RedacaoDetailPage() {
   const [expandedCompetencies, setExpandedCompetencies] = useState<Record<number, boolean>>({});
   const [activeComment, setActiveComment] = useState<{ id: string; comment: string; excerpt: string; round?: number } | null>(null);
   const [dualRoundTab, setDualRoundTab] = useState<1 | 2>(1);
-  const activeCommentRef = useRef<HTMLDivElement>(null);
   const essayType = ((essay?.essay_type || 'enem') as EssayType);
   const typeConfig = ESSAY_TYPE_CONFIGS[essayType] ?? ESSAY_TYPE_CONFIGS.enem;
 
   const handleCommentClick = (payload: { id: string; comment: string; excerpt: string; round?: number }) => {
     setActiveComment(payload);
-    setTimeout(() => {
-      activeCommentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 50);
   };
 
   useEffect(() => {
@@ -705,36 +698,39 @@ export default function RedacaoDetailPage() {
                 </div>
               )}
               <div>{renderAnnotatedText(essay.text, activeRoundAnnotations, handleCommentClick)}</div>
-              {activeComment && (
-                <div
-                  ref={activeCommentRef}
-                  className={cn(
-                    'rounded-xl border p-3 text-sm',
-                    activeComment.round === 2
-                      ? 'border-indigo-300 bg-indigo-50 text-indigo-900 dark:border-indigo-500/40 dark:bg-indigo-500/10 dark:text-indigo-100'
-                      : 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100',
-                  )}
-                >
-                  <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">Comentário do professor</p>
-                  <p className="mt-1 text-xs opacity-80">&quot;{activeComment.excerpt}&quot;</p>
-                  <p className="mt-2 leading-relaxed">{activeComment.comment}</p>
-                  <button
-                    type="button"
-                    onClick={() => setActiveComment(null)}
-                    className={cn(
-                      'mt-2 inline-flex min-h-9 items-center rounded-md border px-2 py-1 text-xs font-semibold',
-                      activeComment.round === 2
-                        ? 'border-indigo-400/60 hover:bg-indigo-100 dark:hover:bg-indigo-500/20'
-                        : 'border-amber-400/60 hover:bg-amber-100 dark:hover:bg-amber-500/20',
-                    )}
-                  >
-                    Fechar comentário
-                  </button>
-                </div>
-              )}
             </div>
           )}
         </section>
+
+        {activeComment && (
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 pb-6 sm:items-center sm:pb-0"
+            onClick={() => setActiveComment(null)}
+          >
+            <div
+              className={cn(
+                'w-full max-w-md rounded-2xl border p-4 shadow-2xl',
+                activeComment.round === 2
+                  ? 'border-indigo-300 bg-indigo-50 text-indigo-900 dark:border-indigo-500/40 dark:bg-slate-900 dark:text-indigo-100'
+                  : 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-slate-900 dark:text-amber-100',
+              )}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">Comentário do professor</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveComment(null)}
+                  className="rounded p-1 opacity-70 transition hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-xs opacity-80">&quot;{activeComment.excerpt}&quot;</p>
+              <p className="mt-2 text-sm leading-relaxed">{activeComment.comment}</p>
+            </div>
+          </div>
+        )}
 
         {showCorrectionPanels && isDualCorrection && (round1?.general_comment || round2?.general_comment) && (
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5 dark:border-slate-800 dark:bg-slate-900">

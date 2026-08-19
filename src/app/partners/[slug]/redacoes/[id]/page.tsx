@@ -261,6 +261,7 @@ export default function CorrecaoRedacaoPage() {
 
   // Estados para modal de devolução / segunda correção
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [viewingComment, setViewingComment] = useState<{ text: string; excerpt: string } | null>(null);
   const [requestSecond, setRequestSecond] = useState(false);
   const [secondCorrectorMode, setSecondCorrectorMode] = useState<'random' | 'specific'>('random');
   const [correctors, setCorrectors] = useState<CorrectorInfo[]>([]);
@@ -690,33 +691,33 @@ export default function CorrecaoRedacaoPage() {
       }
 
       if (segment.annotation.type === 'comment') {
+        const commentText = segment.annotation.comment_text || '';
         return (
-          <span
+          <button
             key={segment.key}
+            type="button"
             data-annotation-id={segment.annotation.id}
+            onClick={() => setViewingComment({ text: commentText, excerpt: segment.text })}
             className={cn(
-              'cursor-pointer rounded bg-amber-400/10 px-0.5 text-amber-700 underline decoration-amber-500/80 underline-offset-2 dark:text-amber-100 dark:decoration-amber-300/80',
+              'inline cursor-pointer rounded bg-amber-400/10 px-0.5 text-left text-amber-700 underline decoration-amber-500/80 underline-offset-2 dark:text-amber-100 dark:decoration-amber-300/80',
               pendingCls,
             )}
-            title={segment.annotation.comment_text || ''}
           >
             {segment.text}
-          </span>
+          </button>
         );
       }
 
       const original = segment.annotation.original_text || segment.text;
       const corrected = segment.annotation.corrected_text || '';
       return (
-        <span
-          key={segment.key}
-          data-annotation-id={segment.annotation.id}
-          className={cn('inline-flex items-center gap-1 rounded bg-slate-200 px-1 py-0.5 dark:bg-slate-800/70', pendingCls)}
-        >
-          <span className="line-through text-rose-600 dark:text-rose-400">{original}</span>{' '}
-          <span className="font-semibold text-emerald-600 dark:text-emerald-400" data-ignore-offset="true">
-            {corrected}
-          </span>
+        <span key={segment.key} data-annotation-id={segment.annotation.id} className={pendingCls}>
+          <span className="line-through text-rose-600 dark:text-rose-400">{original}</span>
+          {corrected && (
+            <span className="ml-1 font-semibold text-emerald-600 dark:text-emerald-400" data-ignore-offset="true">
+              {corrected}
+            </span>
+          )}
         </span>
       );
     });
@@ -1205,6 +1206,31 @@ export default function CorrecaoRedacaoPage() {
         <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--brand-primary)_16%,transparent)] bg-white p-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
           A correção exige nota nas {typeConfig.competencies.length} competências (incluindo 0) e comentário geral com no mínimo 20 caracteres.
         </div>
+
+        {/* Modal de leitura de comentário */}
+        {viewingComment && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 pb-6 sm:items-center sm:pb-0" onClick={() => setViewingComment(null)}>
+            <div
+              className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-amber-600 dark:text-amber-300">Comentário</h2>
+                <button
+                  type="button"
+                  onClick={() => setViewingComment(null)}
+                  className="rounded p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+                &quot;{viewingComment.excerpt}&quot;
+              </p>
+              <p className="text-sm leading-relaxed text-slate-900 dark:text-slate-100">{viewingComment.text}</p>
+            </div>
+          </div>
+        )}
 
         {/* Modal de devolução: "Como deseja devolver esta redação?" */}
         {showDeliveryModal && (
