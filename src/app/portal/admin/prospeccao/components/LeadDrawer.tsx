@@ -281,7 +281,7 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall,
         call_title: null,
         call_meet_link: null,
         call_calendar_event_id: null,
-        call_outcome: null,
+        call_outcome: 'pendente',
       });
       onLeadUpdate();
       toast.success('Call removida');
