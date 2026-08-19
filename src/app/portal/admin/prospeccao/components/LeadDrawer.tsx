@@ -283,6 +283,10 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall,
         call_calendar_event_id: null,
         call_outcome: null,
       });
+      onLeadUpdate();
+      toast.success('Call removida');
+    } catch {
+      toast.error('Erro ao remover call');
     } finally {
       setRemovingCall(false);
     }
