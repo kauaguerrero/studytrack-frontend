@@ -619,11 +619,23 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
 
   const [queueInitDone, setQueueInitDone] = useState(initialOverview !== null);
 
+  const [myStats, setMyStats] = useState<{ today: number; week: number; month: number; total: number } | null>(null);
+  const [myStatsLoading, setMyStatsLoading] = useState(isAssociate);
+
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => {
       setCurrentUserId(data.user?.id ?? null);
     });
   }, []);
+
+  useEffect(() => {
+    if (!isAssociate) return;
+    setMyStatsLoading(true);
+    fetch(`/api/partners/${slug}/associates/my-stats`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setMyStats(d); })
+      .finally(() => setMyStatsLoading(false));
+  }, [isAssociate, slug]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNowMs(Date.now()), 5000);
@@ -1044,6 +1056,30 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               </span>
             )}
           </div>
+
+          {isAssociate && (
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: 'Hoje', value: myStats?.today ?? 0 },
+                { label: 'Semana', value: myStats?.week ?? 0 },
+                { label: 'Mês', value: myStats?.month ?? 0 },
+                { label: 'Total', value: myStats?.total ?? 0 },
+              ].map(({ label, value }) => (
+                <div
+                  key={label}
+                  className="flex flex-col items-center justify-center rounded-xl border border-[var(--brand-primary)]/20 bg-white/80 dark:bg-slate-800/60 px-2 py-2.5 text-center shadow-sm"
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500 leading-none mb-1">{label}</p>
+                  {myStatsLoading ? (
+                    <div className="h-5 w-8 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
+                  ) : (
+                    <p className="text-lg font-extrabold leading-none" style={{ color: 'var(--brand-primary)' }}>{value}</p>
+                  )}
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">correções</p>
+                </div>
+              ))}
+            </div>
+          )}
 
           {canManagePrompts && (
             <div className="overflow-hidden rounded-2xl border border-[var(--brand-primary)]/30 bg-white/90 shadow-md ring-1 ring-[var(--brand-primary)]/10 dark:border-[var(--brand-primary)]/35 dark:bg-slate-900/80">
