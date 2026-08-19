@@ -28,7 +28,7 @@ export default function RadarComercialPage() {
   const [searchValue, setSearchValue] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [filteredLeadId, setFilteredLeadId] = useState<string | null>(null);
   const [scheduleCallLead, setScheduleCallLead] = useState<Lead | null>(null);
   const [callModalLead, setCallModalLead] = useState<Lead | null>(null);
@@ -45,6 +45,7 @@ export default function RadarComercialPage() {
   // Individual lead data for pin rendering
   const { data: leadsData } = useAllLeads();
   const allLeads = leadsData?.leads ?? [];
+  const selectedLead = selectedLeadId ? (allLeads.find((l) => l.id === selectedLeadId) ?? null) : null;
 
   const activeData = region.level === 'state' ? stateData : nationalData;
   const regions = activeData?.regions ?? nationalData?.regions ?? [];
@@ -62,7 +63,7 @@ export default function RadarComercialPage() {
 
   const handleGoNational = useCallback(() => {
     setRegion(INITIAL_REGION);
-    setSelectedLead(null);
+    setSelectedLeadId(null);
     setFilteredLeadId(null);
   }, []);
 
@@ -71,12 +72,12 @@ export default function RadarComercialPage() {
       setRegion({ level: 'state', uf: lead.uf, name: STATE_NAMES[lead.uf] });
     }
     setFilteredLeadId(lead.id);
-    setSelectedLead(lead);
+    setSelectedLeadId(lead.id);
   }, []);
 
   const handleLeadFilterClear = useCallback(() => {
     setFilteredLeadId(null);
-    setSelectedLead(null);
+    setSelectedLeadId(null);
   }, []);
 
   const handleSearchResult = useCallback((uf: string) => {
@@ -105,7 +106,7 @@ export default function RadarComercialPage() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       if (e.key === 'Escape') {
-        if (selectedLead) { setSelectedLead(null); return; }
+        if (selectedLeadId) { setSelectedLeadId(null); return; }
         if (filteredLeadId) { handleLeadFilterClear(); return; }
         if (region.level === 'state') handleGoNational();
       } else if (e.key === 'ArrowRight') {
@@ -161,14 +162,14 @@ export default function RadarComercialPage() {
               leads={allLeads}
               filteredLeadId={filteredLeadId}
               onStateClick={handleStateClick}
-              onPinClick={setSelectedLead}
+              onPinClick={(lead) => setSelectedLeadId(lead.id)}
             />
 
             {/* Lead drawer — mesmo do kanban de prospecção */}
             {selectedLead && (
               <LeadDrawer
                 lead={selectedLead}
-                onClose={() => setSelectedLead(null)}
+                onClose={() => setSelectedLeadId(null)}
                 onLeadUpdate={() => { reloadAllLeadsData(); }}
                 onRequestScheduleCall={setScheduleCallLead}
                 onRequestCallMode={setCallModalLead}
