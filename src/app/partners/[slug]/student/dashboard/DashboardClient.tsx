@@ -1479,6 +1479,7 @@ export function DashboardClient({
             firstName={firstName}
             organizationName={orgName}
             onComplete={handleDiagnosticComplete}
+            onSkip={dismissCurrentPopup}
             submitMonthlyCheckIn={submitMonthlyCheckIn}
           />
         )}

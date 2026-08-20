@@ -86,6 +86,7 @@ interface Props {
   firstName: string;
   organizationName: string;
   onComplete: (result: MonthlyCheckInResult) => void;
+  onSkip?: () => void;
   submitMonthlyCheckIn: (answers: MonthlyCheckInAnswerInput[]) => Promise<MonthlyCheckInResult>;
 }
 
@@ -95,6 +96,7 @@ export function OnboardingDiagnosticModal({
   firstName,
   organizationName,
   onComplete,
+  onSkip,
   submitMonthlyCheckIn,
 }: Props) {
   const shouldReduce = useReducedMotion();
@@ -328,6 +330,16 @@ export function OnboardingDiagnosticModal({
                 </div>
               </div>
             </div>
+
+            {onSkip && (
+              <button
+                onClick={onSkip}
+                className={`relative z-20 mb-3 w-full rounded-xl py-3 text-sm font-semibold transition-all active:scale-[0.98] hover:opacity-80 ${theme.softTextClass}`}
+                style={theme.panelStyle}
+              >
+                Voltar ao dashboard
+              </button>
+            )}
 
             <button
               onClick={() => onComplete(result)}
