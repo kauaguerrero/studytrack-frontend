@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { getGoogleOAuthClient } from '@/lib/supabase/oauth-client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordStrengthMeter } from '@/components/ui/password-strength';
@@ -146,6 +147,22 @@ export default function PartnerLoginPage() {
     setError('Não foi possível concluir o login. Tente novamente.');
   }, [searchParams]);
 
+  // Stopgap pra falha intermitente de PKCE no Google (code_verifier perdido
+  // em navegador mobile): auth/callback/route.ts detecta esse erro específico
+  // e manda o usuário de volta pra cá com ?autoRetryGoogle=1 — reinicia o
+  // login do Google sozinho, uma única vez por sessão de aba (evita loop se
+  // a 2ª tentativa falhar de novo pelo mesmo motivo).
+  const autoRetryAttempted = useRef(false);
+  useEffect(() => {
+    if (searchParams.get('autoRetryGoogle') !== '1' || autoRetryAttempted.current) return;
+    const guardKey = 'st:google-auto-retry-done';
+    if (sessionStorage.getItem(guardKey) === '1') return;
+    autoRetryAttempted.current = true;
+    sessionStorage.setItem(guardKey, '1');
+    void handleGoogleLogin();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -233,15 +250,15 @@ export default function PartnerLoginPage() {
     setGoogleLoading(true);
     try {
       const nextPath = searchParams.get('next') ?? '/portal';
-      // Origem fixa (não window.location.origin) — evita que o cookie do PKCE
-      // code_verifier seja gravado num host (ex: com "www.") e o callback do
-      // Supabase devolva o navegador em outro, o que derruba a troca de código
-      // com "flow state not found" na primeira tentativa.
+      // Origem fixa — o Google só aceita redirect_uris pré-cadastradas.
       const canonicalOrigin = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      // Client dedicado em implicit flow (não o client normal, PKCE) — os
+      // tokens voltam direto no fragment da URL, sem exchange server-side
+      // dependente de cookie sobrevivendo ao redirect cross-site pelo Google.
+      const { error: oauthError } = await getGoogleOAuthClient().auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${canonicalOrigin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+          redirectTo: `${canonicalOrigin}/auth/oauth-callback?next=${encodeURIComponent(nextPath)}`,
           queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       });

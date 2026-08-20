@@ -75,6 +75,30 @@ export async function GET(request: Request) {
         code: error.code,
         requestedNext,
       })
+
+      // Falha específica e conhecida do PKCE em navegador mobile: o cookie do
+      // code_verifier não sobrevive à ida-e-volta pelo domínio do Google. A
+      // própria origem desse erro já mostrou que a 2ª tentativa quase sempre
+      // funciona — em vez de despachar o usuário pra uma tela de erro genérica
+      // e esperar ele entender que precisa tentar de novo, manda ele de volta
+      // pra tela certa (com branding do parceiro) já sinalizando pra reiniciar
+      // o login do Google sozinho. Stopgap enquanto o fluxo do Google migra
+      // pra implicit flow (que elimina essa dependência de cookie por completo).
+      if (error.code === 'pkce_code_verifier_not_found' || /code verifier/i.test(error.message ?? '')) {
+        const registerMatch = requestedNext?.match(/^\/partners\/([^/]+)\/register\?invite=([A-Za-z0-9]+)/)
+        const partnerSlugMatch = requestedNext?.match(/^\/partners\/([^/]+)\//)
+        let retryUrl: string
+        if (registerMatch) {
+          const [, slug, inviteCode] = registerMatch
+          retryUrl = `${origin}/partners/${slug}/register?code=${inviteCode}&autoRetryGoogle=1`
+        } else if (partnerSlugMatch) {
+          const [, slug] = partnerSlugMatch
+          retryUrl = `${origin}/partners/${slug}/login?next=${encodeURIComponent(requestedNext!)}&autoRetryGoogle=1`
+        } else {
+          retryUrl = `${origin}/auth/login?next=${encodeURIComponent(requestedNext ?? '/portal')}&autoRetryGoogle=1`
+        }
+        return NextResponse.redirect(retryUrl)
+      }
     }
 
     if (!error) {

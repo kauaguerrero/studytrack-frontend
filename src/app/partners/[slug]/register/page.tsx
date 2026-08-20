@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { getGoogleOAuthClient } from '@/lib/supabase/oauth-client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -119,6 +120,22 @@ export default function PartnerRegisterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oauthInviteCode]);
 
+  // Stopgap pra falha intermitente de PKCE no Google (code_verifier perdido
+  // em navegador mobile): auth/callback/route.ts detecta esse erro específico
+  // e manda o usuário de volta pra cá com ?autoRetryGoogle=1 — reinicia o
+  // login do Google sozinho, uma única vez por sessão de aba (evita loop se
+  // a 2ª tentativa falhar de novo pelo mesmo motivo).
+  const autoRetryAttempted = useRef(false);
+  useEffect(() => {
+    if (searchParams.get('autoRetryGoogle') !== '1' || autoRetryAttempted.current) return;
+    const guardKey = 'st:google-auto-retry-done';
+    if (sessionStorage.getItem(guardKey) === '1') return;
+    autoRetryAttempted.current = true;
+    sessionStorage.setItem(guardKey, '1');
+    void handleGoogleSignUp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   function retryJoin() {
     if (oauthInviteCode) void attemptJoin(oauthInviteCode);
   }
@@ -212,15 +229,16 @@ export default function PartnerRegisterPage() {
     }
     setGoogleLoading(true);
     try {
-      const supabase = createClient();
       const nextPath = `/partners/${slug}/register?invite=${encodeURIComponent(code)}`;
-      // Origem fixa — mesmo motivo do login: evita perder o cookie do PKCE
-      // code_verifier por inconsistência de host entre o início e a volta do OAuth.
+      // Origem fixa — o Google só aceita redirect_uris pré-cadastradas.
       const canonicalOrigin = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
-      const { error } = await supabase.auth.signInWithOAuth({
+      // Client dedicado em implicit flow (não o client normal, PKCE) — os
+      // tokens voltam direto no fragment da URL, sem exchange server-side
+      // dependente de cookie sobrevivendo ao redirect cross-site pelo Google.
+      const { error } = await getGoogleOAuthClient().auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${canonicalOrigin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+          redirectTo: `${canonicalOrigin}/auth/oauth-callback?next=${encodeURIComponent(nextPath)}`,
           queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       });
