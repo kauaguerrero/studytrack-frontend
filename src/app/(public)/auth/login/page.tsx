@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { getGoogleOAuthClient } from '@/lib/supabase/oauth-client';
 import { reportError } from '@/lib/reportError';
 import Image from 'next/image';
 import {
@@ -109,6 +110,22 @@ function LoginForm({ onProgress }: { onProgress: (p: number) => void }) {
         setError('Não foi possível concluir o login. Tente novamente.');
       }
     }
+  }, [searchParams]);
+
+  // Stopgap pra falha intermitente de PKCE no Google (code_verifier perdido
+  // em navegador mobile): auth/callback/route.ts detecta esse erro específico
+  // e manda o usuário de volta pra cá com ?autoRetryGoogle=1 — reinicia o
+  // login do Google sozinho, uma única vez por sessão de aba (evita loop se
+  // a 2ª tentativa falhar de novo pelo mesmo motivo).
+  const autoRetryAttempted = useRef(false);
+  useEffect(() => {
+    if (searchParams.get('autoRetryGoogle') !== '1' || autoRetryAttempted.current) return;
+    const guardKey = 'st:google-auto-retry-done';
+    if (sessionStorage.getItem(guardKey) === '1') return;
+    autoRetryAttempted.current = true;
+    sessionStorage.setItem(guardKey, '1');
+    void handleSocialLogin('google');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -229,10 +246,15 @@ function LoginForm({ onProgress }: { onProgress: (p: number) => void }) {
     try {
         setIsLoading(true);
         const nextPath = searchParams.get('next') ?? '/portal';
-        await supabase.auth.signInWithOAuth({
+        // Origem fixa — o Google só aceita redirect_uris pré-cadastradas.
+        const canonicalOrigin = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+        // Client dedicado em implicit flow (não o client normal, PKCE) — os
+        // tokens voltam direto no fragment da URL, sem exchange server-side
+        // dependente de cookie sobrevivendo ao redirect cross-site pelo provider.
+        await getGoogleOAuthClient().auth.signInWithOAuth({
             provider,
             options: {
-                redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+                redirectTo: `${canonicalOrigin}/auth/oauth-callback?next=${encodeURIComponent(nextPath)}`,
                 queryParams: {
                     access_type: 'offline',
                     prompt: 'consent',
