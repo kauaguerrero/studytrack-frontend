@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 type OrgRow = { id: string; slug: string };
-type AnnRow = { created_at: string };
+type CorrRow = { corrected_at: string };
 
 export async function GET(
   _request: Request,
@@ -26,7 +26,8 @@ export async function GET(
 
   const profilesTable = adminClient.from('profiles') as any;
   const organizationsTable = adminClient.from('organizations') as any;
-  const annotationsTable = adminClient.from('essay_annotations') as any;
+  const essaysTable = adminClient.from('essays') as any;
+  const correctionsTable = adminClient.from('essay_corrections') as any;
 
   const [{ data: requester }, { data: org }] = await Promise.all([
     profilesTable.select('role, organization_id').eq('id', user.id).maybeSingle(),
@@ -40,12 +41,20 @@ export async function GET(
     return NextResponse.json({ error: 'Acesso negado.' }, { status: 403 });
   }
 
-  const { data: annotations } = await annotationsTable
-    .select('created_at')
-    .eq('author_id', user.id)
-    .eq('type', 'correction') as { data: AnnRow[] | null };
+  // Fonte autoritativa é essay_corrections (gravada ao submeter a correção), não
+  // essay_annotations tipo 'correction' — anotações de texto são opcionais e o
+  // corretor pode avaliar (notas + comentário geral) sem marcar nenhum trecho,
+  // o que zerava as métricas mesmo com redações efetivamente corrigidas.
+  const { data: orgEssays } = await essaysTable.select('id').eq('org_id', org.id) as { data: { id: string }[] | null };
+  const orgEssayIds = (orgEssays ?? []).map((e) => e.id);
+  const safeEssayIds = orgEssayIds.length > 0 ? orgEssayIds : ['00000000-0000-0000-0000-000000000000'];
 
-  const all = annotations ?? [];
+  const { data: corrections } = await correctionsTable
+    .select('corrected_at')
+    .eq('corrector_id', user.id)
+    .in('essay_id', safeEssayIds) as { data: CorrRow[] | null };
+
+  const all = corrections ?? [];
   const now = new Date();
 
   const todayStart = new Date(now);
@@ -54,8 +63,8 @@ export async function GET(
   const monthStart = new Date(now.getTime() - 30 * 24 * 3_600_000);
 
   let today = 0, week = 0, month = 0;
-  for (const ann of all) {
-    const t = ann.created_at;
+  for (const c of all) {
+    const t = c.corrected_at;
     if (t >= todayStart.toISOString()) today++;
     if (t >= weekStart.toISOString()) week++;
     if (t >= monthStart.toISOString()) month++;
