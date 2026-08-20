@@ -53,7 +53,7 @@ export async function GET(
 
   const profilesTable = adminClient.from('profiles') as any;
   const essaysTable = adminClient.from('essays') as any;
-  const annotationsTable = adminClient.from('essay_annotations') as any;
+  const correctionsTable = adminClient.from('essay_corrections') as any;
   const compScoresTable = adminClient.from('essay_competency_scores') as any;
 
   // 1. Get associate profile — must belong to this org
@@ -92,15 +92,19 @@ export async function GET(
   const safeEssayIds = orgEssayIds.length > 0 ? orgEssayIds : ['00000000-0000-0000-0000-000000000000'];
 
   // 3. All corrections by this associate on org essays
-  const { data: allAnnotations } = await annotationsTable
-    .select('essay_id, created_at')
-    .eq('author_id', associateId)
+  // Fonte autoritativa é essay_corrections (gravada ao submeter a correção), não
+  // essay_annotations tipo 'correction' — anotações de texto são opcionais e o
+  // corretor pode avaliar (notas + comentário geral) sem marcar nenhum trecho,
+  // o que zerava as métricas mesmo com redações efetivamente corrigidas.
+  const { data: allCorrections } = await correctionsTable
+    .select('essay_id, corrected_at')
+    .eq('corrector_id', associateId)
     .in('essay_id', safeEssayIds)
-    .eq('type', 'correction')
-    .order('created_at', { ascending: false });
+    .order('corrected_at', { ascending: false });
 
   type AnnRow = { essay_id: string; created_at: string };
-  const allAnns = (allAnnotations || []) as AnnRow[];
+  const allAnns = ((allCorrections || []) as { essay_id: string; corrected_at: string }[])
+    .map(c => ({ essay_id: c.essay_id, created_at: c.corrected_at })) as AnnRow[];
 
   // 4. Pending essays for org
   const { count: pendingCount } = await essaysTable

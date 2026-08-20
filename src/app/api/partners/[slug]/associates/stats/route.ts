@@ -122,7 +122,7 @@ export async function GET(
 
   const profilesTable = adminClient.from('profiles') as any;
   const essaysTable = adminClient.from('essays') as any;
-  const annotationsTable = adminClient.from('essay_annotations') as any;
+  const correctionsTable = adminClient.from('essay_corrections') as any;
 
   // 1. Associates
   const { data: associates } = await profilesTable
@@ -168,13 +168,17 @@ export async function GET(
   const safeEssayIds = orgEssayIds.length > 0 ? orgEssayIds : ['00000000-0000-0000-0000-000000000000'];
 
   // 4. All corrections (all time)
-  const { data: allAnnotations } = await annotationsTable
-    .select('author_id, essay_id, created_at')
-    .in('author_id', associateIds)
-    .in('essay_id', safeEssayIds)
-    .eq('type', 'correction');
+  // Fonte autoritativa é essay_corrections (gravada ao submeter a correção), não
+  // essay_annotations tipo 'correction' — anotações de texto são opcionais e o
+  // corretor pode avaliar (notas + comentário geral) sem marcar nenhum trecho,
+  // o que zerava as métricas mesmo com redações efetivamente corrigidas.
+  const { data: allCorrections } = await correctionsTable
+    .select('corrector_id, essay_id, corrected_at')
+    .in('corrector_id', associateIds)
+    .in('essay_id', safeEssayIds);
 
-  const allAnns = (allAnnotations || []) as AnnRow[];
+  const allAnns = ((allCorrections || []) as { corrector_id: string; essay_id: string; corrected_at: string }[])
+    .map(c => ({ author_id: c.corrector_id, essay_id: c.essay_id, created_at: c.corrected_at }));
 
   // 5. Window annotations (for trend + in-window counts)
   const windowAnns = windowStart
