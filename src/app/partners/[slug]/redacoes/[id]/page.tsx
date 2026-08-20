@@ -927,7 +927,7 @@ export default function CorrecaoRedacaoPage() {
                       soltar, e arraste devagar até o final da parte que quer marcar.
                     </span>
                   </p>
-                  <p className="text-sm text-slate-700 dark:text-slate-200">
+                  <p className="border-t border-slate-200 pt-1.5 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200">
                     Depois de marcar o trecho, toque em <span className="font-semibold">Comentar</span> ou{' '}
                     <span className="font-semibold">Corrigir</span> no menu que aparece.
                     {queuedMode && (
@@ -936,6 +936,22 @@ export default function CorrecaoRedacaoPage() {
                       </span>
                     )}
                   </p>
+                </div>
+                <div className="mt-3 grid gap-2 border-t border-slate-200 pt-3 sm:grid-cols-2 dark:border-slate-800">
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2">
+                    <MessageCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                    <p className="text-sm text-amber-900 dark:text-amber-100">
+                      <span className="font-semibold">Comentar:</span> deixa uma observação sobre o trecho, sem
+                      alterar o texto do aluno. Use para explicar um erro ou dar uma dica.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2 rounded-lg border border-emerald-400/40 bg-emerald-400/10 p-2">
+                    <PencilLine className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <p className="text-sm text-emerald-900 dark:text-emerald-100">
+                      <span className="font-semibold">Corrigir:</span> propõe a reescrita do trecho. O original
+                      aparece riscado e a sua correção aparece ao lado, para o aluno comparar.
+                    </p>
+                  </div>
                 </div>
               </div>
               {/* Atalho redundante com "selecionar trecho → Comentar/Corrigir" — no
