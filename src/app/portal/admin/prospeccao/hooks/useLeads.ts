@@ -5,6 +5,7 @@ import { apiFetcher } from '@/lib/api-fetcher';
 import type {
   Lead,
   LeadCall,
+  LeadCallOutcome,
   LeadContact,
   LeadFilters,
   LeadsStats,
@@ -93,9 +94,13 @@ export async function apiUpdateLead(
       | 'telefone2'
       | 'email'
       | 'website'
-      | 'call_outcome'
+      | 'call_scheduled_at'
+      | 'call_ends_at'
+      | 'call_title'
+      | 'call_meet_link'
+      | 'call_calendar_event_id'
       | 'valor_proposta_mensal'
-    >
+    > & { call_outcome?: LeadCallOutcome }
   >
 ): Promise<{ lead: Lead }> {
   return fetchJSON(`${LEADS_BASE}/${id}`, {

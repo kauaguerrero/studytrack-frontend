@@ -175,6 +175,7 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall,
   const [editForm, setEditForm] = useState(() => leadToEditForm(lead));
   const [updatingTemp, setUpdatingTemp] = useState(false);
   const [updatingCallOutcome, setUpdatingCallOutcome] = useState(false);
+  const [removingCall, setRemovingCall] = useState(false);
   const [copiedCallMsg, setCopiedCallMsg] = useState(false);
   const [calls, setCalls] = useState<LeadCall[]>([]);
   const [callsLoading, setCallsLoading] = useState(false);
@@ -268,6 +269,26 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall,
       toast.success('Status atualizado');
     } catch {
       toast.error('Erro ao atualizar status');
+    }
+  }
+
+  async function handleRemoveCall() {
+    setRemovingCall(true);
+    try {
+      await apiUpdateLead(lead.id, {
+        call_scheduled_at: null,
+        call_ends_at: null,
+        call_title: null,
+        call_meet_link: null,
+        call_calendar_event_id: null,
+        call_outcome: 'pendente',
+      });
+      onLeadUpdate();
+      toast.success('Call removida');
+    } catch {
+      toast.error('Erro ao remover call');
+    } finally {
+      setRemovingCall(false);
     }
   }
 
@@ -864,6 +885,15 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall,
                     <Copy className="w-3.5 h-3.5" />
                   )}
                   {copiedCallMsg ? 'Copiado!' : 'Copiar mensagem do convite'}
+                </button>
+
+                <button
+                  onClick={handleRemoveCall}
+                  disabled={removingCall}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors disabled:opacity-50"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  {removingCall ? 'Removendo...' : 'Remover call'}
                 </button>
 
                 {lead.status_crm === 'call_agendado' && lead.call_outcome === 'pendente' && (

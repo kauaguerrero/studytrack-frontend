@@ -65,7 +65,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     'status_crm', 'temperature', 'observacoes', 'next_followup_at',
     'cnpj', 'razao_social', 'nome_fantasia', 'nome_socio',
     'uf', 'municipio', 'telefone1', 'telefone2', 'email', 'website',
-    'call_outcome',
+    'call_outcome', 'call_scheduled_at', 'call_ends_at', 'call_title',
+    'call_meet_link', 'call_calendar_event_id', 'valor_proposta_mensal',
   ] as const;
   const update: Record<string, unknown> = {};
   for (const key of ALLOWED) {
