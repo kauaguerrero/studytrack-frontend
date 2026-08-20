@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import FloatingActionMenu from '@/components/ui/floating-action-menu';
 import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
-import { cn } from '@/lib/utils';
+import { cn, normalizeEssayLineBreaks } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { ArrowLeft, ChevronLeft, ChevronRight, Hand, Info, MessageCircle, MousePointer2, PenLine, PencilLine, Send, Users, X } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
@@ -311,6 +311,7 @@ export default function CorrecaoRedacaoPage() {
         const generalComment = 'Redação de alto nível. A proposta de intervenção foi bem articulada com os mecanismos linguísticos e demonstra visão crítica aprofundada.';
         setEssay({
           ...mockEssay,
+          text: normalizeEssayLineBreaks(mockEssay.text),
           annotations: [],
           corrections: [{ round: 1, total_score: mockEssay.total_score, general_comment: generalComment, corrected_at: mockEssay.corrected_at, corrector_name: 'Prof. Carla Mendes', corrector_avatar_url: null }],
           second_corrector_id: null,
@@ -342,6 +343,7 @@ export default function CorrecaoRedacaoPage() {
 
         setEssay({
           ...data,
+          text: normalizeEssayLineBreaks(data.text),
           theme: pickEssayTheme(data),
           corrections: data.corrections || [],
           second_corrector_id: data.second_corrector_id ?? null,

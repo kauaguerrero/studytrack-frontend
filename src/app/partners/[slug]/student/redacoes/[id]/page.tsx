@@ -8,7 +8,7 @@ import { useEssayNotification } from '@/contexts/EssayNotificationContext';
 import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 import { isDemoOrg, MOCK_STUDENT_ESSAYS_FOR_REDACOES, MOCK_STUDENT_ESSAY_COMPETENCY_SCORES } from '../../../../../../../studytrack-tutorial-mock';
 import { Progress } from '@/components/ui/progress';
-import { cn } from '@/lib/utils';
+import { cn, normalizeEssayLineBreaks } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 
 type EssayStatus = 'pending' | 'corrected' | 'seen' | 'awaiting_second' | 'second_corrected';
@@ -263,7 +263,7 @@ export default function RedacaoDetailPage() {
       if (isDemoOrg(slug) && mockEssay) {
         setEssay({
           ...mockEssay,
-          text: mockEssay.text_preview ?? '',
+          text: normalizeEssayLineBreaks(mockEssay.text_preview ?? ''),
           general_comment: 'Redação de alto nível! Foco em aprimorar a proposta de intervenção nas próximas redações.',
           competency_scores: MOCK_STUDENT_ESSAY_COMPETENCY_SCORES
             .filter((c) => c.essay_id === mockEssay.id)
@@ -287,6 +287,7 @@ export default function RedacaoDetailPage() {
         if (!mounted) return;
         setEssay({
           ...data,
+          text: normalizeEssayLineBreaks(data.text),
           theme: pickEssayTheme(data),
         });
 
