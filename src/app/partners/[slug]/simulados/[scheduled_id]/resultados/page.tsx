@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { animate, motion, useMotionValue, useTransform } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import { isDemoOrg, MOCK_SIMULADO_PARTICIPANTS } from '../../../../../../../studytrack-tutorial-mock';
+import { useOrg } from '@/contexts/OrgContext';
+import { MOCK_SIMULADO_PARTICIPANTS } from '../../../../../../../studytrack-tutorial-mock';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import {
   ArrowRight,
@@ -121,6 +122,7 @@ function scoreTone(percentage: number) {
 
 export default function PrintedExamResultsPage() {
   const { slug, scheduled_id: scheduledId } = useParams<{ slug: string; scheduled_id: string }>();
+  const { org } = useOrg();
   const router = useRouter();
 
   const [printedExam, setPrintedExam] = useState<PrintedExam | null>(null);
@@ -149,7 +151,7 @@ export default function PrintedExamResultsPage() {
     setLoading(true);
     setError(null);
 
-    if (isDemoOrg(slug)) {
+    if (org.is_mock) {
       setParticipants(MOCK_SIMULADO_PARTICIPANTS as unknown as Participant[]);
       setLoading(false);
       return;

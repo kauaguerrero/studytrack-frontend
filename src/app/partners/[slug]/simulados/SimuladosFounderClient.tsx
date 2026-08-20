@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useOrg } from '@/contexts/OrgContext';
 import { useRouter } from 'next/navigation';
-import { isDemoOrg, MOCK_SIMULADOS } from '../../../../../studytrack-tutorial-mock';
+import { MOCK_SIMULADOS } from '../../../../../studytrack-tutorial-mock';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
 import PersonalizedSimuladoWizard from '@/app/partners/[slug]/simulados/PersonalizedSimuladoWizard';
@@ -316,7 +316,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   }
 
   async function loadSimulados() {
-    if (isDemoOrg(slug)) {
+    if (org.is_mock) {
       setSimulados(MOCK_SIMULADOS as unknown as ScheduledSimulado[]);
       setLoading(false);
       return;

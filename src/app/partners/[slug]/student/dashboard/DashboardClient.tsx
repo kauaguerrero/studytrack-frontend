@@ -336,6 +336,24 @@ export function DashboardClient({
       if (!session) { setFeedLoading(false); return; }
       setSessionUserId(session.user?.id ?? null);
       const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+
+      if (org.is_mock) {
+        fetch(`${api}/api/partners/${slug}/demo-stats`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+          .then((r) => r.ok ? r.json() : null)
+          .then((data) => {
+            const studentView = data?.student_view;
+            if (Array.isArray(studentView?.activity_feed)) setActivityFeed(studentView.activity_feed);
+            if (studentView?.last_activity) {
+              setLastActivity({ type: studentView.last_activity.type ?? null, subject: studentView.last_activity.subject ?? null });
+            }
+          })
+          .catch(() => {})
+          .finally(() => setFeedLoading(false));
+        return;
+      }
+
       fetch(`${api}/api/student/analytics/activity-feed?limit=15`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
@@ -351,7 +369,8 @@ export function DashboardClient({
         .then((data) => { if (data) setLastActivity({ type: data.type ?? null, subject: data.subject ?? null }); })
         .catch(() => {});
     });
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org.is_mock, slug]);
 
   const resumeHref = lastActivity.type === 'simulado'
     ? `/partners/${slug}/student/simulado`
@@ -387,6 +406,19 @@ export function DashboardClient({
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) return;
       const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+
+      if (org.is_mock) {
+        fetch(`${api}/api/partners/${slug}/demo-stats`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (data?.student_view?.daily_mission) setDailyMission(data.student_view.daily_mission);
+          })
+          .catch(() => {});
+        return;
+      }
+
       fetch(`${api}/api/partner/gamification/daily-mission`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
@@ -403,7 +435,7 @@ export function DashboardClient({
     });
     // refreshSummary é estável (vem do hook); busca única por montagem.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [org.is_mock, slug]);
 
   // ── Checklist de primeiros passos ───────────────────────────────────────────
   const [onboardingChecklist, setOnboardingChecklist] = useState<OnboardingChecklistStatus | null>(null);
@@ -422,6 +454,19 @@ export function DashboardClient({
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) return;
       const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+
+      if (org.is_mock) {
+        fetch(`${api}/api/partners/${slug}/demo-stats`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (data?.student_view?.onboarding_checklist) setOnboardingChecklist(data.student_view.onboarding_checklist);
+          })
+          .catch(() => {});
+        return;
+      }
+
       fetch(`${api}/api/partner/gamification/onboarding-checklist`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
@@ -465,6 +510,23 @@ export function DashboardClient({
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) return;
       const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+
+      if (org.is_mock) {
+        fetch(`${api}/api/partners/${slug}/demo-stats`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            const achievements = data?.student_view?.achievements;
+            if (achievements) {
+              setAchievementsUnlockedCount(achievements.unlocked_count ?? null);
+              setAchievementsTotalCount(achievements.total_count ?? null);
+            }
+          })
+          .catch(() => {});
+        return;
+      }
+
       fetch(`${api}/api/partner/gamification/achievements`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })

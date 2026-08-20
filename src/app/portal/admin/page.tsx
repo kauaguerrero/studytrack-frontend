@@ -19,7 +19,7 @@ import {
   ExternalLink, Target, Activity, Github, TrendingUp, TrendingDown,
   Settings, Puzzle, Trophy, WalletCards, PenLine, ClipboardCheck,
   Video, LifeBuoy, BookOpen, BadgeCheck, ChevronRight, ChevronDown, Trash2, AlertTriangle,
-  EyeOff, UserPlus, Eye, Loader2,
+  EyeOff, UserPlus, Eye, Loader2, Sparkles,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -349,6 +349,11 @@ export default function SuperAdminDashboard() {
     contact_email: '', brand_primary: '#6366f1', brand_secondary: '#8b5cf6', brand_accent: '#f59e0b',
   });
   const [savingOrg, setSavingOrg]         = useState(false);
+  const [demoOrgModal, setDemoOrgModal]   = useState<{ open: boolean }>({ open: false });
+  const [demoOrgForm, setDemoOrgForm]     = useState({
+    name: '', brand_primary: '#6366f1', brand_secondary: '#8b5cf6', brand_accent: '#f59e0b',
+  });
+  const [savingDemoOrg, setSavingDemoOrg] = useState(false);
   const [orgSettingsModal, setOrgSettingsModal] = useState<{ open: boolean; org: Org | null }>({ open: false, org: null });
   const [settingsForm, setSettingsForm]   = useState({
     name: '', slug: '', plan_tier: 'b2b_basic', max_students: 200,
@@ -455,6 +460,26 @@ export default function SuperAdminDashboard() {
       if (res.ok) { setOrgModal({ open: false, org: null }); await fetchData(); }
     } finally {
       setSavingOrg(false);
+    }
+  }
+
+  function openCreateDemo() {
+    setDemoOrgForm({ name: '', brand_primary: '#6366f1', brand_secondary: '#8b5cf6', brand_accent: '#f59e0b' });
+    setDemoOrgModal({ open: true });
+  }
+
+  async function handleSaveDemoOrg() {
+    if (!demoOrgForm.name.trim()) return;
+    setSavingDemoOrg(true);
+    try {
+      const res = await fetch('/api/admin/b2b/organizations/demo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(demoOrgForm),
+      });
+      if (res.ok) { setDemoOrgModal({ open: false }); await fetchData(); }
+    } finally {
+      setSavingDemoOrg(false);
     }
   }
 
@@ -779,6 +804,13 @@ export default function SuperAdminDashboard() {
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 transition-all shadow-sm"
             >
               <Plus className="w-4 h-4" /> Nova Instituição
+            </button>
+            <button
+              onClick={openCreateDemo}
+              title="Cria uma org com stats já mockadas, sem alunos reais — pra reuniões de prospecção"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-amber-700 dark:text-amber-400 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-all"
+            >
+              <Sparkles className="w-4 h-4" /> Criar org demo
             </button>
           </div>
         </div>
@@ -1702,6 +1734,67 @@ export default function SuperAdminDashboard() {
                 className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 disabled:opacity-50"
               >
                 {savingOrg ? 'Criando...' : 'Criar Instituição'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Criar org demo ────────────────────────────────────────────── */}
+      {demoOrgModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-amber-200 dark:border-amber-800 bg-white dark:bg-zinc-900 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <p className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
+                <Sparkles className="w-4 h-4 text-amber-500" /> Criar org demo
+              </p>
+              <button onClick={() => setDemoOrgModal({ open: false })} className="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400">
+              Cria uma org já com stats mockadas (alunos, questões, simulados, redações) pra reuniões de prospecção — sem criar nenhum aluno real no banco.
+            </p>
+
+            <div className="grid gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Nome *</label>
+                <input
+                  value={demoOrgForm.name}
+                  onChange={e => setDemoOrgForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Ex: Cursinho Objetivo (demo)"
+                  autoFocus
+                  className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-slate-900 dark:text-white outline-none focus:border-amber-400"
+                />
+              </div>
+              <div className="flex gap-3">
+                {([['brand_primary','Primária'],['brand_secondary','Secundária'],['brand_accent','Acento']] as const).map(([key, label]) => (
+                  <div key={key} className="flex-1">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-1">{label}</label>
+                    <input
+                      type="color"
+                      value={demoOrgForm[key]}
+                      onChange={e => setDemoOrgForm(f => ({ ...f, [key]: e.target.value }))}
+                      className="h-9 w-full rounded-xl border border-slate-200 dark:border-zinc-700 cursor-pointer"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => setDemoOrgModal({ open: false })}
+                className="px-4 py-2 text-sm text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveDemoOrg}
+                disabled={savingDemoOrg || !demoOrgForm.name.trim()}
+                className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50"
+              >
+                {savingDemoOrg ? 'Criando...' : 'Criar org demo'}
               </button>
             </div>
           </div>

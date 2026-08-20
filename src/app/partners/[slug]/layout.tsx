@@ -40,6 +40,7 @@ export interface OrgBranding {
   typewriter_tagline: OrgTypewriterTagline;
   approved_student_photos: OrgApprovedPhoto[];
   hasAssociates?: boolean;
+  is_mock?: boolean;
 }
 
 interface PartnersLayoutProps {
@@ -238,6 +239,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     typewriter_tagline: normalizeOrgTypewriterTagline(org.typewriter_tagline),
     approved_student_photos: normalizeOrgApprovedPhotos(org.approved_student_photos),
     hasAssociates:   (associateCount ?? 0) > 0,
+    is_mock:         org.is_mock ?? false,
   };
   const safePrimary = sanitizeCssHexColor(branding.brand_primary, '#6366f1');
   const safeSecondary = sanitizeCssHexColor(branding.brand_secondary, '#8b5cf6');

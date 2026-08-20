@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import AulasFounderClient, { type VideoModulesPayload } from './AulasFounderClient';
-import { isDemoOrg, MOCK_VIDEO_MODULES } from '../../../../../studytrack-tutorial-mock';
+import { createClient } from '@/lib/supabase/server';
+import { MOCK_VIDEO_MODULES } from '../../../../../studytrack-tutorial-mock';
 
 export default async function AulasFounderPage({
   params,
@@ -9,7 +10,10 @@ export default async function AulasFounderPage({
 }) {
   const { slug } = await params;
 
-  if (isDemoOrg(slug)) {
+  const supabase = await createClient();
+  const { data: org } = await supabase.from('organizations').select('is_mock').eq('slug', slug).maybeSingle();
+
+  if (org?.is_mock) {
     return <AulasFounderClient slug={slug} initialData={MOCK_VIDEO_MODULES as unknown as VideoModulesPayload} />;
   }
 

@@ -14,7 +14,6 @@ import { useOrg } from '@/contexts/OrgContext';
 import { useOrgCorrectionPresence } from '@/hooks/useOrgCorrectionPresence';
 import { createClient } from '@/lib/supabase/client';
 import {
-  isDemoOrg,
   MOCK_ESSAYS_OVERVIEW,
   MOCK_STUDENT_ESSAY_COMPETENCY_SCORES,
 } from '../../../../../../studytrack-tutorial-mock';
@@ -299,8 +298,7 @@ export default function CorrecaoRedacaoPage() {
       setLoading(true);
       setError(null);
 
-      // [isDemoOrg] mock guard — remove isDemoOrg imports/calls for rollback
-      if (isDemoOrg(slug)) {
+      if (org.is_mock) {
         if (!mounted) return;
         const corrected = MOCK_ESSAYS_OVERVIEW.corrected_items as Array<{ id: string; status: string; essay_type: string; theme: string; submitted_at: string; corrected_at: string; total_score: number; average_score: null; text: string; student: { id: string; full_name: string; email: string; avatar_url: null } }>;
         const mockEssay = corrected.find(e => e.id === id) ?? corrected[0];
@@ -404,7 +402,7 @@ export default function CorrecaoRedacaoPage() {
     return () => {
       mounted = false;
     };
-  }, [id, slug]);
+  }, [id, slug, org.is_mock]);
 
   useEffect(() => {
     if (!essay || !currentUserId) return;

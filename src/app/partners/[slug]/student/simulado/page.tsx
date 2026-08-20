@@ -40,7 +40,7 @@ import { toast } from 'sonner'
 import { ModuleGuard } from '@/components/partners/ModuleGuard'
 import { RevealGroup, RevealItem, ElevatedCard, SectionTitle, KpiCard } from '@/components/partners/founder-ui'
 import { SimuladoComposerModal, type SimuladoComposition } from '@/components/partners/simulado/SimuladoComposerModal'
-import { isDemoOrg, MOCK_SIMULADO_RANKING_STUDENT, MOCK_SCHEDULED_SIMULADOS_STUDENT } from '../../../../../../studytrack-tutorial-mock'
+import { MOCK_SIMULADO_RANKING_STUDENT, MOCK_SCHEDULED_SIMULADOS_STUDENT } from '../../../../../../studytrack-tutorial-mock'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -804,7 +804,7 @@ export default function SimuladoPage() {
     if (!accessToken) return
     const fetchDashboard = async () => {
       setDashLoading(true)
-      if (isDemoOrg(slug)) {
+      if (org.is_mock) {
         setRankingData(MOCK_SIMULADO_RANKING_STUDENT as unknown as RankingData);
         setScheduledSimulados(MOCK_SCHEDULED_SIMULADOS_STUDENT as unknown as typeof scheduledSimulados);
         setDashLoading(false);
@@ -838,7 +838,7 @@ export default function SimuladoPage() {
       }
     }
     fetchDashboard()
-  }, [accessToken, apiUrl, dashVersion, pageBankFilter])
+  }, [accessToken, apiUrl, dashVersion, pageBankFilter, slug, org.is_mock])
 
   // ── Timer ──
   useEffect(() => {

@@ -17,7 +17,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { RevealGroup, RevealItem, BrandHero, HERO_ACCENT_COLOR } from '@/components/partners/founder-ui';
 import { getIdentityTitleIcon, getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
-import { isDemoOrg, MOCK_TITLES_JOURNEY, MOCK_TITLES_HISTORY, MOCK_CHECKIN_STATUS } from '../../../../../../studytrack-tutorial-mock';
+import { MOCK_TITLES_JOURNEY, MOCK_TITLES_HISTORY, MOCK_CHECKIN_STATUS } from '../../../../../../studytrack-tutorial-mock';
 
 function formatMonthLabel(monthRef: string): string {
   const date = new Date(`${monthRef}T12:00:00`);
@@ -64,7 +64,7 @@ export default function PartnerStudentTitlesPage() {
     refreshCheckInStatus,
   } = usePartnerGamification({ fetchPopupStateOnMount: false });
 
-  const isDemo = isDemoOrg(org.slug);
+  const isDemo = org.is_mock;
   const effectiveTitlesJourney = isDemo ? (MOCK_TITLES_JOURNEY as unknown as typeof titlesJourney) : titlesJourney;
   const effectiveTitlesHistory = isDemo ? (MOCK_TITLES_HISTORY as unknown as typeof titlesHistory) : titlesHistory;
   const effectiveCheckIn = isDemo ? (MOCK_CHECKIN_STATUS as unknown as typeof checkInStatus) : checkInStatus;

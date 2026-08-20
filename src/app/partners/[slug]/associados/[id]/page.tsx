@@ -48,7 +48,6 @@ import {
   CartesianGrid,
 } from 'recharts';
 import {
-  isDemoOrg,
   MOCK_ASSOC_METRICS,
   MOCK_ASSOC_DAILY_EVOLUTION,
   MOCK_ASSOC_COMPETENCY_AVGS,
@@ -188,8 +187,7 @@ export default function AssociadoDetailPage() {
   const fetchData = useCallback(async (d: number) => {
     setLoading(true);
     try {
-      // [isDemoOrg] mock guard — remove isDemoOrg imports/calls for rollback
-      if (isDemoOrg(org.slug)) {
+      if (org.is_mock) {
         setData({
           profile: { id: associateId, full_name: 'Prof. Carla Mendes', email: 'carla.mendes@studytrack.com.br', avatar_url: null, active: true, associate_permissions: { can_correct: true, can_import: true, can_view_students: true } },
           metrics: MOCK_ASSOC_METRICS,
@@ -211,7 +209,7 @@ export default function AssociadoDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [org.slug, associateId, router]);
+  }, [org.slug, org.is_mock, associateId, router]);
 
   useEffect(() => {
     fetchData(days);

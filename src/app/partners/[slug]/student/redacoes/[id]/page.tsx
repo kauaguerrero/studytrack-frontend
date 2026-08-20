@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, CalendarDays, MessageSquare, PenLine, X } from 'lucide-react';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
+import { useOrg } from '@/contexts/OrgContext';
 import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
-import { isDemoOrg, MOCK_STUDENT_ESSAYS_FOR_REDACOES, MOCK_STUDENT_ESSAY_COMPETENCY_SCORES } from '../../../../../../../studytrack-tutorial-mock';
+import { MOCK_STUDENT_ESSAYS_FOR_REDACOES, MOCK_STUDENT_ESSAY_COMPETENCY_SCORES } from '../../../../../../../studytrack-tutorial-mock';
 import { Progress } from '@/components/ui/progress';
 import { cn, normalizeEssayLineBreaks } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
@@ -234,6 +235,7 @@ function renderAnnotatedText(
 
 export default function RedacaoDetailPage() {
   const { slug, id } = useParams<{ slug: string; id: string }>();
+  const { org } = useOrg();
   const { refresh } = useEssayNotification();
 
   const [essay, setEssay] = useState<EssayDetail | null>(null);
@@ -260,7 +262,7 @@ export default function RedacaoDetailPage() {
         ...MOCK_STUDENT_ESSAYS_FOR_REDACOES,
       ];
       const mockEssay = allMockEssays.find((e) => e.id === id) ?? allMockEssays[0];
-      if (isDemoOrg(slug) && mockEssay) {
+      if (org.is_mock && mockEssay) {
         setEssay({
           ...mockEssay,
           text: normalizeEssayLineBreaks(mockEssay.text_preview ?? ''),
@@ -317,7 +319,7 @@ export default function RedacaoDetailPage() {
     return () => {
       mounted = false;
     };
-  }, [slug, id, refresh]);
+  }, [slug, id, refresh, org.is_mock]);
 
   const isDualCorrection = useMemo(() => {
     const corrections = essay?.corrections;
