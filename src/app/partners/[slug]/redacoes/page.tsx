@@ -1,7 +1,8 @@
 import { headers } from 'next/headers';
 import PartnerRedacoesClient, { type EssaysOverviewPayload } from './PartnerRedacoesClient';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
-import { isDemoOrg, MOCK_ESSAYS_OVERVIEW } from '../../../../../studytrack-tutorial-mock';
+import { createClient } from '@/lib/supabase/server';
+import { MOCK_ESSAYS_OVERVIEW } from '../../../../../studytrack-tutorial-mock';
 
 export default async function PartnerRedacoesPage({
   params,
@@ -10,7 +11,10 @@ export default async function PartnerRedacoesPage({
 }) {
   const { slug } = await params;
 
-  if (isDemoOrg(slug)) {
+  const supabase = await createClient();
+  const { data: org } = await supabase.from('organizations').select('is_mock').eq('slug', slug).maybeSingle();
+
+  if (org?.is_mock) {
     return (
       <ModuleGuard permKey="redacoes_enabled">
         <PartnerRedacoesClient slug={slug} initialOverview={MOCK_ESSAYS_OVERVIEW as unknown as EssaysOverviewPayload} />

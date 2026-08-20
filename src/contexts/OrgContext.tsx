@@ -20,6 +20,7 @@ export interface OrgBranding {
   typewriter_tagline?: OrgTypewriterTagline | null;
   approved_student_photos?: OrgApprovedPhoto[] | null;
   hasAssociates?: boolean;
+  is_mock?: boolean;
 }
 
 interface UserProfile {

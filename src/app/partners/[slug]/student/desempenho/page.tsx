@@ -7,7 +7,7 @@ import DesempenhoClient, {
   type EssayDetail,
   type EssayListItem,
 } from './DesempenhoClient';
-import { isDemoOrg, MOCK_STUDENT_DASHBOARD_STATE } from '../../../../../../studytrack-tutorial-mock';
+import { MOCK_STUDENT_DASHBOARD_STATE } from '../../../../../../studytrack-tutorial-mock';
 
 export default async function DesempenhoPage({
   params,
@@ -16,7 +16,10 @@ export default async function DesempenhoPage({
 }) {
   const { slug } = await params;
 
-  if (isDemoOrg(slug)) {
+  const supabaseDemoCheck = await createClient();
+  const { data: demoOrg } = await supabaseDemoCheck.from('organizations').select('is_mock').eq('slug', slug).maybeSingle();
+
+  if (demoOrg?.is_mock) {
     return (
       <ModuleGuard permKey="desempenho_enabled">
         <DesempenhoClient slug={slug} initialState={MOCK_STUDENT_DASHBOARD_STATE as unknown as DashboardState} />

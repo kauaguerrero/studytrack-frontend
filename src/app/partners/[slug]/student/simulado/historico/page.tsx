@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { ArrowLeft, Brain, ChevronLeft, ChevronRight, Clock, Target } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { isDemoOrg, MOCK_SIMULADO_HISTORY } from '../../../../../../../studytrack-tutorial-mock'
+import { useOrg } from '@/contexts/OrgContext'
+import { MOCK_SIMULADO_HISTORY } from '../../../../../../../studytrack-tutorial-mock'
 
 interface SimuladoSession {
     id: string
@@ -87,6 +88,7 @@ function formatConfig(cfg: SimuladoSession['config']) {
 export default function SimuladoHistoricoPage() {
     const router = useRouter()
     const { slug } = useParams<{ slug: string }>()
+    const { org } = useOrg()
     const [sessions, setSessions] = useState<SimuladoSession[]>([])
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
@@ -104,7 +106,7 @@ export default function SimuladoHistoricoPage() {
     }, [])
 
     const fetchHistory = useCallback(async (p: number) => {
-        if (isDemoOrg(slug)) {
+        if (org.is_mock) {
             setSessions(MOCK_SIMULADO_HISTORY as unknown as SimuladoSession[])
             setTotal(MOCK_SIMULADO_HISTORY.length)
             setTotalPages(1)
@@ -128,7 +130,7 @@ export default function SimuladoHistoricoPage() {
         } finally {
             setLoading(false)
         }
-    }, [accessToken])
+    }, [accessToken, org.is_mock])
 
     useEffect(() => {
         fetchHistory(page)

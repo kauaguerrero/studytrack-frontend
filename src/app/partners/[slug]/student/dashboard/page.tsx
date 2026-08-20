@@ -12,7 +12,6 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { DashboardClient } from './DashboardClient';
-import { isDemoOrg } from '../../../../../../studytrack-tutorial-mock';
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -21,16 +20,31 @@ interface Props {
 export default async function PartnerStudentDashboard({ params }: Props) {
   const { slug } = await params;
 
-  if (isDemoOrg(slug)) {
+  type DemoOrgRow = {
+    name: string;
+    logo_url: string | null;
+    is_mock: boolean;
+    demo_stats: { student_view?: { dashboard_summary?: { firstName?: string; currentStreak?: number; questionsCount?: number; simuladosCount?: number } } } | null;
+  };
+  const adminClientDemoCheck = createAdminClient();
+  const demoOrgRes = await adminClientDemoCheck
+    .from('organizations')
+    .select('name, logo_url, is_mock, demo_stats')
+    .eq('slug', slug)
+    .maybeSingle();
+  const demoOrg = demoOrgRes.data as DemoOrgRow | null;
+
+  if (demoOrg?.is_mock) {
+    const summary = demoOrg.demo_stats?.student_view?.dashboard_summary ?? {};
     return (
       <DashboardClient
-        firstName="Aluno"
-        orgName="Study Track"
-        orgLogoUrl={null}
+        firstName={summary.firstName ?? 'Aluno'}
+        orgName={demoOrg.name ?? 'StudyTrack'}
+        orgLogoUrl={demoOrg.logo_url ?? null}
         slug={slug}
-        currentStreak={12}
-        questionsCount={4832}
-        simuladosCount={51}
+        currentStreak={summary.currentStreak ?? 0}
+        questionsCount={summary.questionsCount ?? 0}
+        simuladosCount={summary.simuladosCount ?? 0}
       />
     );
   }

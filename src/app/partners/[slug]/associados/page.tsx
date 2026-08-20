@@ -40,7 +40,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  isDemoOrg,
   MOCK_ASSOCIATE_SUMMARY,
   MOCK_ASSOCIATE_TREND,
   MOCK_ASSOCIATE_STATS_VARIANTS,
@@ -207,8 +206,7 @@ export default function AssociadosPage() {
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchList = useCallback(async () => {
-    // [isDemoOrg] mock guard — remove isDemoOrg imports/calls for rollback
-    if (isDemoOrg(org.slug)) {
+    if (org.is_mock) {
       setAssociates([
         { id: 'assoc-demo-01', full_name: 'Prof. Carla Mendes',    email: 'carla.mendes@studytrack.com.br',    avatar_url: null, active: true, associate_permissions: { can_correct: true,  can_import: true,  can_view_students: true  } },
         { id: 'assoc-demo-02', full_name: 'Prof. Ricardo Souza',   email: 'ricardo.souza@studytrack.com.br',   avatar_url: null, active: true, associate_permissions: { can_correct: true,  can_import: false, can_view_students: true  } },
@@ -221,13 +219,12 @@ export default function AssociadosPage() {
       const d = await res.json() as { associates?: Associate[] };
       setAssociates(Array.isArray(d.associates) ? d.associates : []);
     }
-  }, [org.slug]);
+  }, [org.slug, org.is_mock]);
 
   const fetchStats = useCallback(async (win: MetricWindow, initial = false) => {
     if (initial) setLoading(true); else setStatsLoading(true);
     try {
-      // [isDemoOrg] mock guard — remove isDemoOrg imports/calls for rollback
-      if (isDemoOrg(org.slug)) {
+      if (org.is_mock) {
         setSummary(MOCK_ASSOCIATE_SUMMARY as unknown as OrgSummary);
         setStats({
           'assoc-demo-01': MOCK_ASSOCIATE_STATS_VARIANTS[0] as unknown as AssociateStats,
@@ -251,7 +248,7 @@ export default function AssociadosPage() {
     } finally {
       if (initial) setLoading(false); else setStatsLoading(false);
     }
-  }, [org.slug]);
+  }, [org.slug, org.is_mock]);
 
   useEffect(() => {
     Promise.all([fetchList(), fetchStats('week', true)]);

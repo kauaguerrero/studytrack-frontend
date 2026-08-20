@@ -23,7 +23,7 @@ import { RevealGroup, RevealItem, ElevatedCard, BrandHero } from '@/components/p
 import type { PartnerRankingEntry } from '@/types/gamification';
 import { getInitials, getRankingDisplayName, isAnonymousRankingEntry } from '@/lib/ranking-privacy';
 import { summarizePodiumStreaks } from '@/lib/podium-streak';
-import { isDemoOrg, MOCK_FOUNDER_RANKING } from '../../../../../studytrack-tutorial-mock';
+import { MOCK_FOUNDER_RANKING } from '../../../../../studytrack-tutorial-mock';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 
@@ -390,7 +390,7 @@ export default function FounderRankingPage() {
     fetchPopupStateOnMount: false,
   });
 
-  const isDemo = isDemoOrg(org.slug);
+  const isDemo = org.is_mock;
   const effectiveSummary = isDemo ? null : summary;
   const effectiveRanking = isDemo ? (MOCK_FOUNDER_RANKING as unknown as typeof ranking) : ranking;
   const effectiveLoading = isDemo ? false : isLoading;

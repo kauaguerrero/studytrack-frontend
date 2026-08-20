@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { isDemoOrg, MOCK_STUDENT_DASHBOARD_STATE } from '../../../../../../studytrack-tutorial-mock';
+import { MOCK_STUDENT_DASHBOARD_STATE } from '../../../../../../studytrack-tutorial-mock';
 import {
   Trophy,
   Medal,
@@ -1015,7 +1015,7 @@ export default function RankingPage() {
   const _gamification = usePartnerGamification({
     fetchPopupStateOnMount: false,
   });
-  const isDemo = isDemoOrg(org.slug);
+  const isDemo = org.is_mock;
   const summary = isDemo ? (MOCK_STUDENT_DASHBOARD_STATE.summary as typeof _gamification.summary) : _gamification.summary;
   const ranking = isDemo ? (MOCK_STUDENT_DASHBOARD_STATE.ranking as typeof _gamification.ranking) : _gamification.ranking;
   const isLoading = isDemo ? false : _gamification.isLoading;

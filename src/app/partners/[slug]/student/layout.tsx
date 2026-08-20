@@ -38,6 +38,7 @@ export interface OrgBranding {
   permissions?: Record<string, boolean>;
   typewriter_tagline?: OrgTypewriterTagline | null;
   approved_student_photos?: OrgApprovedPhoto[] | null;
+  is_mock?: boolean;
 }
 
 interface StudentLayoutProps {
@@ -129,6 +130,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
     permissions:      org.permissions ?? {},
     typewriter_tagline: normalizeOrgTypewriterTagline(org.typewriter_tagline),
     approved_student_photos: normalizeOrgApprovedPhotos(org.approved_student_photos),
+    is_mock:          org.is_mock ?? false,
   };
   // Escapa < > & para evitar quebra prematura da tag <script> caso o slug
   // contenha sequências como "</script>" (JSON.stringify não escapa "/" por padrão).

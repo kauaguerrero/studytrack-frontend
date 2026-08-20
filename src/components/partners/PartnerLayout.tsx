@@ -5,7 +5,7 @@ import { ReactNode, useEffect, useState, useRef } from 'react';
 import { motion, useReducedMotion, useAnimation } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
@@ -34,6 +34,7 @@ import {
   Upload,
   History,
   Sparkles,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -295,6 +296,7 @@ interface PartnerLayoutProps {
 export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutProps) {
   const { org, userProfile } = useOrg();
   const { hasPendingCorrection } = useEssayNotification();
+  const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [passwordModalDismissed, setPasswordModalDismissed] = useState(false);
@@ -637,6 +639,39 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
               </button>
             )}
           </header>
+
+        {/* ── Demo org: alterna entre visão founder e visão aluno sem trocar de sessão ── */}
+        {org.is_mock && (
+          <div
+            className="flex items-center justify-center gap-3 border-b px-4 py-2 text-sm"
+            style={{ backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }}
+          >
+            <span className="hidden font-medium text-amber-900 sm:inline">Org demo — visualizando como</span>
+            <div className="flex items-center gap-1 rounded-full bg-white p-1 shadow-sm">
+              <button
+                type="button"
+                onClick={() => router.push(`/partners/${org.slug}/dashboard`)}
+                className={cn(
+                  'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                  !isPartnerStudent ? 'bg-amber-500 text-white' : 'text-amber-900 hover:bg-amber-50'
+                )}
+              >
+                Visão Founder
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/partners/${org.slug}/student/dashboard`)}
+                className={cn(
+                  'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                  isPartnerStudent ? 'bg-amber-500 text-white' : 'text-amber-900 hover:bg-amber-50'
+                )}
+              >
+                Visão Aluno
+              </button>
+            </div>
+            <ArrowLeftRight className="hidden h-3.5 w-3.5 text-amber-700 sm:block" />
+          </div>
+        )}
 
         {/* Page content — extra bottom padding on mobile for bottom tab bar */}
         <main className="partner-main min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 pb-24 md:p-8 md:pb-8">

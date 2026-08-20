@@ -24,7 +24,6 @@ import {
   Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { toast } from 'sonner';
-import { isDemoOrg, MOCK_STUDENT_DETAILS } from '../../../../../../studytrack-tutorial-mock';
 import { BRT_TIMEZONE, toBrtDateKey } from '@/lib/brt-date';
 
 interface StudentDetail {
@@ -239,14 +238,6 @@ export default function StudentProfilePage() {
       const supabase = createClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-
-      if (isDemoOrg(org.slug)) {
-        const detail = (MOCK_STUDENT_DETAILS as Record<string, unknown>)[studentId]
-          ?? Object.values(MOCK_STUDENT_DETAILS)[0];
-        setData(detail as unknown as StudentDetail);
-        setLoading(false);
-        return;
-      }
 
       const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
       try {
