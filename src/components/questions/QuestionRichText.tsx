@@ -131,7 +131,11 @@ function shouldPreserveManualLineBreaks(paragraph: string, previousParagraph?: s
   if (indentedLines >= 2) return true
 
   const dialogueLines = lines.filter((line) => /^\s*[\u2014-]\s+\S/.test(line)).length
-  return dialogueLines >= 2
+  if (dialogueLines >= 2) return true
+
+  // Roman numeral lists common in vestibular questions (I. II. III. IV. ...)
+  const romanNumeralLines = lines.filter((line) => /^[IVX]+\.\s+\S/.test(line.trim())).length
+  return romanNumeralLines >= 2
 }
 
 function collapseSoftLineBreaks(paragraph: string): string {
