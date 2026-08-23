@@ -12,12 +12,10 @@ import {
   Radar,
   LogOut,
   User,
-  Sparkles,
   ListChecks,
   Flag,
   ScanSearch,
   Github,
-  Presentation,
   Bell,
   Crown,
 } from 'lucide-react';
@@ -230,10 +228,8 @@ export function SidebarContent({
             {renderNavItem({ href: '/portal/admin/tasks', icon: ListChecks, label: 'Tasks' })}
             {renderNavItem({ href: '/portal/admin/radar-comercial', icon: Radar, label: 'Radar Comercial' })}
             {renderNavItem({ href: '/portal/admin/github', icon: Github, label: 'GitHub' })}
-            {renderNavItem({ href: '/portal/admin/apresentacao', icon: Presentation, label: 'Apresentação' })}
             {renderSectionTitle('Conteúdo')}
             {renderNavItem({ href: '/portal/admin/audits', icon: ScanSearch, label: 'Audit Center' })}
-            {renderNavItem({ href: '/portal/admin/social-media', icon: Sparkles, label: 'Social Media IA' })}
             {renderNavItem({ href: '/portal/admin/questions', icon: BookOpen, label: 'Curadoria' })}
             {renderNavItem({ href: '/portal/admin/announcements', icon: Bell, label: 'Novidades' })}
             {renderSectionTitle('Reports')}
