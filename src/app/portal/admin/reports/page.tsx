@@ -433,7 +433,7 @@ export default function AdminReportsPage() {
                           </Button>
                           {report.status !== 'resolved' && (
                             <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-                              onClick={() => { setResolveDialogId(report.id); setResolveComment(commentValues[report.id] ?? ''); }}
+                              onClick={() => { setResolveDialogId(report.id); setResolveComment(''); }}
                               disabled={processingId === report.id}>
                               {processingId === report.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle2 className="h-4 w-4 mr-1.5" />Marcar resolvido</>}
                             </Button>
