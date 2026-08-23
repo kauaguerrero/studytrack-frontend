@@ -15,7 +15,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import {
   ChevronDown, ArrowLeft, ArrowRight, Brain, Lock,
   CheckCircle2, Circle, Loader2, Sparkles, Calendar,
-  BarChart, Eye, EyeOff, SlidersHorizontal,
+  BarChart, Eye, EyeOff, SlidersHorizontal, Flag,
 } from 'lucide-react';
 import { QuestionCard } from '@/components/questions/QuestionCard';
 import { ReportDialog } from '@/components/questions/ReportDialog';
@@ -142,6 +142,10 @@ export default function BancoDeQuestoes() {
   // Pré-seleciona a matéria quando o CTA "Continue de onde parou" chega com
   // ?subject=X (última matéria que o aluno estava respondendo).
   const [filterSubject, setFilterSubject] = useState(() => searchParams.get('subject') || 'Todas');
+
+  // Deep-link de report: quando ?question_id=UUID vem da página de reports do aluno,
+  // exibe apenas essa questão específica (ignora filtros e paginação).
+  const questionIdParam = searchParams.get('question_id');
   const [filterBank, setFilterBank] = useState('Todas');
   const [filterTopic, setFilterTopic] = useState('Todos');
   const [filterYear, setFilterYear] = useState('Todos');
@@ -313,8 +317,51 @@ export default function BancoDeQuestoes() {
     loadTopics();
   }, [filterSubject, filterBank, userId]);
 
+  // ── Single-question mode: busca questão específica via deep-link de report ────
+  useEffect(() => {
+    if (!questionIdParam || !userId) return;
+    setLoading(true);
+    setHasMore(false);
+    void (async () => {
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const res = await fetch(`/api/proxy/questions/${questionIdParam}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: 'no-store',
+        });
+        if (!res.ok) return;
+        const q = await res.json() as Record<string, unknown>;
+        const transformed = {
+          id: String(q.id ?? ''),
+          external_id: String(q.external_id ?? ''),
+          year: Number(q.exam_year ?? 0),
+          bank: inferQuestionBank({ external_id: String(q.external_id ?? ''), bank: null, metadata: q.metadata }),
+          subject: String(q.subject ?? ''),
+          difficulty: String(q.difficulty ?? 'media'),
+          context: String(q.context ?? ''),
+          statement: String(q.alternatives_intro ?? ''),
+          alternatives: Array.isArray(q.alternatives) ? q.alternatives : [],
+          correct_option: String(q.correct_alternative ?? ''),
+          explanation: (q.ai_reasoning as Record<string, string> | null)?.thought ?? '',
+          images: q.images,
+          metadata: q.metadata,
+        };
+        setQuestions([transformed as never]);
+        setCurrentIdx(0);
+      } catch (err) {
+        void reportError('QuestionBankDeepLinkError', String(err));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [questionIdParam, userId]);
+
   // ── Filter reset ─────────────────────────────────────────────────────────────
   useEffect(() => {
+    // Não rodar o fetch normal quando estamos exibindo uma questão específica de report
+    if (questionIdParam) return;
     if (userId) {
       setQuestions([]);
       setPage(1);
@@ -421,10 +468,11 @@ export default function BancoDeQuestoes() {
 
   // ── Infinite scroll ───────────────────────────────────────────────────────────
   useEffect(() => {
+    if (questionIdParam) return; // sem paginação no modo questão única
     if (!loadingMore && hasMore && questions.length > 0 && currentIdx >= questions.length - 3) {
       if (!isLoadingRef.current) fetchQuestions(page + 1, true);
     }
-  }, [currentIdx, questions.length, hasMore, loadingMore, page, fetchQuestions]);
+  }, [currentIdx, questions.length, hasMore, loadingMore, page, fetchQuestions, questionIdParam]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const handleQuotaLimitReached = (_reasonCode: string) => {
@@ -918,6 +966,12 @@ export default function BancoDeQuestoes() {
                   {isCurrentTestletGroup ? `Testlet ${currentTestletQuestions.length} questões` : `Questão ${currentIdx + 1}`}
                 </span>
 
+                {questionIdParam && (
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1 rounded-lg border border-amber-100 dark:border-amber-800">
+                    <Flag size={10} /> Do seu report
+                  </span>
+                )}
+
                 {isLockedByQuota && (
                   <span className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2.5 py-1 rounded-lg border border-amber-100 dark:border-amber-800 inline-flex items-center gap-1">
                     <Lock size={10} /> Limite atingido
@@ -925,14 +979,23 @@ export default function BancoDeQuestoes() {
                 )}
               </div>
 
-              {/* Total — visible on ALL screens */}
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 px-3 py-1 rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm">
-                {totalQuestionsFound > 0
-                  ? `${totalQuestionsFound} questões`
-                  : activeTab === 'todo'
-                    ? 'Nesta trilha'
-                    : 'Histórico'}
-              </span>
+              {/* Total ou voltar ao banco quando em modo questão única */}
+              {questionIdParam ? (
+                <a
+                  href={`/partners/${org.slug}/student/banco-de-questoes`}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 bg-white dark:bg-slate-900 px-3 py-1 rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm transition-colors"
+                >
+                  <ArrowLeft size={12} /> Ver todas
+                </a>
+              ) : (
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 px-3 py-1 rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm">
+                  {totalQuestionsFound > 0
+                    ? `${totalQuestionsFound} questões`
+                    : activeTab === 'todo'
+                      ? 'Nesta trilha'
+                      : 'Histórico'}
+                </span>
+              )}
             </div>
 
             {/* Progress bar: position in loaded questions */}

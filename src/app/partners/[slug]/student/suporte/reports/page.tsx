@@ -70,9 +70,7 @@ function ReportCard({ report, slug }: { report: MyReport; slug: string }) {
     q?.exam_year,
   ].filter(Boolean).join(' · ');
 
-  const bankUrl = q?.subject
-    ? `/partners/${slug}/student/banco-de-questoes?subject=${encodeURIComponent(q.subject)}`
-    : `/partners/${slug}/student/banco-de-questoes`;
+  const bankUrl = `/partners/${slug}/student/banco-de-questoes?question_id=${report.question_id}`;
 
   const accentColor = isResolved ? '#10b981' : isReviewing ? '#3b82f6' : '#f59e0b';
 
