@@ -9,6 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { OrgProvider } from '@/contexts/OrgContext';
 import { EssayNotificationProvider } from '@/contexts/EssayNotificationContext';
 import { AnnouncementNotificationProvider } from '@/contexts/AnnouncementNotificationContext';
+import { ReportNotificationProvider } from '@/contexts/ReportNotificationContext';
 import { StudentThemeProvider } from '@/contexts/StudentThemeContext';
 import { StudentThemeShell } from '@/components/partners/StudentThemeShell';
 import { UsageHeartbeat } from '@/components/students/UsageHeartbeat';
@@ -176,12 +177,14 @@ export default async function PartnerStudentLayout({ children, params }: Student
 
       <EssayNotificationProvider slug={slug}>
         <AnnouncementNotificationProvider>
-          <StudentThemeProvider slug={slug} initialTheme={initialTheme}>
-            <StudentThemeShell mustChangePassword={profile.must_change_password === true}>
-              {children}
-            </StudentThemeShell>
-            <UsageHeartbeat />
-          </StudentThemeProvider>
+          <ReportNotificationProvider>
+            <StudentThemeProvider slug={slug} initialTheme={initialTheme}>
+              <StudentThemeShell mustChangePassword={profile.must_change_password === true}>
+                {children}
+              </StudentThemeShell>
+              <UsageHeartbeat />
+            </StudentThemeProvider>
+          </ReportNotificationProvider>
         </AnnouncementNotificationProvider>
       </EssayNotificationProvider>
     </OrgProvider>

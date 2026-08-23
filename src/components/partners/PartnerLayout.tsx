@@ -9,6 +9,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
+import { useReportNotification } from '@/contexts/ReportNotificationContext';
 import { AnnouncementBell } from '@/components/announcements/AnnouncementBell';
 import {
   LayoutDashboard,
@@ -296,6 +297,7 @@ interface PartnerLayoutProps {
 export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutProps) {
   const { org, userProfile } = useOrg();
   const { hasPendingCorrection } = useEssayNotification();
+  const { hasUnseenResolved } = useReportNotification();
   const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -472,9 +474,10 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
               collapsed={c}
               onClick={onNavigate}
               showNotification={
-                variant === 'student'
-                  && item.href === `/partners/${org.slug}/student/redacoes`
-                  && hasPendingCorrection
+                variant === 'student' && (
+                  (item.href === `/partners/${org.slug}/student/redacoes` && hasPendingCorrection)
+                  || (item.href === `/partners/${org.slug}/student/suporte` && hasUnseenResolved)
+                )
               }
             />
           ))}
