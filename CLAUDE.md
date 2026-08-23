@@ -44,7 +44,7 @@ Three Supabase clients with different scopes:
 
 ### Data Flow
 
-Simple CRUD goes directly to Supabase from the frontend. AI-heavy features (essay transcription, question generation, presentation/social-media generation) call the Flask backend at `NEXT_PUBLIC_API_URL`, or in some admin-panel cases call Anthropic directly from `/api/admin/*` routes via `@anthropic-ai/sdk`.
+Simple CRUD goes directly to Supabase from the frontend. AI-heavy features (essay transcription, question generation) call the Flask backend at `NEXT_PUBLIC_API_URL`, or in some admin-panel cases call Anthropic directly from `/api/admin/*` routes via `@anthropic-ai/sdk`.
 
 ### Multi-tenancy / branding
 
@@ -66,7 +66,7 @@ Feature-based under `src/components/`:
   - `ActivityHistoryModal.tsx` — activity feed UI
 - `announcements/` — org announcement bell/notifications
 - `landing/` — marketing sections, all B2B-pitched (see below)
-- `admin/` — internal staff panel components, including `admin/social-media/`
+- `admin/` — internal staff panel components
 - `layout/`, `modals/`, `widgets/` — shared structural components
 - `assessments/`, `questions/` — question bank / assessment UI, reused by B2B students
 
@@ -86,8 +86,6 @@ Feature-based under `src/components/`:
 - **Math rendering:** KaTeX (Vestibular questions with formulas)
 - **Charts:** Recharts
 - **Animation:** Framer Motion
-- **PDF/export:** `jspdf`, `html-to-image`, `pptxgenjs`, `jszip` (presentation/social-media generation)
-- **Server-side rendering:** `puppeteer-core` + `@sparticuz/chromium-min` (social media asset rendering)
 - **File upload:** `tus-js-client` (resumable uploads)
 - **XSS protection:** `isomorphic-dompurify` — always sanitize user-generated HTML before rendering
 - **Notifications:** Sonner (toast)
