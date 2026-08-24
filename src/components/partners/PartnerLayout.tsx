@@ -36,6 +36,7 @@ import {
   History,
   Sparkles,
   ArrowLeftRight,
+  TriangleAlert,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -288,13 +289,23 @@ function BottomTabItem({ href, icon: Icon, shortLabel, showNotification }: NavIt
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
+/** Permite a uma página com formulário em andamento (ex.: correção de redação) barrar
+ *  o logout enquanto houver edição não enviada, oferecendo salvar antes de sair. */
+export interface UnsavedChangesGuard {
+  hasUnsavedChanges: boolean;
+  /** Deve tentar salvar e retornar true em caso de sucesso. Em caso de falha, deve
+   *  avisar o usuário (ex.: toast) e retornar false — o logout não prossegue. */
+  onSaveAndExit: () => Promise<boolean>;
+}
+
 interface PartnerLayoutProps {
   children: ReactNode;
   /** 'founder' mostra nav de gestão; 'student' mostra nav de estudo */
   variant?: 'founder' | 'student';
+  unsavedChangesGuard?: UnsavedChangesGuard;
 }
 
-export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutProps) {
+export function PartnerLayout({ children, variant = 'founder', unsavedChangesGuard }: PartnerLayoutProps) {
   const { org, userProfile } = useOrg();
   const { hasPendingCorrection } = useEssayNotification();
   const { hasUnseenResolved } = useReportNotification();
@@ -302,6 +313,8 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
   const [isHovered, setIsHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [passwordModalDismissed, setPasswordModalDismissed] = useState(false);
+  const [showUnsavedSignOutModal, setShowUnsavedSignOutModal] = useState(false);
+  const [savingBeforeSignOut, setSavingBeforeSignOut] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
   const isAssociate = userProfile.role === 'associate';
@@ -400,11 +413,34 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
     .join('')
     .toUpperCase();
 
-  async function handleSignOut() {
+  async function performSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
     const loginBase = `/partners/${org.slug}/login`;
     window.location.href = loginBase;
+  }
+
+  async function requestSignOut() {
+    if (unsavedChangesGuard?.hasUnsavedChanges) {
+      setShowUnsavedSignOutModal(true);
+      return;
+    }
+    await performSignOut();
+  }
+
+  async function handleSaveAndSignOut() {
+    if (!unsavedChangesGuard) return;
+    setSavingBeforeSignOut(true);
+    try {
+      const saved = await unsavedChangesGuard.onSaveAndExit();
+      if (saved) {
+        await performSignOut();
+      } else {
+        setShowUnsavedSignOutModal(false);
+      }
+    } finally {
+      setSavingBeforeSignOut(false);
+    }
   }
 
   const handleMouseEnter = () => {
@@ -547,7 +583,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
                 className="h-7 w-7 shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 onClick={async () => {
                   onNavigate?.();
-                  await handleSignOut();
+                  await requestSignOut();
                 }}
                 title="Sair"
               >
@@ -625,7 +661,7 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
               </div>
             ) : (
               <button
-                onClick={handleSignOut}
+                onClick={requestSignOut}
                 className="flex items-center gap-2 rounded-xl py-1.5 pl-2 pr-3 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 title="Sair"
               >
@@ -720,6 +756,57 @@ export function PartnerLayout({ children, variant = 'founder' }: PartnerLayoutPr
 
       {showPasswordModal && (
         <ForcePasswordChangeModal onSuccess={() => setPasswordModalDismissed(true)} />
+      )}
+
+      {showUnsavedSignOutModal && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 px-4 pb-6 sm:items-center sm:pb-0"
+          onClick={() => { if (!savingBeforeSignOut) setShowUnsavedSignOutModal(false); }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
+                <TriangleAlert className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">Você tem trabalho não salvo</h2>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Sua correção ainda não foi enviada. Se sair agora, o que você preencheu será perdido.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleSaveAndSignOut}
+                disabled={savingBeforeSignOut}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingBeforeSignOut ? 'Salvando...' : 'Salvar e sair'}
+              </button>
+              <button
+                type="button"
+                onClick={performSignOut}
+                disabled={savingBeforeSignOut}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Sair sem salvar
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowUnsavedSignOutModal(false)}
+                disabled={savingBeforeSignOut}
+                className="mt-1 w-full rounded-xl border border-slate-200 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

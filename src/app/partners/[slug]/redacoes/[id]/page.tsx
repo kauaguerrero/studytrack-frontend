@@ -617,8 +617,12 @@ export default function CorrecaoRedacaoPage() {
     }
   }
 
-  async function doSubmitCorrection({ secondRequest, secondCorrectorId }: { secondRequest: boolean; secondCorrectorId: string | null }) {
-    if (!essay) return;
+  async function doSubmitCorrection({
+    secondRequest,
+    secondCorrectorId,
+    redirectAfter = true,
+  }: { secondRequest: boolean; secondCorrectorId: string | null; redirectAfter?: boolean }): Promise<boolean> {
+    if (!essay) return false;
 
     setSubmitting(true);
     setShowDeliveryModal(false);
@@ -664,14 +668,32 @@ export default function CorrecaoRedacaoPage() {
       if (responseData?.warning) {
         toast.warning(responseData.warning);
       }
-      router.push(`/partners/${slug}/redacoes`);
+      if (redirectAfter) {
+        router.push(`/partners/${slug}/redacoes`);
+      }
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Falha ao enviar correção.';
       toast.error(message);
+      return false;
     } finally {
       setSubmitting(false);
     }
   }
+
+  async function saveAndExit(): Promise<boolean> {
+    if (generalComment.trim().length < 20) {
+      toast.error('Escreva o comentário geral (mínimo de 20 caracteres) antes de sair salvando.');
+      return false;
+    }
+    return doSubmitCorrection({ secondRequest: false, secondCorrectorId: null, redirectAfter: false });
+  }
+
+  const hasUnsavedCorrectionWork = lockOwned && (
+    generalComment.trim().length > 0
+    || scores.some((s) => s.score > 0 || s.comment.trim().length > 0)
+    || annotations.length > 0
+  );
 
   function renderAnnotatedText(): ReactNode {
     return segments.map((segment) => {
@@ -850,7 +872,7 @@ export default function CorrecaoRedacaoPage() {
   }
 
   return (
-    <PartnerLayout>
+    <PartnerLayout unsavedChangesGuard={{ hasUnsavedChanges: hasUnsavedCorrectionWork, onSaveAndExit: saveAndExit }}>
       <div className="space-y-5 pb-24 lg:pb-0">
         <header
           className="relative space-y-3 overflow-hidden rounded-3xl border p-5 shadow-sm"
