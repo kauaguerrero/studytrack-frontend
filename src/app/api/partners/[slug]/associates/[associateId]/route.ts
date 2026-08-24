@@ -151,6 +151,13 @@ export async function PATCH(
     return NextResponse.json({ error: 'Não foi possível atualizar associado.' }, { status: 500 });
   }
 
+  if (body.active === false) {
+    await (auth.adminClient.from('essays') as any)
+      .update({ correction_lock_user_id: null, correction_lock_at: null })
+      .eq('correction_lock_user_id', associateId)
+      .eq('org_id', auth.orgId);
+  }
+
   return NextResponse.json({ ok: true });
 }
 
@@ -188,6 +195,11 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: 'Não foi possível remover associado.' }, { status: 500 });
   }
+
+  await (auth.adminClient.from('essays') as any)
+    .update({ correction_lock_user_id: null, correction_lock_at: null })
+    .eq('correction_lock_user_id', associateId)
+    .eq('org_id', auth.orgId);
 
   return NextResponse.json({ ok: true });
 }
