@@ -1,10 +1,13 @@
 'use client';
 
 import { Fragment, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
+import { ElevatedCard, SectionTitle } from '@/components/partners/founder-ui';
+import { readableBrandText, readableBrandTextOnDark, resolveAccentColor } from '@/lib/brand-color';
 import FloatingActionMenu from '@/components/ui/floating-action-menu';
 import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 import { cn, normalizeEssayLineBreaks } from '@/lib/utils';
@@ -748,6 +751,19 @@ export default function CorrecaoRedacaoPage() {
   const essayType = (essay?.essay_type || 'enem') as EssayType;
   const typeConfig = ESSAY_TYPE_CONFIGS[essayType] ?? ESSAY_TYPE_CONFIGS.enem;
 
+  // Cor "secondary" da marca com fallback seguro (accent → primary) para
+  // quando o cliente não configurou uma secondary com identidade cromática —
+  // evita a barra de destaque do card sumir e o texto ficar ilegível.
+  const secondaryAccent = resolveAccentColor(org, 'brand_secondary');
+  const secondaryTextStyle = {
+    ['--bta-light' as string]: readableBrandText(secondaryAccent.hex, secondaryAccent.cssVar),
+    ['--bta-dark' as string]: readableBrandTextOnDark(secondaryAccent.hex, secondaryAccent.cssVar),
+  };
+  const primaryTextStyle = {
+    ['--bta-light' as string]: readableBrandText(org.brand_primary, 'var(--brand-primary)'),
+    ['--bta-dark' as string]: readableBrandTextOnDark(org.brand_primary, 'var(--brand-primary)'),
+  };
+
   const competencyPanelContent = (
     <>
       <div className="space-y-4">
@@ -874,61 +890,40 @@ export default function CorrecaoRedacaoPage() {
   return (
     <PartnerLayout unsavedChangesGuard={{ hasUnsavedChanges: hasUnsavedCorrectionWork, onSaveAndExit: saveAndExit }}>
       <div className="space-y-5 pb-24 lg:pb-0">
-        <header
-          className="relative space-y-3 overflow-hidden rounded-3xl border p-5 shadow-sm"
-          style={{
-            borderColor: 'color-mix(in srgb, var(--brand-primary) 22%, #e5e7eb)',
-            background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 16%, white) 0%, color-mix(in srgb, var(--brand-secondary) 10%, white) 100%)',
-          }}
-        >
-          <div
-            className="pointer-events-none absolute inset-0 hidden dark:block"
-            style={{ background: 'linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 22%, #0f172a) 0%, color-mix(in srgb, var(--brand-secondary) 16%, #0f172a) 100%)' }}
-          />
-          <div
-            className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full blur-3xl opacity-60"
-            style={{ background: 'color-mix(in srgb, var(--brand-secondary) 54%, transparent)' }}
-          />
+        <div className="space-y-4">
           <Link
             href={`/partners/${slug}/redacoes`}
-            className="relative z-10 inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium text-slate-600 transition hover:bg-white/70 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-slate-100"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 -ml-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
           >
             <ArrowLeft className="h-4 w-4" />
             Voltar para fila
           </Link>
-          <div className="relative z-10 flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
-              style={{
-                color: 'var(--brand-primary)',
-                borderColor: 'color-mix(in srgb, var(--brand-primary) 20%, transparent)',
-                background: 'rgba(255,255,255,0.56)',
-              }}
-            >
-              <PenLine className="h-3.5 w-3.5" />
-              Mesa de correção
-            </div>
-            {essay && (
-              <span className="inline-flex items-center rounded-full border border-slate-300/60 bg-white/70 px-2.5 py-1 text-xs font-bold text-slate-700 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/70 dark:text-slate-200">
+
+          <SectionTitle
+            kicker="Mesa de correção"
+            title={`Correção — ${formatDateBR(essay.submitted_at)}`}
+            hex={org.brand_primary}
+            action={
+              <span className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
                 {typeConfig.label}
               </span>
-            )}
-          </div>
-          <h1 className="relative z-10 text-2xl font-extrabold text-slate-900 dark:text-white">
-            Correção da Redação - {formatDateBR(essay.submitted_at)}
-          </h1>
-          <div className="relative z-10 rounded-xl border border-white/70 bg-white/88 p-3 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/80">
-            <p className="mb-1 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-primary)]">
+            }
+          />
+
+          <ElevatedCard accentColor={org.brand_primary} className="p-4">
+            <p className="brand-text-adaptive mb-1 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide" style={primaryTextStyle}>
               <PenLine className="h-3.5 w-3.5" />
               Tema da redação
             </p>
             <p className="text-sm leading-relaxed text-slate-900 dark:text-slate-100">
               {essay.theme || 'Tema não informado pelo aluno.'}
             </p>
-          </div>
-          <div className="relative z-10 rounded-xl border border-white/70 bg-white/88 p-3 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-slate-950/80">
+          </ElevatedCard>
+
+          <ElevatedCard accentColor={secondaryAccent.hex ?? undefined} className="p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="mb-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-primary)]">
+                <p className="brand-text-adaptive mb-1.5 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide" style={secondaryTextStyle}>
                   <Info className="h-3.5 w-3.5" />
                   Como corrigir rapidamente
                 </p>
@@ -951,7 +946,7 @@ export default function CorrecaoRedacaoPage() {
                     Depois de marcar o trecho, toque em <span className="font-semibold">Comentar</span> ou{' '}
                     <span className="font-semibold">Corrigir</span> no menu que aparece.
                     {queuedMode && (
-                      <span className="ml-1 font-semibold text-[var(--brand-primary)]">
+                      <span className="brand-text-adaptive ml-1 font-semibold" style={primaryTextStyle}>
                         Ação escolhida: {queuedMode === 'comment' ? 'Comentário' : 'Correção'}.
                       </span>
                     )}
@@ -996,8 +991,8 @@ export default function CorrecaoRedacaoPage() {
                 />
               </div>
             </div>
-          </div>
-        </header>
+          </ElevatedCard>
+        </div>
 
         {/* Banner: corretor está alocado mas não é o usuário atual → lock */}
         {essay.status === 'awaiting_second' && currentUserId && essay.second_corrector_id && essay.second_corrector_id !== currentUserId && (
@@ -1045,34 +1040,37 @@ export default function CorrecaoRedacaoPage() {
         )}
 
         <div className={cn('grid grid-cols-1 gap-4', showCompetencyPanel ? 'lg:grid-cols-5' : 'lg:grid-cols-1')}>
-          <section className={cn(
-            'relative rounded-2xl border border-[color:color-mix(in_srgb,var(--brand-primary)_16%,transparent)] bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900',
-            showCompetencyPanel ? 'lg:col-span-3' : 'lg:col-span-1',
-          )}>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Texto do aluno</h2>
-              <div className="flex items-center gap-2">
-                {!showCompetencyPanel && (
-                  <button
-                    type="button"
-                    onClick={() => setShowCompetencyPanel(true)}
-                    className="hidden lg:inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                    Mostrar lateral
-                  </button>
-                )}
-                <span
-                  className={cn(
-                    'rounded-full px-2.5 py-1 text-xs font-semibold',
-                    essay.status === 'pending' && 'border border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-300',
-                    essay.status !== 'pending' && 'border border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300',
+          <ElevatedCard
+            accentColor={org.brand_primary}
+            className={cn('p-4', showCompetencyPanel ? 'lg:col-span-3' : 'lg:col-span-1')}
+          >
+            <SectionTitle
+              title="Texto do aluno"
+              hex={org.brand_primary}
+              action={
+                <div className="flex items-center gap-2">
+                  {!showCompetencyPanel && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCompetencyPanel(true)}
+                      className="hidden lg:inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                      Mostrar lateral
+                    </button>
                   )}
-                >
-                  {essay.status === 'pending' ? 'Pendente' : 'Já corrigida'}
-                </span>
-              </div>
-            </div>
+                  <span
+                    className={cn(
+                      'rounded-full px-2.5 py-1 text-xs font-semibold',
+                      essay.status === 'pending' && 'border border-amber-300 bg-amber-100 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-300',
+                      essay.status !== 'pending' && 'border border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300',
+                    )}
+                  >
+                    {essay.status === 'pending' ? 'Pendente' : 'Já corrigida'}
+                  </span>
+                </div>
+              }
+            />
 
             <div
               ref={textContainerRef}
@@ -1083,7 +1081,7 @@ export default function CorrecaoRedacaoPage() {
               {renderAnnotatedText()}
             </div>
 
-            {annotationPopup && selectedText && (
+            {annotationPopup && selectedText && createPortal(
               <div
                 className="fixed z-50 w-72 rounded-xl border border-slate-300 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
                 style={{ top: annotationPopup.y, left: annotationPopup.x, transform: 'translateX(-50%)' }}
@@ -1158,7 +1156,8 @@ export default function CorrecaoRedacaoPage() {
                     </div>
                   </div>
                 )}
-              </div>
+              </div>,
+              document.body,
             )}
 
             <div className="mt-4 space-y-2 rounded-xl border border-[color:color-mix(in_srgb,var(--brand-secondary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] p-3 dark:border-slate-800 dark:bg-slate-950">
@@ -1196,54 +1195,61 @@ export default function CorrecaoRedacaoPage() {
                 </div>
               )}
             </div>
-          </section>
+          </ElevatedCard>
 
           {showCompetencyPanel && (
-            <aside className="h-fit rounded-2xl border border-[color:color-mix(in_srgb,var(--brand-secondary)_18%,transparent)] bg-white p-4 shadow-sm lg:sticky lg:top-4 lg:col-span-2 dark:border-slate-800 dark:bg-slate-900">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--brand-primary)]">
-                  Notas por Competência
-                </h2>
-                {/* Colapsar a lateral só faz sentido no grid de 2 colunas do
-                    desktop — no mobile ela já aparece empilhada abaixo do
-                    texto, então esconder o botão evita um toggle sem efeito
-                    visível. */}
-                <button
-                  type="button"
-                  onClick={() => setShowCompetencyPanel(false)}
-                  className="hidden items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 lg:inline-flex dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                  Ocultar lateral
-                </button>
-              </div>
+            <ElevatedCard
+              accentColor={secondaryAccent.hex ?? undefined}
+              className="h-fit p-4 lg:sticky lg:top-4 lg:col-span-2"
+            >
+              <SectionTitle
+                title="Notas por Competência"
+                hex={secondaryAccent.hex ?? undefined}
+                colorVar={secondaryAccent.cssVar}
+                action={
+                  // Colapsar a lateral só faz sentido no grid de 2 colunas do
+                  // desktop — no mobile ela já aparece empilhada abaixo do
+                  // texto, então esconder o botão evita um toggle sem efeito
+                  // visível.
+                  <button
+                    type="button"
+                    onClick={() => setShowCompetencyPanel(false)}
+                    className="hidden items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 lg:inline-flex dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                    Ocultar lateral
+                  </button>
+                }
+              />
               {competencyPanelContent}
-            </aside>
+            </ElevatedCard>
           )}
         </div>
 
         {!showCompetencyPanel && (
-          <section className="rounded-2xl border border-[color:color-mix(in_srgb,var(--brand-secondary)_18%,transparent)] bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--brand-primary)]">
-                Notas por Competência (abaixo)
-              </h2>
-              <button
-                type="button"
-                onClick={() => setShowCompetencyPanel(true)}
-                className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-                Mostrar na lateral
-              </button>
-            </div>
+          <ElevatedCard accentColor={secondaryAccent.hex ?? undefined} className="p-4">
+            <SectionTitle
+              title="Notas por Competência (abaixo)"
+              hex={secondaryAccent.hex ?? undefined}
+              colorVar={secondaryAccent.cssVar}
+              action={
+                <button
+                  type="button"
+                  onClick={() => setShowCompetencyPanel(true)}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Mostrar na lateral
+                </button>
+              }
+            />
             {competencyPanelContent}
-          </section>
+          </ElevatedCard>
         )}
 
-        <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--brand-primary)_16%,transparent)] bg-white p-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+        <p className="px-1 text-xs text-slate-400 dark:text-slate-500">
           A correção exige nota nas {typeConfig.competencies.length} competências (incluindo 0) e comentário geral com no mínimo 20 caracteres.
-        </div>
+        </p>
 
         {/* Modal de leitura de comentário */}
         {viewingComment && (

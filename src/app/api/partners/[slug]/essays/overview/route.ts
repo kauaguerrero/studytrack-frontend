@@ -63,6 +63,36 @@ function startOfWeekBrtKey(): string {
   return `${yy}-${mm}-${dd}`;
 }
 
+function startOfMonthBrtKey(): string {
+  const todayKey = toBrtDateKey(new Date());
+  const [y, m] = todayKey.split('-').map(Number);
+  return `${y}-${String(m).padStart(2, '0')}-01`;
+}
+
+function addDaysToKey(key: string, days: number): string {
+  const [y, m, d] = key.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+function daysBetweenKeys(a: string, b: string): number {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  const start = Date.UTC(ay, (am || 1) - 1, ad || 1);
+  const end = Date.UTC(by, (bm || 1) - 1, bd || 1);
+  return Math.round((end - start) / 86400000);
+}
+
+/** BRT é UTC-3 fixo (sem horário de verão desde 2019) — 00:00 BRT = 03:00 UTC do mesmo dia. */
+function brtDateKeyToUtcStartIso(key: string): string {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, (m || 1) - 1, d || 1, 3, 0, 0)).toISOString();
+}
+
 function isEssayPending(status: EssayRow['status']): boolean {
   return status === 'pending' || status === 'awaiting_second';
 }
@@ -93,6 +123,37 @@ export async function GET(
   const essayTypeFilter = url.searchParams.get('essay_type') ?? 'all';
   const validTypes = ['enem', 'ufu', 'ueg', 'fuvest', 'vunesp'];
   const filterByType = validTypes.includes(essayTypeFilter) ? essayTypeFilter : null;
+  const pendingSortAscending = url.searchParams.get('pending_sort') !== 'desc';
+
+  const datePreset = url.searchParams.get('date_preset');
+  const dateFromParam = url.searchParams.get('date_from');
+  const dateToParam = url.searchParams.get('date_to');
+  const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const todayKey = toBrtDateKey(new Date());
+
+  let dateRangeKeys: { fromKey: string; toKey: string } | null = null;
+  if (datePreset === 'today') {
+    dateRangeKeys = { fromKey: todayKey, toKey: todayKey };
+  } else if (datePreset === 'yesterday') {
+    const yesterdayKey = addDaysToKey(todayKey, -1);
+    dateRangeKeys = { fromKey: yesterdayKey, toKey: yesterdayKey };
+  } else if (datePreset === 'week') {
+    dateRangeKeys = { fromKey: startOfWeekBrtKey(), toKey: todayKey };
+  } else if (datePreset === 'month') {
+    dateRangeKeys = { fromKey: startOfMonthBrtKey(), toKey: todayKey };
+  } else if (
+    dateFromParam && dateToParam &&
+    DATE_KEY_RE.test(dateFromParam) && DATE_KEY_RE.test(dateToParam) &&
+    dateFromParam <= dateToParam
+  ) {
+    const inclusiveDays = daysBetweenKeys(dateFromParam, dateToParam) + 1;
+    if (inclusiveDays >= 1 && inclusiveDays <= 60) {
+      dateRangeKeys = { fromKey: dateFromParam, toKey: dateToParam };
+    }
+  }
+
+  const submittedAtGte = dateRangeKeys ? brtDateKeyToUtcStartIso(dateRangeKeys.fromKey) : null;
+  const submittedAtLt = dateRangeKeys ? brtDateKeyToUtcStartIso(addDaysToKey(dateRangeKeys.toKey, 1)) : null;
 
   const ESSAY_COMPETENCY_COUNTS: Record<string, number> = {
     enem: 5, ufu: 5, ueg: 5, fuvest: 4, vunesp: 4,
@@ -134,7 +195,7 @@ export async function GET(
   const correctedFrom = (correctedPage - 1) * correctedLimit;
   const correctedTo = correctedFrom + correctedLimit - 1;
 
-  const [essaysMetricsRes, pendingRes, assignedSecondRes, correctedRes] = await Promise.all([
+  const [essaysMetricsRes, pendingRes, assignedSecondRes, correctedRes, pendingByTypeRes, assignedSecondByTypeRes] = await Promise.all([
     (() => {
       let q = admin
         .from('essays')
@@ -143,17 +204,23 @@ export async function GET(
         .order('submitted_at', { ascending: false })
         .limit(500);
       if (filterByType) q = q.eq('essay_type', filterByType);
+      if (submittedAtGte) q = q.gte('submitted_at', submittedAtGte);
+      if (submittedAtLt) q = q.lt('submitted_at', submittedAtLt);
       return q;
     })(),
     (() => {
+      // "Aguardando correção" mostra as redações pendentes enviadas dentro
+      // do período selecionado no filtro (mesma regra do tipo de redação).
       let query = admin
         .from('essays')
         .select(essayFields, { count: 'exact' })
         .eq('org_id', org.id);
       if (filterByType) query = query.eq('essay_type', filterByType);
+      if (submittedAtGte) query = query.gte('submitted_at', submittedAtGte);
+      if (submittedAtLt) query = query.lt('submitted_at', submittedAtLt);
       return query
         .eq('status', 'pending')
-        .order('submitted_at', { ascending: true })
+        .order('submitted_at', { ascending: pendingSortAscending })
         .range(pendingFrom, pendingTo);
     })(),
     (() => {
@@ -164,6 +231,8 @@ export async function GET(
         .eq('status', 'awaiting_second')
         .eq('second_corrector_id', user.id);
       if (filterByType) query = query.eq('essay_type', filterByType);
+      if (submittedAtGte) query = query.gte('submitted_at', submittedAtGte);
+      if (submittedAtLt) query = query.lt('submitted_at', submittedAtLt);
       return query.order('submitted_at', { ascending: true });
     })(),
     (() => {
@@ -172,11 +241,17 @@ export async function GET(
         .select(essayFields, { count: 'exact' })
         .eq('org_id', org.id);
       if (filterByType) query = query.eq('essay_type', filterByType);
+      if (submittedAtGte) query = query.gte('submitted_at', submittedAtGte);
+      if (submittedAtLt) query = query.lt('submitted_at', submittedAtLt);
       return query
         .in('status', ['corrected', 'second_corrected', 'seen'])
         .order('submitted_at', { ascending: false })
         .range(correctedFrom, correctedTo);
     })(),
+    // Independentes do filtro de tipo/período: usados para avisar o corretor
+    // sobre pendências em bancas diferentes da que está sendo visualizada.
+    admin.from('essays').select('essay_type').eq('org_id', org.id).eq('status', 'pending'),
+    admin.from('essays').select('essay_type').eq('org_id', org.id).eq('status', 'awaiting_second').eq('second_corrector_id', user.id),
   ]);
 
   if (essaysMetricsRes.error) {
@@ -215,6 +290,18 @@ export async function GET(
   const pendingTotalPages = Math.max(1, Math.ceil(pendingDisplayTotal / pendingLimit));
   const correctedTotalPages = Math.max(1, Math.ceil(correctedTotal / correctedLimit));
 
+  // Pendentes por banca (todas, sem filtro de tipo/período) — alimenta o
+  // aviso de "redações pendentes em outras bancas" na UI.
+  const pendingByType: Record<string, number> = {};
+  for (const row of (pendingByTypeRes.error ? [] : pendingByTypeRes.data) || []) {
+    const t = (row as { essay_type: string | null }).essay_type || 'geral';
+    pendingByType[t] = (pendingByType[t] || 0) + 1;
+  }
+  for (const row of (assignedSecondByTypeRes.error ? [] : assignedSecondByTypeRes.data) || []) {
+    const t = (row as { essay_type: string | null }).essay_type || 'geral';
+    pendingByType[t] = (pendingByType[t] || 0) + 1;
+  }
+
   const studentIds = Array.from(new Set(
     [...metricsList, ...pendingItemsRaw, ...assignedSecondItemsRaw, ...correctedItemsRaw]
       .map((e) => e.student_id)
@@ -244,14 +331,21 @@ export async function GET(
     lockUsersMap = new Map(((lockUsers || []) as StudentRow[]).map((s) => [s.id, s]));
   }
 
+  // Quando há filtro de período ativo, `metricsList` já veio restrito a esse
+  // intervalo pela query (submitted_at) — "recebidas" passa a contar o
+  // intervalo selecionado em vez da semana corrente fixa.
   const weekStart = startOfWeekBrtKey();
-  const receivedWeek = metricsList.filter((e) => toBrtDateKey(new Date(e.submitted_at)) >= weekStart).length;
-  const historicalReceivedWeek = metricsList.filter(
-    (e) => {
-      const importedAt = historicalImportDate(e);
-      return importedAt ? toBrtDateKey(new Date(importedAt)) >= weekStart : false;
-    },
-  ).length;
+  const receivedWeek = dateRangeKeys
+    ? metricsList.length
+    : metricsList.filter((e) => toBrtDateKey(new Date(e.submitted_at)) >= weekStart).length;
+  const historicalReceivedWeek = dateRangeKeys
+    ? metricsList.filter((e) => historicalImportDate(e) !== null).length
+    : metricsList.filter(
+        (e) => {
+          const importedAt = historicalImportDate(e);
+          return importedAt ? toBrtDateKey(new Date(importedAt)) >= weekStart : false;
+        },
+      ).length;
   const pendingCount = metricsList.filter((e) => isEssayPending(e.status)).length;
 
   const scored = metricsList
@@ -380,6 +474,9 @@ export async function GET(
 
   return NextResponse.json({
     essay_type_filter: essayTypeFilter,
+    date_filter: dateRangeKeys
+      ? { preset: datePreset ?? 'custom', from: dateRangeKeys.fromKey, to: dateRangeKeys.toKey }
+      : null,
     metrics: {
       received_week: receivedWeek,
       historical_received_week: historicalReceivedWeek,
@@ -392,6 +489,9 @@ export async function GET(
       weakest_competency: weakestCompetency,
       avg_correction_days: avgCorrectionDays,
       improvement_rate: improvementRate,
+      improvement_students_improved: improved,
+      improvement_students_eligible: studentsWithHistory.length,
+      pending_by_type: pendingByType,
     },
     pending_items: [...assignedSecondItemsRaw, ...pendingItemsRaw].map(hydrateEssay),
     corrected_items: correctedItemsRaw.map(hydrateEssay),

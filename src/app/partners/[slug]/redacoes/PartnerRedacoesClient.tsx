@@ -16,22 +16,32 @@ import {
   BrandPill, BrandButton, Segmented, Medal, BrandHero, HERO_ACCENT_COLOR,
 } from '@/components/partners/founder-ui';
 import {
+  AlertTriangle,
   Archive,
   BarChart2,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock,
-  Filter,
   FileText,
+  Info,
   Lock,
   Search,
   Trash2,
   TrendingUp,
+  Trophy,
   Upload,
   Link as LinkIcon,
   X,
 } from 'lucide-react';
+import {
+  EssayTypeAndPeriodFilter,
+  CorrectedEssaysFilterDropdown,
+  DEFAULT_DATE_FILTER,
+  DEFAULT_SCORE_RANGE,
+  type DateFilterValue,
+  type ScoreRangeValue,
+} from './EssayFiltersDropdown';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,7 +129,10 @@ interface EssaysMetrics {
   weakest_competency: { competency: number; avg: number } | null;
   avg_correction_days: number | null;
   improvement_rate: number | null;
+  improvement_students_improved?: number;
+  improvement_students_eligible?: number;
   second_corrections_count?: number;
+  pending_by_type?: Record<string, number>;
 }
 
 type EssaysOverviewPayload = {
@@ -149,10 +162,53 @@ const DEFAULT_METRICS: EssaysMetrics = {
   weakest_competency: null,
   avg_correction_days: null,
   improvement_rate: null,
+  improvement_students_improved: 0,
+  improvement_students_eligible: 0,
   second_corrections_count: 0,
+  pending_by_type: {},
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function essayEffectiveScore(item: EssayListItem): number | null {
+  const score = item.status === 'second_corrected' && item.average_score != null
+    ? item.average_score
+    : item.total_score;
+  return typeof score === 'number' ? score : null;
+}
+
+// ─── Card padrão da página (mesmo estilo em todas as seções) ───────────────
+
+const SECTION_CARD_CLASS =
+  'overflow-hidden rounded-2xl border border-[var(--brand-primary)]/30 bg-white/90 shadow-md ring-1 ring-[var(--brand-primary)]/10 dark:border-[var(--brand-primary)]/35 dark:bg-slate-900/80';
+
+function SectionIconTitle({
+  icon: Icon,
+  iconColor = 'var(--brand-primary)',
+  title,
+  subtitle,
+  badge,
+}: {
+  icon: React.ElementType;
+  iconColor?: string;
+  title: string;
+  subtitle?: string;
+  badge?: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <Icon
+        className="h-4 w-4 shrink-0"
+        style={{ color: iconColor, filter: `drop-shadow(0 2px 3px color-mix(in srgb, ${iconColor} 45%, transparent))` }}
+      />
+      <div className="min-w-0">
+        <p className="truncate text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">{title}</p>
+        {subtitle && <p className="text-[11px] text-slate-500 dark:text-slate-400">{subtitle}</p>}
+      </div>
+      {badge}
+    </div>
+  );
+}
 
 function formatDateBR(value: string | null | undefined): string {
   if (!value) return '-';
@@ -175,23 +231,79 @@ function formatDateTimeBR(value: string | null | undefined): string {
   });
 }
 
+// Converte um instante ISO (UTC) para o valor de um <input type="datetime-local">
+// sempre exibido em horário de Brasília (BRT, UTC-3 fixo) — independente do
+// fuso horário do navegador de quem está usando a página.
 function isoToLocalInputValue(value: string | null | undefined): string {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  const tzOffsetMinutes = date.getTimezoneOffset();
-  const localDate = new Date(date.getTime() - tzOffsetMinutes * 60_000);
-  return localDate.toISOString().slice(0, 16);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+}
+
+// Converte o valor de um <input type="datetime-local"> (sempre interpretado
+// como horário de Brasília, BRT/UTC-3 fixo — sem horário de verão desde
+// 2019) de volta para um instante ISO (UTC) para salvar no backend.
+function brtLocalInputValueToIso(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const [datePart, timePart] = value.split('T');
+  if (!datePart || !timePart) return null;
+  const [y, m, d] = datePart.split('-').map(Number);
+  const [h, min] = timePart.split(':').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(Date.UTC(y, m - 1, d, (h || 0) + 3, min || 0)).toISOString();
+}
+
+function formatDateShortBR(value: string | null | undefined): string {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+  });
+}
+
+function toBrtDateKey(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function daysBetweenBrtKeys(a: string, b: string): number {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  const start = Date.UTC(ay, (am || 1) - 1, ad || 1);
+  const end = Date.UTC(by, (bm || 1) - 1, bd || 1);
+  return Math.round((end - start) / 86400000);
 }
 
 function relativeTimeFromNow(isoDate: string): string {
-  const diffMs = Date.now() - new Date(isoDate).getTime();
+  const date = new Date(isoDate);
+  const diffMs = Date.now() - date.getTime();
   if (Number.isNaN(diffMs)) return 'há pouco tempo';
   const minutes = Math.floor(diffMs / (1000 * 60));
   if (minutes < 60) return `há ${Math.max(1, minutes)} min`;
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `há ${hours} hora${hours > 1 ? 's' : ''}`;
-  const days = Math.floor(hours / 24);
+  // Diferença por dia de calendário (BRT), não horas corridas — fica
+  // consistente com a data completa (DD/MM/YY) exibida ao lado.
+  const days = Math.max(1, daysBetweenBrtKeys(toBrtDateKey(date), toBrtDateKey(new Date())));
   return `há ${days} dia${days > 1 ? 's' : ''}`;
 }
 
@@ -291,6 +403,95 @@ function PaginationControls({
         >
           Próxima
         </button>
+      </div>
+    </div>
+  );
+}
+
+function PendingOtherTypesDrawer({
+  open,
+  onClose,
+  items,
+  onSelectType,
+}: {
+  open: boolean;
+  onClose: () => void;
+  items: { type: EssayType; label: string; count: number }[];
+  onSelectType: (type: EssayType) => void;
+}) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const raf = requestAnimationFrame(() => setMounted(true));
+    document.body.style.overflow = 'hidden';
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.body.style.overflow = '';
+      document.removeEventListener('keydown', handleKeyDown);
+      setMounted(false);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  const total = items.reduce((sum, item) => sum + item.count, 0);
+
+  return (
+    <div className="fixed inset-0 z-[60]">
+      <div
+        className={cn(
+          'absolute inset-0 bg-slate-900/15 backdrop-blur-[2px] transition-opacity duration-300 dark:bg-black/30',
+          mounted ? 'opacity-100' : 'opacity-0',
+        )}
+        onClick={onClose}
+      />
+      <div
+        className={cn(
+          'absolute right-0 top-0 flex h-full w-full max-w-sm flex-col bg-white shadow-2xl transition-transform duration-300 ease-out dark:bg-slate-900',
+          mounted ? 'translate-x-0' : 'translate-x-full',
+        )}
+      >
+        <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+          <div className="flex min-w-0 items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-red-500" />
+            <h2 className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">
+              Redações pendentes em outras bancas
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+            Você tem {total} redaç{total === 1 ? 'ão pendente' : 'ões pendentes'} para correção nas seguintes bancas:
+          </p>
+          <div className="flex flex-col gap-2">
+            {items.map((item) => (
+              <button
+                key={item.type}
+                type="button"
+                onClick={() => onSelectType(item.type)}
+                className="flex items-center justify-between gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-left transition hover:border-red-300 hover:bg-red-100 dark:border-red-500/30 dark:bg-red-500/10 dark:hover:bg-red-500/20"
+              >
+                <span className="text-sm font-bold text-red-700 dark:text-red-300">{item.label}</span>
+                <span className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                  {item.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -424,7 +625,7 @@ function EssayQueueCard({
 
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-[11px] font-semibold text-slate-400 dark:text-white/35">
-              Enviada {relativeTimeFromNow(item.submitted_at)}
+              Enviada {relativeTimeFromNow(item.submitted_at)} - {formatDateShortBR(item.submitted_at)}
             </p>
             {isAssignedToMe && (
               <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
@@ -588,6 +789,10 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   const [metricsLoading, setMetricsLoading] = useState(initialOverview === null);
   const [queueLoading, setQueueLoading] = useState(initialOverview === null);
   const [activeTypeFilter, setActiveTypeFilter] = useState<EssayType>('enem');
+  const [pendingSortOrder, setPendingSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(DEFAULT_DATE_FILTER);
+  const [otherTypesAlertOpen, setOtherTypesAlertOpen] = useState(false);
+  const [scoreRange, setScoreRange] = useState<ScoreRangeValue>(DEFAULT_SCORE_RANGE);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'corrected' | 'seen'>('all');
   const [studentFilterId, setStudentFilterId] = useState<string | null>(null);
@@ -601,6 +806,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     (initialOverview?.pagination?.pending?.total || 0) > 0,
   );
   const [correctedOpen, setCorrectedOpen] = useState(false);
+  const [rankingOpen, setRankingOpen] = useState(false);
   const [prompts, setPrompts] = useState<EssayPrompt[]>([]);
   const [promptsOpen, setPromptsOpen] = useState(false);
   const [promptForm, setPromptForm] = useState<{
@@ -670,6 +876,13 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
         corrected_limit: '10',
       });
       params.set('essay_type', activeTypeFilter);
+      params.set('pending_sort', pendingSortOrder);
+      if (dateFilter.preset === 'custom') {
+        if (dateFilter.from) params.set('date_from', dateFilter.from);
+        if (dateFilter.to) params.set('date_to', dateFilter.to);
+      } else if (dateFilter.preset) {
+        params.set('date_preset', dateFilter.preset);
+      }
       const res = await fetch(`/api/partners/${slug}/essays/overview?${params.toString()}`, { cache: 'no-store' });
       if (!res.ok) {
         const payload = await res.json().catch(() => null) as { error?: string; details?: string } | null;
@@ -694,7 +907,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
         setQueueLoading(false);
       }
     }
-  }, [slug, pendingPage, correctedPage, activeTypeFilter]);
+  }, [slug, pendingPage, correctedPage, activeTypeFilter, dateFilter, pendingSortOrder]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -810,14 +1023,23 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   }, [pendingEssays, currentUserId, statusFilter, matchesSearch, studentFilterId]);
 
   const filteredCorrected = useMemo(() => {
-    const base = correctedEssays
+    let base = correctedEssays
       .filter(matchesSearch)
       .filter((item) => !studentFilterId || item.student.id === studentFilterId);
-    if (statusFilter === 'corrected') return base.filter((i) => i.status === 'corrected' || i.status === 'second_corrected');
-    if (statusFilter === 'seen') return base.filter((i) => i.status === 'seen');
-    if (statusFilter === 'pending') return [];
+    if (statusFilter === 'corrected') base = base.filter((i) => i.status === 'corrected' || i.status === 'second_corrected');
+    else if (statusFilter === 'seen') base = base.filter((i) => i.status === 'seen');
+    else if (statusFilter === 'pending') return [];
+    if (scoreRange.min !== null || scoreRange.max !== null) {
+      base = base.filter((item) => {
+        const score = essayEffectiveScore(item);
+        if (score === null) return false;
+        if (scoreRange.min !== null && score < scoreRange.min) return false;
+        if (scoreRange.max !== null && score > scoreRange.max) return false;
+        return true;
+      });
+    }
     return base;
-  }, [correctedEssays, statusFilter, matchesSearch, studentFilterId]);
+  }, [correctedEssays, statusFilter, matchesSearch, studentFilterId, scoreRange]);
 
   const weakestCompetency = useMemo(() => {
     const scored = metrics.competency_scores
@@ -921,8 +1143,8 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
         body: JSON.stringify({
           ...promptForm,
           essay_type: promptForm.essay_type || 'enem',
-          starts_at: promptForm.starts_at ? new Date(promptForm.starts_at).toISOString() : null,
-          ends_at: promptForm.ends_at ? new Date(promptForm.ends_at).toISOString() : null,
+          starts_at: brtLocalInputValueToIso(promptForm.starts_at),
+          ends_at: brtLocalInputValueToIso(promptForm.ends_at),
         }),
       });
       const json = await res.json();
@@ -1029,33 +1251,56 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     ? `${metrics.lowest_score} – ${metrics.highest_score} (máx ${totalMax})`
     : '—';
 
+  const showSecondCorrectionsCard = metricsLoading || (metrics.second_corrections_count ?? 0) > 0;
+
+  const receivedKpiTitle = dateFilter.preset === 'today'
+    ? 'Recebidas hoje'
+    : dateFilter.preset === 'yesterday'
+      ? 'Recebidas ontem'
+      : dateFilter.preset === 'month'
+        ? 'Recebidas este mês'
+        : dateFilter.preset === 'custom'
+          ? 'Recebidas no período'
+          : 'Recebidas esta semana';
+
+  const improvementRateColor = metrics.improvement_rate === null
+    ? '#94a3b8'
+    : metrics.improvement_rate >= 60
+      ? '#10b981'
+      : metrics.improvement_rate >= 40
+        ? '#f59e0b'
+        : '#ef4444';
+
+  const otherTypesPending = (Object.entries(metrics.pending_by_type || {}) as [EssayType, number][])
+    .filter(([type, count]) => type !== activeTypeFilter && count > 0)
+    .map(([type, count]) => ({ type, count, label: ESSAY_TYPE_CONFIGS[type]?.label ?? type }))
+    .sort((a, b) => b.count - a.count);
+  const otherTypesPendingTotal = otherTypesPending.reduce((sum, item) => sum + item.count, 0);
+
+  const goToTypeQueue = (type: EssayType) => {
+    setActiveTypeFilter(type);
+    setOtherTypesAlertOpen(false);
+    setQueueOpen(true);
+    queueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <PartnerLayout>
       <div className="edificar-page-canvas space-y-6 min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
         <div className="edificar-page-frame space-y-6 p-3 md:p-4">
-        <section
-          className="relative space-y-4 overflow-hidden rounded-2xl border border-slate-200 p-4 shadow-sm md:p-5 dark:border-slate-700"
-          style={{
-            background: 'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 7%, white) 0%, rgba(255,255,255,0.96) 32%, rgba(255,255,255,0.98) 100%)',
-          }}
-        >
-          <div
-            className="pointer-events-none absolute inset-0 hidden dark:block"
-            style={{ background: 'linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 20%, #0f172a) 0%, color-mix(in srgb, var(--brand-secondary) 14%, #0f172a) 100%)' }}
+        <div className="space-y-4">
+          <SectionTitle
+            kicker="Correção"
+            title="Redações"
+            hex={org.brand_primary}
+            action={
+              displayPendingCount > 0 ? (
+                <span className="rounded-full bg-red-500 px-2.5 py-1 text-xs font-bold text-white">
+                  {displayPendingCount} {displayPendingCount === 1 ? 'pendente' : 'pendentes'}
+                </span>
+              ) : undefined
+            }
           />
-          <div
-            className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full blur-3xl opacity-40"
-            style={{ background: 'color-mix(in srgb, var(--brand-secondary) 38%, transparent)' }}
-          />
-          <div className="relative z-10 space-y-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Redações</h1>
-            {displayPendingCount > 0 && (
-              <span className="rounded-full bg-red-500 px-2.5 py-1 text-xs font-bold text-white">
-                {displayPendingCount} {displayPendingCount === 1 ? 'pendente' : 'pendentes'}
-              </span>
-            )}
-          </div>
 
           {isAssociate && (
             <div className="grid grid-cols-4 gap-2">
@@ -1081,27 +1326,285 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
             </div>
           )}
 
+          {/* Ajustar Filtros */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <EssayTypeAndPeriodFilter
+              essayType={activeTypeFilter}
+              onEssayTypeChange={setActiveTypeFilter}
+              dateFilter={dateFilter}
+              onDateFilterChange={setDateFilter}
+            />
+            {!metricsLoading && otherTypesPending.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setOtherTypesAlertOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition-all hover:bg-red-100 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+              >
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                Você tem {otherTypesPendingTotal} redaç{otherTypesPendingTotal === 1 ? 'ão pendente' : 'ões pendentes'} em outras bancas
+              </button>
+            )}
+            {metricsLoading && (
+              <span className="text-[11px] text-slate-400 animate-pulse">Carregando...</span>
+            )}
+          </div>
+
+          <PendingOtherTypesDrawer
+            open={otherTypesAlertOpen}
+            onClose={() => setOtherTypesAlertOpen(false)}
+            items={otherTypesPending}
+            onSelectType={goToTypeQueue}
+          />
+
+          <div className={cn('grid grid-cols-2 gap-3 lg:gap-4', showSecondCorrectionsCard ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}>
+            <KpiCard
+              title={receivedKpiTitle}
+              value={metricsLoading ? '...' : metrics.received_week}
+              subtitle={
+                !metricsLoading && (metrics.historical_received_week ?? 0) > 0
+                  ? `${metrics.historical_received_week} importada${(metrics.historical_received_week ?? 0) > 1 ? 's' : ''}`
+                  : undefined
+              }
+              icon={FileText}
+              accentColor="var(--brand-primary)"
+              accentHex={org.brand_primary}
+              loading={metricsLoading}
+            />
+            <KpiCard
+              title="Aguardando correção"
+              value={metricsLoading ? '...' : displayPendingCount}
+              icon={Clock}
+              accentColor={otherTypesPending.length > 0 ? '#ef4444' : 'var(--brand-secondary)'}
+              accentHex={otherTypesPending.length > 0 ? '#ef4444' : org.brand_secondary}
+              loading={metricsLoading}
+              topRightBadge={
+                !metricsLoading && otherTypesPending.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOtherTypesAlertOpen(true);
+                    }}
+                    title="Redações pendentes em outras bancas"
+                    className="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-white"
+                    style={{
+                      background: 'linear-gradient(90deg, #ef4444, color-mix(in srgb, #ef4444 40%, white))',
+                      boxShadow: '0 2px 8px color-mix(in srgb, #ef4444 30%, transparent)',
+                    }}
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    +{otherTypesPendingTotal}
+                  </button>
+                ) : undefined
+              }
+              iconAdornment={
+                dateFilter.preset ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toast.info('Este número segue o filtro de período', {
+                        description: 'Mostra as redações enviadas dentro do período selecionado que ainda estão aguardando correção. Redações pendentes enviadas fora desse período não entram nessa contagem.',
+                      });
+                    }}
+                    title="Como o filtro de período afeta esse número?"
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 transition hover:bg-slate-200 hover:text-slate-600 dark:bg-white/10 dark:text-white/40 dark:hover:bg-white/20"
+                  >
+                    <Info className="h-3 w-3" />
+                  </button>
+                ) : undefined
+              }
+            />
+            <KpiCard
+              title="Nota média geral"
+              value={metricsLoading ? '...' : avgScoreLabel}
+              icon={TrendingUp}
+              accentColor="var(--brand-accent)"
+              accentHex={org.brand_accent}
+              loading={metricsLoading}
+            />
+            <KpiCard
+              title="Intervalo de notas"
+              value={metricsLoading ? '...' : rangeLabel}
+              icon={BarChart2}
+              accentColor="#8b5cf6"
+              accentHex="#8b5cf6"
+              loading={metricsLoading}
+            />
+            {showSecondCorrectionsCard && (
+              <KpiCard
+                title="Duplas correções"
+                value={metricsLoading ? '...' : (metrics.second_corrections_count ?? 0)}
+                icon={CheckCircle2}
+                accentColor="#0ea5e9"
+                accentHex="#0ea5e9"
+                loading={metricsLoading}
+              />
+            )}
+          </div>
+
+          {/* ── Métricas expandidas ─────────────────────────────────── */}
+          <div className="grid gap-3 sm:grid-cols-3">
+
+            {/* Tempo médio de correção */}
+            <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
+                style={{ background: 'linear-gradient(90deg, #3b82f6, color-mix(in srgb, #3b82f6 40%, white))' }}
+              />
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Tempo médio de correção
+              </p>
+              <p className="mt-2 text-2xl font-extrabold text-slate-900 dark:text-white">
+                {metricsLoading
+                  ? '...'
+                  : metrics.avg_correction_days === null
+                    ? '—'
+                    : metrics.avg_correction_days === 0
+                      ? '< 1 dia'
+                      : metrics.avg_correction_days === 1
+                        ? '1 dia'
+                        : `${metrics.avg_correction_days} dias`}
+              </p>
+              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                Entre envio e correção
+              </p>
+            </div>
+
+            {/* Taxa de melhoria */}
+            <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
+                style={{ background: `linear-gradient(90deg, ${improvementRateColor}, color-mix(in srgb, ${improvementRateColor} 40%, white))` }}
+              />
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Taxa de melhoria
+              </p>
+              <p className={`mt-2 text-2xl font-extrabold ${
+                !metricsLoading && metrics.improvement_rate !== null
+                  ? metrics.improvement_rate >= 60
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : metrics.improvement_rate >= 40
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-red-600 dark:text-red-400'
+                  : 'text-slate-900 dark:text-white'
+              }`}>
+                {metricsLoading
+                  ? '...'
+                  : metrics.improvement_rate === null
+                    ? '—'
+                    : `${metrics.improvement_rate}%`}
+              </p>
+              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                Alunos que melhoraram a nota
+              </p>
+              {!metricsLoading && metrics.improvement_rate !== null && (
+                <p className="mt-2 text-[10px] text-slate-400 dark:text-slate-500">
+                  {metrics.improvement_students_improved ?? 0} de {metrics.improvement_students_eligible ?? 0}{' '}
+                  aluno{(metrics.improvement_students_eligible ?? 0) === 1 ? '' : 's'} com 2+ redações corrigidas melhoraram a nota
+                </p>
+              )}
+            </div>
+
+            {/* Competência mais fraca */}
+            {!metricsLoading && weakestCompetency && (
+              <div className="relative overflow-hidden rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
+                <div
+                  className="pointer-events-none absolute inset-x-0 top-0 h-[3px]"
+                  style={{ background: 'linear-gradient(90deg, #f59e0b, color-mix(in srgb, #f59e0b 40%, white))' }}
+                />
+                <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                  Foco pedagógico
+                </p>
+                <p className="mt-2 text-base font-extrabold text-amber-900 dark:text-amber-200">
+                  C{weakestCompetency.competency} — {competencyNames[weakestCompetency.competency - 1] ?? `Critério ${weakestCompetency.competency}`}
+                </p>
+                <p className="mt-0.5 text-sm font-bold text-amber-700 dark:text-amber-300">
+                  Média: {weakestCompetency.avg} / {weakestCompetency.compMax}
+                </p>
+                <p className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-400">
+                  Competência com menor desempenho da turma
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* ── Desempenho por competência ──────────────────────────── */}
+          {!metricsLoading && metrics.competency_scores.some((c) => c.avg !== null) && (
+            <div className={SECTION_CARD_CLASS}>
+              <div className="px-4 pb-2 pt-3">
+                <SectionIconTitle icon={TrendingUp} title="Desempenho da turma por competência" />
+              </div>
+              <div className="space-y-2.5 px-4 pb-4">
+                {metrics.competency_scores.map((c) => {
+                  const compMax = getCompetencyMax(c.competency - 1);
+                  const pct = c.avg !== null ? Math.round((c.avg / compMax) * 100) : 0;
+                  const isWeakest = weakestCompetency?.competency === c.competency;
+                  const barColor = pct >= 70
+                    ? '#16a34a'
+                    : pct >= 50
+                      ? '#d97706'
+                      : '#dc2626';
+                  return (
+                    <div key={c.competency} className="flex items-center gap-3">
+                      <span className={`w-5 shrink-0 text-xs font-black ${
+                        isWeakest ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'
+                      }`}>
+                        C{c.competency}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-0.5 flex items-center justify-between gap-2">
+                          <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-300">
+                            {competencyNames[c.competency - 1] ?? `Critério ${c.competency}`}
+                          </p>
+                          <span className="shrink-0 text-xs font-bold tabular-nums text-slate-700 dark:text-slate-300">
+                            {c.avg !== null ? `${c.avg}/${compMax}` : '—'}
+                          </span>
+                        </div>
+                        <div className={`h-2 overflow-hidden rounded-full ${
+                          isWeakest ? 'bg-amber-100 dark:bg-amber-500/15' : 'bg-slate-100 dark:bg-slate-800'
+                        }`}>
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: c.avg !== null ? `${pct}%` : '0%',
+                              backgroundColor: isWeakest ? '#f59e0b' : barColor,
+                            }}
+                          />
+                        </div>
+                      </div>
+                      {c.count > 0 && (
+                        <span className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">
+                          {c.count} aval.
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+                <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                  Baseado nas redações corrigidas com score por competência
+                </p>
+              </div>
+            </div>
+          )}
+
           {canManagePrompts && (
-            <div className="overflow-hidden rounded-2xl border border-[var(--brand-primary)]/30 bg-white/90 shadow-md ring-1 ring-[var(--brand-primary)]/10 dark:border-[var(--brand-primary)]/35 dark:bg-slate-900/80">
+            <div className={SECTION_CARD_CLASS}>
               <button
                 type="button"
                 onClick={() => setPromptsOpen((o) => !o)}
                 className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-[var(--brand-primary)]/5"
               >
-                <div className="flex min-w-0 items-center gap-2">
-                  <FileText className="h-4 w-4 shrink-0 text-[var(--brand-primary)]" />
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">
-                      Gestão de Coletâneas de Redação
-                    </p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Crie e gerencie temas com materiais de apoio
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-[var(--brand-primary)]/10 px-2 py-0.5 text-[10px] font-bold text-[var(--brand-primary)]">
-                    {prompts.filter((p) => p.is_active).length} ativas
-                  </span>
-                </div>
+                <SectionIconTitle
+                  icon={FileText}
+                  title="Gestão de Coletâneas de Redação"
+                  subtitle="Crie e gerencie temas com materiais de apoio"
+                  badge={
+                    <span className="rounded-full bg-[var(--brand-primary)]/10 px-2 py-0.5 text-[10px] font-bold text-[var(--brand-primary)]">
+                      {prompts.filter((p) => p.is_active).length} ativas
+                    </span>
+                  }
+                />
                 <ChevronDown
                   className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200"
                   style={{ transform: promptsOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
@@ -1483,214 +1986,21 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
             </div>
           )}
 
-          {/* Seletor de tipo */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 shrink-0">
-              Métricas por tipo:
-            </span>
-            <div className="flex gap-1.5 flex-wrap">
-              {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setActiveTypeFilter(key)}
-                  className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${
-                    activeTypeFilter === key
-                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
-                      : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-[var(--brand-primary)]/40'
-                  }`}
-                >
-                  {cfg.label}
-                  <span className="ml-1 font-normal opacity-60">/ {cfg.total_max}</span>
-                </button>
-              ))}
-            </div>
-            {metricsLoading && (
-              <span className="text-[11px] text-slate-400 animate-pulse">Carregando...</span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-5">
-            <KpiCard
-              title="Recebidas esta semana"
-              value={metricsLoading ? '...' : metrics.received_week}
-              subtitle={
-                !metricsLoading && (metrics.historical_received_week ?? 0) > 0
-                  ? `${metrics.historical_received_week} importada${(metrics.historical_received_week ?? 0) > 1 ? 's' : ''}`
-                  : undefined
-              }
-              icon={FileText}
-              accentColor="var(--brand-primary)"
-              accentHex={org.brand_primary}
-              loading={metricsLoading}
-            />
-            <KpiCard
-              title="Aguardando correção"
-              value={metricsLoading ? '...' : displayPendingCount}
-              subtitle={!metricsLoading && displayPendingCount > 0 ? 'Urgente' : undefined}
-              icon={Clock}
-              accentColor="var(--brand-secondary)"
-              accentHex={org.brand_secondary}
-              loading={metricsLoading}
-            />
-            <KpiCard
-              title="Nota média geral"
-              value={metricsLoading ? '...' : avgScoreLabel}
-              icon={TrendingUp}
-              accentColor="var(--brand-accent)"
-              accentHex={org.brand_accent}
-              loading={metricsLoading}
-            />
-            <KpiCard
-              title="Intervalo de notas"
-              value={metricsLoading ? '...' : rangeLabel}
-              icon={BarChart2}
-              accentColor="#8b5cf6"
-              accentHex="#8b5cf6"
-              loading={metricsLoading}
-            />
-            {(metricsLoading || (metrics.second_corrections_count ?? 0) > 0) && (
-              <KpiCard
-                title="Duplas correções"
-                value={metricsLoading ? '...' : (metrics.second_corrections_count ?? 0)}
-                icon={CheckCircle2}
-                accentColor="#0ea5e9"
-                accentHex="#0ea5e9"
-                loading={metricsLoading}
+          <div className={SECTION_CARD_CLASS}>
+            <button
+              type="button"
+              onClick={() => setRankingOpen((v) => !v)}
+              className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-[var(--brand-primary)]/5"
+            >
+              <SectionIconTitle icon={Trophy} title="Ranking dos alunos (Top 10)" />
+              <ChevronDown
+                className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200"
+                style={{ transform: rankingOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
               />
-            )}
-          </div>
+            </button>
 
-          {/* ── Métricas expandidas ─────────────────────────────────── */}
-          <div className="grid gap-3 sm:grid-cols-3">
-
-            {/* Tempo médio de correção */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Tempo médio de correção
-              </p>
-              <p className="mt-2 text-2xl font-extrabold text-slate-900 dark:text-white">
-                {metricsLoading
-                  ? '...'
-                  : metrics.avg_correction_days === null
-                    ? '—'
-                    : metrics.avg_correction_days === 0
-                      ? '< 1 dia'
-                      : metrics.avg_correction_days === 1
-                        ? '1 dia'
-                        : `${metrics.avg_correction_days} dias`}
-              </p>
-              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
-                Entre envio e correção
-              </p>
-            </div>
-
-            {/* Taxa de melhoria */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Taxa de melhoria
-              </p>
-              <p className={`mt-2 text-2xl font-extrabold ${
-                !metricsLoading && metrics.improvement_rate !== null
-                  ? metrics.improvement_rate >= 60
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : metrics.improvement_rate >= 40
-                      ? 'text-amber-600 dark:text-amber-400'
-                      : 'text-red-600 dark:text-red-400'
-                  : 'text-slate-900 dark:text-white'
-              }`}>
-                {metricsLoading
-                  ? '...'
-                  : metrics.improvement_rate === null
-                    ? '—'
-                    : `${metrics.improvement_rate}%`}
-              </p>
-              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
-                Alunos que melhoraram a nota
-              </p>
-            </div>
-
-            {/* Competência mais fraca */}
-            {!metricsLoading && weakestCompetency && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                  Foco pedagógico
-                </p>
-                <p className="mt-2 text-base font-extrabold text-amber-900 dark:text-amber-200">
-                  C{weakestCompetency.competency} — {competencyNames[weakestCompetency.competency - 1] ?? `Critério ${weakestCompetency.competency}`}
-                </p>
-                <p className="mt-0.5 text-sm font-bold text-amber-700 dark:text-amber-300">
-                  Média: {weakestCompetency.avg} / {weakestCompetency.compMax}
-                </p>
-                <p className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-400">
-                  Competência com menor desempenho da turma
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* ── Desempenho por competência ──────────────────────────── */}
-          {!metricsLoading && metrics.competency_scores.some((c) => c.avg !== null) && (
-            <div className="edificar-soft-surface rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-              <h2 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                Desempenho da turma por competência
-              </h2>
-              <div className="space-y-2.5">
-                {metrics.competency_scores.map((c) => {
-                  const compMax = getCompetencyMax(c.competency - 1);
-                  const pct = c.avg !== null ? Math.round((c.avg / compMax) * 100) : 0;
-                  const isWeakest = weakestCompetency?.competency === c.competency;
-                  const barColor = pct >= 70
-                    ? '#16a34a'
-                    : pct >= 50
-                      ? '#d97706'
-                      : '#dc2626';
-                  return (
-                    <div key={c.competency} className="flex items-center gap-3">
-                      <span className={`w-5 shrink-0 text-xs font-black ${
-                        isWeakest ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'
-                      }`}>
-                        C{c.competency}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-0.5 flex items-center justify-between gap-2">
-                          <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-300">
-                            {competencyNames[c.competency - 1] ?? `Critério ${c.competency}`}
-                          </p>
-                          <span className="shrink-0 text-xs font-bold tabular-nums text-slate-700 dark:text-slate-300">
-                            {c.avg !== null ? `${c.avg}/${compMax}` : '—'}
-                          </span>
-                        </div>
-                        <div className={`h-2 overflow-hidden rounded-full ${
-                          isWeakest ? 'bg-amber-100 dark:bg-amber-500/15' : 'bg-slate-100 dark:bg-slate-800'
-                        }`}>
-                          <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{
-                              width: c.avg !== null ? `${pct}%` : '0%',
-                              backgroundColor: isWeakest ? '#f59e0b' : barColor,
-                            }}
-                          />
-                        </div>
-                      </div>
-                      {c.count > 0 && (
-                        <span className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">
-                          {c.count} aval.
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="mt-3 text-[10px] text-slate-400 dark:text-slate-500">
-                Baseado nas redações corrigidas com score por competência
-              </p>
-            </div>
-          )}
-
-          <div className="edificar-soft-surface rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-            <h2 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Ranking dos alunos (Top 10)</h2>
-
+            {rankingOpen && (
+            <div className="px-4 pb-4">
             {metricsLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3].map((k) => (
@@ -1837,22 +2147,29 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                 </div>
               </>
             )}
+            </div>
+            )}
           </div>
-          </div>
-        </section>
+        </div>
 
         {assignedSecondEssays.length > 0 && (
-          <section className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-lg font-bold text-amber-800 dark:text-amber-200">Aguardando Sua Correção</h2>
-              <span className="rounded-full bg-amber-500 px-2.5 py-1 text-xs font-bold text-white">
-                {assignedSecondEssays.length}
-              </span>
+          <div className={SECTION_CARD_CLASS}>
+            <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+              <SectionIconTitle
+                icon={AlertTriangle}
+                iconColor="#f59e0b"
+                title="Aguardando Sua Correção"
+                badge={
+                  <span className="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                    {assignedSecondEssays.length}
+                  </span>
+                }
+              />
             </div>
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              Você foi solicitado(a) para realizar a segunda correção das redações abaixo.
-            </p>
-            <div className="space-y-3">
+            <div className="space-y-3 px-4 pb-4">
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                Você foi solicitado(a) para realizar a segunda correção das redações abaixo.
+              </p>
               {assignedSecondEssays.map((item) => (
                 <EssayQueueCard
                   key={item.id}
@@ -1873,24 +2190,27 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                 />
               ))}
             </div>
-          </section>
+          </div>
         )}
 
-        <section ref={queueSectionRef} className="edificar-major-surface space-y-3 rounded-2xl border border-slate-200 p-4 shadow-sm dark:border-slate-800">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Redações a Corrigir</h2>
-              <span
-                className={cn(
-                  'rounded-full px-2.5 py-1 text-xs font-bold',
-                  regularPendingCount > 0
-                    ? 'bg-red-500 text-white'
-                    : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
-                )}
-              >
-                {regularPendingCount}
-              </span>
-            </div>
+        <div ref={queueSectionRef} className={SECTION_CARD_CLASS}>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+            <SectionIconTitle
+              icon={Clock}
+              title="Redações a Corrigir"
+              badge={
+                <span
+                  className={cn(
+                    'rounded-full px-2 py-0.5 text-[10px] font-bold',
+                    regularPendingCount > 0
+                      ? 'bg-red-500 text-white'
+                      : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
+                  )}
+                >
+                  {regularPendingCount}
+                </span>
+              }
+            />
 
             <div className="flex items-center gap-2">
               {canImportEssay && (
@@ -1914,7 +2234,21 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
           </div>
 
           {queueOpen && (
-            <>
+            <div className="space-y-3 px-4 pb-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                  Ordenar por
+                </span>
+                <Segmented
+                  options={[
+                    { value: 'asc', label: 'Mais antigas' },
+                    { value: 'desc', label: 'Mais recentes' },
+                  ]}
+                  value={pendingSortOrder}
+                  onChange={setPendingSortOrder}
+                  hex={org.brand_primary}
+                />
+              </div>
               {queueLoading ? (
                 <div className="space-y-3">
                   {[1, 2].map((k) => (
@@ -1956,12 +2290,25 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
                 loading={queueLoading}
                 onPageChange={setPendingPage}
               />
-            </>
+            </div>
           )}
-        </section>
+        </div>
 
-        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <label className="group">
+        <div className={SECTION_CARD_CLASS}>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+            <SectionIconTitle icon={CheckCircle2} title="Redações já corrigidas" />
+            <button
+              type="button"
+              onClick={() => setCorrectedOpen((v) => !v)}
+              className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              {correctedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {correctedOpen ? 'Ocultar lista' : 'Mostrar lista'}
+            </button>
+          </div>
+
+          <div className="space-y-4 px-4 pb-4">
+          <label className="group block">
             <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Buscar redações
             </span>
@@ -1976,65 +2323,37 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
             </div>
           </label>
 
-          <div className="mt-3">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              <span className="inline-flex items-center gap-1">
-                <Filter className="h-3.5 w-3.5" />
-                Filtro por status
-              </span>
-            </span>
-            <div className="flex snap-x snap-mandatory gap-1.5 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 md:flex-wrap md:overflow-visible dark:border-slate-800 dark:bg-slate-950">
-              {[
-                { value: 'all', label: 'Todas' },
-                { value: 'pending', label: 'Pendentes' },
-                { value: 'corrected', label: 'Corrigidas' },
-                { value: 'seen', label: 'Arquivadas' },
-              ].map((opt) => (
+          <div className="flex flex-wrap items-center gap-2">
+            <CorrectedEssaysFilterDropdown
+              status={statusFilter}
+              onStatusChange={setStatusFilter}
+              essayType={activeTypeFilter}
+              onEssayTypeChange={setActiveTypeFilter}
+              dateFilter={dateFilter}
+              onDateFilterChange={setDateFilter}
+              scoreRange={scoreRange}
+              onScoreRangeChange={setScoreRange}
+              maxScore={activeConfig?.total_max}
+            />
+
+            {studentFilterId && (
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-200">
+                  Filtrando por aluno: {studentFilterName || 'Aluno'}
+                </span>
                 <button
-                  key={opt.value}
                   type="button"
-                  onClick={() => setStatusFilter(opt.value as 'all' | 'pending' | 'corrected' | 'seen')}
-                  className={cn(
-                    'min-h-9 shrink-0 snap-start rounded-lg px-2.5 py-1 text-[11px] font-semibold transition',
-                    statusFilter === opt.value
-                      ? 'bg-[var(--brand-primary)] text-white shadow-sm'
-                      : 'bg-white text-slate-600 hover:bg-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800',
-                  )}
+                  onClick={() => {
+                    setStudentFilterId(null);
+                    setStudentFilterName(null);
+                  }}
+                  className="min-h-9 rounded-md border border-emerald-300 px-2 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-400/40 dark:text-emerald-200 dark:hover:bg-emerald-500/20"
                 >
-                  {opt.label}
+                  Limpar filtro
                 </button>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
-
-          {studentFilterId && (
-            <div className="flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 dark:border-emerald-500/30 dark:bg-emerald-500/10">
-              <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-200">
-                Filtrando por aluno: {studentFilterName || 'Aluno'}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setStudentFilterId(null);
-                  setStudentFilterName(null);
-                }}
-                className="min-h-9 rounded-md border border-emerald-300 px-2 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-400/40 dark:text-emerald-200 dark:hover:bg-emerald-500/20"
-              >
-                Limpar filtro
-              </button>
-            </div>
-          )}
-        </section>
-
-        <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <button
-            type="button"
-            onClick={() => setCorrectedOpen((v) => !v)}
-            className="flex min-h-11 w-full items-center justify-between rounded-lg border border-slate-300 px-3 py-2 text-left text-sm font-semibold text-slate-900 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800"
-          >
-            <span>Redações já corrigidas</span>
-            {correctedOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
 
           {correctedOpen && (
             <>
@@ -2077,7 +2396,8 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               />
             </>
           )}
-        </section>
+          </div>
+        </div>
         </div>
       </div>
     </PartnerLayout>
