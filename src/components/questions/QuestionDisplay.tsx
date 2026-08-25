@@ -132,7 +132,7 @@ export function QuestionDisplay({
           {!suppressContext && contextSegments.body && (
             <QuestionRichText
               text={contextSegments.body}
-              className="prose prose-slate dark:prose-invert prose-sm max-w-none mb-6 text-muted-foreground border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed"
+              className="mb-6 text-slate-700 dark:text-slate-300 border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed"
             />
           )}
 
