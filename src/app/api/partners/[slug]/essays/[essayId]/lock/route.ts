@@ -8,7 +8,7 @@ type ProfileRow = {
   organization_id: string | null;
   full_name: string | null;
   avatar_url: string | null;
-  associate_permissions: { can_correct?: boolean } | null;
+  associate_permissions: { can_correct?: boolean; active?: boolean } | null;
 };
 
 type EssayRow = {
@@ -43,7 +43,11 @@ type LockRpcClient = {
 function canCorrect(profile: ProfileRow): boolean {
   const role = String(profile.role || '').toLowerCase();
   if (role === 'admin' || role === 'founder') return true;
-  if (role === 'associate') return profile.associate_permissions?.can_correct !== false;
+  if (role === 'associate') {
+    const perms = profile.associate_permissions;
+    if (perms?.active === false) return false;
+    return perms?.can_correct !== false;
+  }
   return false;
 }
 
