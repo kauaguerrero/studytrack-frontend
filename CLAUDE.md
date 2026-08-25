@@ -10,14 +10,6 @@ StudyTrack frontend is a Next.js 16 + TypeScript app for a Brazilian ENEM/vestib
 
 ## Commands
 
-```bash
-npm install      # Install dependencies
-npm run dev      # Dev server at localhost:3000 (Turbopack)
-npm run build    # Production build
-npm start        # Start production server
-npm run lint     # Run ESLint
-```
-
 There's no Jest/Vitest suite — a handful of standalone scripts double as smoke tests: `npm run test:essay-credits`, `test:student-theme`, `test:task-intelligence`, `test:dev-role` (run via `node`/`tsc` directly, see `package.json`).
 
 ## Architecture
@@ -79,21 +71,6 @@ Feature-based under `src/components/`:
 - **`manager`, `secretariat` roles** — exist in `src/types/roles.ts`/middleware but have no functional page (blocked to `/`).
 - **`/jogos`, daily missions (`missao_diaria`), `preference_override`** — fully removed, zero references. Don't resurrect naming from old docs or memory.
 - **`/api/admin/whatsapp/*`** and **`/api/admin/reengagement/*`** were removed (2026-07-14) — they implemented a B2C reengagement funnel (`segment: HOT/WARM/COLD`, `conversion_stage` pipeline, AI-suggested WhatsApp replies via Anthropic) that had no caller anywhere in the app. Underlying tables (`profiles.conversion_stage`, `whatsapp_logs`, `admin_actions_log`) still exist but are no longer written to from this repo.
-
-### Key Libraries
-
-- **UI:** Radix UI (partial) + Tailwind CSS v4 + `class-variance-authority` + `tailwindcss-animate`
-- **Math rendering:** KaTeX (Vestibular questions with formulas)
-- **Charts:** Recharts
-- **Animation:** Framer Motion
-- **File upload:** `tus-js-client` (resumable uploads)
-- **XSS protection:** `isomorphic-dompurify` — always sanitize user-generated HTML before rendering
-- **Notifications:** Sonner (toast)
-- **AI:** `@anthropic-ai/sdk` (used directly in some `/api/admin/*` routes)
-
-### Path Alias
-
-`@/*` maps to `src/*`.
 
 ## Environment Variables
 
