@@ -96,6 +96,11 @@ export default function NovaRedacaoPage() {
     remaining?: number | null;
   } | null>(null);
   const [rewardState, setRewardState] = useState<EssayRewardState | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<{
+    theme: string;
+    minutesAgo: number | null;
+    resolve: (proceed: boolean) => void;
+  } | null>(null);
   const [prompt, setPrompt] = useState<EssayPrompt | null>(null);
   const [promptLoading, setPromptLoading] = useState(false);
   const [availablePrompts, setAvailablePrompts] = useState<EssayPrompt[]>([]);
@@ -172,6 +177,44 @@ export default function NovaRedacaoPage() {
     };
   }, [promptId, slug]);
 
+  // Verifica se o aluno enviou outra redação há pouco tempo antes de seguir
+  // com o envio (texto) ou gastar a chamada ao Gemini (foto) — se sim, mostra
+  // o aviso de possível duplicidade e só resolve quando o aluno escolher.
+  function checkRecentDuplicate(): Promise<boolean> {
+    return new Promise((resolve) => {
+      (async () => {
+        try {
+          const supabase = createClient();
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) {
+            resolve(true);
+            return;
+          }
+          const apiUrl = getApiBaseUrl();
+          const res = await fetch(`${apiUrl}/api/partners/${slug}/essays/recent-check`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (!res.ok) {
+            resolve(true);
+            return;
+          }
+          const data = await res.json().catch(() => null);
+          if (data?.recent) {
+            setDuplicateWarning({
+              theme: data.essay?.theme || '',
+              minutesAgo: typeof data.essay?.minutes_ago === 'number' ? data.essay.minutes_ago : null,
+              resolve,
+            });
+            return;
+          }
+          resolve(true);
+        } catch {
+          resolve(true);
+        }
+      })();
+    });
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!isThemeValid) {
@@ -183,6 +226,9 @@ export default function NovaRedacaoPage() {
       toast.error('Você não possui créditos de redação disponíveis neste período.');
       return;
     }
+
+    const canProceed = await checkRecentDuplicate();
+    if (!canProceed) return;
 
     setSubmitting(true);
     try {
@@ -454,6 +500,7 @@ export default function NovaRedacaoPage() {
             essayType={essayType}
             promptId={selectedPromptId || undefined}
             onSuccess={() => router.push(`/partners/${slug}/student/redacoes`)}
+            onBeforeTranscribe={checkRecentDuplicate}
           />
         )}
 
@@ -516,6 +563,53 @@ export default function NovaRedacaoPage() {
           />
         )}
       </AnimatePresence>
+
+      {duplicateWarning && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900">
+            <p className="text-base font-bold text-slate-900 dark:text-white">
+              Opa! Você acabou de enviar uma redação muito parecida com essa, acho melhor conferir antes de enviar novamente!
+            </p>
+            {duplicateWarning.theme && (
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Você enviou outra redação{' '}
+                {duplicateWarning.minutesAgo !== null
+                  ? duplicateWarning.minutesAgo <= 1
+                    ? 'há menos de 1 minuto'
+                    : `há ${duplicateWarning.minutesAgo} min`
+                  : 'há pouco tempo'}
+                {' '}com o tema:{' '}
+                <span className="font-semibold text-slate-700 dark:text-slate-200">&quot;{duplicateWarning.theme}&quot;</span>
+              </p>
+            )}
+            <div className="mt-5 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const resolve = duplicateWarning.resolve;
+                  setDuplicateWarning(null);
+                  resolve(true);
+                }}
+                className="text-sm font-medium text-slate-500 underline-offset-2 transition hover:text-slate-700 hover:underline dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                Enviar mesmo assim
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const resolve = duplicateWarning.resolve;
+                  setDuplicateWarning(null);
+                  resolve(false);
+                  router.push(`/partners/${slug}/student/redacoes`);
+                }}
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105"
+              >
+                Vou voltar e conferir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
