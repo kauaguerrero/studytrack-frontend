@@ -13,6 +13,9 @@ interface PhotoEssayUploaderProps {
   essayType: string;
   promptId?: string;
   onSuccess: (essayId: string) => void;
+  /** Chamado antes de gastar a chamada ao Gemini — resolve `false` para
+   * cancelar (ex: aviso de possível envio duplicado). */
+  onBeforeTranscribe?: () => Promise<boolean>;
 }
 
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
@@ -177,6 +180,7 @@ export function PhotoEssayUploader({
   essayType,
   promptId,
   onSuccess,
+  onBeforeTranscribe,
 }: PhotoEssayUploaderProps) {
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   // Arquivo mantido em memória do estado idle até o confirming — nunca pedimos ao usuário selecionar duas vezes
@@ -309,6 +313,12 @@ export function PhotoEssayUploader({
 
   async function handleTranscribe() {
     if (!selectedFile) return;
+
+    if (onBeforeTranscribe) {
+      const canProceed = await onBeforeTranscribe();
+      if (!canProceed) return;
+    }
+
     setUploadState('transcribing');
 
     try {
