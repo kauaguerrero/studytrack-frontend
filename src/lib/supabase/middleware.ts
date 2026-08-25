@@ -57,12 +57,6 @@ export async function updateSession(request: NextRequest) {
   // 3. Validação de Sessão
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (process.env.NODE_ENV === 'development') {
-      console.log('[MIDDLEWARE][DEBUG] path:', path);
-      console.log('[MIDDLEWARE][DEBUG] user ID:', user?.id || 'null');
-      console.log('[MIDDLEWARE][DEBUG] cookies na requisição:', request.cookies.getAll().map(c => c.name));
-  }
-
   // 4. Rotas Públicas e Redirect de Auth
   if (path === '/' || path.startsWith('/auth') || path.startsWith('/api')) {
     if (user && path === '/auth/login') {

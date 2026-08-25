@@ -6,7 +6,7 @@ import { reportError } from "@/lib/reportError";
 import { Badge } from "@/components/ui/badge";
 import { Activity, AlertTriangle, Zap, Flame, CheckCircle2, XCircle, RotateCcw, Target, Trophy, ChevronRight } from "lucide-react";
 import { getAchievementIcon, getDifficultyStyle } from "@/lib/achievement-icons";
-import AchievementsDetailModal from "./AchievementsDetailModal";
+import AchievementsDetailModal from "./achievements/AchievementsDetailModal";
 
 interface WhatsappInfo {
   last_at: string | null;
