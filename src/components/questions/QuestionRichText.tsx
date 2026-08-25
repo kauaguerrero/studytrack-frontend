@@ -413,6 +413,15 @@ export function QuestionRichText({ text, className, style }: { text?: string | n
           )
         }
 
+        if (paragraph.trimStart().startsWith('§ ')) {
+          const content = paragraph.trimStart().slice(2)
+          return (
+            <p key={`${paragraphIndex}-${paragraph.slice(0, 20)}`} className="mt-1 mb-3 text-sm italic text-slate-500 dark:text-slate-400">
+              {renderInlineRichText(content, `${paragraphIndex}-fonte`)}
+            </p>
+          )
+        }
+
         if (isMarkdownBlock(paragraph)) {
           return (
             <ReactMarkdown
@@ -425,7 +434,7 @@ export function QuestionRichText({ text, className, style }: { text?: string | n
         }
 
         return (
-          <p key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}>
+          <p key={`${paragraphIndex}-${paragraph.slice(0, 20)}`} className="my-3 leading-relaxed">
             {renderInlineRichText(paragraph, `${paragraphIndex}`)}
           </p>
         )
