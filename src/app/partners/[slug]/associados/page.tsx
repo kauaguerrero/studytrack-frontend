@@ -473,30 +473,30 @@ export default function AssociadosPage() {
               />
               <KpiCard
                 title="Pendentes"
-                value={loading ? '—' : (summary?.pending_essays ?? 0)}
-                subtitle="aguardando correção"
+                value={loading || statsLoading ? '—' : (summary?.pending_essays ?? 0)}
+                subtitle={metricWindow === 'total' ? 'aguardando correção' : 'enviadas no período, aguardando correção'}
                 icon={FileText}
                 accentColor="#f59e0b"
                 accentHex="#f59e0b"
-                loading={loading}
+                loading={loading || statsLoading}
               />
               <KpiCard
-                title="Score Médio"
-                value={loading ? '—' : (summary?.avg_essay_score != null ? `${summary.avg_essay_score}` : '—')}
-                subtitle="pontos por redação"
+                title={`Score Médio · ${windowLabel}`}
+                value={loading || statsLoading ? '—' : (summary?.avg_essay_score != null ? `${summary.avg_essay_score}` : '—')}
+                subtitle="no período selecionado"
                 icon={Star}
                 accentColor="#10b981"
                 accentHex="#10b981"
-                loading={loading}
+                loading={loading || statsLoading}
               />
               <KpiCard
-                title="Tempo Médio"
-                value={loading ? '—' : formatHours(summary?.avg_turnaround_hours ?? null)}
-                subtitle="por correção"
+                title={`Tempo Médio · ${windowLabel}`}
+                value={loading || statsLoading ? '—' : formatHours(summary?.avg_turnaround_hours ?? null)}
+                subtitle="no período selecionado"
                 icon={Clock}
                 accentColor="#6366f1"
                 accentHex="#6366f1"
-                loading={loading}
+                loading={loading || statsLoading}
               />
               <KpiCard
                 title="Total de Correções"
