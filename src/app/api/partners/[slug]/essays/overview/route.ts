@@ -266,21 +266,6 @@ export async function GET(
 
   const metricsList = (essaysMetricsRes.data || []) as EssayRow[];
 
-  let competencyRows: { essay_id: string; competency: number; score: number }[] = [];
-  if (metricsList.length > 0) {
-    const correctedIds = metricsList
-      .filter((e) => isEssayCorrected(e.status))
-      .map((e) => e.id);
-
-    if (correctedIds.length > 0) {
-      const { data: compData } = await admin
-        .from('essay_competency_scores')
-        .select('essay_id, competency, score')
-        .in('essay_id', correctedIds);
-      competencyRows = (compData || []) as { essay_id: string; competency: number; score: number }[];
-    }
-  }
-
   const pendingItemsRaw = ((pendingRes.error ? [] : pendingRes.data) || []) as EssayRow[];
   const assignedSecondItemsRaw = ((assignedSecondRes.error ? [] : assignedSecondRes.data) || []) as EssayRow[];
   const correctedItemsRaw = ((correctedRes.error ? [] : correctedRes.data) || []) as EssayRow[];
@@ -307,29 +292,32 @@ export async function GET(
       .map((e) => e.student_id)
       .filter(Boolean),
   ));
-
-  let studentsMap = new Map<string, StudentRow>();
-  if (studentIds.length > 0) {
-    const { data: students } = await admin
-      .from('profiles')
-      .select('id, full_name, email, avatar_url')
-      .in('id', studentIds);
-    studentsMap = new Map(((students || []) as StudentRow[]).map((s) => [s.id, s]));
-  }
-
   const lockUserIds = Array.from(new Set(
     [...pendingItemsRaw, ...assignedSecondItemsRaw, ...correctedItemsRaw]
       .map((e) => e.correction_lock_user_id)
       .filter((id): id is string => typeof id === 'string' && id.length > 0),
   ));
-  let lockUsersMap = new Map<string, StudentRow>();
-  if (lockUserIds.length > 0) {
-    const { data: lockUsers } = await admin
-      .from('profiles')
-      .select('id, full_name, email, avatar_url')
-      .in('id', lockUserIds);
-    lockUsersMap = new Map(((lockUsers || []) as StudentRow[]).map((s) => [s.id, s]));
-  }
+  const correctedIds = metricsList
+    .filter((e) => isEssayCorrected(e.status))
+    .map((e) => e.id);
+
+  // Notas por competência e perfis (alunos + quem travou a correção) não
+  // dependem um do outro — só do resultado do batch principal acima — então
+  // disparam em paralelo. Alunos e "lock user" são a mesma tabela/colunas,
+  // então usam uma única consulta com a união dos IDs.
+  const allProfileIds = Array.from(new Set([...studentIds, ...lockUserIds]));
+  const [competencyRes, profilesRes] = await Promise.all([
+    correctedIds.length > 0
+      ? admin.from('essay_competency_scores').select('essay_id, competency, score').in('essay_id', correctedIds)
+      : Promise.resolve({ data: [] as { essay_id: string; competency: number; score: number }[] }),
+    allProfileIds.length > 0
+      ? admin.from('profiles').select('id, full_name, email, avatar_url').in('id', allProfileIds)
+      : Promise.resolve({ data: [] as StudentRow[] }),
+  ]);
+  const competencyRows = (competencyRes.data || []) as { essay_id: string; competency: number; score: number }[];
+  const profilesMap = new Map(((profilesRes.data || []) as StudentRow[]).map((s) => [s.id, s]));
+  const studentsMap = profilesMap;
+  const lockUsersMap = profilesMap;
 
   // Quando há filtro de período ativo, `metricsList` já veio restrito a esse
   // intervalo pela query (submitted_at) — "recebidas" passa a contar o
