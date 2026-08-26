@@ -16,9 +16,15 @@ import {
   RevealItem,
   ElevatedCard,
   KpiCard,
-  Segmented,
   CHART_TOOLTIP_STYLE,
 } from '@/components/partners/founder-ui';
+import {
+  EssayTypeAndPeriodFilter,
+  DEFAULT_DATE_FILTER,
+  type DateFilterValue,
+  type DatePreset,
+} from '../redacoes/EssayFiltersDropdown';
+import type { EssayType } from '@/lib/essay-types';
 import {
   UsersRound,
   UserPlus,
@@ -58,8 +64,6 @@ import {
 } from 'recharts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type MetricWindow = 'today' | 'week' | 'month' | 'total';
 
 interface AssociatePermissions {
   can_correct: boolean;
@@ -101,18 +105,20 @@ interface TrendPoint {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const WINDOW_OPTIONS: { value: MetricWindow; label: string }[] = [
-  { value: 'today', label: 'Hoje' },
-  { value: 'week', label: 'Semana' },
-  { value: 'month', label: 'Mês' },
-  { value: 'total', label: 'Total' },
-];
-
-const WINDOW_LABEL: Record<MetricWindow, string> = {
+const PERIOD_LABEL_LONG: Record<DatePreset, string> = {
   today: 'Hoje',
-  week: 'Esta Semana',
+  yesterday: 'Ontem',
+  week: 'Essa Semana',
   month: 'Este Mês',
-  total: 'Total',
+  custom: 'Período Selecionado',
+};
+
+const PERIOD_LABEL_SHORT: Record<DatePreset, string> = {
+  today: 'Hoje',
+  yesterday: 'Ontem',
+  week: 'Semana',
+  month: 'Mês',
+  custom: 'Período',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -129,9 +135,11 @@ function formatHours(h: number | null) {
   return `${(h / 24).toFixed(1)}d`;
 }
 
-function formatDateTick(v: string, win: MetricWindow): string {
-  if (win === 'today') return `${v}h`;
-  if (win === 'total') {
+// O formato da chave em `date` indica o tipo de bucket: "HH" (hora),
+// "YYYY-MM-DD" (dia) ou "YYYY-MM" (mês) — sem depender do preset selecionado.
+function formatDateTick(v: string): string {
+  if (/^\d{2}$/.test(v)) return `${v}h`;
+  if (/^\d{4}-\d{2}$/.test(v)) {
     const [y, m] = v.split('-');
     return `${m}/${String(y).slice(2)}`;
   }
@@ -139,9 +147,9 @@ function formatDateTick(v: string, win: MetricWindow): string {
   return `${d}/${m}`;
 }
 
-function formatDateLabel(v: string, win: MetricWindow): string {
-  if (win === 'today') return `Hora: ${v}h`;
-  if (win === 'total') {
+function formatDateLabel(v: string): string {
+  if (/^\d{2}$/.test(v)) return `Hora: ${v}h`;
+  if (/^\d{4}-\d{2}$/.test(v)) {
     const [y, m] = v.split('-');
     return `${m}/${y}`;
   }
@@ -186,7 +194,8 @@ export default function AssociadosPage() {
   const accentHex = org.brand_primary;
 
   // ── State ────────────────────────────────────────────────────────────────
-  const [metricWindow, setMetricWindow] = useState<MetricWindow>('week');
+  const [essayTypeFilter, setEssayTypeFilter] = useState<EssayType>('enem');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>(DEFAULT_DATE_FILTER);
   const [associates, setAssociates] = useState<Associate[]>([]);
   const [stats, setStats] = useState<Record<string, AssociateStats>>({});
   const [summary, setSummary] = useState<OrgSummary | null>(null);
@@ -221,7 +230,7 @@ export default function AssociadosPage() {
     }
   }, [org.slug, org.is_mock]);
 
-  const fetchStats = useCallback(async (win: MetricWindow, initial = false) => {
+  const fetchStats = useCallback(async (type: EssayType, date: DateFilterValue, initial = false) => {
     if (initial) setLoading(true); else setStatsLoading(true);
     try {
       if (org.is_mock) {
@@ -234,7 +243,14 @@ export default function AssociadosPage() {
         setTrend(MOCK_ASSOCIATE_TREND as unknown as TrendPoint[]);
         return;
       }
-      const res = await fetch(`/api/partners/${org.slug}/associates/stats?window=${win}`);
+      const params = new URLSearchParams({ essay_type: type });
+      if (date.preset === 'custom') {
+        if (date.from) params.set('date_from', date.from);
+        if (date.to) params.set('date_to', date.to);
+      } else if (date.preset) {
+        params.set('date_preset', date.preset);
+      }
+      const res = await fetch(`/api/partners/${org.slug}/associates/stats?${params.toString()}`);
       if (res.ok) {
         const d = await res.json() as {
           summary: OrgSummary;
@@ -251,14 +267,14 @@ export default function AssociadosPage() {
   }, [org.slug, org.is_mock]);
 
   useEffect(() => {
-    Promise.all([fetchList(), fetchStats('week', true)]);
+    Promise.all([fetchList(), fetchStats('enem', DEFAULT_DATE_FILTER, true)]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org.slug]);
 
   useEffect(() => {
-    if (!loading) fetchStats(metricWindow);
+    if (!loading) fetchStats(essayTypeFilter, dateFilter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metricWindow]);
+  }, [essayTypeFilter, dateFilter]);
 
   // ── CRUD handlers ─────────────────────────────────────────────────────────
   async function handleCreate() {
@@ -296,7 +312,7 @@ export default function AssociadosPage() {
         }
       }
 
-      await Promise.all([fetchList(), fetchStats(metricWindow)]);
+      await Promise.all([fetchList(), fetchStats(essayTypeFilter, dateFilter)]);
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao adicionar associado.');
@@ -318,7 +334,7 @@ export default function AssociadosPage() {
         throw new Error(d.error || 'Não foi possível atualizar.');
       }
       toast.success(member.active ? 'Associado desativado.' : 'Associado reativado.');
-      await Promise.all([fetchList(), fetchStats(metricWindow)]);
+      await Promise.all([fetchList(), fetchStats(essayTypeFilter, dateFilter)]);
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao atualizar.');
@@ -386,7 +402,7 @@ export default function AssociadosPage() {
         throw new Error(d.error || 'Não foi possível remover.');
       }
       toast.success('Associado removido.');
-      await Promise.all([fetchList(), fetchStats(metricWindow)]);
+      await Promise.all([fetchList(), fetchStats(essayTypeFilter, dateFilter)]);
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao remover associado.');
@@ -396,15 +412,21 @@ export default function AssociadosPage() {
   }
 
   // ── Chart data ────────────────────────────────────────────────────────────
-  const barData = associates.map(a => ({
-    name: (a.full_name ?? a.email ?? '').split(' ')[0],
-    fullName: a.full_name ?? a.email ?? '—',
-    correções: stats[a.id]?.corrections_in_window ?? 0,
-    active: a.active,
-  }));
+  // Associados inativos só aparecem no gráfico quando têm correções no
+  // período selecionado (barra cinza) — fora disso, somem do gráfico.
+  const barData = associates
+    .filter(a => a.active || (stats[a.id]?.corrections_in_window ?? 0) > 0)
+    .map(a => ({
+      name: (a.full_name ?? a.email ?? '').split(' ')[0],
+      fullName: a.full_name ?? a.email ?? '—',
+      correções: stats[a.id]?.corrections_in_window ?? 0,
+      active: a.active,
+    }));
 
-  const windowLabel = WINDOW_LABEL[metricWindow];
-  const chartInterval = metricWindow === 'today' ? 3 : metricWindow === 'month' ? 6 : 'preserveStartEnd';
+  const windowLabel = dateFilter.preset ? PERIOD_LABEL_LONG[dateFilter.preset] : 'Total';
+  const windowLabelShort = dateFilter.preset ? PERIOD_LABEL_SHORT[dateFilter.preset] : 'Total';
+  const isHourlyTrend = trend.length > 0 && /^\d{2}$/.test(trend[0].date);
+  const chartInterval = isHourlyTrend ? 3 : trend.length > 15 ? 6 : 'preserveStartEnd';
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -435,17 +457,17 @@ export default function AssociadosPage() {
             </div>
           </RevealItem>
 
-          {/* ── Period filter ─────────────────────────────────────────────── */}
+          {/* ── Filters ──────────────────────────────────────────────────── */}
           <RevealItem>
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                Período de análise
+                Análise da equipe
               </p>
-              <Segmented
-                options={WINDOW_OPTIONS}
-                value={metricWindow}
-                onChange={setMetricWindow}
-                hex={accentHex}
+              <EssayTypeAndPeriodFilter
+                essayType={essayTypeFilter}
+                onEssayTypeChange={setEssayTypeFilter}
+                dateFilter={dateFilter}
+                onDateFilterChange={setDateFilter}
               />
             </div>
           </RevealItem>
@@ -474,7 +496,7 @@ export default function AssociadosPage() {
               <KpiCard
                 title="Pendentes"
                 value={loading || statsLoading ? '—' : (summary?.pending_essays ?? 0)}
-                subtitle={metricWindow === 'total' ? 'aguardando correção' : 'enviadas no período, aguardando correção'}
+                subtitle={dateFilter.preset === null ? 'aguardando correção' : 'enviadas no período, aguardando correção'}
                 icon={FileText}
                 accentColor="#f59e0b"
                 accentHex="#f59e0b"
@@ -586,7 +608,7 @@ export default function AssociadosPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" vertical={false} />
                         <XAxis
                           dataKey="date"
-                          tickFormatter={(v: string) => formatDateTick(v, metricWindow)}
+                          tickFormatter={(v: string) => formatDateTick(v)}
                           tick={{ fontSize: 11 }}
                           axisLine={false}
                           tickLine={false}
@@ -595,7 +617,7 @@ export default function AssociadosPage() {
                         <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                         <Tooltip
                           contentStyle={CHART_TOOLTIP_STYLE}
-                          labelFormatter={(v) => formatDateLabel(String(v), metricWindow)}
+                          labelFormatter={(v) => formatDateLabel(String(v))}
                           formatter={(value: unknown) => [`${value} correções`, ''] as [string, string]}
                         />
                         <Area type="monotone" dataKey="corrections" name="correções" stroke={accent} strokeWidth={2} fill="url(#corrGrad)" dot={false} />
@@ -731,7 +753,7 @@ export default function AssociadosPage() {
                             {member.active && (
                               <div className="mt-2.5 grid grid-cols-4 gap-1.5 sm:gap-2">
                                 <StatCell
-                                  label={metricWindow === 'today' ? 'Hoje' : metricWindow === 'week' ? 'Semana' : metricWindow === 'month' ? 'Mês' : 'Período'}
+                                  label={windowLabelShort}
                                   value={s?.corrections_in_window ?? 0}
                                 />
                                 <StatCell label="Total" value={s?.total_corrections ?? 0} />

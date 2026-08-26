@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-type MetricWindow = 'today' | 'week' | 'month' | 'total';
 type RequesterRow = { role: string | null; organization_id: string | null };
 type OrgRow = { id: string; slug: string };
 type AnnRow = { author_id: string; essay_id: string; created_at: string };
-type EssayRow = { id: string; total_score: number | null; submitted_at: string | null; corrected_at: string | null; status: string };
 type TrendPoint = { date: string; corrections: number };
 type DateRangeKeys = { fromKey: string; toKey: string };
+
+const VALID_ESSAY_TYPES = ['enem', 'ufu', 'ueg', 'fuvest', 'vunesp'];
 
 async function authorize(slug: string) {
   const supabase = await createClient();
@@ -87,27 +87,39 @@ function addDaysToKey(key: string, days: number): string {
   return `${yy}-${mm}-${dd}`;
 }
 
+function daysBetweenKeys(a: string, b: string): number {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  const start = Date.UTC(ay, (am || 1) - 1, ad || 1);
+  const end = Date.UTC(by, (bm || 1) - 1, bd || 1);
+  return Math.round((end - start) / 86400000);
+}
+
 /** 00:00 BRT = 03:00 UTC do mesmo dia. */
 function brtDateKeyToUtcStartIso(key: string): string {
   const [y, m, d] = key.split('-').map(Number);
   return new Date(Date.UTC(y, (m || 1) - 1, d || 1, 3, 0, 0)).toISOString();
 }
 
-function getDateRangeKeys(win: MetricWindow, todayKey: string): DateRangeKeys | null {
-  switch (win) {
-    case 'today':
-      return { fromKey: todayKey, toKey: todayKey };
-    case 'week':
-      return { fromKey: startOfWeekBrtKey(), toKey: todayKey };
-    case 'month':
-      return { fromKey: startOfMonthBrtKey(), toKey: todayKey };
-    case 'total':
-      return null;
+function buildTrend(anns: AnnRow[], dateRangeKeys: DateRangeKeys | null, todayKey: string): TrendPoint[] {
+  // Sem período: distribui o histórico completo em 12 meses (calendário BRT).
+  if (!dateRangeKeys) {
+    const buckets: Record<string, number> = {};
+    const [ty, tm] = todayKey.split('-').map(Number);
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(Date.UTC(ty, tm - 1 - i, 1));
+      const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      buckets[key] = 0;
+    }
+    for (const ann of anns) {
+      const key = toBrtDateKey(new Date(ann.created_at)).slice(0, 7);
+      if (key in buckets) buckets[key]++;
+    }
+    return Object.entries(buckets).map(([date, corrections]) => ({ date, corrections }));
   }
-}
 
-function buildTrend(win: MetricWindow, anns: AnnRow[], dateRangeKeys: DateRangeKeys | null, todayKey: string): TrendPoint[] {
-  if (win === 'today') {
+  // Período de um único dia (hoje/ontem/personalizado de 1 dia): buckets por hora BRT.
+  if (dateRangeKeys.fromKey === dateRangeKeys.toKey) {
     const buckets: Record<string, number> = {};
     for (let h = 0; h < 24; h++) buckets[String(h).padStart(2, '0')] = 0;
     for (const ann of anns) {
@@ -116,31 +128,17 @@ function buildTrend(win: MetricWindow, anns: AnnRow[], dateRangeKeys: DateRangeK
     }
     return Object.entries(buckets).map(([date, corrections]) => ({ date, corrections }));
   }
-  if (win === 'week' || win === 'month') {
-    const buckets: Record<string, number> = {};
-    let cursor = dateRangeKeys?.fromKey ?? todayKey;
-    const toKey = dateRangeKeys?.toKey ?? todayKey;
-    while (cursor <= toKey) {
-      buckets[cursor] = 0;
-      cursor = addDaysToKey(cursor, 1);
-    }
-    for (const ann of anns) {
-      const day = toBrtDateKey(new Date(ann.created_at));
-      if (day in buckets) buckets[day]++;
-    }
-    return Object.entries(buckets).map(([date, corrections]) => ({ date, corrections }));
-  }
-  // total: últimos 12 meses (calendário BRT)
+
+  // Período de vários dias (semana/mês/personalizado): buckets por dia BRT.
   const buckets: Record<string, number> = {};
-  const [ty, tm] = todayKey.split('-').map(Number);
-  for (let i = 11; i >= 0; i--) {
-    const d = new Date(Date.UTC(ty, tm - 1 - i, 1));
-    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-    buckets[key] = 0;
+  let cursor = dateRangeKeys.fromKey;
+  while (cursor <= dateRangeKeys.toKey) {
+    buckets[cursor] = 0;
+    cursor = addDaysToKey(cursor, 1);
   }
   for (const ann of anns) {
-    const key = toBrtDateKey(new Date(ann.created_at)).slice(0, 7);
-    if (key in buckets) buckets[key]++;
+    const day = toBrtDateKey(new Date(ann.created_at));
+    if (day in buckets) buckets[day]++;
   }
   return Object.entries(buckets).map(([date, corrections]) => ({ date, corrections }));
 }
@@ -155,12 +153,37 @@ export async function GET(
   const { adminClient, orgId } = auth;
 
   const url = new URL(request.url);
-  const win = (['today', 'week', 'month', 'total'].includes(url.searchParams.get('window') ?? '')
-    ? url.searchParams.get('window')
-    : 'week') as MetricWindow;
+
+  const essayTypeParam = url.searchParams.get('essay_type') ?? 'all';
+  const filterByType = VALID_ESSAY_TYPES.includes(essayTypeParam) ? essayTypeParam : null;
 
   const todayKey = toBrtDateKey(new Date());
-  const dateRangeKeys = getDateRangeKeys(win, todayKey);
+  const datePreset = url.searchParams.get('date_preset');
+  const dateFromParam = url.searchParams.get('date_from');
+  const dateToParam = url.searchParams.get('date_to');
+  const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+  let dateRangeKeys: DateRangeKeys | null = null;
+  if (datePreset === 'today') {
+    dateRangeKeys = { fromKey: todayKey, toKey: todayKey };
+  } else if (datePreset === 'yesterday') {
+    const yesterdayKey = addDaysToKey(todayKey, -1);
+    dateRangeKeys = { fromKey: yesterdayKey, toKey: yesterdayKey };
+  } else if (datePreset === 'week') {
+    dateRangeKeys = { fromKey: startOfWeekBrtKey(), toKey: todayKey };
+  } else if (datePreset === 'month') {
+    dateRangeKeys = { fromKey: startOfMonthBrtKey(), toKey: todayKey };
+  } else if (
+    dateFromParam && dateToParam &&
+    DATE_KEY_RE.test(dateFromParam) && DATE_KEY_RE.test(dateToParam) &&
+    dateFromParam <= dateToParam
+  ) {
+    const inclusiveDays = daysBetweenKeys(dateFromParam, dateToParam) + 1;
+    if (inclusiveDays >= 1 && inclusiveDays <= 60) {
+      dateRangeKeys = { fromKey: dateFromParam, toKey: dateToParam };
+    }
+  }
+
   const windowStartIso = dateRangeKeys ? brtDateKeyToUtcStartIso(dateRangeKeys.fromKey) : null;
   const windowEndIso = dateRangeKeys ? brtDateKeyToUtcStartIso(addDaysToKey(dateRangeKeys.toKey, 1)) : null;
 
@@ -168,12 +191,48 @@ export async function GET(
   const essaysTable = adminClient.from('essays') as any;
   const correctionsTable = adminClient.from('essay_corrections') as any;
 
-  // 1. Associates
-  const { data: associates } = await profilesTable
-    .select('id, full_name, email, avatar_url, organization_id, associate_permissions')
-    .eq('organization_id', orgId)
-    .eq('role', 'associate')
-    .order('full_name', { ascending: true });
+  // Associados, pendentes e correções (com a redação de cada uma já
+  // embutida via join) — três consultas totalmente independentes entre si,
+  // disparadas em paralelo num único round-trip ao Supabase. A consulta de
+  // correções não precisa esperar a lista de associados: filtra direto por
+  // `corrector.organization_id`/`corrector.role` via join com `profiles`,
+  // e por `essay.org_id`/`essay.essay_type` via join com `essays` — o que
+  // também elimina a necessidade de buscar todas as redações da org à parte
+  // só para consultar nota/turnaround (uma correção só é contada quando o
+  // join encontra a redação e o corretor correspondentes).
+  let pendingQuery = essaysTable
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId)
+    .eq('status', 'pending');
+  if (filterByType) pendingQuery = pendingQuery.eq('essay_type', filterByType);
+  if (windowStartIso) pendingQuery = pendingQuery.gte('submitted_at', windowStartIso);
+  if (windowEndIso) pendingQuery = pendingQuery.lt('submitted_at', windowEndIso);
+
+  // Fonte autoritativa é essay_corrections (gravada ao submeter a correção),
+  // não essay_annotations tipo 'correction' — anotações de texto são
+  // opcionais e o corretor pode avaliar (notas + comentário geral) sem
+  // marcar nenhum trecho, o que zerava as métricas mesmo com redações
+  // efetivamente corrigidas.
+  let correctionsQuery = correctionsTable
+    .select('corrector_id, essay_id, corrected_at, essay:essays!inner(total_score, submitted_at, corrected_at, essay_type, org_id), corrector:profiles!inner(organization_id, role)')
+    .eq('essay.org_id', orgId)
+    .eq('corrector.organization_id', orgId)
+    .eq('corrector.role', 'associate');
+  if (filterByType) correctionsQuery = correctionsQuery.eq('essay.essay_type', filterByType);
+
+  const [
+    { data: associates },
+    { count: pendingCount },
+    { data: allCorrections },
+  ] = await Promise.all([
+    profilesTable
+      .select('id, full_name, email, avatar_url, organization_id, associate_permissions')
+      .eq('organization_id', orgId)
+      .eq('role', 'associate')
+      .order('full_name', { ascending: true }),
+    pendingQuery,
+    correctionsQuery,
+  ]);
 
   type AssociateRow = {
     id: string; full_name: string | null; email: string | null;
@@ -183,52 +242,28 @@ export async function GET(
   const associateList = (associates || []) as AssociateRow[];
   const associateIds = associateList.map(a => a.id);
 
-  // 2. Pending essays — redações pendentes ENVIADAS dentro do período selecionado
-  // (mesma regra da página de Redações: o filtro de período restringe por
-  // submitted_at, não pela data da correção).
-  let pendingQuery = essaysTable
-    .select('id', { count: 'exact', head: true })
-    .eq('org_id', orgId)
-    .eq('status', 'pending');
-  if (windowStartIso) pendingQuery = pendingQuery.gte('submitted_at', windowStartIso);
-  if (windowEndIso) pendingQuery = pendingQuery.lt('submitted_at', windowEndIso);
-  const { count: pendingCount } = await pendingQuery;
+  const dateFilterResponse = dateRangeKeys ? { preset: datePreset ?? 'custom', from: dateRangeKeys.fromKey, to: dateRangeKeys.toKey } : null;
 
   if (associateIds.length === 0) {
     return NextResponse.json({
-      window: win,
-      date_filter: dateRangeKeys ? { preset: win, from: dateRangeKeys.fromKey, to: dateRangeKeys.toKey } : null,
+      essay_type_filter: essayTypeParam,
+      date_filter: dateFilterResponse,
       summary: {
         total_associates: 0, active_associates: 0, inactive_associates: 0,
         pending_essays: pendingCount ?? 0, corrections_in_window: 0, total_corrections: 0,
         avg_essay_score: null, avg_turnaround_hours: null,
       },
       associate_stats: {},
-      trend: buildTrend(win, [], dateRangeKeys, todayKey),
+      trend: buildTrend([], dateRangeKeys, todayKey),
     });
   }
 
-  // 3. Org essays (para lookup de nota/turnaround)
-  const { data: orgEssays } = await essaysTable
-    .select('id, total_score, submitted_at, corrected_at, status')
-    .eq('org_id', orgId);
-  const essayMap = new Map<string, EssayRow>(((orgEssays || []) as EssayRow[]).map(e => [e.id, e]));
-  const orgEssayIds = Array.from(essayMap.keys());
-  const safeEssayIds = orgEssayIds.length > 0 ? orgEssayIds : ['00000000-0000-0000-0000-000000000000'];
-
-  // 4. Todas as correções (histórico completo — alimenta o "Total" acumulado,
-  // que é deliberadamente independente do período selecionado)
-  // Fonte autoritativa é essay_corrections (gravada ao submeter a correção), não
-  // essay_annotations tipo 'correction' — anotações de texto são opcionais e o
-  // corretor pode avaliar (notas + comentário geral) sem marcar nenhum trecho,
-  // o que zerava as métricas mesmo com redações efetivamente corrigidas.
-  const { data: allCorrections } = await correctionsTable
-    .select('corrector_id, essay_id, corrected_at')
-    .in('corrector_id', associateIds)
-    .in('essay_id', safeEssayIds);
-
-  const allAnns = ((allCorrections || []) as { corrector_id: string; essay_id: string; corrected_at: string }[])
-    .map(c => ({ author_id: c.corrector_id, essay_id: c.essay_id, created_at: c.corrected_at }));
+  type CorrectionWithEssayRow = {
+    corrector_id: string; essay_id: string; corrected_at: string;
+    essay: { total_score: number | null; submitted_at: string | null; corrected_at: string | null } | null;
+  };
+  const allAnns = ((allCorrections || []) as CorrectionWithEssayRow[])
+    .map(c => ({ author_id: c.corrector_id, essay_id: c.essay_id, created_at: c.corrected_at, essay: c.essay }));
 
   // 5. Correções dentro do período selecionado (limites BRT) — alimenta o
   // gráfico de tendência, a contagem "no período" e (diferente de antes) a
@@ -258,7 +293,7 @@ export async function GET(
     const s = stats[ann.author_id];
     if (!s) continue;
     s.corrections_in_window++;
-    const essay = essayMap.get(ann.essay_id);
+    const essay = ann.essay;
     if (essay?.total_score != null) { s.window_score_sum += essay.total_score; s.window_score_count++; }
     if (essay?.submitted_at && essay?.corrected_at) {
       const diff = (new Date(essay.corrected_at).getTime() - new Date(essay.submitted_at).getTime()) / 3_600_000;
@@ -266,7 +301,7 @@ export async function GET(
     }
   }
 
-  const trend = buildTrend(win, windowAnns, dateRangeKeys, todayKey);
+  const trend = buildTrend(windowAnns, dateRangeKeys, todayKey);
 
   const activeAssociates = associateList.filter(a => a.associate_permissions?.active !== false).length;
   const inactiveAssociates = associateList.length - activeAssociates;
@@ -288,8 +323,8 @@ export async function GET(
   }
 
   return NextResponse.json({
-    window: win,
-    date_filter: dateRangeKeys ? { preset: win, from: dateRangeKeys.fromKey, to: dateRangeKeys.toKey } : null,
+    essay_type_filter: essayTypeParam,
+    date_filter: dateFilterResponse,
     summary: {
       total_associates: associateList.length,
       active_associates: activeAssociates,
