@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useTheme } from 'next-themes';
 import { Plus, Kanban, ChevronLeft, Target, Sparkles, History, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useTasks, useTaskDetail, useActiveSprint, useSprintHistory, useAISuggestions, useTaskWorkspaceSummary, type Task, type TaskStatus } from './hooks/useTasks';
 import KanbanBoard from './KanbanBoard';
 import TaskFilters, { type Filters, DEFAULT_FILTERS } from './TaskFilters';
@@ -69,7 +69,6 @@ export default function AdminTasksPage() {
   const [sprintOnly, setSprintOnly] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [currentTime] = useState(() => Date.now());
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { resolvedTheme } = useTheme();
   const isDark = mounted && resolvedTheme !== 'light';
@@ -103,7 +102,7 @@ export default function AdminTasksPage() {
   const role = workspaceSummary?.role;
   const isAdmin = role === 'admin';
   const { suggestions } = useAISuggestions(isAdmin);
-  const homeHref = pathname?.startsWith('/portal/dev') ? '/portal' : '/portal/admin';
+  const homeHref = '/portal/admin';
 
   useEffect(() => {
     if (!activeSprint) setSprintOnly(false);

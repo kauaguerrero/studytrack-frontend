@@ -132,10 +132,6 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(new URL(dest, request.url));
     }
 
-    if (path.startsWith('/portal/dev') && currentRole !== 'dev' && currentRole !== 'admin') {
-        const dest = '/';
-        return NextResponse.redirect(new URL(dest, request.url));
-    }
   }
 
   return supabaseResponse;

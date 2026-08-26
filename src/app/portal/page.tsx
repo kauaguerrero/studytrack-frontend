@@ -72,7 +72,7 @@ export default async function Page() {
       redirect('/portal/admin');
       break;
     case 'dev':
-      redirect('/portal/dev/tasks');
+      redirect('/portal/admin/tasks');
       break;
     default:
       redirect('/');

@@ -115,16 +115,6 @@ export async function GET(request: Request) {
         }
 
         if (requestedNext) {
-          const rawMetaRole = user.user_metadata?.role
-          const metaRole = rawMetaRole && ROLE_TO_DASHBOARD[rawMetaRole as UserRole] ? rawMetaRole as UserRole : null
-          if (metaRole) {
-            await supabase.from('profiles').update({ 
-              role: metaRole,
-              full_name: user.user_metadata.full_name,
-              last_active_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }).eq('id', user.id)
-          }
           redirectUrl = `${origin}${requestedNext}`
           const res = NextResponse.redirect(redirectUrl)
           applyCapturedCookies(res, capturedSets, capturedRemoves)

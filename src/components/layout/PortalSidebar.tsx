@@ -55,9 +55,7 @@ export function SidebarContent({
       ? 'dev'
       : pathname.startsWith('/portal/admin')
         ? 'admin'
-        : pathname.startsWith('/portal/dev')
-          ? 'dev'
-          : role;
+        : role;
 
   const isAdmin = resolvedRole === 'admin';
 
@@ -155,7 +153,7 @@ export function SidebarContent({
 
   const portalHomeHref =
     resolvedRole === 'dev'
-          ? '/portal/dev/tasks'
+          ? '/portal/admin/tasks'
         : resolvedRole === 'admin'
           ? '/portal/admin'
         : '/portal';
@@ -242,7 +240,7 @@ export function SidebarContent({
         {resolvedRole === 'dev' && (
           <div className="space-y-0.5">
             {renderSectionTitle('Operação')}
-            {renderNavItem({ href: '/portal/dev/tasks', icon: ListChecks, label: 'Tasks' })}
+            {renderNavItem({ href: '/portal/admin/tasks', icon: ListChecks, label: 'Tasks' })}
           </div>
         )}
 
