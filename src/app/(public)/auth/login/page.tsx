@@ -191,7 +191,7 @@ function LoginForm({ onProgress }: { onProgress: (p: number) => void }) {
       const role = profile?.role ?? null;
       const roleToPath: Record<string, string> = {
         admin: '/portal/admin',
-        dev: '/portal/dev/tasks',
+        dev: '/portal/admin/tasks',
         // 'student' omitted intentionally: /portal handles B2B routing via organization_id
       };
 

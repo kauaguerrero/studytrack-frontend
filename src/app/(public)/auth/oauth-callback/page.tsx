@@ -6,8 +6,6 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getGoogleOAuthClient } from '@/lib/supabase/oauth-client';
 
-const VALID_ROLES = ['student', 'admin', 'dev', 'founder', 'associate'];
-
 /** Só aceita redirect relativo — `next` vem de query param, controlável por
  * quem monta o link, então nunca deixamos ele apontar pra fora do site. */
 function safeNext(next: string | null): string {
@@ -47,20 +45,6 @@ function OAuthCallbackContent() {
           refresh_token: session.refresh_token,
         });
         if (error) throw error;
-
-        // Replica o branch `if (requestedNext)` de auth/callback/route.ts
-        // (fluxo PKCE): grava role de user_metadata quando fizer sentido,
-        // antes de navegar — os 3 pontos de entrada do Google sempre mandam
-        // `next`, então esse é o único branch relevante aqui.
-        const rawMetaRole = session.user?.user_metadata?.role;
-        if (rawMetaRole && VALID_ROLES.includes(rawMetaRole)) {
-          await supabase.from('profiles').update({
-            role: rawMetaRole,
-            full_name: session.user.user_metadata?.full_name,
-            last_active_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }).eq('id', session.user.id);
-        }
 
         window.location.replace(next);
       } catch {
