@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getGoogleOAuthClient } from '@/lib/supabase/oauth-client';
+import { getApiBaseUrl } from '@/lib/api-base';
 import { reportError } from '@/lib/reportError';
 import Image from 'next/image';
 import {
@@ -23,6 +24,32 @@ function sanitizeEmailInput(value: string): string {
 function isValidEmail(value: string): boolean {
   // Validação pragmática para login (não bloqueia domínios válidos incomuns).
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= EMAIL_MAX_LENGTH;
+}
+
+interface LoginMethodHint {
+  oauth_only?: boolean;
+  provider?: string;
+}
+
+const OAUTH_PROVIDER_LABELS: Record<string, string> = { google: 'Google' };
+
+// Chamado só DEPOIS de um "Invalid login credentials", pra distinguir senha
+// errada de "essa conta nunca teve senha, só entra pelo provider OAuth" —
+// evita o aluno martelar senha indefinidamente numa conta que não tem uma.
+async function fetchLoginMethodHint(email: string): Promise<LoginMethodHint | null> {
+  try {
+    const apiUrl = getApiBaseUrl();
+    const res = await fetch(`${apiUrl}/api/auth/login-method`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return data?.hint ?? null;
+  } catch {
+    return null;
+  }
 }
 
 const GoogleIcon = () => (
@@ -78,6 +105,7 @@ function LoginForm({ onProgress }: { onProgress: (p: number) => void }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [oauthHint, setOauthHint] = useState<LoginMethodHint | null>(null);
   const [formData, setFormData] = useState({ email: '', password: '' });
 
   const router = useRouter();
@@ -132,6 +160,7 @@ function LoginForm({ onProgress }: { onProgress: (p: number) => void }) {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setOauthHint(null);
 
     try {
       const normalizedEmail = sanitizeEmailInput(formData.email).toLowerCase();
@@ -231,7 +260,18 @@ function LoginForm({ onProgress }: { onProgress: (p: number) => void }) {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '';
       if (message.includes('Invalid login credentials') || message.includes('Email not confirmed')) {
-        setError("E-mail ou senha incorretos. Verifique suas credenciais e tente novamente.");
+        // Antes de assumir "senha errada", checa se essa conta nunca teve
+        // senha (só entra via provider OAuth, ex: Google) — evita o aluno
+        // martelar senha indefinidamente numa conta que não tem uma.
+        const normalizedEmail = sanitizeEmailInput(formData.email).toLowerCase();
+        const hint = isValidEmail(normalizedEmail) ? await fetchLoginMethodHint(normalizedEmail) : null;
+        if (hint?.oauth_only && hint.provider) {
+          const providerLabel = OAUTH_PROVIDER_LABELS[hint.provider] ?? hint.provider;
+          setOauthHint(hint);
+          setError(`Essa conta usa login com ${providerLabel}. Clique no botão abaixo para entrar.`);
+        } else {
+          setError("E-mail ou senha incorretos. Verifique suas credenciais e tente novamente.");
+        }
       } else if (message.includes('Falha ao carregar o perfil') || message.includes('Falha ao resolver a organização')) {
         setError('Login realizado, mas não foi possível concluir o direcionamento da sua conta. Tente novamente.');
       } else {
@@ -299,9 +339,21 @@ function LoginForm({ onProgress }: { onProgress: (p: number) => void }) {
       </div>
 
       {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium flex items-start gap-2 min-w-0">
-              <AlertTriangle className="w-5 h-5 shrink-0 flex-none" />
-              <span className="min-w-0 break-words">{error}</span>
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium min-w-0">
+              <div className="flex items-start gap-2 min-w-0">
+                <AlertTriangle className="w-5 h-5 shrink-0 flex-none" />
+                <span className="min-w-0 break-words">{error}</span>
+              </div>
+              {oauthHint?.oauth_only && oauthHint.provider === 'google' && (
+                <button
+                  type="button"
+                  onClick={() => handleSocialLogin('google')}
+                  className="mt-2.5 flex w-full items-center justify-center gap-2 min-h-11 rounded-xl border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100/60"
+                >
+                  <GoogleIcon />
+                  Continuar com Google
+                </button>
+              )}
           </div>
       )}
 
