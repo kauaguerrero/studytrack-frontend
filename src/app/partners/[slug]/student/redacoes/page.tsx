@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { useOrg } from '@/contexts/OrgContext';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
-import { ArrowDown, ArrowUp, CalendarDays, ChevronDown, Eye, FileText, Minus, Plus, TrendingUp, BarChart3, CheckCircle2, Clock, Target } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarDays, ChevronDown, Eye, FileText, Info, Minus, Plus, TrendingUp, BarChart3, CheckCircle2, Clock, Target } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid,
@@ -18,6 +18,7 @@ import {
 import {
   RevealGroup, RevealItem, ElevatedCard, SectionTitle, KpiCard,
 } from '@/components/partners/founder-ui';
+import { Tooltip as InfoTooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { readableBrandText, readableBrandTextOnDark, resolveAccentColor, onBrandText } from '@/lib/brand-color';
 
 /** CSS vars pra `.brand-text-adaptive` escolher claro/escuro sozinho via `.dark`. */
@@ -113,6 +114,30 @@ function effectiveEssayScore(essay: Essay): number | null {
   return typeof score === 'number' ? score : null;
 }
 
+/** Badge clicável que indica qual banca está sendo usada como referência nos
+ * KPIs quando o filtro "Tipo de redação" está em "Todas", com explicação do
+ * critério ao clicar (não depende de hover, funciona em touch). */
+function BancaReferenceNote({ typeLabel }: { typeLabel: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <InfoTooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 transition hover:bg-slate-200 dark:bg-white/10 dark:text-white/50 dark:hover:bg-white/15"
+        >
+          Referência: {typeLabel}
+          <Info className="h-3 w-3" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[220px] text-center">
+        Calculamos a média e as notas com base no modelo de redação mais utilizado por você ({typeLabel}). Troque o filtro &quot;Tipo de redação&quot; para ver o resultado de uma banca específica.
+      </TooltipContent>
+    </InfoTooltip>
+  );
+}
+
 export default function StudentRedacoesPage() {
   const { slug } = useParams<{ slug: string }>();
   const { org } = useOrg();
@@ -128,10 +153,29 @@ export default function StudentRedacoesPage() {
   const [competencyScores, setCompetencyScores] = useState<{ essay_id: string; competency: number; score: number; correction_round?: number | null }[]>([]);
   const [competencyOpen, setCompetencyOpen] = useState(true);
   const [page, setPage] = useState(0);
-  const [essayTypeFilter, setEssayTypeFilter] = useState<EssayType>('enem');
+  const [essayTypeFilter, setEssayTypeFilter] = useState<EssayType | 'all'>('all');
   const competencySectionRef = useRef<HTMLElement>(null);
   const essaysListRef = useRef<HTMLDivElement>(null);
-  const activeConfig = ESSAY_TYPE_CONFIGS[essayTypeFilter];
+
+  // Quando o filtro é "Todas", usa o tipo mais frequente entre as redações do
+  // aluno como referência para os KPIs/competências (que dependem de um único
+  // rubrica) — evita que a seção de métricas quebre sem tipo selecionado.
+  const dominantEssayType = useMemo<EssayType>(() => {
+    if (essays.length === 0) return 'enem';
+    const counts = new Map<EssayType, number>();
+    essays.forEach((e) => counts.set(e.essay_type, (counts.get(e.essay_type) || 0) + 1));
+    let best: EssayType = 'enem';
+    let bestCount = -1;
+    counts.forEach((count, type) => {
+      if (count > bestCount) {
+        bestCount = count;
+        best = type;
+      }
+    });
+    return best;
+  }, [essays]);
+
+  const activeConfig = ESSAY_TYPE_CONFIGS[essayTypeFilter === 'all' ? dominantEssayType : essayTypeFilter];
 
   function scrollToCompetency() {
     setCompetencyOpen(true);
@@ -252,7 +296,7 @@ export default function StudentRedacoesPage() {
   useEffect(() => { setPage(0); }, [filter, sortOption]);
 
   const essaysByType = useMemo(
-    () => essays.filter((e) => e.essay_type === essayTypeFilter),
+    () => essayTypeFilter === 'all' ? essays : essays.filter((e) => e.essay_type === essayTypeFilter),
     [essays, essayTypeFilter],
   );
 
@@ -459,6 +503,7 @@ export default function StudentRedacoesPage() {
                 accentHex={org.brand_primary}
                 delta={metrics.trendDelta}
                 deltaLabel="vs 3 anteriores"
+                footer={essayTypeFilter === 'all' ? <BancaReferenceNote typeLabel={activeConfig.label} /> : undefined}
               />
               <KpiCard
                 title="Melhor nota"
@@ -467,6 +512,7 @@ export default function StudentRedacoesPage() {
                 icon={BarChart3}
                 accentColor="var(--brand-accent)"
                 accentHex={org.brand_accent}
+                footer={essayTypeFilter === 'all' ? <BancaReferenceNote typeLabel={activeConfig.label} /> : undefined}
               />
             </RevealItem>
 
@@ -593,12 +639,15 @@ export default function StudentRedacoesPage() {
                 <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-white/40">Tipo de redação</span>
                 <select
                   value={essayTypeFilter}
-                  onChange={(e) => setEssayTypeFilter(e.target.value as EssayType)}
+                  onChange={(e) => setEssayTypeFilter(e.target.value as EssayType | 'all')}
                   className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
                 >
-                  {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => (
-                    <option key={key} value={key}>{cfg.label} / {cfg.total_max}</option>
-                  ))}
+                  <option value="all">Todas</option>
+                  {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][])
+                    .filter(([key]) => key !== 'geral')
+                    .map(([key, cfg]) => (
+                      <option key={key} value={key}>{cfg.label} / {cfg.total_max}</option>
+                    ))}
                 </select>
               </label>
 
