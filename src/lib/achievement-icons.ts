@@ -2,7 +2,7 @@ import {
   Footprints, BookOpen, Brain, Crown, FileCheck, ClipboardList,
   Trophy, Flame, FlameKindling, PenLine, Medal, Compass, LibraryBig,
   Moon, Sunrise, Sparkles, Zap, ShieldCheck, Award, Gem, Infinity, Star,
-  Rocket, Mountain, Orbit,
+  Rocket, Mountain, Orbit, Bug,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -36,6 +36,7 @@ export const ACHIEVEMENT_ICONS: Record<string, LucideIcon> = {
   rocket: Rocket,
   mountain: Mountain,
   orbit: Orbit,
+  bug: Bug,
 };
 
 export function getAchievementIcon(key: string | undefined | null): LucideIcon {

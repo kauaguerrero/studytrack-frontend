@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
-  Flag, CheckCircle2, Clock, AlertCircle, Sparkles, ExternalLink, ArrowLeft,
+  Flag, CheckCircle2, Clock, AlertCircle, Sparkles, ExternalLink, ArrowLeft, Bug, XCircle, Undo2, Trophy,
 } from 'lucide-react';
 import { useReportNotification } from '@/contexts/ReportNotificationContext';
 import { createClient } from '@/lib/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
+import { ReportDialog, type ReportErrorCategory } from '@/components/questions/ReportDialog';
 import {
   RevealGroup, RevealItem, ElevatedCard, BrandHero, HERO_ACCENT_COLOR,
 } from '@/components/partners/founder-ui';
@@ -23,6 +24,10 @@ interface MyReport {
   error_category: string;
   admin_comment: string | null;
   status: string;
+  verdict: 'verified' | 'invalid' | null;
+  points_awarded: number;
+  is_double_points: boolean;
+  parent_report_id: string | null;
   created_at: string;
   resolved_at: string | null;
   question: {
@@ -35,15 +40,29 @@ interface MyReport {
 
 // ─── Badge de status ──────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: string }) {
-  if (status === 'resolved') {
+function StatusBadge({ report }: { report: MyReport }) {
+  if (report.status === 'resolved' && report.verdict === 'verified') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 border border-violet-100 dark:border-violet-800 px-2.5 py-1 rounded-full">
+        <Bug className="h-3.5 w-3.5" /> Bug confirmado
+      </span>
+    );
+  }
+  if (report.status === 'resolved' && report.verdict === 'invalid') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-1 rounded-full">
+        <XCircle className="h-3.5 w-3.5" /> Não confirmado
+      </span>
+    );
+  }
+  if (report.status === 'resolved') {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 px-2.5 py-1 rounded-full">
         <CheckCircle2 className="h-3.5 w-3.5" /> Resolvido
       </span>
     );
   }
-  if (status === 'reviewing') {
+  if (report.status === 'reviewing') {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 px-2.5 py-1 rounded-full">
         <Clock className="h-3.5 w-3.5" /> Em revisão
@@ -59,9 +78,21 @@ function StatusBadge({ status }: { status: string }) {
 
 // ─── Card de report ───────────────────────────────────────────────────────────
 
-function ReportCard({ report, slug }: { report: MyReport; slug: string }) {
+function ReportCard({
+  report,
+  slug,
+  hasContest,
+  onContest,
+}: {
+  report: MyReport;
+  slug: string;
+  hasContest: boolean;
+  onContest: (report: MyReport) => void;
+}) {
   const isResolved = report.status === 'resolved';
   const isReviewing = report.status === 'reviewing';
+  const isInvalid = isResolved && report.verdict === 'invalid';
+  const isVerified = isResolved && report.verdict === 'verified';
   const q = report.question;
 
   const questionLabel = [
@@ -72,18 +103,34 @@ function ReportCard({ report, slug }: { report: MyReport; slug: string }) {
 
   const bankUrl = `/partners/${slug}/student/banco-de-questoes?question_id=${report.question_id}`;
 
-  const accentColor = isResolved ? '#10b981' : isReviewing ? '#3b82f6' : '#f59e0b';
+  const accentColor = isVerified ? '#8b5cf6' : isInvalid ? '#94a3b8' : isResolved ? '#10b981' : isReviewing ? '#3b82f6' : '#f59e0b';
 
   return (
     <ElevatedCard accentColor={accentColor} className="h-full">
       <div className="p-5 space-y-4 flex flex-col h-full">
         {/* Cabeçalho */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <StatusBadge status={report.status} />
-          <span className="text-xs text-slate-400">
-            {new Date(report.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
-          </span>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <StatusBadge report={report} />
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-xs text-slate-400">
+              {new Date(report.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+            {/* Selo dourado de pontos — só existe quando points_awarded já veio > 0 da
+                API (calculado em Python só quando o admin confirma o report como
+                verídico via resolve_report). Nunca é estimado/calculado no front. */}
+            {report.points_awarded > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-gradient-to-r from-amber-100 to-yellow-100 px-2 py-0.5 text-[11px] font-black text-amber-700 shadow-sm dark:border-amber-700/50 dark:from-amber-900/40 dark:to-yellow-900/30 dark:text-amber-300">
+                <Trophy className="h-3 w-3" /> +{report.points_awarded} pts
+              </span>
+            )}
+          </div>
         </div>
+
+        {report.parent_report_id && (
+          <span className="inline-flex w-fit items-center gap-1.5 text-[11px] font-semibold text-fuchsia-600 dark:text-fuchsia-400">
+            <Undo2 className="h-3 w-3" /> Contestação de um report anterior
+          </span>
+        )}
 
         {/* Info da questão */}
         <div className="flex-1 space-y-0.5">
@@ -98,17 +145,47 @@ function ReportCard({ report, slug }: { report: MyReport; slug: string }) {
         </div>
 
         {/* Devolutiva */}
-        {isResolved && (
-          <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-4">
-            <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 mb-1.5">
-              <Sparkles className="h-3.5 w-3.5" />
-              Retorno da equipe
+        {isVerified && (
+          <div className="rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-800 p-4">
+            <p className="text-xs font-bold text-violet-700 dark:text-violet-400 flex items-center gap-1.5 mb-1.5">
+              <Bug className="h-3.5 w-3.5" />
+              Bug confirmado!
             </p>
-            <p className="text-sm text-emerald-800 dark:text-emerald-300 leading-relaxed">
-              {report.admin_comment
-                ? `Obrigado pelo report! ${report.admin_comment}`
-                : 'Obrigado pelo report! Sua questão foi revisada e o problema foi corrigido.'}
+            <p className="text-sm text-violet-800 dark:text-violet-300 leading-relaxed">
+              {report.is_double_points
+                ? `Você tinha razão! Reconhecemos o erro e você ganhou o DOBRO: ${report.points_awarded} pontos.`
+                : `Seu report foi confirmado como um bug real. Você ganhou ${report.points_awarded} pontos.`}
+              {report.admin_comment ? ` ${report.admin_comment}` : ''}
             </p>
+          </div>
+        )}
+
+        {isInvalid && (
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-4 space-y-3">
+            <div>
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mb-1.5">
+                <Sparkles className="h-3.5 w-3.5" />
+                Retorno da equipe
+              </p>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                {report.admin_comment || 'Analisamos e não identificamos um bug nesta questão.'}
+              </p>
+            </div>
+            {hasContest ? (
+              <p className="text-xs font-semibold text-fuchsia-600 dark:text-fuchsia-400 flex items-center gap-1.5">
+                <Undo2 className="h-3.5 w-3.5" /> Contestação enviada
+              </p>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-lg border-fuchsia-200 text-fuchsia-700 hover:bg-fuchsia-50 dark:border-fuchsia-800 dark:text-fuchsia-400"
+                onClick={() => onContest(report)}
+              >
+                <Undo2 className="h-3.5 w-3.5 mr-1.5" />
+                Contestar (ganhe o dobro se tivermos errado)
+              </Button>
+            )}
           </div>
         )}
 
@@ -149,6 +226,8 @@ export default function MyReportsPage() {
   const { refresh: refreshReportDot } = useReportNotification();
   const [reports, setReports] = useState<MyReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [contestingReport, setContestingReport] = useState<MyReport | null>(null);
   const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
 
   const fetchAndMarkSeen = useCallback(async () => {
@@ -156,6 +235,7 @@ export default function MyReportsPage() {
     try {
       const { data: { session } } = await createClient().auth.getSession();
       if (!session?.access_token) return;
+      setAuthToken(session.access_token);
       const headers = { Authorization: `Bearer ${session.access_token}` };
 
       const [reportsRes] = await Promise.all([
@@ -179,6 +259,8 @@ export default function MyReportsPage() {
   const resolvedCount = reports.filter((r) => r.status === 'resolved').length;
   const reviewingCount = reports.filter((r) => r.status === 'reviewing').length;
   const pendingCount = reports.filter((r) => r.status === 'pending').length;
+  const pointsEarned = reports.reduce((sum, r) => sum + (r.points_awarded || 0), 0);
+  const contestedParentIds = new Set(reports.map((r) => r.parent_report_id).filter(Boolean));
 
   return (
     <ModuleGuard permKey="suporte_enabled">
@@ -200,8 +282,8 @@ export default function MyReportsPage() {
                   {loading
                     ? 'Carregando seus reports…'
                     : reports.length === 0
-                      ? 'Nenhum report feito ainda'
-                      : `${resolvedCount} resolvido${resolvedCount !== 1 ? 's' : ''} de ${reports.length} report${reports.length !== 1 ? 's' : ''}`}
+                      ? 'Nenhum report feito ainda — vire um caçador de bugs 🐛'
+                      : `${resolvedCount} resolvido${resolvedCount !== 1 ? 's' : ''} de ${reports.length} report${reports.length !== 1 ? 's' : ''}${pointsEarned > 0 ? ` · ${pointsEarned} pontos caçando bugs` : ''}`}
                 </p>
               </div>
             </BrandHero>
@@ -220,6 +302,21 @@ export default function MyReportsPage() {
                 Voltar ao suporte
               </Link>
             </RevealItem>
+
+            {/* Banner de pontos — só existe quando points_awarded já veio calculado
+                e confirmado pelo backend (soma de reports com verdict='verified'
+                resolvidos via Python/resolve_report). Reflete o ganho na corrida
+                para aprovação, não um placar à parte. */}
+            {!loading && pointsEarned > 0 && (
+              <RevealItem>
+                <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-3 dark:border-amber-800/50 dark:from-amber-950/30 dark:to-yellow-950/20">
+                  <Trophy className="h-5 w-5 shrink-0 text-amber-500" />
+                  <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                    Você já ganhou {pointsEarned} ponto{pointsEarned !== 1 ? 's' : ''} reportando questões — eles já contam na sua corrida para aprovação! 🏆
+                  </p>
+                </div>
+              </RevealItem>
+            )}
 
             {/* KPI strip */}
             {!loading && reports.length > 0 && (
@@ -270,7 +367,13 @@ export default function MyReportsPage() {
             ) : (
               <RevealItem className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {reports.map((report) => (
-                  <ReportCard key={report.id} report={report} slug={slug} />
+                  <ReportCard
+                    key={report.id}
+                    report={report}
+                    slug={slug}
+                    hasContest={contestedParentIds.has(report.id)}
+                    onContest={setContestingReport}
+                  />
                 ))}
               </RevealItem>
             )}
@@ -290,6 +393,18 @@ export default function MyReportsPage() {
           </div>
         </RevealGroup>
       </div>
+
+      {contestingReport && (
+        <ReportDialog
+          open={!!contestingReport}
+          onOpenChange={(open) => { if (!open) setContestingReport(null); }}
+          questionId={contestingReport.question_id}
+          authToken={authToken}
+          contestReportId={contestingReport.id}
+          initialCategory={contestingReport.error_category as ReportErrorCategory}
+          onSuccess={() => { setContestingReport(null); void fetchAndMarkSeen(); }}
+        />
+      )}
     </ModuleGuard>
   );
 }

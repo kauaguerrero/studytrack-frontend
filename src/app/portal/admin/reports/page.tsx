@@ -25,6 +25,10 @@ import {
   TrendingUp,
   Clock,
   BarChart3,
+  Bug,
+  XCircle,
+  Undo2,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -96,6 +100,10 @@ interface QuestionReportRow {
   technical_context?: Record<string, unknown> | null;
   admin_comment?: string | null;
   status: string;
+  verdict: 'verified' | 'invalid' | null;
+  points_awarded: number;
+  is_double_points: boolean;
+  parent_report_id: string | null;
   created_at: string;
   resolved_at: string | null;
   resolved_by: string | null;
@@ -108,6 +116,8 @@ interface ReportKpis {
   total: number;
   by_status: { pending: number; reviewing: number; resolved: number };
   by_category: { estrutural: number; conteudo: number; resposta: number; outro: number };
+  by_verdict?: { verified: number; invalid: number };
+  total_points_awarded?: number;
   avg_resolution_hours: number | null;
   resolved_this_week: number;
   daily_series: { date: string; count: number }[];
@@ -152,11 +162,13 @@ function KpiStrip({ kpis, loading }: { kpis: ReportKpis | null; loading: boolean
     { label: 'Em Revisão', value: kpis.by_status.reviewing, color: 'text-blue-600', bg: 'bg-blue-50 border-blue-100' },
     { label: 'Resolvidos esta semana', value: kpis.resolved_this_week, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-100' },
     { label: 'Total (período)', value: kpis.total, color: 'text-slate-700', bg: 'bg-white border-slate-200' },
+    { label: 'Bugs verídicos', value: kpis.by_verdict?.verified ?? 0, color: 'text-violet-600', bg: 'bg-violet-50 border-violet-100' },
+    { label: 'Pontos distribuídos', value: kpis.total_points_awarded ?? 0, color: 'text-fuchsia-600', bg: 'bg-fuchsia-50 border-fuchsia-100' },
   ];
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {cards.map((c) => (
           <div key={c.label} className={`rounded-2xl border p-4 ${c.bg}`}>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{c.label}</p>
@@ -204,6 +216,7 @@ export default function AdminReportsPage() {
   const [commentValues, setCommentValues] = useState<Record<string, string>>({});
   const [resolveDialogId, setResolveDialogId] = useState<string | null>(null);
   const [resolveComment, setResolveComment] = useState('');
+  const [resolveVerdict, setResolveVerdict] = useState<'verified' | 'invalid' | null>(null);
 
   const getAuthHeaders = useCallback(async () => {
     const { data: { session } } = await createClient().auth.getSession();
@@ -282,22 +295,31 @@ export default function AdminReportsPage() {
   };
 
   const handleResolve = async () => {
-    if (!resolveDialogId) return;
+    if (!resolveDialogId || !resolveVerdict) return;
     setProcessingId(resolveDialogId);
     try {
       const headers = await getAuthHeaders();
       const res = await fetch(`${apiUrl}/api/admin/reports/${resolveDialogId}/resolve`, {
         method: 'PATCH',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_comment: resolveComment.trim() || null }),
+        body: JSON.stringify({ verdict: resolveVerdict, admin_comment: resolveComment.trim() || null }),
       });
-      const result = await res.json() as { success?: boolean; error?: string };
+      const result = await res.json() as { success?: boolean; error?: string; points_awarded?: number; is_double_points?: boolean };
       if (!res.ok) { toast.error(result.error ?? 'Falha ao marcar como resolvido.'); return; }
-      toast.success('Report resolvido e aluno notificado.');
+      if (resolveVerdict === 'verified') {
+        toast.success(
+          result.is_double_points
+            ? `Verídico — aluno ganhou o DOBRO: ${result.points_awarded} pontos! 🔥`
+            : `Verídico — aluno ganhou ${result.points_awarded} pontos.`
+        );
+      } else {
+        toast.success('Inverídico — aluno notificado e pode contestar 1x.');
+      }
       setReports((prev) => prev.filter((r) => r.id !== resolveDialogId));
       setTotal((t) => Math.max(0, t - 1));
       setResolveDialogId(null);
       setResolveComment('');
+      setResolveVerdict(null);
       void fetchKpis();
     } catch (err) {
       void reportError("AdminReportsError", String(err));
@@ -407,12 +429,22 @@ export default function AdminReportsPage() {
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="outline" className={
-                            report.status === 'resolved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : report.status === 'reviewing' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                            report.status !== 'resolved' ? (report.status === 'reviewing' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200')
+                            : report.verdict === 'verified' ? 'bg-violet-50 text-violet-700 border-violet-200'
+                            : report.verdict === 'invalid' ? 'bg-slate-100 text-slate-600 border-slate-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                           }>
-                            {report.status === 'pending' ? 'Pendente' : report.status === 'reviewing' ? 'Em revisão' : 'Resolvido'}
+                            {report.status === 'pending' ? 'Pendente'
+                              : report.status === 'reviewing' ? 'Em revisão'
+                              : report.verdict === 'verified' ? `🎯 Verídico${report.is_double_points ? ' (dobro)' : ''} +${report.points_awarded}pts`
+                              : report.verdict === 'invalid' ? '✕ Inverídico'
+                              : 'Resolvido'}
                           </Badge>
+                          {report.parent_report_id && (
+                            <Badge variant="outline" className="bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200 text-xs gap-1">
+                              <Undo2 className="h-3 w-3" /> Contestação
+                            </Badge>
+                          )}
                           {report.status === 'resolved' && report.resolved_at && (
                             <span className="text-xs text-slate-500 flex items-center gap-1">
                               Resolvido em {new Date(report.resolved_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -432,11 +464,18 @@ export default function AdminReportsPage() {
                             {isExpanded ? <><ChevronUp className="h-4 w-4 mr-1" />Ocultar questão</> : <><ChevronDown className="h-4 w-4 mr-1" />Ver questão</>}
                           </Button>
                           {report.status !== 'resolved' && (
-                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-                              onClick={() => { setResolveDialogId(report.id); setResolveComment(''); }}
-                              disabled={processingId === report.id}>
-                              {processingId === report.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle2 className="h-4 w-4 mr-1.5" />Marcar resolvido</>}
-                            </Button>
+                            <>
+                              <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl"
+                                onClick={() => { setResolveDialogId(report.id); setResolveVerdict('verified'); setResolveComment(''); }}
+                                disabled={processingId === report.id}>
+                                {processingId === report.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Bug className="h-4 w-4 mr-1.5" />Verídico</>}
+                              </Button>
+                              <Button size="sm" variant="outline" className="rounded-xl border-slate-300 text-slate-600"
+                                onClick={() => { setResolveDialogId(report.id); setResolveVerdict('invalid'); setResolveComment(''); }}
+                                disabled={processingId === report.id}>
+                                <XCircle className="h-4 w-4 mr-1.5" />Inverídico
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -591,35 +630,46 @@ export default function AdminReportsPage() {
       </div>
 
       {/* Resolve dialog */}
-      <Dialog open={!!resolveDialogId} onOpenChange={(open) => { if (!open) { setResolveDialogId(null); setResolveComment(''); } }}>
+      <Dialog open={!!resolveDialogId} onOpenChange={(open) => { if (!open) { setResolveDialogId(null); setResolveComment(''); setResolveVerdict(null); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              Marcar como resolvido
+              {resolveVerdict === 'verified' ? (
+                <><Sparkles className="h-5 w-5 text-violet-600" /> Marcar como Verídico</>
+              ) : (
+                <><XCircle className="h-5 w-5 text-slate-500" /> Marcar como Inverídico</>
+              )}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-slate-600">
-              O aluno será notificado automaticamente. Adicione uma explicação opcional sobre o que foi encontrado e como foi resolvido.
+              {resolveVerdict === 'verified'
+                ? 'O aluno será notificado e ganha pontos por ter encontrado um bug real (o dobro, se for uma contestação vindicada). Explique o que foi corrigido.'
+                : 'O aluno será notificado que não confirmamos um bug nesta questão e poderá contestar 1x explicando melhor o problema. Explique o motivo.'}
             </p>
             <textarea
               rows={4}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-200 resize-none"
-              placeholder="Ex: Notação decimal foi corrigida de 19.3 para 19,3. Obrigado pelo reporte!"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 resize-none"
+              placeholder={resolveVerdict === 'verified'
+                ? 'Ex: Notação decimal foi corrigida de 19.3 para 19,3. Obrigado pelo report!'
+                : 'Ex: Conferimos o gabarito oficial e a alternativa B está correta mesmo.'}
               value={resolveComment}
               onChange={(e) => setResolveComment(e.target.value)}
             />
             <p className="text-xs text-slate-400 flex items-center gap-1">
               <TrendingUp className="h-3 w-3" />
-              A mensagem padrão já agradece e informa a resolução. Seu texto adicional aparece logo abaixo.
+              A mensagem padrão já explica o veredito. Seu texto adicional aparece logo abaixo.
             </p>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => { setResolveDialogId(null); setResolveComment(''); }}>Cancelar</Button>
-            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => void handleResolve()} disabled={!!processingId}>
+            <Button variant="outline" onClick={() => { setResolveDialogId(null); setResolveComment(''); setResolveVerdict(null); }}>Cancelar</Button>
+            <Button
+              className={resolveVerdict === 'verified' ? 'bg-violet-600 hover:bg-violet-700 text-white' : 'bg-slate-700 hover:bg-slate-800 text-white'}
+              onClick={() => void handleResolve()}
+              disabled={!!processingId}
+            >
               {processingId ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-              Confirmar resolução
+              {resolveVerdict === 'verified' ? 'Confirmar Verídico' : 'Confirmar Inverídico'}
             </Button>
           </DialogFooter>
         </DialogContent>
