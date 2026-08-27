@@ -38,6 +38,12 @@ interface ReportDialogProps {
   authToken: string | null;
   questionSnapshot?: unknown;
   onSuccess?: () => void;
+  /** Quando informado, o dialog entra em modo "contestação": pula a etapa de
+   * categoria (herdada do report original via `initialCategory`), exige
+   * descrição, e envia `contested_report_id` no payload. Bug bounty: só é
+   * permitida 1 contestação por report marcado inverídico. */
+  contestReportId?: string;
+  initialCategory?: ReportErrorCategory;
 }
 
 function compactQuestionSnapshot(snapshot: unknown) {
@@ -101,21 +107,24 @@ export function ReportDialog({
   authToken,
   questionSnapshot,
   onSuccess,
+  contestReportId,
+  initialCategory,
 }: ReportDialogProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [category, setCategory] = useState<ReportErrorCategory | null>(null);
+  const isContest = Boolean(contestReportId);
+  const [step, setStep] = useState<1 | 2 | 3>(isContest ? 2 : 1);
+  const [category, setCategory] = useState<ReportErrorCategory | null>(isContest ? (initialCategory ?? 'outro') : null);
   const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const reset = useCallback(() => {
-    setStep(1);
-    setCategory(null);
+    setStep(isContest ? 2 : 1);
+    setCategory(isContest ? (initialCategory ?? 'outro') : null);
     setDescription('');
     setError(null);
-  }, []);
+  }, [isContest, initialCategory]);
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -132,7 +141,7 @@ export function ReportDialog({
   };
 
   const handleBack = () => {
-    if (step === 2) setStep(1);
+    if (step === 2 && !isContest) setStep(1);
     else if (step === 3) setStep(2);
     setError(null);
   };
@@ -140,6 +149,10 @@ export function ReportDialog({
   const handleSubmit = async () => {
     if (!category || !authToken) {
       setError('Sessão inválida. Faça login novamente.');
+      return;
+    }
+    if (isContest && description.trim().length < 10) {
+      setError('Explique melhor o problema (mínimo 10 caracteres) para contestar.');
       return;
     }
 
@@ -159,6 +172,7 @@ export function ReportDialog({
           error_category: category,
           description: description.trim() || undefined,
           technical_context: buildTechnicalContext(questionSnapshot, pathname, searchParams),
+          contested_report_id: contestReportId || undefined,
         }),
       });
 
@@ -170,7 +184,9 @@ export function ReportDialog({
             (res.status === 429
               ? 'Muitos reports. Tente novamente em alguns minutos.'
               : res.status === 409
-                ? 'Você já reportou esta questão.'
+                ? isContest
+                  ? 'Este report já foi contestado uma vez.'
+                  : 'Você já reportou esta questão.'
                 : 'Não foi possível enviar. Tente novamente.')
         );
         setIsLoading(false);
@@ -178,7 +194,7 @@ export function ReportDialog({
       }
 
       setStep(3);
-      toast.success('Report enviado! Obrigado por contribuir.');
+      toast.success(isContest ? 'Contestação enviada! Vamos reavaliar seu caso.' : 'Report enviado! Obrigado por caçar esse bug.');
       onSuccess?.();
     } catch (err) {
       void reportError("ReportDialogError", String(err));
@@ -198,13 +214,16 @@ export function ReportDialog({
       <DialogContent className="rounded-2xl border-slate-200 shadow-xl sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-slate-900">
-            {step === 1 && 'Qual o tipo de erro?'}
-            {step === 2 && 'Detalhes (opcional)'}
-            {step === 3 && 'Report enviado'}
+            {step === 1 && '🐛 Encontrou um bug?'}
+            {step === 2 && (isContest ? 'Contestar avaliação' : 'Detalhes (opcional)')}
+            {step === 3 && (isContest ? 'Contestação enviada' : 'Report enviado')}
           </DialogTitle>
           <DialogDescription>
             {step === 1 && 'Selecione a opção que melhor descreve o problema.'}
-            {step === 2 && 'Adicione mais informações para nos ajudar a corrigir.'}
+            {step === 2 &&
+              (isContest
+                ? 'Explique melhor o problema para pedirmos uma nova análise. Se confirmarmos que era um bug real, você ganha o dobro de pontos.'
+                : 'Adicione mais informações para nos ajudar a corrigir.')}
             {step === 3 && 'Obrigado! Nossa equipe vai analisar em breve.'}
           </DialogDescription>
         </DialogHeader>
@@ -228,7 +247,11 @@ export function ReportDialog({
         {step === 2 && (
           <div className="space-y-4 py-2">
             <Textarea
-              placeholder="Ex.: Na alternativa B, o texto está cortado..."
+              placeholder={
+                isContest
+                  ? 'Explique com mais detalhes por que essa questão realmente tem um erro...'
+                  : 'Ex.: Na alternativa B, o texto está cortado...'
+              }
               value={description}
               onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESCRIPTION))}
               rows={4}
@@ -245,18 +268,20 @@ export function ReportDialog({
               </p>
             )}
             <div className="flex gap-2">
+              {!isContest && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1 rounded-xl border-slate-200"
+                  onClick={handleBack}
+                  disabled={isLoading}
+                >
+                  Voltar
+                </Button>
+              )}
               <Button
                 type="button"
-                variant="outline"
-                className="flex-1 rounded-xl border-slate-200"
-                onClick={handleBack}
-                disabled={isLoading}
-              >
-                Voltar
-              </Button>
-              <Button
-                type="button"
-                className="flex-[2] rounded-xl bg-slate-900 text-white hover:bg-slate-800"
+                className={`rounded-xl bg-slate-900 text-white hover:bg-slate-800 ${isContest ? 'flex-1' : 'flex-[2]'}`}
                 onClick={handleSubmit}
                 disabled={isLoading}
               >
@@ -265,6 +290,8 @@ export function ReportDialog({
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Enviando...
                   </>
+                ) : isContest ? (
+                  'Enviar contestação'
                 ) : (
                   'Enviar report'
                 )}
@@ -279,7 +306,9 @@ export function ReportDialog({
               <CheckCircle2 className="h-10 w-10" />
             </div>
             <p className="text-center text-slate-600">
-              Seu report foi registrado. A questão será revisada pela nossa equipe.
+              {isContest
+                ? 'Sua contestação foi registrada. Vamos reavaliar o caso — se tivermos errado, você ganha o dobro de pontos.'
+                : 'Seu report foi registrado. A questão será revisada pela nossa equipe.'}
             </p>
             <Button
               type="button"
