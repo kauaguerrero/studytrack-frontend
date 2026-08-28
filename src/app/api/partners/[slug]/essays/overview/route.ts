@@ -190,6 +190,12 @@ export async function GET(
   }
 
   const essayFields = 'id, student_id, status, essay_type, submitted_at, corrected_at, imported_at, is_historical, total_score, average_score, text, theme, second_corrector_id, correction_lock_user_id, correction_lock_at';
+  // Consulta de métricas roda sobre até 500 redações e só alimenta contagens,
+  // médias e ranking — nunca devolve linha crua pro cliente. Puxar `select('*')`
+  // aqui trazia o `text` (redação inteira) de todas elas a cada chamada, que era
+  // o maior gerador de egress do projeto. Estas são as únicas colunas que os
+  // cálculos abaixo tocam.
+  const essayMetricsFields = 'id, student_id, status, submitted_at, corrected_at, imported_at, is_historical, total_score, average_score';
   const pendingFrom = (pendingPage - 1) * pendingLimit;
   const pendingTo = pendingFrom + pendingLimit - 1;
   const correctedFrom = (correctedPage - 1) * correctedLimit;
@@ -199,7 +205,7 @@ export async function GET(
     (() => {
       let q = admin
         .from('essays')
-        .select('*')
+        .select(essayMetricsFields)
         .eq('org_id', org.id)
         .order('submitted_at', { ascending: false })
         .limit(500);

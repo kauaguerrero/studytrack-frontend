@@ -14,6 +14,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getPartnerOrgBySlug } from '@/lib/partner-org';
 import { OrgProvider } from '@/contexts/OrgContext';
 import { normalizeOrgTypewriterTagline, type OrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
 import { normalizeOrgApprovedPhotos, type OrgApprovedPhoto } from '@/lib/org-approved-photos';
@@ -120,39 +121,14 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     redirect('/portal');
   }
 
-  // Busca org pelo slug (usa adminClient para evitar bloqueio de RLS)
-  type OrgRow = {
-    id: string; name: string; slug: string; logo_url: string | null;
-    brand_primary: string | null; brand_secondary: string | null;
-    brand_accent: string | null; plan_tier: string | null;
-    max_students: number | null; invite_code: string | null;
-    permissions: Record<string, boolean> | null;
-    typewriter_tagline: unknown;
-    approved_student_photos: unknown;
-    is_mock: boolean | null;
-  };
+  // Busca org pelo slug — cacheada por slug com TTL de 60s (ver src/lib/partner-org.ts).
   // Tenta o slug decodificado (Next.js já decodifica params, mas o encodeURIComponent
-  // no Link do admin garante que %2B → + chega aqui corretamente).
-  // Fallback tenta decodificar mais uma vez caso haja double-encoding.
+  // no Link do admin garante que %2B → + chega aqui corretamente) e cai no slug cru
+  // como fallback dentro do helper.
   let decodedSlug = slug;
   try { decodedSlug = decodeURIComponent(slug); } catch { /* mantém slug original */ }
 
-  let orgRes = await adminClient
-    .from('organizations')
-    .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline, approved_student_photos, is_mock')
-    .eq('slug', decodedSlug)
-    .single();
-
-  // Fallback: tenta com o slug original (sem decodificação extra)
-  if (!orgRes.data && decodedSlug !== slug) {
-    orgRes = await adminClient
-      .from('organizations')
-      .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline, approved_student_photos, is_mock')
-      .eq('slug', slug)
-      .single();
-  }
-
-  const org = orgRes.data as OrgRow | null;
+  const org = await getPartnerOrgBySlug(decodedSlug, slug);
 
   if (!org) {
     redirect('/portal');

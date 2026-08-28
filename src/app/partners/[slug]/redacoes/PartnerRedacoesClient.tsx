@@ -913,6 +913,9 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     const supabase = createClient();
     const channel = supabase
       .channel(`essay-locks:${org.id}`)
+      // UPDATE cobre correção/lock/status; INSERT cobre redação nova entrando na
+      // fila. Com os dois, a tela reage na hora a qualquer mudança e o intervalo
+      // abaixo é só uma rede de segurança (ex: WebSocket caiu sem avisar).
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'essays', filter: `org_id=eq.${org.id}` },
@@ -920,13 +923,24 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
           void loadOverview({ silent: true });
         },
       )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'essays', filter: `org_id=eq.${org.id}` },
+        () => {
+          void loadOverview({ silent: true });
+        },
+      )
       .subscribe();
 
+    // Antes eram 3s: com ~12 consultas por chamada (uma delas sobre 500
+    // redações), uma aba aberta durante uma sessão de correção sozinha já
+    // consumia vários GB de egress/mês. O realtime acima é o caminho normal de
+    // atualização; 60s aqui só pega o caso raro de o canal ter caído.
     const interval = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void loadOverview({ silent: true });
       }
-    }, 3000);
+    }, 60000);
 
     return () => {
       window.clearInterval(interval);
