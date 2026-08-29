@@ -36,6 +36,26 @@ type StudentRow = {
   avatar_url: string | null;
 };
 
+type OverviewMetricsRpcArgs = {
+  p_org_id: string;
+  p_essay_type: string | null;
+  p_submitted_gte: string | null;
+  p_submitted_lt: string | null;
+  p_date_range_active: boolean;
+  p_second_corrector_id: string;
+};
+
+// A RPC partner_essays_overview_metrics ainda não está nos tipos gerados do
+// Supabase (mesmo padrão de LockRpcClient em essays/[essayId]/lock/route.ts).
+// O formato do retorno é validado contra o cálculo JS anterior por
+// scripts/test-overview-metrics-parity.mjs.
+type OverviewMetricsRpcClient = {
+  rpc: (
+    fn: 'partner_essays_overview_metrics',
+    args: OverviewMetricsRpcArgs,
+  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+};
+
 function parsePageParam(value: string | null, fallback: number, max = 100): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -93,27 +113,6 @@ function brtDateKeyToUtcStartIso(key: string): string {
   return new Date(Date.UTC(y, (m || 1) - 1, d || 1, 3, 0, 0)).toISOString();
 }
 
-function isEssayPending(status: EssayRow['status']): boolean {
-  return status === 'pending' || status === 'awaiting_second';
-}
-
-function isEssayCorrected(status: EssayRow['status']): boolean {
-  return status === 'corrected' || status === 'second_corrected' || status === 'seen';
-}
-
-function effectiveEssayScore(essay: EssayRow): number | null {
-  if (!isEssayCorrected(essay.status)) return null;
-  const score = essay.status === 'second_corrected' && typeof essay.average_score === 'number'
-    ? essay.average_score
-    : essay.total_score;
-  return typeof score === 'number' ? score : null;
-}
-
-function historicalImportDate(essay: EssayRow): string | null {
-  if (!essay.is_historical) return null;
-  return essay.imported_at || essay.corrected_at || essay.submitted_at || null;
-}
-
 export async function GET(
   request: Request,
   context: { params: Promise<{ slug: string }> },
@@ -155,10 +154,6 @@ export async function GET(
   const submittedAtGte = dateRangeKeys ? brtDateKeyToUtcStartIso(dateRangeKeys.fromKey) : null;
   const submittedAtLt = dateRangeKeys ? brtDateKeyToUtcStartIso(addDaysToKey(dateRangeKeys.toKey, 1)) : null;
 
-  const ESSAY_COMPETENCY_COUNTS: Record<string, number> = {
-    enem: 5, ufu: 5, ueg: 5, fuvest: 4, vunesp: 4,
-  };
-  const maxComp = filterByType ? (ESSAY_COMPETENCY_COUNTS[filterByType] ?? 5) : 5;
   const pendingPage = parsePageParam(url.searchParams.get('pending_page'), 1, 1000);
   const pendingLimit = parsePageParam(url.searchParams.get('pending_limit'), 10, 50);
   const correctedPage = parsePageParam(url.searchParams.get('corrected_page'), 1, 1000);
@@ -190,30 +185,26 @@ export async function GET(
   }
 
   const essayFields = 'id, student_id, status, essay_type, submitted_at, corrected_at, imported_at, is_historical, total_score, average_score, text, theme, second_corrector_id, correction_lock_user_id, correction_lock_at';
-  // Consulta de métricas roda sobre até 500 redações e só alimenta contagens,
-  // médias e ranking — nunca devolve linha crua pro cliente. Puxar `select('*')`
-  // aqui trazia o `text` (redação inteira) de todas elas a cada chamada, que era
-  // o maior gerador de egress do projeto. Estas são as únicas colunas que os
-  // cálculos abaixo tocam.
-  const essayMetricsFields = 'id, student_id, status, submitted_at, corrected_at, imported_at, is_historical, total_score, average_score';
   const pendingFrom = (pendingPage - 1) * pendingLimit;
   const pendingTo = pendingFrom + pendingLimit - 1;
   const correctedFrom = (correctedPage - 1) * correctedLimit;
   const correctedTo = correctedFrom + correctedLimit - 1;
 
-  const [essaysMetricsRes, pendingRes, assignedSecondRes, correctedRes, pendingByTypeRes, assignedSecondByTypeRes] = await Promise.all([
-    (() => {
-      let q = admin
-        .from('essays')
-        .select(essayMetricsFields)
-        .eq('org_id', org.id)
-        .order('submitted_at', { ascending: false })
-        .limit(500);
-      if (filterByType) q = q.eq('essay_type', filterByType);
-      if (submittedAtGte) q = q.gte('submitted_at', submittedAtGte);
-      if (submittedAtLt) q = q.lt('submitted_at', submittedAtLt);
-      return q;
-    })(),
+  const metricsClient = admin as unknown as OverviewMetricsRpcClient;
+  const [metricsRpcRes, pendingRes, assignedSecondRes, correctedRes] = await Promise.all([
+    // Métricas (contagens, médias, ranking, competências, pendentes-por-tipo)
+    // são agregadas no Postgres. Antes eram 4 queries daqui — uma varrendo até
+    // 500 redações (com texto), duas varreduras de contagem e todas as notas
+    // por competência — somadas em JS. A RPC devolve só os números (~2 KB).
+    // Paridade exata verificada por scripts/test-overview-metrics-parity.mjs.
+    metricsClient.rpc('partner_essays_overview_metrics', {
+      p_org_id: org.id,
+      p_essay_type: filterByType,
+      p_submitted_gte: submittedAtGte,
+      p_submitted_lt: submittedAtLt,
+      p_date_range_active: dateRangeKeys !== null,
+      p_second_corrector_id: user.id,
+    }),
     (() => {
       // "Aguardando correção" mostra as redações pendentes enviadas dentro
       // do período selecionado no filtro (mesma regra do tipo de redação).
@@ -254,23 +245,18 @@ export async function GET(
         .order('submitted_at', { ascending: false })
         .range(correctedFrom, correctedTo);
     })(),
-    // Independentes do filtro de tipo/período: usados para avisar o corretor
-    // sobre pendências em bancas diferentes da que está sendo visualizada.
-    admin.from('essays').select('essay_type').eq('org_id', org.id).eq('status', 'pending'),
-    admin.from('essays').select('essay_type').eq('org_id', org.id).eq('status', 'awaiting_second').eq('second_corrector_id', user.id),
   ]);
 
-  if (essaysMetricsRes.error) {
+  if (metricsRpcRes.error) {
     return NextResponse.json(
       {
         error: 'Não foi possível carregar redações.',
-        details: process.env.NODE_ENV === 'development' ? essaysMetricsRes.error?.message : undefined,
+        details: process.env.NODE_ENV === 'development' ? metricsRpcRes.error?.message : undefined,
       },
       { status: 500 },
     );
   }
-
-  const metricsList = (essaysMetricsRes.data || []) as EssayRow[];
+  const metrics = metricsRpcRes.data;
 
   const pendingItemsRaw = ((pendingRes.error ? [] : pendingRes.data) || []) as EssayRow[];
   const assignedSecondItemsRaw = ((assignedSecondRes.error ? [] : assignedSecondRes.data) || []) as EssayRow[];
@@ -281,167 +267,22 @@ export async function GET(
   const pendingTotalPages = Math.max(1, Math.ceil(pendingDisplayTotal / pendingLimit));
   const correctedTotalPages = Math.max(1, Math.ceil(correctedTotal / correctedLimit));
 
-  // Pendentes por banca (todas, sem filtro de tipo/período) — alimenta o
-  // aviso de "redações pendentes em outras bancas" na UI.
-  const pendingByType: Record<string, number> = {};
-  for (const row of (pendingByTypeRes.error ? [] : pendingByTypeRes.data) || []) {
-    const t = (row as { essay_type: string | null }).essay_type || 'geral';
-    pendingByType[t] = (pendingByType[t] || 0) + 1;
-  }
-  for (const row of (assignedSecondByTypeRes.error ? [] : assignedSecondByTypeRes.data) || []) {
-    const t = (row as { essay_type: string | null }).essay_type || 'geral';
-    pendingByType[t] = (pendingByType[t] || 0) + 1;
-  }
-
-  const studentIds = Array.from(new Set(
-    [...metricsList, ...pendingItemsRaw, ...assignedSecondItemsRaw, ...correctedItemsRaw]
-      .map((e) => e.student_id)
-      .filter(Boolean),
-  ));
+  // Perfis (nome/avatar/e-mail) só para hidratar as listas paginadas de
+  // pendentes/corrigidas — o ranking já vem resolvido pela RPC.
+  const listItems = [...pendingItemsRaw, ...assignedSecondItemsRaw, ...correctedItemsRaw];
+  const studentIds = Array.from(new Set(listItems.map((e) => e.student_id).filter(Boolean)));
   const lockUserIds = Array.from(new Set(
-    [...pendingItemsRaw, ...assignedSecondItemsRaw, ...correctedItemsRaw]
+    listItems
       .map((e) => e.correction_lock_user_id)
       .filter((id): id is string => typeof id === 'string' && id.length > 0),
   ));
-  const correctedIds = metricsList
-    .filter((e) => isEssayCorrected(e.status))
-    .map((e) => e.id);
-
-  // Notas por competência e perfis (alunos + quem travou a correção) não
-  // dependem um do outro — só do resultado do batch principal acima — então
-  // disparam em paralelo. Alunos e "lock user" são a mesma tabela/colunas,
-  // então usam uma única consulta com a união dos IDs.
   const allProfileIds = Array.from(new Set([...studentIds, ...lockUserIds]));
-  const [competencyRes, profilesRes] = await Promise.all([
-    correctedIds.length > 0
-      ? admin.from('essay_competency_scores').select('essay_id, competency, score').in('essay_id', correctedIds)
-      : Promise.resolve({ data: [] as { essay_id: string; competency: number; score: number }[] }),
-    allProfileIds.length > 0
-      ? admin.from('profiles').select('id, full_name, email, avatar_url').in('id', allProfileIds)
-      : Promise.resolve({ data: [] as StudentRow[] }),
-  ]);
-  const competencyRows = (competencyRes.data || []) as { essay_id: string; competency: number; score: number }[];
-  const profilesMap = new Map(((profilesRes.data || []) as StudentRow[]).map((s) => [s.id, s]));
+  const { data: profilesData } = allProfileIds.length > 0
+    ? await admin.from('profiles').select('id, full_name, email, avatar_url').in('id', allProfileIds)
+    : { data: [] as StudentRow[] };
+  const profilesMap = new Map(((profilesData || []) as StudentRow[]).map((s) => [s.id, s]));
   const studentsMap = profilesMap;
   const lockUsersMap = profilesMap;
-
-  // Quando há filtro de período ativo, `metricsList` já veio restrito a esse
-  // intervalo pela query (submitted_at) — "recebidas" passa a contar o
-  // intervalo selecionado em vez da semana corrente fixa.
-  const weekStart = startOfWeekBrtKey();
-  const receivedWeek = dateRangeKeys
-    ? metricsList.length
-    : metricsList.filter((e) => toBrtDateKey(new Date(e.submitted_at)) >= weekStart).length;
-  const historicalReceivedWeek = dateRangeKeys
-    ? metricsList.filter((e) => historicalImportDate(e) !== null).length
-    : metricsList.filter(
-        (e) => {
-          const importedAt = historicalImportDate(e);
-          return importedAt ? toBrtDateKey(new Date(importedAt)) >= weekStart : false;
-        },
-      ).length;
-  const pendingCount = metricsList.filter((e) => isEssayPending(e.status)).length;
-
-  const scored = metricsList
-    .map((essay) => ({ essay, score: effectiveEssayScore(essay) }))
-    .filter((item): item is { essay: EssayRow; score: number } => item.score !== null);
-  const scores = scored.map((item) => item.score);
-  const avgScore = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
-  const highestScore = scores.length ? Math.max(...scores) : null;
-  const lowestScore = scores.length ? Math.min(...scores) : null;
-
-  const byStudent = new Map<string, { sum: number; count: number; avatar_url: string | null; full_name: string | null; last_essay_at: string | null }>();
-  scored.forEach(({ essay, score }) => {
-    const st = studentsMap.get(essay.student_id);
-    const current = byStudent.get(essay.student_id);
-    if (!current) {
-      byStudent.set(essay.student_id, {
-        sum: score,
-        count: 1,
-        avatar_url: st?.avatar_url ?? null,
-        full_name: st?.full_name ?? null,
-        last_essay_at: essay.corrected_at || essay.submitted_at || null,
-      });
-      return;
-    }
-    current.sum += score;
-    current.count += 1;
-    const prevTs = new Date(current.last_essay_at || 0).getTime();
-    const nextTs = new Date(essay.corrected_at || essay.submitted_at || 0).getTime();
-    if (nextTs > prevTs) current.last_essay_at = essay.corrected_at || essay.submitted_at || current.last_essay_at;
-  });
-
-  // Média por competência (dinâmico conforme tipo da banca)
-  const competencyMap: Record<number, { sum: number; count: number }> = {};
-  const perEssayCompetency = new Map<string, { competency: number; scores: number[] }>();
-  for (const row of competencyRows) {
-    const essayId = String(row.essay_id || '');
-    const c = Number(row.competency);
-    const score = Number(row.score);
-    if (!essayId || !Number.isFinite(score)) continue;
-    const key = `${essayId}:${c}`;
-    const current = perEssayCompetency.get(key) || { competency: c, scores: [] };
-    current.scores.push(score);
-    perEssayCompetency.set(key, current);
-  }
-  for (const row of perEssayCompetency.values()) {
-    const c = Number(row.competency);
-    if (c < 1 || c > maxComp) continue;
-    if (!competencyMap[c]) competencyMap[c] = { sum: 0, count: 0 };
-    competencyMap[c].sum += row.scores.reduce((sum, score) => sum + score, 0) / row.scores.length;
-    competencyMap[c].count += 1;
-  }
-  const competencyScores = Array.from({ length: maxComp }, (_, i) => i + 1).map((c) => ({
-    competency: c,
-    avg: competencyMap[c]?.count
-      ? Math.round(competencyMap[c].sum / competencyMap[c].count)
-      : null,
-    count: competencyMap[c]?.count ?? 0,
-  }));
-
-  // weakest_competency calculado no cliente com normalização por máximo por competência
-  const weakestCompetency = null;
-
-  // Tempo médio de correção em dias
-  const withCorrectionTime = metricsList.filter(
-    (e) => isEssayCorrected(e.status) && e.corrected_at && e.submitted_at,
-  );
-  const avgCorrectionDays = withCorrectionTime.length
-    ? Math.round(
-        withCorrectionTime.reduce((acc, e) => {
-          const diff =
-            new Date(e.corrected_at as string).getTime() -
-            new Date(e.submitted_at).getTime();
-          return acc + diff / (1000 * 60 * 60 * 24);
-        }, 0) / withCorrectionTime.length,
-      )
-    : null;
-
-  // Taxa de melhoria: % de alunos cuja última nota > penúltima
-  const studentScoreHistory = new Map<string, number[]>();
-  for (const essay of [...metricsList]
-    .filter((e) => effectiveEssayScore(e) !== null)
-    .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())) {
-    const arr = studentScoreHistory.get(essay.student_id) || [];
-    arr.push(Number(effectiveEssayScore(essay)));
-    studentScoreHistory.set(essay.student_id, arr);
-  }
-  const studentsWithHistory = Array.from(studentScoreHistory.values()).filter((arr) => arr.length >= 2);
-  const improved = studentsWithHistory.filter((arr) => arr[arr.length - 1] > arr[arr.length - 2]).length;
-  const improvementRate = studentsWithHistory.length > 0
-    ? Math.round((improved / studentsWithHistory.length) * 100)
-    : null;
-
-  const ranking = Array.from(byStudent.entries())
-    .map(([student_id, value]) => ({
-      student_id,
-      full_name: value.full_name,
-      avatar_url: value.avatar_url,
-      avg_score: value.count > 0 ? value.sum / value.count : 0,
-      last_essay_at: value.last_essay_at,
-    }))
-    .sort((a, b) => b.avg_score - a.avg_score)
-    .slice(0, 10);
 
   const hydrateEssay = (item: EssayRow) => {
     const student = studentsMap.get(item.student_id);
@@ -471,22 +312,7 @@ export async function GET(
     date_filter: dateRangeKeys
       ? { preset: datePreset ?? 'custom', from: dateRangeKeys.fromKey, to: dateRangeKeys.toKey }
       : null,
-    metrics: {
-      received_week: receivedWeek,
-      historical_received_week: historicalReceivedWeek,
-      pending_count: pendingCount,
-      avg_score: avgScore,
-      highest_score: highestScore,
-      lowest_score: lowestScore,
-      ranking,
-      competency_scores: competencyScores,
-      weakest_competency: weakestCompetency,
-      avg_correction_days: avgCorrectionDays,
-      improvement_rate: improvementRate,
-      improvement_students_improved: improved,
-      improvement_students_eligible: studentsWithHistory.length,
-      pending_by_type: pendingByType,
-    },
+    metrics,
     pending_items: [...assignedSecondItemsRaw, ...pendingItemsRaw].map(hydrateEssay),
     corrected_items: correctedItemsRaw.map(hydrateEssay),
     pagination: {
