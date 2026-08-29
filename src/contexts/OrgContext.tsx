@@ -21,6 +21,12 @@ export interface OrgBranding {
   approved_student_photos?: OrgApprovedPhoto[] | null;
   hasAssociates?: boolean;
   is_mock?: boolean;
+  timezone?: string;
+  essay_window_enabled?: boolean;
+  essay_window_start_day?: string | null;
+  essay_window_start_time?: string | null;
+  essay_window_end_day?: string | null;
+  essay_window_end_time?: string | null;
 }
 
 interface UserProfile {

@@ -4,11 +4,12 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Lock, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { getApiBaseUrl } from '@/lib/api-base';
 import { useOrg } from '@/contexts/OrgContext';
+import { useEssayWindowStatus, formatCountdown } from '@/hooks/useEssayWindowStatus';
 import { EssayRewardPopup } from '@/components/partners/gamification/EssayRewardPopup';
 import { PhotoEssayUploader } from '@/components/partners/essays/PhotoEssayUploader';
 import { Input } from '@/components/ui/input';
@@ -81,6 +82,7 @@ export default function NovaRedacaoPage() {
   const promptId = searchParams.get('prompt_id');
   const router = useRouter();
   const { org } = useOrg();
+  const { status: windowStatus, loading: windowLoading, secondsRemaining: windowSecondsRemaining } = useEssayWindowStatus(slug);
 
   const [mode, setMode] = useState<'text' | 'photo'>('text');
   const [essayType, setEssayType] = useState<EssayType>('enem');
@@ -309,6 +311,29 @@ export default function NovaRedacaoPage() {
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Nova Redação</h1>
         </header>
 
+        {windowLoading ? (
+          <div className="h-64 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" />
+        ) : windowStatus?.enabled && !windowStatus.is_open ? (
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 dark:bg-white/10">
+              <Lock className="h-6 w-6 text-slate-500 dark:text-white/60" />
+            </div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Envios de redação fechados no momento</h2>
+            <p className="max-w-sm text-sm text-slate-500 dark:text-slate-400">
+              {windowSecondsRemaining !== null
+                ? `Envios abrem em ${formatCountdown(windowSecondsRemaining)}.`
+                : 'Fora do período de envio de redações desta escola.'}
+            </p>
+            <Link
+              href={`/partners/${slug}/student/redacoes`}
+              className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Voltar
+            </Link>
+          </div>
+        ) : (
+        <>
         <div className="flex gap-2">
           <button
             type="button"
@@ -542,6 +567,8 @@ export default function NovaRedacaoPage() {
             </button>
           </div>
         </form>}
+        </>
+        )}
         </div>
       </div>
 

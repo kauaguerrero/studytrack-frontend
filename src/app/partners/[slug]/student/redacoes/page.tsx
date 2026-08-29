@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { useOrg } from '@/contexts/OrgContext';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
+import { useEssayWindowStatus } from '@/hooks/useEssayWindowStatus';
+import { LockedEssayButton, EssayWindowCaption } from '@/components/partners/essays/EssayWindowGate';
 import { ArrowDown, ArrowUp, CalendarDays, ChevronDown, Eye, FileText, Info, Minus, Plus, TrendingUp, BarChart3, CheckCircle2, Clock, Target } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip,
@@ -141,6 +143,7 @@ function BancaReferenceNote({ typeLabel }: { typeLabel: string }) {
 export default function StudentRedacoesPage() {
   const { slug } = useParams<{ slug: string }>();
   const { org } = useOrg();
+  const { status: windowStatus, loading: windowLoading, secondsRemaining: windowSecondsRemaining } = useEssayWindowStatus(slug);
 
   const [essays, setEssays] = useState<Essay[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
@@ -456,18 +459,27 @@ export default function StudentRedacoesPage() {
             </p>
           </div>
 
-          <Link
-            href={`/partners/${slug}/student/redacoes/nova`}
-            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-extrabold transition-transform hover:scale-[1.02] active:scale-[0.97]"
-            style={{
-              background: org.brand_primary || 'var(--brand-primary)',
-              color: onBrandText(org.brand_primary),
-              boxShadow: `0 6px 16px -6px ${org.brand_primary || 'var(--brand-primary)'}`,
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Nova Redação
-          </Link>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            {!windowLoading && windowStatus?.enabled && !windowStatus.is_open ? (
+              <LockedEssayButton label="Nova Redação" />
+            ) : (
+              <Link
+                href={`/partners/${slug}/student/redacoes/nova`}
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-extrabold transition-transform hover:scale-[1.02] active:scale-[0.97]"
+                style={{
+                  background: org.brand_primary || 'var(--brand-primary)',
+                  color: onBrandText(org.brand_primary),
+                  boxShadow: `0 6px 16px -6px ${org.brand_primary || 'var(--brand-primary)'}`,
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Nova Redação
+              </Link>
+            )}
+            {windowStatus?.enabled && (
+              <EssayWindowCaption isOpen={windowStatus.is_open} secondsRemaining={windowSecondsRemaining} />
+            )}
+          </div>
         </RevealItem>
 
         {!loading && essays.length > 0 && (
@@ -722,13 +734,25 @@ export default function StudentRedacoesPage() {
                 </div>
                 <h2 className="font-display text-lg font-black text-slate-900 dark:text-white">Nenhuma redação encontrada</h2>
                 <p className="mt-2 text-sm text-slate-500 dark:text-white/40">Envie sua primeira redação para começar a receber correções.</p>
-                <Link
-                  href={`/partners/${slug}/student/redacoes/nova`}
-                  className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10"
-                >
-                  <Plus className="h-4 w-4" />
-                  Enviar primeira redação
-                </Link>
+                <div className="mt-5 flex flex-col items-center gap-1.5">
+                  {!windowLoading && windowStatus?.enabled && !windowStatus.is_open ? (
+                    <LockedEssayButton
+                      label="Enviar primeira redação"
+                      className="min-h-11 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/[0.05]"
+                    />
+                  ) : (
+                    <Link
+                      href={`/partners/${slug}/student/redacoes/nova`}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Enviar primeira redação
+                    </Link>
+                  )}
+                  {windowStatus?.enabled && (
+                    <EssayWindowCaption isOpen={windowStatus.is_open} secondsRemaining={windowSecondsRemaining} />
+                  )}
+                </div>
               </div>
             </ElevatedCard>
           </RevealItem>

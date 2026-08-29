@@ -54,11 +54,17 @@ async function PortalShell({
       permissions: Record<string, boolean> | null;
       typewriter_tagline: unknown;
       approved_student_photos: unknown;
+      timezone: string | null;
+      essay_window_enabled: boolean | null;
+      essay_window_start_day: string | null;
+      essay_window_start_time: string | null;
+      essay_window_end_day: string | null;
+      essay_window_end_time: string | null;
     };
     const adminClient = createAdminClient();
     const orgRes = await adminClient
       .from('organizations')
-      .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline, approved_student_photos')
+      .select('id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline, approved_student_photos, timezone, essay_window_enabled, essay_window_start_day, essay_window_start_time, essay_window_end_day, essay_window_end_time')
       .eq('id', profile.organization_id)
       .single();
     const org = orgRes.data as OrgRow | null;
@@ -82,6 +88,12 @@ async function PortalShell({
         permissions:     org.permissions ?? {},
         typewriter_tagline: normalizeOrgTypewriterTagline(org.typewriter_tagline),
         approved_student_photos: normalizeOrgApprovedPhotos(org.approved_student_photos),
+        timezone:        org.timezone ?? 'America/Sao_Paulo',
+        essay_window_enabled:    org.essay_window_enabled ?? false,
+        essay_window_start_day:  org.essay_window_start_day ?? null,
+        essay_window_start_time: org.essay_window_start_time ?? null,
+        essay_window_end_day:    org.essay_window_end_day ?? null,
+        essay_window_end_time:   org.essay_window_end_time ?? null,
       };
 
       return (
