@@ -42,6 +42,12 @@ export interface OrgBranding {
   approved_student_photos: OrgApprovedPhoto[];
   hasAssociates?: boolean;
   is_mock?: boolean;
+  timezone: string;
+  essay_window_enabled: boolean;
+  essay_window_start_day: string | null;
+  essay_window_start_time: string | null;
+  essay_window_end_day: string | null;
+  essay_window_end_time: string | null;
 }
 
 interface PartnersLayoutProps {
@@ -216,6 +222,12 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     approved_student_photos: normalizeOrgApprovedPhotos(org.approved_student_photos),
     hasAssociates:   (associateCount ?? 0) > 0,
     is_mock:         org.is_mock ?? false,
+    timezone:        org.timezone ?? 'America/Sao_Paulo',
+    essay_window_enabled:    org.essay_window_enabled ?? false,
+    essay_window_start_day:  org.essay_window_start_day ?? null,
+    essay_window_start_time: org.essay_window_start_time ?? null,
+    essay_window_end_day:    org.essay_window_end_day ?? null,
+    essay_window_end_time:   org.essay_window_end_time ?? null,
   };
   const safePrimary = sanitizeCssHexColor(branding.brand_primary, '#6366f1');
   const safeSecondary = sanitizeCssHexColor(branding.brand_secondary, '#8b5cf6');

@@ -11,7 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Typewriter } from '@/components/ui/typewriter';
-import { ArrowLeft, Save, Palette, Upload, Camera, Loader2, Trash2, Plus, X, UsersRound } from 'lucide-react';
+import { ArrowLeft, Save, Palette, Upload, Camera, Loader2, Trash2, Plus, X, UsersRound, Clock } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { BRAZIL_TIMEZONES, DEFAULT_BRAZIL_TIMEZONE } from '@/lib/brazil-timezones';
 import { toast } from 'sonner';
 import { onBrandText } from '@/lib/brand-color';
 import {
@@ -32,6 +34,16 @@ import {
 } from '@/components/partners/founder-ui';
 
 const BRAND_SWATCHES = ['#2563EB', '#7C3AED', '#059669', '#DC2626', '#D97706'];
+
+const WEEKDAY_OPTIONS: { value: string; label: string }[] = [
+  { value: 'monday', label: 'Segunda-feira' },
+  { value: 'tuesday', label: 'Terça-feira' },
+  { value: 'wednesday', label: 'Quarta-feira' },
+  { value: 'thursday', label: 'Quinta-feira' },
+  { value: 'friday', label: 'Sexta-feira' },
+  { value: 'saturday', label: 'Sábado' },
+  { value: 'sunday', label: 'Domingo' },
+];
 
 function ColorPicker({
   label,
@@ -124,6 +136,13 @@ export default function ConfiguracoesPage() {
   );
   const [themeSaving, setThemeSaving] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [orgTimezone, setOrgTimezone] = useState(org.timezone ?? DEFAULT_BRAZIL_TIMEZONE);
+  const [windowEnabled, setWindowEnabled] = useState(org.essay_window_enabled ?? false);
+  const [windowStartDay, setWindowStartDay] = useState(org.essay_window_start_day ?? 'wednesday');
+  const [windowStartTime, setWindowStartTime] = useState((org.essay_window_start_time ?? '15:00').slice(0, 5));
+  const [windowEndDay, setWindowEndDay] = useState(org.essay_window_end_day ?? 'saturday');
+  const [windowEndTime, setWindowEndTime] = useState((org.essay_window_end_time ?? '12:00').slice(0, 5));
+  const [savingWindow, setSavingWindow] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const approvedPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -490,6 +509,58 @@ export default function ConfiguracoesPage() {
       toast.error('Erro de conexão.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveEssayWindow() {
+    if (windowEnabled) {
+      if (windowStartDay === windowEndDay && windowStartTime === windowEndTime) {
+        toast.error('O início e o fim da janela não podem ser idênticos.');
+        return;
+      }
+      if (!windowStartTime || !windowEndTime) {
+        toast.error('Informe os horários de abertura e fechamento.');
+        return;
+      }
+    }
+
+    setSavingWindow(true);
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setSavingWindow(false);
+      toast.error('Sessão expirada. Faça login novamente.');
+      return;
+    }
+
+    const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
+    try {
+      const res = await fetch(`${api}/api/partners/${org.slug}/settings`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          timezone: orgTimezone,
+          essay_window_enabled: windowEnabled,
+          essay_window_start_day: windowStartDay,
+          essay_window_start_time: windowStartTime,
+          essay_window_end_day: windowEndDay,
+          essay_window_end_time: windowEndTime,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success('Janela de envio de redações salva!');
+      } else {
+        const data = await res.json().catch(() => ({} as { error?: string }));
+        toast.error(data.error || 'Erro ao salvar.');
+      }
+    } catch {
+      toast.error('Erro de conexão.');
+    } finally {
+      setSavingWindow(false);
     }
   }
 
@@ -1003,6 +1074,98 @@ export default function ConfiguracoesPage() {
                 <UsersRound className="h-3.5 w-3.5" />
                 Ir para o Dashboard de Associados
               </Link>
+            </Button>
+          </div>
+        </ElevatedCard>
+        </RevealItem>
+
+        {/* Janela de envio de redações */}
+        <RevealItem>
+        <ElevatedCard accentColor="var(--brand-primary)" className="edificar-major-surface">
+          <div className="p-5 space-y-5">
+            <div>
+              <SectionTitle kicker="Redações" title="Janela de envio de redações" hex={org.brand_primary} />
+              <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Restrinja os dias e horários em que os alunos podem enviar novas redações. Por padrão, sem restrição, os alunos podem enviar a qualquer momento.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                Fuso horário desta escola
+              </Label>
+              <Select value={orgTimezone} onValueChange={setOrgTimezone}>
+                <SelectTrigger className="w-full rounded-xl">
+                  <SelectValue placeholder="Selecione o fuso horário" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BRAZIL_TIMEZONES.map((tz) => (
+                    <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Usado para calcular corretamente a janela abaixo — não observa horário de verão.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+              <div>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Restringir envio de redações</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {windowEnabled ? 'Ativado — só aceita envios dentro da janela abaixo.' : 'Desativado — alunos podem enviar a qualquer hora.'}
+                </p>
+              </div>
+              <Switch checked={windowEnabled} onCheckedChange={setWindowEnabled} />
+            </div>
+
+            {windowEnabled && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Abre</Label>
+                  <Select value={windowStartDay} onValueChange={setWindowStartDay}>
+                    <SelectTrigger className="w-full rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {WEEKDAY_OPTIONS.map((d) => (
+                        <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="time"
+                    value={windowStartTime}
+                    onChange={(e) => setWindowStartTime(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Fecha</Label>
+                  <Select value={windowEndDay} onValueChange={setWindowEndDay}>
+                    <SelectTrigger className="w-full rounded-xl"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {WEEKDAY_OPTIONS.map((d) => (
+                        <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="time"
+                    value={windowEndTime}
+                    onChange={(e) => setWindowEndTime(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={handleSaveEssayWindow}
+              disabled={savingWindow}
+            >
+              <Clock className="h-3.5 w-3.5" />
+              {savingWindow ? 'Salvando...' : 'Salvar janela de envio'}
             </Button>
           </div>
         </ElevatedCard>
