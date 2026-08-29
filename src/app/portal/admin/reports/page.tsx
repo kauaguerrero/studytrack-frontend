@@ -20,8 +20,6 @@ import {
   ChevronUp,
   AlertCircle,
   Code2,
-  MessageSquare,
-  Send,
   TrendingUp,
   Clock,
   BarChart3,
@@ -206,14 +204,12 @@ export default function AdminReportsPage() {
   const [loading, setLoading] = useState(true);
   const [kpisLoading, setKpisLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [savingCommentId, setSavingCommentId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('pending');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [daysFilter, setDaysFilter] = useState<string>('all');
   const [total, setTotal] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedTechId, setExpandedTechId] = useState<string | null>(null);
-  const [commentValues, setCommentValues] = useState<Record<string, string>>({});
   const [resolveDialogId, setResolveDialogId] = useState<string | null>(null);
   const [resolveComment, setResolveComment] = useState('');
   const [resolveVerdict, setResolveVerdict] = useState<'verified' | 'invalid' | null>(null);
@@ -256,10 +252,6 @@ export default function AdminReportsPage() {
       const rows = data.data ?? [];
       setReports(rows);
       setTotal(data.total ?? 0);
-      // Pre-populate comment fields com admin_comments existentes
-      const initialComments: Record<string, string> = {};
-      rows.forEach((r) => { if (r.admin_comment) initialComments[r.id] = r.admin_comment; });
-      setCommentValues((prev) => ({ ...initialComments, ...prev }));
     } catch (err) {
       void reportError("AdminReportsError", String(err));
       toast.error('Erro ao carregar reports.');
@@ -270,29 +262,6 @@ export default function AdminReportsPage() {
   }, [statusFilter, categoryFilter, daysFilter, apiUrl, getAuthHeaders]);
 
   useEffect(() => { void fetchReports(); void fetchKpis(); }, [fetchReports, fetchKpis]);
-
-  const handleSaveComment = async (reportId: string) => {
-    const comment = (commentValues[reportId] ?? '').trim();
-    if (!comment) { toast.error('Escreva um comentário antes de salvar.'); return; }
-    setSavingCommentId(reportId);
-    try {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`${apiUrl}/api/admin/reports/${reportId}/comment`, {
-        method: 'PATCH',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comment }),
-      });
-      const result = await res.json() as { success?: boolean; error?: string };
-      if (!res.ok) { toast.error(result.error ?? 'Falha ao salvar comentário.'); return; }
-      toast.success('Comentário salvo.');
-      setReports((prev) => prev.map((r) => r.id === reportId ? { ...r, admin_comment: comment } : r));
-    } catch (err) {
-      void reportError("AdminReportsCommentError", String(err));
-      toast.error('Erro ao salvar.');
-    } finally {
-      setSavingCommentId(null);
-    }
-  };
 
   const handleResolve = async () => {
     if (!resolveDialogId || !resolveVerdict) return;
@@ -538,32 +507,6 @@ export default function AdminReportsPage() {
                             </div>
                             {report.reporter?.email && <p className="text-xs text-slate-500">{report.reporter.email}</p>}
                           </div>
-                        </div>
-                      </div>
-
-                      {/* Comentário admin */}
-                      <div className="pt-2 border-t border-slate-100">
-                        <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5 mb-2">
-                          <MessageSquare className="h-3.5 w-3.5" />
-                          Comentário para o aluno
-                        </label>
-                        <div className="flex gap-2">
-                          <textarea
-                            rows={2}
-                            className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 resize-none"
-                            placeholder="Explique ao aluno o que foi encontrado e como foi resolvido…"
-                            value={commentValues[report.id] ?? ''}
-                            onChange={(e) => setCommentValues((prev) => ({ ...prev, [report.id]: e.target.value }))}
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="shrink-0 self-end rounded-xl"
-                            onClick={() => void handleSaveComment(report.id)}
-                            disabled={savingCommentId === report.id}
-                          >
-                            {savingCommentId === report.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="h-3.5 w-3.5 mr-1" />Salvar</>}
-                          </Button>
                         </div>
                       </div>
 
