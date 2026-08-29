@@ -1,22 +1,28 @@
-// Teste de paridade da otimização Tier 1: a rota
-// src/app/api/partners/[slug]/essays/overview/route.ts vai passar a calcular o
-// objeto `metrics` via um RPC Postgres (partner_essays_overview_metrics) em vez
-// de puxar até 500 redações + 2 varreduras de contagem + todas as competências
-// e agregar em JS.
+// Teste automatizado da otimização Tier 1 (RPC partner_essays_overview_metrics
+// que substituiu 4 queries + agregação JS na rota
+// src/app/api/partners/[slug]/essays/overview/route.ts).
 //
-// Este script:
-//   1. Porta VERBATIM os helpers + o cálculo de cada campo de `metrics` da rota.
-//   2. Roda a matriz (org × essay_type × preset de data) contra o banco real,
-//      calculando `metrics` do jeito atual (JS).  ->  snapshot "reference".
-//   3. Se o RPC existir, chama-o para cada célula e compara campo a campo
-//      (tolerância 1e-9 para médias; igualdade exata p/ inteiros/contagens).
+// LEITURA PURA contra o banco de produção — nenhuma escrita, nenhum cliente/
+// navegador, nenhuma conta real de founder é logada. Usa a service role key só
+// pra SELECT e pra chamar a RPC.
+//
+// O que checa (exit 0 = tudo passou, 1 = alguma falha):
+//   1. PARIDADE  — porta VERBATIM o cálculo JS antigo da rota e compara, campo a
+//      campo, com o RPC ao vivo, na matriz org × essay_type × preset de data
+//      (tolerância 1e-9 nas médias; igualdade exata em inteiros/contagens).
+//   2. CONTRATO/INVARIANTES — todo retorno do RPC tem as 14 chaves certas, tipos
+//      certos, ranking <= 10 e ordenado, competency_scores com o tamanho da
+//      banca, contagens >= 0, highest >= avg >= lowest, improved <= eligible.
+//   3. CASOS-LIMITE — org sem redações (slug `testando` / "Teste Animação"),
+//      essay_type inexistente, intervalo de datas invertido, passado remoto,
+//      fuvest/vunesp (4 competências), second_corrector nulo — nada pode estourar.
+//   4. COERÊNCIA — soma(pending_by_type) == COUNT(status=pending) da org;
+//      received_week <= total de redações da org.
 //
 // Uso:
-//   node scripts/test-overview-metrics-parity.mjs                 # só JS (baseline)
-//   node scripts/test-overview-metrics-parity.mjs --compare-rpc   # JS vs RPC
-//
-// Salva o snapshot JS em scratchpad/overview-metrics-<ts>.json e imprime
-// PASS/FAIL da comparação com o RPC.
+//   node scripts/test-overview-metrics-parity.mjs                # suíte completa
+//   node scripts/test-overview-metrics-parity.mjs --snapshot-only # só imprime o
+//                                                                 # snapshot JS
 
 import { readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
@@ -40,7 +46,8 @@ const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) { console.error('Faltam SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY'); process.exit(1); }
 const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
 
-const COMPARE_RPC = process.argv.includes('--compare-rpc');
+// --compare-rpc é o modo padrão agora (mantido por retrocompat de CI/hábito).
+const SNAPSHOT_ONLY = process.argv.includes('--snapshot-only');
 
 // ===================================================================
 // HELPERS — cópia verbatim de overview/route.ts
@@ -283,7 +290,7 @@ function diffMetrics(js, rpc, path = '') {
   return out;
 }
 
-// ---------- matriz ----------
+// ---------- orgs de teste (todas leitura pura, nenhuma escrita) ----------
 const ORGS = [
   { slug: 'ave-palavra', id: '5a0ba57b-2569-489d-8151-9308a532f4a1', types: ['enem', 'vunesp'] },
   { slug: 'academiadasespecificas', id: '319aa41b-daba-4884-a31c-e2de8d8e1f72', types: ['enem'] },
@@ -292,8 +299,16 @@ const ORGS = [
   { slug: 'prevestibular-aprovacao', id: '6487a042-a09f-441c-a359-c8f2a346af2e', types: ['enem'] },
   { slug: 'dialetica', id: '6f5a2863-832f-444e-995e-7c87bd0e43e6', types: ['enem'] },
 ];
+// Org de teste "Teste Animação" — sem redações. Exercita o estado vazio.
+const EMPTY_ORG = { slug: 'testando', id: '2e316e3b-08e8-4438-84d9-751344d9940a' };
 const DUMMY_CORRECTOR = '00000000-0000-0000-0000-0000000000ff';
 const PRESETS = [null, 'month', 'week'];
+const METRICS_KEYS = [
+  'received_week', 'historical_received_week', 'pending_count', 'avg_score',
+  'highest_score', 'lowest_score', 'ranking', 'competency_scores',
+  'weakest_competency', 'avg_correction_days', 'improvement_rate',
+  'improvement_students_improved', 'improvement_students_eligible', 'pending_by_type',
+];
 
 function sortKeys(v) {
   if (Array.isArray(v)) return v.map(sortKeys);
@@ -301,43 +316,174 @@ function sortKeys(v) {
   return v;
 }
 
-const snapshot = {};
-let rpcChecked = 0, rpcFailed = 0;
+// ---------- mini framework de asserção ----------
+let passed = 0, failed = 0;
+const failures = [];
+function check(name, cond, detail = '') {
+  if (cond) { passed++; console.log(`  ok   ${name}`); }
+  else { failed++; failures.push(name + (detail ? ` — ${detail}` : '')); console.log(`  FAIL ${name}${detail ? ` — ${detail}` : ''}`); }
+}
+async function callRpc(p) {
+  return admin.rpc('partner_essays_overview_metrics', {
+    p_org_id: p.orgId,
+    p_essay_type: p.filterByType ?? null,
+    p_submitted_gte: p.submittedAtGte ?? null,
+    p_submitted_lt: p.submittedAtLt ?? null,
+    p_date_range_active: p.dateRangeActive ?? false,
+    p_second_corrector_id: p.secondCorrectorId ?? DUMMY_CORRECTOR,
+  });
+}
+const isIntGte0 = (x) => Number.isInteger(x) && x >= 0;
+const isNumOrNull = (x) => x === null || typeof x === 'number';
 
+// ---------- contrato + invariantes (roda em todo resultado do RPC) ----------
+function assertContract(label, m, { maxComp }) {
+  check(`${label}: retorno é objeto`, m && typeof m === 'object' && !Array.isArray(m));
+  if (!m || typeof m !== 'object') return;
+  check(`${label}: tem exatamente as 14 chaves`,
+    METRICS_KEYS.every((k) => k in m) && Object.keys(m).length === METRICS_KEYS.length,
+    `chaves=${Object.keys(m).sort().join(',')}`);
+  check(`${label}: contagens são int >= 0`,
+    isIntGte0(m.received_week) && isIntGte0(m.historical_received_week) &&
+    isIntGte0(m.pending_count) && isIntGte0(m.improvement_students_improved) &&
+    isIntGte0(m.improvement_students_eligible));
+  check(`${label}: médias são número ou null`,
+    isNumOrNull(m.avg_score) && isNumOrNull(m.highest_score) &&
+    isNumOrNull(m.lowest_score) && isNumOrNull(m.avg_correction_days) &&
+    isNumOrNull(m.improvement_rate));
+  check(`${label}: weakest_competency é null`, m.weakest_competency === null);
+  check(`${label}: ranking é array de <= 10`, Array.isArray(m.ranking) && m.ranking.length <= 10);
+  check(`${label}: ranking ordenado por avg_score desc`,
+    m.ranking.every((r, i) => i === 0 || m.ranking[i - 1].avg_score >= r.avg_score - 1e-9));
+  check(`${label}: ranking com forma {student_id,full_name,avatar_url,avg_score,last_essay_at}`,
+    m.ranking.every((r) => 'student_id' in r && 'avg_score' in r && 'last_essay_at' in r && 'full_name' in r && 'avatar_url' in r));
+  check(`${label}: competency_scores tem ${maxComp} itens (competency 1..${maxComp})`,
+    Array.isArray(m.competency_scores) && m.competency_scores.length === maxComp &&
+    m.competency_scores.every((c, i) => c.competency === i + 1 && isNumOrNull(c.avg) && isIntGte0(c.count)));
+  check(`${label}: pending_by_type é objeto de int > 0`,
+    m.pending_by_type && typeof m.pending_by_type === 'object' && !Array.isArray(m.pending_by_type) &&
+    Object.values(m.pending_by_type).every((v) => Number.isInteger(v) && v > 0));
+  check(`${label}: highest >= avg >= lowest (quando há notas)`,
+    m.avg_score === null ||
+    (m.highest_score + 1e-9 >= m.avg_score && m.avg_score + 1e-9 >= m.lowest_score));
+  check(`${label}: improved <= eligible`, m.improvement_students_improved <= m.improvement_students_eligible);
+}
+
+// ===================================================================
+// 1) PARIDADE — RPC vs cálculo JS antigo, matriz org × tipo × preset
+// ===================================================================
+console.log('\n### 1) Paridade RPC vs JS (matriz) ###');
+const snapshot = {};
 for (const org of ORGS) {
   const secondCorrector = org.second_corrector || DUMMY_CORRECTOR;
   for (const rawType of ['all', ...org.types]) {
     const filterByType = VALID_TYPES.includes(rawType) ? rawType : null;
+    const maxComp = filterByType ? (ESSAY_COMPETENCY_COUNTS[filterByType] ?? 5) : 5;
     for (const preset of PRESETS) {
       const cellKey = `${org.slug} | type=${rawType} | preset=${preset ?? 'none'}`;
       const { submittedAtGte, submittedAtLt, dateRangeActive } = dateParamsForPreset(preset);
+      const args = { orgId: org.id, filterByType, submittedAtGte, submittedAtLt, dateRangeActive, secondCorrectorId: secondCorrector };
 
-      const jsMetrics = await computeMetricsJS({
-        orgId: org.id, filterByType, submittedAtGte, submittedAtLt, dateRangeActive, secondCorrectorId: secondCorrector,
-      });
+      const jsMetrics = await computeMetricsJS(args);
       snapshot[cellKey] = sortKeys(jsMetrics);
+      if (SNAPSHOT_ONLY) continue;
 
-      if (COMPARE_RPC) {
-        const { data: rpcMetrics, error } = await admin.rpc('partner_essays_overview_metrics', {
-          p_org_id: org.id,
-          p_essay_type: filterByType,
-          p_submitted_gte: submittedAtGte,
-          p_submitted_lt: submittedAtLt,
-          p_date_range_active: dateRangeActive,
-          p_second_corrector_id: secondCorrector,
-        });
-        rpcChecked++;
-        if (error) { rpcFailed++; console.log(`FAIL ${cellKey}\n  rpc error: ${error.message}`); continue; }
-        const diffs = diffMetrics(jsMetrics, rpcMetrics);
-        if (diffs.length) { rpcFailed++; console.log(`FAIL ${cellKey}`); diffs.forEach((d) => console.log(`  - ${d}`)); }
-        else console.log(`ok   ${cellKey}`);
-      }
+      const { data: rpcMetrics, error } = await callRpc(args);
+      if (error) { check(`paridade: ${cellKey}`, false, `rpc error: ${error.message}`); continue; }
+      const diffs = diffMetrics(jsMetrics, rpcMetrics);
+      check(`paridade: ${cellKey}`, diffs.length === 0, diffs.join(' | '));
+      assertContract(`contrato: ${cellKey}`, rpcMetrics, { maxComp });
     }
   }
 }
 
-console.log('\n' + JSON.stringify(sortKeys(snapshot), null, 2));
-if (COMPARE_RPC) {
-  console.error(`\n=== RPC parity: ${rpcChecked - rpcFailed}/${rpcChecked} células OK ===`);
-  process.exit(rpcFailed ? 1 : 0);
+if (!SNAPSHOT_ONLY) {
+  // ===================================================================
+  // 2) CASOS-LIMITE — o RPC não pode estourar nem devolver lixo
+  // ===================================================================
+  console.log('\n### 2) Casos-limite ###');
+
+  // 2a. org sem nenhuma redação -> tudo zero/null/[]/{}
+  {
+    const { data: m, error } = await callRpc({ orgId: EMPTY_ORG.id });
+    check('vazio: RPC não estoura', !error, error?.message || '');
+    if (m) {
+      assertContract('vazio: contrato', m, { maxComp: 5 });
+      check('vazio: contagens = 0', m.received_week === 0 && m.pending_count === 0 && m.historical_received_week === 0);
+      check('vazio: médias = null', m.avg_score === null && m.highest_score === null && m.lowest_score === null && m.avg_correction_days === null && m.improvement_rate === null);
+      check('vazio: ranking = []', Array.isArray(m.ranking) && m.ranking.length === 0);
+      check('vazio: pending_by_type = {}', m.pending_by_type && Object.keys(m.pending_by_type).length === 0);
+      check('vazio: competency_scores = 5 itens todos avg null', m.competency_scores.length === 5 && m.competency_scores.every((c) => c.avg === null && c.count === 0));
+    }
+  }
+
+  // 2b. essay_type inexistente -> janela vazia, sem erro
+  {
+    const { data: m, error } = await callRpc({ orgId: ORGS[0].id, filterByType: 'inexistente' });
+    check('tipo inexistente: sem erro + zerado', !error && m && m.received_week === 0 && m.ranking.length === 0, error?.message || '');
+  }
+
+  // 2c. intervalo de datas invertido (lt < gte) -> janela vazia
+  {
+    const { data: m, error } = await callRpc({
+      orgId: ORGS[0].id,
+      submittedAtGte: '2030-01-01T00:00:00.000Z',
+      submittedAtLt: '2020-01-01T00:00:00.000Z',
+      dateRangeActive: true,
+    });
+    check('datas invertidas: sem erro + zerado', !error && m && m.received_week === 0, error?.message || '');
+  }
+
+  // 2d. intervalo bem no passado -> nada selecionado
+  {
+    const { data: m, error } = await callRpc({
+      orgId: ORGS[0].id,
+      submittedAtGte: '2000-01-01T00:00:00.000Z',
+      submittedAtLt: '2000-02-01T00:00:00.000Z',
+      dateRangeActive: true,
+    });
+    check('passado remoto: sem erro + zerado', !error && m && m.received_week === 0, error?.message || '');
+  }
+
+  // 2e. fuvest/vunesp -> competency_scores com 4 itens
+  {
+    const { data: m } = await callRpc({ orgId: ORGS[0].id, filterByType: 'vunesp' });
+    check('vunesp: competency_scores tem 4 itens', m && m.competency_scores.length === 4);
+  }
+
+  // 2f. p_second_corrector_id nulo não deve estourar (pending_by_type só conta 'pending')
+  {
+    const { data: m, error } = await callRpc({ orgId: ORGS[0].id, secondCorrectorId: null });
+    check('second_corrector null: sem erro', !error && m && typeof m.pending_by_type === 'object', error?.message || '');
+  }
+
+  // ===================================================================
+  // 3) ENVELOPE DA ROTA — pending_by_type coerente com contagem direta
+  // ===================================================================
+  console.log('\n### 3) Coerência com contagem direta ###');
+  for (const org of ORGS) {
+    const { data: m } = await callRpc({ orgId: org.id });
+    const { count: pendCount } = await admin.from('essays')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', org.id).eq('status', 'pending');
+    const sumPbt = Object.values(m.pending_by_type || {}).reduce((a, b) => a + b, 0);
+    // pending_by_type = pending (todas) + awaiting_second (do corretor dummy = 0)
+    check(`${org.slug}: soma(pending_by_type) == count(status=pending)`, sumPbt === (pendCount || 0), `${sumPbt} vs ${pendCount}`);
+
+    const { count: recvCount } = await admin.from('essays')
+      .select('id', { count: 'exact', head: true }).eq('org_id', org.id);
+    check(`${org.slug}: received_week (sem filtro de data) <= total de redações da org`, m.received_week <= (recvCount || 0), `${m.received_week} vs ${recvCount}`);
+  }
+}
+
+// snapshot p/ registro / diff manual
+console.log('\n### snapshot (métricas por célula) ###');
+console.log(JSON.stringify(sortKeys(snapshot), null, 2));
+
+if (!SNAPSHOT_ONLY) {
+  console.error(`\n======================================`);
+  console.error(`  ${passed} checks OK, ${failed} FALHARAM`);
+  if (failed) { console.error(`\n  Falhas:`); failures.forEach((f) => console.error(`   - ${f}`)); }
+  console.error(`======================================`);
+  process.exit(failed ? 1 : 0);
 }
