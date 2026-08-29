@@ -117,6 +117,12 @@ export type QueuePopup =
       slug: string;
     })
   | (QueuePopupBase & {
+      kind: 'report_bounty_reward';
+      points: number;
+      reportCount: number;
+      slug: string;
+    })
+  | (QueuePopupBase & {
       kind: 'simulado_reward';
       pointsAwarded: number;
       newMonthlyPoints: number;
@@ -157,6 +163,7 @@ const POPUP_PRIORITIES: Record<QueuePopup['kind'], number> = {
   shield_earned: 50,
   question_session_reward: 60,
   simulado_reward: 60,
+  report_bounty_reward: 60,
   achievement_unlocked: 65,
   top3_entered: 70,
   streak: 80,

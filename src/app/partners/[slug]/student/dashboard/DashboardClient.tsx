@@ -31,6 +31,7 @@ import { StreakBrokenPopup } from '@/components/partners/gamification/StreakBrok
 import { StreakPointsLostPopup } from '@/components/partners/gamification/StreakPointsLostPopup';
 import { MonthEndScreen } from '@/components/partners/gamification/MonthEndScreen';
 import { AchievementUnlockedPopup } from '@/components/partners/gamification/AchievementUnlockedPopup';
+import { ReportBountyRewardPopup } from '@/components/partners/gamification/ReportBountyRewardPopup';
 import { AchievementInfoModal } from '@/components/partners/AchievementInfoModal';
 import { getAchievementIcon, getDifficultyStyle } from '@/lib/achievement-icons';
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
@@ -434,6 +435,40 @@ export function DashboardClient({
         .catch(() => {});
     });
     // refreshSummary é estável (vem do hook); busca única por montagem.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org.is_mock, slug]);
+
+  // ── Bug bounty: reivindica pontos de reports confirmados desde a última visita ──
+  // Cobre os dois cenários da feature: (1) aluno estava fora quando o admin
+  // aprovou → vê a animação ao entrar; (2) aluno já estava logado → vê ao
+  // navegar/recarregar o dashboard nesta mesma sessão. Endpoint é idempotente
+  // (marca bounty_seen_at no claim), então não repete a animação num refresh.
+  useEffect(() => {
+    if (org.is_mock) return;
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'https://studytrack-backend.fly.dev').replace(/\/$/, '');
+
+      fetch(`${api}/api/questions/reports/bounty/pending-rewards`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { has_reward?: boolean; total_points?: number; report_count?: number } | null) => {
+          if (!data?.has_reward || !data.total_points) return;
+          enqueuePopup({
+            kind: 'report_bounty_reward',
+            routeScope: 'dashboard',
+            points: data.total_points,
+            reportCount: data.report_count ?? 1,
+            slug,
+            dedupeKey: `report-bounty:${data.total_points}:${data.report_count ?? 1}`,
+          });
+          void refreshSummary();
+        })
+        .catch(() => {});
+    });
+    // enqueuePopup/refreshSummary são estáveis; busca única por montagem.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org.is_mock, slug]);
 
@@ -1608,6 +1643,15 @@ export function DashboardClient({
             rankDropped={currentPopup.result.rank_dropped}
             rivalName={currentPopup.result.rival_name}
             currentRank={currentPopup.result.current_rank}
+            onDismiss={dismissCurrentPopup}
+          />
+        )}
+
+        {currentPopup?.kind === 'report_bounty_reward' && (
+          <ReportBountyRewardPopup
+            points={currentPopup.points}
+            reportCount={currentPopup.reportCount}
+            slug={currentPopup.slug}
             onDismiss={dismissCurrentPopup}
           />
         )}
