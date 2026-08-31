@@ -29,6 +29,8 @@ import { toast } from 'sonner';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getProgressTierMeta } from '@/components/partners/gamification/titleSystem';
+import { StreakFlame } from '@/components/partners/gamification/StreakFlame';
+import { getStreakStage } from '@/components/partners/gamification/streakEvolution';
 import { useOrg } from '@/contexts/OrgContext';
 import { readableBrandText, readableBrandTextOnDark, onBrandText, resolveAccentColor } from '@/lib/brand-color';
 import { RevealGroup, RevealItem, ElevatedCard, SectionTitle, BrandHero, HERO_ACCENT_COLOR, MiniBar } from '@/components/partners/founder-ui';
@@ -439,12 +441,18 @@ function RankRow({ entry, isSelf, isPrize, index, primaryHex }: RowProps) {
           >
             {getRankingDisplayName(entry, { isSelf, withYouSuffix: true })}
           </p>
-          {hasActiveStreak && (
-            <span className="ml-1.5 inline-flex shrink-0 items-center gap-0.5 text-[10px] font-bold text-orange-500 dark:text-orange-400">
-              <span className="tabular-nums">{entry.current_streak_days}</span>
-              <Flame className="h-3 w-3" />
-            </span>
-          )}
+          {hasActiveStreak && (() => {
+            const st = getStreakStage(entry.current_streak_days ?? 0);
+            return (
+              <span
+                className="ml-1.5 inline-flex shrink-0 items-center gap-0.5 text-[10px] font-bold tabular-nums"
+                style={{ color: st.color }}
+              >
+                {entry.current_streak_days}
+                <StreakFlame stage={st.id} size={12} animated={false} />
+              </span>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-1 mt-0.5">
           <ProgressIcon

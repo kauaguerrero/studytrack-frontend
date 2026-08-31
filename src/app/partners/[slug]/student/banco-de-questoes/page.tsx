@@ -20,6 +20,7 @@ import {
 import { QuestionCard } from '@/components/questions/QuestionCard';
 import { ReportDialog } from '@/components/questions/ReportDialog';
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
+import { getStreakStage, crossedStageBoundary } from '@/components/partners/gamification/streakEvolution';
 import { toast } from 'sonner';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 
@@ -545,6 +546,9 @@ export default function BancoDeQuestoes() {
           kind: 'streak',
           routeScope: 'dashboard',
           streak: nextStreak,
+          stage: getStreakStage(nextStreak).id,
+          stageName: getStreakStage(nextStreak).name,
+          isNewStage: crossedStageBoundary(nextStreak) != null,
           dedupeKey: `streak:${nextStreak}`,
         });
       }

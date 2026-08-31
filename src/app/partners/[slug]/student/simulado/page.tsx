@@ -31,6 +31,7 @@ import { useOrg } from '@/contexts/OrgContext'
 import { ReportDialog } from '@/components/questions/ReportDialog'
 import { SimuladoRewardPopup } from '@/components/partners/gamification/SimuladoRewardPopup'
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext'
+import { getStreakStage, crossedStageBoundary } from '@/components/partners/gamification/streakEvolution'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
@@ -1263,6 +1264,9 @@ export default function SimuladoPage() {
               kind: 'streak',
               routeScope: 'dashboard',
               streak: data.new_streak,
+              stage: getStreakStage(data.new_streak).id,
+              stageName: getStreakStage(data.new_streak).name,
+              isNewStage: crossedStageBoundary(data.new_streak) != null,
               dedupeKey: `streak:${data.new_streak}`,
             })
           }

@@ -135,8 +135,11 @@ interface Achievement {
   progress: number
   unlocked: boolean
   difficulty: string
-  difficulty_label: string
-  chance_pct: number
+  difficulty_label: string | null
+  chance_pct: number | null
+  /** Conquista secreta ainda travada — vem mascarada do backend ("******" /
+   * "Shhhhhh"), sem critério nem progresso. Não renderiza barra nem raridade. */
+  hidden?: boolean
 }
 
 const BRAND_PRIMARY = 'var(--brand-primary)'
@@ -1114,7 +1117,9 @@ export default function PerfilPage() {
                               className={`relative overflow-hidden rounded-xl border p-4 transition-all ${
                                 style
                                   ? `${style.cardBorder} ${style.cardBg} ${style.glow ?? ''}`
-                                  : 'border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-white/[0.03]'
+                                  : a.hidden
+                                    ? 'border-dashed border-slate-300 bg-slate-50/50 dark:border-slate-700 dark:bg-white/[0.02]'
+                                    : 'border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-white/[0.03]'
                               }`}
                             >
                               <div className="flex items-start gap-3">
@@ -1128,10 +1133,18 @@ export default function PerfilPage() {
                                   {a.unlocked ? <Icon className="h-5 w-5" /> : <Lock className="h-4 w-4" />}
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <p className={`text-sm font-bold ${a.unlocked ? 'text-slate-900 dark:text-slate-50' : 'text-slate-500 dark:text-slate-400'}`}>
+                                  <p className={`text-sm font-bold ${
+                                    a.unlocked
+                                      ? 'text-slate-900 dark:text-slate-50'
+                                      : a.hidden
+                                        ? 'tracking-[0.3em] text-slate-400 dark:text-slate-500'
+                                        : 'text-slate-500 dark:text-slate-400'
+                                  }`}>
                                     {a.title}
                                   </p>
-                                  <p className="mt-0.5 text-xs leading-snug text-slate-500 dark:text-slate-400">{a.description}</p>
+                                  <p className="mt-0.5 text-xs leading-snug text-slate-500 dark:text-slate-400">
+                                    {a.hidden ? 'Shhhhhh' : a.description}
+                                  </p>
                                   {a.difficulty_label && formatChancePct(a.chance_pct) && (
                                     <p className={`mt-1.5 text-[11px] font-bold ${style ? style.chanceText : 'text-slate-400 dark:text-slate-500'}`}>
                                       {a.difficulty_label} · {formatChancePct(a.chance_pct)} de chance
@@ -1139,7 +1152,7 @@ export default function PerfilPage() {
                                   )}
                                 </div>
                               </div>
-                              {!a.unlocked && (
+                              {!a.unlocked && !a.hidden && (
                                 <div className="mt-3">
                                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
                                     <div

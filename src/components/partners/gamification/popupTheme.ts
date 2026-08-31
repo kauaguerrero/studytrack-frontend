@@ -20,10 +20,13 @@ function toneAccent(tone: PopupTone): { dark: string; light: string } {
   }
 }
 
-export function usePopupTheme(tone: PopupTone) {
+export function usePopupTheme(
+  tone: PopupTone,
+  accentOverride?: { dark: string; light: string },
+) {
   const { resolvedTheme } = useStudentTheme();
   const isDark = resolvedTheme === 'dark';
-  const accent = toneAccent(tone);
+  const accent = accentOverride ?? toneAccent(tone);
 
   return {
     isDark,

@@ -24,6 +24,14 @@ import {
 } from '@/components/partners/founder-ui';
 import { OnboardingDiagnosticModal } from '@/components/partners/gamification/OnboardingDiagnosticModal';
 import { StreakPopup } from '@/components/partners/gamification/StreakPopup';
+import { StreakFlame } from '@/components/partners/gamification/StreakFlame';
+import {
+  getStreakStage,
+  getStreakStageProgress,
+  isMaxStreakStage,
+  crossedStageBoundary,
+  RAINBOW_GRADIENT,
+} from '@/components/partners/gamification/streakEvolution';
 import { ShieldPopup } from '@/components/partners/gamification/ShieldPopup';
 import { ContextualPopup } from '@/components/partners/gamification/ContextualPopup';
 import { Top3Popup } from '@/components/partners/gamification/Top3Popup';
@@ -227,16 +235,7 @@ function timeAgo(ts?: string | null): string {
 }
 
 // ─── Streak progress helper ──────────────────────────────────────────────────
-
-const STREAK_MILESTONES = [1, 3, 7, 14, 30, 60, 90];
-const MAX_STREAK_MILESTONE = STREAK_MILESTONES[STREAK_MILESTONES.length - 1];
-
-function getStreakProgress(streak: number): { next: number; pct: number } {
-  const next = STREAK_MILESTONES.find((m) => m > streak) ?? 100;
-  const prev = [...STREAK_MILESTONES].reverse().find((m) => m <= streak) ?? 0;
-  const pct = prev === next ? 100 : Math.round(((streak - prev) / (next - prev)) * 100);
-  return { next, pct: Math.min(pct, 100) };
-}
+// Marcos e estágios do foguinho vivem em streakEvolution.ts (fonte da verdade).
 
 /** Mini barra de progresso usada nos footers dos KPIs (marco de streak, XP). */
 function KpiProgressBar({ pct, color, label }: { pct: number; color: string; label: string }) {
@@ -381,9 +380,11 @@ export function DashboardClient({
         ? `/partners/${slug}/student/banco-de-questoes?subject=${encodeURIComponent(lastActivity.subject)}`
         : `/partners/${slug}/student/banco-de-questoes`;
 
-  // Streak milestone progress — alimenta a mini barra no KPI de Sequência
-  const { next: nextMilestone, pct: streakPct } = getStreakProgress(effectiveCurrentStreak);
-  const daysToMilestone = Math.max(0, nextMilestone - effectiveCurrentStreak);
+  // Estágio de evolução do foguinho + progresso até o próximo estágio.
+  const streakStage = getStreakStage(effectiveCurrentStreak);
+  const { next: nextStreakStage, daysToNext: daysToMilestone, pct: streakPct } =
+    getStreakStageProgress(effectiveCurrentStreak);
+  const streakAtMax = isMaxStreakStage(effectiveCurrentStreak);
 
   // ── Gamification hook ──────────────────────────────────────────────────────
   const {
@@ -653,14 +654,19 @@ export function DashboardClient({
           dedupeKey: 'dashboard-onboarding',
         });
         break;
-      case 'streak':
+      case 'streak': {
+        const s = popupState.streak ?? effectiveCurrentStreak;
         enqueuePopup({
           kind: 'streak',
           routeScope: 'dashboard',
-          streak: popupState.streak ?? effectiveCurrentStreak,
-          dedupeKey: `streak:${popupState.streak ?? effectiveCurrentStreak}`,
+          streak: s,
+          stage: getStreakStage(s).id,
+          stageName: getStreakStage(s).name,
+          isNewStage: crossedStageBoundary(s) != null,
+          dedupeKey: `streak:${s}`,
         });
         break;
+      }
       case 'streak_broken':
         enqueuePopup({
           kind: 'streak_broken',
@@ -1017,8 +1023,9 @@ export function DashboardClient({
             <KpiCard
               title="Sequência"
               value={effectiveCurrentStreak}
-              subtitle={effectiveCurrentStreak === 1 ? '1 dia seguido' : `${effectiveCurrentStreak} dias seguidos`}
+              subtitle={`${effectiveCurrentStreak === 1 ? '1 dia seguido' : `${effectiveCurrentStreak} dias seguidos`}${streakStage.id > 0 ? ` · ${streakStage.name}` : ''}`}
               icon={Flame}
+              iconNode={<StreakFlame stage={streakStage.id} size={20} animated={!shouldReduce} />}
               accentColor="var(--brand-primary)"
               accentHex={org.brand_primary}
               topRightBadge={hasStreakLeaderBadge ? (
@@ -1034,14 +1041,18 @@ export function DashboardClient({
               ) : undefined}
               footer={
                 <KpiProgressBar
-                  pct={effectiveCurrentStreak >= MAX_STREAK_MILESTONE ? 100 : streakPct}
-                  color="linear-gradient(90deg, #F97316, #EF4444)"
+                  pct={streakAtMax ? 100 : streakPct}
+                  color={
+                    streakStage.rainbow
+                      ? RAINBOW_GRADIENT
+                      : `linear-gradient(90deg, ${streakStage.color}, ${nextStreakStage?.color ?? streakStage.color})`
+                  }
                   label={
-                    effectiveCurrentStreak >= MAX_STREAK_MILESTONE
-                      ? `Marco máximo de ${MAX_STREAK_MILESTONE} dias alcançado!`
+                    streakAtMax
+                      ? `${streakStage.name} — sequência máxima`
                       : daysToMilestone === 1
-                        ? `Falta 1 dia para o marco de ${nextMilestone}`
-                        : `Faltam ${daysToMilestone} dias para o marco de ${nextMilestone}`
+                        ? `Falta 1 dia para ${nextStreakStage?.name}`
+                        : `Faltam ${daysToMilestone} dias para ${nextStreakStage?.name}`
                   }
                 />
               }
@@ -1584,6 +1595,9 @@ export function DashboardClient({
         {currentPopup?.kind === 'streak' && (
           <StreakPopup
             streak={currentPopup.streak}
+            stage={currentPopup.stage}
+            stageName={currentPopup.stageName}
+            isNewStage={currentPopup.isNewStage}
             onDismiss={handleStreakDismiss}
           />
         )}

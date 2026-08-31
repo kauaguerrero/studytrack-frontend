@@ -1,7 +1,7 @@
 import {
   Footprints, BookOpen, Brain, Crown, FileCheck, ClipboardList,
   Trophy, Flame, FlameKindling, PenLine, Medal, Compass, LibraryBig,
-  Moon, Sunrise, Sparkles, Zap, ShieldCheck, Award, Gem, Infinity, Star,
+  Moon, Sunrise, Sparkles, Zap, ShieldCheck, ShieldPlus, Award, Gem, Infinity, Star,
   Rocket, Mountain, Orbit, Bug,
   type LucideIcon,
 } from 'lucide-react';
@@ -29,6 +29,7 @@ export const ACHIEVEMENT_ICONS: Record<string, LucideIcon> = {
   sparkles: Sparkles,
   zap: Zap,
   'shield-check': ShieldCheck,
+  'shield-plus': ShieldPlus,
   award: Award,
   gem: Gem,
   infinity: Infinity,

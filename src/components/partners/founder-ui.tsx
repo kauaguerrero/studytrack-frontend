@@ -98,6 +98,7 @@ export function KpiCard({
   deltaLabel,
   topRightBadge,
   iconAdornment,
+  iconNode,
   footer,
 }: {
   title: string;
@@ -115,6 +116,10 @@ export function KpiCard({
   topRightBadge?: React.ReactNode;
   /** Conteúdo extra ao lado do ícone principal (ex: escudo de proteção de sequência). */
   iconAdornment?: React.ReactNode;
+  /** Substitui o ícone lucide padrão por um nó custom auto-colorido (ex: foguinho
+   * de sequência que muda de cor por estágio). `icon` continua obrigatório como
+   * fallback de tipo, mas é ignorado quando `iconNode` está presente. */
+  iconNode?: React.ReactNode;
   /** Conteúdo extra abaixo do subtitle (ex: mini barra de progresso de marco). */
   footer?: React.ReactNode;
 }) {
@@ -151,10 +156,12 @@ export function KpiCard({
                 boxShadow: `inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 8px color-mix(in srgb, ${accentColor} 22%, transparent)`,
               }}
             >
-              <Icon
-                className="relative z-10 h-[18px] w-[18px]"
-                style={{ color: iconColor }}
-              />
+              {iconNode ?? (
+                <Icon
+                  className="relative z-10 h-[18px] w-[18px]"
+                  style={{ color: iconColor }}
+                />
+              )}
             </div>
             {iconAdornment}
           </div>

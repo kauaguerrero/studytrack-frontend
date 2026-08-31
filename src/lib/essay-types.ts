@@ -13,7 +13,16 @@ const _ueg     = [0, 5, 10, 15, 20];
 // FUVEST: 4 critérios com pesos 3, 2, 3, 2 (escala interna 0–5, multiplicado pelo peso)
 const _fuvestP3 = [0, 3, 6, 9, 12, 15]; // peso 3 → máx 15 pts
 const _fuvestP2 = [0, 2, 4, 6, 8, 10];  // peso 2 → máx 10 pts
-// VUNESP: escala bruta 0–11 (convertida para escala do edital via NF = NC × 28 / 11)
+// VUNESP/UNESP (critérios vigentes, ref. Vestibular Meio de Ano 2024):
+//   A – Tema ........................ 0–3
+//   B – Gênero/tipo e coerência ..... 0–4
+//   C – Modalidade .................. 1–4  (sem 0 — redação não anulada tem no mínimo 1)
+//   D – Coesão ...................... 1–3  (sem 0)
+// Soma bruta (NC): 0–14. Nota final do edital: NF = NC × 28 / 14 (= NC × 2).
+// O sistema guarda/exibe a nota BRUTA (0–14); a conversão p/ 28 é do edital.
+// Regras do Critério C que o corretor aplica à mão (não automatizáveis aqui):
+//   - texto com ≤15 linhas (fora título): -1 ponto só no C;
+//   - texto com ≤20 linhas (fora título): C não pode chegar ao máximo.
 
 export const ESSAY_TYPE_CONFIGS: Record<EssayType, EssayTypeConfig> = {
   enem: {
@@ -72,20 +81,20 @@ export const ESSAY_TYPE_CONFIGS: Record<EssayType, EssayTypeConfig> = {
   },
   vunesp: {
     label: 'VUNESP',
-    // Escala bruta: A=0–3, B=0–4, C=0–2, D=0–2 → soma 0–11 → NF = NC × 28 / 11
+    // Escala bruta: A=0–3, B=0–4, C=1–4, D=1–3 → soma 0–14 → NF = NC × 28 / 14
     competencies: [
-      'Tema (A) — adequação ao tema proposto',
-      'Estrutura, gênero/tipo e coerência (B) — dissertação argumentativa, tese e progressão',
-      'Língua, modalidade e registro (C) — norma-padrão, vocabulário e formalidade',
-      'Coesão (D) — conectivos, retomadas e articulação entre parágrafos',
+      'Tema (A): abordagem do tema proposto',
+      'Gênero, tipo de texto e coerência (B): texto dissertativo-argumentativo, tese defendida, progressão e ausência de contradições',
+      'Modalidade (C): norma-padrão, ortografia, pontuação, concordância, regência, precisão lexical e registro',
+      'Coesão (D): conectivos, retomadas, paragrafação e articulação entre as partes',
     ],
     score_options: [
-      [0, 1, 2, 3],      // A – Tema (máx 3)
-      [0, 1, 2, 3, 4],   // B – Estrutura/gênero/coerência (máx 4)
-      [0, 1, 2],         // C – Língua/modalidade/registro (máx 2)
-      [0, 1, 2],         // D – Coesão (máx 2)
+      [0, 1, 2, 3],         // A – Tema (0–3)
+      [0, 1, 2, 3, 4],      // B – Gênero/tipo e coerência (0–4)
+      [1, 2, 3, 4],         // C – Modalidade (1–4, sem 0)
+      [1, 2, 3],            // D – Coesão (1–3, sem 0)
     ],
-    total_max: 11,
+    total_max: 14,
   },
   geral: {
     label: 'Geral',
