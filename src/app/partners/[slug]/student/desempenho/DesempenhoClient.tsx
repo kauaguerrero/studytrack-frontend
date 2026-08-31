@@ -37,6 +37,8 @@ import { useOrg } from '@/contexts/OrgContext';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import { cn } from '@/lib/utils';
 import { RevealGroup, RevealItem } from '@/components/partners/founder-ui';
+import { StreakFlame } from '@/components/partners/gamification/StreakFlame';
+import { getStreakStage } from '@/components/partners/gamification/streakEvolution';
 import { readableBrandText } from '@/lib/brand-color';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -435,6 +437,7 @@ function KPI({
   value,
   hint,
   icon: Icon,
+  iconNode,
   accent,
   className,
 }: {
@@ -442,6 +445,7 @@ function KPI({
   value: React.ReactNode;
   hint: React.ReactNode;
   icon: React.ComponentType<{ className?: string }>;
+  iconNode?: React.ReactNode;
   accent: string;
   className?: string;
 }) {
@@ -461,7 +465,7 @@ function KPI({
             color: iconColor,
           }}
         >
-          <Icon className="h-5 w-5" />
+          {iconNode ?? <Icon className="h-5 w-5" />}
         </div>
       </div>
       <div className="text-sm leading-relaxed text-slate-600 dark:text-slate-200">{hint}</div>
@@ -880,9 +884,10 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
               className="lg:col-span-2"
               label="Ofensiva"
               value={`${analytics.overview.current_streak}d`}
-              hint={`${habits.activeDays7} de 7 dias ativos essa semana${summary?.shield_count ? ` • ${summary.shield_count} escudo${summary.shield_count === 1 ? '' : 's'} de proteção` : ''}`}
+              hint={`${getStreakStage(analytics.overview.current_streak).name} • ${habits.activeDays7} de 7 dias ativos essa semana${summary?.shield_count ? ` • ${summary.shield_count} escudo${summary.shield_count === 1 ? '' : 's'} de proteção` : ''}`}
               icon={Flame}
-              accent="#ea580c"
+              iconNode={<StreakFlame stage={getStreakStage(analytics.overview.current_streak).id} size={22} />}
+              accent={getStreakStage(analytics.overview.current_streak).id === 0 ? '#ea580c' : getStreakStage(analytics.overview.current_streak).color}
             />
           </RevealItem>
 

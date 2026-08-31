@@ -71,6 +71,11 @@ export type QueuePopup =
   | (QueuePopupBase & {
       kind: 'streak';
       streak: number;
+      /** Estágio de evolução do fogo (0-5) para `streak` dias. */
+      stage: number;
+      stageName: string;
+      /** Este incremento cruzou a fronteira de um estágio (turbina o popup). */
+      isNewStage: boolean;
     })
   | (QueuePopupBase & {
       kind: 'shield_popup';

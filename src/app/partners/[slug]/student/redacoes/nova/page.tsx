@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Lock, Send } from 'lucide-react';
+import { ArrowLeft, Camera, Check, FileText, Lock, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { getApiBaseUrl } from '@/lib/api-base';
@@ -12,6 +12,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import { useEssayWindowStatus, formatCountdown } from '@/hooks/useEssayWindowStatus';
 import { EssayRewardPopup } from '@/components/partners/gamification/EssayRewardPopup';
 import { PhotoEssayUploader } from '@/components/partners/essays/PhotoEssayUploader';
+import { EssayCriteriaExplainer } from '@/components/partners/essays/EssayCriteriaExplainer';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
@@ -334,31 +335,38 @@ export default function NovaRedacaoPage() {
           </div>
         ) : (
         <>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setMode('text')}
-            className={cn(
-              'flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold transition',
-              mode === 'text'
-                ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
-                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300',
-            )}
-          >
-            Texto
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('photo')}
-            className={cn(
-              'flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold transition',
-              mode === 'photo'
-                ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
-                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300',
-            )}
-          >
-            Foto
-          </button>
+        <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 dark:border-slate-700 dark:bg-slate-900/60">
+          {([
+            { key: 'text', label: 'Texto', Icon: FileText },
+            { key: 'photo', label: 'Foto', Icon: Camera },
+          ] as const).map(({ key, label, Icon }) => {
+            const active = mode === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setMode(key)}
+                className={cn(
+                  'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-150 active:scale-[0.98]',
+                  active
+                    ? 'text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200',
+                )}
+                style={
+                  active
+                    ? {
+                        backgroundColor: org.brand_primary || 'var(--brand-primary)',
+                        boxShadow: `0 8px 20px -10px color-mix(in srgb, ${org.brand_primary || 'var(--brand-primary)'} 55%, transparent)`,
+                      }
+                    : undefined
+                }
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="space-y-4">
@@ -471,34 +479,49 @@ export default function NovaRedacaoPage() {
             </div>
           )}
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Tipo de redação
             </p>
             <div className="flex flex-wrap gap-2">
-              {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => (
-                <button
-                  key={key}
-                  type="button"
-                  disabled={essayTypeLocked}
-                  onClick={() => setEssayType(key)}
-                  className={cn(
-                    'rounded-xl border px-3 py-2 text-sm font-semibold transition',
-                    essayType === key
-                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300',
-                    essayTypeLocked && 'cursor-default opacity-70',
-                  )}
-                >
-                  {cfg.label}
-                </button>
-              ))}
+              {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => {
+                const selected = essayType === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={selected}
+                    disabled={essayTypeLocked}
+                    onClick={() => setEssayType(key)}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-all duration-150 active:scale-[0.97]',
+                      selected
+                        ? 'border-transparent text-white'
+                        : 'border-slate-200 bg-white text-slate-600 hover:-translate-y-px hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-900',
+                      essayTypeLocked && !selected && 'pointer-events-none opacity-40',
+                      essayTypeLocked && 'cursor-default active:scale-100',
+                    )}
+                    style={
+                      selected
+                        ? {
+                            backgroundColor: org.brand_primary || 'var(--brand-primary)',
+                            boxShadow: `0 8px 20px -8px color-mix(in srgb, ${org.brand_primary || 'var(--brand-primary)'} 55%, transparent)`,
+                          }
+                        : undefined
+                    }
+                  >
+                    {selected && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                    {cfg.label}
+                  </button>
+                );
+              })}
             </div>
             {essayTypeLocked && (
               <p className="text-[11px] text-slate-400 dark:text-slate-500">
                 Tipo definido pela coletânea.
               </p>
             )}
+            <EssayCriteriaExplainer essayType={essayType} className="mt-2" />
           </div>
 
           <div className="space-y-1">
