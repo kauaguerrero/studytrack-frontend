@@ -17,6 +17,78 @@ interface CriterionInfo {
 /** Detalhamento por banca. Hoje só VUNESP/UNESP tem o texto completo; as demais
  * caem no resumo genérico montado a partir de ESSAY_TYPE_CONFIGS. */
 const DETAILED: Partial<Record<EssayType, { intro: string; criteria: CriterionInfo[]; zero: string }>> = {
+  enem: {
+    intro:
+      'Sua redação é corrigida por pelo menos dois avaliadores independentes, em 5 competências que valem de 0 a 200 pontos cada (níveis 0, 40, 80, 120, 160 e 200). A nota de cada avaliador é a soma das 5 competências (até 1000) e a nota final é a média das duas. Diferença maior que 100 no total, ou maior que 80 em uma competência, gera uma terceira correção.',
+    criteria: [
+      {
+        name: 'Competência 1: domínio da escrita formal',
+        range: '0 a 200',
+        levels: [
+          { score: '0', text: 'Demonstra desconhecimento da modalidade escrita formal.' },
+          { score: '40', text: 'Domínio precário, com desvios gramaticais, de registro e de convenções da escrita frequentes e variados.' },
+          { score: '80', text: 'Domínio insuficiente, com muitos desvios gramaticais, de registro e de convenções da escrita.' },
+          { score: '120', text: 'Domínio mediano, com alguns desvios gramaticais e de convenções da escrita.' },
+          { score: '160', text: 'Bom domínio, com poucos desvios gramaticais e de convenções da escrita.' },
+          { score: '200', text: 'Excelente domínio; eventuais desvios só são aceitos como exceção e sem repetição.' },
+        ],
+        note: 'Olha a construção das frases (períodos completos, sem truncamento) e os desvios de ortografia, pontuação, acentuação, crase, concordância, regência, registro (nada de informalidade ou gíria) e vocabulário.',
+      },
+      {
+        name: 'Competência 2: proposta e texto dissertativo-argumentativo',
+        range: '0 a 200',
+        levels: [
+          { score: '0', text: 'Fuga ao tema ou texto que não é dissertativo-argumentativo. Nestes casos a redação é anulada (0 em tudo).' },
+          { score: '40', text: 'Apresenta o assunto tangenciando o tema, ou domínio precário do texto dissertativo-argumentativo, com traços constantes de outros tipos de texto.' },
+          { score: '80', text: 'Desenvolve o tema copiando trechos dos textos motivadores, ou sem a estrutura de proposição, argumentação e conclusão.' },
+          { score: '120', text: 'Argumentação previsível e domínio mediano do texto dissertativo-argumentativo, com proposição, argumentação e conclusão.' },
+          { score: '160', text: 'Argumentação consistente e bom domínio do texto dissertativo-argumentativo, com proposição, argumentação e conclusão.' },
+          { score: '200', text: 'Argumentação consistente, repertório sociocultural produtivo e excelente domínio do texto dissertativo-argumentativo.' },
+        ],
+        note: 'Tangenciar o tema (falar só do assunto amplo) limita esta competência a 40 e ainda derruba as Competências 3 e 5. Repertório "de bolso" (referência decorada, sem ligação real com o tema) não conta como produtivo.',
+      },
+      {
+        name: 'Competência 3: seleção e organização em defesa do ponto de vista',
+        range: '0 a 200',
+        levels: [
+          { score: '0', text: 'Informações, fatos e opiniões sem relação com o tema e sem defesa de um ponto de vista.' },
+          { score: '40', text: 'Informações pouco relacionadas ao tema ou incoerentes, sem defesa de um ponto de vista.' },
+          { score: '80', text: 'Informações relacionadas ao tema, mas desorganizadas ou contraditórias e presas aos argumentos dos textos motivadores.' },
+          { score: '120', text: 'Informações relacionadas ao tema, presas aos textos motivadores e pouco organizadas, em defesa de um ponto de vista.' },
+          { score: '160', text: 'Informações relacionadas ao tema, organizadas, com indícios de autoria, em defesa de um ponto de vista.' },
+          { score: '200', text: 'Informações relacionadas ao tema de forma consistente e organizada, com autoria, em defesa de um ponto de vista.' },
+        ],
+        note: 'Avalia se há um projeto de texto (planejamento) e se cada argumento é de fato desenvolvido, e não só citado.',
+      },
+      {
+        name: 'Competência 4: coesão e mecanismos linguísticos',
+        range: '0 a 200',
+        levels: [
+          { score: '0', text: 'Não articula as informações.' },
+          { score: '40', text: 'Articula as partes do texto de forma precária.' },
+          { score: '80', text: 'Articula de forma insuficiente, com muitas inadequações, e usa poucos recursos de coesão.' },
+          { score: '120', text: 'Articula de forma mediana, com inadequações, e usa um repertório pouco variado de recursos de coesão.' },
+          { score: '160', text: 'Articula as partes do texto com poucas inadequações e repertório variado de recursos de coesão.' },
+          { score: '200', text: 'Articula bem as partes do texto e usa um repertório variado de recursos de coesão.' },
+        ],
+        note: 'Conectivos e operadores argumentativos, retomadas (pronomes, sinônimos) e paragrafação. Usar conectivo demais ou de forma forçada também conta como inadequação.',
+      },
+      {
+        name: 'Competência 5: proposta de intervenção',
+        range: '0 a 200',
+        levels: [
+          { score: '0', text: 'Não apresenta proposta de intervenção, ou apresenta uma sem relação com o tema.' },
+          { score: '40', text: 'Proposta vaga, precária ou ligada apenas ao assunto amplo.' },
+          { score: '80', text: 'Proposta relacionada ao tema, mas pouco desenvolvida ou solta em relação à discussão do texto.' },
+          { score: '120', text: 'Proposta mediana, relacionada ao tema e articulada à discussão.' },
+          { score: '160', text: 'Proposta bem elaborada, relacionada ao tema e articulada à discussão.' },
+          { score: '200', text: 'Proposta muito bem elaborada e detalhada, relacionada ao tema e articulada à discussão.' },
+        ],
+        note: 'Proposta completa: ação + quem executa (agente) + meio ou modo de execução + efeito ou finalidade + um detalhamento. Proposta que desrespeita os direitos humanos zera esta competência.',
+      },
+    ],
+    zero: 'Zera a redação (0 nas 5 competências): fuga total ao tema; texto que não é dissertativo-argumentativo; até 7 linhas (texto insuficiente); trecho de propósito desconectado do tema; identificar-se fora do campo próprio; folha em branco; texto em outra língua; letra ilegível; impropérios ou desenhos. Cópia dos textos motivadores ou do caderno de questões não é contada nas linhas.',
+  },
   vunesp: {
     intro:
       'Sua redação recebe uma nota em 4 critérios (A, B, C e D). A soma vai de 0 a 14 e depois é convertida para a escala do edital.',
