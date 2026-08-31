@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ImageIcon, Loader2, RotateCcw, RotateCw, Send } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ImageIcon, Loader2, RotateCcw, RotateCw, Send, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 
-type UploadState = 'idle' | 'transcribing' | 'review' | 'confirming' | 'error';
+type UploadState = 'idle' | 'transcribing' | 'review' | 'confirming' | 'rating' | 'error';
+
+const RATING_LABELS = ['', 'Ruim', 'Fraca', 'Ok', 'Boa', 'Excelente'];
 
 interface PhotoEssayUploaderProps {
   slug: string;
@@ -306,6 +308,12 @@ export function PhotoEssayUploader({
   // Aviso não-bloqueante: a heurística achou o texto deitado numa foto retrato.
   const [orientationWarning, setOrientationWarning] = useState<'none' | 'sideways'>('none');
   const [transcription, setTranscription] = useState('');
+  // Avaliação da transcrição, mostrada depois do envio (guia de qualidade pra nós).
+  const [submittedEssayId, setSubmittedEssayId] = useState('');
+  const [ratingStars, setRatingStars] = useState(0);
+  const [ratingHover, setRatingHover] = useState(0);
+  const [ratingComment, setRatingComment] = useState('');
+  const [ratingBusy, setRatingBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [fileError, setFileError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -517,7 +525,13 @@ export function PhotoEssayUploader({
         return;
       }
 
-      onSuccess(data?.essay_id ?? '');
+      const newId = data?.essay_id ?? '';
+      if (!newId) {
+        onSuccess('');
+        return;
+      }
+      setSubmittedEssayId(newId);
+      setUploadState('rating');
     } catch (error) {
       setUploadState('error');
       setErrorMessage(
@@ -526,6 +540,32 @@ export function PhotoEssayUploader({
           : 'Não foi possível conectar ao servidor. Tente novamente.',
       );
     }
+  }
+
+  // Envia a avaliação da transcrição (best-effort) e sai da tela. Falha aqui
+  // nunca prende o aluno — a redação já foi enviada.
+  async function finishRating(withRating: boolean) {
+    if (withRating && submittedEssayId && ratingStars > 0) {
+      setRatingBusy(true);
+      try {
+        await fetchWithTimeout(
+          `/api/partners/${slug}/essays/${submittedEssayId}/transcription-rating`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              rating: ratingStars,
+              comment: ratingComment.trim() || undefined,
+            }),
+          },
+          15_000,
+        );
+      } catch {
+        // silencioso: a avaliação é opcional
+      }
+      setRatingBusy(false);
+    }
+    onSuccess(submittedEssayId);
   }
 
   // ─── Modal de instruções ───────────────────────────────────────────────────
@@ -946,6 +986,85 @@ export function PhotoEssayUploader({
             >
               <Send className="h-4 w-4" />
               Confirmar e Enviar
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // ─── Estado: rating (pós-envio) ────────────────────────────────────────────
+  if (uploadState === 'rating') {
+    const shown = ratingHover || ratingStars;
+    return (
+      <>
+        {modal}
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8">
+          <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-500" />
+          <p className="mt-2 text-lg font-bold text-slate-900 dark:text-white">
+            Redação enviada!
+          </p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            Como ficou a transcrição da sua letra? Sua nota ajuda a gente a melhorar a
+            leitura automática.
+          </p>
+
+          <div
+            className="mt-5 flex justify-center gap-1"
+            onMouseLeave={() => setRatingHover(0)}
+          >
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onMouseEnter={() => setRatingHover(n)}
+                onFocus={() => setRatingHover(n)}
+                onClick={() => setRatingStars(n)}
+                aria-label={`${n} ${n === 1 ? 'estrela' : 'estrelas'}`}
+                aria-pressed={ratingStars === n}
+                className="rounded p-1 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+              >
+                <Star
+                  className={cn(
+                    'h-9 w-9 transition-colors',
+                    shown >= n
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'fill-transparent text-slate-300 dark:text-slate-600',
+                  )}
+                />
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 h-4 text-xs font-semibold text-amber-600 dark:text-amber-400">
+            {RATING_LABELS[shown] || ''}
+          </p>
+
+          <textarea
+            value={ratingComment}
+            onChange={(e) => setRatingComment(e.target.value.slice(0, 2000))}
+            placeholder="Comentário (opcional): o que a transcrição errou ou acertou?"
+            rows={3}
+            className="mt-3 w-full resize-y rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+          />
+
+          <div className="mt-4 flex flex-col gap-2">
+            <button
+              type="button"
+              disabled={ratingStars === 0 || ratingBusy}
+              onClick={() => finishRating(true)}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
+            >
+              {ratingBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4" />}
+              Enviar avaliação
+            </button>
+            <button
+              type="button"
+              disabled={ratingBusy}
+              onClick={() => finishRating(false)}
+              className="text-sm font-medium text-slate-500 transition hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"
+            >
+              Agora não
             </button>
           </div>
         </div>
