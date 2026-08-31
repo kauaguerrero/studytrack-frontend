@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ImageIcon, Loader2, RotateCcw, Send } from 'lucide-react';
+import { AlertTriangle, ImageIcon, Loader2, RotateCcw, RotateCw, Send } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 
@@ -24,6 +24,41 @@ const UPLOAD_TARGET_BYTES = 3.5 * 1024 * 1024; // margem segura abaixo do limite
 const MAX_DIMENSION = 1920;
 const TRANSCRIPTION_TIMEOUT_MS = 90_000;
 const CONFIRM_TIMEOUT_MS = 90_000;
+
+/** Aplica no arquivo o giro que o aluno escolheu no preview (0/90/180/270,
+ * sentido horário). Assim a imagem que vai pro Gemini E a que fica no bucket
+ * já saem na posição de leitura. Fallback silencioso: devolve o arquivo original. */
+async function applyRotation(file: File, degrees: number): Promise<File> {
+  const d = (((degrees % 360) + 360) % 360);
+  if (d === 0) return file;
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      try {
+        URL.revokeObjectURL(objectUrl);
+        const swap = d === 90 || d === 270;
+        const canvas = document.createElement('canvas');
+        canvas.width = swap ? img.height : img.width;
+        canvas.height = swap ? img.width : img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(file); return; }
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((d * Math.PI) / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+        canvas.toBlob(
+          (blob) => resolve(blob ? new File([blob], 'redacao.jpg', { type: 'image/jpeg' }) : file),
+          'image/jpeg',
+          0.92,
+        );
+      } catch {
+        resolve(file);
+      }
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file); };
+    img.src = objectUrl;
+  });
+}
 
 async function compressImage(file: File): Promise<File> {
   return new Promise((resolve) => {
@@ -109,6 +144,84 @@ function checkPortraitOrientation(file: File): Promise<boolean> {
   });
 }
 
+/**
+ * Heurística leve de orientação, sem OCR: texto (manuscrito ou impresso) forma
+ * faixas horizontais fortes (linha de escrita, espaço, linha de escrita…). Se
+ * as faixas aparecem na VERTICAL, a folha provavelmente está deitada/de lado.
+ * Não distingue "em pé" de "de cabeça para baixo" (as duas têm faixas
+ * horizontais) — para isso o aluno confere no preview.
+ * Retorna `true` = "provavelmente fora da posição de leitura" (só um aviso).
+ */
+function looksMisoriented(file: File): Promise<boolean> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      try {
+        URL.revokeObjectURL(objectUrl);
+        const long = 360;
+        const scale = Math.min(1, long / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) { resolve(false); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        const { data } = ctx.getImageData(0, 0, w, h);
+
+        // luminância + limiar simples relativo à média (pega o "traço" escuro)
+        const lum = new Float32Array(w * h);
+        let sum = 0;
+        for (let i = 0; i < w * h; i++) {
+          const p = i * 4;
+          const v = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
+          lum[i] = v;
+          sum += v;
+        }
+        const mean = sum / (w * h);
+        const thr = mean * 0.8; // pixel de tinta = bem mais escuro que a média
+
+        // perfis de tinta por linha e por coluna, ignorando 10% de borda
+        const mx = Math.floor(w * 0.1), Mx = Math.ceil(w * 0.9);
+        const my = Math.floor(h * 0.1), My = Math.ceil(h * 0.9);
+        const rows = new Float32Array(h);
+        const cols = new Float32Array(w);
+        for (let y = my; y < My; y++) {
+          for (let x = mx; x < Mx; x++) {
+            if (lum[y * w + x] < thr) { rows[y] += 1; cols[x] += 1; }
+          }
+        }
+
+        // "bandas" = quantas vezes o perfil cruza a própria média (alternância
+        // texto/espaço). Muitas bandas num eixo = linhas de texto naquele eixo.
+        const bands = (arr: Float32Array, a: number, b: number): number => {
+          let s = 0, n = 0;
+          for (let i = a; i < b; i++) { s += arr[i]; n++; }
+          const avg = n ? s / n : 0;
+          let cross = 0, prev = arr[a] >= avg;
+          for (let i = a + 1; i < b; i++) {
+            const cur = arr[i] >= avg;
+            if (cur !== prev) cross++;
+            prev = cur;
+          }
+          return cross;
+        };
+        const rowBands = bands(rows, my, My);
+        const colBands = bands(cols, mx, Mx);
+
+        // faixas verticais claramente dominantes → folha deitada
+        resolve(colBands >= 6 && colBands > rowBands * 1.4);
+      } catch {
+        resolve(false);
+      }
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(false); };
+    img.src = objectUrl;
+  });
+}
+
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -186,6 +299,12 @@ export function PhotoEssayUploader({
   // Arquivo mantido em memória do estado idle até o confirming — nunca pedimos ao usuário selecionar duas vezes
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // Giro do preview: só 0 ou 180 (a foto já entra em retrato; 180° corrige
+  // "de cabeça para baixo" sem virar paisagem). Aplicado ao arquivo só na
+  // hora de transcrever/confirmar.
+  const [rotation, setRotation] = useState<0 | 180>(0);
+  // Aviso não-bloqueante: a heurística achou o texto deitado numa foto retrato.
+  const [orientationWarning, setOrientationWarning] = useState<'none' | 'sideways'>('none');
   const [transcription, setTranscription] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [fileError, setFileError] = useState('');
@@ -284,6 +403,9 @@ export function PhotoEssayUploader({
       return;
     }
 
+    // Foto deitada continua sendo barrada direto no upload — redação só entra
+    // em retrato. O aluno NÃO pode girar 90° pra "burlar" e enviar deitada
+    // (o único giro disponível no preview é 180°, que mantém o retrato).
     const isPortrait = await checkPortraitOrientation(file);
     if (!isPortrait) {
       setFileError('A foto parece estar na horizontal. Fotografe a redação na vertical, com a folha em pé.');
@@ -298,6 +420,18 @@ export function PhotoEssayUploader({
     const url = URL.createObjectURL(file);
     setSelectedFile(file);
     setPreviewUrl(url);
+    setRotation(0);
+
+    // Aviso não-bloqueante: a foto é retrato, mas a heurística achou o texto
+    // deitado (folha fotografada de lado dentro de um enquadramento vertical).
+    setOrientationWarning((await looksMisoriented(file)) ? 'sideways' : 'none');
+  }
+
+  function pickAnotherPhoto() {
+    if (inputRef.current) {
+      inputRef.current.value = '';
+      inputRef.current.click();
+    }
   }
 
   function resetToIdle() {
@@ -305,6 +439,8 @@ export function PhotoEssayUploader({
     setSelectedFile(null);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
+    setRotation(0);
+    setOrientationWarning('none');
     setTranscription('');
     setErrorMessage('');
     setFileError('');
@@ -322,7 +458,8 @@ export function PhotoEssayUploader({
     setUploadState('transcribing');
 
     try {
-      const fileToUpload = await compressImage(selectedFile);
+      const oriented = await applyRotation(selectedFile, rotation);
+      const fileToUpload = await compressImage(oriented);
       const formData = new FormData();
       formData.append('file', fileToUpload);
       formData.append('theme', theme);
@@ -358,7 +495,8 @@ export function PhotoEssayUploader({
     setUploadState('confirming');
 
     try {
-      const fileToUpload = await compressImage(selectedFile);
+      const oriented = await applyRotation(selectedFile, rotation);
+      const fileToUpload = await compressImage(oriented);
       const formData = new FormData();
       formData.append('file', fileToUpload);
       formData.append('theme', theme);
@@ -605,18 +743,32 @@ export function PhotoEssayUploader({
 
   // ─── Estado: idle ──────────────────────────────────────────────────────────
   if (uploadState === 'idle') {
+    const hasPhoto = !!(previewUrl && selectedFile);
     return (
       <>
         {modal}
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
-          <label className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center cursor-pointer transition hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-slate-600 dark:hover:bg-slate-900">
-            <ImageIcon className="h-10 w-10 text-slate-400" />
-            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
-              Tire uma foto clara da sua redação e faça upload
-            </span>
-            <span className="text-xs text-slate-400 dark:text-slate-500">
-              JPG, PNG ou WEBP · a imagem será otimizada automaticamente
-            </span>
+          {!hasPhoto && (
+            <label className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center cursor-pointer transition hover:border-slate-400 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-slate-600 dark:hover:bg-slate-900">
+              <ImageIcon className="h-10 w-10 text-slate-400" />
+              <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                Tire uma foto clara da sua redação e faça upload
+              </span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">
+                JPG, PNG ou WEBP · a imagem será otimizada automaticamente
+              </span>
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={handleFileChange}
+              />
+            </label>
+          )}
+
+          {/* input fica sempre no DOM pra "Trocar foto" reabrir o seletor */}
+          {hasPhoto && (
             <input
               ref={inputRef}
               type="file"
@@ -624,36 +776,81 @@ export function PhotoEssayUploader({
               className="sr-only"
               onChange={handleFileChange}
             />
-          </label>
+          )}
 
           {fileError && (
             <p className="text-sm text-red-600 dark:text-red-400">{fileError}</p>
           )}
 
-          {previewUrl && selectedFile && (
-            <div className="space-y-1.5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={previewUrl}
-                alt="Pré-visualização da redação"
-                className="max-h-52 w-full rounded-xl border border-slate-200 object-contain dark:border-slate-700"
-              />
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {selectedFile.name} · {(selectedFile.size / 1024 / 1024).toFixed(1)} MB
+          {hasPhoto && (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Confira a foto antes de transcrever
               </p>
+
+              <div className="flex items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100 p-2 dark:border-slate-700 dark:bg-slate-950">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewUrl!}
+                  alt="Pré-visualização da redação"
+                  className="max-h-[60vh] w-auto max-w-full object-contain transition-transform duration-200"
+                  style={rotation ? { transform: `rotate(${rotation}deg)` } : undefined}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                  {selectedFile!.name} · {(selectedFile!.size / 1024 / 1024).toFixed(1)} MB
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setRotation((r) => (r === 0 ? 180 : 0))}
+                  aria-pressed={rotation === 180}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  <RotateCw className="h-4 w-4" />
+                  Girar 180°
+                </button>
+              </div>
+
+              {orientationWarning === 'sideways' ? (
+                <p className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    O texto desta foto parece estar <strong>deitado</strong>. Tire a foto
+                    de novo com a folha em pé, não deitada. Confira antes de transcrever.
+                  </span>
+                </p>
+              ) : (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                  Confira se a folha está em pé e o texto na posição de leitura. Se estiver
+                  de cabeça para baixo, toque em <strong>Girar 180°</strong>.
+                </p>
+              )}
             </div>
           )}
 
-          <button
-            type="button"
-            disabled={!selectedFile || !!fileError}
-            onClick={handleTranscribe}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ backgroundColor: 'var(--brand-primary)' }}
-          >
-            <ImageIcon className="h-4 w-4" />
-            Transcrever redação
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row-reverse">
+            <button
+              type="button"
+              disabled={!hasPhoto || !!fileError}
+              onClick={handleTranscribe}
+              className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
+            >
+              <ImageIcon className="h-4 w-4" />
+              {hasPhoto ? 'Confirmar e transcrever' : 'Transcrever redação'}
+            </button>
+            {hasPhoto && (
+              <button
+                type="button"
+                onClick={pickAnotherPhoto}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Trocar foto
+              </button>
+            )}
+          </div>
         </div>
       </>
     );
