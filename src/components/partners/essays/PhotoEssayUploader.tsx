@@ -317,6 +317,9 @@ export function PhotoEssayUploader({
   // Aviso não-bloqueante: a heurística achou o texto deitado numa foto retrato.
   const [orientationWarning, setOrientationWarning] = useState<'none' | 'sideways'>('none');
   const [transcription, setTranscription] = useState('');
+  // Transcrição crua do Gemini, congelada no momento em que chega (nunca é
+  // editada). Vai junto no envio só pra medir a qualidade da leitura.
+  const [rawTranscription, setRawTranscription] = useState('');
   // Progresso "falso" da transcrição: sobe continuamente até 90% e trava lá
   // até a resposta chegar; então salta pra 100%.
   const [progress, setProgress] = useState(0);
@@ -477,6 +480,7 @@ export function PhotoEssayUploader({
     setOrientationWarning('none');
     setProgress(0);
     setTranscription('');
+    setRawTranscription('');
     setErrorMessage('');
     setFileError('');
     if (inputRef.current) inputRef.current.value = '';
@@ -516,7 +520,9 @@ export function PhotoEssayUploader({
 
       // completa a barra e deixa o 100% visível um instante antes de trocar de tela
       setProgress(100);
-      setTranscription(data?.transcription ?? '');
+      const raw = data?.transcription ?? '';
+      setTranscription(raw);
+      setRawTranscription(raw);
       await new Promise((r) => setTimeout(r, 420));
       setUploadState('review');
     } catch (error) {
@@ -541,6 +547,7 @@ export function PhotoEssayUploader({
       formData.append('theme', theme);
       formData.append('essay_type', essayType);
       formData.append('confirmed_text', transcription.trim());
+      if (rawTranscription) formData.append('raw_transcription', rawTranscription);
       if (promptId) formData.append('prompt_id', promptId);
 
       const res = await fetchWithTimeout(`/api/partners/${slug}/essays/upload-image/confirm`, {
