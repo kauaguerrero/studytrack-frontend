@@ -9,6 +9,15 @@ type UploadState = 'idle' | 'transcribing' | 'review' | 'confirming' | 'rating' 
 
 const RATING_LABELS = ['', 'Ruim', 'Fraca', 'Ok', 'Boa', 'Excelente'];
 
+// Fases exibidas durante a transcrição. `at` = % em que a mensagem entra.
+const TRANSCRIBE_PHASES = [
+  { at: 0, label: 'Enviando a foto…' },
+  { at: 16, label: 'Melhorando a nitidez da imagem…' },
+  { at: 40, label: 'Alinhando e realçando o texto…' },
+  { at: 64, label: 'Lendo a sua letra…' },
+  { at: 90, label: 'Finalizando a transcrição…' },
+] as const;
+
 interface PhotoEssayUploaderProps {
   slug: string;
   theme: string;
@@ -308,6 +317,9 @@ export function PhotoEssayUploader({
   // Aviso não-bloqueante: a heurística achou o texto deitado numa foto retrato.
   const [orientationWarning, setOrientationWarning] = useState<'none' | 'sideways'>('none');
   const [transcription, setTranscription] = useState('');
+  // Progresso "falso" da transcrição: sobe continuamente até 90% e trava lá
+  // até a resposta chegar; então salta pra 100%.
+  const [progress, setProgress] = useState(0);
   // Avaliação da transcrição, mostrada depois do envio (guia de qualidade pra nós).
   const [submittedEssayId, setSubmittedEssayId] = useState('');
   const [ratingStars, setRatingStars] = useState(0);
@@ -384,6 +396,20 @@ export function PhotoEssayUploader({
     return () => clearTimeout(t);
   }, [currentScene, showModal]);
 
+  // Enquanto transcreve: incremento assintótico que desacelera e PARA em 90%.
+  // Se demorar, a barra fica travada lá; o salto pra 100% acontece no sucesso.
+  useEffect(() => {
+    if (uploadState !== 'transcribing') return;
+    const id = window.setInterval(() => {
+      setProgress((p) => {
+        if (p >= 90) return p; // trava em 90 (ou mantém o 100 do sucesso)
+        const step = Math.max(0.18, (90 - p) * 0.012);
+        return Math.min(90, p + step);
+      });
+    }, 240);
+    return () => window.clearInterval(id);
+  }, [uploadState]);
+
   function closeModal() {
     sessionStorage.setItem('photoEssayModalSeen', '1');
     setShowModal(false);
@@ -449,6 +475,7 @@ export function PhotoEssayUploader({
     setPreviewUrl(null);
     setRotation(0);
     setOrientationWarning('none');
+    setProgress(0);
     setTranscription('');
     setErrorMessage('');
     setFileError('');
@@ -463,6 +490,7 @@ export function PhotoEssayUploader({
       if (!canProceed) return;
     }
 
+    setProgress(6);
     setUploadState('transcribing');
 
     try {
@@ -486,7 +514,10 @@ export function PhotoEssayUploader({
         return;
       }
 
+      // completa a barra e deixa o 100% visível um instante antes de trocar de tela
+      setProgress(100);
       setTranscription(data?.transcription ?? '');
+      await new Promise((r) => setTimeout(r, 420));
       setUploadState('review');
     } catch (error) {
       setUploadState('error');
@@ -898,30 +929,78 @@ export function PhotoEssayUploader({
 
   // ─── Estado: transcribing ──────────────────────────────────────────────────
   if (uploadState === 'transcribing') {
+    const phase =
+      [...TRANSCRIBE_PHASES].reverse().find((p) => progress >= p.at) ?? TRANSCRIBE_PHASES[0];
+    const done = progress >= 100;
     return (
       <>
         {modal}
+        <style>{`
+          @keyframes _peuScan { 0% { transform: translateY(-100%); } 100% { transform: translateY(2400%); } }
+        `}</style>
         <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
           {previewUrl && (
-            <div className="space-y-1.5">
+            <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={previewUrl}
                 alt="Pré-visualização da redação"
-                className="max-h-52 w-full rounded-xl border border-slate-200 object-contain dark:border-slate-700"
+                className="max-h-52 w-full object-contain opacity-70"
               />
-              {selectedFile && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {selectedFile.name} · {(selectedFile.size / 1024 / 1024).toFixed(1)} MB
-                </p>
+              {/* linha de "scanner" varrendo a foto */}
+              {!done && (
+                <div
+                  className="pointer-events-none absolute inset-x-0 top-0 h-3"
+                  style={{
+                    background:
+                      'linear-gradient(180deg, transparent, color-mix(in srgb, var(--brand-primary) 55%, transparent), transparent)',
+                    animation: '_peuScan 1.8s linear infinite',
+                  }}
+                />
               )}
             </div>
           )}
-          <div className="flex flex-col items-center justify-center gap-4 py-10 text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-slate-500 dark:text-slate-400" />
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Transcrevendo sua redação… isso pode levar até 30 segundos.
-            </p>
+
+          {/* barra de progresso */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-xs font-medium">
+              <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                {done ? (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                ) : (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+                )}
+                {done ? 'Pronto!' : phase.label}
+              </span>
+              <span className="tabular-nums text-slate-400 dark:text-slate-500">
+                {Math.round(progress)}%
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+              <div
+                className="h-full rounded-full transition-[width] duration-300 ease-out"
+                style={{ width: `${progress}%`, backgroundColor: 'var(--brand-primary)' }}
+              />
+            </div>
+            {progress >= 90 && !done && (
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                Quase lá — fotos com iluminação baixa ou um pouco embaçadas podem demorar mais.
+              </p>
+            )}
+          </div>
+
+          {/* skeleton do texto que vai aparecer */}
+          <div className="space-y-2 rounded-xl border border-slate-100 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+            {[
+              'w-11/12', 'w-full', 'w-10/12', 'w-full', 'w-9/12',
+              'w-2/3', 'w-full', 'w-11/12', 'w-8/12',
+            ].map((w, i) => (
+              <div
+                key={i}
+                className={cn('h-3 animate-pulse rounded bg-slate-200 dark:bg-slate-800', w)}
+                style={{ animationDelay: `${i * 90}ms` }}
+              />
+            ))}
           </div>
         </div>
       </>
@@ -1077,13 +1156,36 @@ export function PhotoEssayUploader({
     return (
       <>
         {modal}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
-          <div className="flex flex-col items-center justify-center gap-4 py-10 text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-slate-500 dark:text-slate-400" />
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              Enviando redação…
-            </p>
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-6">
+          <div className="flex items-center gap-2.5 text-sm font-medium text-slate-700 dark:text-slate-200">
+            <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+            Enviando sua redação para correção…
           </div>
+
+          {/* skeleton do card da redação enviada */}
+          <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/40">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 shrink-0 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-800" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-2/5 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+                <div className="h-2.5 w-1/4 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+              </div>
+              <div className="h-5 w-16 shrink-0 animate-pulse rounded-full bg-slate-200 dark:bg-slate-800" />
+            </div>
+            <div className="space-y-2 pt-1">
+              {['w-11/12', 'w-full', 'w-10/12', 'w-full', 'w-8/12', 'w-9/12'].map((w, i) => (
+                <div
+                  key={i}
+                  className={cn('h-3 animate-pulse rounded bg-slate-200 dark:bg-slate-800', w)}
+                  style={{ animationDelay: `${i * 90}ms` }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <p className="text-center text-[11px] text-slate-400 dark:text-slate-500">
+            Você será avisado quando o professor devolver a correção.
+          </p>
         </div>
       </>
     );
