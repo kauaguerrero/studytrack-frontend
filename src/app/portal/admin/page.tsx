@@ -9,6 +9,7 @@ import PeakHoursCard from "@/components/admin/PeakHoursCard";
 import UsageTimeCard from "@/components/admin/UsageTimeCard";
 import StickinessCard, { type HealthData } from "@/components/admin/StickinessCard";
 import AIUsageRecentCard from "@/components/admin/AIUsageRecentCard";
+import InfraCostCards from "@/components/admin/InfraCostCards";
 import { KpiCard, ElevatedCard } from "@/components/partners/founder-ui";
 import { SmokeBackground } from "@/components/ui/spooky-smoke-animation";
 import { ExpandingIconButton } from "@/components/ui/expanding-icon-button";
@@ -757,6 +758,9 @@ export default function SuperAdminDashboard() {
           );
         })}
       </div>
+
+      {/* ── Custo de infra (GCP / Mathpix / Fly) ───────────────────────────── */}
+      <InfraCostCards />
 
       {/* ── Engajamento ────────────────────────────────────────────────────── */}
       {health && (
