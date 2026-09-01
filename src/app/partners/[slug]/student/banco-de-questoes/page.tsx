@@ -38,15 +38,23 @@ interface QuestionFilterOptions {
   difficulties: string[];
 }
 
+// Linha "crua" usada só para montar as opções dos filtros (facetas), nunca
+// para exibir a questão em si.
+interface QuestionMetaRow {
+  subject: string | null;
+  discipline: string | null;
+  difficulty: string | null;
+  exam_year: number | string | null;
+  bank: string | null;
+  metadata: Record<string, any> | null;
+  external_id: string | null;
+}
+
+type FilterDimension = 'subject' | 'bank' | 'topic' | 'year' | 'difficulty';
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TOTAL_QUESTIONS = 5000;
-const DEFAULT_FILTER_OPTIONS: QuestionFilterOptions = {
-  subjects: [],
-  banks: [],
-  years: [],
-  difficulties: [],
-};
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -152,8 +160,11 @@ export default function BancoDeQuestoes() {
   const [filterYear, setFilterYear] = useState('Todos');
   const [filterDifficulty, setFilterDifficulty] = useState('Todas');
 
-  const [availableTopics, setAvailableTopics] = useState<Topic[]>([]);
-  const [filterOptions, setFilterOptions] = useState<QuestionFilterOptions>(DEFAULT_FILTER_OPTIONS);
+  // Universo bruto de questões verificadas (buscado uma única vez) a partir
+  // do qual TODAS as opções de filtro (matéria, banca, tópico, ano,
+  // dificuldade) são derivadas de forma cruzada — cada dropdown reflete os
+  // demais filtros já selecionados, em qualquer ordem.
+  const [allQuestionMeta, setAllQuestionMeta] = useState<QuestionMetaRow[]>([]);
 
   // ── State: UI Controls ──────────────────────────────────────────────────────
   const [isMenuOpen, setIsMenuOpen] = useState(true);
@@ -249,9 +260,9 @@ export default function BancoDeQuestoes() {
     sessionStorage.removeItem('qsr_shield_earned');
   }, []);
 
-  // ── 2a. Filter options — sempre derivadas do banco ─────────────────────────
+  // ── 2a. Universo bruto de questões — buscado uma única vez ──────────────────
   useEffect(() => {
-    async function loadFilterOptions() {
+    async function loadQuestionMeta() {
       try {
         const supabase = createClient();
         const { data, error } = await supabase
@@ -261,62 +272,111 @@ export default function BancoDeQuestoes() {
           .limit(10000);
 
         if (error) throw error;
-
-        const rows = data || [];
-        setFilterOptions({
-          subjects: uniqueSorted(rows.map((row) => row.subject)),
-          banks: uniqueSorted(rows.map(inferQuestionBank)),
-          years: uniqueSorted(rows.map((row) => row.exam_year), true),
-          difficulties: uniqueSorted(rows.map((row) => row.difficulty)),
-        });
+        setAllQuestionMeta(data || []);
       } catch (err) {
         void reportError('QuestionBankFilterOptionsError', String(err));
       }
     }
 
-    loadFilterOptions();
+    loadQuestionMeta();
   }, []);
 
-  // ── 2. Topics — direto no Supabase (sem CORS) ────────────────────────────────
-  useEffect(() => {
-    if (!userId) return;
+  // Um tópico/disciplina de uma linha bruta, com o mesmo fallback usado em
+  // todo o resto do arquivo (discipline > metadata.ai_topic).
+  const topicOf = useCallback((row: QuestionMetaRow): string | null => {
+    return row.discipline?.trim() || (row.metadata as any)?.ai_topic?.trim() || null;
+  }, []);
 
-    async function loadTopics() {
-      try {
-        const supabase = createClient();
-        const query = supabase
-          .from('questions')
-          .select('discipline, metadata, external_id, bank')
-          .eq('is_verified', true)
-          .limit(2000);
-
-        const subjectQuery = !filterSubject || filterSubject === 'Todas' ? '' : filterSubject;
-        const { data } = await (subjectQuery
-          ? query.ilike('subject', `%${subjectQuery}%`)
-          : query);
-
-        const counter: Record<string, number> = {};
-        for (const row of data || []) {
-          if (filterBank !== 'Todas' && inferQuestionBank(row) !== filterBank) continue;
-          const t: string | null =
-            row.discipline?.trim() ||
-            (row.metadata as any)?.ai_topic?.trim() ||
-            null;
-          if (t && t.length > 2) counter[t] = (counter[t] || 0) + 1;
-        }
-
-        const sorted = Object.entries(counter)
-          .sort(([, a], [, b]) => b - a)
-          .map(([name, count]) => ({ name, count }));
-
-        setAvailableTopics(sorted);
-        setFilterTopic('Todos');
-      } catch (err) {
-        void reportError('QuestionBankTopicsError', String(err));
+  // Testa se uma linha bate com os filtros ATUALMENTE selecionados, ignorando
+  // a dimensão passada em `exclude` — é assim que cada dropdown reflete os
+  // OUTROS filtros já escolhidos, em qualquer ordem, sem se autoexcluir.
+  const matchesOtherFilters = useCallback(
+    (row: QuestionMetaRow, exclude: FilterDimension): boolean => {
+      if (exclude !== 'subject' && filterSubject !== 'Todas') {
+        if (String(row.subject || '').trim().toLowerCase() !== filterSubject.trim().toLowerCase()) return false;
       }
+      if (exclude !== 'bank' && filterBank !== 'Todas') {
+        if (inferQuestionBank(row) !== filterBank) return false;
+      }
+      if (exclude !== 'topic' && filterTopic !== 'Todos') {
+        if (topicOf(row) !== filterTopic) return false;
+      }
+      if (exclude !== 'year' && filterYear !== 'Todos') {
+        if (String(row.exam_year ?? '').trim() !== filterYear) return false;
+      }
+      if (exclude !== 'difficulty' && filterDifficulty !== 'Todas') {
+        if (String(row.difficulty || '').trim() !== filterDifficulty) return false;
+      }
+      return true;
+    },
+    [filterSubject, filterBank, filterTopic, filterYear, filterDifficulty, topicOf]
+  );
+
+  // ── 2b. Opções dos filtros — cruzadas: cada uma reflete as demais já
+  // selecionadas (matéria, banca, ano e dificuldade), em qualquer ordem que
+  // o aluno as escolha.
+  const filterOptions = useMemo<QuestionFilterOptions>(() => {
+    return {
+      subjects: uniqueSorted(
+        allQuestionMeta.filter((r) => matchesOtherFilters(r, 'subject')).map((r) => r.subject)
+      ),
+      banks: uniqueSorted(
+        allQuestionMeta.filter((r) => matchesOtherFilters(r, 'bank')).map(inferQuestionBank)
+      ),
+      years: uniqueSorted(
+        allQuestionMeta.filter((r) => matchesOtherFilters(r, 'year')).map((r) => r.exam_year),
+        true
+      ),
+      difficulties: uniqueSorted(
+        allQuestionMeta.filter((r) => matchesOtherFilters(r, 'difficulty')).map((r) => r.difficulty)
+      ),
+    };
+  }, [allQuestionMeta, matchesOtherFilters]);
+
+  // ── 2c. Tópicos — mesma lógica cruzada, agora também respeitando ano e
+  // dificuldade além de matéria/banca (antes só considerava matéria/banca).
+  const availableTopics = useMemo<Topic[]>(() => {
+    const counter: Record<string, number> = {};
+    for (const row of allQuestionMeta) {
+      if (!matchesOtherFilters(row, 'topic')) continue;
+      const t = topicOf(row);
+      if (t && t.length > 2) counter[t] = (counter[t] || 0) + 1;
     }
-    loadTopics();
-  }, [filterSubject, filterBank, userId]);
+    return Object.entries(counter)
+      .sort(([, a], [, b]) => b - a)
+      .map(([name, count]) => ({ name, count }));
+  }, [allQuestionMeta, matchesOtherFilters, topicOf]);
+
+  // ── 2d. Auto-correção: se a seleção atual de um filtro deixou de existir
+  // para a combinação dos demais (ex.: trocar o ano derrubou a única
+  // disciplina que estava selecionada), volta esse filtro para "todos" — sem
+  // apagar seleções que continuam válidas. Só roda depois que os dados
+  // carregaram, para não resetar um filtro vindo de deep-link (?subject=)
+  // antes da primeira busca terminar.
+  useEffect(() => {
+    if (allQuestionMeta.length === 0) return;
+    if (filterSubject !== 'Todas' && !filterOptions.subjects.includes(filterSubject)) setFilterSubject('Todas');
+  }, [allQuestionMeta.length, filterOptions.subjects, filterSubject]);
+
+  useEffect(() => {
+    if (allQuestionMeta.length === 0) return;
+    if (filterBank !== 'Todas' && !filterOptions.banks.includes(filterBank)) setFilterBank('Todas');
+  }, [allQuestionMeta.length, filterOptions.banks, filterBank]);
+
+  useEffect(() => {
+    if (allQuestionMeta.length === 0) return;
+    if (filterTopic !== 'Todos' && !availableTopics.some((t) => t.name === filterTopic)) setFilterTopic('Todos');
+  }, [allQuestionMeta.length, availableTopics, filterTopic]);
+
+  useEffect(() => {
+    if (allQuestionMeta.length === 0) return;
+    if (filterYear !== 'Todos' && !filterOptions.years.includes(filterYear)) setFilterYear('Todos');
+  }, [allQuestionMeta.length, filterOptions.years, filterYear]);
+
+  useEffect(() => {
+    if (allQuestionMeta.length === 0) return;
+    if (filterDifficulty !== 'Todas' && !filterOptions.difficulties.includes(filterDifficulty)) setFilterDifficulty('Todas');
+  }, [allQuestionMeta.length, filterOptions.difficulties, filterDifficulty]);
 
   // ── Single-question mode: busca questão específica via deep-link de report ────
   useEffect(() => {

@@ -699,6 +699,12 @@ export default function AdminQuestionApproval() {
           .from('questions')
           .select('*')
           .eq('status', 'archived')
+          // O arquivo é só um "estacionamento" pra quem ainda está em revisão
+          // (is_verified=false). Se um report nessa questão for resolvido
+          // enquanto ela está arquivada, is_verified volta pra true sozinho
+          // (ver restore_question_verified_if_no_open_reports) — e ela deixa
+          // de ser "arquivada pendente" mesmo sem ninguém clicar em desarquivar.
+          .eq('is_verified', false)
           .order('created_at', { ascending: false })
           .range(from, from + PAGE_SIZE - 1);
 
