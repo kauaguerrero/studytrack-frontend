@@ -1,12 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Cloud,
-  ScanText,
-  Server,
-  LineChart as LineChartIcon,
-} from "lucide-react";
+import { Cloud, ScanText, LineChart as LineChartIcon } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -25,13 +20,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-type ProviderKey = "gcp" | "mathpix" | "fly";
+type ProviderKey = "gcp" | "mathpix";
 type Status = "ok" | "not_configured" | "error";
 
 interface ProviderSummary {
   provider: ProviderKey;
   status: Status;
-  granularity: "daily" | "month_to_date";
   mtd_usd: number | null;
   today_usd: number | null;
   prev_day_usd: number | null;
@@ -41,7 +35,6 @@ interface SeriesPoint {
   date: string;
   gcp: number | null;
   mathpix: number | null;
-  fly: number | null;
 }
 
 interface InfraCostResponse {
@@ -58,10 +51,9 @@ const META: Record<
 > = {
   gcp: { label: "Google Cloud", icon: Cloud, accent: "#2563eb" },
   mathpix: { label: "Mathpix", icon: ScanText, accent: "#16a34a" },
-  fly: { label: "Fly.io", icon: Server, accent: "#7c3aed" },
 };
 
-const ORDER: ProviderKey[] = ["gcp", "mathpix", "fly"];
+const ORDER: ProviderKey[] = ["gcp", "mathpix"];
 
 function formatUSD(n: number | null | undefined): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return "—";
@@ -151,7 +143,6 @@ export default function InfraCostCards() {
         map.get(key) ?? {
           provider: key,
           status: "not_configured",
-          granularity: "daily",
           mtd_usd: null,
           today_usd: null,
           prev_day_usd: null,
@@ -165,13 +156,12 @@ export default function InfraCostCards() {
         dm: Number(pt.date.slice(8, 10)),
         gcp: pt.gcp,
         mathpix: pt.mathpix,
-        fly: pt.fly,
       })),
     [data]
   );
 
   const hasAnySeries = chartData.some(
-    (d) => d.gcp !== null || d.mathpix !== null || d.fly !== null
+    (d) => d.gcp !== null || d.mathpix !== null
   );
 
   const totalMtd = providers.reduce(
@@ -181,7 +171,7 @@ export default function InfraCostCards() {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 md:gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4">
         {providers.map((p) => {
           const meta = META[p.provider];
           return (
@@ -270,15 +260,6 @@ export default function InfraCostCards() {
                       dataKey="mathpix"
                       name="Mathpix"
                       stroke={META.mathpix.accent}
-                      strokeWidth={2}
-                      dot={false}
-                      connectNulls
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="fly"
-                      name="Fly.io"
-                      stroke={META.fly.accent}
                       strokeWidth={2}
                       dot={false}
                       connectNulls
