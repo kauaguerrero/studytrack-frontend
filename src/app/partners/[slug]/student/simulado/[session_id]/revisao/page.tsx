@@ -9,7 +9,7 @@ import {
     extractAlternativeImageUrls,
     extractDetachedQuestionImageUrls,
     getQuestionContentBlocks,
-    splitQuestionContextAndSource,
+    splitQuestionContextSegments,
 } from '@/components/questions/rendering'
 import { createClient } from '@/lib/supabase/client'
 
@@ -246,9 +246,7 @@ export default function RevisaoPage() {
                         <div className="space-y-4">
                             {visibleQuestions.map((q, idx) => (
                                 (() => {
-                                    const contextSegments = splitQuestionContextAndSource(q.context)
-                                    const contextText = contextSegments.body
-                                    const sourceText = contextSegments.source
+                                    const contextSegments = splitQuestionContextSegments(q.context)
                                     const statementText = q.statement
                                     const supportImages = extractDetachedQuestionImageUrls(q.images, q.context, q.statement)
 
@@ -292,23 +290,25 @@ export default function RevisaoPage() {
                                             <QuestionContentBlocks metadata={q.metadata} className="mb-4" />
                                         ) : (
                                             <>
-                                                {contextText && (
-                                                    <QuestionRichText
-                                                        text={contextText}
-                                                        className="prose prose-sm prose-slate dark:prose-invert max-w-none mb-4 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-3"
-                                                    />
+                                                {contextSegments.map((segment, segmentIndex) =>
+                                                    segment.type === 'source' ? (
+                                                        <QuestionRichText
+                                                            key={`source-${segmentIndex}`}
+                                                            text={segment.text}
+                                                            className="prose prose-slate dark:prose-invert max-w-none -mt-2 mb-4 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
+                                                        />
+                                                    ) : (
+                                                        <QuestionRichText
+                                                            key={`body-${segmentIndex}`}
+                                                            text={segment.text}
+                                                            className="prose prose-sm prose-slate dark:prose-invert max-w-none mb-4 text-slate-600 dark:text-slate-300 border-l-4 border-slate-200 dark:border-slate-700 pl-3"
+                                                        />
+                                                    ),
                                                 )}
 
                                                 {/* Support images */}
                                                 {supportImages.length > 0 && (
                                                     <QuestionSupportImages images={supportImages} metadata={q.metadata} className="mb-4" />
-                                                )}
-
-                                                {sourceText && (
-                                                    <QuestionRichText
-                                                        text={sourceText}
-                                                        className="prose prose-slate dark:prose-invert max-w-none -mt-2 mb-4 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
-                                                    />
                                                 )}
                                             </>
                                         )}

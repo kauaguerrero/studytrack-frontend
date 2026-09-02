@@ -414,7 +414,13 @@ export function QuestionRichText({ text, className, style }: { text?: string | n
         }
 
         if (paragraph.trimStart().startsWith('§ ')) {
-          const content = paragraph.trimStart().slice(2)
+          // Remove o marcador de abertura e, quando presente, o de fechamento
+          // ("§ ... §") — o fechamento é opcional e serve apenas para
+          // delimitar a legenda com precisão na origem dos dados.
+          const withoutOpening = paragraph.trimStart().slice(2).trimEnd()
+          const content = withoutOpening.endsWith('§')
+            ? withoutOpening.slice(0, -1).trimEnd()
+            : withoutOpening
           return (
             <p key={`${paragraphIndex}-${paragraph.slice(0, 20)}`} className="mt-1 mb-3 text-sm italic text-slate-500 dark:text-slate-400">
               {renderInlineRichText(content, `${paragraphIndex}-fonte`)}

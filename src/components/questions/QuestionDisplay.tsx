@@ -6,7 +6,7 @@ import {
   extractAlternativeImageUrls,
   extractDetachedQuestionImageUrls,
   getQuestionContentBlocks,
-  splitQuestionContextAndSource,
+  splitQuestionContextSegments,
 } from '@/components/questions/rendering';
 
 export interface QuestionDisplayAlternative {
@@ -66,7 +66,7 @@ export function QuestionDisplay({
   }, [question.images, question.context, question.statement]);
 
   const contextSegments = useMemo(
-    () => splitQuestionContextAndSource(question.context),
+    () => splitQuestionContextSegments(question.context),
     [question.context],
   );
 
@@ -129,22 +129,25 @@ export function QuestionDisplay({
         <QuestionContentBlocks metadata={question.metadata} className="mb-6" />
       ) : (
         <>
-          {!suppressContext && contextSegments.body && (
-            <QuestionRichText
-              text={contextSegments.body}
-              className="mb-6 text-slate-700 dark:text-slate-300 border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed"
-            />
-          )}
+          {!suppressContext &&
+            contextSegments.map((segment, segmentIndex) =>
+              segment.type === 'source' ? (
+                <QuestionRichText
+                  key={`source-${segmentIndex}`}
+                  text={segment.text}
+                  className="prose prose-slate dark:prose-invert prose-xs max-w-none -mt-3 mb-5 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
+                />
+              ) : (
+                <QuestionRichText
+                  key={`body-${segmentIndex}`}
+                  text={segment.text}
+                  className="mb-6 text-slate-700 dark:text-slate-300 border-l-4 border-blue-200 dark:border-blue-700 pl-4 py-1 leading-relaxed"
+                />
+              ),
+            )}
 
           {!suppressContext && supportImages.length > 0 && (
             <QuestionSupportImages images={supportImages} metadata={question.metadata} className="mb-6" />
-          )}
-
-          {!suppressContext && contextSegments.source && (
-            <QuestionRichText
-              text={contextSegments.source}
-              className="prose prose-slate dark:prose-invert prose-xs max-w-none -mt-3 mb-5 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400"
-            />
           )}
         </>
       )}
