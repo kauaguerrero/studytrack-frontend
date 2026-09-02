@@ -1,10 +1,46 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/app/api/admin/_utils';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getUsdBrl } from '@/lib/fx';
 
 const FEATURE_LABELS: Record<string, { label: string; category: string }> = {
   essay_transcription: { label: 'Transcrição de Redação', category: 'Redações' },
 };
+
+// Início do mês corrente em horário de Brasília (UTC-3), como instante UTC.
+function currentMonthStartISO(): string {
+  const nowBrt = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  return new Date(
+    Date.UTC(nowBrt.getUTCFullYear(), nowBrt.getUTCMonth(), 1, 3, 0, 0),
+  ).toISOString();
+}
+
+// Soma cost_usd de TODOS os registros do mês, paginando de 1000 em 1000
+// (o PostgREST não devolve mais que isso por request).
+async function sumMonthCostUsd(
+  supabase: ReturnType<typeof createAdminClient>,
+  sinceISO: string,
+): Promise<number> {
+  const PAGE = 1000;
+  let from = 0;
+  let total = 0;
+
+  for (;;) {
+    const { data, error } = await (supabase as any)
+      .from('ai_usage_logs')
+      .select('cost_usd')
+      .gte('created_at', sinceISO)
+      .order('created_at', { ascending: true })
+      .range(from, from + PAGE - 1);
+
+    if (error || !data || data.length === 0) break;
+    for (const row of data) total += Number(row.cost_usd) || 0;
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+
+  return total;
+}
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -22,8 +58,21 @@ export async function GET() {
     return NextResponse.json({ error: 'Falha ao buscar logs de uso.' }, { status: 500 });
   }
 
+  // Custos de dev também são custos — nada de filtrar por ambiente aqui.
+  const [monthCostUsd, fx] = await Promise.all([
+    sumMonthCostUsd(supabase, currentMonthStartISO()),
+    getUsdBrl(),
+  ]);
+
+  const totals = {
+    month_cost_usd: monthCostUsd,
+    usd_brl: fx.rate,
+    usd_brl_source: fx.source,
+    usd_brl_updated_at: fx.updated_at,
+  };
+
   if (!logs || logs.length === 0) {
-    return NextResponse.json({ items: [] });
+    return NextResponse.json({ items: [], ...totals });
   }
 
   // Resolve org names from org_ids in metadata
@@ -66,5 +115,5 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ items });
+  return NextResponse.json({ items, ...totals });
 }

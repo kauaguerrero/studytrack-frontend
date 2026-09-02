@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sparkles } from "lucide-react";
+import { Sparkles, RefreshCw } from "lucide-react";
 
 interface AIUsageItem {
   id: string;
@@ -16,6 +16,8 @@ interface AIUsageItem {
   cost_usd: number | null;
   created_at: string;
 }
+
+type FxSource = "awesomeapi" | "fallback";
 
 function relativeTime(isoDate: string): string {
   const diffMs = Date.now() - new Date(isoDate).getTime();
@@ -38,21 +40,38 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
-function formatCost(usd: number | null): string {
-  if (usd == null) return "—";
-  if (usd < 0.001) return "< $0.001";
-  return `$${usd.toFixed(4)}`;
+function formatBRL(value: number | null): string {
+  if (value == null) return "—";
+  // Valores por item são centavos de real; o total do mês costuma ser maior.
+  const digits = Math.abs(value) < 0.1 ? 4 : 2;
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
 }
 
 export default function AIUsageRecentCard() {
   const [items, setItems] = useState<AIUsageItem[]>([]);
+  const [monthCostUsd, setMonthCostUsd] = useState<number | null>(null);
+  const [usdBrl, setUsdBrl] = useState<number | null>(null);
+  const [fxSource, setFxSource] = useState<FxSource | null>(null);
+  const [fxUpdatedAt, setFxUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fxLoading, setFxLoading] = useState(false);
   const [, setTick] = useState(0);
 
   useEffect(() => {
     fetch("/api/admin/ai-usage/recent")
       .then((r) => r.json())
-      .then((d) => setItems(d.items ?? []))
+      .then((d) => {
+        setItems(d.items ?? []);
+        setMonthCostUsd(d.month_cost_usd ?? null);
+        setUsdBrl(d.usd_brl ?? null);
+        setFxSource(d.usd_brl_source ?? null);
+        setFxUpdatedAt(d.usd_brl_updated_at ?? null);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -63,6 +82,34 @@ export default function AIUsageRecentCard() {
     return () => clearInterval(id);
   }, []);
 
+  // Só re-puxa a cotação do dólar — não bate no banco (sem egress, sem polling).
+  async function refreshFx() {
+    setFxLoading(true);
+    try {
+      const r = await fetch("/api/admin/ai-usage/fx");
+      const d = await r.json();
+      if (d?.usd_brl != null) {
+        setUsdBrl(d.usd_brl);
+        setFxSource(d.usd_brl_source ?? null);
+        setFxUpdatedAt(d.usd_brl_updated_at ?? null);
+      }
+    } catch {
+      // silencioso — mantém a cotação anterior
+    } finally {
+      setFxLoading(false);
+    }
+  }
+
+  const toBrl = (usd: number | null): number | null =>
+    usd == null || usdBrl == null ? null : usd * usdBrl;
+
+  const fxTitle =
+    fxSource === "fallback"
+      ? "Câmbio fixo (awesomeapi indisponível)"
+      : fxUpdatedAt
+        ? `Cotação awesomeapi de ${fxUpdatedAt}`
+        : "Cotação awesomeapi";
+
   return (
     <Card className="border-t-4 border-t-violet-500">
       <CardHeader className="pb-3">
@@ -70,6 +117,32 @@ export default function AIUsageRecentCard() {
           <Sparkles className="w-4 h-4 text-violet-500" />
           Últimos gastos com IA
         </CardTitle>
+
+        <div className="mt-1.5 space-y-0.5">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+            <span>
+              Gasto nesse mês:{" "}
+              <span className="font-bold text-slate-800 dark:text-slate-100 tabular-nums">
+                {loading ? "…" : formatBRL(toBrl(monthCostUsd))}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={refreshFx}
+              disabled={fxLoading || loading}
+              title="Atualizar cotação do dólar (não consulta o banco)"
+              className="text-slate-400 hover:text-violet-500 disabled:opacity-40 transition-colors"
+            >
+              <RefreshCw className={`w-3 h-3 ${fxLoading ? "animate-spin" : ""}`} />
+            </button>
+          </p>
+          {!loading && usdBrl != null && (
+            <p className="text-[10px] text-slate-400 tabular-nums" title={fxTitle}>
+              câmbio USD {formatBRL(usdBrl)}
+              {fxSource === "fallback" && " · fixo"}
+            </p>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="p-4 pt-0 space-y-3">
         {loading && (
@@ -115,7 +188,7 @@ export default function AIUsageRecentCard() {
               {/* Custo */}
               <div className="shrink-0 text-right">
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">
-                  {formatCost(item.cost_usd)}
+                  {formatBRL(toBrl(item.cost_usd))}
                 </p>
                 <p className="text-[10px] text-slate-400 tabular-nums">
                   {formatTokens(item.total_tokens)} tokens
