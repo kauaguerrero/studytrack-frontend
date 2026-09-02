@@ -54,54 +54,90 @@ export function stripMarkdownImages(text?: string | null): string {
   return text.replace(questionMarkdownImageRegex, '').trim()
 }
 
-const sourceReferenceMarkerRegex =
-  /(dispon[ií]vel em:|acesso em:|fonte:|adaptado\)?\.?$|adapted\)?\.?$)/i
+// Fonte/atribuição segue a convenção do ETL agentic (SDD §9.9): cada linha de
+// fonte começa com "§ ". Recomendado (mas não obrigatório, por compatibilidade
+// com conteúdo já inserido) fechar também com "§" ao final da citação — isso
+// delimita a legenda com precisão mesmo se, por engano, faltar uma linha em
+// branco separando-a do parágrafo seguinte.
+const SOURCE_MARKER = '§'
 
-const citationContinuationRegex =
-  /(^by\s+\S+)|(^[A-ZÁ-Ú'’.-]+,\s)|(\beditora\b)|(\bpress\b)|(\bvol\.\b)|(\bn\.\s*\d+\b)|(\bp\.\s*\d+\b)|(\b\d{4}\b)/i
-
-function isSourceLikeLine(line: string): boolean {
-  const normalized = String(line || '').trim()
-  if (!normalized) return false
-  return sourceReferenceMarkerRegex.test(normalized) || citationContinuationRegex.test(normalized)
+function isSourceParagraph(paragraph: string): boolean {
+  return paragraph.trim().startsWith(SOURCE_MARKER)
 }
 
+// Se um parágrafo começa com "§" e contém um segundo "§" mais adiante, tudo
+// até esse segundo marcador (inclusive) é a legenda; o restante (se houver)
+// é conteúdo do corpo que foi acidentalmente colado ao parágrafo da legenda
+// (por exemplo, por faltar uma quebra de linha dupla no dado de origem).
+function splitEmbeddedSourceMarker(paragraph: string): string[] {
+  const trimmed = paragraph.trim()
+  if (!isSourceParagraph(trimmed)) return [trimmed]
+
+  const closingIndex = trimmed.indexOf(SOURCE_MARKER, SOURCE_MARKER.length)
+  if (closingIndex === -1) return [trimmed]
+
+  const sourcePart = trimmed.slice(0, closingIndex + SOURCE_MARKER.length).trim()
+  const rest = trimmed.slice(closingIndex + SOURCE_MARKER.length).trim()
+  return rest ? [sourcePart, ...splitEmbeddedSourceMarker(rest)] : [sourcePart]
+}
+
+export interface QuestionContextSegment {
+  type: 'body' | 'source'
+  text: string
+}
+
+/**
+ * Divide o context de uma questão em segmentos ordenados de corpo (body) e
+ * legenda/fonte (source), preservando a ordem original — inclusive quando há
+ * múltiplos documentos/textos, cada um com sua própria citação intercalada
+ * (ex.: "Documento 1" + fonte 1 + "Documento 2" + fonte 2).
+ *
+ * Um parágrafo (bloco separado por linha em branco) é classificado como
+ * "source" quando começa com "§ ". Parágrafos consecutivos do mesmo tipo são
+ * mesclados em um único segmento para preservar espaçamento interno.
+ */
+export function splitQuestionContextSegments(text?: string | null): QuestionContextSegment[] {
+  const raw = String(text || '').trim()
+  if (!raw) return []
+
+  const rawParagraphs = raw
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+
+  const paragraphs = rawParagraphs.flatMap(splitEmbeddedSourceMarker)
+
+  const segments: QuestionContextSegment[] = []
+  for (const paragraph of paragraphs) {
+    const type: QuestionContextSegment['type'] = isSourceParagraph(paragraph) ? 'source' : 'body'
+    const previous = segments[segments.length - 1]
+    if (previous && previous.type === type) {
+      previous.text = `${previous.text}\n\n${paragraph}`
+    } else {
+      segments.push({ type, text: paragraph })
+    }
+  }
+
+  return segments
+}
+
+/** @deprecated Prefira `splitQuestionContextSegments`, que preserva a ordem
+ * original entre múltiplos documentos/citações. Mantido para compatibilidade
+ * com chamadores que só precisam de um único bloco de corpo + um único bloco
+ * de fonte (concatenados quando há mais de um segmento de cada tipo). */
 export function splitQuestionContextAndSource(text?: string | null): {
   body: string
   source: string | null
 } {
-  const raw = String(text || '').trim()
-  if (!raw) return { body: '', source: null }
-
-  const lines = raw.split('\n').map((line) => line.trim())
-  if (lines.length === 0) return { body: raw, source: null }
-
-  const markerIndexes = lines
-    .map((line, index) => (sourceReferenceMarkerRegex.test(line) ? index : -1))
-    .filter((index) => index >= 0)
-
-  if (markerIndexes.length === 0) {
-    return { body: raw, source: null }
-  }
-
-  let sourceStart = markerIndexes[0]
-  let sourceEnd = markerIndexes[markerIndexes.length - 1]
-
-  while (sourceStart > 0 && isSourceLikeLine(lines[sourceStart - 1])) {
-    sourceStart -= 1
-  }
-  while (sourceEnd + 1 < lines.length && isSourceLikeLine(lines[sourceEnd + 1])) {
-    sourceEnd += 1
-  }
-
-  const sourceLines = lines.slice(sourceStart, sourceEnd + 1).filter(Boolean)
-  if (sourceLines.length === 0) {
-    return { body: raw, source: null }
-  }
-
-  const bodyLines = [...lines.slice(0, sourceStart), ...lines.slice(sourceEnd + 1)]
-  const body = bodyLines.join('\n').trim()
-  const source = sourceLines.join('\n').trim()
+  const segments = splitQuestionContextSegments(text)
+  const body = segments
+    .filter((segment) => segment.type === 'body')
+    .map((segment) => segment.text)
+    .join('\n\n')
+  const source = segments
+    .filter((segment) => segment.type === 'source')
+    .map((segment) => segment.text)
+    .join('\n\n')
   return { body, source: source || null }
 }
 
