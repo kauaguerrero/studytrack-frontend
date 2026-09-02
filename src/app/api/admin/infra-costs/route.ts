@@ -6,18 +6,15 @@ import { createAdminClient } from '@/lib/supabase/admin';
  * Custo de infra por provedor no mês corrente, a partir de `infra_cost_snapshots`
  * (populada 1x/dia pelo cron `infra_cost_snapshot` no backend).
  *
- * - Provedores com granularidade diária (mathpix, gcp): mtd = soma dos dias,
- *   `today_usd`/`prev_day_usd` = valor do dia.
- * - Provedores só com acumulado do mês (fly): mtd = último snapshot, `today_usd`
- *   = diferença entre os dois últimos snapshots.
- *
- * `series` traz o ACUMULADO por dia (pro gráfico de linha de crescimento).
+ * Todos os provedores têm granularidade diária: `mtd_usd` = soma dos dias,
+ * `today_usd`/`prev_day_usd` = valor do dia. `series` traz o ACUMULADO por dia
+ * (pro gráfico de linha de crescimento).
  */
 
-type ProviderKey = 'gcp' | 'mathpix' | 'fly';
+type ProviderKey = 'gcp' | 'mathpix';
 type Status = 'ok' | 'not_configured' | 'error';
 
-const PROVIDERS: ProviderKey[] = ['gcp', 'mathpix', 'fly'];
+const PROVIDERS: ProviderKey[] = ['gcp', 'mathpix'];
 
 const CACHE_TTL_MS = 60_000;
 let cache: { expiresAt: number; payload: unknown } | null = null;
@@ -52,7 +49,6 @@ interface Row {
 interface ProviderSummary {
   provider: ProviderKey;
   status: Status;
-  granularity: 'daily' | 'month_to_date';
   mtd_usd: number | null;
   today_usd: number | null;
   prev_day_usd: number | null;
@@ -99,9 +95,9 @@ export async function GET() {
     if (r.updated_at && (!updatedAt || r.updated_at > updatedAt)) updatedAt = r.updated_at;
   }
 
-  // series[date] = { gcp, mathpix, fly } acumulado
+  // series[date] = { gcp, mathpix } acumulado
   const cumByDay: Record<string, Record<ProviderKey, number | null>> = {};
-  for (const d of days) cumByDay[d] = { gcp: null, mathpix: null, fly: null };
+  for (const d of days) cumByDay[d] = { gcp: null, mathpix: null };
 
   const providers: ProviderSummary[] = PROVIDERS.map((provider) => {
     const pRows = (byProvider.get(provider) ?? []).slice().sort((a, b) =>
@@ -110,39 +106,7 @@ export async function GET() {
 
     const latest = pRows[pRows.length - 1] ?? null;
     const status: Status = latest?.status ?? 'not_configured';
-    const isMtd = pRows.some((r) => (r.meta?.granularity as string) === 'month_to_date');
 
-    if (isMtd) {
-      // fly: cada linha já é o acumulado do mês naquele momento
-      const okRows = pRows.filter((r) => r.status === 'ok' && num(r.cost_usd) !== null);
-      const last = okRows[okRows.length - 1] ?? null;
-      const prev = okRows[okRows.length - 2] ?? null;
-      const mtd = last ? num(last.cost_usd) : null;
-      const todayUsd =
-        last && prev ? Math.max(0, (num(last.cost_usd) ?? 0) - (num(prev.cost_usd) ?? 0)) : null;
-
-      // step function: acumulado no dia = valor do último snapshot ok <= dia
-      let ptr = 0;
-      let carry: number | null = null;
-      for (const d of days) {
-        while (ptr < okRows.length && okRows[ptr].snapshot_date <= d) {
-          carry = num(okRows[ptr].cost_usd);
-          ptr++;
-        }
-        cumByDay[d][provider] = carry;
-      }
-
-      return {
-        provider,
-        status,
-        granularity: 'month_to_date' as const,
-        mtd_usd: mtd,
-        today_usd: todayUsd,
-        prev_day_usd: null,
-      };
-    }
-
-    // granularidade diária (mathpix, gcp): acumula
     const dayMap = new Map<string, number | null>();
     for (const r of pRows) dayMap.set(r.snapshot_date, r.status === 'ok' ? num(r.cost_usd) : null);
 
@@ -161,7 +125,6 @@ export async function GET() {
     return {
       provider,
       status,
-      granularity: 'daily' as const,
       mtd_usd: sawAny ? running : null,
       today_usd: dayMap.get(today) ?? null,
       prev_day_usd: yesterday ? dayMap.get(yesterday) ?? null : null,
@@ -172,7 +135,6 @@ export async function GET() {
     date: d,
     gcp: cumByDay[d].gcp,
     mathpix: cumByDay[d].mathpix,
-    fly: cumByDay[d].fly,
   }));
 
   const payload = {
