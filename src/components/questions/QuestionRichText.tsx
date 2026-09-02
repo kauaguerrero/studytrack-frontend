@@ -135,7 +135,17 @@ function shouldPreserveManualLineBreaks(paragraph: string, previousParagraph?: s
 
   // Roman numeral lists common in vestibular questions (I. II. III. IV. ...)
   const romanNumeralLines = lines.filter((line) => /^[IVX]+\.\s+\S/.test(line.trim())).length
-  return romanNumeralLines >= 2
+  if (romanNumeralLines >= 2) return true
+
+  // Verse/poem heuristic: multiple short lines that aren't covered by other patterns
+  // suggest verse format. Prose paragraphs rarely have 3+ lines all averaging < 75 chars.
+  // Poems in vestibular PDFs typically have line lengths of 20\u201370 chars.
+  if (lines.length >= 3) {
+    const avgLineLength = lines.reduce((sum, line) => sum + line.trim().length, 0) / lines.length
+    if (avgLineLength <= 75) return true
+  }
+
+  return false
 }
 
 function collapseSoftLineBreaks(paragraph: string): string {
