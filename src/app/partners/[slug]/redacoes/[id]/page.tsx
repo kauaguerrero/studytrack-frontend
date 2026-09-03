@@ -426,9 +426,15 @@ export default function CorrecaoRedacaoPage() {
         }
         lockOwnedRef.current = true;
         setLockOwned(true);
+        // 60s (era 30s): o lock é considerado obsoleto após 90s (p_stale_after
+        // no lock/route.ts), então 60s deixa 30s de margem — tolera um heartbeat
+        // lento/perdido sem o lock lapsar sob um corretor ativo. Recuperação de
+        // aba que crashou segue em 90s (governada por p_stale_after, não pelo
+        // intervalo). Metade dos PATCHes de lock, e cada um deles não dispara
+        // mais uma recarga imediata do overview alheio (ver debounce no client).
         heartbeat = window.setInterval(() => {
           void fetch(`/api/partners/${slug}/essays/${id}/lock`, { method: 'PATCH' });
-        }, 30_000);
+        }, 60_000);
       } catch {
         if (!cancelled) {
           toast.error('Não foi possível reservar esta redação para correção.');

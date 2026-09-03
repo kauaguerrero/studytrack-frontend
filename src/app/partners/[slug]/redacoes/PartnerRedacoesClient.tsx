@@ -911,26 +911,38 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     }
   }, [slug, pendingPage, correctedPage, activeTypeFilter, dateFilter, pendingSortOrder]);
 
+  // Recarga do overview com debounce (trailing coalesce): uma rajada de UPDATEs
+  // em `essays` — heartbeats de lock de N corretores (1x/60s cada), mudança de
+  // status, lock/unlock — vira UMA recarga, não N. O realtime continua sendo o
+  // gatilho; só agrupamos as chamadas numa janela de 3s. Custo: a fila reflete
+  // uma mudança de outro corretor em até ~3s em vez de instantaneamente.
+  const reloadTimerRef = useRef<number | null>(null);
+  const scheduleOverviewReload = useCallback(() => {
+    if (reloadTimerRef.current !== null) return; // já há recarga agendada
+    reloadTimerRef.current = window.setTimeout(() => {
+      reloadTimerRef.current = null;
+      if (document.visibilityState === 'visible') {
+        void loadOverview({ silent: true });
+      }
+    }, 3000);
+  }, [loadOverview]);
+
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
       .channel(`essay-locks:${org.id}`)
       // UPDATE cobre correção/lock/status; INSERT cobre redação nova entrando na
-      // fila. Com os dois, a tela reage na hora a qualquer mudança e o intervalo
-      // abaixo é só uma rede de segurança (ex: WebSocket caiu sem avisar).
+      // fila. Com os dois, a tela reage a qualquer mudança e o intervalo abaixo
+      // é só uma rede de segurança (ex: WebSocket caiu sem avisar).
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'essays', filter: `org_id=eq.${org.id}` },
-        () => {
-          void loadOverview({ silent: true });
-        },
+        scheduleOverviewReload,
       )
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'essays', filter: `org_id=eq.${org.id}` },
-        () => {
-          void loadOverview({ silent: true });
-        },
+        scheduleOverviewReload,
       )
       .subscribe();
 
@@ -946,9 +958,13 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
 
     return () => {
       window.clearInterval(interval);
+      if (reloadTimerRef.current !== null) {
+        window.clearTimeout(reloadTimerRef.current);
+        reloadTimerRef.current = null;
+      }
       void supabase.removeChannel(channel);
     };
-  }, [org.id, loadOverview]);
+  }, [org.id, loadOverview, scheduleOverviewReload]);
 
   // Reset pagination when slug changes
   useEffect(() => {
