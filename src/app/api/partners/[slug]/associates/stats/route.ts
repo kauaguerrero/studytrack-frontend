@@ -247,6 +247,7 @@ export async function GET(
   if (associateIds.length === 0) {
     return NextResponse.json({
       essay_type_filter: essayTypeParam,
+      score_reference_type: filterByType,
       date_filter: dateFilterResponse,
       summary: {
         total_associates: 0, active_associates: 0, inactive_associates: 0,
@@ -260,7 +261,7 @@ export async function GET(
 
   type CorrectionWithEssayRow = {
     corrector_id: string; essay_id: string; corrected_at: string;
-    essay: { total_score: number | null; submitted_at: string | null; corrected_at: string | null } | null;
+    essay: { total_score: number | null; submitted_at: string | null; corrected_at: string | null; essay_type: string | null } | null;
   };
   const allAnns = ((allCorrections || []) as CorrectionWithEssayRow[])
     .map(c => ({ author_id: c.corrector_id, essay_id: c.essay_id, created_at: c.corrected_at, essay: c.essay }));
@@ -271,6 +272,30 @@ export async function GET(
   const windowAnns = windowStartIso && windowEndIso
     ? allAnns.filter(a => a.created_at >= windowStartIso && a.created_at < windowEndIso)
     : allAnns;
+
+  // Nota média: sem filtro de banca ("Todas"), misturar `total_score` de bancas
+  // com escalas diferentes (ENEM 0–1000 vs VUNESP 0–14) dá um número sem
+  // sentido. Então, como na tela "Minhas Redações" do aluno, usamos como
+  // referência o tipo de redação MAIS CORRIGIDO no período (fallback: histórico
+  // completo) e calculamos a nota média só desse tipo. Pendentes, tempo médio,
+  // total e contagem de correções continuam somando todas as bancas.
+  let scoreReferenceType: string | null = filterByType;
+  if (!scoreReferenceType) {
+    const countByType = (rows: typeof allAnns) => {
+      const m = new Map<string, number>();
+      for (const a of rows) {
+        const t = a.essay?.essay_type;
+        if (t) m.set(t, (m.get(t) ?? 0) + 1);
+      }
+      return m;
+    };
+    let counts = countByType(windowAnns);
+    if (counts.size === 0) counts = countByType(allAnns);
+    let bestCount = -1;
+    for (const [t, c] of counts) {
+      if (c > bestCount) { bestCount = c; scoreReferenceType = t; }
+    }
+  }
 
   const stats: Record<string, {
     corrections_in_window: number; total_corrections: number;
@@ -294,7 +319,10 @@ export async function GET(
     if (!s) continue;
     s.corrections_in_window++;
     const essay = ann.essay;
-    if (essay?.total_score != null) { s.window_score_sum += essay.total_score; s.window_score_count++; }
+    if (essay?.total_score != null && (scoreReferenceType == null || essay.essay_type === scoreReferenceType)) {
+      s.window_score_sum += essay.total_score;
+      s.window_score_count++;
+    }
     if (essay?.submitted_at && essay?.corrected_at) {
       const diff = (new Date(essay.corrected_at).getTime() - new Date(essay.submitted_at).getTime()) / 3_600_000;
       if (diff >= 0 && diff < 8_760) { s.window_turnaround_sum += diff; s.window_turnaround_count++; }
@@ -324,6 +352,9 @@ export async function GET(
 
   return NextResponse.json({
     essay_type_filter: essayTypeParam,
+    // Banca usada como referência da nota média (o tipo mais corrigido) quando
+    // não há filtro de banca. Igual a `essay_type_filter` quando há filtro.
+    score_reference_type: scoreReferenceType,
     date_filter: dateFilterResponse,
     summary: {
       total_associates: associateList.length,

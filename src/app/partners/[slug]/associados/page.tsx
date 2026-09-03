@@ -24,7 +24,8 @@ import {
   type DateFilterValue,
   type DatePreset,
 } from '../redacoes/EssayFiltersDropdown';
-import type { EssayType } from '@/lib/essay-types';
+import { Tooltip as InfoTooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
 import {
   UsersRound,
   UserPlus,
@@ -43,6 +44,7 @@ import {
   BarChart2,
   Star,
   Activity,
+  Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -184,6 +186,31 @@ function StatCell({ label, value, unit }: { label: string; value: string | numbe
   );
 }
 
+/** Aviso clicável sob o "Score Médio" indicando qual banca está sendo usada
+ * como referência quando o filtro está em "Todas". Mesma lógica da tela
+ * "Minhas Redações" do aluno: a nota média puxa o tipo de redação mais
+ * corrigido no período. Não depende de hover — funciona em touch. */
+function BancaReferenceNote({ typeLabel }: { typeLabel: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <InfoTooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 transition hover:bg-slate-200 dark:bg-white/10 dark:text-white/50 dark:hover:bg-white/15"
+        >
+          Referência: {typeLabel}
+          <Info className="h-3 w-3" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[240px] text-center">
+        Com o filtro em &quot;Todas as bancas&quot;, a nota média usa como referência o modelo de redação mais corrigido no período ({typeLabel}) — misturar escalas diferentes (ENEM até 1000, VUNESP até 14) distorceria o número. Selecione uma banca no filtro para ver a nota dela.
+      </TooltipContent>
+    </InfoTooltip>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AssociadosPage() {
@@ -194,7 +221,11 @@ export default function AssociadosPage() {
   const accentHex = org.brand_primary;
 
   // ── State ────────────────────────────────────────────────────────────────
-  const [essayTypeFilter, setEssayTypeFilter] = useState<EssayType>('enem');
+  // Padrão "Todas as bancas": pendentes, tempo médio, total e contagem de
+  // correções somam todas as bancas. Só a nota média usa um tipo de referência
+  // (o mais corrigido no período), informado por `scoreRefType`.
+  const [essayTypeFilter, setEssayTypeFilter] = useState<EssayType | 'all'>('all');
+  const [scoreRefType, setScoreRefType] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState<DateFilterValue>(DEFAULT_DATE_FILTER);
   const [associates, setAssociates] = useState<Associate[]>([]);
   const [stats, setStats] = useState<Record<string, AssociateStats>>({});
@@ -230,11 +261,12 @@ export default function AssociadosPage() {
     }
   }, [org.slug, org.is_mock]);
 
-  const fetchStats = useCallback(async (type: EssayType, date: DateFilterValue, initial = false) => {
+  const fetchStats = useCallback(async (type: EssayType | 'all', date: DateFilterValue, initial = false) => {
     if (initial) setLoading(true); else setStatsLoading(true);
     try {
       if (org.is_mock) {
         setSummary(MOCK_ASSOCIATE_SUMMARY as unknown as OrgSummary);
+        setScoreRefType(null);
         setStats({
           'assoc-demo-01': MOCK_ASSOCIATE_STATS_VARIANTS[0] as unknown as AssociateStats,
           'assoc-demo-02': MOCK_ASSOCIATE_STATS_VARIANTS[1] as unknown as AssociateStats,
@@ -256,10 +288,12 @@ export default function AssociadosPage() {
           summary: OrgSummary;
           associate_stats: Record<string, AssociateStats>;
           trend: TrendPoint[];
+          score_reference_type?: string | null;
         };
         setSummary(d.summary);
         setStats(d.associate_stats ?? {});
         setTrend(d.trend ?? []);
+        setScoreRefType(d.score_reference_type ?? null);
       }
     } finally {
       if (initial) setLoading(false); else setStatsLoading(false);
@@ -267,7 +301,7 @@ export default function AssociadosPage() {
   }, [org.slug, org.is_mock]);
 
   useEffect(() => {
-    Promise.all([fetchList(), fetchStats('enem', DEFAULT_DATE_FILTER, true)]);
+    Promise.all([fetchList(), fetchStats('all', DEFAULT_DATE_FILTER, true)]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org.slug]);
 
@@ -510,6 +544,11 @@ export default function AssociadosPage() {
                 accentColor="#10b981"
                 accentHex="#10b981"
                 loading={loading || statsLoading}
+                footer={
+                  essayTypeFilter === 'all' && scoreRefType && summary?.avg_essay_score != null
+                    ? <BancaReferenceNote typeLabel={ESSAY_TYPE_CONFIGS[scoreRefType as EssayType]?.label ?? scoreRefType.toUpperCase()} />
+                    : undefined
+                }
               />
               <KpiCard
                 title={`Tempo Médio · ${windowLabel}`}
