@@ -449,6 +449,20 @@ export function QuestionRichText({ text, className, style }: { text?: string | n
           )
         }
 
+        // Handle block-level italic: a multi-line block whose entire text is wrapped
+        // in *...* (e.g. a poem stored as "*line1\nline2\nline3*").  ReactMarkdown
+        // can't resolve an italic span that opens on line 1 and closes on the last
+        // line — it renders the asterisks literally.  Detect and strip the wrapper
+        // here, then apply italic via CSS instead.
+        if (paragraph.includes('\n') && /^\*[^*]/.test(paragraph) && /[^*]\*$/.test(paragraph)) {
+          const innerText = paragraph.slice(1, -1)
+          return (
+            <p key={`${paragraphIndex}-${paragraph.slice(0, 20)}`} className="my-3 leading-relaxed italic">
+              {renderInlineRichText(innerText, `${paragraphIndex}`)}
+            </p>
+          )
+        }
+
         return (
           <p key={`${paragraphIndex}-${paragraph.slice(0, 20)}`} className="my-3 leading-relaxed">
             {renderInlineRichText(paragraph, `${paragraphIndex}`)}
