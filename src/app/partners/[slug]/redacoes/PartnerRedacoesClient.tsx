@@ -788,7 +788,9 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
 
   const [metricsLoading, setMetricsLoading] = useState(initialOverview === null);
   const [queueLoading, setQueueLoading] = useState(initialOverview === null);
-  const [activeTypeFilter, setActiveTypeFilter] = useState<EssayType>('enem');
+  // `'all'` = todas as bancas. As métricas de rubrica (competências, nota
+  // máxima) caem no molde ENEM nesse modo — ver `activeConfig` abaixo.
+  const [activeTypeFilter, setActiveTypeFilter] = useState<EssayType | 'all'>('enem');
   const [pendingSortOrder, setPendingSortOrder] = useState<'asc' | 'desc'>('asc');
   const [dateFilter, setDateFilter] = useState<DateFilterValue>(DEFAULT_DATE_FILTER);
   const [otherTypesAlertOpen, setOtherTypesAlertOpen] = useState(false);
@@ -855,7 +857,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     currentUserAvatarUrl: userProfile.avatarUrl,
   });
 
-  const activeConfig = ESSAY_TYPE_CONFIGS[activeTypeFilter];
+  const activeConfig = ESSAY_TYPE_CONFIGS[activeTypeFilter === 'all' ? 'enem' : activeTypeFilter];
   const competencyNames = activeConfig.competencies;
   const getCompetencyMax = (idx: number): number => {
     const options = activeConfig.score_options[idx] || [];
@@ -1285,10 +1287,14 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
         ? '#f59e0b'
         : '#ef4444';
 
-  const otherTypesPending = (Object.entries(metrics.pending_by_type || {}) as [EssayType, number][])
-    .filter(([type, count]) => type !== activeTypeFilter && count > 0)
-    .map(([type, count]) => ({ type, count, label: ESSAY_TYPE_CONFIGS[type]?.label ?? type }))
-    .sort((a, b) => b.count - a.count);
+  // Com "Todas as bancas" selecionado não existe "outras bancas" — a fila já
+  // mostra todos os tipos.
+  const otherTypesPending = activeTypeFilter === 'all'
+    ? []
+    : (Object.entries(metrics.pending_by_type || {}) as [EssayType, number][])
+        .filter(([type, count]) => type !== activeTypeFilter && count > 0)
+        .map(([type, count]) => ({ type, count, label: ESSAY_TYPE_CONFIGS[type]?.label ?? type }))
+        .sort((a, b) => b.count - a.count);
   const otherTypesPendingTotal = otherTypesPending.reduce((sum, item) => sum + item.count, 0);
 
   const goToTypeQueue = (type: EssayType) => {
@@ -1347,6 +1353,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               onEssayTypeChange={setActiveTypeFilter}
               dateFilter={dateFilter}
               onDateFilterChange={setDateFilter}
+              neutralType="enem"
             />
             {!metricsLoading && otherTypesPending.length > 0 && (
               <button
@@ -2348,6 +2355,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               scoreRange={scoreRange}
               onScoreRangeChange={setScoreRange}
               maxScore={activeConfig?.total_max}
+              neutralType="enem"
             />
 
             {studentFilterId && (

@@ -215,8 +215,8 @@ function EssayTypeSelectField({
   essayType,
   onEssayTypeChange,
 }: {
-  essayType: EssayType;
-  onEssayTypeChange: (t: EssayType) => void;
+  essayType: EssayType | 'all';
+  onEssayTypeChange: (t: EssayType | 'all') => void;
 }) {
   return (
     <div>
@@ -225,14 +225,20 @@ function EssayTypeSelectField({
       </label>
       <select
         value={essayType}
-        onChange={(e) => onEssayTypeChange(e.target.value as EssayType)}
+        onChange={(e) => onEssayTypeChange(e.target.value as EssayType | 'all')}
         className="h-10 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-semibold text-slate-800 outline-none transition focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
       >
-        {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, EssayTypeConfig][]).map(([key, cfg]) => (
-          <option key={key} value={key}>
-            {cfg.label}
-          </option>
-        ))}
+        {/* "Todas" cobre todas as bancas de uma vez. "Geral" fica de fora do
+         * seletor — não é uma banca real (config degenerada, sem competências)
+         * e já é ignorada pelas APIs de métricas. */}
+        <option value="all">Todas as bancas</option>
+        {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, EssayTypeConfig][])
+          .filter(([key]) => key !== 'geral')
+          .map(([key, cfg]) => (
+            <option key={key} value={key}>
+              {cfg.label}
+            </option>
+          ))}
       </select>
     </div>
   );
@@ -337,18 +343,23 @@ export function EssayTypeAndPeriodFilter({
   onEssayTypeChange,
   dateFilter,
   onDateFilterChange,
+  neutralType = 'all',
 }: {
-  essayType: EssayType;
-  onEssayTypeChange: (t: EssayType) => void;
+  essayType: EssayType | 'all';
+  onEssayTypeChange: (t: EssayType | 'all') => void;
   dateFilter: DateFilterValue;
   onDateFilterChange: (v: DateFilterValue) => void;
+  /** Valor "sem filtro" do tipo de redação — conta como filtro ativo e alvo do
+   * "Limpar tudo". Padrão `'all'` (tela de Associados); a página de Redações
+   * passa `'enem'`, que é o estado padrão dela. */
+  neutralType?: EssayType | 'all';
 }) {
   // Rascunho local: só aplica de fato quando "Salvar Filtros" é clicado.
   // Ressincroniza durante o render (não em efeito) quando o valor aplicado
   // muda por fora (ex: "Limpar tudo", navegação pelo aviso de outras bancas).
-  const [draftType, setDraftType] = useState(essayType);
+  const [draftType, setDraftType] = useState<EssayType | 'all'>(essayType);
   const [draftDate, setDraftDate] = useState(dateFilter);
-  const [prevEssayType, setPrevEssayType] = useState(essayType);
+  const [prevEssayType, setPrevEssayType] = useState<EssayType | 'all'>(essayType);
   const [prevDateFilter, setPrevDateFilter] = useState(dateFilter);
   if (essayType !== prevEssayType) {
     setPrevEssayType(essayType);
@@ -359,7 +370,7 @@ export function EssayTypeAndPeriodFilter({
     setDraftDate(dateFilter);
   }
 
-  const activeCount = (essayType !== 'enem' ? 1 : 0) + (dateFilter.preset ? 1 : 0);
+  const activeCount = (essayType !== neutralType ? 1 : 0) + (dateFilter.preset ? 1 : 0);
 
   return (
     <FilterDropdownButton
@@ -367,7 +378,7 @@ export function EssayTypeAndPeriodFilter({
       onClear={
         activeCount > 0
           ? () => {
-              onEssayTypeChange('enem');
+              onEssayTypeChange(neutralType);
               onDateFilterChange(DEFAULT_DATE_FILTER);
             }
           : undefined
@@ -457,26 +468,29 @@ export function CorrectedEssaysFilterDropdown({
   scoreRange,
   onScoreRangeChange,
   maxScore,
+  neutralType = 'all',
 }: {
   status: EssayStatusFilter;
   onStatusChange: (v: EssayStatusFilter) => void;
-  essayType: EssayType;
-  onEssayTypeChange: (t: EssayType) => void;
+  essayType: EssayType | 'all';
+  onEssayTypeChange: (t: EssayType | 'all') => void;
   dateFilter: DateFilterValue;
   onDateFilterChange: (v: DateFilterValue) => void;
   scoreRange: ScoreRangeValue;
   onScoreRangeChange: (v: ScoreRangeValue) => void;
   maxScore?: number;
+  /** Valor "sem filtro" do tipo de redação (ver `EssayTypeAndPeriodFilter`). */
+  neutralType?: EssayType | 'all';
 }) {
   // Rascunho local: só aplica de fato quando "Salvar Filtros" é clicado.
   // Ressincroniza durante o render (não em efeito) quando o valor aplicado
   // muda por fora (ex: "Limpar tudo").
   const [draftStatus, setDraftStatus] = useState(status);
-  const [draftType, setDraftType] = useState(essayType);
+  const [draftType, setDraftType] = useState<EssayType | 'all'>(essayType);
   const [draftDate, setDraftDate] = useState(dateFilter);
   const [draftScore, setDraftScore] = useState(scoreRange);
   const [prevStatus, setPrevStatus] = useState(status);
-  const [prevEssayType, setPrevEssayType] = useState(essayType);
+  const [prevEssayType, setPrevEssayType] = useState<EssayType | 'all'>(essayType);
   const [prevDateFilter, setPrevDateFilter] = useState(dateFilter);
   const [prevScoreRange, setPrevScoreRange] = useState(scoreRange);
   if (status !== prevStatus) {
@@ -498,7 +512,7 @@ export function CorrectedEssaysFilterDropdown({
 
   const activeCount =
     (status !== 'all' ? 1 : 0) +
-    (essayType !== 'enem' ? 1 : 0) +
+    (essayType !== neutralType ? 1 : 0) +
     (dateFilter.preset ? 1 : 0) +
     (scoreRange.min !== null || scoreRange.max !== null ? 1 : 0);
 
@@ -509,7 +523,7 @@ export function CorrectedEssaysFilterDropdown({
         activeCount > 0
           ? () => {
               onStatusChange('all');
-              onEssayTypeChange('enem');
+              onEssayTypeChange(neutralType);
               onDateFilterChange(DEFAULT_DATE_FILTER);
               onScoreRangeChange(DEFAULT_SCORE_RANGE);
             }
