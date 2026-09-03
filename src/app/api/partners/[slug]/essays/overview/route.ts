@@ -17,7 +17,7 @@ type EssayRow = {
   is_historical?: boolean | null;
   total_score: number | null;
   average_score?: number | null;
-  text: string | null;
+  text_preview: string | null;
   second_corrector_id?: string | null;
   correction_lock_user_id?: string | null;
   correction_lock_at?: string | null;
@@ -184,7 +184,9 @@ export async function GET(
     return NextResponse.json({ error: 'Acesso negado à organização.' }, { status: 403 });
   }
 
-  const essayFields = 'id, student_id, status, essay_type, submitted_at, corrected_at, imported_at, is_historical, total_score, average_score, text, theme, second_corrector_id, correction_lock_user_id, correction_lock_at';
+  // `text_preview` (coluna gerada: primeiros 200 chars) no lugar de `text` —
+  // a fila só usa preview curto + busca no início. Detalhe usa `text` completo.
+  const essayFields = 'id, student_id, status, essay_type, submitted_at, corrected_at, imported_at, is_historical, total_score, average_score, text_preview, theme, second_corrector_id, correction_lock_user_id, correction_lock_at';
   const pendingFrom = (pendingPage - 1) * pendingLimit;
   const pendingTo = pendingFrom + pendingLimit - 1;
   const correctedFrom = (correctedPage - 1) * correctedLimit;
@@ -296,7 +298,7 @@ export async function GET(
             avatar_url: lockUser.avatar_url,
           }
         : null,
-      text: item.text || '',
+      text: item.text_preview || '',
       student: {
         id: item.student_id,
         full_name: student?.full_name ?? null,

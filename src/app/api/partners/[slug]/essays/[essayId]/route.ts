@@ -352,18 +352,43 @@ export async function GET(
     secondCorrectorName = scRow?.full_name ?? null;
   }
 
-  // Gerar URL assinada para imagem original (falha silenciosa — imagem é referência opcional)
-  let signedImageUrl: string | null = null;
-  const rawImageUrl = essay.image_url as string | null;
-  if (rawImageUrl) {
+  // URL assinada da imagem servida na tela (falha silenciosa — referência opcional).
+  // item 5 (egress): serve `display_image_url` (cópia ~1400px/q68, ~0.6 MB) e não
+  // `image_url` (original ~2-3 MB). Redações anteriores ao backfill: cai no original.
+  // item 2 (egress): reusa a signed URL guardada na linha até faltar < 1 dia pra
+  // expirar, em vez de gerar token novo a cada abertura (token novo = cache-miss
+  // na CDN). Se o path mudou (ex: backfill trocou original -> display), re-assina.
+  const SIGN_TTL_SECONDS = 7 * 24 * 3600;
+  const REFRESH_MARGIN_MS = 24 * 3600 * 1000;
+  const sourceImageUrl =
+    ((essay.display_image_url as string | null) ?? (essay.image_url as string | null)) || null;
+  const storagePathMatch = sourceImageUrl ? sourceImageUrl.match(/essay-images\/(.+)$/) : null;
+  const storagePath = storagePathMatch ? storagePathMatch[1] : null;
+  const cachedSignedUrl = (essay.signed_image_url as string | null) ?? null;
+  const cachedExpiresAt = essay.signed_image_expires_at
+    ? new Date(essay.signed_image_expires_at as string).getTime()
+    : 0;
+  // Só reaproveita o cache se ele aponta pro path atual (senão o backfill do
+  // item 5 deixaria a tela servindo o original grande por até 7 dias).
+  const cachedMatchesSource = !!cachedSignedUrl && !!storagePath && cachedSignedUrl.includes(storagePath);
+  let signedImageUrl: string | null = cachedMatchesSource ? cachedSignedUrl : null;
+  const needsFreshSignedUrl =
+    !!storagePath && (!signedImageUrl || cachedExpiresAt - Date.now() < REFRESH_MARGIN_MS);
+  if (needsFreshSignedUrl && storagePath) {
     try {
-      const storagePathMatch = rawImageUrl.match(/essay-images\/(.+)$/);
-      if (storagePathMatch) {
-        const storagePath = storagePathMatch[1];
-        const { data: signedUrlData } = await admin.storage
-          .from('essay-images')
-          .createSignedUrl(storagePath, 3600);
-        signedImageUrl = signedUrlData?.signedUrl ?? null;
+      const { data: signedUrlData } = await admin.storage
+        .from('essay-images')
+        .createSignedUrl(storagePath, SIGN_TTL_SECONDS);
+      if (signedUrlData?.signedUrl) {
+        signedImageUrl = signedUrlData.signedUrl;
+        // Persiste pra reusar nas próximas aberturas (roda ~1x/6 dias por redação).
+        await admin
+          .from('essays')
+          .update({
+            signed_image_url: signedImageUrl,
+            signed_image_expires_at: new Date(Date.now() + SIGN_TTL_SECONDS * 1000).toISOString(),
+          } as never)
+          .eq('id', essayId);
       }
     } catch (e) {
       console.error('[EssayRoute] Falha ao gerar URL assinada para imagem:', e);
