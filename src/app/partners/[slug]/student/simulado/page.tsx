@@ -1382,6 +1382,19 @@ export default function SimuladoPage() {
     goToQuestionIndex(currentGroupEndIdx + 1)
   }
 
+  // Dentro de um testlet, "Próxima" só avança pro próximo bloco se todas as
+  // questões do testlet atual já tiverem resposta — senão, guia o aluno
+  // rolando até a primeira questão do testlet ainda sem resposta, em vez de
+  // pular pro próximo bloco deixando questões pra trás sem querer.
+  const goToNextGroupOrGuideToUnanswered = () => {
+    const firstUnanswered = currentGroupQuestions.find((q) => !userAnswers[q.id])
+    if (firstUnanswered) {
+      testletQuestionRefs.current[firstUnanswered.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    goToNextGroup()
+  }
+
   useEffect(() => {
     if (!accessToken || !showConfigModal || mode !== 'custom' || compositions.length > 0) return
 
@@ -2666,10 +2679,10 @@ export default function SimuladoPage() {
               </button>
 
               {currentGroupEndIdx < questions.length - 1 ? (
-                <button onClick={() => (isCurrentGroupTestlet ? goToNextGroup() : goToQuestionIndex(currentIdx + 1))}
+                <button onClick={() => (isCurrentGroupTestlet ? goToNextGroupOrGuideToUnanswered() : goToQuestionIndex(currentIdx + 1))}
                   className="flex-[1.35] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer min-h-[44px]"
                   style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
-                  {isCurrentGroupTestlet ? 'Próximo testlet' : 'Próxima'} <ArrowRight size={16} />
+                  Próxima <ArrowRight size={16} />
                 </button>
               ) : (
                 <button onClick={() => setFinishDialogOpen(true)}
