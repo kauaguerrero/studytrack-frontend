@@ -154,7 +154,10 @@ const FORMATS_BY_BANK: Record<string, string[]> = {
   Todas: ['custom'],
 };
 
-// Quantidade fixa de questões por banca/formato (espelha o backend)
+// Quantidade fixa de questões por banca/formato (espelha o backend).
+// Usada como valor padrão ao trocar banca/formato — para bancas com
+// distribuição proporcional (ver PROPORTIONAL_COMPLETE_BANKS abaixo), o
+// campo continua editável e este número é só o ponto de partida sugerido.
 const BLOCK_QTY: Record<string, Record<string, number>> = {
   ENEM: { linguagens: 45, humanas: 45, natureza: 45, matematica: 45, dia1: 90, dia2: 90, completo: 180 },
   UFU:  { linguagens: 20, humanas: 20, natureza: 15, matematica: 10, completo: 65 },
@@ -162,32 +165,110 @@ const BLOCK_QTY: Record<string, Record<string, number>> = {
   UFG:  { linguagens: 24, humanas: 24, natureza: 24, matematica: 24, completo: 96 },
 };
 
-const COMPLETE_DISTRIBUTION_HINTS: Record<string, string[]> = {
-  UFU: [
-    'Português 10, Literatura 5, Língua Estrangeira 5 (Inglês, Espanhol e Francês)',
-    'Matemática 10',
-    'Biologia 5, Física 5, Química 5',
-    'Geografia 5, História 5, Filosofia 5, Sociologia 5',
-    'Total 65 questões objetivas',
-  ],
-  UEG: [
-    'Linguagens 13 (Português, Literatura, Língua Estrangeira, Artes, Ed. Física e TIC)',
-    'Matemática 13',
-    'Natureza 13 (Biologia, Física e Química)',
-    'Humanas 13 (História, Geografia, Filosofia e Sociologia)',
-    'Total 52 questões objetivas',
-  ],
-  UFG: [
-    'Linguagens 24 (aproximação na plataforma: Língua Portuguesa)',
-    'Matemática 24',
-    'Natureza 24 (Biologia, Física e Química)',
-    'Humanas 24 (História, Geografia, Filosofia e Sociologia)',
-    'Total 96 questões objetivas',
-  ],
-};
+// Bancas cujo formato "completo" tem distribuição oficial por matéria e
+// sabe reescalar essa distribuição proporcionalmente para qualquer
+// quantidade total (espelha simulado_service.py::_scale_subject_quota /
+// _scale_area_distribution no backend) — por isso, ao contrário das demais,
+// a quantidade fica editável mesmo no formato "completo".
+const PROPORTIONAL_COMPLETE_BANKS = new Set(['UFU', 'UEG', 'UFG']);
 
 function resolveQty(bank: string, format: string): number | null {
   return BLOCK_QTY[bank]?.[format] ?? null; // null = custom, qty editável
+}
+
+function isQtyLocked(bank: string, format: string): boolean {
+  if (format === 'completo' && PROPORTIONAL_COMPLETE_BANKS.has(bank)) return false;
+  return resolveQty(bank, format) !== null;
+}
+
+// Distribuição oficial por matéria da prova completa de cada banca —
+// espelha exatamente as constantes homônimas em simulado_service.py.
+const UFU_COMPLETE_SUBJECT_DISTRIBUTION: Record<string, number> = {
+  'Língua Portuguesa': 10, 'Literatura': 5, 'Inglês': 2, 'Espanhol': 2, 'Francês': 1,
+  'Matemática': 10, 'Biologia': 5, 'Física': 5, 'Química': 5,
+  'Geografia': 5, 'História': 5, 'Filosofia': 5, 'Sociologia': 5,
+};
+
+const UEG_COMPLETE_AREA_DISTRIBUTION: Record<string, Record<string, number>> = {
+  linguagens: {
+    'Língua Portuguesa': 3, 'Literatura': 2, 'Inglês': 2, 'Espanhol': 2,
+    'Artes': 2, 'Educação Física': 1, 'Tecnologias da Informação e Comunicação': 1,
+  },
+  matematica: { 'Matemática': 13 },
+  natureza: { 'Biologia': 5, 'Física': 4, 'Química': 4 },
+  humanas: { 'História': 4, 'Geografia': 3, 'Filosofia': 3, 'Sociologia': 3 },
+};
+
+const UFG_COMPLETE_SUBJECT_DISTRIBUTION: Record<string, number> = {
+  'Língua Portuguesa': 24, 'Matemática': 24, 'Biologia': 8, 'Física': 8, 'Química': 8,
+  'História': 6, 'Geografia': 6, 'Filosofia': 6, 'Sociologia': 6,
+};
+
+// Reescala uma distribuição fixa por matéria para um total diferente,
+// preservando a proporção original (método do maior resto / Hamilton) —
+// espelha _scale_subject_quota no backend. Sem isso, um corte simples
+// zeraria as matérias menores (ex.: Sociologia) num total menor.
+function scaleSubjectQuota(base: Record<string, number>, targetQty: number): Record<string, number> {
+  const subjects = Object.keys(base);
+  const totalBase = subjects.reduce((sum, s) => sum + Math.max(0, base[s]), 0);
+  if (totalBase <= 0 || targetQty <= 0) {
+    return Object.fromEntries(subjects.map((s) => [s, 0]));
+  }
+  const exact: Record<string, number> = {};
+  const scaled: Record<string, number> = {};
+  for (const s of subjects) {
+    exact[s] = (Math.max(0, base[s]) * targetQty) / totalBase;
+    scaled[s] = Math.floor(exact[s]);
+  }
+  let remainder = targetQty - subjects.reduce((sum, s) => sum + scaled[s], 0);
+  const order = [...subjects].sort((a, b) => (exact[b] - scaled[b]) - (exact[a] - scaled[a]));
+  for (let i = 0; i < order.length && remainder > 0; i += 1, remainder -= 1) {
+    scaled[order[i]] += 1;
+  }
+  return scaled;
+}
+
+// Monta o resumo "Distribuição estimada" já reescalado para a quantidade
+// escolhida (form.qty) — em vez do texto fixo de antes, que só refletia o
+// total oficial (96/65/52) e ficava errado assim que a quantidade mudasse.
+function buildDistributionHintLines(bank: string, qty: number): string[] | null {
+  if (!qty || qty <= 0) return null;
+  if (bank === 'UFU') {
+    const d = scaleSubjectQuota(UFU_COMPLETE_SUBJECT_DISTRIBUTION, qty);
+    return [
+      `Português ${d['Língua Portuguesa']}, Literatura ${d['Literatura']}, Língua Estrangeira ${d['Inglês'] + d['Espanhol'] + d['Francês']} (Inglês ${d['Inglês']}, Espanhol ${d['Espanhol']} e Francês ${d['Francês']})`,
+      `Matemática ${d['Matemática']}`,
+      `Biologia ${d['Biologia']}, Física ${d['Física']}, Química ${d['Química']}`,
+      `Geografia ${d['Geografia']}, História ${d['História']}, Filosofia ${d['Filosofia']}, Sociologia ${d['Sociologia']}`,
+      `Total ${qty} questões objetivas`,
+    ];
+  }
+  if (bank === 'UEG') {
+    const areaTotals = Object.fromEntries(
+      Object.entries(UEG_COMPLETE_AREA_DISTRIBUTION).map(([area, quota]) => [area, Object.values(quota).reduce((a, b) => a + b, 0)]),
+    );
+    const scaledAreaTotals = scaleSubjectQuota(areaTotals, qty);
+    return [
+      `Linguagens ${scaledAreaTotals['linguagens']} (Português, Literatura, Língua Estrangeira, Artes, Ed. Física e TIC)`,
+      `Matemática ${scaledAreaTotals['matematica']}`,
+      `Natureza ${scaledAreaTotals['natureza']} (Biologia, Física e Química)`,
+      `Humanas ${scaledAreaTotals['humanas']} (História, Geografia, Filosofia e Sociologia)`,
+      `Total ${qty} questões objetivas`,
+    ];
+  }
+  if (bank === 'UFG') {
+    const d = scaleSubjectQuota(UFG_COMPLETE_SUBJECT_DISTRIBUTION, qty);
+    const natureza = d['Biologia'] + d['Física'] + d['Química'];
+    const humanas = d['História'] + d['Geografia'] + d['Filosofia'] + d['Sociologia'];
+    return [
+      `Linguagens ${d['Língua Portuguesa']} (aproximação na plataforma: Língua Portuguesa)`,
+      `Matemática ${d['Matemática']}`,
+      `Natureza ${natureza} (Biologia ${d['Biologia']}, Física ${d['Física']} e Química ${d['Química']})`,
+      `Humanas ${humanas} (História ${d['História']}, Geografia ${d['Geografia']}, Filosofia ${d['Filosofia']} e Sociologia ${d['Sociologia']})`,
+      `Total ${qty} questões objetivas`,
+    ];
+  }
+  return null;
 }
 
 function formatDateTime(value: string): string {
@@ -792,6 +873,13 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     setEditingId(sim.id);
     setEditingSim(sim);
     setPreviewQuestions(null);
+    // Editar nunca passa pelo wizard "Online ou Impresso?" (Step 1), mas
+    // `deliveryMode` pode ter ficado em 'impressa' de uma criação anterior
+    // nesta mesma sessão — sem resetar aqui, o botão de salvar (que decide
+    // handleSave vs handleSaveImpresso a partir de deliveryMode) rodaria o
+    // fluxo errado e criaria uma prova impressa avulsa em vez de salvar a
+    // edição deste simulado. Edição sempre é handleSave (PATCH).
+    setDeliveryMode(null);
       setForm({
       title: sim.title,
       bank: sim.config.bank,
@@ -929,24 +1017,30 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                   </select>
                 </div>
 
-                {/* Quantidade — bloqueada para formatos com qty fixa */}
+                {/* Quantidade — bloqueada para formatos com qty fixa; nas bancas
+                    com distribuição oficial proporcional (UFU/UEG/UFG "completo")
+                    fica editável e a proporção é reescalada automaticamente
+                    (ver "Distribuição estimada" abaixo). */}
                 <div>
                   <label className={labelCls}>
                     Questões
-                    {resolveQty(form.bank, form.format) !== null && (
+                    {isQtyLocked(form.bank, form.format) && (
                       <span className="ml-1 normal-case font-normal text-slate-400">(fixo pela banca)</span>
+                    )}
+                    {!isQtyLocked(form.bank, form.format) && resolveQty(form.bank, form.format) !== null && (
+                      <span className="ml-1 normal-case font-normal text-slate-400">(proporcional à prova oficial)</span>
                     )}
                   </label>
                   <input
                     type="number"
                     min={5} max={180}
                     value={form.qty}
-                    readOnly={resolveQty(form.bank, form.format) !== null}
+                    readOnly={isQtyLocked(form.bank, form.format)}
                     onChange={(e) => {
-                      if (resolveQty(form.bank, form.format) !== null) return;
+                      if (isQtyLocked(form.bank, form.format)) return;
                       setForm((f) => ({ ...f, qty: Number(e.target.value) }));
                     }}
-                    className={`${inputCls} ${resolveQty(form.bank, form.format) !== null ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
+                    className={`${inputCls} ${isQtyLocked(form.bank, form.format) ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''}`}
                   />
                 </div>
               </div>
@@ -1022,9 +1116,18 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 />
               </div>
 
-              {/* Modalidade */}
+              {/* Modalidade — decidida uma única vez, na escolha inicial ("Como
+                  este simulado será aplicado?"); ao editar um simulado já criado,
+                  este bloco só reflete o que foi marcado então, sem permitir
+                  trocar (não faz sentido migrar online → presencial depois, o
+                  payload e o preview de cada modalidade são diferentes). */}
               <div>
-                <label className={labelCls}>Modalidade</label>
+                <label className={labelCls}>
+                  Modalidade
+                  {!!editingId && (
+                    <span className="ml-1 normal-case font-normal text-slate-400">(definida na criação, não pode ser alterada)</span>
+                  )}
+                </label>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {([
                     { value: 'online',   label: 'Online',    Icon: Monitor },
@@ -1034,8 +1137,12 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     <button
                       key={m}
                       type="button"
-                      onClick={() => setForm((f) => ({ ...f, modality: m, ...(m === 'online' ? { location_name: '', location_address: '' } : {}) }))}
-                      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${form.modality === m ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5 text-[var(--brand-primary)]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
+                      disabled={!!editingId}
+                      onClick={() => {
+                        if (editingId) return;
+                        setForm((f) => ({ ...f, modality: m, ...(m === 'online' ? { location_name: '', location_address: '' } : {}) }));
+                      }}
+                      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${editingId ? 'cursor-not-allowed opacity-60' : ''} ${form.modality === m ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5 text-[var(--brand-primary)]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
                     >
                       <Icon className="h-3.5 w-3.5 shrink-0" />
                       {label}
@@ -1136,13 +1243,13 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 </div>
               </div>
 
-              {form.format === 'completo' && COMPLETE_DISTRIBUTION_HINTS[form.bank] && (
+              {form.format === 'completo' && buildDistributionHintLines(form.bank, form.qty) && (
                 <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 p-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    Distribuição estimada do completo ({form.bank})
+                    Distribuição estimada do completo ({form.bank}) para {form.qty} questões
                   </p>
                   <div className="mt-2 space-y-1">
-                    {COMPLETE_DISTRIBUTION_HINTS[form.bank].map((line) => (
+                    {buildDistributionHintLines(form.bank, form.qty)!.map((line) => (
                       <p key={line} className="text-xs text-slate-600 dark:text-slate-300">
                         • {line}
                       </p>
@@ -1218,10 +1325,17 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         </button>
                       </div>
 
-                      <div className="mt-6 grid gap-4 md:grid-cols-2">
+                      <div className="mt-6 grid gap-4 md:grid-cols-3">
                         <button
                           type="button"
-                          onClick={() => { setDeliveryMode('online'); setTypeSelectorStep(2); }}
+                          onClick={() => {
+                            // A modalidade é decidida aqui, uma única vez — a tela de
+                            // configuração (form) só reflete essa escolha depois, sem
+                            // permitir trocar (ver seletor "Modalidade" mais abaixo).
+                            setDeliveryMode('online');
+                            setForm((f) => ({ ...f, modality: 'online', location_name: '', location_address: '' }));
+                            setTypeSelectorStep(2);
+                          }}
                           className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
                         >
                           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
@@ -1233,7 +1347,27 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
 
                         <button
                           type="button"
-                          onClick={() => { setDeliveryMode('impressa'); setTypeSelectorStep(2); }}
+                          onClick={() => {
+                            setDeliveryMode('online');
+                            setForm((f) => ({ ...f, modality: 'hybrid' }));
+                            setTypeSelectorStep(2);
+                          }}
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                        >
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                            <MapPin className="h-5 w-5" />
+                          </div>
+                          <h3 className="text-base font-bold text-slate-900">Híbrido</h3>
+                          <p className="mt-2 text-sm text-slate-500">Alunos podem responder online ou presencialmente, num local e endereço definidos. O resultado presencial prevalece.</p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeliveryMode('impressa');
+                            setForm((f) => ({ ...f, modality: 'printed' }));
+                            setTypeSelectorStep(2);
+                          }}
                           className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
                         >
                           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
@@ -1261,10 +1395,12 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             </button>
                             <span className="text-xs text-slate-300">|</span>
                             <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
-                              style={{ backgroundColor: deliveryMode === 'impressa' ? '#FEF3C7' : '#EFF6FF',
-                                       color: deliveryMode === 'impressa' ? '#92400E' : '#1D4ED8' }}>
-                              {deliveryMode === 'impressa' ? <Printer className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
-                              {deliveryMode === 'impressa' ? 'Impresso' : 'Online'}
+                              style={{
+                                backgroundColor: deliveryMode === 'impressa' ? '#FEF3C7' : form.modality === 'hybrid' ? '#EDE9FE' : '#EFF6FF',
+                                color: deliveryMode === 'impressa' ? '#92400E' : form.modality === 'hybrid' ? '#6D28D9' : '#1D4ED8',
+                              }}>
+                              {deliveryMode === 'impressa' ? <Printer className="h-3 w-3" /> : form.modality === 'hybrid' ? <MapPin className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
+                              {deliveryMode === 'impressa' ? 'Impresso' : form.modality === 'hybrid' ? 'Híbrido' : 'Online'}
                             </span>
                           </div>
                           <h2 className="mt-2 text-xl font-extrabold text-slate-900">Escolha o tipo de criação</h2>
