@@ -162,6 +162,11 @@ function checkPortraitOrientation(file: File): Promise<boolean> {
  * Não distingue "em pé" de "de cabeça para baixo" (as duas têm faixas
  * horizontais) — para isso o aluno confere no preview.
  * Retorna `true` = "provavelmente fora da posição de leitura" (só um aviso).
+ *
+ * Calibrada para errar para o lado de NÃO avisar: exige tinta suficiente na
+ * folha e faixas verticais muito dominantes. Acusar uma foto que está correta
+ * custa mais que deixar passar uma torta — nesse caso o aluno ainda tem o
+ * lembrete e o preview antes de transcrever.
  */
 function looksMisoriented(file: File): Promise<boolean> {
   return new Promise((resolve) => {
@@ -199,11 +204,18 @@ function looksMisoriented(file: File): Promise<boolean> {
         const my = Math.floor(h * 0.1), My = Math.ceil(h * 0.9);
         const rows = new Float32Array(h);
         const cols = new Float32Array(w);
+        let ink = 0;
         for (let y = my; y < My; y++) {
           for (let x = mx; x < Mx; x++) {
-            if (lum[y * w + x] < thr) { rows[y] += 1; cols[x] += 1; }
+            if (lum[y * w + x] < thr) { rows[y] += 1; cols[x] += 1; ink += 1; }
           }
         }
+
+        // Sem tinta suficiente não há o que medir: numa foto clara, com sombra
+        // ou quase vazia os perfis viram ruído e cruzam a média o tempo todo,
+        // o que gerava aviso em foto perfeitamente em pé.
+        const sampled = (Mx - mx) * (My - my);
+        if (sampled <= 0 || ink / sampled < 0.02) { resolve(false); return; }
 
         // "bandas" = quantas vezes o perfil cruza a própria média (alternância
         // texto/espaço). Muitas bandas num eixo = linhas de texto naquele eixo.
@@ -222,8 +234,13 @@ function looksMisoriented(file: File): Promise<boolean> {
         const rowBands = bands(rows, my, My);
         const colBands = bands(cols, mx, Mx);
 
-        // faixas verticais claramente dominantes → folha deitada
-        resolve(colBands >= 6 && colBands > rowBands * 1.4);
+        // Só avisa quando as faixas verticais são MUITO dominantes. Os limiares
+        // antigos (>= 6 bandas, 1.4x) acusavam foto boa com facilidade: 6 bandas
+        // é ruído em qualquer imagem, e 1.4x é diferença pequena demais entre os
+        // eixos. Falso positivo aqui é pior que falso negativo — manda o aluno
+        // refazer uma foto que estava certa; quem não for pego ainda vê o
+        // lembrete azul e o preview.
+        resolve(colBands >= 10 && colBands > rowBands * 2);
       } catch {
         resolve(false);
       }
@@ -892,18 +909,31 @@ export function PhotoEssayUploader({
               </div>
 
               {orientationWarning === 'sideways' ? (
-                <p className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                // Continua em âmbar por ser problema detectado, não lembrete — mas
+                // sem tom de ordem: a detecção é heurística e pode errar, então
+                // sugere em vez de mandar.
+                <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-200">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 opacity-80" />
                   <span>
-                    O texto desta foto parece estar <strong>deitado</strong>. Tire a foto
-                    de novo com a folha em pé, não deitada. Confira antes de transcrever.
+                    O texto parece estar <strong>deitado</strong> nesta foto. Se for o
+                    caso, vale tirar de novo com a folha em pé — a transcrição costuma
+                    sair bem melhor assim.
                   </span>
                 </p>
               ) : (
-                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-                  Confira se a folha está em pé e o texto na posição de leitura. Se estiver
-                  de cabeça para baixo, toque em <strong>Girar 180°</strong>.
-                </p>
+                // Lembrete de rotina, não é problema detectado — por isso azul e não
+                // âmbar, que fica reservado ao aviso de foto deitada acima. Aluno já
+                // reportou o card anterior como se fosse erro.
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-500/25 dark:bg-blue-500/10">
+                  <p className="text-[10px] font-semibold text-blue-700 dark:text-blue-300">
+                    Dica:
+                  </p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-blue-900 dark:text-blue-200">
+                    Sempre se lembre de conferir a posição da folha antes de transcrever.
+                    Se o texto estiver de cabeça para baixo, toque em{' '}
+                    <strong>Girar 180°</strong>.
+                  </p>
+                </div>
               )}
             </div>
           )}
