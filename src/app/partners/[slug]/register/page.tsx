@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getGoogleOAuthClient } from '@/lib/supabase/oauth-client';
+import { capitalizePersonName, hasDigit } from '@/lib/person-name';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -142,7 +143,7 @@ export default function PartnerRegisterPage() {
 
   // Validação em tempo real (feedback positivo enquanto digita, não só erro pós-submit).
   const codeFromUrl = Boolean(searchParams.get('code'));
-  const fullNameValid = fullName.trim().length > 0;
+  const fullNameValid = fullName.trim().length > 0 && !hasDigit(fullName);
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const passwordValid = password.length >= 8;
   const confirmValid = confirmPassword.length > 0 && confirmPassword === password;
@@ -154,6 +155,7 @@ export default function PartnerRegisterPage() {
   function validate(): boolean {
     const errs: Record<string, string> = {};
     if (!fullName.trim()) errs.fullName = 'Nome é obrigatório';
+    else if (hasDigit(fullName)) errs.fullName = 'O nome não pode conter números';
     if (!email.trim()) errs.email = 'Email é obrigatório';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = 'Email inválido';
     if (!password) errs.password = 'Senha é obrigatória';
@@ -175,7 +177,9 @@ export default function PartnerRegisterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          full_name: fullName.trim(),
+          // Capitaliza antes de enviar, com a mesma regra do backfill de
+          // profiles.full_name — conectivos ("de", "da"…) seguem em minúscula.
+          full_name: capitalizePersonName(fullName),
           email: email.trim().toLowerCase(),
           password,
           invite_code: inviteCode.trim().toUpperCase(),
@@ -409,7 +413,18 @@ export default function PartnerRegisterPage() {
                         <CheckCircle2 className="absolute right-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-emerald-500" />
                       )}
                     </div>
-                    {errors.fullName && <p className="text-xs text-red-500">{errors.fullName}</p>}
+                    {/* Uma linha só sob o campo: erro quando há, senão a orientação.
+                        O aviso de número aparece enquanto digita, não só no submit. */}
+                    {errors.fullName ? (
+                      <p className="text-xs text-red-500">{errors.fullName}</p>
+                    ) : hasDigit(fullName) ? (
+                      <p className="text-xs text-red-500">O nome não pode conter números</p>
+                    ) : (
+                      <p className="text-[11px] leading-snug text-slate-500">
+                        Esse nome será utilizado para identificar você, sugiro que coloque seu
+                        nome e sobrenome.
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
