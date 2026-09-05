@@ -1648,7 +1648,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                                 <Printer className="h-4 w-4" />
                               )}
                             </button>
-                            {(sim.modality === 'printed' || sim.modality === 'hybrid') && (
+                            {sim.status !== 'scheduled' && (
                               <button
                                 type="button"
                                 onClick={() => router.push(`/partners/${slug}/simulados/${sim.id}/resultados`)}
