@@ -124,6 +124,24 @@ export async function GET(
   const filterByType = validTypes.includes(essayTypeFilter) ? essayTypeFilter : null;
   const pendingSortAscending = url.searchParams.get('pending_sort') !== 'desc';
 
+  // Ordenação da lista de corrigidas. Default = submitted_at desc, que era a
+  // ordem fixa antes de virar opção. Whitelist: o valor entra na query.
+  const CORRECTED_SORT_COLUMNS: Record<string, string> = {
+    submitted_at: 'submitted_at',
+    corrected_at: 'corrected_at',
+    // `total_score` é o que existe como coluna; para redações de segunda
+    // correção a tela mostra `average_score`, então essas poucas podem
+    // aparecer fora de ordem. Ver nota no PR.
+    score: 'total_score',
+    // Ordena o registro pai pela coluna da tabela embutida — exige o embed
+    // `student:profiles!essays_student_id_fkey` no select abaixo.
+    student: 'student(full_name)',
+    essay_type: 'essay_type',
+  };
+  const correctedSortColumn =
+    CORRECTED_SORT_COLUMNS[url.searchParams.get('corrected_sort') || ''] || 'submitted_at';
+  const correctedSortAscending = url.searchParams.get('corrected_dir') === 'asc';
+
   const datePreset = url.searchParams.get('date_preset');
   const dateFromParam = url.searchParams.get('date_from');
   const dateToParam = url.searchParams.get('date_to');
@@ -235,16 +253,27 @@ export async function GET(
       return query.order('submitted_at', { ascending: true });
     })(),
     (() => {
+      // O embed do aluno entra só quando a ordenação é por nome — ordenar o pai
+      // por coluna embutida exige o join, mas pagá-lo nas outras ordenações
+      // seria egress à toa (o nome já vem do fetch de profiles mais abaixo).
+      const correctedSelect =
+        correctedSortColumn === 'student(full_name)'
+          ? `${essayFields}, student:profiles!essays_student_id_fkey(full_name)`
+          : essayFields;
       let query = admin
         .from('essays')
-        .select(essayFields, { count: 'exact' })
+        .select(correctedSelect, { count: 'exact' })
         .eq('org_id', org.id);
       if (filterByType) query = query.eq('essay_type', filterByType);
       if (submittedAtGte) query = query.gte('submitted_at', submittedAtGte);
       if (submittedAtLt) query = query.lt('submitted_at', submittedAtLt);
       return query
         .in('status', ['corrected', 'second_corrected', 'seen'])
-        .order('submitted_at', { ascending: false })
+        // nullsFirst: false mantém nota/data ausente no fim nas duas direções.
+        .order(correctedSortColumn, { ascending: correctedSortAscending, nullsFirst: false })
+        // `id` desempata: sem chave única no ORDER BY, redações com o mesmo
+        // valor podem repetir ou sumir entre as páginas do range.
+        .order('id', { ascending: true })
         .range(correctedFrom, correctedTo);
     })(),
   ]);

@@ -42,6 +42,11 @@ import {
   type DateFilterValue,
   type ScoreRangeValue,
 } from './EssayFiltersDropdown';
+import {
+  CorrectedSortControl,
+  DEFAULT_CORRECTED_SORT,
+  type CorrectedSortValue,
+} from './CorrectedSortControl';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -792,6 +797,9 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   // máxima) caem no molde ENEM nesse modo — ver `activeConfig` abaixo.
   const [activeTypeFilter, setActiveTypeFilter] = useState<EssayType | 'all'>('enem');
   const [pendingSortOrder, setPendingSortOrder] = useState<'asc' | 'desc'>('asc');
+  // DEFAULT_CORRECTED_SORT preserva a ordem que a lista de corrigidas já tinha
+  // fixa no servidor (data de envio, mais recentes primeiro).
+  const [correctedSort, setCorrectedSort] = useState<CorrectedSortValue>(DEFAULT_CORRECTED_SORT);
   const [dateFilter, setDateFilter] = useState<DateFilterValue>(DEFAULT_DATE_FILTER);
   const [otherTypesAlertOpen, setOtherTypesAlertOpen] = useState(false);
   const [scoreRange, setScoreRange] = useState<ScoreRangeValue>(DEFAULT_SCORE_RANGE);
@@ -879,6 +887,10 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
       });
       params.set('essay_type', activeTypeFilter);
       params.set('pending_sort', pendingSortOrder);
+      // A lista de corrigidas é paginada no servidor, então a ordenação tem que
+      // ir junto — ordenar no cliente reordenaria só a página carregada.
+      params.set('corrected_sort', correctedSort.field);
+      params.set('corrected_dir', correctedSort.dir);
       if (dateFilter.preset === 'custom') {
         if (dateFilter.from) params.set('date_from', dateFilter.from);
         if (dateFilter.to) params.set('date_to', dateFilter.to);
@@ -909,7 +921,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
         setQueueLoading(false);
       }
     }
-  }, [slug, pendingPage, correctedPage, activeTypeFilter, dateFilter, pendingSortOrder]);
+  }, [slug, pendingPage, correctedPage, activeTypeFilter, dateFilter, pendingSortOrder, correctedSort]);
 
   // Recarga do overview com debounce (trailing coalesce): uma rajada de UPDATEs
   // em `essays` — heartbeats de lock de N corretores (1x/60s cada), mudança de
@@ -972,6 +984,12 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     setCorrectedPage(1);
     setQueueInitDone(false);
   }, [slug]);
+
+  // Trocar a ordenação reordena a lista inteira: continuar na página 4 mostraria
+  // um trecho do meio sem relação com o que o founder acabou de pedir.
+  useEffect(() => {
+    setCorrectedPage(1);
+  }, [correctedSort]);
 
   const isFirstMount = useRef(true);
 
@@ -2373,6 +2391,18 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               maxScore={activeConfig?.total_max}
               neutralType="enem"
             />
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                Ordenar por
+              </span>
+              <CorrectedSortControl
+                value={correctedSort}
+                onChange={setCorrectedSort}
+                hex={org.brand_primary}
+                scoreMixesScales={activeTypeFilter === 'all'}
+              />
+            </div>
 
             {studentFilterId && (
               <div className="flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 dark:border-emerald-500/30 dark:bg-emerald-500/10">

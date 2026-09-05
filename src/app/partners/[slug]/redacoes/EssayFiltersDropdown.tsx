@@ -65,6 +65,7 @@ export function FilterDropdownButton({
   onClear,
   children,
   footer,
+  trigger,
 }: {
   label?: string;
   activeCount: number;
@@ -73,6 +74,14 @@ export function FilterDropdownButton({
   /** Rodapé fixo no final do painel (ex: botão "Salvar Filtros"). Recebe uma
    * função `close` para fechar o painel após aplicar as mudanças. */
   footer?: (close: () => void) => React.ReactNode;
+  /** Substitui o botão padrão — usado pelo controle de ordenação, que precisa
+   * de um gatilho em forma de pílula dentro do switch. O painel (posicionado
+   * com `fixed`, para escapar do `overflow-hidden` do card) é o mesmo. */
+  trigger?: (args: {
+    open: boolean;
+    toggle: () => void;
+    ref: React.RefObject<HTMLButtonElement | null>;
+  }) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -142,25 +151,29 @@ export function FilterDropdownButton({
 
   return (
     <div className="relative">
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={cn(
-          'inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all',
-          open || activeCount > 0
-            ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
-            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-[var(--brand-primary)]/40',
-        )}
-      >
-        <SlidersHorizontal className="h-3.5 w-3.5" />
-        {label}
-        {activeCount > 0 && (
-          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 text-[10px] font-bold text-white">
-            {activeCount}
-          </span>
-        )}
-      </button>
+      {trigger ? (
+        trigger({ open, toggle: () => setOpen((v) => !v), ref: btnRef })
+      ) : (
+        <button
+          ref={btnRef}
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className={cn(
+            'inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all',
+            open || activeCount > 0
+              ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+              : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-[var(--brand-primary)]/40',
+          )}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          {label}
+          {activeCount > 0 && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 text-[10px] font-bold text-white">
+              {activeCount}
+            </span>
+          )}
+        </button>
+      )}
 
       {open && (
         <div
