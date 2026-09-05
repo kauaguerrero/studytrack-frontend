@@ -11,9 +11,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Typewriter } from '@/components/ui/typewriter';
-import { ArrowLeft, Save, Palette, Upload, Camera, Loader2, Trash2, Plus, X, UsersRound, Clock } from 'lucide-react';
+import { ArrowLeft, Save, Palette, Upload, Camera, Loader2, Trash2, Plus, X, UsersRound, Clock, Check, Search, TimerReset } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BRAZIL_TIMEZONES, DEFAULT_BRAZIL_TIMEZONE } from '@/lib/brazil-timezones';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { onBrandText } from '@/lib/brand-color';
 import {
@@ -44,6 +45,50 @@ const WEEKDAY_OPTIONS: { value: string; label: string }[] = [
   { value: 'saturday', label: 'Sábado' },
   { value: 'sunday', label: 'Domingo' },
 ];
+
+interface EssayWindowStudent {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+}
+
+interface EssayWindowException {
+  id: string;
+  student_id: string;
+  student_name: string | null;
+  window_start_at: string;
+  extended_until: string;
+  reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface EssayWindowExceptionsData {
+  essay_window_enabled: boolean;
+  current_window_start_at: string | null;
+  students: EssayWindowStudent[];
+  exceptions: EssayWindowException[];
+}
+
+/** Data de "hoje" (AAAA-MM-DD) no fuso da própria org — não no fuso do navegador do founder. */
+function getOrgTodayDateString(tz: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+/** "05/09 20:00" no fuso da org — para exibir horários de exceções sem o founder ter que converter fuso de cabeça. */
+function formatInOrgTz(iso: string, tz: string): string {
+  try {
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: tz, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
 
 function ColorPicker({
   label,
@@ -143,6 +188,15 @@ export default function ConfiguracoesPage() {
   const [windowEndDay, setWindowEndDay] = useState(org.essay_window_end_day ?? 'saturday');
   const [windowEndTime, setWindowEndTime] = useState((org.essay_window_end_time ?? '12:00').slice(0, 5));
   const [savingWindow, setSavingWindow] = useState(false);
+  const [exceptionsData, setExceptionsData] = useState<EssayWindowExceptionsData | null>(null);
+  const [exceptionsLoading, setExceptionsLoading] = useState(false);
+  const [exceptionsSaving, setExceptionsSaving] = useState(false);
+  const [exceptionsDeletingId, setExceptionsDeletingId] = useState<string | null>(null);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [extendDate, setExtendDate] = useState(() => getOrgTodayDateString(org.timezone ?? DEFAULT_BRAZIL_TIMEZONE));
+  const [extendTime, setExtendTime] = useState('20:00');
+  const [extendReason, setExtendReason] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const approvedPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -561,6 +615,121 @@ export default function ConfiguracoesPage() {
       toast.error('Erro de conexão.');
     } finally {
       setSavingWindow(false);
+    }
+  }
+
+  async function fetchEssayWindowExceptions() {
+    setExceptionsLoading(true);
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
+      const res = await fetch(`${api}/api/partners/${org.slug}/essay-window-exceptions`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        setExceptionsData(await res.json());
+      }
+    } catch {
+      // silencioso — a seção de exceções fica vazia, o resto da página segue normal
+    } finally {
+      setExceptionsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void fetchEssayWindowExceptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org.slug]);
+
+  function toggleSelectedStudent(id: string) {
+    setSelectedStudentIds((prev) => (prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id]));
+  }
+
+  async function handleApplyEssayWindowException() {
+    if (selectedStudentIds.length === 0) {
+      toast.error('Selecione ao menos um aluno.');
+      return;
+    }
+    if (!extendDate || !extendTime) {
+      toast.error('Informe a data e o horário do novo fechamento.');
+      return;
+    }
+
+    setExceptionsSaving(true);
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setExceptionsSaving(false);
+      toast.error('Sessão expirada. Faça login novamente.');
+      return;
+    }
+
+    const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
+    try {
+      const res = await fetch(`${api}/api/partners/${org.slug}/essay-window-exceptions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          student_ids: selectedStudentIds,
+          extended_until_date: extendDate,
+          extended_until_time: extendTime,
+          reason: extendReason.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (res.ok) {
+        toast.success(
+          selectedStudentIds.length === 1
+            ? 'Prazo estendido para o aluno selecionado!'
+            : `Prazo estendido para ${selectedStudentIds.length} alunos!`,
+        );
+        setSelectedStudentIds([]);
+        setExtendReason('');
+        await fetchEssayWindowExceptions();
+      } else {
+        toast.error(data.error || 'Erro ao salvar exceção.');
+      }
+    } catch {
+      toast.error('Erro de conexão.');
+    } finally {
+      setExceptionsSaving(false);
+    }
+  }
+
+  async function handleDeleteEssayWindowException(studentId: string) {
+    setExceptionsDeletingId(studentId);
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setExceptionsDeletingId(null);
+      toast.error('Sessão expirada. Faça login novamente.');
+      return;
+    }
+
+    const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
+    try {
+      const res = await fetch(`${api}/api/partners/${org.slug}/essay-window-exceptions/${studentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        toast.success('Exceção removida — o aluno volta à janela padrão.');
+        await fetchEssayWindowExceptions();
+      } else {
+        const data = await res.json().catch(() => ({} as { error?: string }));
+        toast.error(data.error || 'Erro ao remover exceção.');
+      }
+    } catch {
+      toast.error('Erro de conexão.');
+    } finally {
+      setExceptionsDeletingId(null);
     }
   }
 
@@ -1167,6 +1336,162 @@ export default function ConfiguracoesPage() {
               <Clock className="h-3.5 w-3.5" />
               {savingWindow ? 'Salvando...' : 'Salvar janela de envio'}
             </Button>
+          </div>
+        </ElevatedCard>
+        </RevealItem>
+
+        {/* Exceções pontuais da janela de envio, por aluno */}
+        <RevealItem>
+        <ElevatedCard accentColor="var(--brand-primary)" className="edificar-major-surface">
+          <div className="p-5 space-y-5">
+            <div>
+              <SectionTitle kicker="Redações" title="Exceção de prazo por aluno" hex={org.brand_primary} />
+              <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Estenda o fechamento da janela atual só para alunos específicos (ex: um aluno passou mal e precisa de mais tempo). O início da janela não muda, e a extensão vale só até a próxima abertura — depois disso o aluno volta ao horário padrão de todo mundo.
+              </p>
+            </div>
+
+            {!windowEnabled ? (
+              <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                Ative e salve a janela de envio acima para poder configurar exceções por aluno.
+              </p>
+            ) : exceptionsLoading && !exceptionsData ? (
+              <p className="text-xs text-slate-500 dark:text-slate-400">Carregando...</p>
+            ) : (
+              <>
+                {exceptionsData?.current_window_start_at && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Janela atual abriu em <strong>{formatInOrgTz(exceptionsData.current_window_start_at, orgTimezone)}</strong> — a extensão abaixo estende o fechamento dela.
+                  </p>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                    Alunos
+                  </Label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      value={studentSearch}
+                      onChange={(e) => setStudentSearch(e.target.value)}
+                      placeholder="Buscar aluno..."
+                      className="pl-8"
+                    />
+                  </div>
+                  <div className="max-h-52 space-y-0.5 overflow-y-auto rounded-xl bg-slate-50 p-1.5 dark:bg-white/5">
+                    {(exceptionsData?.students || [])
+                      .filter((s) => (s.full_name || s.email || '').toLowerCase().includes(studentSearch.trim().toLowerCase()))
+                      .map((s) => {
+                        const checked = selectedStudentIds.includes(s.id);
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => toggleSelectedStudent(s.id)}
+                            className={cn(
+                              'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors',
+                              checked
+                                ? 'bg-white font-semibold text-slate-800 shadow-sm dark:bg-white/10 dark:text-white'
+                                : 'text-slate-600 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-white/5',
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
+                                checked ? 'border-transparent' : 'border-slate-300 dark:border-white/20',
+                              )}
+                              style={checked ? { backgroundColor: 'var(--brand-primary)' } : undefined}
+                            >
+                              {checked && <Check className="h-3 w-3 text-white" />}
+                            </span>
+                            {s.full_name || s.email || 'Sem nome'}
+                          </button>
+                        );
+                      })}
+                    {(exceptionsData?.students || []).length === 0 && (
+                      <p className="p-2 text-xs text-slate-400">Nenhum aluno encontrado nesta escola.</p>
+                    )}
+                  </div>
+                  {selectedStudentIds.length > 0 && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {selectedStudentIds.length} aluno{selectedStudentIds.length > 1 ? 's' : ''} selecionado{selectedStudentIds.length > 1 ? 's' : ''}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Estender fechamento até</Label>
+                    <Input type="date" value={extendDate} onChange={(e) => setExtendDate(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Horário</Label>
+                    <Input type="time" value={extendTime} onChange={(e) => setExtendTime(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Motivo (opcional)</Label>
+                  <Input
+                    value={extendReason}
+                    onChange={(e) => setExtendReason(e.target.value)}
+                    placeholder="Ex: passou mal durante a aula"
+                    maxLength={300}
+                  />
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={handleApplyEssayWindowException}
+                  disabled={exceptionsSaving || selectedStudentIds.length === 0}
+                >
+                  <TimerReset className="h-3.5 w-3.5" />
+                  {exceptionsSaving ? 'Salvando...' : 'Estender prazo'}
+                </Button>
+
+                {(exceptionsData?.exceptions.length ?? 0) > 0 && (
+                  <div className="space-y-1.5 border-t border-slate-100 pt-4 dark:border-white/10">
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                      Exceções ativas nesta janela
+                    </Label>
+                    <div className="space-y-1.5">
+                      {exceptionsData!.exceptions.map((exc) => (
+                        <div
+                          key={exc.id}
+                          className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 p-2.5 dark:bg-white/5"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-700 dark:text-slate-200">
+                              {exc.student_name || 'Aluno removido'}
+                            </p>
+                            <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                              Até {formatInOrgTz(exc.extended_until, orgTimezone)}
+                              {exc.reason ? ` — ${exc.reason}` : ''}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteEssayWindowException(exc.student_id)}
+                            disabled={exceptionsDeletingId === exc.student_id}
+                            className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-50 dark:hover:bg-red-500/10"
+                            title="Remover exceção"
+                          >
+                            {exceptionsDeletingId === exc.student_id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <X className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </ElevatedCard>
         </RevealItem>
