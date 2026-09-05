@@ -207,8 +207,15 @@ const CONFETTI = Array.from({ length: 12 }, (_, i) => {
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function formatTime(seconds: number) {
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
+  // Formato convencional H:MM:SS quando passa de 1h (antes virava "100:00"
+  // em vez de "1:40:00" — minutos nunca "estouravam" para hora).
+  const safeSeconds = Math.max(0, Math.floor(seconds))
+  const hours = Math.floor(safeSeconds / 3600)
+  const mins = Math.floor((safeSeconds % 3600) / 60)
+  const secs = safeSeconds % 60
+  if (hours > 0) {
+    return `${hours}:${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`
+  }
   return `${mins}:${secs < 10 ? '0' : ''}${secs}`
 }
 
@@ -564,6 +571,10 @@ export default function SimuladoPage() {
   const [hasTimeLimit, setHasTimeLimit] = useState(false)
   const [questionElapsed, setQuestionElapsed] = useState(0)
   const questionStartRef = useRef<number>(Date.now())
+  // Tempo real acumulado por questão (segundos), somado ao trocar de questão —
+  // nunca sobrescrito, então voltar a uma questão já vista soma ao tempo
+  // anterior em vez de reiniciar. Enviado ao backend em /progress e /finish.
+  const questionTimeAccumRef = useRef<Record<string, number>>({})
   const scheduledEndsAtRef = useRef<Date | null>(null)
   const [loading, setLoading] = useState(false)
   const [startStage, setStartStage] = useState(0)
@@ -930,13 +941,41 @@ export default function SimuladoPage() {
   // ── Per-question elapsed timer (resets on question change) ──
   useEffect(() => {
     if (step !== 'quiz') return
+    const activeQuestionId = currentQuestion?.id
     questionStartRef.current = Date.now()
     setQuestionElapsed(0)
     const id = setInterval(() => {
       setQuestionElapsed(Math.floor((Date.now() - questionStartRef.current) / 1000))
     }, 1000)
-    return () => clearInterval(id)
-  }, [currentIdx, step])
+    return () => {
+      clearInterval(id)
+      // Ao sair da questão (troca de índice ou fim do quiz), soma o tempo
+      // desta passagem ao acumulado — não sobrescreve, permitindo voltar a
+      // uma questão já vista sem perder o tempo anterior nela.
+      if (activeQuestionId) {
+        const elapsedSecs = Math.floor((Date.now() - questionStartRef.current) / 1000)
+        if (elapsedSecs > 0) {
+          questionTimeAccumRef.current[activeQuestionId] =
+            (questionTimeAccumRef.current[activeQuestionId] || 0) + elapsedSecs
+        }
+      }
+    }
+  }, [currentIdx, step, currentQuestion?.id])
+
+  // Snapshot do tempo por questão incluindo a passagem em andamento (a
+  // questão atual só é somada ao ref quando o efeito acima limpa/troca) —
+  // usado nos pontos de envio (/progress, /finish, flush no unload).
+  const getQuestionTimesSnapshot = () => {
+    const snapshot: Record<string, number> = { ...questionTimeAccumRef.current }
+    const activeQuestionId = currentQuestion?.id
+    if (activeQuestionId) {
+      const elapsedSecs = Math.floor((Date.now() - questionStartRef.current) / 1000)
+      if (elapsedSecs > 0) {
+        snapshot[activeQuestionId] = (snapshot[activeQuestionId] || 0) + elapsedSecs
+      }
+    }
+    return snapshot
+  }
 
   // ── Result: count-up score animation ──
   useEffect(() => {
@@ -1252,7 +1291,7 @@ export default function SimuladoPage() {
       const timeTaken = Math.floor((Date.now() - startTimeRef.current) / 1000)
       let lastErrorMessage = 'Não foi possível salvar o simulado no servidor. Tente enviar novamente.'
       for (let attempt = 0; attempt < 3 && !finishSucceeded; attempt += 1) {
-        const res = await fetch(`${apiUrl}/api/simulado/${sessionId}/finish`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ answers, time_taken_secs: timeTaken }) })
+        const res = await fetch(`${apiUrl}/api/simulado/${sessionId}/finish`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ answers, time_taken_secs: timeTaken, question_times: getQuestionTimesSnapshot() }) })
         const data = await res.json().catch(() => ({}))
         if (res.ok) {
           finishSucceeded = true
@@ -1386,6 +1425,19 @@ export default function SimuladoPage() {
     goToQuestionIndex(currentGroupEndIdx + 1)
   }
 
+  // Dentro de um testlet, "Próxima" só avança pro próximo bloco se todas as
+  // questões do testlet atual já tiverem resposta — senão, guia o aluno
+  // rolando até a primeira questão do testlet ainda sem resposta, em vez de
+  // pular pro próximo bloco deixando questões pra trás sem querer.
+  const goToNextGroupOrGuideToUnanswered = () => {
+    const firstUnanswered = currentGroupQuestions.find((q) => !userAnswers[q.id])
+    if (firstUnanswered) {
+      testletQuestionRefs.current[firstUnanswered.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    goToNextGroup()
+  }
+
   useEffect(() => {
     if (!accessToken || !showConfigModal || mode !== 'custom' || compositions.length > 0) return
 
@@ -1465,7 +1517,7 @@ export default function SimuladoPage() {
         const res = await fetch(`${apiUrl}/api/simulado/${sessionId}/progress`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ answers: userAnswers }),
+          body: JSON.stringify({ answers: userAnswers, question_times: getQuestionTimesSnapshot() }),
         })
         if (res.ok) lastAutosavedRef.current = serialized
       } catch {
@@ -1503,7 +1555,7 @@ export default function SimuladoPage() {
         void fetch(`${apiUrl}/api/simulado/${sessionId}/progress`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ answers: userAnswers }),
+          body: JSON.stringify({ answers: userAnswers, question_times: getQuestionTimesSnapshot() }),
           keepalive: true,
         }).catch(() => undefined)
       } catch {
@@ -2670,10 +2722,10 @@ export default function SimuladoPage() {
               </button>
 
               {currentGroupEndIdx < questions.length - 1 ? (
-                <button onClick={() => (isCurrentGroupTestlet ? goToNextGroup() : goToQuestionIndex(currentIdx + 1))}
+                <button onClick={() => (isCurrentGroupTestlet ? goToNextGroupOrGuideToUnanswered() : goToQuestionIndex(currentIdx + 1))}
                   className="flex-[1.35] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer min-h-[44px]"
                   style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
-                  {isCurrentGroupTestlet ? 'Próximo testlet' : 'Próxima'} <ArrowRight size={16} />
+                  Próxima <ArrowRight size={16} />
                 </button>
               ) : (
                 <button onClick={() => setFinishDialogOpen(true)}

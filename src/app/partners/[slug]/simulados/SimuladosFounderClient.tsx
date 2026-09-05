@@ -18,8 +18,12 @@ import {
   Plus, ChevronDown, Trophy, Users, BarChart2, BarChart3,
   CalendarDays, Pencil, Trash2, Play, Timer, BookOpen, X, SlidersHorizontal,
   Shuffle, ListChecks, Monitor, Printer, FileText, ClipboardList, Download,
-  MapPin, Camera,
+  MapPin, Camera, Eye, RefreshCw,
 } from 'lucide-react';
+import SimuladoPreviewModal from '@/components/partners/simulados/SimuladoPreviewModal';
+import { downloadBlobResponse } from '@/lib/download-blob';
+import { toCustomQuestionSnapshot, toSelectedQuestion } from '@/types/simulado-preview';
+import type { RawPreviewQuestion, SelectedQuestion } from '@/types/simulado-preview';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 interface SimuladoConfig {
@@ -231,7 +235,10 @@ const EMPTY_FORM = {
   ends_at: '',
   weights: {} as Record<string, number>,
   allow_retry: true,
-  same_for_all_students: false,
+  // Default true: garante que o founder sempre consiga ver um preview 100%
+  // idêntico ao que será enviado (ver SimuladoPreviewModal / preview endpoint).
+  // Desligar volta ao sorteio individual por aluno (sem preview garantido).
+  same_for_all_students: true,
   ueg_weight_group: null as 'I' | 'II' | 'III' | null,
   instructions: '',
   modality: 'online' as 'online' | 'printed' | 'hybrid',
@@ -261,6 +268,26 @@ const WEIGHT_KEYS_BY_BANK: Record<string, string[]> = {
   UFG: ['Linguagens', 'Matemática', 'Natureza', 'Humanas'],
   Todas: [],
 };
+
+// Subconjunto de config que afeta QUAIS questões são sorteadas — usado para
+// decidir, ao reabrir a edição de um simulado, se dá pra reaproveitar o
+// preview/conjunto já travado (fixed_question_ids) sem gerar um novo sorteio.
+// Espelha SELECTION_AFFECTING_KEYS do backend (scheduled_simulado.py).
+function selectionRelevantSubset(cfg: Partial<SimuladoConfig> | null | undefined): string {
+  const c = cfg || {};
+  const weights = c.weights && typeof c.weights === 'object'
+    ? Object.fromEntries(Object.entries(c.weights).sort(([a], [b]) => a.localeCompare(b)))
+    : null;
+  return JSON.stringify({
+    format: c.format ?? null,
+    bank: c.bank ?? null,
+    subject: c.subject ?? null,
+    difficulty: c.difficulty ?? null,
+    qty: c.qty ?? null,
+    weights,
+    ueg_weight_group: c.ueg_weight_group ?? null,
+  });
+}
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function SimuladosFounderClient({ slug }: { slug: string }) {
@@ -299,6 +326,16 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     found: number;
     by_subject?: Record<string, { expected: number; found: number }>;
   } | null>(null);
+  const [editingSim, setEditingSim] = useState<ScheduledSimulado | null>(null);
+  // Preview do modo Aleatório: lista concreta e ORDENADA de questões sorteadas
+  // pelo backend (dry-run). Ponto crítico de segurança: handleSave/handleSaveImpresso
+  // sempre enviam esta mesma lista como custom_question_ids/question_ids — nunca
+  // reenviam só `config` esperando que o backend sorteie de novo.
+  const [previewQuestions, setPreviewQuestions] = useState<SelectedQuestion[] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [showAleatorioPreview, setShowAleatorioPreview] = useState(false);
+  const [downloadingPreviewPdf, setDownloadingPreviewPdf] = useState(false);
+  const onBrand = onBrandText(org.brand_primary);
 
   async function fetchWithAuth(url: string, options: RequestInit = {}) {
     const supabase = createClient();
@@ -427,19 +464,22 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
       toast.error('Título é obrigatório');
       return;
     }
+    // Ponto crítico de segurança: nunca deixa o backend sortear de novo — usa
+    // exatamente a lista concreta e ordenada que o founder já viu no preview.
+    if (!previewQuestions || previewQuestions.length < 5) {
+      toast.error('Gere e revise o preview do simulado antes de confirmar.');
+      return;
+    }
     setSaving(true);
-    setSaveProgressLabel('Selecionando questões para a prova impressa...');
+    setSaveProgressLabel('Salvando prova impressa...');
     try {
-      const config = {
-        format: form.format,
-        bank: form.bank,
-        subject: form.subject || null,
-        difficulty: form.difficulty,
-        qty: Number(form.qty),
-      };
       const res = await fetchWithAuth(`/api/partners/${slug}/printed-exams`, {
         method: 'POST',
-        body: JSON.stringify({ title: form.title.trim(), config }),
+        body: JSON.stringify({
+          title: form.title.trim(),
+          question_ids: previewQuestions.map((q) => q.id),
+          config: { custom_questions: previewQuestions.map(toCustomQuestionSnapshot) },
+        }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -450,6 +490,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
       setShowForm(false);
       setShowReviewApproval(false);
       setForm(EMPTY_FORM);
+      setPreviewQuestions(null);
     } finally {
       setSaving(false);
       setSaveProgressLabel('');
@@ -486,23 +527,6 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
       return sim.fixed_question_ids.map(String).filter(Boolean);
     }
     return [];
-  }
-
-  function filenameFromDisposition(disposition: string | null, fallback: string): string {
-    const match = disposition?.match(/filename="?([^";]+)"?/i);
-    return match?.[1] || fallback;
-  }
-
-  async function downloadBlobResponse(res: Response, fallbackName: string) {
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filenameFromDisposition(res.headers.get('Content-Disposition'), fallbackName);
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   }
 
   async function handlePrintScheduledSimulado(sim: ScheduledSimulado) {
@@ -547,63 +571,55 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     }
   }
 
-  async function handleSaveWithAutoQuestions() {
-    setNoQuestionsError(false);
-    setDistributionShortfall(null);
-    setForm((f) => ({ ...f, subject: '', difficulty: 'misto' }));
-    await handleSave({ overrideSubject: '', overrideDifficulty: 'misto' });
+  // Monta a config a partir do form — usada tanto para gerar o preview (dry-run)
+  // quanto, indiretamente, para o registro final: assim o preview sorteia com
+  // exatamente a mesma config que a criação usaria.
+  function buildConfigFromForm(overrides?: { overrideSubject?: string; overrideDifficulty?: string }): SimuladoConfig {
+    return {
+      format: form.format,
+      bank: form.bank,
+      subject: overrides?.overrideSubject !== undefined ? (overrides.overrideSubject || null) : (form.subject || null),
+      difficulty: overrides?.overrideDifficulty ?? form.difficulty,
+      qty: Number(form.qty),
+      time_limit_secs: form.time_limit_secs ? Number(form.time_limit_secs) * 60 : null,
+      weights: Object.keys(form.weights || {}).length > 0
+        ? Object.fromEntries(
+            Object.entries(form.weights).filter(([, v]) => Number(v) > 0)
+          )
+        : null,
+      allow_retry: form.allow_retry,
+      same_for_all_students: form.same_for_all_students,
+      ueg_weight_group: form.bank === 'UEG' ? (form.ueg_weight_group ?? null) : null,
+      instructions: form.instructions?.trim() ? form.instructions.trim() : null,
+    };
   }
 
-  async function handleSaveWithPartial() {
-    setDistributionShortfall(null);
-    await handleSave({ forcePartial: true });
-  }
-
-  async function handleSave(overrides?: { overrideSubject?: string; overrideDifficulty?: string; forcePartial?: boolean }) {
-    if (!form.title.trim() || !form.starts_at) {
-      toast.error('Título e data de início são obrigatórios');
-      return;
-    }
+  // Dry-run: sorteia (ou, na edição sem mudança de seleção, apenas busca) as
+  // questões no backend e guarda o resultado em `previewQuestions`. NADA é
+  // persistido aqui. Esse array — e só ele — é o que depois vira
+  // custom_question_ids/question_ids no submit final (handleSave/handleSaveImpresso).
+  async function handleGeneratePreview(overrides?: { overrideSubject?: string; overrideDifficulty?: string; forcePartial?: boolean }) {
     setNoQuestionsError(false);
     setDistributionShortfall(null);
-    setSaving(true);
-    setSaveProgressLabel(form.same_for_all_students && !overrides ? 'Selecionando questões para a turma...' : 'Salvando simulado...');
+    setPreviewQuestions(null);
+    setPreviewLoading(true);
+    setShowReviewApproval(true);
     try {
-      const config: SimuladoConfig = {
-        format: form.format,
-        bank: form.bank,
-        subject: overrides?.overrideSubject !== undefined ? (overrides.overrideSubject || null) : (form.subject || null),
-        difficulty: overrides?.overrideDifficulty ?? form.difficulty,
-        qty: Number(form.qty),
-        time_limit_secs: form.time_limit_secs ? Number(form.time_limit_secs) * 60 : null,
-        weights: Object.keys(form.weights || {}).length > 0
-          ? Object.fromEntries(
-              Object.entries(form.weights).filter(([, v]) => Number(v) > 0)
-            )
-          : null,
-        allow_retry: form.allow_retry,
-        same_for_all_students: form.same_for_all_students,
-        ueg_weight_group: form.bank === 'UEG' ? (form.ueg_weight_group ?? null) : null,
-        instructions: form.instructions?.trim() ? form.instructions.trim() : null,
-      };
+      const unchanged = editingId
+        && editingSim
+        && Array.isArray(editingSim.fixed_question_ids)
+        && editingSim.fixed_question_ids.length > 0
+        && !overrides
+        && selectionRelevantSubset(editingSim.config) === selectionRelevantSubset(buildConfigFromForm());
 
-      const body = {
-        title: form.title,
-        config,
-        starts_at: new Date(form.starts_at).toISOString(),
-        ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
-        modality: form.modality,
-        location_name: (form.modality === 'printed' || form.modality === 'hybrid') ? (form.location_name.trim() || null) : null,
-        location_address: (form.modality === 'printed' || form.modality === 'hybrid') ? (form.location_address.trim() || null) : null,
-        ...(overrides?.forcePartial ? { force_partial: true } : {}),
-      };
-
-      const url = editingId
-        ? `/api/partners/${slug}/scheduled-simulados/${editingId}`
-        : `/api/partners/${slug}/scheduled-simulados`;
-      const method = editingId ? 'PATCH' : 'POST';
-
-      const res = await fetchWithAuth(url, { method, body: JSON.stringify(body) });
+      const res = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/preview`, {
+        method: 'POST',
+        body: JSON.stringify(
+          unchanged
+            ? { question_ids: editingSim!.fixed_question_ids }
+            : { config: buildConfigFromForm(overrides), force_partial: overrides?.forcePartial },
+        ),
+      });
       const json = await res.json();
       if (!res.ok) {
         if (json.code === 'NO_QUESTIONS_FOUND_FOR_SAME_FOR_ALL') {
@@ -614,6 +630,94 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           setDistributionShortfall(json.shortfall ?? { expected: 0, found: 0 });
           return;
         }
+        toast.error(json.error ?? 'Erro ao gerar preview do simulado');
+        setShowReviewApproval(false);
+        return;
+      }
+      setPreviewQuestions((json.questions as RawPreviewQuestion[]).map(toSelectedQuestion));
+    } catch {
+      toast.error('Erro ao gerar preview do simulado');
+      setShowReviewApproval(false);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  async function handleDownloadPreviewPdf() {
+    if (!previewQuestions || previewQuestions.length === 0) return;
+    setDownloadingPreviewPdf(true);
+    try {
+      const res = await fetchWithAuth(`/api/partners/${slug}/printed-exams/preview.pdf`, {
+        method: 'POST',
+        body: JSON.stringify({
+          title: form.title.trim() || 'Prévia',
+          question_ids: previewQuestions.map((q) => q.id),
+          custom_questions: previewQuestions.map(toCustomQuestionSnapshot),
+        }),
+      });
+      if (!res.ok) {
+        toast.error('Erro ao gerar PDF de prévia');
+        return;
+      }
+      await downloadBlobResponse(res, 'preview_prova.pdf');
+    } finally {
+      setDownloadingPreviewPdf(false);
+    }
+  }
+
+  async function handleSaveWithAutoQuestions() {
+    setNoQuestionsError(false);
+    setDistributionShortfall(null);
+    setForm((f) => ({ ...f, subject: '', difficulty: 'misto' }));
+    await handleGeneratePreview({ overrideSubject: '', overrideDifficulty: 'misto' });
+  }
+
+  async function handleSaveWithPartial() {
+    setDistributionShortfall(null);
+    await handleGeneratePreview({ forcePartial: true });
+  }
+
+  async function handleSave() {
+    if (!form.title.trim() || !form.starts_at) {
+      toast.error('Título e data de início são obrigatórios');
+      return;
+    }
+    // Ponto crítico de segurança: quando o simulado é "mesma prova para todos",
+    // NUNCA deixa o backend sortear de novo — usa exatamente a lista concreta e
+    // ordenada que o founder já viu no preview (mesmo mecanismo do Personalizado).
+    // Quando é "sorteio individual por aluno", não existe "a" prova para travar —
+    // cada aluno sorteia a própria ao iniciar — então o preview aqui é só uma
+    // amostra ilustrativa e não é enviado como lista fixa.
+    if (form.same_for_all_students && (!previewQuestions || previewQuestions.length < 5)) {
+      toast.error('Gere e revise o preview do simulado antes de confirmar.');
+      return;
+    }
+    setSaving(true);
+    setSaveProgressLabel('Salvando simulado...');
+    try {
+      const config = buildConfigFromForm();
+
+      const body = {
+        title: form.title,
+        config,
+        starts_at: new Date(form.starts_at).toISOString(),
+        ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
+        modality: form.modality,
+        location_name: (form.modality === 'printed' || form.modality === 'hybrid') ? (form.location_name.trim() || null) : null,
+        location_address: (form.modality === 'printed' || form.modality === 'hybrid') ? (form.location_address.trim() || null) : null,
+        ...(form.same_for_all_students && previewQuestions
+          ? { custom_question_ids: previewQuestions.map((q) => q.id) }
+          : {}),
+      };
+
+      const url = editingId
+        ? `/api/partners/${slug}/scheduled-simulados/${editingId}`
+        : `/api/partners/${slug}/scheduled-simulados`;
+      const method = editingId ? 'PATCH' : 'POST';
+
+      const res = await fetchWithAuth(url, { method, body: JSON.stringify(body) });
+      const json = await res.json();
+      if (!res.ok) {
         toast.error(json.error ?? 'Erro ao salvar');
         return;
       }
@@ -645,8 +749,11 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
       }
       setShowForm(false);
       setShowReviewApproval(false);
+      setShowAleatorioPreview(false);
       setEditingId(null);
+      setEditingSim(null);
       setForm(EMPTY_FORM);
+      setPreviewQuestions(null);
       await loadSimulados();
     } finally {
       setSaving(false);
@@ -683,6 +790,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
 
   function openEdit(sim: ScheduledSimulado) {
     setEditingId(sim.id);
+    setEditingSim(sim);
+    setPreviewQuestions(null);
       setForm({
       title: sim.title,
       bank: sim.config.bank,
@@ -725,7 +834,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               </div>
               {!showForm && (
                 <BrandButton
-                  onClick={() => { setShowTypeSelector(true); setEditingId(null); setForm(EMPTY_FORM); }}
+                  onClick={() => { setShowTypeSelector(true); setEditingId(null); setEditingSim(null); setForm(EMPTY_FORM); setPreviewQuestions(null); }}
                   hex={org.brand_primary}
                   className="w-full sm:w-auto"
                 >
@@ -751,7 +860,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     </div>
                     <button
                       type="button"
-                      onClick={() => { setShowForm(false); setEditingId(null); setForm(EMPTY_FORM); }}
+                      onClick={() => { setShowForm(false); setEditingId(null); setEditingSim(null); setForm(EMPTY_FORM); setPreviewQuestions(null); }}
                       className="min-h-11 shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                     >
                       Fechar
@@ -1045,8 +1154,18 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               <div className="flex flex-col gap-2 pt-1 sm:flex-row">
                 <button
                   type="button"
-                  onClick={() => setShowReviewApproval(true)}
-                  disabled={saving}
+                  onClick={() => {
+                    if (!form.title.trim()) {
+                      toast.error('Título é obrigatório');
+                      return;
+                    }
+                    if (deliveryMode !== 'impressa' && !form.starts_at) {
+                      toast.error('Data de início é obrigatória');
+                      return;
+                    }
+                    void handleGeneratePreview();
+                  }}
+                  disabled={saving || previewLoading}
                   className="min-h-11 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition disabled:opacity-50"
                   style={{ backgroundColor: 'var(--brand-primary)' }}
                 >
@@ -1054,7 +1173,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setShowForm(false); setEditingId(null); setForm(EMPTY_FORM); }}
+                  onClick={() => { setShowForm(false); setEditingId(null); setEditingSim(null); setForm(EMPTY_FORM); setPreviewQuestions(null); }}
                   className="min-h-11 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
                   Cancelar
@@ -1163,7 +1282,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             resetTypeSelectorState();
                             setShowForm(true);
                             setEditingId(null);
+                            setEditingSim(null);
                             setForm(EMPTY_FORM);
+                            setPreviewQuestions(null);
                           }}
                           className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
                         >
@@ -1931,21 +2052,29 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               </div>
               <button
                 type="button"
-                onClick={() => { setShowReviewApproval(false); setNoQuestionsError(false); setDistributionShortfall(null); }}
+                onClick={() => { setShowReviewApproval(false); setNoQuestionsError(false); setDistributionShortfall(null); setPreviewQuestions(null); }}
                 className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {saving ? (
+            {previewLoading ? (
               <div className="mt-4 space-y-3 animate-pulse">
-                {form.same_for_all_students && (
-                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-[var(--brand-primary)] animate-ping" />
-                    {saveProgressLabel || 'Selecionando questões para a turma...'}
-                  </div>
-                )}
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-[var(--brand-primary)] animate-ping" />
+                  Sorteando questões para o preview...
+                </div>
+                {[80, 60, 70, 50, 65, 55].map((w, i) => (
+                  <div key={i} className={`h-4 rounded-lg bg-slate-200 dark:bg-slate-700`} style={{ width: `${w}%` }} />
+                ))}
+              </div>
+            ) : saving ? (
+              <div className="mt-4 space-y-3 animate-pulse">
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-[var(--brand-primary)] animate-ping" />
+                  {saveProgressLabel || 'Salvando simulado...'}
+                </div>
                 {[80, 60, 70, 50, 65, 55].map((w, i) => (
                   <div key={i} className={`h-4 rounded-lg bg-slate-200 dark:bg-slate-700`} style={{ width: `${w}%` }} />
                 ))}
@@ -2058,14 +2187,52 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     </div>
                   </div>
                 )}
+
+                {previewQuestions && (
+                  <div className="pt-3 space-y-2">
+                    {deliveryMode !== 'impressa' && !form.same_for_all_students && (
+                      <p className="text-xs text-amber-700 dark:text-amber-400">
+                        Prévia ilustrativa: como &quot;sorteio individual por aluno&quot; está ativo, cada aluno vai
+                        receber uma seleção diferente de questões ao iniciar — este preview mostra só um exemplo.
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowAleatorioPreview(true)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        Ver simulado ({previewQuestions.length} questões)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDownloadPreviewPdf()}
+                        disabled={downloadingPreviewPdf}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        {downloadingPreviewPdf ? 'Gerando PDF...' : 'Baixar PDF preview'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleGeneratePreview()}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Sortear novamente
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {!saving && !noQuestionsError && (
+            {!previewLoading && !saving && !noQuestionsError && !distributionShortfall && (
               <div className="mt-5 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { setShowReviewApproval(false); setNoQuestionsError(false); setDistributionShortfall(null); }}
+                  onClick={() => { setShowReviewApproval(false); setNoQuestionsError(false); setDistributionShortfall(null); setPreviewQuestions(null); }}
                   className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300"
                 >
                   Voltar para edição
@@ -2073,7 +2240,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 <button
                   type="button"
                   onClick={() => deliveryMode === 'impressa' ? handleSaveImpresso() : handleSave()}
-                  disabled={saving}
+                  disabled={saving || ((deliveryMode === 'impressa' || form.same_for_all_students) && (!previewQuestions || previewQuestions.length < 5))}
                   className="rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
                   style={{ backgroundColor: 'var(--brand-primary)' }}
                 >
@@ -2085,6 +2252,27 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
             )}
           </div>
         </div>
+      )}
+
+      {showAleatorioPreview && previewQuestions && (
+        <SimuladoPreviewModal
+          questions={previewQuestions}
+          brandPrimary={org.brand_primary}
+          onBrand={onBrand}
+          timeLimitMins={form.time_limit_secs}
+          onClose={() => setShowAleatorioPreview(false)}
+          headerExtra={
+            <button
+              type="button"
+              onClick={() => void handleDownloadPreviewPdf()}
+              disabled={downloadingPreviewPdf}
+              className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer min-h-[44px] transition-colors text-slate-500 hover:bg-slate-100 flex items-center gap-1.5"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              {downloadingPreviewPdf ? 'Gerando PDF...' : 'Baixar PDF'}
+            </button>
+          }
+        />
       )}
     </PartnerLayout>
   );

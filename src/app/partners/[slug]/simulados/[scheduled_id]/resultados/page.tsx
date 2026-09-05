@@ -12,11 +12,14 @@ import {
   Award,
   BarChart3,
   CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ClipboardList,
   Download,
+  FileText,
   Loader2,
   Plus,
+  Sparkles,
   TrendingDown,
   TrendingUp,
   User,
@@ -69,6 +72,17 @@ interface Participant {
   percentage?: number | null;
   graded_at?: string | null;
   results_by_subject?: Record<string, SubjectResult> | null;
+}
+
+interface IndividualReportsJob {
+  jobId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  totalItems: number;
+  completedItems: number;
+  failedItems: number;
+  estimatedCostUsd: number | null;
+  downloadUrl: string | null;
+  errorMessage: string | null;
 }
 
 function formatDateBR(iso?: string | null) {
@@ -130,14 +144,22 @@ export default function PrintedExamResultsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [generatingClassReport, setGeneratingClassReport] = useState(false);
+  const [creatingIndividualJob, setCreatingIndividualJob] = useState(false);
+  const [individualJob, setIndividualJob] = useState<IndividualReportsJob | null>(null);
 
-  async function fetchWithAuth(url: string) {
+  async function fetchWithAuth(url: string, init?: RequestInit) {
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token ?? '';
     const api = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
     return fetch(`${api}${url}`, {
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      ...init,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
     });
   }
 
@@ -237,6 +259,94 @@ export default function PrintedExamResultsPage() {
     }
   }
 
+  async function downloadClassReport() {
+    setGeneratingClassReport(true);
+    setError(null);
+    try {
+      const res = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/${scheduledId}/report.pdf`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? 'Nao foi possivel gerar o relatorio geral da turma.');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `relatorio_turma_${(printedExam?.title ?? 'simulado').replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Erro de conexao ao gerar o relatorio geral da turma.');
+    } finally {
+      setGeneratingClassReport(false);
+    }
+  }
+
+  async function startIndividualReportsJob() {
+    setCreatingIndividualJob(true);
+    setError(null);
+    try {
+      const res = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/${scheduledId}/individual-reports`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? 'Nao foi possivel iniciar a geracao dos relatorios individuais.');
+        return;
+      }
+      setIndividualJob({
+        jobId: data.job_id,
+        status: data.status ?? 'pending',
+        totalItems: 0,
+        completedItems: 0,
+        failedItems: 0,
+        estimatedCostUsd: null,
+        downloadUrl: null,
+        errorMessage: null,
+      });
+    } catch {
+      setError('Erro de conexao ao iniciar a geracao dos relatorios individuais.');
+    } finally {
+      setCreatingIndividualJob(false);
+    }
+  }
+
+  // Polling de progresso do job de relatorios individuais — para quando o
+  // job chega em completed/failed.
+  useEffect(() => {
+    if (!individualJob || individualJob.status === 'completed' || individualJob.status === 'failed') return;
+    const interval = window.setInterval(async () => {
+      try {
+        const res = await fetchWithAuth(
+          `/api/partners/${slug}/scheduled-simulados/${scheduledId}/individual-reports/${individualJob.jobId}`
+        );
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setIndividualJob({
+            jobId: data.job_id,
+            status: data.status,
+            totalItems: data.total_items ?? 0,
+            completedItems: data.completed_items ?? 0,
+            failedItems: data.failed_items ?? 0,
+            estimatedCostUsd: data.estimated_cost_usd ?? null,
+            downloadUrl: data.download_url ?? null,
+            errorMessage: data.error_message ?? null,
+          });
+        }
+      } catch {
+        // Polling silencioso — a proxima tentativa cobre uma falha pontual.
+      }
+    }, 4000);
+    return () => window.clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [individualJob?.jobId, individualJob?.status, slug, scheduledId]);
+
   const stats = useMemo(() => {
     const total = participants.length;
     const ranked = participants.map((participant) => ({
@@ -291,6 +401,84 @@ export default function PrintedExamResultsPage() {
             </p>
           </div>
         </div>
+
+        {!org.is_mock && !loading && !error && participants.length > 0 && (
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <button
+              type="button"
+              onClick={() => void downloadClassReport()}
+              disabled={generatingClassReport}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+            >
+              {generatingClassReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              Gerar relatorio geral da turma
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void startIndividualReportsJob()}
+              disabled={creatingIndividualJob || (individualJob != null && individualJob.status !== 'completed' && individualJob.status !== 'failed')}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
+            >
+              {creatingIndividualJob ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Gerar relatorios individuais (ZIP)
+            </button>
+          </div>
+        )}
+
+        {individualJob && (
+          <div className="mb-6 max-w-xl rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            {individualJob.status === 'failed' ? (
+              <div className="flex items-start gap-3">
+                <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
+                <div>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Falha ao gerar os relatorios individuais</p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{individualJob.errorMessage ?? 'Erro desconhecido.'}</p>
+                </div>
+              </div>
+            ) : individualJob.status === 'completed' ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                      Relatorios individuais prontos ({individualJob.completedItems}/{individualJob.totalItems} alunos
+                      {individualJob.failedItems > 0 ? `, ${individualJob.failedItems} com falha parcial` : ''})
+                    </p>
+                    {typeof individualJob.estimatedCostUsd === 'number' && (
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        Custo estimado de geracao: US$ {individualJob.estimatedCostUsd.toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {individualJob.downloadUrl && (
+                  <a
+                    href={individualJob.downloadUrl}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+                    style={{ backgroundColor: 'var(--brand-primary)' }}
+                  >
+                    <Download className="h-4 w-4" />
+                    Baixar ZIP
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[var(--brand-primary)]" />
+                <div>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Gerando relatorios individuais...</p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    {individualJob.totalItems > 0
+                      ? `${individualJob.completedItems} de ${individualJob.totalItems} alunos concluidos`
+                      : 'Preparando os dados de cada aluno...'}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
