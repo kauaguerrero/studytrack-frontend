@@ -1127,6 +1127,10 @@ export default function SimuladoPage() {
       }
       if (res.status === 404) { toast.error('Nenhuma questão encontrada', { description: 'Tente reduzir a quantidade ou mudar a dificuldade para "Misto".', duration: 6000 }); return }
       if (res.status === 409 && data?.code === 'ACTIVE_SESSION_EXISTS') {
+        // Fecha o Dialog de configuração ANTES de abrir o aviso de conflito: o
+        // Dialog do Radix é modal e mantém `pointer-events: none` no body, então
+        // o aviso aparecia por cima mas nenhum dos dois botões respondia ao clique.
+        setShowConfigModal(false)
         setActiveSessionConflict(data.active_session ?? null)
         return
       }

@@ -146,7 +146,6 @@ export default function BancoDeQuestoes() {
 
   // ── State: Filters & Logic ──────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'todo' | 'done'>('todo');
-  const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
 
   // Pré-seleciona a matéria quando o CTA "Continue de onde parou" chega com
   // ?subject=X (última matéria que o aluno estava respondendo).
@@ -221,31 +220,17 @@ export default function BancoDeQuestoes() {
         if (user) {
           setUserId(user.id);
 
-          const fetchAllAnsweredIds = async (): Promise<string[]> => {
-            const ids: string[] = [];
-            const pageSize = 1000;
-            let offset = 0;
-            while (true) {
-              const { data } = await supabase
-                .from('user_answers')
-                .select('question_id')
-                .eq('user_id', user.id)
-                .range(offset, offset + pageSize - 1);
-              if (!data || data.length === 0) break;
-              ids.push(...data.map((a) => a.question_id));
-              if (data.length < pageSize) break;
-              offset += pageSize;
-            }
-            return ids;
-          };
-
-          const [profileRes, answeredIdsList] = await Promise.all([
-            supabase.from('profiles').select('full_name').eq('id', user.id).single(),
-            fetchAllAnsweredIds(),
-          ]);
+          // Nada de buscar os user_answers aqui: quem separa "feitas" de "não
+          // feitas" é o filtro `tab` no backend. A lista de IDs respondidos era
+          // baixada inteira (milhares de linhas por abertura da página) e nunca
+          // era lida.
+          const profileRes = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .single();
 
           setUserProfile(profileRes.data);
-          setAnsweredIds(new Set(answeredIdsList));
         }
       } catch (error) {
         await reportError('QuestionBankInitError', String(error), { flow: 'question_bank_init' });
@@ -524,7 +509,7 @@ export default function BancoDeQuestoes() {
         }
       }
     },
-    [userId, activeTab, answeredIds, filterSubject, filterBank, filterTopic, filterYear, filterDifficulty]
+    [userId, activeTab, filterSubject, filterBank, filterTopic, filterYear, filterDifficulty]
   );
 
   // ── Infinite scroll ───────────────────────────────────────────────────────────
@@ -569,13 +554,8 @@ export default function BancoDeQuestoes() {
     }
   };
 
-  const handleLocalAnswer = (qId: string) => {
-    setAnsweredIds((prev) => new Set(prev).add(qId));
-  };
-
   const handleAnswerResult = useCallback(
     (qId: string, result: { is_correct?: boolean; new_streak?: number; streak_updated?: boolean; gamification?: { points_awarded: number; shield_awarded?: boolean } }) => {
-      handleLocalAnswer(qId);
       // Usa os pontos da API quando disponíveis (usuários com org_id — backend já
       // persiste monthly_points). Para usuários sem org_id, fallback via RPC direto.
       const hasBackendGamification = result.gamification !== undefined;
