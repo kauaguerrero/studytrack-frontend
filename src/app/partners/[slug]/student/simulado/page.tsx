@@ -617,6 +617,11 @@ export default function SimuladoPage() {
   }[]>([])
   const [nowTs, setNowTs] = useState<number>(Date.now())
   const [hybridConfirmSimId, setHybridConfirmSimId] = useState<string | null>(null)
+  // Simulados UFG completo/linguagens têm um bloco de idioma (Inglês/Espanhol/
+  // Francês) — o aluno escolhe antes de iniciar, igual escolheria no cartão-
+  // resposta da prova de papel. `pendingUfgLanguageStart` guarda o que fazer
+  // depois da escolha (id do agendado + se deve descartar sessão ativa).
+  const [pendingUfgLanguageStart, setPendingUfgLanguageStart] = useState<{ simId: string; discardActive?: boolean } | null>(null)
   const [activeSessionConflict, setActiveSessionConflict] = useState<{
     id: string
     started_at?: string | null
@@ -1108,8 +1113,27 @@ export default function SimuladoPage() {
     }
   }, [presetFormats, enemFormat])
 
+  // UFG completo/linguagens é a única banca com bloco de idioma — sem
+  // escolher, o backend rejeita o /start (UFG_LANGUAGE_REQUIRED) pra evitar
+  // que o aluno receba os 3 blocos de idioma de uma vez em vez de só o seu.
+  function needsUfgLanguageChoice(config: Record<string, unknown> | undefined): boolean {
+    const cfgBank = String(config?.bank ?? '').toUpperCase()
+    const cfgFormat = String(config?.format ?? '').toLowerCase()
+    return cfgBank === 'UFG' && (cfgFormat === 'completo' || cfgFormat === 'linguagens')
+  }
+
+  // Ponto único de entrada pra iniciar um simulado agendado: se ele exigir
+  // escolha de idioma, abre o seletor antes; senão, inicia direto.
+  function startScheduledSimulado(sim: { id: string; config: Record<string, unknown> }, discardActive?: boolean) {
+    if (needsUfgLanguageChoice(sim.config)) {
+      setPendingUfgLanguageStart({ simId: sim.id, discardActive })
+      return
+    }
+    startSimulado(sim.id, discardActive)
+  }
+
   // ── Handlers ──
-  const startSimulado = async (scheduledId?: string, discardActive?: boolean) => {
+  const startSimulado = async (scheduledId?: string, discardActive?: boolean, language?: string) => {
     const token = await getFreshAccessToken()
     if (!token) { toast.error('Sessão expirada', { description: 'Faça login novamente para continuar.' }); return }
     setLoading(true)
@@ -1141,6 +1165,7 @@ export default function SimuladoPage() {
         body.bank = presetBank
       }
       if (scheduledId) body.scheduled_simulado_id = scheduledId
+      if (language) body.language = language
       const res = await fetch(`${apiUrl}/api/simulado/start`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) })
       const data = await res.json()
       if (res.status === 403) {
@@ -1988,13 +2013,72 @@ export default function SimuladoPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => { const id = hybridConfirmSimId; setHybridConfirmSimId(null); startSimulado(id!); }}
+                            onClick={() => {
+                              const id = hybridConfirmSimId
+                              setHybridConfirmSimId(null)
+                              const sim = scheduledSimulados.find((s) => s.id === id)
+                              if (sim) startScheduledSimulado(sim)
+                              else if (id) startSimulado(id)
+                            }}
                             className="min-h-11 flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 cursor-pointer"
                             style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
                           >
                             Iniciar mesmo assim
                           </button>
                         </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Seletor de idioma (UFG completo/linguagens) */}
+                <AnimatePresence>
+                  {pendingUfgLanguageStart && (
+                    <motion.div
+                      key="ufg-language-modal"
+                      className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={() => setPendingUfgLanguageStart(null)}
+                    >
+                      <motion.div
+                        className="max-h-[calc(100vh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:p-6"
+                        initial={{ scale: 0.94, opacity: 0, y: 12 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        exit={{ scale: 0.94, opacity: 0, y: 12 }}
+                        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <p className="text-base font-extrabold text-slate-900 dark:text-white mb-2">Escolha o idioma</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+                          Este simulado tem um bloco de Língua Estrangeira. Escolha o idioma que você
+                          vai responder — igual você marcaria no cartão-resposta da prova real.
+                        </p>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                          {(['Inglês', 'Espanhol', 'Francês'] as const).map((lang) => (
+                            <button
+                              key={lang}
+                              type="button"
+                              disabled={loading}
+                              onClick={() => {
+                                const pending = pendingUfgLanguageStart
+                                setPendingUfgLanguageStart(null)
+                                if (pending) startSimulado(pending.simId, pending.discardActive, lang)
+                              }}
+                              className="min-h-11 rounded-xl border-2 border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/5 hover:text-[var(--brand-primary)] disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-700 dark:text-slate-300 cursor-pointer"
+                            >
+                              {lang}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPendingUfgLanguageStart(null)}
+                          className="mt-4 min-h-11 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
                       </motion.div>
                     </motion.div>
                   )}
@@ -2082,7 +2166,7 @@ export default function SimuladoPage() {
                     cta = (
                       <button
                         type="button"
-                        onClick={() => startSimulado(sim.id)}
+                        onClick={() => startScheduledSimulado(sim)}
                         disabled={loading || sim.status === 'scheduled' || (sim.already_completed && sim.config?.allow_retry === false)}
                         className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 disabled:opacity-50 cursor-pointer sm:w-auto sm:shrink-0"
                         style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
