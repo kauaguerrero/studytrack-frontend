@@ -807,6 +807,15 @@ export default function ConfiguracoesPage() {
     }
   }
 
+  // Aluno que já tem exceção ativa some do select — pra mudar o horário dele
+  // é preciso remover a exceção atual na lista abaixo e criar de novo.
+  const studentsWithoutException = (exceptionsData?.students || []).filter(
+    (s) => !exceptionsData?.exceptions.some((exc) => exc.student_id === s.id),
+  );
+  const visibleStudents = studentsWithoutException.filter((s) =>
+    (s.full_name || s.email || '').toLowerCase().includes(studentSearch.trim().toLowerCase()),
+  );
+
   return (
     <PartnerLayout>
       <div className="edificar-page-canvas min-h-full -mx-4 -mt-4 px-4 pt-4 pb-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8 [--partner-surface-base:#ffffff] dark:[--partner-surface-base:#0f172a]">
@@ -1223,6 +1232,21 @@ export default function ConfiguracoesPage() {
         </ElevatedCard>
         </RevealItem>
 
+        {/* Salva só o bloco de branding acima (logo, cores, tema, tagline, fotos, contato) —
+            fica logo após ele de propósito, pra não parecer que também salva a janela de
+            envio / exceções abaixo, que têm os próprios botões de salvar. */}
+        <RevealItem>
+        <BrandButton
+          className="w-full justify-center"
+          hex={org.brand_primary}
+          onClick={handleSave}
+          disabled={saving || logoUploading || avatarUploading}
+        >
+          <Save className="h-4 w-4" />
+          {saving ? 'Salvando...' : 'Salvar Configurações'}
+        </BrandButton>
+        </RevealItem>
+
         <RevealItem>
         <ElevatedCard accentColor="var(--brand-accent)" className="edificar-major-surface">
           <div className="p-5 flex flex-col items-center gap-4 text-center">
@@ -1379,9 +1403,7 @@ export default function ConfiguracoesPage() {
                     />
                   </div>
                   <div className="max-h-52 space-y-0.5 overflow-y-auto rounded-xl bg-slate-50 p-1.5 dark:bg-white/5">
-                    {(exceptionsData?.students || [])
-                      .filter((s) => (s.full_name || s.email || '').toLowerCase().includes(studentSearch.trim().toLowerCase()))
-                      .map((s) => {
+                    {visibleStudents.map((s) => {
                         const checked = selectedStudentIds.includes(s.id);
                         return (
                           <button
@@ -1408,8 +1430,12 @@ export default function ConfiguracoesPage() {
                           </button>
                         );
                       })}
-                    {(exceptionsData?.students || []).length === 0 && (
-                      <p className="p-2 text-xs text-slate-400">Nenhum aluno encontrado nesta escola.</p>
+                    {visibleStudents.length === 0 && (
+                      <p className="p-2 text-xs text-slate-400">
+                        {studentsWithoutException.length === 0
+                          ? 'Todos os alunos já têm exceção configurada.'
+                          : 'Nenhum aluno encontrado.'}
+                      </p>
                     )}
                   </div>
                   {selectedStudentIds.length > 0 && (
@@ -1494,18 +1520,6 @@ export default function ConfiguracoesPage() {
             )}
           </div>
         </ElevatedCard>
-        </RevealItem>
-
-        <RevealItem>
-        <BrandButton
-          className="w-full justify-center"
-          hex={org.brand_primary}
-          onClick={handleSave}
-          disabled={saving || logoUploading || avatarUploading}
-        >
-          <Save className="h-4 w-4" />
-          {saving ? 'Salvando...' : 'Salvar Configurações'}
-        </BrandButton>
         </RevealItem>
 
         </div>
