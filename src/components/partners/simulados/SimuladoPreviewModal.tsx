@@ -3,9 +3,12 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Timer } from 'lucide-react';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
+import { AlternativeImages, QuestionContentBlocks, QuestionSupportImages } from '@/components/questions/QuestionMedia';
 import {
   extractAlternativeImageUrls,
   extractDetachedQuestionImageUrls,
+  getQuestionContentBlocks,
+  deriveTestletSharedContext,
 } from '@/components/questions/rendering';
 import type { SelectedQuestion } from '@/types/simulado-preview';
 
@@ -83,6 +86,14 @@ export default function SimuladoPreviewModal({
   const currentPreviewGroup = previewGroups[previewGroupIndex] ?? null;
   const isPreviewTestlet = Boolean(currentPreviewGroup?.label && currentPreviewGroup.items.length > 1);
   const previewContextQuestion = currentPreviewGroup?.items[0] ?? null;
+  // Mesma dedução de contexto compartilhado (por maior prefixo de linhas em
+  // comum, não só "questões idênticas") que a tela real do aluno usa — sem
+  // isso, o preview mostrava só o context da PRIMEIRA questão do grupo,
+  // ignorando qualquer parte extra de contexto específica das demais.
+  const previewGroupContextData = useMemo(
+    () => deriveTestletSharedContext(currentPreviewGroup?.items ?? []),
+    [currentPreviewGroup],
+  );
 
   const timeLabel = timeLimitMins !== undefined && timeLimitMins !== null && String(timeLimitMins).trim() !== ''
     ? `${timeLimitMins}:00`
@@ -172,41 +183,57 @@ export default function SimuladoPreviewModal({
                   </div>
                 )}
 
-                {previewContextQuestion?.context && (
-                  <QuestionRichText
-                    text={previewContextQuestion.context}
-                    className="prose prose-slate max-w-none mb-5 text-slate-600 border-l-4 pl-4 text-sm leading-relaxed"
-                    style={{ borderColor: brandPrimary }}
-                  />
-                )}
+                {previewContextQuestion && getQuestionContentBlocks(previewContextQuestion.metadata).length > 0 ? (
+                  <QuestionContentBlocks metadata={previewContextQuestion.metadata} className="mb-5" />
+                ) : (
+                  <>
+                    {previewGroupContextData.sharedContext && (
+                      <QuestionRichText
+                        text={previewGroupContextData.sharedContext}
+                        className="prose prose-slate max-w-none mb-5 text-slate-600 border-l-4 pl-4 text-sm leading-relaxed"
+                        style={{ borderColor: brandPrimary }}
+                      />
+                    )}
 
-                {(() => {
-                  const supportImages = extractDetachedQuestionImageUrls(
-                    previewContextQuestion?.images,
-                    previewContextQuestion?.context,
-                    previewContextQuestion?.alternatives_intro,
-                  );
-                  if (supportImages.length === 0) return null;
-                  return (
-                    <div className="mb-5">
-                      {supportImages.map((img, i) => (
-                        <div key={`${previewContextQuestion?.id || 'group'}-img-${i}`} className="mb-5 flex justify-center bg-slate-50 p-3 rounded-xl border border-slate-200">
-                          <img src={img} alt="Imagem de apoio da questão" className="max-h-40 md:max-h-52 w-auto max-w-full object-contain rounded-lg" />
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
+                    {(() => {
+                      const supportImages = extractDetachedQuestionImageUrls(
+                        previewContextQuestion?.images,
+                        previewContextQuestion?.context,
+                        previewContextQuestion?.alternatives_intro,
+                      );
+                      if (supportImages.length === 0) return null;
+                      return (
+                        <QuestionSupportImages
+                          images={supportImages}
+                          metadata={previewContextQuestion?.metadata}
+                          className="mb-5"
+                        />
+                      );
+                    })()}
+                  </>
+                )}
 
                 <div className="space-y-6">
                   {currentPreviewGroup.items.map((question, index) => (
                     <div key={question.id} className={`rounded-2xl border p-5 ${isPreviewTestlet ? 'border-slate-200 bg-slate-50/70' : 'border-transparent bg-transparent p-0'}`}>
+                      {isPreviewTestlet && index > 0 && (
+                        <div className="mb-4 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500">
+                          Referente ao texto-base acima
+                        </div>
+                      )}
                       {isPreviewTestlet && (
                         <div className="mb-4">
                           <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1 rounded-full border border-amber-200">
                             Testlet {index + 1}/{currentPreviewGroup.items.length}
                           </span>
                         </div>
+                      )}
+
+                      {previewGroupContextData.perQuestionContext[question.id] && (
+                        <QuestionRichText
+                          text={previewGroupContextData.perQuestionContext[question.id]}
+                          className="prose prose-slate max-w-none mb-5 text-sm text-slate-600 leading-relaxed"
+                        />
                       )}
 
                       <QuestionRichText
@@ -224,16 +251,7 @@ export default function SimuladoPreviewModal({
                               </span>
                               <div className="flex-1 pt-1">
                                 {alternativeImages.length > 0 && (
-                                  <div className="mb-2">
-                                    {alternativeImages.map((imageUrl, imageIndex) => (
-                                      <img
-                                        key={`${question.id}-${alt.letter}-img-${imageIndex}`}
-                                        src={imageUrl}
-                                        alt={`Alternativa ${alt.letter}`}
-                                        className={`max-h-32 md:max-h-36 rounded-lg border border-slate-200 object-contain bg-white ${imageIndex > 0 ? 'mt-2' : ''}`}
-                                      />
-                                    ))}
-                                  </div>
+                                  <AlternativeImages images={alternativeImages} metadata={question.metadata} letter={alt.letter} />
                                 )}
                                 {alt.text ? (
                                   <QuestionRichText text={alt.text} className="text-sm leading-snug text-slate-700" />

@@ -1,3 +1,86 @@
+export function normalizeMultilineText(text?: string | null): string {
+  return String(text || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/\s+$/g, ''))
+    .join('\n')
+    .trim()
+}
+
+// Um grupo de testlet (mesmo `testlet_group_id`) às vezes tem o `context`
+// de cada questão-irmã repetido por completo (mesmo texto de apoio salvo em
+// cada linha do banco) — sem isso, cada tela que renderiza um testlet
+// precisaria reimplementar essa dededuplicação por conta própria, com risco
+// de divergir uma da outra (foi exatamente isso que causou o preview do
+// founder mostrar algo diferente do que o aluno via). Usada tanto pela tela
+// de simulado do aluno quanto pelo preview do founder (SimuladoPreviewModal)
+// — mesma função, garante que os dois calculam a mesma coisa.
+//
+// Acha o maior PREFIXO DE LINHAS comum entre todas as questões do grupo (não
+// exige igualdade byte-a-byte do texto inteiro) e devolve (a) esse prefixo,
+// pra mostrar uma vez só antes do grupo, e (b) o que sobra de cada questão
+// depois desse prefixo, pra mostrar (se houver) junto de cada questão
+// individual dentro do grupo.
+export function deriveTestletSharedContext(
+  groupQuestions: Array<{ id: string; context?: string | null }>
+): { sharedContext: string; perQuestionContext: Record<string, string> } {
+  const normalizedContexts = groupQuestions
+    .map((question) => normalizeMultilineText(question.context))
+    .filter(Boolean)
+
+  if (normalizedContexts.length === 0) {
+    return { sharedContext: '', perQuestionContext: {} as Record<string, string> }
+  }
+
+  const linesPerQuestion = normalizedContexts.map((context) => context.split('\n'))
+  const prefixLines: string[] = []
+  const shortestLength = Math.min(...linesPerQuestion.map((lines) => lines.length))
+
+  for (let index = 0; index < shortestLength; index += 1) {
+    const candidate = linesPerQuestion[0][index]
+    if (linesPerQuestion.every((lines) => lines[index] === candidate)) {
+      prefixLines.push(candidate)
+      continue
+    }
+    break
+  }
+
+  let sharedContext = prefixLines.join('\n').trim()
+
+  if (!sharedContext && normalizedContexts.length === 1) {
+    sharedContext = normalizedContexts[0]
+  }
+
+  if (!sharedContext) {
+    const firstContext = normalizedContexts[0]
+    const hasExplicitSharedPrompt = /responder\s+às?\s+quest(ões|ao)|texto\s+\d+|imagem\s+\d+/i.test(firstContext)
+    if (hasExplicitSharedPrompt) {
+      sharedContext = firstContext
+    }
+  }
+
+  const perQuestionContext = Object.fromEntries(
+    groupQuestions.map((question) => {
+      const context = normalizeMultilineText(question.context)
+      if (!context || !sharedContext) {
+        return [question.id, context]
+      }
+      if (context === sharedContext) {
+        return [question.id, '']
+      }
+      if (context.startsWith(`${sharedContext}\n\n`)) {
+        return [question.id, context.slice(sharedContext.length).trim()]
+      }
+      if (context.startsWith(sharedContext)) {
+        return [question.id, context.slice(sharedContext.length).trim()]
+      }
+      return [question.id, context]
+    })
+  )
+
+  return { sharedContext, perQuestionContext }
+}
+
 export const questionMarkdownImageRegex = /!\[[^\]]*]\((.*?)\)/g
 
 export function normalizeQuestionImageUrl(raw: string): string | null {
