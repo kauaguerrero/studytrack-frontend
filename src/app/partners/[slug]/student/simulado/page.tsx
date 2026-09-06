@@ -21,6 +21,7 @@ import {
   extractAlternativeImageUrls,
   extractDetachedQuestionImageUrls,
   getQuestionContentBlocks,
+  deriveTestletSharedContext,
 } from '@/components/questions/rendering'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -226,73 +227,6 @@ function formatDuration(secs: number) {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', timeZone: 'America/Sao_Paulo' })
-}
-
-function normalizeMultilineText(text?: string | null) {
-  return String(text || '')
-    .replace(/\r\n/g, '\n')
-    .split('\n')
-    .map((line) => line.replace(/\s+$/g, ''))
-    .join('\n')
-    .trim()
-}
-
-function deriveTestletSharedContext(groupQuestions: Question[]) {
-  const normalizedContexts = groupQuestions
-    .map((question) => normalizeMultilineText(question.context))
-    .filter(Boolean)
-
-  if (normalizedContexts.length === 0) {
-    return { sharedContext: '', perQuestionContext: {} as Record<string, string> }
-  }
-
-  const linesPerQuestion = normalizedContexts.map((context) => context.split('\n'))
-  const prefixLines: string[] = []
-  const shortestLength = Math.min(...linesPerQuestion.map((lines) => lines.length))
-
-  for (let index = 0; index < shortestLength; index += 1) {
-    const candidate = linesPerQuestion[0][index]
-    if (linesPerQuestion.every((lines) => lines[index] === candidate)) {
-      prefixLines.push(candidate)
-      continue
-    }
-    break
-  }
-
-  let sharedContext = prefixLines.join('\n').trim()
-
-  if (!sharedContext && normalizedContexts.length === 1) {
-    sharedContext = normalizedContexts[0]
-  }
-
-  if (!sharedContext) {
-    const firstContext = normalizedContexts[0]
-    const hasExplicitSharedPrompt = /responder\s+às?\s+quest(ões|ao)|texto\s+\d+|imagem\s+\d+/i.test(firstContext)
-    if (hasExplicitSharedPrompt) {
-      sharedContext = firstContext
-    }
-  }
-
-  const perQuestionContext = Object.fromEntries(
-    groupQuestions.map((question) => {
-      const context = normalizeMultilineText(question.context)
-      if (!context || !sharedContext) {
-        return [question.id, context]
-      }
-      if (context === sharedContext) {
-        return [question.id, '']
-      }
-      if (context.startsWith(`${sharedContext}\n\n`)) {
-        return [question.id, context.slice(sharedContext.length).trim()]
-      }
-      if (context.startsWith(sharedContext)) {
-        return [question.id, context.slice(sharedContext.length).trim()]
-      }
-      return [question.id, context]
-    })
-  )
-
-  return { sharedContext, perQuestionContext }
 }
 
 function buildQuestionGroups(questions: Question[]) {

@@ -15,7 +15,7 @@ import { ManualQuestionForm } from '@/components/assessments/ManualQuestionForm'
 import SimuladoPreviewModal from '@/components/partners/simulados/SimuladoPreviewModal';
 import { downloadBlobResponse } from '@/lib/download-blob';
 import type { SelectedQuestion } from '@/types/simulado-preview';
-import { toCustomQuestionSnapshot } from '@/types/simulado-preview';
+import { toCustomQuestionSnapshot, deriveContextAndStatement } from '@/types/simulado-preview';
 
 type Method = 'bank' | 'ai' | 'manual' | null;
 
@@ -72,19 +72,21 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, p
   const [downloadingPreviewPdf, setDownloadingPreviewPdf] = useState(false);
 
   function addToPool(question: PoolCandidate) {
+    const { context, statement } = deriveContextAndStatement(question.context, question.alternatives_intro);
     const normalized: SelectedQuestion = {
       id: question.id,
       subject: question.subject,
       discipline: question.discipline,
       difficulty: question.difficulty,
-      alternatives_intro: question.alternatives_intro || 'Questão sem enunciado disponível',
-      context: question.context,
+      alternatives_intro: statement,
+      context,
       images: question.images,
       alternatives: question.alternatives,
       correct_alternative: question.correct_alternative,
       testletGroupId: question.testlet_group_id || undefined,
       testletPosition: typeof question.metadata?.testlet_order === 'number' ? question.metadata.testlet_order + 1 : undefined,
       testletTotal: typeof question.metadata?.testlet_total === 'number' ? question.metadata.testlet_total : undefined,
+      metadata: question.metadata,
     };
     setPool((prev) => (prev.some((item) => item.id === normalized.id) ? prev : [...prev, normalized]));
   }
