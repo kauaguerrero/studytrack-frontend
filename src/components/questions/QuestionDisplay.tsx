@@ -76,7 +76,10 @@ export function QuestionDisplay({
   );
 
   return (
-    <div className={['bg-card dark:bg-card p-6 md:p-8 rounded-3xl shadow-sm border border-border transition-all', className].filter(Boolean).join(' ')}>
+    <div
+      data-question-id={question.id}
+      className={['bg-card dark:bg-card p-6 md:p-8 rounded-3xl shadow-sm border border-border transition-all', className].filter(Boolean).join(' ')}
+    >
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">

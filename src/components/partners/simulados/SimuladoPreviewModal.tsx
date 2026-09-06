@@ -253,6 +253,7 @@ export default function SimuladoPreviewModal({
                     <div
                       key={question.id}
                       ref={(node) => { testletItemRefs.current[question.id] = node; }}
+                      data-question-id={question.id}
                       className={`scroll-mt-24 rounded-2xl border p-5 ${isPreviewTestlet ? 'border-slate-200 bg-slate-50/70' : 'border-transparent bg-transparent p-0'}`}
                     >
                       {isPreviewTestlet && index > 0 && (

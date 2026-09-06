@@ -253,6 +253,7 @@ export default function RevisaoPage() {
                                     return (
                                 <div
                                     key={q.id}
+                                    data-question-id={q.id}
                                     className={`bg-white dark:bg-slate-900 rounded-2xl border shadow-sm overflow-hidden ${
                                         q.is_annulled
                                             ? 'border-amber-200 dark:border-amber-900/50'

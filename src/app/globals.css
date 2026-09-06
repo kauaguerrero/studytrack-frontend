@@ -287,18 +287,14 @@
   background-color: rgba(148, 163, 184, 0.4);
 }
 
-.katex-display-wrap .katex-display {
-  margin: 0;
-  max-width: 100%;
-}
-
+/* Fórmula em display (ex.: semirreações de química) nunca quebra no meio —
+   isso deixava a prova com aparência de erro em telas estreitas (mobile).
+   `KatexDisplayBlock` (QuestionRichText.tsx) já cuida do encolher-pra-caber
+   e do scroll horizontal via estilo inline; esta regra fica só como rede de
+   segurança pra qualquer HTML de KaTeX renderizado fora daquele componente,
+   pra nunca cair de volta no `white-space: normal` que causava a quebra. */
 .katex-display-wrap .katex-display > .katex {
-  white-space: normal;
-  max-width: 100%;
-}
-
-.katex-display-wrap .katex-display > .katex > .katex-html {
-  max-width: 100%;
+  white-space: nowrap;
 }
 
 .partner-founder-scope[data-partner-slug="edificar"] {

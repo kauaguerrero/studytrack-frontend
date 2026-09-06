@@ -1,6 +1,6 @@
 'use client'
 
-import { Children, Fragment, isValidElement, useMemo, useState } from 'react'
+import { Children, Fragment, isValidElement, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
@@ -264,6 +264,156 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
   )
 }
 
+// Fórmula em display (semirreações, equações longas) é, no conteúdo real,
+// UMA linha só — quebrar ela no meio (bug anterior, CSS forçando
+// white-space:normal) não faz jus ao conteúdo. Prioridade: ENCOLHER a
+// fórmula até caber inteira numa linha (até um piso legível); só se mesmo
+// assim não couber é que sobra scroll horizontal — com um ícone bem
+// discreto ao lado (sem texto, pra não virar ruído quando a maioria das
+// fórmulas nem chega a precisar disso).
+//
+// Encolhe via `font-size` (em vez de `transform: scale`) porque o HTML do
+// KaTeX é inteiramente medido em `em`/`ex` — mudar o font-size do container
+// encolhe largura E altura corretamente na mesma proporção, sem sobrar (ou
+// faltar) espaço, e sem precisar calcular/replicar manualmente a altura
+// escalada (isso já deu bug: alturas calculadas "na mão" cortavam a
+// fórmula quando a barra de scroll de verdade entrava em cena).
+const KATEX_MIN_SCALE = 0.72
+
+// Quando uma questão tem mais de uma fórmula em display (ex.: duas
+// semirreações), cada uma encolhendo de forma independente faz a curta
+// ficar 100% e a longa ficar bem menor — mesma questão, tamanhos
+// visivelmente diferentes, parece erro. Em vez disso, todas as fórmulas de
+// uma mesma questão compartilham o MESMO encolhimento (o maior necessário
+// entre elas), pra ficarem visualmente consistentes — mesmo que a curta
+// sozinha coubesse maior.
+//
+// O "escopo" de uma questão é o ancestral DOM mais próximo com
+// `data-question-id` (já presente no card de cada questão nas telas real
+// do aluno e no preview do founder). Sem esse marcador (ex.: painel admin,
+// explorador de banco de questões), cada fórmula volta a encolher sozinha
+// — comportamento idêntico ao de antes, sem regressão.
+type KatexScopeEntry = {
+  ratios: Map<number, number>
+  appliers: Map<number, (groupScale: number) => void>
+}
+
+const katexScopeRegistry = new WeakMap<Element, KatexScopeEntry>()
+let katexInstanceCounter = 0
+
+function getKatexScopeEntry(scopeEl: Element): KatexScopeEntry {
+  let entry = katexScopeRegistry.get(scopeEl)
+  if (!entry) {
+    entry = { ratios: new Map(), appliers: new Map() }
+    katexScopeRegistry.set(scopeEl, entry)
+  }
+  return entry
+}
+
+function computeKatexGroupScale(entry: KatexScopeEntry): number {
+  let min = 1
+  for (const ratio of entry.ratios.values()) {
+    if (ratio < min) min = ratio
+  }
+  return Math.max(KATEX_MIN_SCALE, min)
+}
+
+function KatexDisplayBlock({ html }: { html: string }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const instanceIdRef = useRef(0)
+  if (!instanceIdRef.current) instanceIdRef.current = ++katexInstanceCounter
+  const [state, setState] = useState<{ scale: number; overflowing: boolean } | null>(null)
+
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    const content = contentRef.current
+    if (!container || !content) return
+
+    const instanceId = instanceIdRef.current
+    const scopeEl = container.closest('[data-question-id]')
+    const scopeEntry = scopeEl ? getKatexScopeEntry(scopeEl) : null
+
+    // Valores da ÚLTIMA medição desta fórmula — o "applier" registrado no
+    // grupo é chamado por QUALQUER fórmula-irmã que (re)meça depois (ex.:
+    // uma que monta depois ou muda de tamanho no resize), então precisa
+    // sempre aplicar o groupScale sobre a medição mais recente, não a do
+    // mount.
+    let lastNaturalWidth = 0
+    let lastAvailable = 0
+
+    const applyScale = (groupScale: number) => {
+      if (groupScale >= 1 || lastAvailable <= 0) {
+        content.style.fontSize = ''
+        setState(null)
+        return
+      }
+      content.style.fontSize = `${groupScale}em`
+      setState({ scale: groupScale, overflowing: lastNaturalWidth * groupScale > lastAvailable + 1 })
+    }
+
+    const recompute = () => {
+      // Volta pro tamanho natural antes de medir de novo (ex.: resize) —
+      // senão o scrollWidth reflete o tamanho JÁ encolhido de uma medição
+      // anterior, não o tamanho real da fórmula.
+      content.style.fontSize = ''
+      lastNaturalWidth = content.scrollWidth
+      lastAvailable = container.clientWidth
+      const ownNeeded =
+        lastAvailable > 0 && lastNaturalWidth > 0 ? Math.min(1, lastAvailable / lastNaturalWidth) : 1
+
+      if (scopeEntry) {
+        scopeEntry.ratios.set(instanceId, ownNeeded)
+        scopeEntry.appliers.set(instanceId, applyScale)
+        const groupScale = computeKatexGroupScale(scopeEntry)
+        for (const applier of scopeEntry.appliers.values()) applier(groupScale)
+      } else {
+        applyScale(Math.max(KATEX_MIN_SCALE, ownNeeded))
+      }
+    }
+
+    recompute()
+    const resizeObserver = new ResizeObserver(recompute)
+    resizeObserver.observe(container)
+    return () => {
+      resizeObserver.disconnect()
+      if (scopeEntry) {
+        scopeEntry.ratios.delete(instanceId)
+        scopeEntry.appliers.delete(instanceId)
+        if (scopeEntry.ratios.size > 0) {
+          const groupScale = computeKatexGroupScale(scopeEntry)
+          for (const applier of scopeEntry.appliers.values()) applier(groupScale)
+        }
+      }
+    }
+  }, [html])
+
+  return (
+    <span className="katex-display-block-outer flex max-w-full items-center gap-1">
+      <div
+        ref={containerRef}
+        className={`katex-fragment katex-display-wrap min-w-0 flex-1 ${state?.overflowing ? 'custom-scrollbar overflow-x-auto' : 'overflow-hidden'}`}
+      >
+        <div ref={contentRef} style={{ width: 'max-content' }} dangerouslySetInnerHTML={{ __html: html }} />
+      </div>
+      {state?.overflowing && (
+        <svg
+          viewBox="0 0 24 24"
+          aria-label="Arraste para o lado para ver a fórmula completa"
+          className="h-3.5 w-3.5 shrink-0 text-slate-300 dark:text-slate-600"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M8 6 3 12l5 6M16 6l5 6-5 6" />
+        </svg>
+      )}
+    </span>
+  )
+}
+
 const markdownComponents: Components = {
   p: ({ children }) => <p className="my-3 leading-relaxed">{renderMarkdownChildren(children, 'md-p')}</p>,
   h1: ({ children }) => <h1 className="mt-5 mb-3 text-xl font-bold leading-tight">{renderMarkdownChildren(children, 'md-h1')}</h1>,
@@ -344,10 +494,16 @@ function renderInlineRichText(text: string, keyPrefix: string) {
       return (
         <Fragment key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}>
           {needsLeadingSpace ? ' ' : null}
-          <span
-            className={isDisplayMath ? 'katex-fragment katex-display-wrap my-3 block max-w-full' : 'katex-fragment inline-block max-w-full align-baseline'}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+          {isDisplayMath ? (
+            <span className="my-3 block max-w-full">
+              <KatexDisplayBlock html={html} />
+            </span>
+          ) : (
+            <span
+              className="katex-fragment inline-block max-w-full align-baseline"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          )}
           {needsTrailingSpace ? ' ' : null}
         </Fragment>
       )
