@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ClipboardList,
+  Clock,
   Download,
   FileText,
   Loader2,
@@ -80,7 +81,6 @@ interface IndividualReportsJob {
   totalItems: number;
   completedItems: number;
   failedItems: number;
-  estimatedCostUsd: number | null;
   downloadUrl: string | null;
   errorMessage: string | null;
 }
@@ -99,6 +99,22 @@ function formatDateBR(iso?: string | null) {
 
 function roundOne(value: number) {
   return Math.round(value * 10) / 10;
+}
+
+// Estimativa aproximada de tempo restante do job de relatorios individuais
+// (renderizacao HTML/CSS + montagem do PDF por aluno, concorrencia limitada
+// no backend) — nao e um numero exato, so uma referencia pra turma grande
+// nao parecer travada. Ver _RENDER_MAX_WORKERS em simulado_report_service.py.
+const SECONDS_PER_STUDENT_ESTIMATE = 2.5;
+
+function estimateRemainingLabel(total: number, completed: number) {
+  const remaining = Math.max(0, total - completed);
+  if (remaining === 0) return 'Finalizando...';
+  const estimatedSecs = Math.max(5, Math.round(remaining * SECONDS_PER_STUDENT_ESTIMATE));
+  const timeLabel = estimatedSecs < 60
+    ? `~${estimatedSecs}s restantes`
+    : `~${Math.ceil(estimatedSecs / 60)} min restantes`;
+  return `${completed} de ${total} alunos concluidos · ${timeLabel}`;
 }
 
 function resolvePercentage(participant: Participant) {
@@ -306,7 +322,6 @@ export default function PrintedExamResultsPage() {
         totalItems: 0,
         completedItems: 0,
         failedItems: 0,
-        estimatedCostUsd: null,
         downloadUrl: null,
         errorMessage: null,
       });
@@ -334,7 +349,6 @@ export default function PrintedExamResultsPage() {
             totalItems: data.total_items ?? 0,
             completedItems: data.completed_items ?? 0,
             failedItems: data.failed_items ?? 0,
-            estimatedCostUsd: data.estimated_cost_usd ?? null,
             downloadUrl: data.download_url ?? null,
             errorMessage: data.error_message ?? null,
           });
@@ -473,11 +487,6 @@ export default function PrintedExamResultsPage() {
                       Relatorios individuais prontos ({individualJob.completedItems}/{individualJob.totalItems} alunos
                       {individualJob.failedItems > 0 ? `, ${individualJob.failedItems} com falha parcial` : ''})
                     </p>
-                    {typeof individualJob.estimatedCostUsd === 'number' && (
-                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                        Custo estimado de geracao: US$ {individualJob.estimatedCostUsd.toFixed(2)}
-                      </p>
-                    )}
                     {individualJob.errorMessage && (
                       <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
                         {individualJob.errorMessage}
@@ -500,14 +509,23 @@ export default function PrintedExamResultsPage() {
               <div>
                 <div className="flex items-center gap-3">
                   <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[var(--brand-primary)]" />
-                  <div>
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">Gerando relatorios individuais...</p>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  <div className="min-w-0">
+                    <p className="text-base font-black tabular-nums text-slate-900 dark:text-white">
                       {individualJob.totalItems > 0
-                        ? `${individualJob.completedItems} de ${individualJob.totalItems} alunos concluidos`
+                        ? `Gerando relatorios ${individualJob.completedItems}/${individualJob.totalItems}`
                         : 'Preparando os dados de cada aluno...'}
                     </p>
+                    {individualJob.totalItems > 0 && (
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        {estimateRemainingLabel(individualJob.totalItems, individualJob.completedItems)}
+                      </p>
+                    )}
                   </div>
+                </div>
+
+                <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+                  <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>Isso pode levar alguns minutos numa turma grande. Fique nesta tela ate concluir — se sair ou atualizar a pagina, voce perde o acompanhamento e precisa gerar de novo.</span>
                 </div>
 
                 <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
@@ -531,13 +549,13 @@ export default function PrintedExamResultsPage() {
                   )}
                 </div>
 
-                <div className="mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+                <div className="mt-3 grid grid-cols-6 gap-1.5 sm:grid-cols-10">
                   {Array.from({ length: Math.max(individualJob.totalItems, 6) }).map((_, i) => {
                     const isDone = i < individualJob.completedItems;
                     return (
                       <div
                         key={i}
-                        className={`flex h-9 items-center justify-center rounded-lg border transition-colors ${
+                        className={`flex h-7 items-center justify-center rounded-md border transition-colors ${
                           isDone
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
                             : 'animate-pulse border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800'
