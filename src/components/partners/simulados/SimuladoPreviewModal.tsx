@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Timer } from 'lucide-react';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
 import { AlternativeImages, QuestionContentBlocks, QuestionSupportImages } from '@/components/questions/QuestionMedia';
@@ -44,6 +44,13 @@ export default function SimuladoPreviewModal({
   onFinal,
 }: SimuladoPreviewModalProps) {
   const [previewIndex, setPreviewIndex] = useState(0);
+  // Respostas marcadas SÓ dentro do preview (nunca enviadas a lugar nenhum) —
+  // existem unicamente para o preview poder replicar fielmente o "guia até a
+  // questão não respondida" que a tela real do aluno faz dentro de um
+  // testlet (ver goToNextGroupOrGuideToUnanswered em student/simulado/page.tsx).
+  const [previewAnswers, setPreviewAnswers] = useState<Record<string, string>>({});
+  const questionTopRef = useRef<HTMLDivElement>(null);
+  const testletItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   // Se o array de questões mudar de referência (ex.: "Sortear novamente"),
   // reinicia a navegação do preview do começo — ajustado durante a
   // renderização (não em um efeito) para evitar um render extra em cascata.
@@ -51,6 +58,7 @@ export default function SimuladoPreviewModal({
   if (trackedQuestions !== questions) {
     setTrackedQuestions(questions);
     setPreviewIndex(0);
+    setPreviewAnswers({});
   }
 
   const currentPreviewQuestion = questions[previewIndex] ?? null;
@@ -94,6 +102,33 @@ export default function SimuladoPreviewModal({
     () => deriveTestletSharedContext(currentPreviewGroup?.items ?? []),
     [currentPreviewGroup],
   );
+
+  // Scroll pro topo da questão/bloco a cada navegação — mesmo comportamento
+  // da tela real do aluno (ver "Scroll to top of question on navigate" em
+  // student/simulado/page.tsx). Sem isso, "Próxima" só trocava o conteúdo
+  // sem levar o founder de volta ao topo do card, diferente do que o aluno
+  // realmente vive.
+  useEffect(() => {
+    questionTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [previewGroupIndex]);
+
+  // Dentro de um testlet, "Próxima"/"Próximo bloco" só avança se todas as
+  // questões do bloco atual já tiverem uma alternativa marcada no preview —
+  // senão, rola até a primeira ainda sem marcação, replicando
+  // goToNextGroupOrGuideToUnanswered da tela real do aluno.
+  function goToNextGroupOrGuideToUnanswered() {
+    if (isPreviewTestlet && currentPreviewGroup) {
+      const firstUnanswered = currentPreviewGroup.items.find((item) => !previewAnswers[item.id]);
+      if (firstUnanswered) {
+        testletItemRefs.current[firstUnanswered.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+    }
+    const nextGroup = previewGroups[previewGroupIndex + 1];
+    if (!nextGroup) return;
+    const qIndex = questions.findIndex((item) => item.id === nextGroup.items[0].id);
+    if (qIndex >= 0) setPreviewIndex(qIndex);
+  }
 
   const timeLabel = timeLimitMins !== undefined && timeLimitMins !== null && String(timeLimitMins).trim() !== ''
     ? `${timeLimitMins}:00`
@@ -153,7 +188,7 @@ export default function SimuladoPreviewModal({
             </div>
           ) : (
             <>
-              <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
+              <div ref={questionTopRef} className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
                 <div className="mb-5 flex items-start justify-between gap-3">
                   <div className="flex flex-wrap gap-2">
                     <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: brandPrimary, color: onBrand }}>
@@ -215,7 +250,11 @@ export default function SimuladoPreviewModal({
 
                 <div className="space-y-6">
                   {currentPreviewGroup.items.map((question, index) => (
-                    <div key={question.id} className={`rounded-2xl border p-5 ${isPreviewTestlet ? 'border-slate-200 bg-slate-50/70' : 'border-transparent bg-transparent p-0'}`}>
+                    <div
+                      key={question.id}
+                      ref={(node) => { testletItemRefs.current[question.id] = node; }}
+                      className={`scroll-mt-24 rounded-2xl border p-5 ${isPreviewTestlet ? 'border-slate-200 bg-slate-50/70' : 'border-transparent bg-transparent p-0'}`}
+                    >
                       {isPreviewTestlet && index > 0 && (
                         <div className="mb-4 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500">
                           Referente ao texto-base acima
@@ -244,9 +283,26 @@ export default function SimuladoPreviewModal({
                       <div className="space-y-3">
                         {(question.alternatives || []).map((alt) => {
                           const alternativeImages = extractAlternativeImageUrls(alt);
+                          // Marcação só existe dentro do preview (nunca é enviada a
+                          // lugar nenhum) — permite que "Próxima" dentro de um
+                          // testlet guie até a questão ainda sem marcação, igual a
+                          // tela real do aluno faz com a resposta de verdade.
+                          const isSelected = previewAnswers[question.id] === alt.letter;
                           return (
-                            <div key={`${question.id}-${alt.letter}`} className="w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start bg-white border-slate-200">
-                              <span className="w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-extrabold shrink-0 transition-colors bg-slate-50 text-slate-500 border-slate-200">
+                            <button
+                              key={`${question.id}-${alt.letter}`}
+                              type="button"
+                              onClick={() => setPreviewAnswers((prev) => ({ ...prev, [question.id]: alt.letter }))}
+                              className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start cursor-pointer ${isSelected ? 'shadow-sm' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                              style={isSelected ? {
+                                background: `color-mix(in srgb, ${brandPrimary} 8%, white)`,
+                                borderColor: brandPrimary,
+                              } : undefined}
+                            >
+                              <span
+                                className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-extrabold shrink-0 transition-colors ${isSelected ? 'border-transparent' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
+                                style={isSelected ? { background: brandPrimary, color: onBrand } : undefined}
+                              >
                                 {alt.letter}
                               </span>
                               <div className="flex-1 pt-1">
@@ -254,14 +310,18 @@ export default function SimuladoPreviewModal({
                                   <AlternativeImages images={alternativeImages} metadata={question.metadata} letter={alt.letter} />
                                 )}
                                 {alt.text ? (
-                                  <QuestionRichText text={alt.text} className="text-sm leading-snug text-slate-700" />
+                                  <QuestionRichText
+                                    text={alt.text}
+                                    className={`text-sm leading-snug ${isSelected ? 'font-medium' : 'text-slate-700'}`}
+                                    style={isSelected ? { color: brandPrimary } : undefined}
+                                  />
                                 ) : alternativeImages.length === 0 ? (
                                   <span className="text-sm italic text-slate-400">
                                     Conteúdo da alternativa indisponível.
                                   </span>
                                 ) : null}
                               </div>
-                            </div>
+                            </button>
                           );
                         })}
                       </div>
@@ -313,12 +373,7 @@ export default function SimuladoPreviewModal({
           {previewGroupIndex < previewGroups.length - 1 ? (
             <button
               type="button"
-              onClick={() => {
-                const nextGroup = previewGroups[previewGroupIndex + 1];
-                if (!nextGroup) return;
-                const qIndex = questions.findIndex((item) => item.id === nextGroup.items[0].id);
-                if (qIndex >= 0) setPreviewIndex(qIndex);
-              }}
+              onClick={goToNextGroupOrGuideToUnanswered}
               className="flex-[1.35] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer min-h-[44px]"
               style={{ background: brandPrimary, color: onBrand }}
             >
