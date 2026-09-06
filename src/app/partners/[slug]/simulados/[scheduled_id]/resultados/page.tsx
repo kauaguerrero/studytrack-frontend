@@ -427,6 +427,33 @@ export default function PrintedExamResultsPage() {
           </div>
         )}
 
+        {generatingClassReport && (
+          <div className="mb-6 max-w-2xl rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[var(--brand-primary)]" />
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Montando o relatorio geral da turma...</p>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-16 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800"
+                  style={{ animationDelay: `${i * 90}ms` }}
+                />
+              ))}
+            </div>
+            <div className="mt-3 space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-8 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800"
+                  style={{ animationDelay: `${i * 90 + 120}ms` }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         {individualJob && (
           <div className="mb-6 max-w-xl rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
             {individualJob.status === 'failed' ? (
@@ -451,6 +478,11 @@ export default function PrintedExamResultsPage() {
                         Custo estimado de geracao: US$ {individualJob.estimatedCostUsd.toFixed(2)}
                       </p>
                     )}
+                    {individualJob.errorMessage && (
+                      <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+                        {individualJob.errorMessage}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {individualJob.downloadUrl && (
@@ -465,15 +497,57 @@ export default function PrintedExamResultsPage() {
                 )}
               </div>
             ) : (
-              <div className="flex items-center gap-3">
-                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[var(--brand-primary)]" />
-                <div>
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">Gerando relatorios individuais...</p>
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    {individualJob.totalItems > 0
-                      ? `${individualJob.completedItems} de ${individualJob.totalItems} alunos concluidos`
-                      : 'Preparando os dados de cada aluno...'}
-                  </p>
+              <div>
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[var(--brand-primary)]" />
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">Gerando relatorios individuais...</p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {individualJob.totalItems > 0
+                        ? `${individualJob.completedItems} de ${individualJob.totalItems} alunos concluidos`
+                        : 'Preparando os dados de cada aluno...'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                  {individualJob.totalItems > 0 ? (
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{
+                        width: `${Math.max(4, Math.min(100, Math.round((individualJob.completedItems / individualJob.totalItems) * 100)))}%`,
+                      }}
+                      transition={{ duration: 0.5, ease: 'easeOut' }}
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: 'var(--brand-primary)' }}
+                    />
+                  ) : (
+                    <motion.div
+                      className="h-full w-1/3 rounded-full"
+                      style={{ backgroundColor: 'var(--brand-primary)' }}
+                      animate={{ x: ['-100%', '250%'] }}
+                      transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                  )}
+                </div>
+
+                <div className="mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+                  {Array.from({ length: Math.max(individualJob.totalItems, 6) }).map((_, i) => {
+                    const isDone = i < individualJob.completedItems;
+                    return (
+                      <div
+                        key={i}
+                        className={`flex h-9 items-center justify-center rounded-lg border transition-colors ${
+                          isDone
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400'
+                            : 'animate-pulse border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800'
+                        }`}
+                        style={isDone ? undefined : { animationDelay: `${(i % 6) * 100}ms` }}
+                      >
+                        {isDone && <CheckCircle2 className="h-3.5 w-3.5" />}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
