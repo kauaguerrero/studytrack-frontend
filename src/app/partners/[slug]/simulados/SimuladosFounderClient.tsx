@@ -724,6 +724,43 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     }
   }
 
+  // Ver preview (online + PDF) de um simulado JÁ agendado, direto da lista —
+  // mesmo modal de revisão da criação, mas sem depender do estado de form/
+  // editingSim (que só atualiza no próximo render): usa os dados do próprio
+  // `sim` recebido aqui, evitando buscar com a config/fixed_question_ids
+  // errados por causa da corrida entre o setState do openEdit e este fetch.
+  async function handleViewScheduledPreview(sim: ScheduledSimulado) {
+    openEdit(sim); // só pra popular o resumo (título/banca/formato) exibido no modal
+    setNoQuestionsError(false);
+    setDistributionShortfall(null);
+    setPreviewQuestions(null);
+    setPreviewLoading(true);
+    setShowReviewApproval(true);
+    try {
+      const hasFixed = Array.isArray(sim.fixed_question_ids) && sim.fixed_question_ids.length > 0;
+      const res = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/preview`, {
+        method: 'POST',
+        body: JSON.stringify(
+          hasFixed
+            ? { question_ids: sim.fixed_question_ids }
+            : { config: sim.config, force_partial: true },
+        ),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error ?? 'Erro ao gerar preview do simulado');
+        setShowReviewApproval(false);
+        return;
+      }
+      setPreviewQuestions((json.questions as RawPreviewQuestion[]).map(toSelectedQuestion));
+    } catch {
+      toast.error('Erro ao gerar preview do simulado');
+      setShowReviewApproval(false);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
   async function handleDownloadPreviewPdf() {
     if (!previewQuestions || previewQuestions.length === 0) return;
     setDownloadingPreviewPdf(true);
@@ -1658,6 +1695,14 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                                 <BarChart3 className="h-4 w-4" />
                               </button>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => void handleViewScheduledPreview(sim)}
+                              className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                              title="Ver preview (online / PDF)"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => openEdit(sim)}
