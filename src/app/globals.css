@@ -287,18 +287,49 @@
   background-color: rgba(148, 163, 184, 0.4);
 }
 
+/* Fórmula em display (ex.: semirreações de química) nunca quebra no meio —
+   isso deixava a prova com aparência de erro em telas estreitas (mobile).
+   `white-space: normal` forçava exatamente essa quebra interna; o padrão
+   certo pra matemática que não cabe na largura da tela é scroll horizontal
+   só naquele bloco, preservando a fórmula inteira numa linha só (mesma
+   convenção usada por qualquer renderizador de LaTeX/KaTeX/MathJax). */
 .katex-display-wrap .katex-display {
   margin: 0;
   max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* mesma barra de scroll discreta usada em .custom-scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+}
+.katex-display-wrap .katex-display::-webkit-scrollbar {
+  height: 6px;
+}
+.katex-display-wrap .katex-display::-webkit-scrollbar-track {
+  background: transparent;
+}
+.katex-display-wrap .katex-display::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.35);
+  border-radius: 9999px;
+}
+.katex-display-wrap .katex-display::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.55);
+}
+.dark .katex-display-wrap .katex-display {
+  scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+}
+.dark .katex-display-wrap .katex-display::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.25);
 }
 
 .katex-display-wrap .katex-display > .katex {
-  white-space: normal;
-  max-width: 100%;
+  white-space: nowrap;
+  max-width: none;
 }
 
 .katex-display-wrap .katex-display > .katex > .katex-html {
-  max-width: 100%;
+  max-width: none;
 }
 
 .partner-founder-scope[data-partner-slug="edificar"] {
