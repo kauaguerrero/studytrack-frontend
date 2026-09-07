@@ -119,18 +119,18 @@ function estimateRemainingLabel(total: number, completed: number, createdAt: str
   const remaining = Math.max(0, total - completed);
   if (remaining === 0) return 'Finalizando...';
   if (completed === 0 || !createdAt) {
-    return `${completed} de ${total} alunos concluidos · calculando tempo restante...`;
+    return `${completed} de ${total} alunos concluídos · calculando tempo restante...`;
   }
   const elapsedSecs = (Date.now() - new Date(createdAt).getTime()) / 1000;
   const ratePerSec = elapsedSecs > 0 ? completed / elapsedSecs : 0;
   if (ratePerSec <= 0) {
-    return `${completed} de ${total} alunos concluidos · calculando tempo restante...`;
+    return `${completed} de ${total} alunos concluídos · calculando tempo restante...`;
   }
   const estimatedSecs = Math.max(1, Math.round(remaining / ratePerSec));
   const timeLabel = estimatedSecs < 60
     ? `~${estimatedSecs}s restantes`
     : `~${Math.ceil(estimatedSecs / 60)} min restantes`;
-  return `${completed} de ${total} alunos concluidos · ${timeLabel}`;
+  return `${completed} de ${total} alunos concluídos · ${timeLabel}`;
 }
 
 function resolvePercentage(participant: Participant) {
@@ -177,9 +177,24 @@ export default function PrintedExamResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [generatingClassReport, setGeneratingClassReport] = useState(false);
+  const [classReportElapsedSecs, setClassReportElapsedSecs] = useState(0);
   const [creatingIndividualJob, setCreatingIndividualJob] = useState(false);
   const [individualJob, setIndividualJob] = useState<IndividualReportsJob | null>(null);
   const [retryJob, setRetryJob] = useState<IndividualReportsJob | null>(null);
+
+  // Relatorio geral da turma e uma unica requisicao sincrona (nao um job
+  // com progresso real como o individual) — o unico numero honesto que da
+  // pra mostrar enquanto espera e o tempo REAL decorrido (sempre exato,
+  // por definicao), nunca uma estimativa de "quanto falta" que a gente nao
+  // tem como calcular sem um job de verdade por tras.
+  useEffect(() => {
+    if (!generatingClassReport) return;
+    setClassReportElapsedSecs(0);
+    const interval = window.setInterval(() => {
+      setClassReportElapsedSecs((s) => s + 1);
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [generatingClassReport]);
 
   async function fetchWithAuth(url: string, init?: RequestInit) {
     const supabase = createClient();
@@ -499,7 +514,12 @@ export default function PrintedExamResultsPage() {
           <div className="mb-6 max-w-2xl rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center gap-3">
               <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[var(--brand-primary)]" />
-              <p className="text-sm font-bold text-slate-900 dark:text-white">Montando o relatório geral da turma...</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">
+                Montando o relatório geral da turma...{' '}
+                <span className="font-semibold tabular-nums text-slate-500 dark:text-slate-400">
+                  {classReportElapsedSecs}s decorridos
+                </span>
+              </p>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -570,7 +590,7 @@ export default function PrintedExamResultsPage() {
                         disabled={creatingIndividualJob || (retryJob != null && retryJob.status !== 'completed' && retryJob.status !== 'failed')}
                         className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
                       >
-                        Tentar novamente so p/ esses alunos
+                        Tentar novamente só p/ esses alunos
                       </button>
                     )}
                   </div>
@@ -666,7 +686,7 @@ export default function PrintedExamResultsPage() {
                     style={{ backgroundColor: 'var(--brand-primary)' }}
                   >
                     <Download className="h-4 w-4" />
-                    Baixar ZIP (so estes alunos)
+                    Baixar ZIP (só estes alunos)
                   </a>
                 )}
               </div>
