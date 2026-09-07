@@ -91,6 +91,13 @@ interface IndividualReportsJob {
   failedStudents: FailedStudent[];
 }
 
+interface ClassReportJob {
+  jobId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  downloadUrl: string | null;
+  errorMessage: string | null;
+}
+
 function formatDateBR(iso?: string | null) {
   if (!iso) return 'Data indisponivel';
   return new Date(iso).toLocaleDateString('pt-BR', {
@@ -177,6 +184,7 @@ export default function PrintedExamResultsPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [generatingClassReport, setGeneratingClassReport] = useState(false);
   const [classReportElapsedSecs, setClassReportElapsedSecs] = useState(0);
+  const [classReportJob, setClassReportJob] = useState<ClassReportJob | null>(null);
   const [creatingIndividualJob, setCreatingIndividualJob] = useState(false);
   const [individualJob, setIndividualJob] = useState<IndividualReportsJob | null>(null);
   const [retryJob, setRetryJob] = useState<IndividualReportsJob | null>(null);
@@ -306,33 +314,71 @@ export default function PrintedExamResultsPage() {
     }
   }
 
+  // Relatório geral da turma virou um job assíncrono (ver
+  // create_class_report_job/run_class_report_job no backend) — o POST só
+  // cria o job e devolve o job_id na hora; quem acompanha o progresso e
+  // baixa o PDF pronto é o polling logo abaixo (usePollClassReportJob),
+  // mesmo padrão já usado pelos relatórios individuais. Isso tira o
+  // Chromium do ciclo de request síncrono, que segurava a única thread do
+  // gunicorn em produção (causa dos erros de conexão sob carga).
   async function downloadClassReport() {
     setGeneratingClassReport(true);
     setError(null);
+    setClassReportJob(null);
     try {
       const res = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/${scheduledId}/report.pdf`, {
         method: 'POST',
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.job_id) {
         setError(data.error ?? 'Não foi possível gerar o relatório geral da turma.');
+        setGeneratingClassReport(false);
         return;
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `relatorio_turma_${(printedExam?.title ?? 'simulado').replace(/\s+/g, '_')}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      setClassReportJob({ jobId: data.job_id, status: data.status ?? 'pending', downloadUrl: null, errorMessage: null });
     } catch {
       setError('Erro de conexão ao gerar o relatório geral da turma.');
-    } finally {
       setGeneratingClassReport(false);
     }
   }
+
+  function usePollClassReportJob(job: ClassReportJob | null, setJob: (j: ClassReportJob) => void) {
+    useEffect(() => {
+      if (!job || job.status === 'completed' || job.status === 'failed') return;
+      const interval = window.setInterval(async () => {
+        try {
+          const res = await fetchWithAuth(
+            `/api/partners/${slug}/scheduled-simulados/${scheduledId}/report.pdf/${job.jobId}`
+          );
+          const data = await res.json().catch(() => ({}));
+          if (res.ok) {
+            setJob({
+              jobId: data.job_id,
+              status: data.status,
+              downloadUrl: data.download_url ?? null,
+              errorMessage: data.error_message ?? null,
+            });
+          }
+        } catch {
+          // Polling silencioso — a próxima tentativa cobre uma falha pontual.
+        }
+      }, 2000);
+      return () => window.clearInterval(interval);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [job?.jobId, job?.status, slug, scheduledId]);
+  }
+
+  usePollClassReportJob(classReportJob, setClassReportJob);
+
+  useEffect(() => {
+    if (!classReportJob) return;
+    if (classReportJob.status === 'completed' || classReportJob.status === 'failed') {
+      setGeneratingClassReport(false);
+      if (classReportJob.status === 'failed') {
+        setError(classReportJob.errorMessage ?? 'Não foi possível gerar o relatório geral da turma.');
+      }
+    }
+  }, [classReportJob]);
 
   async function createIndividualReportsJob(studentIds?: string[]): Promise<IndividualReportsJob | null> {
     setError(null);
@@ -537,6 +583,28 @@ export default function PrintedExamResultsPage() {
                   style={{ animationDelay: `${i * 90 + 120}ms` }}
                 />
               ))}
+            </div>
+          </div>
+        )}
+
+        {classReportJob && classReportJob.status === 'completed' && (
+          <div className="mb-6 max-w-xl rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Relatório geral da turma pronto</p>
+              </div>
+              {classReportJob.downloadUrl && (
+                <a
+                  href={classReportJob.downloadUrl}
+                  onClick={() => setClassReportJob(null)}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+                  style={{ backgroundColor: 'var(--brand-primary)' }}
+                >
+                  <Download className="h-4 w-4" />
+                  Baixar PDF
+                </a>
+              )}
             </div>
           </div>
         )}
