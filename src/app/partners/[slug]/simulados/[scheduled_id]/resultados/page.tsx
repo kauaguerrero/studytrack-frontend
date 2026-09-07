@@ -108,7 +108,7 @@ function roundOne(value: number) {
   return Math.round(value * 10) / 10;
 }
 
-// Estimativa de tempo restante do job de relatorios individuais — calculada
+// Estimativa de tempo restante do job de relatórios individuais — calculada
 // de verdade a partir do progresso observado (taxa = concluidos / tempo
 // decorrido desde a criacao do job), como uma barra de download real, nao
 // mais um chute fixo (a estimativa antiga multiplicava "quantos faltam" por
@@ -215,7 +215,7 @@ export default function PrintedExamResultsPage() {
       const examsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams?scheduled_simulado_id=${scheduledId}`);
       if (!examsRes.ok) {
         const data = await examsRes.json().catch(() => ({}));
-        setError(data.error ?? 'Nao foi possivel carregar a prova impressa.');
+        setError(data.error ?? 'Não foi possível carregar a prova impressa.');
         return;
       }
 
@@ -229,7 +229,7 @@ export default function PrintedExamResultsPage() {
         const submissionsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${exam.id}/results`);
         if (!submissionsRes.ok) {
           const data = await submissionsRes.json().catch(() => ({}));
-          setError(data.error ?? 'Nao foi possivel carregar os resultados.');
+          setError(data.error ?? 'Não foi possível carregar os resultados.');
           return;
         }
 
@@ -243,7 +243,7 @@ export default function PrintedExamResultsPage() {
       const rankingRes = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/${scheduledId}/ranking`);
       if (!rankingRes.ok) {
         const data = await rankingRes.json().catch(() => ({}));
-        setError(data.error ?? 'Nao foi possivel carregar os resultados online.');
+        setError(data.error ?? 'Não foi possível carregar os resultados online.');
         return;
       }
 
@@ -262,7 +262,7 @@ export default function PrintedExamResultsPage() {
 
       setParticipants([...printedParticipants, ...onlineParticipants]);
     } catch {
-      setError('Erro de conexao. Tente novamente.');
+      setError('Erro de conexão. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -274,7 +274,7 @@ export default function PrintedExamResultsPage() {
       const res = await fetchWithAuth(`/api/partners/${slug}/exam-results/${participant.id}/relatorio.pdf`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? 'Nao foi possivel gerar o relatorio PDF.');
+        setError(data.error ?? 'Não foi possível gerar o relatório PDF.');
         return;
       }
 
@@ -301,7 +301,7 @@ export default function PrintedExamResultsPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? 'Nao foi possivel gerar o relatorio geral da turma.');
+        setError(data.error ?? 'Não foi possível gerar o relatório geral da turma.');
         return;
       }
       const blob = await res.blob();
@@ -314,7 +314,7 @@ export default function PrintedExamResultsPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      setError('Erro de conexao ao gerar o relatorio geral da turma.');
+      setError('Erro de conexão ao gerar o relatório geral da turma.');
     } finally {
       setGeneratingClassReport(false);
     }
@@ -329,7 +329,7 @@ export default function PrintedExamResultsPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error ?? 'Nao foi possivel iniciar a geracao dos relatorios individuais.');
+        setError(data.error ?? 'Não foi possível iniciar a geração dos relatórios individuais.');
         return null;
       }
       return {
@@ -344,7 +344,7 @@ export default function PrintedExamResultsPage() {
         failedStudents: [],
       };
     } catch {
-      setError('Erro de conexao ao iniciar a geracao dos relatorios individuais.');
+      setError('Erro de conexão ao iniciar a geração dos relatórios individuais.');
       return null;
     }
   }
@@ -362,7 +362,7 @@ export default function PrintedExamResultsPage() {
     }
   }
 
-  // "Tentar novamente" so para os alunos que esgotaram as tentativas de
+  // "Tentar novamente" só para os alunos que esgotaram as tentativas de
   // renderizacao no job principal (ver run_individual_reports_job — esses
   // alunos ficam de fora do ZIP original, nunca com uma versao degradada
   // silenciosa). Roda como um job A PARTE (retryJob) pra nao sobrescrever o
@@ -378,7 +378,7 @@ export default function PrintedExamResultsPage() {
     }
   }
 
-  // Polling de progresso dos jobs de relatorios individuais (principal e,
+  // Polling de progresso dos jobs de relatórios individuais (principal e,
   // se houver, o de nova tentativa) — para quando o job chega em
   // completed/failed.
   function usePollIndividualJob(job: IndividualReportsJob | null, setJob: (j: IndividualReportsJob) => void) {
@@ -404,7 +404,7 @@ export default function PrintedExamResultsPage() {
             });
           }
         } catch {
-          // Polling silencioso — a proxima tentativa cobre uma falha pontual.
+          // Polling silencioso — a próxima tentativa cobre uma falha pontual.
         }
       }, 4000);
       return () => window.clearInterval(interval);
@@ -461,11 +461,11 @@ export default function PrintedExamResultsPage() {
               </span>
             </div>
             <h1 className="truncate text-xl font-extrabold text-slate-900 dark:text-white">
-              {printedExam?.title ?? 'Correcoes lancadas'}
+              {printedExam?.title ?? 'Correções lançadas'}
             </h1>
             <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <CalendarDays className="h-3.5 w-3.5" />
-              {latestGradedAt ? `Ultima correcao em ${formatDateBR(latestGradedAt)}` : 'Sem correcoes lancadas'}
+              {latestGradedAt ? `Última correção em ${formatDateBR(latestGradedAt)}` : 'Sem correções lançadas'}
             </p>
           </div>
         </div>
@@ -479,7 +479,7 @@ export default function PrintedExamResultsPage() {
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               {generatingClassReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-              Gerar relatorio geral da turma
+              Gerar relatório geral da turma
             </button>
 
             <button
@@ -490,7 +490,7 @@ export default function PrintedExamResultsPage() {
               style={{ backgroundColor: 'var(--brand-primary)' }}
             >
               {creatingIndividualJob ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Gerar relatorios individuais (ZIP)
+              Gerar relatórios individuais (ZIP)
             </button>
           </div>
         )}
@@ -499,7 +499,7 @@ export default function PrintedExamResultsPage() {
           <div className="mb-6 max-w-2xl rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
             <div className="flex items-center gap-3">
               <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[var(--brand-primary)]" />
-              <p className="text-sm font-bold text-slate-900 dark:text-white">Montando o relatorio geral da turma...</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Montando o relatório geral da turma...</p>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -528,7 +528,7 @@ export default function PrintedExamResultsPage() {
               <div className="flex items-start gap-3">
                 <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
                 <div>
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">Falha ao gerar os relatorios individuais</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">Falha ao gerar os relatórios individuais</p>
                   <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{individualJob.errorMessage ?? 'Erro desconhecido.'}</p>
                 </div>
               </div>
@@ -539,7 +539,7 @@ export default function PrintedExamResultsPage() {
                     <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
                     <div>
                       <p className="text-sm font-bold text-slate-900 dark:text-white">
-                        Relatorios individuais prontos ({individualJob.completedItems}/{individualJob.totalItems} alunos)
+                        Relatórios individuais prontos ({individualJob.completedItems}/{individualJob.totalItems} alunos)
                       </p>
                     </div>
                   </div>
@@ -560,7 +560,7 @@ export default function PrintedExamResultsPage() {
                       <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       <span>
                         {individualJob.errorMessage
-                          ?? `${individualJob.failedItems} relatorio(s) nao puderam ser gerados e nao entraram no ZIP.`}
+                          ?? `${individualJob.failedItems} relatório(s) não puderam ser gerados e não entraram no ZIP.`}
                       </span>
                     </div>
                     {individualJob.failedStudents.length > 0 && (
@@ -583,7 +583,7 @@ export default function PrintedExamResultsPage() {
                   <div className="min-w-0">
                     <p className="text-base font-black tabular-nums text-slate-900 dark:text-white">
                       {individualJob.totalItems > 0
-                        ? `Gerando relatorios ${individualJob.completedItems}/${individualJob.totalItems}`
+                        ? `Gerando relatórios ${individualJob.completedItems}/${individualJob.totalItems}`
                         : 'Preparando os dados de cada aluno...'}
                     </p>
                     {individualJob.totalItems > 0 && (
@@ -645,7 +645,7 @@ export default function PrintedExamResultsPage() {
 
         {retryJob && (
           <div className="mb-6 max-w-xl rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Nova tentativa (so os alunos que falharam)</p>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Nova tentativa (só os alunos que falharam)</p>
             {retryJob.status === 'failed' ? (
               <div className="flex items-start gap-3">
                 <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
@@ -656,7 +656,7 @@ export default function PrintedExamResultsPage() {
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
                   <p className="text-sm font-bold text-slate-900 dark:text-white">
-                    {retryJob.completedItems}/{retryJob.totalItems} relatorio(s) gerados nesta nova tentativa
+                    {retryJob.completedItems}/{retryJob.totalItems} relatório(s) gerados nesta nova tentativa
                   </p>
                 </div>
                 {retryJob.downloadUrl && (
@@ -700,10 +700,10 @@ export default function PrintedExamResultsPage() {
               <ClipboardList className="h-8 w-8" />
             </div>
             <p className="text-base font-extrabold text-slate-900 dark:text-white">
-              Nenhuma correcao lancada ainda.
+              Nenhuma correção lançada ainda.
             </p>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Use o botao de correcao para lancar os resultados.
+              Use o botão de correção para lançar os resultados.
             </p>
           </div>
         ) : (
@@ -719,11 +719,11 @@ export default function PrintedExamResultsPage() {
                   Icon: Users,
                 },
                 {
-                  label: 'Media geral',
+                  label: 'Média geral',
                   value: stats.average,
                   suffix: '%',
                   decimals: 1,
-                  sub: 'aproveitamento medio',
+                  sub: 'aproveitamento médio',
                   Icon: BarChart3,
                 },
                 {
@@ -865,7 +865,7 @@ export default function PrintedExamResultsPage() {
                             ) : (
                               <Download className="h-4 w-4" />
                             )}
-                            Gerar Relatorio PDF
+                            Gerar Relatório PDF
                           </button>
                         )}
                         {isPrinted && (
@@ -887,14 +887,17 @@ export default function PrintedExamResultsPage() {
           </div>
         )}
 
+        {/* A bottom nav do PartnerLayout é fixed bottom-0 z-40 com min-h-[56px]
+            e só some em md+. Com bottom-5 o FAB caía inteiro atrás dela e, no
+            mesmo z-index, a nav (posterior no DOM) ganhava o empilhamento. */}
         <button
           type="button"
           onClick={() => router.push(`/partners/${slug}/simulados/${scheduledId}/corrigir`)}
-          className="fixed bottom-5 right-5 z-40 inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-black text-white shadow-lg transition hover:brightness-110"
+          className="fixed right-5 z-40 inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-black text-white shadow-lg transition hover:brightness-110 bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-5"
           style={{ backgroundColor: 'var(--brand-primary)' }}
         >
           <Plus className="h-4 w-4" />
-          Nova Correcao
+          Nova Correção
         </button>
       </div>
     </PartnerLayout>
