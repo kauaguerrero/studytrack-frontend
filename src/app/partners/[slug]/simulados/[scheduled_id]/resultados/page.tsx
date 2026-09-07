@@ -20,7 +20,6 @@ import {
   FileText,
   Loader2,
   Plus,
-  Sparkles,
   TrendingDown,
   TrendingUp,
   User,
@@ -504,7 +503,7 @@ export default function PrintedExamResultsPage() {
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
               style={{ backgroundColor: 'var(--brand-primary)' }}
             >
-              {creatingIndividualJob ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {creatingIndividualJob ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
               Gerar relatórios individuais (ZIP)
             </button>
           </div>
