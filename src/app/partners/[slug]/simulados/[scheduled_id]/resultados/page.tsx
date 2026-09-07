@@ -20,6 +20,7 @@ import {
   FileText,
   Loader2,
   Plus,
+  RefreshCw,
   TrendingDown,
   TrendingUp,
   User,
@@ -221,8 +222,46 @@ export default function PrintedExamResultsPage() {
   useEffect(() => {
     if (!slug || !scheduledId) return;
     void loadResults();
+    void checkExistingReports();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, scheduledId]);
+
+  // Relatório já gerado antes (turma ou individual) fica disponível pra
+  // baixar direto — evita reprocessar o Chromium pra tudo de novo toda vez
+  // que o founder reabre essa página (ver report.pdf/latest e
+  // individual-reports/latest no backend, incluindo a heurística de
+  // invalidação por contagem de alunos elegíveis).
+  async function checkExistingReports() {
+    if (org.is_mock) return;
+    try {
+      const res = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/${scheduledId}/report.pdf/latest`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.exists) {
+        setClassReportJob({ jobId: data.job_id, status: 'completed', downloadUrl: data.download_url, errorMessage: null });
+      }
+    } catch {
+      // silencioso — sem cache disponível, founder só vê o botão "Gerar" normal
+    }
+    try {
+      const res = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/${scheduledId}/individual-reports/latest`);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.exists) {
+        setIndividualJob({
+          jobId: data.job_id,
+          status: data.status ?? 'completed',
+          totalItems: data.total_items ?? 0,
+          completedItems: data.completed_items ?? 0,
+          failedItems: data.failed_items ?? 0,
+          downloadUrl: data.download_url ?? null,
+          errorMessage: data.error_message ?? null,
+          createdAt: data.created_at ?? null,
+          failedStudents: data.failed_students ?? [],
+        });
+      }
+    } catch {
+      // silencioso
+    }
+  }
 
   async function loadResults() {
     setLoading(true);
@@ -532,26 +571,71 @@ export default function PrintedExamResultsPage() {
 
         {!org.is_mock && !loading && !error && participants.length > 0 && (
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <button
-              type="button"
-              onClick={() => void downloadClassReport()}
-              disabled={generatingClassReport}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              {generatingClassReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-              Gerar relatório geral da turma
-            </button>
+            {classReportJob?.status === 'completed' && classReportJob.downloadUrl ? (
+              <div className="flex items-center gap-2">
+                <a
+                  href={classReportJob.downloadUrl}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  <Download className="h-4 w-4" />
+                  Baixar relatório geral da turma
+                </a>
+                <button
+                  type="button"
+                  onClick={() => void downloadClassReport()}
+                  disabled={generatingClassReport}
+                  title="Gerar novamente"
+                  aria-label="Gerar relatório geral da turma novamente"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                >
+                  {generatingClassReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void downloadClassReport()}
+                disabled={generatingClassReport}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                {generatingClassReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                Gerar relatório geral da turma
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={() => void startIndividualReportsJob()}
-              disabled={creatingIndividualJob || (individualJob != null && individualJob.status !== 'completed' && individualJob.status !== 'failed')}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
-              style={{ backgroundColor: 'var(--brand-primary)' }}
-            >
-              {creatingIndividualJob ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
-              Gerar relatórios individuais (ZIP)
-            </button>
+            {individualJob?.status === 'completed' && individualJob.downloadUrl ? (
+              <div className="flex items-center gap-2">
+                <a
+                  href={individualJob.downloadUrl}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+                  style={{ backgroundColor: 'var(--brand-primary)' }}
+                >
+                  <Download className="h-4 w-4" />
+                  Baixar relatórios individuais (ZIP)
+                </a>
+                <button
+                  type="button"
+                  onClick={() => void startIndividualReportsJob()}
+                  disabled={creatingIndividualJob}
+                  title="Gerar novamente"
+                  aria-label="Gerar relatórios individuais novamente"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                >
+                  {creatingIndividualJob ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void startIndividualReportsJob()}
+                disabled={creatingIndividualJob || (individualJob != null && individualJob.status !== 'completed' && individualJob.status !== 'failed')}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+                style={{ backgroundColor: 'var(--brand-primary)' }}
+              >
+                {creatingIndividualJob ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                Gerar relatórios individuais (ZIP)
+              </button>
+            )}
           </div>
         )}
 
@@ -587,28 +671,6 @@ export default function PrintedExamResultsPage() {
           </div>
         )}
 
-        {classReportJob && classReportJob.status === 'completed' && (
-          <div className="mb-6 max-w-xl rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
-                <p className="text-sm font-bold text-slate-900 dark:text-white">Relatório geral da turma pronto</p>
-              </div>
-              {classReportJob.downloadUrl && (
-                <a
-                  href={classReportJob.downloadUrl}
-                  onClick={() => setClassReportJob(null)}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
-                  style={{ backgroundColor: 'var(--brand-primary)' }}
-                >
-                  <Download className="h-4 w-4" />
-                  Baixar PDF
-                </a>
-              )}
-            </div>
-          </div>
-        )}
-
         {individualJob && (
           <div className="mb-6 max-w-xl rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
             {individualJob.status === 'failed' ? (
@@ -621,25 +683,11 @@ export default function PrintedExamResultsPage() {
               </div>
             ) : individualJob.status === 'completed' ? (
               <div>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
-                    <div>
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">
-                        Relatórios individuais prontos ({individualJob.completedItems}/{individualJob.totalItems} alunos)
-                      </p>
-                    </div>
-                  </div>
-                  {individualJob.downloadUrl && (
-                    <a
-                      href={individualJob.downloadUrl}
-                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
-                      style={{ backgroundColor: 'var(--brand-primary)' }}
-                    >
-                      <Download className="h-4 w-4" />
-                      Baixar ZIP
-                    </a>
-                  )}
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">
+                    Relatórios individuais prontos ({individualJob.completedItems}/{individualJob.totalItems} alunos)
+                  </p>
                 </div>
                 {individualJob.failedItems > 0 && (
                   <div className="mt-3 flex flex-col gap-2 rounded-xl bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-300 sm:flex-row sm:items-center sm:justify-between">
