@@ -75,6 +75,11 @@ interface Participant {
   results_by_subject?: Record<string, SubjectResult> | null;
 }
 
+interface FailedStudent {
+  id: string;
+  name: string;
+}
+
 interface IndividualReportsJob {
   jobId: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
@@ -83,6 +88,8 @@ interface IndividualReportsJob {
   failedItems: number;
   downloadUrl: string | null;
   errorMessage: string | null;
+  createdAt: string | null;
+  failedStudents: FailedStudent[];
 }
 
 function formatDateBR(iso?: string | null) {
@@ -101,16 +108,25 @@ function roundOne(value: number) {
   return Math.round(value * 10) / 10;
 }
 
-// Estimativa aproximada de tempo restante do job de relatorios individuais
-// (renderizacao HTML/CSS + montagem do PDF por aluno, concorrencia limitada
-// no backend) — nao e um numero exato, so uma referencia pra turma grande
-// nao parecer travada. Ver _RENDER_MAX_WORKERS em simulado_report_service.py.
-const SECONDS_PER_STUDENT_ESTIMATE = 2.5;
-
-function estimateRemainingLabel(total: number, completed: number) {
+// Estimativa de tempo restante do job de relatorios individuais — calculada
+// de verdade a partir do progresso observado (taxa = concluidos / tempo
+// decorrido desde a criacao do job), como uma barra de download real, nao
+// mais um chute fixo (a estimativa antiga multiplicava "quantos faltam" por
+// uma constante arbitraria de segundos/aluno — nunca se ajustava porque
+// dependia so do numero de concluidos, que so mudava perto do fim do job
+// antes do backend passar a reportar progresso em tempo real).
+function estimateRemainingLabel(total: number, completed: number, createdAt: string | null) {
   const remaining = Math.max(0, total - completed);
   if (remaining === 0) return 'Finalizando...';
-  const estimatedSecs = Math.max(5, Math.round(remaining * SECONDS_PER_STUDENT_ESTIMATE));
+  if (completed === 0 || !createdAt) {
+    return `${completed} de ${total} alunos concluidos · calculando tempo restante...`;
+  }
+  const elapsedSecs = (Date.now() - new Date(createdAt).getTime()) / 1000;
+  const ratePerSec = elapsedSecs > 0 ? completed / elapsedSecs : 0;
+  if (ratePerSec <= 0) {
+    return `${completed} de ${total} alunos concluidos · calculando tempo restante...`;
+  }
+  const estimatedSecs = Math.max(1, Math.round(remaining / ratePerSec));
   const timeLabel = estimatedSecs < 60
     ? `~${estimatedSecs}s restantes`
     : `~${Math.ceil(estimatedSecs / 60)} min restantes`;
@@ -163,6 +179,7 @@ export default function PrintedExamResultsPage() {
   const [generatingClassReport, setGeneratingClassReport] = useState(false);
   const [creatingIndividualJob, setCreatingIndividualJob] = useState(false);
   const [individualJob, setIndividualJob] = useState<IndividualReportsJob | null>(null);
+  const [retryJob, setRetryJob] = useState<IndividualReportsJob | null>(null);
 
   async function fetchWithAuth(url: string, init?: RequestInit) {
     const supabase = createClient();
@@ -303,20 +320,19 @@ export default function PrintedExamResultsPage() {
     }
   }
 
-  async function startIndividualReportsJob() {
-    setCreatingIndividualJob(true);
+  async function createIndividualReportsJob(studentIds?: string[]): Promise<IndividualReportsJob | null> {
     setError(null);
     try {
       const res = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/${scheduledId}/individual-reports`, {
         method: 'POST',
-        body: JSON.stringify({}),
+        body: JSON.stringify(studentIds ? { student_ids: studentIds } : {}),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? 'Nao foi possivel iniciar a geracao dos relatorios individuais.');
-        return;
+        return null;
       }
-      setIndividualJob({
+      return {
         jobId: data.job_id,
         status: data.status ?? 'pending',
         totalItems: 0,
@@ -324,42 +340,80 @@ export default function PrintedExamResultsPage() {
         failedItems: 0,
         downloadUrl: null,
         errorMessage: null,
-      });
+        createdAt: new Date().toISOString(),
+        failedStudents: [],
+      };
     } catch {
       setError('Erro de conexao ao iniciar a geracao dos relatorios individuais.');
+      return null;
+    }
+  }
+
+  async function startIndividualReportsJob() {
+    setCreatingIndividualJob(true);
+    try {
+      const job = await createIndividualReportsJob();
+      if (job) {
+        setIndividualJob(job);
+        setRetryJob(null);
+      }
     } finally {
       setCreatingIndividualJob(false);
     }
   }
 
-  // Polling de progresso do job de relatorios individuais — para quando o
-  // job chega em completed/failed.
-  useEffect(() => {
-    if (!individualJob || individualJob.status === 'completed' || individualJob.status === 'failed') return;
-    const interval = window.setInterval(async () => {
-      try {
-        const res = await fetchWithAuth(
-          `/api/partners/${slug}/scheduled-simulados/${scheduledId}/individual-reports/${individualJob.jobId}`
-        );
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-          setIndividualJob({
-            jobId: data.job_id,
-            status: data.status,
-            totalItems: data.total_items ?? 0,
-            completedItems: data.completed_items ?? 0,
-            failedItems: data.failed_items ?? 0,
-            downloadUrl: data.download_url ?? null,
-            errorMessage: data.error_message ?? null,
-          });
+  // "Tentar novamente" so para os alunos que esgotaram as tentativas de
+  // renderizacao no job principal (ver run_individual_reports_job — esses
+  // alunos ficam de fora do ZIP original, nunca com uma versao degradada
+  // silenciosa). Roda como um job A PARTE (retryJob) pra nao sobrescrever o
+  // link de download do ZIP que ja terminou com sucesso pros demais alunos.
+  async function retryFailedStudents() {
+    if (!individualJob?.failedStudents.length) return;
+    setCreatingIndividualJob(true);
+    try {
+      const job = await createIndividualReportsJob(individualJob.failedStudents.map((s) => s.id));
+      if (job) setRetryJob(job);
+    } finally {
+      setCreatingIndividualJob(false);
+    }
+  }
+
+  // Polling de progresso dos jobs de relatorios individuais (principal e,
+  // se houver, o de nova tentativa) — para quando o job chega em
+  // completed/failed.
+  function usePollIndividualJob(job: IndividualReportsJob | null, setJob: (j: IndividualReportsJob) => void) {
+    useEffect(() => {
+      if (!job || job.status === 'completed' || job.status === 'failed') return;
+      const interval = window.setInterval(async () => {
+        try {
+          const res = await fetchWithAuth(
+            `/api/partners/${slug}/scheduled-simulados/${scheduledId}/individual-reports/${job.jobId}`
+          );
+          const data = await res.json().catch(() => ({}));
+          if (res.ok) {
+            setJob({
+              jobId: data.job_id,
+              status: data.status,
+              totalItems: data.total_items ?? 0,
+              completedItems: data.completed_items ?? 0,
+              failedItems: data.failed_items ?? 0,
+              downloadUrl: data.download_url ?? null,
+              errorMessage: data.error_message ?? null,
+              createdAt: data.created_at ?? job.createdAt,
+              failedStudents: data.failed_students ?? [],
+            });
+          }
+        } catch {
+          // Polling silencioso — a proxima tentativa cobre uma falha pontual.
         }
-      } catch {
-        // Polling silencioso — a proxima tentativa cobre uma falha pontual.
-      }
-    }, 4000);
-    return () => window.clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [individualJob?.jobId, individualJob?.status, slug, scheduledId]);
+      }, 4000);
+      return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [job?.jobId, job?.status, slug, scheduledId]);
+  }
+
+  usePollIndividualJob(individualJob, setIndividualJob);
+  usePollIndividualJob(retryJob, setRetryJob);
 
   const stats = useMemo(() => {
     const total = participants.length;
@@ -479,30 +533,47 @@ export default function PrintedExamResultsPage() {
                 </div>
               </div>
             ) : individualJob.status === 'completed' ? (
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
-                  <div>
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">
-                      Relatorios individuais prontos ({individualJob.completedItems}/{individualJob.totalItems} alunos
-                      {individualJob.failedItems > 0 ? `, ${individualJob.failedItems} com falha parcial` : ''})
-                    </p>
-                    {individualJob.errorMessage && (
-                      <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
-                        {individualJob.errorMessage}
+              <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                    <div>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">
+                        Relatorios individuais prontos ({individualJob.completedItems}/{individualJob.totalItems} alunos)
                       </p>
+                    </div>
+                  </div>
+                  {individualJob.downloadUrl && (
+                    <a
+                      href={individualJob.downloadUrl}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+                      style={{ backgroundColor: 'var(--brand-primary)' }}
+                    >
+                      <Download className="h-4 w-4" />
+                      Baixar ZIP
+                    </a>
+                  )}
+                </div>
+                {individualJob.failedItems > 0 && (
+                  <div className="mt-3 flex flex-col gap-2 rounded-xl bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 dark:bg-red-500/10 dark:text-red-300 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-2">
+                      <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        {individualJob.errorMessage
+                          ?? `${individualJob.failedItems} relatorio(s) nao puderam ser gerados e nao entraram no ZIP.`}
+                      </span>
+                    </div>
+                    {individualJob.failedStudents.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => void retryFailedStudents()}
+                        disabled={creatingIndividualJob || (retryJob != null && retryJob.status !== 'completed' && retryJob.status !== 'failed')}
+                        className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
+                      >
+                        Tentar novamente so p/ esses alunos
+                      </button>
                     )}
                   </div>
-                </div>
-                {individualJob.downloadUrl && (
-                  <a
-                    href={individualJob.downloadUrl}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
-                    style={{ backgroundColor: 'var(--brand-primary)' }}
-                  >
-                    <Download className="h-4 w-4" />
-                    Baixar ZIP
-                  </a>
                 )}
               </div>
             ) : (
@@ -517,7 +588,7 @@ export default function PrintedExamResultsPage() {
                     </p>
                     {individualJob.totalItems > 0 && (
                       <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                        {estimateRemainingLabel(individualJob.totalItems, individualJob.completedItems)}
+                        {estimateRemainingLabel(individualJob.totalItems, individualJob.completedItems, individualJob.createdAt)}
                       </p>
                     )}
                   </div>
@@ -567,6 +638,46 @@ export default function PrintedExamResultsPage() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {retryJob && (
+          <div className="mb-6 max-w-xl rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Nova tentativa (so os alunos que falharam)</p>
+            {retryJob.status === 'failed' ? (
+              <div className="flex items-start gap-3">
+                <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
+                <p className="text-xs text-slate-500 dark:text-slate-400">{retryJob.errorMessage ?? 'Erro desconhecido.'}</p>
+              </div>
+            ) : retryJob.status === 'completed' ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">
+                    {retryJob.completedItems}/{retryJob.totalItems} relatorio(s) gerados nesta nova tentativa
+                  </p>
+                </div>
+                {retryJob.downloadUrl && (
+                  <a
+                    href={retryJob.downloadUrl}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+                    style={{ backgroundColor: 'var(--brand-primary)' }}
+                  >
+                    <Download className="h-4 w-4" />
+                    Baixar ZIP (so estes alunos)
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[var(--brand-primary)]" />
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  {retryJob.totalItems > 0
+                    ? estimateRemainingLabel(retryJob.totalItems, retryJob.completedItems, retryJob.createdAt)
+                    : 'Preparando...'}
+                </p>
               </div>
             )}
           </div>
