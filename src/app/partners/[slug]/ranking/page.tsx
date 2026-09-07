@@ -24,7 +24,7 @@ import { readableBrandText, readableBrandTextOnDark, resolveAccentColor } from '
 import { RevealGroup, RevealItem, ElevatedCard, BrandHero } from '@/components/partners/founder-ui';
 import type { PartnerRankingEntry } from '@/types/gamification';
 import { getInitials, getRankingDisplayName, isAnonymousRankingEntry } from '@/lib/ranking-privacy';
-import { summarizePodiumStreaks } from '@/lib/podium-streak';
+import { describePodiumStreak, summarizePodiumStreaks } from '@/lib/podium-streak';
 import { MOCK_FOUNDER_RANKING } from '../../../../../studytrack-tutorial-mock';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
@@ -304,13 +304,14 @@ function RankRow({ entry, isPrize, index, primaryHex }: { entry: PartnerRankingE
           <div className="mt-1 flex flex-wrap gap-1">
             {recentAchievements.map((achievement) => (
               <span
-                key={`${achievement.latestMonth}-${achievement.position}`}
+                key={achievement.position}
                 className="rounded-full px-1.5 py-0.5 text-[9px] font-bold"
                 style={getPodiumBadgeStyle(achievement.position)}
               >
-                {achievement.count >= 2
-                  ? `${getPodiumLabel(achievement.position)} • ${achievement.count} meses seguidos!`
-                  : `${getPodiumLabel(achievement.position)} • ${formatMonthLabel(achievement.latestMonth)}`}
+                {describePodiumStreak(achievement, {
+                  positionLabel: getPodiumLabel(achievement.position),
+                  monthLabel: formatMonthLabel(achievement.latestMonth),
+                })}
               </span>
             ))}
           </div>
