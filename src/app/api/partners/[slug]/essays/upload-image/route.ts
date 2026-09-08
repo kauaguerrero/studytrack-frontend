@@ -24,10 +24,15 @@ export async function POST(
     return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
   }
 
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch {
+  // Esta rota é só um repasse pro Flask — não lê nenhum campo do multipart.
+  // Antes havia um `await request.formData()` aqui cujo único uso era devolver o
+  // FormData ao fetch: isso materializava a foto inteira em memória e remontava o
+  // multipart com um boundary novo, ou seja, um decode + encode completo (numa
+  // foto de celular de 5 MB, ~10 MB de trabalho de CPU) para repassar bytes
+  // intactos. Agora o corpo vai como stream, com o Content-Type original, e o
+  // Flask recebe exatamente os mesmos bytes.
+  const contentType = request.headers.get('content-type');
+  if (!contentType?.startsWith('multipart/form-data')) {
     return NextResponse.json({ error: 'Body inválido.' }, { status: 400 });
   }
 
@@ -37,10 +42,13 @@ export async function POST(
       `${BACKEND}/api/partners/${slug}/essays/upload-image`,
       {
         method: 'POST',
-        // Content-Type não é definido manualmente — o runtime define o boundary correto do multipart
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      },
+        // Content-Type repassado na íntegra — carrega o boundary do cliente, que
+        // é o mesmo dos bytes que seguem no stream.
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType },
+        body: request.body,
+        // Obrigatório no Node quando o body é um stream de leitura.
+        duplex: 'half',
+      } as RequestInit & { duplex: 'half' },
     );
   } catch {
     return NextResponse.json(
