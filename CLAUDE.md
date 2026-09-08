@@ -36,7 +36,7 @@ Three Supabase clients with different scopes:
 
 ### Data Flow
 
-Simple CRUD goes directly to Supabase from the frontend. AI-heavy features (essay transcription, question generation) call the Flask backend at `NEXT_PUBLIC_API_URL`, or in some admin-panel cases call Anthropic directly from `/api/admin/*` routes via `@anthropic-ai/sdk`.
+Simple CRUD goes directly to Supabase from the frontend. AI-heavy features (essay transcription, question generation) call the Flask backend at `NEXT_PUBLIC_API_URL`. **No route in this repo talks to Anthropic directly** — the admin-panel AI routes (`sprints/[sprintId]/ai-summary`, `tasks/ai/suggestions`, `tasks/dashboard/ai-analysis`, `tasks/ai/overdue-summary`) are thin proxies that forward to the Flask backend, which owns the model call and the API key. `@anthropic-ai/sdk` was dropped from `package.json` (2026-09-08) after a full-repo search found zero references.
 
 ### Multi-tenancy / branding
 
@@ -77,4 +77,4 @@ Feature-based under `src/components/`:
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase public access
 - `NEXT_PUBLIC_API_URL` — Flask backend URL (default: `http://127.0.0.1:5000`)
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — server-side admin access (API routes only)
-- `NEXT_PUBLIC_API_KEY` — Anthropic API key (used in `/api/*` routes)
+(There is no Anthropic key here — the model call lives in the Flask backend. `NEXT_PUBLIC_API_KEY` used to hold one and has no reader left in `src/`.)
