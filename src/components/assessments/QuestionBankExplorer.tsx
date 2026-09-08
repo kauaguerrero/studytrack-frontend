@@ -41,7 +41,7 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
   const [preview, setPreview] = useState<QuestionItem | null>(null);
   const [varyingId, setVaryingId] = useState<string | null>(null);
 
-  const subjects = Object.keys(TAXONOMY).map((item) => (item === 'Linguagens' ? 'Língua Portuguesa' : item));
+  const subjects = Object.keys(TAXONOMY);
   const disciplines = subject !== 'all' ? [...(TAXONOMY[subject as keyof typeof TAXONOMY] ?? [])] : [];
 
   async function getToken() {
@@ -56,12 +56,11 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
       const token = await getToken();
       const api = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
       const currentPage = reset ? 1 : page;
-      const querySubject = subject === 'Linguagens' ? 'Língua Portuguesa' : subject;
       const params = new URLSearchParams({
         page: String(currentPage),
         per_page: '10',
         query,
-        subject: querySubject,
+        subject,
         bank,
         discipline,
         difficulty,
@@ -84,12 +83,6 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
 
   useEffect(() => {
     setDiscipline('all');
-  }, [subject]);
-
-  useEffect(() => {
-    if (subject === 'Linguagens') {
-      setSubject('Língua Portuguesa');
-    }
   }, [subject]);
 
   useEffect(() => {

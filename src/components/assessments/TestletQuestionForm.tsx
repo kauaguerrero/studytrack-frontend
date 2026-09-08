@@ -49,7 +49,7 @@ function emptyItem(): SubItem {
 }
 
 export function TestletQuestionForm({ slug, onSuccess }: Props) {
-  const [subject, setSubject] = useState('Linguagens');
+  const [subject, setSubject] = useState('Língua Portuguesa');
   const [discipline, setDiscipline] = useState('');
   const [difficulty, setDifficulty] = useState('Médio');
   const [context, setContext] = useState('');
