@@ -24,10 +24,11 @@ export async function POST(
     return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
   }
 
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch {
+  // Repasse puro pro Flask: nenhum campo do multipart é lido aqui, então o corpo
+  // vai como stream em vez de passar por um formData() que só o desmontava para
+  // remontá-lo com outro boundary. Ver comentário em ../route.ts.
+  const contentType = request.headers.get('content-type');
+  if (!contentType?.startsWith('multipart/form-data')) {
     return NextResponse.json({ error: 'Body inválido.' }, { status: 400 });
   }
 
@@ -37,10 +38,11 @@ export async function POST(
       `${BACKEND}/api/partners/${slug}/essays/upload-image/confirm`,
       {
         method: 'POST',
-        // Content-Type não é definido manualmente — o runtime define o boundary correto do multipart
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      },
+        // Content-Type repassado na íntegra — carrega o boundary do cliente.
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType },
+        body: request.body,
+        duplex: 'half',
+      } as RequestInit & { duplex: 'half' },
     );
   } catch {
     return NextResponse.json(
