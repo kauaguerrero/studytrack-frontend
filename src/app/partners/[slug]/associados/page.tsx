@@ -80,6 +80,10 @@ interface Associate {
   avatar_url: string | null;
   active: boolean;
   associate_permissions: AssociatePermissions;
+  /** true quando a "linha" é um founder da org que também corrige redações —
+   *  entra em KPIs e gráficos, mas sem controles de gestão (permissões,
+   *  desativar, remover, senha). */
+  is_founder?: boolean;
 }
 
 interface AssociateStats {
@@ -452,9 +456,10 @@ export default function AssociadosPage() {
     .filter(a => a.active || (stats[a.id]?.corrections_in_window ?? 0) > 0)
     .map(a => ({
       name: (a.full_name ?? a.email ?? '').split(' ')[0],
-      fullName: a.full_name ?? a.email ?? '—',
+      fullName: `${a.full_name ?? a.email ?? '—'}${a.is_founder ? ' · Founder' : ''}`,
       correções: stats[a.id]?.corrections_in_window ?? 0,
       active: a.active,
+      isFounder: a.is_founder ?? false,
     }));
 
   const windowLabel = dateFilter.preset ? PERIOD_LABEL_LONG[dateFilter.preset] : 'Total';
@@ -611,7 +616,10 @@ export default function AssociadosPage() {
                           {barData.map((entry, idx) => (
                             <Cell
                               key={idx}
-                              fill={entry.active ? accent : '#cbd5e1'}
+                              // Founder: violeta fixo (mesma linguagem do selo
+                              // "Founder"). Não usar accentSecondary — algumas
+                              // orgs têm essa cor clara/vazia e a barra sumia.
+                              fill={!entry.active ? '#cbd5e1' : entry.isFounder ? '#8b5cf6' : accent}
                             />
                           ))}
                         </Bar>
@@ -757,14 +765,21 @@ export default function AssociadosPage() {
                                   >
                                     {member.full_name ?? '—'}
                                   </Link>
-                                  <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold shrink-0 ${
-                                    member.active
-                                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
-                                      : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-white/40'
-                                  }`}>
-                                    <span className={`h-1.5 w-1.5 rounded-full ${member.active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                                    {member.active ? 'Ativo' : 'Inativo'}
-                                  </span>
+                                  {member.is_founder ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold shrink-0 bg-violet-50 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                                      <ShieldCheck className="h-2.5 w-2.5 shrink-0" />
+                                      Founder
+                                    </span>
+                                  ) : (
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold shrink-0 ${
+                                      member.active
+                                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400'
+                                        : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-white/40'
+                                    }`}>
+                                      <span className={`h-1.5 w-1.5 rounded-full ${member.active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                                      {member.active ? 'Ativo' : 'Inativo'}
+                                    </span>
+                                  )}
                                 </div>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5 truncate">
                                   <Mail className="h-3 w-3 shrink-0" />
@@ -781,12 +796,20 @@ export default function AssociadosPage() {
                               </button>
                             </div>
 
-                            {/* Permission badges (always visible, compact) */}
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              <PermBadge label="Corrigir" active={perms.can_correct} />
-                              <PermBadge label="Importar" active={perms.can_import} />
-                              <PermBadge label="Ver Alunos" active={perms.can_view_students} />
-                            </div>
+                            {/* Permission badges (always visible, compact) —
+                                founder não tem permissões de gestão: mostramos
+                                só a razão de estar no painel. */}
+                            {member.is_founder ? (
+                              <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+                                Correções deste founder contabilizadas nos KPIs e gráficos.
+                              </p>
+                            ) : (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                <PermBadge label="Corrigir" active={perms.can_correct} />
+                                <PermBadge label="Importar" active={perms.can_import} />
+                                <PermBadge label="Ver Alunos" active={perms.can_view_students} />
+                              </div>
+                            )}
 
                             {/* KPI metrics row (always visible) */}
                             {member.active && (
@@ -811,7 +834,7 @@ export default function AssociadosPage() {
                             <div className="border-t border-slate-100 dark:border-white/10 bg-white dark:bg-slate-800/50 px-3 py-3 md:px-4">
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 {/* Permission toggles */}
-                                {member.active && (
+                                {member.active && !member.is_founder && (
                                   <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-4">
                                     {([
                                       { key: 'can_correct' as const, label: 'Pode Corrigir' },
@@ -834,7 +857,8 @@ export default function AssociadosPage() {
                                   </div>
                                 )}
 
-                                {/* Action buttons */}
+                                {/* Action buttons — founder só tem "Ver Análise"
+                                    (gestão de acesso não se aplica a founder). */}
                                 <div className="flex items-center gap-1.5 sm:ml-auto">
                                   <Button
                                     variant="outline"
@@ -846,40 +870,44 @@ export default function AssociadosPage() {
                                       Ver Análise
                                     </Link>
                                   </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={isBusy || !member.active}
-                                    onClick={() => handleGeneratePassword(member)}
-                                    className="h-7 gap-1 px-2 text-xs"
-                                  >
-                                    {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
-                                    <span className="hidden sm:inline">Senha</span>
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={isBusy}
-                                    onClick={() => handleToggleActive(member)}
-                                    className="h-7 gap-1 px-2 text-xs"
-                                  >
-                                    {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (
-                                      member.active
-                                        ? <XCircle className="h-3.5 w-3.5 text-amber-500" />
-                                        : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                                    )}
-                                    {member.active ? 'Desativar' : 'Reativar'}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    disabled={isBusy}
-                                    onClick={() => handleRemove(member)}
-                                    className="h-7 w-7 p-0 text-slate-400 hover:text-red-500"
-                                    title="Remover"
-                                  >
-                                    {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                  </Button>
+                                  {!member.is_founder && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={isBusy || !member.active}
+                                        onClick={() => handleGeneratePassword(member)}
+                                        className="h-7 gap-1 px-2 text-xs"
+                                      >
+                                        {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                                        <span className="hidden sm:inline">Senha</span>
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={isBusy}
+                                        onClick={() => handleToggleActive(member)}
+                                        className="h-7 gap-1 px-2 text-xs"
+                                      >
+                                        {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (
+                                          member.active
+                                            ? <XCircle className="h-3.5 w-3.5 text-amber-500" />
+                                            : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                                        )}
+                                        {member.active ? 'Desativar' : 'Reativar'}
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={isBusy}
+                                        onClick={() => handleRemove(member)}
+                                        className="h-7 w-7 p-0 text-slate-400 hover:text-red-500"
+                                        title="Remover"
+                                      >
+                                        {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             </div>

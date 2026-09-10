@@ -58,9 +58,9 @@ export async function GET(
 
   // 1. Get associate profile — must belong to this org
   const { data: associate, error: profError } = await profilesTable
-    .select('id, full_name, email, avatar_url, organization_id, associate_permissions, created_at')
+    .select('id, full_name, email, avatar_url, organization_id, role, associate_permissions, created_at')
     .eq('id', associateId)
-    .eq('role', 'associate')
+    .in('role', ['associate', 'founder'])
     .eq('organization_id', orgId)
     .maybeSingle();
 
@@ -70,11 +70,12 @@ export async function GET(
 
   type AssocRow = {
     id: string; full_name: string | null; email: string | null;
-    avatar_url: string | null; organization_id: string;
+    avatar_url: string | null; organization_id: string; role: string | null;
     associate_permissions: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean; active?: boolean } | null;
     created_at: string;
   };
   const assoc = associate as AssocRow;
+  const isFounder = assoc.role === 'founder';
 
   // 2. Org essays (for score/turnaround lookup)
   const { data: orgEssays } = await essaysTable
@@ -221,11 +222,13 @@ export async function GET(
       full_name: assoc.full_name,
       email: assoc.email,
       avatar_url: assoc.avatar_url,
-      active: assoc.associate_permissions?.active !== false,
+      is_founder: isFounder,
+      // Founder é sempre ativo e tem todas as permissões implícitas.
+      active: isFounder ? true : assoc.associate_permissions?.active !== false,
       associate_permissions: {
-        can_correct: assoc.associate_permissions?.can_correct !== false,
-        can_import: assoc.associate_permissions?.can_import === true,
-        can_view_students: assoc.associate_permissions?.can_view_students === true,
+        can_correct: isFounder ? true : assoc.associate_permissions?.can_correct !== false,
+        can_import: isFounder ? true : assoc.associate_permissions?.can_import === true,
+        can_view_students: isFounder ? true : assoc.associate_permissions?.can_view_students === true,
       },
       created_at: assoc.created_at,
     },

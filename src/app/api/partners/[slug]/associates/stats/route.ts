@@ -213,11 +213,14 @@ export async function GET(
   // opcionais e o corretor pode avaliar (notas + comentário geral) sem
   // marcar nenhum trecho, o que zerava as métricas mesmo com redações
   // efetivamente corrigidas.
+  // Contam tanto correções feitas por associates quanto por founders da org —
+  // as dos founders alimentam KPIs, gráfico de tendência e a barra "por
+  // associado" exatamente como as dos associates.
   let correctionsQuery = correctionsTable
     .select('corrector_id, essay_id, corrected_at, essay:essays!inner(total_score, submitted_at, corrected_at, essay_type, org_id), corrector:profiles!inner(organization_id, role)')
     .eq('essay.org_id', orgId)
     .eq('corrector.organization_id', orgId)
-    .eq('corrector.role', 'associate');
+    .in('corrector.role', ['associate', 'founder']);
   if (filterByType) correctionsQuery = correctionsQuery.eq('essay.essay_type', filterByType);
 
   const [
@@ -244,7 +247,22 @@ export async function GET(
 
   const dateFilterResponse = dateRangeKeys ? { preset: datePreset ?? 'custom', from: dateRangeKeys.fromKey, to: dateRangeKeys.toKey } : null;
 
-  if (associateIds.length === 0) {
+  type CorrectionWithEssayRow = {
+    corrector_id: string; essay_id: string; corrected_at: string;
+    essay: { total_score: number | null; submitted_at: string | null; corrected_at: string | null; essay_type: string | null } | null;
+  };
+  const allAnns = ((allCorrections || []) as CorrectionWithEssayRow[])
+    .map(c => ({ author_id: c.corrector_id, essay_id: c.essay_id, created_at: c.corrected_at, essay: c.essay }));
+
+  // Linhas do painel = todos os associates + os founders que efetivamente
+  // corrigiram (aparecem em `allAnns`, já filtrado por org e role). Associate
+  // sem nenhuma correção continua na lista (zerado); founder sem correção não.
+  const founderCorrectorIds = allAnns
+    .map(a => a.author_id)
+    .filter(id => !associateIds.includes(id));
+  const statIds = [...new Set([...associateIds, ...founderCorrectorIds])];
+
+  if (statIds.length === 0) {
     return NextResponse.json({
       essay_type_filter: essayTypeParam,
       score_reference_type: filterByType,
@@ -258,13 +276,6 @@ export async function GET(
       trend: buildTrend([], dateRangeKeys, todayKey),
     });
   }
-
-  type CorrectionWithEssayRow = {
-    corrector_id: string; essay_id: string; corrected_at: string;
-    essay: { total_score: number | null; submitted_at: string | null; corrected_at: string | null; essay_type: string | null } | null;
-  };
-  const allAnns = ((allCorrections || []) as CorrectionWithEssayRow[])
-    .map(c => ({ author_id: c.corrector_id, essay_id: c.essay_id, created_at: c.corrected_at, essay: c.essay }));
 
   // 5. Correções dentro do período selecionado (limites BRT) — alimenta o
   // gráfico de tendência, a contagem "no período" e (diferente de antes) a
@@ -302,7 +313,7 @@ export async function GET(
     window_score_sum: number; window_score_count: number;
     window_turnaround_sum: number; window_turnaround_count: number;
   }> = {};
-  for (const id of associateIds) {
+  for (const id of statIds) {
     stats[id] = {
       corrections_in_window: 0, total_corrections: 0,
       window_score_sum: 0, window_score_count: 0,
