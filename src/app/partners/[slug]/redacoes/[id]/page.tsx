@@ -12,7 +12,7 @@ import FloatingActionMenu from '@/components/ui/floating-action-menu';
 import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 import { cn, normalizeEssayLineBreaks } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
-import { ArrowLeft, ChevronLeft, ChevronRight, Hand, Info, MessageCircle, MousePointer2, PenLine, PencilLine, Send, Users, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Hand, Info, MessageCircle, MousePointer2, PenLine, PencilLine, Send, Trash2, Users, X } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { useOrgCorrectionPresence } from '@/hooks/useOrgCorrectionPresence';
 import { createClient } from '@/lib/supabase/client';
@@ -240,6 +240,7 @@ export default function CorrecaoRedacaoPage() {
   const router = useRouter();
   const { org, userProfile } = useOrg();
   const textContainerRef = useRef<HTMLDivElement | null>(null);
+  const popupTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const [essay, setEssay] = useState<EssayDetail | null>(null);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
@@ -253,6 +254,11 @@ export default function CorrecaoRedacaoPage() {
   const [generalComment, setGeneralComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [selectedText, setSelectedText] = useState<SelectedTextState | null>(null);
+  // Só quando a seleção veio de toque (iOS) a gente pinta o realce "pendente"
+  // próprio — isso re-quebra os nós de texto e mataria a seleção nativa. No
+  // desktop mantemos a seleção nativa intacta pra permitir copiar (Ctrl+C /
+  // botão direito), usando o próprio realce do navegador como feedback.
+  const [selectionFromTouch, setSelectionFromTouch] = useState(false);
   const [annotationPopup, setAnnotationPopup] = useState<PopupState | null>(null);
   const [popupMode, setPopupMode] = useState<PopupMode>(null);
   const [queuedMode, setQueuedMode] = useState<PopupMode>(null);
@@ -263,7 +269,7 @@ export default function CorrecaoRedacaoPage() {
 
   // Estados para modal de devolução / segunda correção
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
-  const [viewingComment, setViewingComment] = useState<{ text: string; excerpt: string } | null>(null);
+  const [viewingComment, setViewingComment] = useState<{ id: string; text: string; excerpt: string } | null>(null);
   const [requestSecond, setRequestSecond] = useState(false);
   const [secondCorrectorMode, setSecondCorrectorMode] = useState<'random' | 'specific'>('random');
   const [correctors, setCorrectors] = useState<CorrectorInfo[]>([]);
@@ -482,20 +488,43 @@ export default function CorrecaoRedacaoPage() {
       buildSegments(
         essay?.text || '',
         annotations,
-        selectedText ? { start: selectedText.start, end: selectedText.end } : null,
+        // No desktop não passamos o range "pendente": re-segmentar o texto
+        // trocaria os nós onde a seleção nativa está ancorada e ela sumiria,
+        // impedindo o copiar. O realce nativo do navegador já dá o feedback.
+        selectedText && selectionFromTouch ? { start: selectedText.start, end: selectedText.end } : null,
       ),
-    [essay?.text, annotations, selectedText],
+    [essay?.text, annotations, selectedText, selectionFromTouch],
   );
+
+  // Assim que o modo de anotação abre (Comentar/Corrigir), foca a caixa de
+  // texto pra digitar sem o clique extra. O rAF garante que o <textarea> já
+  // montou dentro do portal antes do focus.
+  useEffect(() => {
+    if (!popupMode) return;
+    const raf = requestAnimationFrame(() => {
+      const el = popupTextareaRef.current;
+      if (!el) return;
+      el.focus();
+      const caret = el.value.length;
+      el.setSelectionRange(caret, caret);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [popupMode]);
 
   function closePopup() {
     setAnnotationPopup(null);
     setSelectedText(null);
+    setSelectionFromTouch(false);
     setPopupMode(null);
     setPopupValue('');
     window.getSelection()?.removeAllRanges();
   }
 
-  function handleTextMouseUp() {
+  // `fromTouch` distingue seleção por toque (iOS) de seleção com mouse. Só no
+  // toque a gente derruba a seleção nativa (pra matar o menu Copy/Look Up do
+  // iOS); no desktop a seleção é preservada pra que Ctrl+C e o "Copiar" do
+  // botão direito continuem funcionando.
+  function handleTextMouseUp(fromTouch = false) {
     const container = textContainerRef.current;
     if (!container || !essay?.text) return;
 
@@ -536,9 +565,11 @@ export default function CorrecaoRedacaoPage() {
     // -webkit-touch-callout:none no container não basta pro iOS: o menu nativo
     // de seleção (Copy/Look Up/...) é da API Selection, não do callout de
     // toque em link/imagem. Limpar a seleção nativa aqui derruba esse menu na
-    // hora — o popup próprio (abaixo) já mostra o trecho selecionado.
-    selection.removeAllRanges();
+    // hora — o popup próprio (abaixo) já mostra o trecho selecionado. Só no
+    // toque: no desktop preservar a seleção é o que permite copiar o texto.
+    if (fromTouch) selection.removeAllRanges();
 
+    setSelectionFromTouch(fromTouch);
     setSelectedText({
       start: offsetStart,
       end: offsetEnd,
@@ -723,12 +754,13 @@ export default function CorrecaoRedacaoPage() {
 
       if (segment.annotation.type === 'comment') {
         const commentText = segment.annotation.comment_text || '';
+        const commentId = segment.annotation.id;
         return (
           <button
             key={segment.key}
             type="button"
             data-annotation-id={segment.annotation.id}
-            onClick={() => setViewingComment({ text: commentText, excerpt: segment.text })}
+            onClick={() => setViewingComment({ id: commentId, text: commentText, excerpt: segment.text })}
             className={cn(
               'inline cursor-pointer rounded bg-amber-400/10 px-0.5 text-left text-amber-700 underline decoration-amber-500/80 underline-offset-2 dark:text-amber-100 dark:decoration-amber-300/80',
               pendingCls,
@@ -1080,8 +1112,8 @@ export default function CorrecaoRedacaoPage() {
 
             <div
               ref={textContainerRef}
-              onMouseUp={handleTextMouseUp}
-              onTouchEnd={() => setTimeout(handleTextMouseUp, 50)}
+              onMouseUp={() => handleTextMouseUp(false)}
+              onTouchEnd={() => setTimeout(() => handleTextMouseUp(true), 50)}
               className="max-h-[540px] overflow-auto rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap [-webkit-touch-callout:none] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
             >
               {renderAnnotatedText()}
@@ -1136,9 +1168,22 @@ export default function CorrecaoRedacaoPage() {
                 ) : (
                   <div className="space-y-2">
                     <textarea
+                      ref={popupTextareaRef}
                       value={popupValue}
                       onChange={(e) => setPopupValue(e.target.value)}
-                      placeholder={popupMode === 'comment' ? 'Digite o comentário...' : 'Digite a correção...'}
+                      onKeyDown={(e) => {
+                        // Enter confirma na hora; Shift+Enter quebra linha.
+                        // Esc volta pra escolha Comentar/Corrigir.
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          addAnnotation();
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          setPopupMode(null);
+                          setPopupValue('');
+                        }
+                      }}
+                      placeholder={popupMode === 'comment' ? 'Digite o comentário... (Enter confirma)' : 'Digite a correção... (Enter confirma)'}
                       className="min-h-[88px] w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                     <div className="flex justify-end gap-2">
@@ -1278,6 +1323,20 @@ export default function CorrecaoRedacaoPage() {
                 &quot;{viewingComment.excerpt}&quot;
               </p>
               <p className="text-sm leading-relaxed text-slate-900 dark:text-slate-100">{viewingComment.text}</p>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeAnnotation(viewingComment.id);
+                    setViewingComment(null);
+                    toast.success('Comentário deletado.');
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-rose-500/40 px-2.5 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-500/10 dark:text-rose-300"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Deletar comentário
+                </button>
+              </div>
             </div>
           </div>
         )}

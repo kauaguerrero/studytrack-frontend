@@ -24,6 +24,7 @@ type AssociateListRow = {
   email: string | null;
   avatar_url: string | null;
   organization_id: string | null;
+  role: string | null;
   associate_permissions: AssociatePermissions | null;
 };
 
@@ -123,32 +124,56 @@ export async function GET(
   if (!auth.ok) return auth.response;
 
   const profilesTable = auth.adminClient.from('profiles') as any;
+  // Além dos associates, os founders da org também entram no painel — mas só
+  // como corretores: contribuem para KPIs/gráficos e ganham página de análise,
+  // sem serem "membros de gestão" (nada de permissões, desativar ou remover).
   const { data, error } = await profilesTable
-    .select('id, full_name, email, avatar_url, organization_id, associate_permissions')
+    .select('id, full_name, email, avatar_url, organization_id, role, associate_permissions')
     .eq('organization_id', auth.orgId)
-    .eq('role', ASSOCIATE_DB_ROLE)
+    .in('role', [ASSOCIATE_DB_ROLE, 'founder'])
+    .order('role', { ascending: true })
     .order('full_name', { ascending: true });
 
   if (error) {
     return NextResponse.json({ error: 'Não foi possível listar associados.' }, { status: 500 });
   }
 
-  const associates = ((data || []) as AssociateListRow[]).map((item) => {
-    const rawPerms = item.associate_permissions || {};
-    return {
-      id: item.id,
-      full_name: item.full_name,
-      email: item.email,
-      avatar_url: item.avatar_url,
-      // active: ausência do flag ou true = ativo (compatibilidade com registros antigos)
-      active: rawPerms.active !== false,
-      associate_permissions: {
-        can_correct: rawPerms.can_correct !== false,
-        can_import: rawPerms.can_import === true,
-        can_view_students: rawPerms.can_view_students === true,
-      },
-    };
-  });
+  const rows = (data || []) as AssociateListRow[];
+
+  // Founder só aparece na lista quando já tem ao menos uma correção registrada —
+  // caso contrário poluiria o painel com nomes sem nenhuma atividade de correção.
+  const founderIds = rows.filter(r => r.role === 'founder').map(r => r.id);
+  let foundersWithCorrections = new Set<string>();
+  if (founderIds.length > 0) {
+    const { data: fcorr } = await (auth.adminClient.from('essay_corrections') as any)
+      .select('corrector_id')
+      .in('corrector_id', founderIds);
+    foundersWithCorrections = new Set(
+      ((fcorr || []) as { corrector_id: string }[]).map(c => c.corrector_id),
+    );
+  }
+
+  const associates = rows
+    .filter(item => item.role !== 'founder' || foundersWithCorrections.has(item.id))
+    .map((item) => {
+      const isFounder = item.role === 'founder';
+      const rawPerms = item.associate_permissions || {};
+      return {
+        id: item.id,
+        full_name: item.full_name,
+        email: item.email,
+        avatar_url: item.avatar_url,
+        is_founder: isFounder,
+        // Founder não tem associate_permissions: é sempre ativo e pode tudo.
+        // active: ausência do flag ou true = ativo (compatibilidade com registros antigos)
+        active: isFounder ? true : rawPerms.active !== false,
+        associate_permissions: {
+          can_correct: isFounder ? true : rawPerms.can_correct !== false,
+          can_import: isFounder ? true : rawPerms.can_import === true,
+          can_view_students: isFounder ? true : rawPerms.can_view_students === true,
+        },
+      };
+    });
 
   return NextResponse.json({
     total: associates.length,

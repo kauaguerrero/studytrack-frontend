@@ -70,6 +70,8 @@ interface AssocProfile {
   active: boolean;
   associate_permissions: AssocPermissions;
   created_at: string;
+  /** true quando o corretor é um founder da org — sem controles de gestão. */
+  is_founder?: boolean;
 }
 
 interface AssocMetrics {
@@ -335,7 +337,12 @@ export default function AssociadoDetailPage() {
                           <h1 className="text-xl font-bold text-slate-900 dark:text-white leading-tight">
                             {profile.full_name ?? '—'}
                           </h1>
-                          {isActive ? (
+                          {profile.is_founder ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-bold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                              <Award className="h-3 w-3" />
+                              Founder
+                            </span>
+                          ) : isActive ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
                               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                               Ativo
@@ -352,7 +359,13 @@ export default function AssociadoDetailPage() {
                           {profile.email ?? '—'}
                         </p>
 
-                        {/* Permissions badges */}
+                        {/* Permissions badges — founder não tem gestão de
+                            permissões; mostramos só o contexto. */}
+                        {profile.is_founder ? (
+                          <p className="mt-2.5 text-xs text-slate-500 dark:text-slate-400">
+                            Founder da organização · correções incluídas no painel de associados
+                          </p>
+                        ) : (
                         <div className="mt-2.5 flex flex-wrap gap-1.5">
                           {(
                             [
@@ -381,6 +394,7 @@ export default function AssociadoDetailPage() {
                             );
                           })}
                         </div>
+                        )}
 
                         <p className="mt-2 flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
                           <CalendarDays className="h-3 w-3 shrink-0" />
@@ -389,7 +403,9 @@ export default function AssociadoDetailPage() {
                       </div>
                     </div>
 
-                    {/* Right: action buttons */}
+                    {/* Right: action buttons — gestão de acesso não se aplica a
+                        founder (só leitura da análise de correções). */}
+                    {!profile.is_founder && (
                     <div className="flex flex-row flex-wrap gap-2 sm:flex-col sm:items-end sm:shrink-0">
                       <Button
                         variant="outline"
@@ -426,6 +442,7 @@ export default function AssociadoDetailPage() {
                         {isActive ? 'Desativar' : 'Reativar'}
                       </Button>
                     </div>
+                    )}
                   </div>
                 ) : null}
 
