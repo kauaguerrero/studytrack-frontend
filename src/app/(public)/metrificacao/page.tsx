@@ -66,10 +66,10 @@ export default function MetrificacaoPage() {
       {/* ══ MAIN ══ */}
       <main>
         <MetrificacaoHero />
+        <VideoCaseSection />
         <ImpactCounters />
         <ClassReportShowcase />
         <IndividualReportShowcase />
-        <VideoCaseSection />
         <MetrificacaoFinalCTA />
       </main>
 
