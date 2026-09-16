@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ImageIcon, Loader2, RotateCcw, RotateCw, Send, Star } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ImageIcon, Loader2, RotateCcw, RotateCw, Send, Star, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 
@@ -344,7 +344,6 @@ export function PhotoEssayUploader({
   const [submittedEssayId, setSubmittedEssayId] = useState('');
   const [ratingStars, setRatingStars] = useState(0);
   const [ratingHover, setRatingHover] = useState(0);
-  const [ratingComment, setRatingComment] = useState('');
   const [ratingBusy, setRatingBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [fileError, setFileError] = useState('');
@@ -597,10 +596,12 @@ export function PhotoEssayUploader({
     }
   }
 
-  // Envia a avaliação da transcrição (best-effort) e sai da tela. Falha aqui
-  // nunca prende o aluno — a redação já foi enviada.
-  async function finishRating(withRating: boolean) {
-    if (withRating && submittedEssayId && ratingStars > 0) {
+  // Toque na estrela já dispara o envio (sem passo de confirmação separado —
+  // esforço de avaliar precisa ficar igual ao de pular, senão ninguém avalia).
+  // Best-effort: falha aqui nunca prende o aluno, a redação já foi enviada.
+  async function submitRating(stars: number) {
+    setRatingStars(stars);
+    if (submittedEssayId) {
       setRatingBusy(true);
       try {
         await fetchWithTimeout(
@@ -608,10 +609,7 @@ export function PhotoEssayUploader({
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              rating: ratingStars,
-              comment: ratingComment.trim() || undefined,
-            }),
+            body: JSON.stringify({ rating: stars }),
           },
           15_000,
         );
@@ -620,6 +618,10 @@ export function PhotoEssayUploader({
       }
       setRatingBusy(false);
     }
+    onSuccess(submittedEssayId);
+  }
+
+  function skipRating() {
     onSuccess(submittedEssayId);
   }
 
@@ -1115,7 +1117,17 @@ export function PhotoEssayUploader({
     return (
       <>
         {modal}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8">
+        <div className="relative rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900 md:p-8">
+          <button
+            type="button"
+            disabled={ratingBusy}
+            onClick={skipRating}
+            aria-label="Fechar sem avaliar"
+            className="absolute right-3 top-3 rounded-full p-1.5 text-slate-300 transition hover:bg-slate-100 hover:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-400"
+          >
+            <X className="h-4 w-4" />
+          </button>
+
           <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-500" />
           <p className="mt-2 text-lg font-bold text-slate-900 dark:text-white">
             Redação enviada!
@@ -1133,12 +1145,12 @@ export function PhotoEssayUploader({
               <button
                 key={n}
                 type="button"
+                disabled={ratingBusy}
                 onMouseEnter={() => setRatingHover(n)}
                 onFocus={() => setRatingHover(n)}
-                onClick={() => setRatingStars(n)}
+                onClick={() => submitRating(n)}
                 aria-label={`${n} ${n === 1 ? 'estrela' : 'estrelas'}`}
-                aria-pressed={ratingStars === n}
-                className="rounded p-1 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                className="rounded p-1 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 disabled:cursor-not-allowed"
               >
                 <Star
                   className={cn(
@@ -1152,37 +1164,8 @@ export function PhotoEssayUploader({
             ))}
           </div>
           <p className="mt-1 h-4 text-xs font-semibold text-amber-600 dark:text-amber-400">
-            {RATING_LABELS[shown] || ''}
+            {ratingBusy ? 'Enviando…' : (RATING_LABELS[shown] || '')}
           </p>
-
-          <textarea
-            value={ratingComment}
-            onChange={(e) => setRatingComment(e.target.value.slice(0, 2000))}
-            placeholder="Comentário (opcional): o que a transcrição errou ou acertou?"
-            rows={3}
-            className="mt-3 w-full resize-y rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-          />
-
-          <div className="mt-4 flex flex-col gap-2">
-            <button
-              type="button"
-              disabled={ratingStars === 0 || ratingBusy}
-              onClick={() => finishRating(true)}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ backgroundColor: 'var(--brand-primary)' }}
-            >
-              {ratingBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4" />}
-              Enviar avaliação
-            </button>
-            <button
-              type="button"
-              disabled={ratingBusy}
-              onClick={() => finishRating(false)}
-              className="text-sm font-medium text-slate-500 transition hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200"
-            >
-              Agora não
-            </button>
-          </div>
         </div>
       </>
     );
