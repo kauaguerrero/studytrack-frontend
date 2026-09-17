@@ -27,6 +27,7 @@ import {
   FilePenLine,
   Flame,
   Gauge,
+  Info,
   TrendingDown,
   TrendingUp,
   Trophy,
@@ -34,12 +35,13 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { useOrg } from '@/contexts/OrgContext';
-import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
+import { ESSAY_TYPE_CONFIGS, normalizeEssayType, pickDominantEssayType, type EssayType } from '@/lib/essay-types';
 import { cn } from '@/lib/utils';
 import { RevealGroup, RevealItem } from '@/components/partners/founder-ui';
 import { StreakFlame } from '@/components/partners/gamification/StreakFlame';
 import { getStreakStage } from '@/components/partners/gamification/streakEvolution';
 import { readableBrandText } from '@/lib/brand-color';
+import { Tooltip as InfoTooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -327,6 +329,30 @@ function buildEssayCompetencies(essayDetails: EssayDetail[], essayType: EssayTyp
   });
 }
 
+/** Badge clicável que indica qual banca está sendo usada como referência nos
+ * KPIs de redação quando o filtro "Tipo de redação" está em "Todas" — mesmo
+ * padrão usado em "Minhas redações". */
+function EssayTypeReferenceBadge({ typeLabel }: { typeLabel: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <InfoTooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 transition hover:bg-slate-200 dark:bg-white/10 dark:text-white/50 dark:hover:bg-white/15"
+        >
+          Referência: {typeLabel}
+          <Info className="h-3 w-3" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[220px] text-center">
+        Calculamos a média e as notas com base no modelo de redação mais corrigido para você ({typeLabel}). Troque o filtro &quot;Tipo de redação&quot; para ver o resultado de uma banca específica.
+      </TooltipContent>
+    </InfoTooltip>
+  );
+}
+
 function buildSimuladoSubjectStats(sessions: SimuladoSession[]) {
   const subjectMap = new Map<string, { correct: number; total: number; sessions: number }>();
 
@@ -511,12 +537,12 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
   ]);
   const [habitsPeriod, setHabitsPeriod] = useState<7 | 14 | 30>(14);
   const [visibleHabitsMetrics, setVisibleHabitsMetrics] = useState<Array<'questions' | 'simulados'>>(['questions', 'simulados']);
-  const [essayTypeFilter, setEssayTypeFilter] = useState<EssayType>('enem');
+  const [essayTypeFilter, setEssayTypeFilter] = useState<EssayType | 'all'>('all');
   const [essayTypeFilterOpen, setEssayTypeFilterOpen] = useState(false);
   const [subjectSort, setSubjectSort] = useState<'accuracy' | 'volume'>('accuracy');
 
   useEffect(() => {
-    if (initialState !== null && essayTypeFilter === 'enem') return; // server pre-fetched successfully for default filter
+    if (initialState !== null) return; // server já pré-buscou com sucesso
 
     let active = true;
 
@@ -535,7 +561,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
       try {
         const [analyticsRes, essaysRes, summaryRes, rankingRes, simuladoRes] = await Promise.all([
           fetch(`${apiUrl}/api/student/analytics/dashboard`, { headers: hdrs, cache: 'no-store' }),
-          fetch(`${apiUrl}/api/partners/${slug}/essays?status=all&essay_type=${essayTypeFilter}&page=1&limit=200`, { headers: hdrs, cache: 'no-store' }),
+          fetch(`${apiUrl}/api/partners/${slug}/essays?status=all&page=1&limit=200`, { headers: hdrs, cache: 'no-store' }),
           fetch(`${apiUrl}/api/partner/gamification/summary`, { headers: hdrs, cache: 'no-store' }),
           fetch(`${apiUrl}/api/partner/gamification/ranking?limit=10`, { headers: hdrs, cache: 'no-store' }),
           fetch(`${apiUrl}/api/simulado/history?page=1&limit=12`, { headers: hdrs, cache: 'no-store' }),
@@ -554,11 +580,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
         const simuladoPayload: SimuladoHistoryResponse = simuladoRes.ok ? await simuladoRes.json() : { sessions: [] };
 
         const essays: EssayListItem[] = (essaysPayload.items || []).map((item) => ({
-          essay_type: String(item.essay_type || '').toLowerCase() === 'ufu'
-            ? 'ufu'
-            : String(item.essay_type || '').toLowerCase() === 'ueg'
-              ? 'ueg'
-              : 'enem',
+          essay_type: normalizeEssayType(item.essay_type),
           id: String(item.id),
           status: item.status,
           submitted_at: String(item.submitted_at),
@@ -589,12 +611,8 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
         );
 
         const essaysWithNormalizedType = essays.map((essay) => {
-          const detailType = String(detailsById.get(essay.id)?.essay_type || '').toLowerCase();
-          const normalizedType: EssayType = detailType === 'ufu'
-            ? 'ufu'
-            : detailType === 'ueg'
-              ? 'ueg'
-              : essay.essay_type;
+          const detailType = detailsById.get(essay.id)?.essay_type;
+          const normalizedType: EssayType = detailType ? normalizeEssayType(detailType) : essay.essay_type;
           return { ...essay, essay_type: normalizedType };
         });
 
@@ -634,15 +652,24 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
 
     void load();
     return () => { active = false; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug, essayTypeFilter, initialState]);
+  }, [slug, initialState]);
+
+  // Quando o filtro é "Todas", usa o tipo mais frequente entre as redações do
+  // aluno como referência pros KPIs/competências de redação — evita que a
+  // "Análise Detalhada" fique baseada por padrão numa banca que ele quase
+  // não envia (mesma lógica de "Minhas redações").
+  const dominantEssayType = useMemo<EssayType>(
+    () => pickDominantEssayType(state?.essays ?? [], (e) => e.essay_type),
+    [state],
+  );
 
   const derived = useMemo(() => {
     if (!state) return null;
 
     const { analytics, essays, essayDetails, summary, simuladoSessions } = state;
-    const essayTypeConfig = ESSAY_TYPE_CONFIGS[essayTypeFilter] ?? ESSAY_TYPE_CONFIGS.enem;
-    const essaysByType = essays.filter((item) => item.essay_type === essayTypeFilter);
+    const effectiveEssayType = essayTypeFilter === 'all' ? dominantEssayType : essayTypeFilter;
+    const essayTypeConfig = ESSAY_TYPE_CONFIGS[effectiveEssayType] ?? ESSAY_TYPE_CONFIGS.enem;
+    const essaysByType = essays.filter((item) => item.essay_type === effectiveEssayType);
     const correctedEssays = essaysByType
       .filter((item) => effectiveEssayScore(item) !== null)
       .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime());
@@ -658,7 +685,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
     const essayTrendDelta = compareWindowTrend(correctedEssays.map((item) => effectiveEssayScore(item) || 0), 2);
     const correctedIds = new Set(correctedEssays.map((item) => item.id));
     const essayDetailsByType = essayDetails.filter((item) => correctedIds.has(item.id));
-    const competencyStats = buildEssayCompetencies(essayDetailsByType, essayTypeFilter);
+    const competencyStats = buildEssayCompetencies(essayDetailsByType, effectiveEssayType);
     const latestEssayDetail = latestEssay ? essayDetailsByType.find((item) => item.id === latestEssay.id) || null : null;
     const latestEssayCompetencies = essayTypeConfig.competencies
       .map((label, idx) => {
@@ -727,7 +754,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
       habits,
       summary,
     };
-  }, [state, essayTypeFilter]);
+  }, [state, essayTypeFilter, dominantEssayType]);
 
   if (loading) return <LoadingState />;
 
@@ -864,9 +891,16 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
               className="lg:col-span-4"
               label="Redação"
               value={essayAverage ? `${essayAverage.toFixed(0)} / ${essayTypeConfig.total_max}` : 'Sem nota ainda'}
-              hint={latestEssay
-                ? <span className="block">Última {effectiveEssayScore(latestEssay)} • melhor {bestEssay ? effectiveEssayScore(bestEssay) : '—'}</span>
-                : 'Sem correção'}
+              hint={(
+                <span className="block">
+                  {latestEssay
+                    ? <>Última {effectiveEssayScore(latestEssay)} • melhor {bestEssay ? effectiveEssayScore(bestEssay) : '—'}</>
+                    : 'Sem correção'}
+                  {essayTypeFilter === 'all' && (
+                    <span className="ml-1 opacity-70">({essayTypeConfig.label})</span>
+                  )}
+                </span>
+              )}
               icon={FilePenLine}
               accent="#0f766e"
             />
@@ -1082,7 +1116,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                     onClick={() => setEssayTypeFilterOpen((v) => !v)}
                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:text-slate-950 sm:flex-none dark:border-white/15 dark:bg-slate-900/70 dark:text-slate-100 dark:hover:text-white"
                   >
-                    {essayTypeConfig.label}
+                    {essayTypeFilter === 'all' ? 'Todas' : essayTypeConfig.label}
                     <ChevronDown className={cn('h-4 w-4 transition-transform', essayTypeFilterOpen && 'rotate-180')} />
                   </button>
                   <Link
@@ -1100,7 +1134,24 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                     no desktop, volta a ser compacta e ancorada à direita. */}
                 {essayTypeFilterOpen && (
                   <div className="absolute inset-x-0 top-full z-20 mt-1.5 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl sm:inset-x-auto sm:right-0 sm:w-44 dark:border-slate-700 dark:bg-slate-900">
-                    {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][]).map(([key, cfg]) => (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEssayTypeFilter('all');
+                        setEssayTypeFilterOpen(false);
+                      }}
+                      className={cn(
+                        'flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm transition',
+                        essayTypeFilter === 'all'
+                          ? 'bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-white'
+                          : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/60',
+                      )}
+                    >
+                      <span>Todas</span>
+                    </button>
+                    {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][])
+                      .filter(([key]) => key !== 'geral')
+                      .map(([key, cfg]) => (
                       <button
                         key={key}
                         type="button"
@@ -1125,7 +1176,10 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 <div className={SOFT_CARD_CLASS}>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Média</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Média</p>
+                    {essayTypeFilter === 'all' && <EssayTypeReferenceBadge typeLabel={essayTypeConfig.label} />}
+                  </div>
                   <p className={cn('mt-2 text-3xl font-semibold tracking-tight', getScoreTone(essayAverage, essayTypeConfig.total_max))}>
                     {essayAverage ? essayAverage.toFixed(0) : '—'}
                   </p>

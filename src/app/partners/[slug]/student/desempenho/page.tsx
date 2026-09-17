@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { type EssayType } from '@/lib/essay-types';
+import { normalizeEssayType, type EssayType } from '@/lib/essay-types';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import DesempenhoClient, {
   type AnalyticsResponse,
@@ -40,7 +40,7 @@ export default async function DesempenhoPage({
     try {
       const [analyticsRes, essaysRes, summaryRes, rankingRes, simuladoRes] = await Promise.all([
         fetch(`${API}/api/student/analytics/dashboard`, { headers: hdrs, cache: 'no-store' }),
-        fetch(`${API}/api/partners/${slug}/essays?status=all&essay_type=enem&page=1&limit=200`, { headers: hdrs, cache: 'no-store' }),
+        fetch(`${API}/api/partners/${slug}/essays?status=all&page=1&limit=200`, { headers: hdrs, cache: 'no-store' }),
         fetch(`${API}/api/partner/gamification/summary`, { headers: hdrs, cache: 'no-store' }),
         fetch(`${API}/api/partner/gamification/ranking?limit=10`, { headers: hdrs, cache: 'no-store' }),
         fetch(`${API}/api/simulado/history?page=1&limit=12`, { headers: hdrs, cache: 'no-store' }),
@@ -67,11 +67,7 @@ export default async function DesempenhoPage({
       }) => ({
         id: String(item.id),
         status: item.status,
-        essay_type: String(item.essay_type || '').toLowerCase() === 'ufu'
-          ? 'ufu'
-          : String(item.essay_type || '').toLowerCase() === 'ueg'
-            ? 'ueg'
-            : 'enem',
+        essay_type: normalizeEssayType(item.essay_type),
         submitted_at: String(item.submitted_at),
         corrected_at: item.corrected_at ? String(item.corrected_at) : null,
         total_score: typeof item.total_score === 'number' ? item.total_score : null,
@@ -103,12 +99,8 @@ export default async function DesempenhoPage({
       );
 
       const essaysWithNormalizedType = essays.map((essay) => {
-        const detailType = String(detailsById.get(essay.id)?.essay_type || '').toLowerCase();
-        const normalizedType: EssayType = detailType === 'ufu'
-          ? 'ufu'
-          : detailType === 'ueg'
-            ? 'ueg'
-            : essay.essay_type;
+        const detailType = detailsById.get(essay.id)?.essay_type;
+        const normalizedType: EssayType = detailType ? normalizeEssayType(detailType) : essay.essay_type;
         return { ...essay, essay_type: normalizedType };
       });
 

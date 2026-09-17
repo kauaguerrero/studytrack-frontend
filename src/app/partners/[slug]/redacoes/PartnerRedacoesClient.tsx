@@ -47,6 +47,7 @@ import {
   DEFAULT_CORRECTED_SORT,
   type CorrectedSortValue,
 } from './CorrectedSortControl';
+import { Tooltip as InfoTooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,6 +143,7 @@ interface EssaysMetrics {
 
 type EssaysOverviewPayload = {
   essay_type_filter?: string;
+  score_reference_type?: string | null;
   metrics: EssaysMetrics;
   pending_items: EssayListItem[];
   corrected_items: EssayListItem[];
@@ -212,6 +214,32 @@ function SectionIconTitle({
       </div>
       {badge}
     </div>
+  );
+}
+
+/** Aviso clicável indicando qual banca está sendo usada como referência
+ * quando o filtro está em "Todas". Mesma lógica da tela "Minhas Redações" do
+ * aluno e do painel de associados: a nota média/ranking/intervalo usam o
+ * tipo de redação mais corrigido na org. Não depende de hover — funciona em
+ * touch. */
+function BancaReferenceNote({ typeLabel }: { typeLabel: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <InfoTooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 transition hover:bg-slate-200 dark:bg-white/10 dark:text-white/50 dark:hover:bg-white/15"
+        >
+          Referência: {typeLabel}
+          <Info className="h-3 w-3" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[240px] text-center">
+        Com o filtro em &quot;Todas as bancas&quot;, a nota média, o ranking e o intervalo de notas usam como referência o modelo de redação mais corrigido na organização ({typeLabel}) — misturar escalas diferentes (ENEM até 1000, VUNESP até 14) distorceria o número. Selecione uma banca no filtro para ver a nota dela.
+      </TooltipContent>
+    </InfoTooltip>
   );
 }
 
@@ -794,8 +822,12 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   const [metricsLoading, setMetricsLoading] = useState(initialOverview === null);
   const [queueLoading, setQueueLoading] = useState(initialOverview === null);
   // `'all'` = todas as bancas. As métricas de rubrica (competências, nota
-  // máxima) caem no molde ENEM nesse modo — ver `activeConfig` abaixo.
+  // máxima) usam o tipo mais corrigido na org como referência nesse modo —
+  // ver `activeConfig`/`scoreRefType` abaixo.
   const [activeTypeFilter, setActiveTypeFilter] = useState<EssayType | 'all'>('enem');
+  const [scoreRefType, setScoreRefType] = useState<string | null>(
+    initialOverview?.score_reference_type ?? null,
+  );
   const [pendingSortOrder, setPendingSortOrder] = useState<'asc' | 'desc'>('asc');
   // DEFAULT_CORRECTED_SORT preserva a ordem que a lista de corrigidas já tinha
   // fixa no servidor (data de envio, mais recentes primeiro).
@@ -865,7 +897,9 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
     currentUserAvatarUrl: userProfile.avatarUrl,
   });
 
-  const activeConfig = ESSAY_TYPE_CONFIGS[activeTypeFilter === 'all' ? 'enem' : activeTypeFilter];
+  const activeConfig = ESSAY_TYPE_CONFIGS[
+    activeTypeFilter === 'all' ? (scoreRefType as EssayType) : activeTypeFilter
+  ] ?? ESSAY_TYPE_CONFIGS.enem;
   const competencyNames = activeConfig.competencies;
   const getCompetencyMax = (idx: number): number => {
     const options = activeConfig.score_options[idx] || [];
@@ -904,6 +938,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
       }
       const data: EssaysOverviewPayload = await res.json();
       setMetrics(data.metrics || DEFAULT_METRICS);
+      setScoreRefType(data.score_reference_type ?? null);
       setPendingEssays(data.pending_items || []);
       setCorrectedEssays(data.corrected_items || []);
       const pendingMeta = data.pagination?.pending;
@@ -1477,6 +1512,11 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               accentColor="var(--brand-accent)"
               accentHex={org.brand_accent}
               loading={metricsLoading}
+              footer={
+                activeTypeFilter === 'all' && scoreRefType && !metricsLoading
+                  ? <BancaReferenceNote typeLabel={ESSAY_TYPE_CONFIGS[scoreRefType as EssayType]?.label ?? scoreRefType.toUpperCase()} />
+                  : undefined
+              }
             />
             <KpiCard
               title="Intervalo de notas"
@@ -2047,7 +2087,15 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
               onClick={() => setRankingOpen((v) => !v)}
               className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-[var(--brand-primary)]/5"
             >
-              <SectionIconTitle icon={Trophy} title="Ranking dos alunos (Top 10)" />
+              <SectionIconTitle
+                icon={Trophy}
+                title="Ranking dos alunos (Top 10)"
+                subtitle={
+                  activeTypeFilter === 'all' && scoreRefType
+                    ? `Referência: ${ESSAY_TYPE_CONFIGS[scoreRefType as EssayType]?.label ?? scoreRefType.toUpperCase()}`
+                    : undefined
+                }
+              />
               <ChevronDown
                 className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200"
                 style={{ transform: rankingOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}

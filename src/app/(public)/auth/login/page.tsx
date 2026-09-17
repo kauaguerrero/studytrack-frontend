@@ -295,10 +295,6 @@ function LoginForm({ onProgress }: { onProgress: (p: number) => void }) {
             provider,
             options: {
                 redirectTo: `${canonicalOrigin}/auth/oauth-callback?next=${encodeURIComponent(nextPath)}`,
-                queryParams: {
-                    access_type: 'offline',
-                    prompt: 'consent',
-                },
             },
         });
     } catch (error) {
