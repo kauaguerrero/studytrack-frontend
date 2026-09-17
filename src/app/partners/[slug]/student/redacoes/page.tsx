@@ -7,7 +7,7 @@ import { MOCK_STUDENT_ESSAYS_FOR_REDACOES, MOCK_STUDENT_ESSAY_COMPETENCY_SCORES 
 import { createClient } from '@/lib/supabase/client';
 import { getApiBaseUrl } from '@/lib/api-base';
 import { cn } from '@/lib/utils';
-import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
+import { ESSAY_TYPE_CONFIGS, normalizeEssayType, pickDominantEssayType, type EssayType } from '@/lib/essay-types';
 import { useOrg } from '@/contexts/OrgContext';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { useEssayWindowStatus } from '@/hooks/useEssayWindowStatus';
@@ -163,20 +163,10 @@ export default function StudentRedacoesPage() {
   // Quando o filtro é "Todas", usa o tipo mais frequente entre as redações do
   // aluno como referência para os KPIs/competências (que dependem de um único
   // rubrica) — evita que a seção de métricas quebre sem tipo selecionado.
-  const dominantEssayType = useMemo<EssayType>(() => {
-    if (essays.length === 0) return 'enem';
-    const counts = new Map<EssayType, number>();
-    essays.forEach((e) => counts.set(e.essay_type, (counts.get(e.essay_type) || 0) + 1));
-    let best: EssayType = 'enem';
-    let bestCount = -1;
-    counts.forEach((count, type) => {
-      if (count > bestCount) {
-        bestCount = count;
-        best = type;
-      }
-    });
-    return best;
-  }, [essays]);
+  const dominantEssayType = useMemo<EssayType>(
+    () => pickDominantEssayType(essays, (e) => e.essay_type),
+    [essays],
+  );
 
   const activeConfig = ESSAY_TYPE_CONFIGS[essayTypeFilter === 'all' ? dominantEssayType : essayTypeFilter];
 
@@ -231,10 +221,7 @@ export default function StudentRedacoesPage() {
         const mapped: Essay[] = items.map((row) => {
           const rawText = String(row.text || row.text_preview || '');
           const preview = rawText.length > 120 ? `${rawText.slice(0, 120)}...` : rawText;
-          const rawType = String(row.essay_type || '').toLowerCase();
-          const essayType: EssayType = (['ufu', 'ueg', 'fuvest', 'vunesp', 'geral'] as const).includes(rawType as 'ufu' | 'ueg' | 'fuvest' | 'vunesp' | 'geral')
-            ? (rawType as EssayType)
-            : 'enem';
+          const essayType = normalizeEssayType(row.essay_type);
           return {
             id: String(row.id),
             status: row.status,

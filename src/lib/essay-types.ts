@@ -105,3 +105,32 @@ export const ESSAY_TYPE_CONFIGS: Record<EssayType, EssayTypeConfig> = {
 };
 
 export const VALID_ESSAY_TYPES = Object.keys(ESSAY_TYPE_CONFIGS) as EssayType[];
+
+/** Normaliza o `essay_type` bruto vindo da API — cai em `enem` só quando o
+ * valor não é um dos tipos conhecidos (evita reclassificar UFU/UEG/FUVEST/
+ * VUNESP/geral como ENEM por engano). */
+export function normalizeEssayType(raw: string | null | undefined): EssayType {
+  const value = String(raw || '').toLowerCase();
+  return (VALID_ESSAY_TYPES as string[]).includes(value) ? (value as EssayType) : 'enem';
+}
+
+/** Tipo de redação mais frequente numa lista — usado como referência para
+ * KPIs/competências (que dependem de uma única rubrica) quando o filtro de
+ * tipo está em "Todas". */
+export function pickDominantEssayType<T>(items: T[], getType: (item: T) => EssayType): EssayType {
+  if (items.length === 0) return 'enem';
+  const counts = new Map<EssayType, number>();
+  items.forEach((item) => {
+    const type = getType(item);
+    counts.set(type, (counts.get(type) || 0) + 1);
+  });
+  let best: EssayType = 'enem';
+  let bestCount = -1;
+  counts.forEach((count, type) => {
+    if (count > bestCount) {
+      bestCount = count;
+      best = type;
+    }
+  });
+  return best;
+}
