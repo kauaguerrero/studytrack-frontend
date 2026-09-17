@@ -210,6 +210,31 @@ export async function GET(
   const correctedFrom = (correctedPage - 1) * correctedLimit;
   const correctedTo = correctedFrom + correctedLimit - 1;
 
+  // Nota média/ranking/intervalo da RPC: sem filtro de banca ("Todas"),
+  // misturar effective_score de bancas com escalas diferentes (ENEM até
+  // 1000, VUNESP até 14 etc.) dá um número sem sentido. Como em "Minhas
+  // redações" e no painel de associados, usamos como referência pra RPC o
+  // tipo de redação MAIS CORRIGIDO na org — pendentes-por-tipo e as listas
+  // paginadas continuam somando todas as bancas normalmente.
+  let scoreReferenceType: string | null = filterByType;
+  if (!scoreReferenceType) {
+    const { data: refRows } = await admin
+      .from('essays')
+      .select('essay_type')
+      .eq('org_id', org.id)
+      .in('status', ['corrected', 'second_corrected', 'seen'])
+      .order('submitted_at', { ascending: false })
+      .limit(500);
+    const counts = new Map<string, number>();
+    for (const row of (refRows || []) as { essay_type: string | null }[]) {
+      if (row.essay_type) counts.set(row.essay_type, (counts.get(row.essay_type) ?? 0) + 1);
+    }
+    let bestCount = -1;
+    for (const [type, count] of counts) {
+      if (count > bestCount) { bestCount = count; scoreReferenceType = type; }
+    }
+  }
+
   const metricsClient = admin as unknown as OverviewMetricsRpcClient;
   const [metricsRpcRes, pendingRes, assignedSecondRes, correctedRes] = await Promise.all([
     // Métricas (contagens, médias, ranking, competências, pendentes-por-tipo)
@@ -219,7 +244,7 @@ export async function GET(
     // Paridade exata verificada por scripts/test-overview-metrics-parity.mjs.
     metricsClient.rpc('partner_essays_overview_metrics', {
       p_org_id: org.id,
-      p_essay_type: filterByType,
+      p_essay_type: scoreReferenceType,
       p_submitted_gte: submittedAtGte,
       p_submitted_lt: submittedAtLt,
       p_date_range_active: dateRangeKeys !== null,
@@ -340,6 +365,10 @@ export async function GET(
 
   return NextResponse.json({
     essay_type_filter: essayTypeFilter,
+    // Banca usada como referência da nota média/ranking/intervalo (o tipo
+    // mais corrigido) quando não há filtro de banca. Igual a
+    // `essay_type_filter` quando há filtro.
+    score_reference_type: scoreReferenceType,
     date_filter: dateRangeKeys
       ? { preset: datePreset ?? 'custom', from: dateRangeKeys.fromKey, to: dateRangeKeys.toKey }
       : null,
