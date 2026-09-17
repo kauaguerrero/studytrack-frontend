@@ -243,7 +243,6 @@ export default function PartnerRegisterPage() {
         provider: 'google',
         options: {
           redirectTo: `${canonicalOrigin}/auth/oauth-callback?next=${encodeURIComponent(nextPath)}`,
-          queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       });
       if (error) throw error;
