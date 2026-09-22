@@ -161,6 +161,11 @@ export interface MonthlySummary {
   progress_tier?: ProgressTier;
   next_tier?: ProgressTier | null;
   points_to_next_tier?: number;
+  /** Preferência do aluno: exibir popups informativos de mudança de ranking
+   *  (urgency/motivation/top3_entered) e de perda de pontos por streak
+   *  (StreakPointsLostPopup). Não afeta o popup de decisão do escudo
+   *  (StreakBrokenPopup), que é sempre exibido. Default true. */
+  rank_streak_popups_enabled?: boolean;
 }
 
 export interface DiagnosticResult {

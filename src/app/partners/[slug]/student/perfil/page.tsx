@@ -78,6 +78,7 @@ interface ProfileData {
   updated_at: string | null
   email_notifications: boolean
   theme_preference?: string | null
+  rank_streak_popups_enabled?: boolean
   username: string | null
   bio: string | null
   pronouns: string | null
@@ -221,6 +222,7 @@ export default function PerfilPage() {
 
   // States - Preferências
   const [themeSaving, setThemeSaving] = useState(false)
+  const [popupPrefSaving, setPopupPrefSaving] = useState(false)
 
   // States - Encerrar Conta
   const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false)
@@ -648,6 +650,11 @@ export default function PerfilPage() {
       setPushBusy(false)
     }
   }
+
+  const handleToggleRankStreakPopups = () => handleUpdateProfile(
+    { rank_streak_popups_enabled: !(profile?.rank_streak_popups_enabled ?? true) },
+    setPopupPrefSaving,
+  )
 
   const handleSaveRoutine = () => {
     handleUpdateProfile({
@@ -1556,6 +1563,27 @@ export default function PerfilPage() {
                         >
                           {pushBusy && <Loader2 size={16} className="mr-2 animate-spin" />}
                           {!pushSupported ? 'Não suportado' : pushEnabled ? 'Desativar' : 'Ativar'}
+                        </Button>
+                      </div>
+
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="space-y-1">
+                          <p className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            <Trophy size={18} style={{ color: brandPrimaryText }} />
+                            Animações de Ranking e Sequência
+                          </p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            Avisos de mudança de posição no ranking e de pontos perdidos por sequência quebrada ao entrar na plataforma.
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={handleToggleRankStreakPopups}
+                          disabled={popupPrefSaving}
+                          className="w-full rounded-xl border-slate-200 font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 sm:w-[140px]"
+                        >
+                          {popupPrefSaving && <Loader2 size={16} className="mr-2 animate-spin" />}
+                          {(profile?.rank_streak_popups_enabled ?? true) ? 'Desativar' : 'Ativar'}
                         </Button>
                       </div>
 

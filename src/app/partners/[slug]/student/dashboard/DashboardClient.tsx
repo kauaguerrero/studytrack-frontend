@@ -630,6 +630,25 @@ export function DashboardClient({
     setEffectiveCurrentStreak(currentStreak);
   }, [currentStreak]);
 
+  // Resolve uma streak quebrada sem interromper o aluno com popup: usa
+  // escudo automaticamente se disponível (melhor resultado possível), senão
+  // aceita a penalidade em silêncio. Só roda quando o aluno desativou os
+  // popups de ranking/streak nas Preferências — com a preferência ligada,
+  // a decisão continua sendo do aluno via StreakBrokenPopup.
+  const resolveStreakBrokenSilently = useCallback(async (): Promise<void> => {
+    if ((summary?.shield_count ?? 0) > 0) {
+      const shieldResult = await activateShield();
+      if (shieldResult?.shield_used) {
+        setEffectiveCurrentStreak(shieldResult.streak_preserved ?? currentStreak);
+        await refreshSummary();
+        return;
+      }
+    }
+    await applyStreakDecay();
+    setEffectiveCurrentStreak(0);
+    await refreshSummary();
+  }, [activateShield, applyStreakDecay, currentStreak, refreshSummary, summary?.shield_count]);
+
   // Dados de ranking (badges de liderança/pódio) — só busca se ainda não veio
   // carregado por outro fluxo (ex: popups de urgência/motivação).
   useEffect(() => {
@@ -639,7 +658,21 @@ export function DashboardClient({
   useEffect(() => {
     if (!popupState || popupState.type === 'none') return;
 
-    if ((popupState.type === 'urgency' || popupState.type === 'motivation' || popupState.type === 'top3_entered') && !ranking) {
+    // Preferência do aluno (aba Preferências do perfil): oculta os popups
+    // informativos de mudança de ranking e de perda de pontos por streak.
+    // Para 'streak_broken' (decisão de usar escudo ou aceitar a penalidade),
+    // desativado não pula a consequência — resolve automaticamente em
+    // silêncio (escudo se disponível, senão penalidade) sem interromper
+    // o aluno com popup.
+    const rankStreakPopupsEnabled = summary?.rank_streak_popups_enabled ?? true;
+    const isRankChangePopup = popupState.type === 'urgency' || popupState.type === 'motivation' || popupState.type === 'top3_entered';
+
+    if (isRankChangePopup && !rankStreakPopupsEnabled) {
+      dismissPopup();
+      return;
+    }
+
+    if (isRankChangePopup && !ranking) {
       void refreshRanking(10);
       return;
     }
@@ -668,6 +701,10 @@ export function DashboardClient({
         break;
       }
       case 'streak_broken':
+        if (!rankStreakPopupsEnabled) {
+          void resolveStreakBrokenSilently();
+          break;
+        }
         enqueuePopup({
           kind: 'streak_broken',
           routeScope: 'dashboard',
@@ -720,9 +757,11 @@ export function DashboardClient({
     popupState,
     refreshRanking,
     ranking,
+    resolveStreakBrokenSilently,
     slug,
     summary?.month_label,
     summary?.shield_count,
+    summary?.rank_streak_popups_enabled,
   ]);
 
   useEffect(() => {
@@ -748,14 +787,16 @@ export function DashboardClient({
       if (result) {
         dismissCurrentPopup();
         await refreshSummary();
-        window.setTimeout(() => {
-          enqueuePopup({
-            kind: 'streak_points_lost',
-            routeScope: 'dashboard',
-            result,
-            dedupeKey: `streak-points-lost:${result.points_deducted}:${result.current_rank}`,
-          });
-        }, 0);
+        if (summary?.rank_streak_popups_enabled ?? true) {
+          window.setTimeout(() => {
+            enqueuePopup({
+              kind: 'streak_points_lost',
+              routeScope: 'dashboard',
+              result,
+              dedupeKey: `streak-points-lost:${result.points_deducted}:${result.current_rank}`,
+            });
+          }, 0);
+        }
         return;
       }
 
@@ -763,7 +804,7 @@ export function DashboardClient({
     } finally {
       setIsResolvingStreakBroken(false);
     }
-  }, [applyStreakDecay, dismissCurrentPopup, enqueuePopup, refreshSummary]);
+  }, [applyStreakDecay, dismissCurrentPopup, enqueuePopup, refreshSummary, summary?.rank_streak_popups_enabled]);
 
   // Caminho com escudo: preserva streak, sem decay
   const handleUseShield = useCallback(async (): Promise<void> => {
