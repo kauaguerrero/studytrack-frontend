@@ -65,6 +65,96 @@ function ensureSameOrigin(request: Request): NextResponse | null {
   return null;
 }
 
+// Dice coefficient sobre tokens (palavras) via LCS: mede o quanto o texto final
+// se afastou da transcrição bruta da IA, sem se importar com reordenação trivial
+// de pontuação. 0% = idêntico, 100% = nenhuma palavra em comum.
+function wordDiffPercent(rawText: string, finalText: string): number | null {
+  const wa = rawText.trim().split(/\s+/).filter(Boolean);
+  const wb = finalText.trim().split(/\s+/).filter(Boolean);
+  if (wa.length === 0 || wb.length === 0) return null;
+
+  let prevRow = new Array(wb.length + 1).fill(0);
+  for (let i = 1; i <= wa.length; i++) {
+    const currRow = new Array(wb.length + 1).fill(0);
+    for (let j = 1; j <= wb.length; j++) {
+      currRow[j] = wa[i - 1] === wb[j - 1]
+        ? prevRow[j - 1] + 1
+        : Math.max(prevRow[j], currRow[j - 1]);
+    }
+    prevRow = currRow;
+  }
+  const lcs = prevRow[wb.length];
+  const similarity = (2 * lcs) / (wa.length + wb.length);
+  return Math.round((1 - similarity) * 100);
+}
+
+type TextSpan = { start: number; end: number };
+
+function tokenizeWithOffsets(text: string): TextSpan[] {
+  const spans: TextSpan[] = [];
+  const re = /\S+/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    spans.push({ start: m.index, end: m.index + m[0].length });
+  }
+  return spans;
+}
+
+// Mesma ideia de wordDiffPercent, mas guardando a matriz inteira pra fazer o
+// backtrack do LCS e descobrir QUAIS palavras do texto final não vieram da
+// transcrição bruta (em vez de só contar quantas). Devolve os offsets, em
+// `finalText`, dos trechos que o aluno alterou/acrescentou depois da IA.
+function alteredSpans(rawText: string, finalText: string): TextSpan[] {
+  const rawWords = rawText.trim().split(/\s+/).filter(Boolean);
+  const finalSpans = tokenizeWithOffsets(finalText);
+  const finalWords = finalSpans.map((s) => finalText.slice(s.start, s.end));
+
+  const n = rawWords.length;
+  const m = finalWords.length;
+  if (n === 0 || m === 0) return [];
+
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      dp[i][j] = rawWords[i - 1] === finalWords[j - 1]
+        ? dp[i - 1][j - 1] + 1
+        : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+
+  const matched = new Array(m).fill(false);
+  let i = n;
+  let j = m;
+  while (i > 0 && j > 0) {
+    if (rawWords[i - 1] === finalWords[j - 1]) {
+      matched[j - 1] = true;
+      i -= 1;
+      j -= 1;
+    } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+      i -= 1;
+    } else {
+      j -= 1;
+    }
+  }
+
+  const spans: TextSpan[] = [];
+  let current: TextSpan | null = null;
+  for (let k = 0; k < m; k += 1) {
+    if (!matched[k]) {
+      if (current) {
+        current.end = finalSpans[k].end;
+      } else {
+        current = { start: finalSpans[k].start, end: finalSpans[k].end };
+      }
+    } else if (current) {
+      spans.push(current);
+      current = null;
+    }
+  }
+  if (current) spans.push(current);
+  return spans;
+}
+
 function resolveTheme(row: Record<string, unknown>): string | null {
   const keys = ['theme', 'essay_theme', 'tema', 'proposal', 'prompt', 'topic', 'title'];
   for (const key of keys) {
@@ -399,6 +489,19 @@ export async function GET(
   const rawHistoricalFileUrl = essay.historical_file_url as string | null;
   const signedHistoricalFileUrl: string | null = rawHistoricalFileUrl ?? null;
 
+  // Aviso pro corretor: o aluno pode editar o texto transcrito antes de confirmar
+  // o envio (tela de upload), então `text` às vezes diverge do que a IA leu na
+  // foto (`raw_transcription`, congelado antes da edição). Só exibido pra staff.
+  const rawTranscription = typeof essay.raw_transcription === 'string' ? essay.raw_transcription : null;
+  const currentText = String(essay.text || '');
+  const transcriptionModified = !!rawTranscription && rawTranscription.trim() !== currentText.trim();
+  const transcriptionChangePct = transcriptionModified
+    ? wordDiffPercent(rawTranscription as string, currentText)
+    : null;
+  const transcriptionAlteredSpans = transcriptionModified
+    ? alteredSpans(rawTranscription as string, currentText)
+    : [];
+
   return NextResponse.json({
     id: String(essay.id),
     status: (essay.status as string) || 'pending',
@@ -423,6 +526,11 @@ export async function GET(
     historical_date: (essay.historical_date as string) || null,
     imported_at: (essay.imported_at as string) || null,
     signed_historical_file_url: signedHistoricalFileUrl,
+    ...(!isStudent && {
+      transcription_modified: transcriptionModified,
+      transcription_change_pct: transcriptionChangePct,
+      transcription_altered_spans: transcriptionAlteredSpans,
+    }),
   });
 }
 

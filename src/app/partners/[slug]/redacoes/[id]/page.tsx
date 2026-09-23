@@ -12,7 +12,7 @@ import FloatingActionMenu from '@/components/ui/floating-action-menu';
 import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 import { cn, normalizeEssayLineBreaks } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
-import { ArrowLeft, ChevronLeft, ChevronRight, Hand, Info, MessageCircle, MousePointer2, PenLine, PencilLine, Send, Trash2, Users, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Eye, EyeOff, Hand, Info, MessageCircle, MousePointer2, PenLine, PencilLine, Send, Trash2, Users, X } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { useOrgCorrectionPresence } from '@/hooks/useOrgCorrectionPresence';
 import { createClient } from '@/lib/supabase/client';
@@ -82,6 +82,9 @@ type EssayDetail = {
   }>;
   corrections: CorrectionRound[];
   signed_image_url?: string | null;
+  transcription_modified?: boolean;
+  transcription_change_pct?: number | null;
+  transcription_altered_spans?: Array<{ start: number; end: number }>;
 };
 
 type SelectedTextState = { start: number; end: number; text: string };
@@ -214,6 +217,35 @@ function buildSegments(
   return segments;
 }
 
+type DiffSegment = { key: string; start: number; end: number; text: string; altered: boolean };
+
+// Segmentação paralela à de buildSegments, mas ignorando anotações: usada só
+// no modo "ver alterações do aluno", que troca os destaques de correção pelos
+// trechos que divergem da transcrição bruta da IA (transcription_altered_spans).
+function buildDiffSegments(text: string, spans: Array<{ start: number; end: number }>): DiffSegment[] {
+  if (!text.length) return [];
+
+  const altered: boolean[] = new Array(text.length).fill(false);
+  spans.forEach((span) => {
+    const start = Math.max(0, Math.min(text.length, span.start));
+    const end = Math.max(start, Math.min(text.length, span.end));
+    for (let i = start; i < end; i += 1) altered[i] = true;
+  });
+
+  const segments: DiffSegment[] = [];
+  let start = 0;
+  let current = altered[0];
+  for (let i = 1; i < text.length; i += 1) {
+    if (altered[i] !== current) {
+      segments.push({ key: `diff-${start}-${i}`, start, end: i, text: text.slice(start, i), altered: current });
+      start = i;
+      current = altered[i];
+    }
+  }
+  segments.push({ key: `diff-${start}-${text.length}`, start, end: text.length, text: text.slice(start, text.length), altered: current });
+  return segments;
+}
+
 function pickEssayTheme(raw: Record<string, unknown>): string | null {
   const candidateKeys = [
     'theme',
@@ -264,6 +296,7 @@ export default function CorrecaoRedacaoPage() {
   const [queuedMode, setQueuedMode] = useState<PopupMode>(null);
   const [popupValue, setPopupValue] = useState('');
   const [showCompetencyPanel, setShowCompetencyPanel] = useState(true);
+  const [showAlteredDiff, setShowAlteredDiff] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -494,6 +527,11 @@ export default function CorrecaoRedacaoPage() {
         selectedText && selectionFromTouch ? { start: selectedText.start, end: selectedText.end } : null,
       ),
     [essay?.text, annotations, selectedText, selectionFromTouch],
+  );
+
+  const diffSegments = useMemo(
+    () => buildDiffSegments(essay?.text || '', essay?.transcription_altered_spans || []),
+    [essay?.text, essay?.transcription_altered_spans],
   );
 
   // Assim que o modo de anotação abre (Comentar/Corrigir), foca a caixa de
@@ -784,6 +822,23 @@ export default function CorrecaoRedacaoPage() {
         </span>
       );
     });
+  }
+
+  // Modo "ver alterações do aluno": some com os destaques de correção e marca
+  // só os trechos que divergem da transcrição bruta da IA.
+  function renderDiffText(): ReactNode {
+    return diffSegments.map((segment) => (
+      segment.altered ? (
+        <mark
+          key={segment.key}
+          className="rounded bg-orange-200/70 px-0.5 text-orange-950 dark:bg-orange-400/25 dark:text-orange-100"
+        >
+          {segment.text}
+        </mark>
+      ) : (
+        <Fragment key={segment.key}>{segment.text}</Fragment>
+      )
+    ));
   }
 
   const essayType = (essay?.essay_type || 'enem') as EssayType;
@@ -1087,6 +1142,34 @@ export default function CorrecaoRedacaoPage() {
               hex={org.brand_primary}
               action={
                 <div className="flex items-center gap-2">
+                  {essay.transcription_modified && (
+                    <span
+                      title={`Transcrição alterada pelo aluno depois que a IA leu a foto${typeof essay.transcription_change_pct === 'number' ? ` (cerca de ${essay.transcription_change_pct}% do texto mudou)` : ''}. Vale conferir com a imagem original se o trecho parecer estranho.`}
+                      className="inline-flex cursor-help items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-300"
+                    >
+                      <PencilLine className="h-3 w-3" />
+                      {typeof essay.transcription_change_pct === 'number'
+                        ? `${essay.transcription_change_pct}% alterado`
+                        : 'Alterado pelo aluno'}
+                    </span>
+                  )}
+                  {essay.transcription_modified && (essay.transcription_altered_spans?.length ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAlteredDiff((prev) => !prev)}
+                      title={showAlteredDiff ? 'Voltar a ver as anotações da correção' : 'Esconder as anotações e destacar só o que o aluno alterou'}
+                      aria-pressed={showAlteredDiff}
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold transition',
+                        showAlteredDiff
+                          ? 'border-orange-400 bg-orange-500 text-white dark:border-orange-400/60'
+                          : 'border-amber-300 bg-white text-amber-800 hover:bg-amber-50 dark:border-amber-500/30 dark:bg-slate-950 dark:text-amber-300 dark:hover:bg-amber-500/10',
+                      )}
+                    >
+                      {showAlteredDiff ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      {showAlteredDiff ? 'Ver anotações' : 'Ver alterações'}
+                    </button>
+                  )}
                   {!showCompetencyPanel && (
                     <button
                       type="button"
@@ -1110,13 +1193,22 @@ export default function CorrecaoRedacaoPage() {
               }
             />
 
+            {showAlteredDiff && (
+              <p className="mb-2 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-300 dark:bg-orange-400/50" />
+                Em laranja: trechos que não estão na transcrição original da IA (podem ser correção legítima ou conteúdo acrescentado pelo aluno).
+              </p>
+            )}
             <div
               ref={textContainerRef}
               onMouseUp={() => handleTextMouseUp(false)}
               onTouchEnd={() => setTimeout(() => handleTextMouseUp(true), 50)}
-              className="max-h-[540px] overflow-auto rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap [-webkit-touch-callout:none] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100"
+              className={cn(
+                'max-h-[540px] overflow-auto rounded-xl border bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap [-webkit-touch-callout:none] dark:bg-slate-950 dark:text-slate-100',
+                showAlteredDiff ? 'border-orange-300 dark:border-orange-500/40' : 'border-slate-200 dark:border-slate-800',
+              )}
             >
-              {renderAnnotatedText()}
+              {showAlteredDiff ? renderDiffText() : renderAnnotatedText()}
             </div>
 
             {annotationPopup && selectedText && createPortal(
