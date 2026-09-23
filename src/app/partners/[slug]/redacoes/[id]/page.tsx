@@ -831,7 +831,7 @@ export default function CorrecaoRedacaoPage() {
       segment.altered ? (
         <mark
           key={segment.key}
-          className="rounded bg-orange-200/70 px-0.5 text-orange-950 dark:bg-orange-400/25 dark:text-orange-100"
+          className="rounded bg-blue-200/70 px-0.5 text-blue-950 dark:bg-blue-400/25 dark:text-blue-100"
         >
           {segment.text}
         </mark>
@@ -1145,9 +1145,9 @@ export default function CorrecaoRedacaoPage() {
                   {essay.transcription_modified && (
                     <span
                       title={`Transcrição alterada pelo aluno depois que a IA leu a foto${typeof essay.transcription_change_pct === 'number' ? ` (cerca de ${essay.transcription_change_pct}% do texto mudou)` : ''}. Vale conferir com a imagem original se o trecho parecer estranho.`}
-                      className="inline-flex cursor-help items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-300"
+                      className="inline-flex cursor-help items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-300"
                     >
-                      <PencilLine className="h-3 w-3" />
+                      <PencilLine className="h-2.5 w-2.5" />
                       {typeof essay.transcription_change_pct === 'number'
                         ? `${essay.transcription_change_pct}% alterado`
                         : 'Alterado pelo aluno'}
@@ -1160,13 +1160,13 @@ export default function CorrecaoRedacaoPage() {
                       title={showAlteredDiff ? 'Voltar a ver as anotações da correção' : 'Esconder as anotações e destacar só o que o aluno alterou'}
                       aria-pressed={showAlteredDiff}
                       className={cn(
-                        'inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold transition',
+                        'inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold transition',
                         showAlteredDiff
-                          ? 'border-orange-400 bg-orange-500 text-white dark:border-orange-400/60'
-                          : 'border-amber-300 bg-white text-amber-800 hover:bg-amber-50 dark:border-amber-500/30 dark:bg-slate-950 dark:text-amber-300 dark:hover:bg-amber-500/10',
+                          ? 'border-blue-500 bg-blue-500 text-white dark:border-blue-400/60'
+                          : 'border-blue-300 bg-white text-blue-700 hover:bg-blue-50 dark:border-blue-500/30 dark:bg-slate-950 dark:text-blue-300 dark:hover:bg-blue-500/10',
                       )}
                     >
-                      {showAlteredDiff ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      {showAlteredDiff ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
                       {showAlteredDiff ? 'Ver anotações' : 'Ver alterações'}
                     </button>
                   )}
@@ -1195,8 +1195,8 @@ export default function CorrecaoRedacaoPage() {
 
             {showAlteredDiff && (
               <p className="mb-2 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-orange-300 dark:bg-orange-400/50" />
-                Em laranja: trechos que não estão na transcrição original da IA (podem ser correção legítima ou conteúdo acrescentado pelo aluno).
+                <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-300 dark:bg-blue-400/50" />
+                Em azul: trechos que não estão na transcrição original da IA (podem ser correção legítima ou conteúdo acrescentado pelo aluno).
               </p>
             )}
             <div
@@ -1205,7 +1205,7 @@ export default function CorrecaoRedacaoPage() {
               onTouchEnd={() => setTimeout(() => handleTextMouseUp(true), 50)}
               className={cn(
                 'max-h-[540px] overflow-auto rounded-xl border bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap [-webkit-touch-callout:none] dark:bg-slate-950 dark:text-slate-100',
-                showAlteredDiff ? 'border-orange-300 dark:border-orange-500/40' : 'border-slate-200 dark:border-slate-800',
+                showAlteredDiff ? 'border-blue-300 dark:border-blue-500/40' : 'border-slate-200 dark:border-slate-800',
               )}
             >
               {showAlteredDiff ? renderDiffText() : renderAnnotatedText()}
