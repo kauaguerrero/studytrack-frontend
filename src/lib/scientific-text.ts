@@ -157,10 +157,18 @@ function normalizeInlineHtmlFormatting(text: string): string {
 }
 
 function normalizeParagraphBreaks(text: string): string {
+  // formatScientificText chama isso por FRAGMENTO de texto (o trecho entre
+  // duas fórmulas $...$), não no texto inteiro. Se o "block[0]" também
+  // tivesse seu espaço/quebra de linha inicial removido, o separador entre
+  // o fim de uma fórmula e a palavra/linha seguinte desaparecia (ex.:
+  // "$H_2O$ 2. gluconolactona" virava "$H_2O$2. gluconolactona") — porque
+  // esse espaço/\n é exatamente o início do fragmento. Só o início de um
+  // NOVO parágrafo (block[index > 0], depois de um \n{2,} de verdade dentro
+  // do próprio fragmento) deve ter a indentação removida.
   return text
     .replace(/\r\n?/g, '\n')
     .split(/\n{2,}/)
-    .map((block) => block.replace(/^\s+/, ''))
+    .map((block, index) => (index === 0 ? block : block.replace(/^\s+/, '')))
     .filter((block) => block.trim())
     .join('\n\n');
 }
