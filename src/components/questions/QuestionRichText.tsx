@@ -10,6 +10,39 @@ import { formatScientificText } from '@/lib/scientific-text'
 
 const mathSegmentRegex = /(\$\$[\s\S]+?(?<!\\)\$\$|(?<![\\A-Za-z0-9])\$(?!\$)[^$\n]+?(?<!\\)\$)/g
 const underlineSegmentRegex = /<u>([\s\S]*?)<\/u>/gi
+
+// Placeholders (Private Use Area, nunca aparecem em conteúdo real) para
+// blindar `_`/`*` de dentro de fórmulas $...$/$$...$$ contra o parser de
+// Markdown. Ver protectMathDelimitersForMarkdown abaixo.
+const MATH_PROTECTED_UNDERSCORE = ''
+const MATH_PROTECTED_ASTERISK = ''
+
+// Bug: quando o parágrafo é uma lista/tabela/bloco markdown (isMarkdownBlock),
+// o texto CRU vai direto pro ReactMarkdown, que roda ANTES da extração dos
+// segmentos $...$ (isso só acontece depois, nos filhos já parseados, dentro
+// de renderInlineRichText). LaTeX vindo do Mathpix usa `_` pra subscrito
+// (ex.: \mathrm{H}_{2}) — e o CommonMark trata `_..._` como itálico. Quando
+// uma fórmula tem uma quantidade ÍMPAR de `_` (comum com múltiplos
+// subscritos na mesma equação), o parser casa 2 deles como abre/fecha
+// itálico por engano, cortando o `$...$` ao meio: a fórmula aparece com o
+// código LaTeX cru na tela e um trecho em itálico sem sentido.
+// Fix: antes de entregar o parágrafo pro ReactMarkdown, troca `_`/`*` que
+// estão DENTRO de fórmulas por um placeholder que o Markdown não interpreta
+// como sintaxe — preservando os `$...$` intactos pro ReactMarkdown. Depois,
+// renderInlineRichText desfaz a troca antes de extrair as fórmulas de
+// verdade, então quem começa como fórmula termina como fórmula.
+function protectMathDelimitersForMarkdown(text: string): string {
+  return text.replace(mathSegmentRegex, (segment) =>
+    segment.replace(/_/g, MATH_PROTECTED_UNDERSCORE).replace(/\*/g, MATH_PROTECTED_ASTERISK)
+  )
+}
+
+function restoreProtectedMathDelimiters(text: string): string {
+  if (!text.includes(MATH_PROTECTED_UNDERSCORE) && !text.includes(MATH_PROTECTED_ASTERISK)) return text
+  return text
+    .replace(new RegExp(MATH_PROTECTED_UNDERSCORE, 'g'), '_')
+    .replace(new RegExp(MATH_PROTECTED_ASTERISK, 'g'), '*')
+}
 type KatexRenderOptions = Parameters<typeof katex.renderToString>[1] & {
   output?: 'html' | 'mathml' | 'htmlAndMathml'
 }
@@ -443,7 +476,8 @@ const markdownComponents: Components = {
   ),
 }
 
-function renderInlineRichText(text: string, keyPrefix: string) {
+function renderInlineRichText(rawText: string, keyPrefix: string) {
+  const text = restoreProtectedMathDelimiters(rawText)
   const segments = text.split(mathSegmentRegex).filter(Boolean)
 
   return segments.map((segment, segmentIndex) => {
@@ -600,7 +634,7 @@ export function QuestionRichText({ text, className, style }: { text?: string | n
               key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}
               components={markdownComponents}
             >
-              {String(paragraph ?? '')}
+              {protectMathDelimitersForMarkdown(String(paragraph ?? ''))}
             </ReactMarkdown>
           )
         }
