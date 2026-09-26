@@ -170,6 +170,14 @@ function shouldPreserveManualLineBreaks(paragraph: string, previousParagraph?: s
   const romanNumeralLines = lines.filter((line) => /^[IVX]+\.\s+\S/.test(line.trim())).length
   if (romanNumeralLines >= 2) return true
 
+  // Listas numeradas "1. "/"2. " (às vezes com o ponto escapado "1\." para
+  // não disparar a lista markdown de verdade, ver isMarkdownBlock) também
+  // são um item por linha, mesmo quando cada item é uma frase longa — sem
+  // isso, o heurístico de "poema" abaixo (que só olha comprimento médio)
+  // colapsava itens numerados longos num único parágrafo corrido.
+  const numberedListLines = lines.filter((line) => /^\d+\\?\.\s+\S/.test(line.trim())).length
+  if (numberedListLines >= 2) return true
+
   // Verse/poem heuristic: multiple short lines that aren't covered by other patterns
   // suggest verse format. Prose paragraphs rarely have 3+ lines all averaging < 75 chars.
   // Poems in vestibular PDFs typically have line lengths of 20\u201370 chars.
