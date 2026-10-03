@@ -551,11 +551,16 @@ export default function SimuladoPage() {
   }[]>([])
   const [nowTs, setNowTs] = useState<number>(Date.now())
   const [hybridConfirmSimId, setHybridConfirmSimId] = useState<string | null>(null)
-  // Simulados UFG completo/linguagens têm um bloco de idioma (Inglês/Espanhol/
-  // Francês) — o aluno escolhe antes de iniciar, igual escolheria no cartão-
-  // resposta da prova de papel. `pendingUfgLanguageStart` guarda o que fazer
-  // depois da escolha (id do agendado + se deve descartar sessão ativa).
-  const [pendingUfgLanguageStart, setPendingUfgLanguageStart] = useState<{ simId: string; discardActive?: boolean } | null>(null)
+  // Simulados UFG/UEG completo|linguagens têm um bloco de língua estrangeira —
+  // o aluno escolhe antes de iniciar, igual escolheria no cartão-resposta da
+  // prova de papel. `pendingUfgLanguageStart` guarda o que fazer depois da
+  // escolha (id do agendado, se deve descartar sessão ativa, e quais idiomas
+  // a banca daquele simulado oferece — a UFG tem três e a UEG só duas).
+  const [pendingUfgLanguageStart, setPendingUfgLanguageStart] = useState<{
+    simId: string
+    discardActive?: boolean
+    languages: readonly string[]
+  } | null>(null)
   const [activeSessionConflict, setActiveSessionConflict] = useState<{
     id: string
     started_at?: string | null
@@ -1047,20 +1052,33 @@ export default function SimuladoPage() {
     }
   }, [presetFormats, enemFormat])
 
-  // UFG completo/linguagens é a única banca com bloco de idioma — sem
-  // escolher, o backend rejeita o /start (UFG_LANGUAGE_REQUIRED) pra evitar
-  // que o aluno receba os 3 blocos de idioma de uma vez em vez de só o seu.
-  function needsUfgLanguageChoice(config: Record<string, unknown> | undefined): boolean {
+  // UFG e UEG têm bloco de língua estrangeira nos formatos completo/linguagens
+  // — sem escolher, o backend rejeita o /start (UFG_LANGUAGE_REQUIRED) pra
+  // evitar que o aluno receba todos os blocos de idioma em vez de só o seu.
+  // As opções mudam por banca: a UFG oferece três e a UEG só duas (no edital
+  // da UEG o candidato marca Inglês ou Espanhol na inscrição).
+  const LANGUAGES_BY_BANK: Record<string, readonly string[]> = {
+    UFG: ['Inglês', 'Espanhol', 'Francês'],
+    UEG: ['Inglês', 'Espanhol'],
+  }
+
+  function languagesForConfig(config: Record<string, unknown> | undefined): readonly string[] {
     const cfgBank = String(config?.bank ?? '').toUpperCase()
     const cfgFormat = String(config?.format ?? '').toLowerCase()
-    return cfgBank === 'UFG' && (cfgFormat === 'completo' || cfgFormat === 'linguagens')
+    if (cfgFormat !== 'completo' && cfgFormat !== 'linguagens') return []
+    return LANGUAGES_BY_BANK[cfgBank] ?? []
+  }
+
+  function needsUfgLanguageChoice(config: Record<string, unknown> | undefined): boolean {
+    return languagesForConfig(config).length > 0
   }
 
   // Ponto único de entrada pra iniciar um simulado agendado: se ele exigir
   // escolha de idioma, abre o seletor antes; senão, inicia direto.
   function startScheduledSimulado(sim: { id: string; config: Record<string, unknown> }, discardActive?: boolean) {
-    if (needsUfgLanguageChoice(sim.config)) {
-      setPendingUfgLanguageStart({ simId: sim.id, discardActive })
+    const languages = languagesForConfig(sim.config)
+    if (languages.length > 0) {
+      setPendingUfgLanguageStart({ simId: sim.id, discardActive, languages })
       return
     }
     startSimulado(sim.id, discardActive)
@@ -1989,8 +2007,8 @@ export default function SimuladoPage() {
                           Este simulado tem um bloco de Língua Estrangeira. Escolha o idioma que você
                           vai responder — igual você marcaria no cartão-resposta da prova real.
                         </p>
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                          {(['Inglês', 'Espanhol', 'Francês'] as const).map((lang) => (
+                        <div className={`grid grid-cols-1 gap-2 ${pendingUfgLanguageStart.languages.length > 2 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+                          {pendingUfgLanguageStart.languages.map((lang) => (
                             <button
                               key={lang}
                               type="button"
