@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/app/api/admin/_utils';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { buildDemoStatsSeed } from '@/lib/demo-org-seed';
+import { buildDemoStatsSeed, PHYSICS_SUBJECT_WEIGHTS } from '@/lib/demo-org-seed';
+
+// Presets de distribuição por matéria. A demo de um cursinho de Física precisa
+// abrir com Física dominando o gráfico de desempenho; a de um generalista, não.
+const SUBJECT_PRESETS = {
+  geral: undefined,
+  fisica: PHYSICS_SUBJECT_WEIGHTS,
+} as const;
+
+type SubjectPreset = keyof typeof SUBJECT_PRESETS;
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +28,9 @@ export async function POST(request: NextRequest) {
     brand_primary = '#6366f1',
     brand_secondary = '#8b5cf6',
     brand_accent = '#f59e0b',
+    logo_url = null,
+    subject_preset = 'geral',
+    focus_area,
   } = body ?? {};
 
   if (!name || typeof name !== 'string' || !name.trim()) {
@@ -49,7 +61,16 @@ export async function POST(request: NextRequest) {
     suffix += 1;
   }
 
-  const demoStats = buildDemoStatsSeed();
+  const presetKey: SubjectPreset =
+    subject_preset in SUBJECT_PRESETS ? (subject_preset as SubjectPreset) : 'geral';
+
+  const demoStats = buildDemoStatsSeed({
+    subjectWeights: SUBJECT_PRESETS[presetKey],
+    focusArea: typeof focus_area === 'string' && focus_area.trim() ? focus_area.trim() : undefined,
+    // Semente derivada do slug: cada org demo recebe números próprios em vez de
+    // repetir exatamente a mesma série da anterior.
+    seed: [...baseSlug].reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0, 7),
+  });
 
   const { data: org, error } = await db
     .from('organizations')
@@ -62,6 +83,7 @@ export async function POST(request: NextRequest) {
       brand_primary,
       brand_secondary,
       brand_accent,
+      logo_url,
       permissions: {
         ranking_enabled: true,
         redacoes_enabled: true,
