@@ -8,13 +8,15 @@ import { toast } from 'sonner';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { ElevatedCard, SectionTitle } from '@/components/partners/founder-ui';
 import { readableBrandText, readableBrandTextOnDark, resolveAccentColor } from '@/lib/brand-color';
-import FloatingActionMenu from '@/components/ui/floating-action-menu';
 import { BrokenPencilIllustration } from '@/components/ui/broken-pencil-illustration';
 import { cn, normalizeEssayLineBreaks } from '@/lib/utils';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
-import { ArrowLeft, ChevronLeft, ChevronRight, Eye, EyeOff, Hand, Info, MessageCircle, MousePointer2, PenLine, PencilLine, Send, Trash2, Users, X } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Eye, EyeOff, FileText, Hand, HelpCircle, Image as ImageIcon, Info, MessageCircle, MousePointer2, PenLine, PencilLine, Send, Trash2, Users, X } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { useOrgCorrectionPresence } from '@/hooks/useOrgCorrectionPresence';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { EssayImageViewer } from '@/components/partners/essays/EssayImageViewer';
+import { CompetencyScoreBar } from '@/components/partners/essays/CompetencyScoreBar';
 import { createClient } from '@/lib/supabase/client';
 import {
   MOCK_ESSAYS_OVERVIEW,
@@ -90,6 +92,9 @@ type EssayDetail = {
 type SelectedTextState = { start: number; end: number; text: string };
 type PopupState = { x: number; y: number };
 type PopupMode = 'comment' | 'correction' | null;
+
+const SYNC_SCROLL_STORAGE_KEY = 'essay-correction-sync-scroll';
+const PIN_SCORE_BAR_STORAGE_KEY = 'essay-correction-pin-score-bar';
 
 type Segment = {
   key: string;
@@ -293,7 +298,6 @@ export default function CorrecaoRedacaoPage() {
   const [selectionFromTouch, setSelectionFromTouch] = useState(false);
   const [annotationPopup, setAnnotationPopup] = useState<PopupState | null>(null);
   const [popupMode, setPopupMode] = useState<PopupMode>(null);
-  const [queuedMode, setQueuedMode] = useState<PopupMode>(null);
   const [popupValue, setPopupValue] = useState('');
   const [showCompetencyPanel, setShowCompetencyPanel] = useState(true);
   const [showAlteredDiff, setShowAlteredDiff] = useState(false);
@@ -312,7 +316,71 @@ export default function CorrecaoRedacaoPage() {
   const [lockOwned, setLockOwned] = useState(false);
   const lockOwnedRef = useRef(false);
 
+  // Mesa de correção lado a lado (foto | transcrição) — só no desktop e só
+  // quando a redação veio de foto. No mobile a foto vira uma aba.
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const [mobileView, setMobileView] = useState<'text' | 'image'>('text');
+  const [showHelp, setShowHelp] = useState(false);
+  const [syncScroll, setSyncScroll] = useState(true);
+  // Barra de notas solta por padrão; a corretora fixa no topo se quiser.
+  const [pinScoreBar, setPinScoreBar] = useState(false);
+  const imageScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollSourceRef = useRef<'image' | 'text' | null>(null);
+  const scrollSourceTimerRef = useRef<number | null>(null);
 
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(SYNC_SCROLL_STORAGE_KEY) === 'off') setSyncScroll(false);
+      if (localStorage.getItem(PIN_SCORE_BAR_STORAGE_KEY) === 'on') setPinScoreBar(true);
+    } catch {
+      // storage indisponível — fica no padrão
+    }
+  }, []);
+
+  function togglePinScoreBar() {
+    setPinScoreBar((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(PIN_SCORE_BAR_STORAGE_KEY, next ? 'on' : 'off');
+      } catch {
+        // ignora
+      }
+      return next;
+    });
+  }
+
+  function toggleSyncScroll() {
+    setSyncScroll((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SYNC_SCROLL_STORAGE_KEY, next ? 'on' : 'off');
+      } catch {
+        // ignora
+      }
+      return next;
+    });
+  }
+
+  // Rolagem proporcional entre foto e texto. Quem começou a rolar vira a
+  // "fonte" por ~120ms, e os eventos de scroll que a gente mesmo provoca no
+  // outro painel são ignorados — senão os dois ficam se corrigindo em loop.
+  function handlePanelScroll(source: 'image' | 'text') {
+    if (!syncScroll) return;
+    if (scrollSourceRef.current && scrollSourceRef.current !== source) return;
+    scrollSourceRef.current = source;
+    if (scrollSourceTimerRef.current !== null) window.clearTimeout(scrollSourceTimerRef.current);
+    scrollSourceTimerRef.current = window.setTimeout(() => {
+      scrollSourceRef.current = null;
+    }, 120);
+
+    const from = source === 'image' ? imageScrollRef.current : textContainerRef.current;
+    const to = source === 'image' ? textContainerRef.current : imageScrollRef.current;
+    if (!from || !to) return;
+    const fromMax = from.scrollHeight - from.clientHeight;
+    const toMax = to.scrollHeight - to.clientHeight;
+    if (fromMax <= 0 || toMax <= 0) return;
+    to.scrollTop = (from.scrollTop / fromMax) * toMax;
+  }
 
   // Busca ID do usuário atual para verificar se é o segundo corretor alocado
   useEffect(() => {
@@ -614,22 +682,8 @@ export default function CorrecaoRedacaoPage() {
       text: selected,
     });
     setAnnotationPopup({ x: clampedX, y: clampedY });
-    setPopupMode(queuedMode);
-    setQueuedMode(null);
+    setPopupMode(null);
     setPopupValue('');
-  }
-
-  function requestAnnotationMode(mode: Exclude<PopupMode, null>) {
-    if (selectedText && annotationPopup) {
-      setPopupMode(mode);
-      return;
-    }
-    setQueuedMode(mode);
-    toast.message(
-      mode === 'comment'
-        ? 'Selecione um trecho para adicionar o comentário.'
-        : 'Selecione um trecho para adicionar a correção.',
-    );
   }
 
   function addAnnotation() {
@@ -857,6 +911,12 @@ export default function CorrecaoRedacaoPage() {
     ['--bta-dark' as string]: readableBrandTextOnDark(org.brand_primary, 'var(--brand-primary)'),
   };
 
+  function updateScore(competency: number, patch: Partial<Omit<CompetencyScore, 'competency'>>) {
+    setScores((prev) => prev.map((s) => (s.competency === competency ? { ...s, ...patch } : s)));
+  }
+
+  const submitLabel = submitting ? 'Enviando...' : (essay?.status === 'awaiting_second' ? 'Enviar 2ª Correção' : 'Enviar Correção');
+
   const competencyPanelContent = (
     <>
       <div className="space-y-4">
@@ -871,15 +931,7 @@ export default function CorrecaoRedacaoPage() {
                 <button
                   key={option}
                   type="button"
-                  onClick={() => {
-                    setScores((prev) =>
-                      prev.map((s) => (
-                        s.competency === item.competency
-                          ? { ...s, score: option }
-                          : s
-                      )),
-                    );
-                  }}
+                  onClick={() => updateScore(item.competency, { score: option })}
                   className={cn(
                     'rounded-md border px-2 py-1 text-xs font-semibold transition',
                     item.score === option
@@ -898,16 +950,7 @@ export default function CorrecaoRedacaoPage() {
 
             <textarea
               value={item.comment}
-              onChange={(e) => {
-                const nextComment = e.target.value;
-                setScores((prev) =>
-                  prev.map((s) => (
-                    s.competency === item.competency
-                      ? { ...s, comment: nextComment }
-                      : s
-                  )),
-                );
-              }}
+              onChange={(e) => updateScore(item.competency, { comment: e.target.value })}
               placeholder="Comentário da competência (opcional)"
               className="min-h-[64px] w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             />
@@ -941,7 +984,7 @@ export default function CorrecaoRedacaoPage() {
         className="mt-4 hidden min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 lg:inline-flex"
       >
         <Send className="h-4 w-4" />
-        {submitting ? 'Enviando...' : (essay?.status === 'awaiting_second' ? 'Enviar 2ª Correção' : 'Enviar Correção')}
+        {submitLabel}
       </button>
     </>
   );
@@ -980,6 +1023,12 @@ export default function CorrecaoRedacaoPage() {
     );
   }
 
+  const hasImage = !!essay.signed_image_url;
+  const compareLayout = hasImage && isDesktop;
+  // Altura dos dois painéis lado a lado: a tela inteira menos a barra de
+  // notas fixa e o respiro do layout, pra foto e texto rolarem por dentro.
+  const compareHeight = 'h-[calc(100dvh-13rem)] min-h-[480px]';
+
   return (
     <PartnerLayout unsavedChangesGuard={{ hasUnsavedChanges: hasUnsavedCorrectionWork, onSaveAndExit: saveAndExit }}>
       <div className="space-y-5 pb-24 lg:pb-0">
@@ -997,9 +1046,27 @@ export default function CorrecaoRedacaoPage() {
             title={`Correção — ${formatDateBR(essay.submitted_at)}`}
             hex={org.brand_primary}
             action={
-              <span className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                {typeConfig.label}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                  {typeConfig.label}
+                </span>
+                {compareLayout && (
+                  <button
+                    type="button"
+                    onClick={() => setShowHelp((prev) => !prev)}
+                    aria-expanded={showHelp}
+                    className={cn(
+                      'inline-flex min-h-10 items-center gap-2 rounded-xl border px-4 text-sm font-bold shadow-sm transition',
+                      showHelp
+                        ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white hover:brightness-105'
+                        : 'border-[color:color-mix(in_srgb,var(--brand-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-primary)_10%,white)] text-slate-900 hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_18%,white)] dark:bg-[color:color-mix(in_srgb,var(--brand-primary)_18%,#0f172a)] dark:text-white dark:hover:bg-[color:color-mix(in_srgb,var(--brand-primary)_28%,#0f172a)]',
+                    )}
+                  >
+                    <HelpCircle className={cn('h-4 w-4', !showHelp && 'text-[var(--brand-primary)] dark:text-white')} />
+                    {showHelp ? 'Fechar guia' : 'Como corrigir?'}
+                  </button>
+                )}
+              </div>
             }
           />
 
@@ -1013,6 +1080,9 @@ export default function CorrecaoRedacaoPage() {
             </p>
           </ElevatedCard>
 
+          {/* Na mesa lado a lado o guia fica atrás do botão "Como corrigir": quem
+              corrige dezenas por dia não precisa dele empurrando a foto pra baixo. */}
+          {(!compareLayout || showHelp) && (
           <ElevatedCard accentColor={secondaryAccent.hex ?? undefined} className="p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -1038,11 +1108,6 @@ export default function CorrecaoRedacaoPage() {
                   <p className="border-t border-slate-200 pt-1.5 text-sm text-slate-700 dark:border-slate-800 dark:text-slate-200">
                     Depois de marcar o trecho, toque em <span className="font-semibold">Comentar</span> ou{' '}
                     <span className="font-semibold">Corrigir</span> no menu que aparece.
-                    {queuedMode && (
-                      <span className="brand-text-adaptive ml-1 font-semibold" style={primaryTextStyle}>
-                        Ação escolhida: {queuedMode === 'comment' ? 'Comentário' : 'Correção'}.
-                      </span>
-                    )}
                   </p>
                 </div>
                 <div className="mt-3 grid gap-2 border-t border-slate-200 pt-3 sm:grid-cols-2 dark:border-slate-800">
@@ -1062,29 +1127,19 @@ export default function CorrecaoRedacaoPage() {
                   </div>
                 </div>
               </div>
-              {/* Atalho redundante com "selecionar trecho → Comentar/Corrigir" — no
-                  mobile o menu flutuante fica cortado/instável, então só aparece
-                  a partir do breakpoint onde há espaço sobrando de verdade. */}
-              <div className="hidden self-end lg:block sm:self-auto">
-                <FloatingActionMenu
-                  className="!static !bottom-auto !right-auto"
-                  inline
-                  options={[
-                    {
-                      label: 'Adicionar comentário',
-                      Icon: <MessageCircle className="h-4 w-4" />,
-                      onClick: () => requestAnnotationMode('comment'),
-                    },
-                    {
-                      label: 'Adicionar correção',
-                      Icon: <PencilLine className="h-4 w-4" />,
-                      onClick: () => requestAnnotationMode('correction'),
-                    },
-                  ]}
-                />
-              </div>
+              {compareLayout && (
+                <button
+                  type="button"
+                  onClick={() => setShowHelp(false)}
+                  aria-label="Fechar guia"
+                  className="self-end rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 sm:self-auto dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </ElevatedCard>
+          )}
         </div>
 
         {/* Banner: corretor está alocado mas não é o usuário atual → lock */}
@@ -1116,27 +1171,82 @@ export default function CorrecaoRedacaoPage() {
           </div>
         )}
 
-        {essay.signed_image_url && (
-          <details className="rounded-xl border border-slate-200 dark:border-slate-800">
-            <summary className="cursor-pointer px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 select-none">
-              Ver redação manuscrita original
-            </summary>
-            <div className="p-4">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={essay.signed_image_url}
-                alt="Redação manuscrita original"
-                className="max-w-full rounded-lg border border-slate-200 dark:border-slate-800"
-              />
-            </div>
-          </details>
+        {/* Mobile/tablet: foto e texto não cabem lado a lado — vira uma troca por abas. */}
+        {hasImage && !compareLayout && (
+          <div className="flex rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900" role="tablist">
+            {([
+              { key: 'text', label: 'Texto transcrito', Icon: FileText },
+              { key: 'image', label: 'Foto original', Icon: ImageIcon },
+            ] as const).map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={mobileView === key}
+                onClick={() => setMobileView(key)}
+                className={cn(
+                  'inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg text-sm font-semibold transition',
+                  mobileView === key
+                    ? 'bg-[var(--brand-primary)] text-white'
+                    : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800',
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            ))}
+          </div>
         )}
 
-        <div className={cn('grid grid-cols-1 gap-4', showCompetencyPanel ? 'lg:grid-cols-5' : 'lg:grid-cols-1')}>
+        {compareLayout && (
+          <CompetencyScoreBar
+            className={cn('relative z-30', pinScoreBar && 'sticky top-0')}
+            pinned={pinScoreBar}
+            onTogglePinned={togglePinScoreBar}
+            scores={scores}
+            competencyLabels={typeConfig.competencies}
+            scoreOptions={typeConfig.score_options}
+            onScoreChange={(competency, score) => updateScore(competency, { score })}
+            onCommentChange={(competency, comment) => updateScore(competency, { comment })}
+            totalScore={totalScore}
+            totalMax={typeConfig.total_max}
+            totalColorClass={getTotalColorClass(totalScore, typeConfig.total_max)}
+            generalComment={generalComment}
+            onGeneralCommentChange={setGeneralComment}
+            onSubmit={handleSubmitClick}
+            canSubmit={canSubmit}
+            submitLabel={submitLabel}
+          />
+        )}
+
+        <div
+          className={cn(
+            'grid grid-cols-1 gap-4',
+            compareLayout ? 'lg:grid-cols-2' : showCompetencyPanel ? 'lg:grid-cols-5' : 'lg:grid-cols-1',
+          )}
+        >
+          {essay.signed_image_url && (compareLayout || mobileView === 'image') && (
+            <ElevatedCard className="p-4">
+              <EssayImageViewer
+                src={essay.signed_image_url}
+                alt="Redação manuscrita original"
+                className={compareLayout ? compareHeight : 'h-[70dvh]'}
+                scrollRef={imageScrollRef}
+                onScroll={compareLayout ? () => handlePanelScroll('image') : undefined}
+                syncScroll={compareLayout ? { enabled: syncScroll, onToggle: toggleSyncScroll } : undefined}
+              />
+            </ElevatedCard>
+          )}
+
           <ElevatedCard
             accentColor={org.brand_primary}
-            className={cn('p-4', showCompetencyPanel ? 'lg:col-span-3' : 'lg:col-span-1')}
+            className={cn(
+              'p-4',
+              !compareLayout && (showCompetencyPanel ? 'lg:col-span-3' : 'lg:col-span-1'),
+              !compareLayout && hasImage && mobileView === 'image' && 'hidden',
+            )}
           >
+            <div className={cn(compareLayout && cn('flex flex-col', compareHeight))}>
             <SectionTitle
               title="Texto do aluno"
               hex={org.brand_primary}
@@ -1170,7 +1280,7 @@ export default function CorrecaoRedacaoPage() {
                       {showAlteredDiff ? 'Ver anotações' : 'Ver alterações'}
                     </button>
                   )}
-                  {!showCompetencyPanel && (
+                  {!compareLayout && !showCompetencyPanel && (
                     <button
                       type="button"
                       onClick={() => setShowCompetencyPanel(true)}
@@ -1203,8 +1313,10 @@ export default function CorrecaoRedacaoPage() {
               ref={textContainerRef}
               onMouseUp={() => handleTextMouseUp(false)}
               onTouchEnd={() => setTimeout(() => handleTextMouseUp(true), 50)}
+              onScroll={compareLayout ? () => handlePanelScroll('text') : undefined}
               className={cn(
-                'max-h-[540px] overflow-auto rounded-xl border bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap [-webkit-touch-callout:none] dark:bg-slate-950 dark:text-slate-100',
+                'overflow-auto rounded-xl border bg-white p-4 text-sm leading-relaxed text-slate-900 whitespace-pre-wrap [-webkit-touch-callout:none] dark:bg-slate-950 dark:text-slate-100',
+                compareLayout ? 'min-h-0 flex-1 text-[15px] leading-7' : 'max-h-[540px]',
                 showAlteredDiff ? 'border-blue-300 dark:border-blue-500/40' : 'border-slate-200 dark:border-slate-800',
               )}
             >
@@ -1303,7 +1415,12 @@ export default function CorrecaoRedacaoPage() {
               document.body,
             )}
 
-            <div className="mt-4 space-y-2 rounded-xl border border-[color:color-mix(in_srgb,var(--brand-secondary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] p-3 dark:border-slate-800 dark:bg-slate-950">
+            <div
+              className={cn(
+                'mt-4 space-y-2 rounded-xl border border-[color:color-mix(in_srgb,var(--brand-secondary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--brand-secondary)_6%,white)] p-3 dark:border-slate-800 dark:bg-slate-950',
+                compareLayout && 'mt-3 max-h-36 shrink-0 overflow-auto',
+              )}
+            >
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Anotações adicionadas ({annotations.length})
               </h3>
@@ -1338,9 +1455,10 @@ export default function CorrecaoRedacaoPage() {
                 </div>
               )}
             </div>
+            </div>
           </ElevatedCard>
 
-          {showCompetencyPanel && (
+          {!compareLayout && showCompetencyPanel && (
             <ElevatedCard
               accentColor={secondaryAccent.hex ?? undefined}
               className="h-fit p-4 lg:sticky lg:top-4 lg:col-span-2"
@@ -1369,7 +1487,7 @@ export default function CorrecaoRedacaoPage() {
           )}
         </div>
 
-        {!showCompetencyPanel && (
+        {!compareLayout && !showCompetencyPanel && (
           <ElevatedCard accentColor={secondaryAccent.hex ?? undefined} className="p-4">
             <SectionTitle
               title="Notas por Competência (abaixo)"
@@ -1572,7 +1690,7 @@ export default function CorrecaoRedacaoPage() {
               className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
-              {submitting ? 'Enviando...' : (essay.status === 'awaiting_second' ? 'Enviar 2ª Correção' : 'Enviar Correção')}
+              {submitLabel}
             </button>
           </div>
         </div>
