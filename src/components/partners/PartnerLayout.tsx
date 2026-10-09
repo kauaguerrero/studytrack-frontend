@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
 import { useReportNotification } from '@/contexts/ReportNotificationContext';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { AnnouncementBell } from '@/components/announcements/AnnouncementBell';
 import {
   LayoutDashboard,
@@ -303,10 +304,16 @@ interface PartnerLayoutProps {
   /** 'founder' mostra nav de gestão; 'student' mostra nav de estudo */
   variant?: 'founder' | 'student';
   unsavedChangesGuard?: UnsavedChangesGuard;
+  /** Desktop: troca a barra lateral por um trilho fino com hambúrguer; o menu
+   *  completo abre como gaveta por cima, sem empurrar o conteúdo. Para telas
+   *  que precisam de largura (ex.: mesa de correção de redação). */
+  compactSidebar?: boolean;
 }
 
-export function PartnerLayout({ children, variant = 'founder', unsavedChangesGuard }: PartnerLayoutProps) {
+export function PartnerLayout({ children, variant = 'founder', unsavedChangesGuard, compactSidebar = false }: PartnerLayoutProps) {
   const { org, userProfile } = useOrg();
+  const isDesktop = useMediaQuery('(min-width: 768px)');
+  const drawerFromLeft = compactSidebar && isDesktop;
   const { hasPendingCorrection } = useEssayNotification();
   const { hasUnseenResolved } = useReportNotification();
   const router = useRouter();
@@ -601,16 +608,40 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
       <div aria-hidden className="partner-shell-glow partner-shell-glow-primary" />
       <div aria-hidden className="partner-shell-glow partner-shell-glow-secondary" />
       {/* Desktop sidebar */}
-      <aside
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        className={cn(
-          'partner-sidebar hidden md:flex md:flex-col shrink-0 border-r dark:border-slate-800 bg-white dark:bg-slate-900 transition-[width] duration-300 ease-in-out overflow-hidden will-change-[width]',
-          collapsed ? 'w-20' : 'w-64'
-        )}
-      >
-        <SidebarContent collapsed={collapsed} />
-      </aside>
+      {compactSidebar ? (
+        <aside className="partner-sidebar hidden w-12 shrink-0 flex-col items-center gap-3 border-r bg-white py-3 md:flex dark:border-slate-800 dark:bg-slate-900">
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(true)}
+            aria-label="Abrir menu"
+            title="Abrir menu"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          {org.logo_url ? (
+            <Image src={org.logo_url} alt={org.name} width={28} height={28} className="rounded-md object-contain" />
+          ) : (
+            <div
+              className="flex h-7 w-7 items-center justify-center rounded-md text-white"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
+            >
+              <GraduationCap className="h-3.5 w-3.5" />
+            </div>
+          )}
+        </aside>
+      ) : (
+        <aside
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          className={cn(
+            'partner-sidebar hidden md:flex md:flex-col shrink-0 border-r dark:border-slate-800 bg-white dark:bg-slate-900 transition-[width] duration-300 ease-in-out overflow-hidden will-change-[width]',
+            collapsed ? 'w-20' : 'w-64'
+          )}
+        >
+          <SidebarContent collapsed={collapsed} />
+        </aside>
+      )}
 
       {/* ── Main content ───────────────────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -713,7 +744,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
         )}
 
         {/* Page content — extra bottom padding on mobile for bottom tab bar */}
-        <main className="partner-main min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 pb-24 md:p-8 md:pb-8">
+        <main className={cn('partner-main min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 pb-24 md:pb-8', compactSidebar ? 'md:p-5' : 'md:p-8')}>
           {children}
         </main>
       </div>
@@ -741,11 +772,14 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
           </div>
         </nav>
 
-      {(isPartnerStudent || !isAssociate) && (
+      {(isPartnerStudent || !isAssociate || compactSidebar) && (
         <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
           <SheetContent
-            side="right"
-            className="w-[88vw] max-w-sm p-0 bg-white dark:bg-slate-900 border-l dark:border-slate-800"
+            side={drawerFromLeft ? 'left' : 'right'}
+            className={cn(
+              'p-0 bg-white dark:bg-slate-900 dark:border-slate-800',
+              drawerFromLeft ? 'w-72 border-r' : 'w-[88vw] max-w-sm border-l',
+            )}
             overlayClassName="bg-slate-950/55 backdrop-blur-[1px]"
           >
             <SheetTitle className="sr-only">Menu completo</SheetTitle>

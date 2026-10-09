@@ -991,7 +991,7 @@ export default function CorrecaoRedacaoPage() {
 
   if (loading) {
     return (
-      <PartnerLayout>
+      <PartnerLayout compactSidebar>
         <div className="space-y-4">
           <div className="h-10 animate-pulse rounded-xl bg-slate-800/80" />
           <div className="h-[520px] animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800/70" />
@@ -1002,7 +1002,7 @@ export default function CorrecaoRedacaoPage() {
 
   if (error || !essay) {
     return (
-      <PartnerLayout>
+      <PartnerLayout compactSidebar>
         <div className="flex flex-col items-center rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <BrokenPencilIllustration className="mb-1 h-auto w-48 sm:w-56" />
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-red-500 dark:text-red-400">
@@ -1030,7 +1030,7 @@ export default function CorrecaoRedacaoPage() {
   const compareHeight = 'h-[calc(100dvh-13rem)] min-h-[480px]';
 
   return (
-    <PartnerLayout unsavedChangesGuard={{ hasUnsavedChanges: hasUnsavedCorrectionWork, onSaveAndExit: saveAndExit }}>
+    <PartnerLayout compactSidebar unsavedChangesGuard={{ hasUnsavedChanges: hasUnsavedCorrectionWork, onSaveAndExit: saveAndExit }}>
       <div className="space-y-5 pb-24 lg:pb-0">
         <div className="space-y-4">
           <Link
