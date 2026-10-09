@@ -30,9 +30,91 @@ export const TUTORIAL_MODE = true;
 const uid = (n: number) =>
   `${n.toString(16).padStart(8, '0')}-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 
+// ─── Deslocamento temporal dos mocks ──────────────────────────────────────────
+// Os dados abaixo foram escritos com datas cravadas em torno de MOCK_ANCHOR. Sem
+// tratamento, uma org demo aberta meses depois exibe "última redação há 78 dias"
+// e um histórico de simulados parado — o oposto do que a demo precisa mostrar.
+// Por isso toda data é deslocada em dias inteiros, de modo que MOCK_ANCHOR caia
+// sempre no dia de hoje. Os intervalos relativos entre os registros (e os
+// eventos futuros, como simulados agendados) são preservados.
+const MOCK_ANCHOR = '2026-07-26';
+
+const SHIFT_DAYS = (() => {
+  const anchor = Date.parse(`${MOCK_ANCHOR}T00:00:00Z`);
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Math.round((today - anchor) / 86_400_000);
+})();
+
+// Rótulos de mês são deslocados em meses inteiros, não em dias: o mês de
+// referência da âncora precisa virar o mês corrente. Um deslocamento em dias
+// mandaria "julho/2026" para meados de setembro, e a jornada do mês atual
+// apareceria atrasada.
+const SHIFT_MONTHS = (() => {
+  const anchor = new Date(`${MOCK_ANCHOR}T00:00:00Z`);
+  const now = new Date();
+  return (now.getUTCFullYear() - anchor.getUTCFullYear()) * 12
+    + (now.getUTCMonth() - anchor.getUTCMonth());
+})();
+
+// Casa apenas datas ISO completas ("2026-07-26", "2026-07-26T15:30:00",
+// "2026-07-26T08:00:00.000Z"). UUIDs e texto corrido não casam, porque o padrão
+// exige a string inteira no formato.
+const ISO_DATE_RE = /^(\d{4}-\d{2}-\d{2})([T ][\d:.]+(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+
+// Campos que não são um instante qualquer, e sim o rótulo de um período: o
+// deslocamento (que raramente é múltiplo de 7 ou fecha mês) os deixaria
+// incoerentes — um "mês de referência" caindo no dia 15, uma "semana" começando
+// num sábado. Para esses, a data deslocada é reancorada no início do período.
+const PERIOD_KEYS: Record<string, 'month' | 'week'> = {
+  month_reference: 'month',
+  month_start: 'month',
+  week_start: 'week',
+};
+
+function shiftDateString(value: string, period?: 'month' | 'week'): string {
+  const m = ISO_DATE_RE.exec(value);
+  if (!m) return value;
+  const base = Date.parse(`${m[1]}T00:00:00Z`);
+  if (Number.isNaN(base)) return value;
+  if (period === 'month') {
+    const src = new Date(base);
+    const d = new Date(Date.UTC(src.getUTCFullYear(), src.getUTCMonth() + SHIFT_MONTHS, 1));
+    return `${d.toISOString().slice(0, 10)}${m[2] ?? ''}`;
+  }
+  const d = new Date(base + SHIFT_DAYS * 86_400_000);
+  if (period === 'week') {
+    // Recua até a segunda-feira (getUTCDay: 0 = domingo).
+    const dow = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - dow);
+  }
+  // Só a porção de data é recalculada; o sufixo de horário é repassado intacto
+  // para preservar fuso e precisão exatamente como escritos.
+  return `${d.toISOString().slice(0, 10)}${m[2] ?? ''}`;
+}
+
+function shiftDates<T>(value: T, key?: string): T {
+  if (typeof value === 'string') {
+    return shiftDateString(value, key ? PERIOD_KEYS[key] : undefined) as unknown as T;
+  }
+  if (Array.isArray(value)) {
+    // Itens de array herdam a chave do campo que os contém, para que
+    // weekly_evolution: [{ week_start }] seja tratado corretamente.
+    return value.map((v) => shiftDates(v, key)) as unknown as T;
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = shiftDates(v, k);
+    }
+    return out as unknown as T;
+  }
+  return value;
+}
+
 // ─── OrgStats ──────────────────────────────────────────────────────────────────
 
-export const MOCK_STATS = {
+const _MOCK_STATS = {
   total_students: 42,
   active_today: 11, prev_active_today: 9,
   active_week: 34,  prev_active_week: 29,
@@ -49,11 +131,11 @@ export const MOCK_STATS = {
   plan_distribution: { premium: 28, basico: 10, trial: 4 },
 };
 
-export const MOCK_ESSAYS_COUNT = { today: 4, week: 14, month: 52, total: 214 };
+const _MOCK_ESSAYS_COUNT = { today: 4, week: 14, month: 52, total: 214 };
 
 // ─── Analytics ─────────────────────────────────────────────────────────────────
 
-export const MOCK_ANALYTICS = {
+const _MOCK_ANALYTICS = {
   questions_series: [
     { date: '2026-07-19', total: 283 }, { date: '2026-07-20', total: 312 },
     { date: '2026-07-21', total: 387 }, { date: '2026-07-22', total: 421 },
@@ -79,9 +161,9 @@ export const MOCK_ANALYTICS = {
 
 // ─── Video ─────────────────────────────────────────────────────────────────────
 
-export const MOCK_VIDEO_ADOPTION = { pct: 71.4, num: 30, den: 42 };
+const _MOCK_VIDEO_ADOPTION = { pct: 71.4, num: 30, den: 42 };
 
-export const MOCK_VIDEO_KPI = {
+const _MOCK_VIDEO_KPI = {
   summary: {
     adoption_weekly_pct: 71.4, adoption_weekly_num: 30, adoption_weekly_den: 42,
     avg_completion_pct: 66.2, at_risk_students: 7, module_coverage_pct: 88.1,
@@ -102,7 +184,7 @@ export const MOCK_VIDEO_KPI = {
   students_total: 42, lessons_total: 8, period_days: 7 as const, module_id: null,
 };
 
-export const MOCK_VIDEO_MODULES = {
+const _MOCK_VIDEO_MODULES = {
   modules: [
     {
       id: '0d000001-0000-4000-8000-000000000001', title: 'Módulo 1 — Fundamentos ENEM',
@@ -196,7 +278,7 @@ const BRUNO = {
   essays_today: 0, essays_week: 0, essays_month: 0, essays_total: 2,
 };
 
-export const MOCK_STUDENTS = [
+const _MOCK_STUDENTS = [
   ANA_PAULA, LUCAS, BRUNO,
   ...([
     ['Gabriela Alves',    94,  '2026-07-25', 'b2b_premium'],
@@ -245,7 +327,7 @@ export const MOCK_STUDENTS = [
 
 // ─── Student detail pages (3 alunos detalhados) ────────────────────────────────
 
-export const MOCK_STUDENT_DETAILS: Record<string, unknown> = {
+const _MOCK_STUDENT_DETAILS: Record<string, unknown> = {
   [uid(1)]: {
     profile: {
       id: uid(1), full_name: 'Ana Paula Costa', email: 'ana.paula@ave.com',
@@ -388,7 +470,7 @@ export const MOCK_STUDENT_DETAILS: Record<string, unknown> = {
 };
 
 // Essay lists for student profile pages (filtradas por student_id)
-export const MOCK_STUDENT_ESSAYS: Record<string, unknown[]> = {
+const _MOCK_STUDENT_ESSAYS: Record<string, unknown[]> = {
   [uid(1)]: [
     { id: 'ea000001-0000-4000-8000-000000000001', status: 'corrected', submitted_at: '2026-07-23T10:30:00', corrected_at: '2026-07-24T08:15:00', total_score: 760, average_score: null, theme: 'A importância da empatia na sociedade contemporânea', student: [{ id: uid(1) }], student_id: uid(1) },
     { id: 'ea000002-0000-4000-8000-000000000002', status: 'corrected', submitted_at: '2026-07-14T09:00:00', corrected_at: '2026-07-15T11:30:00', total_score: 740, average_score: null, theme: 'Desigualdade social no Brasil', student: [{ id: uid(1) }], student_id: uid(1) },
@@ -405,7 +487,7 @@ export const MOCK_STUDENT_ESSAYS: Record<string, unknown[]> = {
 
 // ─── Simulados ─────────────────────────────────────────────────────────────────
 
-export const MOCK_SIMULADOS = [
+const _MOCK_SIMULADOS = [
   {
     id: '5a000010-0000-4000-8000-000000000010',
     title: 'ENEM Simulado I',
@@ -445,7 +527,7 @@ export const MOCK_SIMULADOS = [
 
 const SIM1_ID = '5a000010-0000-4000-8000-000000000010';
 
-export const MOCK_SIMULADO_RANKINGS: Record<string, unknown[]> = {
+const _MOCK_SIMULADO_RANKINGS: Record<string, unknown[]> = {
   [SIM1_ID]: [
     { position:  1, student_id: uid(1),  full_name: 'Ana Paula Costa',   avatar_url: null, score: 80, total_questions: 90, score_pct: 88.9, tri_score: 712.4, time_taken_secs: 14200 },
     { position:  2, student_id: uid(8),  full_name: 'Camila Pereira',    avatar_url: null, score: 75, total_questions: 90, score_pct: 83.3, tri_score: 685.3, time_taken_secs: 15800 },
@@ -470,7 +552,7 @@ export const MOCK_SIMULADO_RANKINGS: Record<string, unknown[]> = {
   ],
 };
 
-export const MOCK_SIMULADO_ANALYTICS: Record<string, unknown> = {
+const _MOCK_SIMULADO_ANALYTICS: Record<string, unknown> = {
   [SIM1_ID]: {
     weighted_applied: false,
     kpis: {
@@ -594,7 +676,7 @@ Ademais, sob perspectiva histórica, sociedades que negligenciam a empatia tende
 
 Portanto, o Estado e a sociedade civil devem promover a educação socioemocional desde a infância, integrando práticas de escuta ativa ao currículo nacional. Simultaneamente, plataformas digitais têm a responsabilidade de redesenhar seus algoritmos para ampliar, em vez de restringir, a exposição a perspectivas diversas. Tais medidas, articuladas, são fundamentais para restituir à empatia seu papel estruturante na vida em sociedade.`;
 
-export const MOCK_ESSAYS_OVERVIEW = {
+const _MOCK_ESSAYS_OVERVIEW = {
   essay_type_filter: 'enem',
   metrics: {
     received_week: 14,
@@ -647,7 +729,7 @@ export const MOCK_ESSAYS_OVERVIEW = {
 // ─── Associados ────────────────────────────────────────────────────────────────
 
 // Summary KPIs para a página de lista de associados
-export const MOCK_ASSOCIATE_SUMMARY = {
+const _MOCK_ASSOCIATE_SUMMARY = {
   total_associates: 3,
   active_associates: 3,
   inactive_associates: 0,
@@ -659,7 +741,7 @@ export const MOCK_ASSOCIATE_SUMMARY = {
 };
 
 // Trend semanal de correções (linha do tempo na página de lista)
-export const MOCK_ASSOCIATE_TREND = [
+const _MOCK_ASSOCIATE_TREND = [
   { date: '2026-07-19', corrections: 2 },
   { date: '2026-07-20', corrections: 3 },
   { date: '2026-07-21', corrections: 1 },
@@ -670,14 +752,14 @@ export const MOCK_ASSOCIATE_TREND = [
 ];
 
 // Variantes de stats por associado — distribuídas ciclicamente pelos IDs reais
-export const MOCK_ASSOCIATE_STATS_VARIANTS = [
+const _MOCK_ASSOCIATE_STATS_VARIANTS = [
   { corrections_in_window: 8, total_corrections: 52, avg_essay_score: 732, avg_turnaround_hours: 2.8 },
   { corrections_in_window: 4, total_corrections: 27, avg_essay_score: 701, avg_turnaround_hours: 4.1 },
   { corrections_in_window: 2, total_corrections: 8,  avg_essay_score: 688, avg_turnaround_hours: 6.2 },
 ];
 
 // Métricas para a página de detalhe do associado
-export const MOCK_ASSOC_METRICS = {
+const _MOCK_ASSOC_METRICS = {
   corrections_today: 2,
   corrections_week: 8,
   corrections_month: 24,
@@ -689,7 +771,7 @@ export const MOCK_ASSOC_METRICS = {
 };
 
 // 28 dias de evolução diária de correções
-export const MOCK_ASSOC_DAILY_EVOLUTION = (() => {
+const _MOCK_ASSOC_DAILY_EVOLUTION = (() => {
   const base = new Date('2026-06-27');
   const series = [1,0,2,1,3,2,1,0,2,1,3,4,2,1,0,2,3,2,1,2,1,3,2,4,2,3,2,2];
   const scores = [720,null,710,730,725,740,715,null,728,718,732,745,738,722,null,708,712,725,735,740,748,738,742,756,730,742,738,732];
@@ -707,7 +789,7 @@ export const MOCK_ASSOC_DAILY_EVOLUTION = (() => {
 })();
 
 // Médias por competência ENEM
-export const MOCK_ASSOC_COMPETENCY_AVGS = [
+const _MOCK_ASSOC_COMPETENCY_AVGS = [
   { competency: 'C1', avg: 158, count: 47 },
   { competency: 'C2', avg: 163, count: 47 },
   { competency: 'C3', avg: 147, count: 47 },
@@ -716,7 +798,7 @@ export const MOCK_ASSOC_COMPETENCY_AVGS = [
 ];
 
 // Últimas correções realizadas
-export const MOCK_ASSOC_RECENT_CORRECTIONS = [
+const _MOCK_ASSOC_RECENT_CORRECTIONS = [
   { essay_id: 'ea000001-0000-4000-8000-000000000001', student_name: 'Ana Paula Costa',   submitted_at: '2026-07-23T10:30:00', corrected_at: '2026-07-24T08:15:00', total_score: 760, turnaround_hours: 21.7 },
   { essay_id: 'eb000001-0000-4000-8000-000000000001', student_name: 'Lucas Ferreira',     submitted_at: '2026-07-22T14:00:00', corrected_at: '2026-07-23T10:00:00', total_score: 700, turnaround_hours: 20.0 },
   { essay_id: 'ea000011-0000-4000-8000-000000000011', student_name: 'Ana Paula Costa',   submitted_at: '2026-07-22T09:00:00', corrected_at: '2026-07-22T22:30:00', total_score: 740, turnaround_hours: 13.5 },
@@ -732,7 +814,7 @@ export const MOCK_ASSOC_RECENT_CORRECTIONS = [
 // ─── Portal do Aluno (student/*) ───────────────────────────────────────────────
 
 // 30 dias de histórico de atividade — Ana Paula, ~45 questões/dia, folgas domingo
-export const MOCK_STUDENT_ACTIVITY_HISTORY = [
+const _MOCK_STUDENT_ACTIVITY_HISTORY = [
   { usage_date: '2026-06-26', questions_count: 38, simulations_count: 0, correct_count: 29 },
   { usage_date: '2026-06-27', questions_count: 42, simulations_count: 0, correct_count: 32 },
   { usage_date: '2026-06-28', questions_count: 35, simulations_count: 0, correct_count: 27 },
@@ -765,7 +847,7 @@ export const MOCK_STUDENT_ACTIVITY_HISTORY = [
   { usage_date: '2026-07-25', questions_count: 21, simulations_count: 0, correct_count: 17 },
 ];
 
-export const MOCK_STUDENT_ANALYTICS = {
+const _MOCK_STUDENT_ANALYTICS = {
   overview: {
     total_questions: 4832, accuracy_percentage: 74,
     current_streak: 12,   longest_streak: 21,
@@ -782,18 +864,18 @@ export const MOCK_STUDENT_ANALYTICS = {
     { subject: 'Matemática',           total: 2431, correct: 1376, accuracy: 56.6 },
   ],
   performance_by_topic: [] as unknown[],
-  activity_history: MOCK_STUDENT_ACTIVITY_HISTORY,
+  activity_history: _MOCK_STUDENT_ACTIVITY_HISTORY,
 };
 
 // EssayListItem[] para DashboardState.essays
-export const MOCK_STUDENT_ESSAY_LIST_ITEMS = [
+const _MOCK_STUDENT_ESSAY_LIST_ITEMS = [
   { id: 'ea000001-0000-4000-8000-000000000001', status: 'corrected' as const, essay_type: 'enem' as const, submitted_at: '2026-07-23T10:30:00', corrected_at: '2026-07-24T08:15:00', total_score: 760,  average_score: null, theme: 'A importância da empatia na sociedade contemporânea' },
   { id: 'ea000002-0000-4000-8000-000000000002', status: 'corrected' as const, essay_type: 'enem' as const, submitted_at: '2026-07-14T09:00:00', corrected_at: '2026-07-15T11:30:00', total_score: 740,  average_score: null, theme: 'Desigualdade social no Brasil' },
   { id: 'ea000003-0000-4000-8000-000000000003', status: 'corrected' as const, essay_type: 'enem' as const, submitted_at: '2026-07-07T10:00:00', corrected_at: '2026-07-08T14:00:00', total_score: 720,  average_score: null, theme: 'O papel da educação na democracia' },
 ];
 
 // EssayDetail[] para DashboardState.essayDetails
-export const MOCK_STUDENT_ESSAY_DETAILS = [
+const _MOCK_STUDENT_ESSAY_DETAILS = [
   {
     id: 'ea000001-0000-4000-8000-000000000001', status: 'corrected' as const, essay_type: 'enem',
     total_score: 760, average_score: null,
@@ -832,7 +914,7 @@ export const MOCK_STUDENT_ESSAY_DETAILS = [
 ];
 
 // Simulados curtos (sem results_by_subject) para DashboardState.simuladoSessions
-export const MOCK_STUDENT_SIMULADO_SESSIONS = [
+const _MOCK_STUDENT_SIMULADO_SESSIONS = [
   { id: '5a000001-0000-4000-8000-000000000001', score: 39, total_questions: 45, percentage: 86.7, tri_score: 680.2, time_taken_secs: 4320,  completed_at: '2026-07-22T15:30:00' },
   { id: '5a000002-0000-4000-8000-000000000002', score: 31, total_questions: 45, percentage: 68.9, tri_score: 641.8, time_taken_secs: 5100,  completed_at: '2026-07-19T16:00:00' },
   { id: '5a000003-0000-4000-8000-000000000003', score: 35, total_questions: 45, percentage: 77.8, tri_score: 660.3, time_taken_secs: 4700,  completed_at: '2026-07-15T14:00:00' },
@@ -842,10 +924,10 @@ export const MOCK_STUDENT_SIMULADO_SESSIONS = [
 ];
 
 // Estado completo passado para DesempenhoClient via SSR
-export const MOCK_STUDENT_DASHBOARD_STATE = {
-  analytics: MOCK_STUDENT_ANALYTICS,
-  essays: MOCK_STUDENT_ESSAY_LIST_ITEMS,
-  essayDetails: MOCK_STUDENT_ESSAY_DETAILS,
+const _MOCK_STUDENT_DASHBOARD_STATE = {
+  analytics: _MOCK_STUDENT_ANALYTICS,
+  essays: _MOCK_STUDENT_ESSAY_LIST_ITEMS,
+  essayDetails: _MOCK_STUDENT_ESSAY_DETAILS,
   summary: {
     monthly_points: 4203, rank_position: 1, points_to_top3: 0, prize_cutoff: 3,
     month_label: 'Julho/26', monthly_goal: 5000, goal_reached: false,
@@ -867,12 +949,12 @@ export const MOCK_STUDENT_DASHBOARD_STATE = {
     ],
     user_context: { position: 1 },
   },
-  simuladoSessions: MOCK_STUDENT_SIMULADO_SESSIONS,
+  simuladoSessions: _MOCK_STUDENT_SIMULADO_SESSIONS,
   credits: null as null,
 };
 
 // Feed de atividade recente (student dashboard)
-export const MOCK_ACTIVITY_FEED = [
+const _MOCK_ACTIVITY_FEED = [
   { type: 'question' as const, subject: 'Biologia',   is_correct: true,  timestamp: '2026-07-25T10:15:00' },
   { type: 'question' as const, subject: 'Inglês',     is_correct: true,  timestamp: '2026-07-25T10:12:00' },
   { type: 'question' as const, subject: 'Matemática', is_correct: false, timestamp: '2026-07-25T10:08:00' },
@@ -891,7 +973,7 @@ export const MOCK_ACTIVITY_FEED = [
 ];
 
 // Essays do aluno na página /student/redacoes (Essay type — inclui text_preview)
-export const MOCK_STUDENT_ESSAYS_FOR_REDACOES = [
+const _MOCK_STUDENT_ESSAYS_FOR_REDACOES = [
   {
     // Redação real no Supabase — corrigida pelo founder no tutorial. UUID real permite carregar o detalhe via API.
     id: 'ed01a9a7-78f9-4ac1-8eca-70432a0d4e3e', status: 'corrected' as const, essay_type: 'enem' as const,
@@ -931,7 +1013,7 @@ export const MOCK_STUDENT_ESSAYS_FOR_REDACOES = [
 ];
 
 // Competency scores para exibição na página /student/redacoes
-export const MOCK_STUDENT_ESSAY_COMPETENCY_SCORES = [
+const _MOCK_STUDENT_ESSAY_COMPETENCY_SCORES = [
   // Redação real corrigida no tutorial
   { essay_id: 'ed01a9a7-78f9-4ac1-8eca-70432a0d4e3e', competency: 1, score: 120, correction_round: 1 },
   { essay_id: 'ed01a9a7-78f9-4ac1-8eca-70432a0d4e3e', competency: 2, score: 200, correction_round: 1 },
@@ -956,7 +1038,7 @@ export const MOCK_STUDENT_ESSAY_COMPETENCY_SCORES = [
 ];
 
 // Histórico de simulados (/student/simulado/historico) — inclui campo percentage
-export const MOCK_SIMULADO_HISTORY = [
+const _MOCK_SIMULADO_HISTORY = [
   { id: '5a000001-0000-4000-8000-000000000001', config: { format: 'humanas',   bank: 'ENEM', difficulty: 'misto', qty: 45 }, score: 39, total_questions: 45, percentage: 86.7, tri_score: 680.2, time_taken_secs: 4320,  completed_at: '2026-07-22T15:30:00' },
   { id: '5a000002-0000-4000-8000-000000000002', config: { format: 'natureza',  bank: 'ENEM', difficulty: 'misto', qty: 45 }, score: 31, total_questions: 45, percentage: 68.9, tri_score: 641.8, time_taken_secs: 5100,  completed_at: '2026-07-19T16:00:00' },
   { id: '5a000003-0000-4000-8000-000000000003', config: { format: 'linguagens',bank: 'ENEM', difficulty: 'misto', qty: 45 }, score: 35, total_questions: 45, percentage: 77.8, tri_score: 660.3, time_taken_secs: 4700,  completed_at: '2026-07-15T14:00:00' },
@@ -967,7 +1049,7 @@ export const MOCK_SIMULADO_HISTORY = [
 ];
 
 // Sessions completas para /student/simulado dashboard (com started_at e results_by_subject para gráficos)
-export const MOCK_SIMULADO_SESSIONS_STUDENT = [
+const _MOCK_SIMULADO_SESSIONS_STUDENT = [
   {
     id: '5a000001-0000-4000-8000-000000000001',
     config: { format: 'humanas', bank: 'ENEM', difficulty: 'misto', qty: 45 },
@@ -1053,7 +1135,7 @@ export const MOCK_SIMULADO_SESSIONS_STUDENT = [
 ];
 
 // Ranking geral mock para /student/simulado (o aluno tutorial é o 1º)
-export const MOCK_SIMULADO_RANKING_STUDENT = {
+const _MOCK_SIMULADO_RANKING_STUDENT = {
   ranking: [
     { position: 1,  user_id: uid(1),  full_name: 'Ana Paula Costa',  percentage: 87, is_calibration: false },
     { position: 2,  user_id: uid(3),  full_name: 'Beatriz Souza',    percentage: 82, is_calibration: false },
@@ -1071,7 +1153,7 @@ export const MOCK_SIMULADO_RANKING_STUDENT = {
 };
 
 // Simulados agendados ativos para /student/simulado (o "ENEM Simulado I" como active/aberto)
-export const MOCK_SCHEDULED_SIMULADOS_STUDENT = [
+const _MOCK_SCHEDULED_SIMULADOS_STUDENT = [
   {
     id: SIM1_ID,
     title: 'ENEM Simulado I',
@@ -1095,7 +1177,7 @@ export const DEMO_SLUG = 'studytrack';
 export const isDemoOrg = (slug: string): boolean => slug === DEMO_SLUG;
 
 // ─── Founder Ranking ────────────────────────────────────────────────────────
-export const MOCK_FOUNDER_RANKING = {
+const _MOCK_FOUNDER_RANKING = {
   prize_cutoff: 3,
   ranking: [
     { user_id: '00000001-0000-4000-8000-000000000001', full_name: 'Ana Paula Costa',  avatar_url: null, monthly_points: 4203, rank: 1, current_streak: 12 },
@@ -1112,7 +1194,7 @@ export const MOCK_FOUNDER_RANKING = {
 };
 
 // ─── Titles Journey (student/titulos) ───────────────────────────────────────
-export const MOCK_TITLES_JOURNEY = {
+const _MOCK_TITLES_JOURNEY = {
   enabled: true,
   month_reference: '2026-07-01',
   monthly_points: 4203,
@@ -1132,7 +1214,7 @@ export const MOCK_TITLES_JOURNEY = {
   ],
 };
 
-export const MOCK_TITLES_HISTORY = {
+const _MOCK_TITLES_HISTORY = {
   history: [
     { month_reference: '2026-06-01', progress_tier: 'silver', monthly_points: 2847, rank_position: 2 },
     { month_reference: '2026-05-01', progress_tier: 'silver', monthly_points: 2103, rank_position: 4 },
@@ -1140,10 +1222,10 @@ export const MOCK_TITLES_HISTORY = {
   ],
 };
 
-export const MOCK_CHECKIN_STATUS = { required: false, completed: false };
+const _MOCK_CHECKIN_STATUS = { required: false, completed: false };
 
 // ─── Simulado Resultados (founder) ──────────────────────────────────────────
-export const MOCK_SIMULADO_PARTICIPANTS = [
+const _MOCK_SIMULADO_PARTICIPANTS = [
   { id: 'p001', source: 'online' as const, student_id: '00000001-0000-4000-8000-000000000001', student_name: 'Ana Paula Costa',  score: 80, total_questions: 90, percentage: 88.9, graded_at: '2026-07-14T18:03:20Z', results_by_subject: { 'Língua Portuguesa': { correct: 19, total: 20, percentage: 95 }, 'História': { correct: 16, total: 18, percentage: 88.9 } } },
   { id: 'p002', source: 'online' as const, student_id: '00000008-0000-4000-8000-000000000008', student_name: 'Camila Pereira',   score: 75, total_questions: 90, percentage: 83.3, graded_at: '2026-07-14T18:23:20Z', results_by_subject: { 'Língua Portuguesa': { correct: 17, total: 20, percentage: 85 }, 'História': { correct: 14, total: 18, percentage: 77.8 } } },
   { id: 'p003', source: 'online' as const, student_id: '00000004-0000-4000-8000-000000000004', student_name: 'Gabriela Alves',   score: 72, total_questions: 90, percentage: 80.0, graded_at: '2026-07-14T18:30:00Z', results_by_subject: { 'Inglês': { correct: 5, total: 5, percentage: 100 }, 'História': { correct: 13, total: 18, percentage: 72.2 } } },
@@ -1152,3 +1234,46 @@ export const MOCK_SIMULADO_PARTICIPANTS = [
   { id: 'p006', source: 'online' as const, student_id: '00000002-0000-4000-8000-000000000002', student_name: 'Lucas Ferreira',   score: 57, total_questions: 90, percentage: 63.3, graded_at: '2026-07-14T19:10:00Z', results_by_subject: { 'Inglês': { correct: 4, total: 5, percentage: 80 } } },
   { id: 'p007', source: 'online' as const, student_id: '00000003-0000-4000-8000-000000000003', student_name: 'Bruno Mendes',     score: 38, total_questions: 90, percentage: 42.2, graded_at: '2026-07-14T22:10:00Z', results_by_subject: { 'Língua Portuguesa': { correct: 9, total: 20, percentage: 45 } } },
 ];
+
+// ─── Exports deslocados no tempo ──────────────────────────────────────────────
+// Cada constante acima é definida com datas cravadas em torno de MOCK_ANCHOR e
+// reexportada aqui já deslocada para a data atual, preservando os intervalos
+// relativos (inclusive os eventos futuros, como simulados agendados).
+export const MOCK_STATS = shiftDates(_MOCK_STATS);
+export const MOCK_ESSAYS_COUNT = shiftDates(_MOCK_ESSAYS_COUNT);
+export const MOCK_ANALYTICS = shiftDates(_MOCK_ANALYTICS);
+export const MOCK_VIDEO_ADOPTION = shiftDates(_MOCK_VIDEO_ADOPTION);
+export const MOCK_VIDEO_KPI = shiftDates(_MOCK_VIDEO_KPI);
+export const MOCK_VIDEO_MODULES = shiftDates(_MOCK_VIDEO_MODULES);
+export const MOCK_STUDENTS = shiftDates(_MOCK_STUDENTS);
+export const MOCK_STUDENT_DETAILS = shiftDates(_MOCK_STUDENT_DETAILS);
+export const MOCK_STUDENT_ESSAYS = shiftDates(_MOCK_STUDENT_ESSAYS);
+export const MOCK_SIMULADOS = shiftDates(_MOCK_SIMULADOS);
+export const MOCK_SIMULADO_RANKINGS = shiftDates(_MOCK_SIMULADO_RANKINGS);
+export const MOCK_SIMULADO_ANALYTICS = shiftDates(_MOCK_SIMULADO_ANALYTICS);
+export const MOCK_ESSAYS_OVERVIEW = shiftDates(_MOCK_ESSAYS_OVERVIEW);
+export const MOCK_ASSOCIATE_SUMMARY = shiftDates(_MOCK_ASSOCIATE_SUMMARY);
+export const MOCK_ASSOCIATE_TREND = shiftDates(_MOCK_ASSOCIATE_TREND);
+export const MOCK_ASSOCIATE_STATS_VARIANTS = shiftDates(_MOCK_ASSOCIATE_STATS_VARIANTS);
+export const MOCK_ASSOC_METRICS = shiftDates(_MOCK_ASSOC_METRICS);
+export const MOCK_ASSOC_DAILY_EVOLUTION = shiftDates(_MOCK_ASSOC_DAILY_EVOLUTION);
+export const MOCK_ASSOC_COMPETENCY_AVGS = shiftDates(_MOCK_ASSOC_COMPETENCY_AVGS);
+export const MOCK_ASSOC_RECENT_CORRECTIONS = shiftDates(_MOCK_ASSOC_RECENT_CORRECTIONS);
+export const MOCK_STUDENT_ACTIVITY_HISTORY = shiftDates(_MOCK_STUDENT_ACTIVITY_HISTORY);
+export const MOCK_STUDENT_ANALYTICS = shiftDates(_MOCK_STUDENT_ANALYTICS);
+export const MOCK_STUDENT_ESSAY_LIST_ITEMS = shiftDates(_MOCK_STUDENT_ESSAY_LIST_ITEMS);
+export const MOCK_STUDENT_ESSAY_DETAILS = shiftDates(_MOCK_STUDENT_ESSAY_DETAILS);
+export const MOCK_STUDENT_SIMULADO_SESSIONS = shiftDates(_MOCK_STUDENT_SIMULADO_SESSIONS);
+export const MOCK_STUDENT_DASHBOARD_STATE = shiftDates(_MOCK_STUDENT_DASHBOARD_STATE);
+export const MOCK_ACTIVITY_FEED = shiftDates(_MOCK_ACTIVITY_FEED);
+export const MOCK_STUDENT_ESSAYS_FOR_REDACOES = shiftDates(_MOCK_STUDENT_ESSAYS_FOR_REDACOES);
+export const MOCK_STUDENT_ESSAY_COMPETENCY_SCORES = shiftDates(_MOCK_STUDENT_ESSAY_COMPETENCY_SCORES);
+export const MOCK_SIMULADO_HISTORY = shiftDates(_MOCK_SIMULADO_HISTORY);
+export const MOCK_SIMULADO_SESSIONS_STUDENT = shiftDates(_MOCK_SIMULADO_SESSIONS_STUDENT);
+export const MOCK_SIMULADO_RANKING_STUDENT = shiftDates(_MOCK_SIMULADO_RANKING_STUDENT);
+export const MOCK_SCHEDULED_SIMULADOS_STUDENT = shiftDates(_MOCK_SCHEDULED_SIMULADOS_STUDENT);
+export const MOCK_FOUNDER_RANKING = shiftDates(_MOCK_FOUNDER_RANKING);
+export const MOCK_TITLES_JOURNEY = shiftDates(_MOCK_TITLES_JOURNEY);
+export const MOCK_TITLES_HISTORY = shiftDates(_MOCK_TITLES_HISTORY);
+export const MOCK_CHECKIN_STATUS = shiftDates(_MOCK_CHECKIN_STATUS);
+export const MOCK_SIMULADO_PARTICIPANTS = shiftDates(_MOCK_SIMULADO_PARTICIPANTS);
