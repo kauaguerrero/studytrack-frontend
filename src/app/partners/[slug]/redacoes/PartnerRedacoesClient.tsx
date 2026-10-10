@@ -908,6 +908,13 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   };
 
   const loadOverview = useCallback(async (options?: { silent?: boolean }) => {
+    // Org demo não tem redação nenhuma no banco. O server component já semeou o
+    // estado com o mock; buscar a API real devolveria lista vazia e zeraria as
+    // métricas logo depois da primeira pintura. O guard fica antes dos
+    // setLoading para não piscar o skeleton à toa — o realtime e o intervalo de
+    // 60s também chamam esta função.
+    if (org.is_mock) return;
+
     if (!options?.silent) {
       setMetricsLoading(true);
       setQueueLoading(true);
@@ -956,7 +963,7 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
         setQueueLoading(false);
       }
     }
-  }, [slug, pendingPage, correctedPage, activeTypeFilter, dateFilter, pendingSortOrder, correctedSort]);
+  }, [slug, pendingPage, correctedPage, activeTypeFilter, dateFilter, pendingSortOrder, correctedSort, org.is_mock]);
 
   // Recarga do overview com debounce (trailing coalesce): uma rajada de UPDATEs
   // em `essays` — heartbeats de lock de N corretores (1x/60s cada), mudança de
