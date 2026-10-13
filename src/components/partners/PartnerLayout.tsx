@@ -5,7 +5,7 @@ import { ReactNode, useEffect, useState, useRef } from 'react';
 import { motion, useReducedMotion, useAnimation } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
@@ -316,7 +316,6 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
   const drawerFromLeft = compactSidebar && isDesktop;
   const { hasPendingCorrection } = useEssayNotification();
   const { hasUnseenResolved } = useReportNotification();
-  const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [passwordModalDismissed, setPasswordModalDismissed] = useState(false);
@@ -326,6 +325,26 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
   const isAssociate = userProfile.role === 'associate';
   const isPartnerStudent = variant === 'student';
+
+  // Alterna entre visão founder e visão aluno numa org demo.
+  //
+  // Precisa ser navegação dura, não router.push(). As duas visões compartilham o
+  // layout /partners/[slug]/layout.tsx, e esse layout devolve `<>{children}</>`
+  // sem OrgProvider quando o pathname é de rota de aluno (o OrgProvider da área
+  // do aluno vem do student/layout.tsx aninhado). Numa navegação client-side o
+  // Next preserva o layout compartilhado e não o reexecuta, então, ao sair de
+  // /student/* para o painel do founder, a página do founder era montada dentro
+  // daquele fragmento sem provider e useOrg() lançava — a tela caía em "Algo deu
+  // errado". Recarregando, o layout roda de novo já com o pathname novo.
+  const switchDemoView = (href: string) => {
+    window.location.assign(href);
+  };
+
+  // Só quem tem acesso ao painel do founder enxerga o alternador. Para um aluno
+  // o botão seria um beco sem saída: o guard do layout o devolveria para a
+  // própria área de aluno.
+  const canSwitchDemoView =
+    userProfile.role === 'founder' || userProfile.role === 'admin';
   const approvedPhotos = normalizeOrgApprovedPhotos(org.approved_student_photos);
 
   // Lê permissão de um módulo — padrão true (ativo por omissão) exceto video (opt-in explícito)
@@ -711,7 +730,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
           </header>
 
         {/* ── Demo org: alterna entre visão founder e visão aluno sem trocar de sessão ── */}
-        {org.is_mock && (
+        {org.is_mock && canSwitchDemoView && (
           <div
             className="flex items-center justify-center gap-3 border-b px-4 py-2 text-sm"
             style={{ backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }}
@@ -720,7 +739,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
             <div className="flex items-center gap-1 rounded-full bg-white p-1 shadow-sm">
               <button
                 type="button"
-                onClick={() => router.push(`/partners/${org.slug}/dashboard`)}
+                onClick={() => switchDemoView(`/partners/${org.slug}/dashboard`)}
                 className={cn(
                   'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
                   !isPartnerStudent ? 'bg-amber-500 text-white' : 'text-amber-900 hover:bg-amber-50'
@@ -730,7 +749,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
               </button>
               <button
                 type="button"
-                onClick={() => router.push(`/partners/${org.slug}/student/dashboard`)}
+                onClick={() => switchDemoView(`/partners/${org.slug}/student/dashboard`)}
                 className={cn(
                   'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
                   isPartnerStudent ? 'bg-amber-500 text-white' : 'text-amber-900 hover:bg-amber-50'
