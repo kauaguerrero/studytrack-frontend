@@ -1194,31 +1194,41 @@ const _MOCK_FOUNDER_RANKING = {
 };
 
 // ─── Titles Journey (student/titulos) ───────────────────────────────────────
+// Os nomes de campo e os tiers abaixo seguem TitlesJourneyResponse /
+// TitlesHistoryEntry em src/types/gamification.ts. A página de títulos consome
+// o contrato real da API, e um mock fora dele quebra a tela: `tier` usava um
+// vocabulário próprio (bronze/silver/gold) em vez dos ProgressTier canônicos, e
+// o histórico trazia `monthly_points`/`progress_tier`/`rank_position` no lugar
+// de `final_monthly_points`/`final_progress_tier`/`final_rank_position`.
 const _MOCK_TITLES_JOURNEY = {
   enabled: true,
   month_reference: '2026-07-01',
   monthly_points: 4203,
-  progress_tier: 'gold',
-  next_tier: 'diamond',
+  progress_tier: 'Elite',
+  next_tier: 'Lendário',
   points_to_next_tier: 797,
   identity_profile: {
     identity_title: 'Estudante Dedicado',
-    identity_title_icon: null,
+    identity_title_slug: 'estudante-dedicado',
+    identity_title_description: 'Mantém constância e não perde o ritmo de estudo.',
+    identity_title_icon: 'shield-check',
+    answers_json: {},
+    redo_count: 0,
   },
   milestones: [
-    { tier: 'bronze',   label: 'Bronze',   min_points: 0,    max_points: 999,   reached: true },
-    { tier: 'silver',   label: 'Prata',    min_points: 1000, max_points: 1999,  reached: true },
-    { tier: 'gold',     label: 'Ouro',     min_points: 2000, max_points: 4999,  reached: true },
-    { tier: 'diamond',  label: 'Diamante', min_points: 5000, max_points: 9999,  reached: false },
-    { tier: 'legend',   label: 'Lendário', min_points: 10000, max_points: null, reached: false },
+    { tier: 'Explorador',   min_points: 0,     max_points: 999,   unlocked: true,  is_current: false },
+    { tier: 'Estrategista', min_points: 1000,  max_points: 1999,  unlocked: true,  is_current: false },
+    { tier: 'Veterano',     min_points: 2000,  max_points: 3499,  unlocked: true,  is_current: false },
+    { tier: 'Elite',        min_points: 3500,  max_points: 4999,  unlocked: true,  is_current: true  },
+    { tier: 'Lendário',     min_points: 5000,  max_points: null,  unlocked: false, is_current: false },
   ],
 };
 
 const _MOCK_TITLES_HISTORY = {
   history: [
-    { month_reference: '2026-06-01', progress_tier: 'silver', monthly_points: 2847, rank_position: 2 },
-    { month_reference: '2026-05-01', progress_tier: 'silver', monthly_points: 2103, rank_position: 4 },
-    { month_reference: '2026-04-01', progress_tier: 'bronze', monthly_points: 1241, rank_position: 7 },
+    { month_reference: '2026-06-01', identity_title: 'Maratonista', identity_title_slug: 'maratonista', identity_title_description: 'Sustentou volume alto de questões o mês inteiro.', identity_title_icon: 'flag', final_progress_tier: 'Veterano', final_monthly_points: 2847, final_rank_position: 2, points_delta_vs_previous: 744, tier_delta_vs_previous: 1 },
+    { month_reference: '2026-05-01', identity_title: 'Analítico', identity_title_slug: 'analitico', identity_title_description: 'Revisou cada erro antes de seguir adiante.', identity_title_icon: 'target', final_progress_tier: 'Veterano', final_monthly_points: 2103, final_rank_position: 4, points_delta_vs_previous: 862, tier_delta_vs_previous: 1 },
+    { month_reference: '2026-04-01', identity_title: 'Persistente', identity_title_slug: 'persistente', identity_title_description: 'Primeiro mês fechado sem interromper a sequência.', identity_title_icon: 'shield-check', final_progress_tier: 'Estrategista', final_monthly_points: 1241, final_rank_position: 7, points_delta_vs_previous: null, tier_delta_vs_previous: null },
   ],
 };
 
