@@ -18,6 +18,7 @@ import {
   Github,
   Bell,
   Crown,
+  FileText,
 } from 'lucide-react';
 import { UserRole } from '@/types/roles';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -230,6 +231,7 @@ export function SidebarContent({
             {renderNavItem({ href: '/portal/admin/audits', icon: ScanSearch, label: 'Audit Center' })}
             {renderNavItem({ href: '/portal/admin/questions', icon: BookOpen, label: 'Curadoria' })}
             {renderNavItem({ href: '/portal/admin/announcements', icon: Bell, label: 'Novidades' })}
+            {renderNavItem({ href: '/portal/admin/relatorios', icon: FileText, label: 'Relatório Mensal' })}
             {renderSectionTitle('Reports')}
             {renderNavItem({ href: '/portal/admin/reports', icon: Flag, label: 'Reports' })}
             {renderSectionTitle('Ranking')}
