@@ -2845,9 +2845,11 @@ export default function SimuladoPage() {
                 </div>
 
                 {annulledCount > 0 && (
-                  <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
-                    <Flag className="h-4 w-4" />
-                    {annulledCount === 1 ? `${annulledCount} questão anulada por report e desconsiderada no resultado.` : `${annulledCount} questões anuladas por report e desconsideradas no resultado.`}
+                  <div className="mb-5 mx-auto flex w-fit max-w-full items-start gap-2 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-2 text-left text-sm font-semibold text-amber-800 dark:text-amber-200">
+                    <Flag className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span className="min-w-0">
+                      {annulledCount === 1 ? `${annulledCount} questão anulada por report e desconsiderada no resultado.` : `${annulledCount} questões anuladas por report e desconsideradas no resultado.`}
+                    </span>
                   </div>
                 )}
 
@@ -2904,7 +2906,7 @@ export default function SimuladoPage() {
                   {finishResult?.session_id && (
                     <button onClick={() => router.push(`/partners/${slug}/student/simulado/${finishResult.session_id}/revisao`)}
                       className="w-full sm:w-auto bg-indigo-600 text-white px-5 py-3 rounded-xl font-bold flex gap-2 items-center justify-center hover:bg-indigo-700 transition-colors cursor-pointer min-h-[44px]">
-                      <Brain size={18} /> Revisão com IA
+                      <Brain size={18} /> Revisão Pedagógica
                     </button>
                   )}
                   <button onClick={() => router.push(`/partners/${slug}/student/simulado/historico`)}

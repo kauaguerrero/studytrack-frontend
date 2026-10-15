@@ -1272,7 +1272,7 @@ export default function PerfilPage() {
                   <CardHeader className="border-b border-slate-100 dark:border-slate-800 px-5 pb-5 pt-6 sm:px-8 sm:pb-6 sm:pt-8">
                     <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Jornada Acadêmica</CardTitle>
                     <CardDescription className="text-sm mt-1 dark:text-slate-400">
-                      Configure seu objetivo, curso alvo e fase de estudo. A IA utiliza esses dados para personalizar seu aprendizado.
+                      Configure seu objetivo, curso alvo e fase de estudo. A Inteligência Pedagógica utiliza esses dados para personalizar seu aprendizado.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8 px-5 pt-6 sm:px-8 sm:pt-8">

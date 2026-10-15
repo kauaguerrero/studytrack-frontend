@@ -180,7 +180,7 @@ export default function RevisaoPage() {
                     <div className="flex flex-col items-center justify-center py-24 gap-4">
                         <Loader2 size={36} className="animate-spin" style={{ color: 'var(--brand-primary)' }} />
                         <p className="text-slate-500 dark:text-slate-400 font-semibold text-sm">
-                            Gerando explicações com IA...
+                            Gerando a análise pedagógica...
                         </p>
                         <p className="text-slate-400 dark:text-slate-500 text-xs text-center max-w-xs">
                             Isso pode levar alguns segundos na primeira vez.
@@ -206,7 +206,7 @@ export default function RevisaoPage() {
                 {!loading && !error && questions.length > 0 && (
                     <>
                         {/* Summary + filter */}
-                        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mb-4 flex items-center justify-between gap-4">
+                        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 {summary && (
                                     <div>
@@ -225,12 +225,12 @@ export default function RevisaoPage() {
                                     </div>
                                 )}
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex w-full gap-2 sm:w-auto">
                                 {(['all', 'wrong', 'right'] as const).map(f => (
                                     <button
                                         key={f}
                                         onClick={() => setFilter(f)}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                        className={`flex-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold transition-all sm:flex-none ${
                                             filter === f 
                                                 ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900' 
                                                 : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -263,7 +263,7 @@ export default function RevisaoPage() {
                                     }`}
                                 >
                                     {/* Question header */}
-                                    <div className={`flex items-center gap-3 px-5 py-3 ${
+                                    <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3 ${
                                         q.is_annulled
                                             ? 'bg-amber-50 dark:bg-amber-900/20'
                                             : q.is_correct
@@ -384,7 +384,7 @@ export default function RevisaoPage() {
                                             <span>Gabarito: <strong className="text-green-600 dark:text-green-400">{q.correct_option?.toUpperCase()}</strong></span>
                                         </div>
 
-                                        {/* AI Explanation */}
+                                        {/* Explicação pedagógica */}
                                         {q.explanation && (
                                             <div 
                                                 className="rounded-xl p-4" 
@@ -396,7 +396,7 @@ export default function RevisaoPage() {
                                                 <div className="flex items-center gap-1.5 mb-2">
                                                     <Brain size={14} style={{ color: 'var(--brand-primary)' }} />
                                                     <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--brand-primary)' }}>
-                                                        Explicação IA
+                                                        Explicação Pedagógica
                                                     </span>
                                                 </div>
                                                 <div className="prose prose-sm prose-slate dark:prose-invert max-w-none text-slate-700 dark:text-slate-200">

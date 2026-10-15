@@ -323,21 +323,21 @@ export default function BaseConhecimentoPage() {
               <p className="text-slate-600 leading-relaxed mb-4">
                 A página <strong>Metas</strong> (menu do aluno) é onde você acompanha e cumpre objetivos de
                 estudo. As metas podem vir da
-                <strong> sugestão da IA</strong> ou ser <strong>pessoais</strong> (criadas por você).
+                <strong> sugestão pedagógica</strong> ou ser <strong>pessoais</strong> (criadas por você).
               </p>
               <p className="text-slate-600 leading-relaxed mb-4">
                 No topo da página há três abas: <strong>Em Aberto</strong>, <strong>Concluídas</strong> e
                 <strong> Ranking</strong>. Em &quot;Em Aberto&quot; aparecem as metas que você ainda não
                 finalizou; a primeira da lista pode ser destacada como &quot;Foco Principal&quot; com barra
                 de progresso. Em &quot;Concluídas&quot; fica o histórico do que você já bateu. Em
-                &quot;Ranking&quot; você vê como ganhar pontos (sugestão IA, meta pessoal)
+                &quot;Ranking&quot; você vê como ganhar pontos (sugestão pedagógica, meta pessoal)
                 e o Hall da plataforma.
               </p>
-              <KbImage slug="metas" alt="Página Metas: abas Em Aberto, Concluídas, Ranking; Nova Meta, Sugestão IA e card Foco Principal." />
+              <KbImage slug="metas" alt="Página Metas: abas Em Aberto, Concluídas, Ranking; Nova Meta, Sugestão Pedagógica e card Foco Principal." />
               <p className="text-slate-600 leading-relaxed mb-4">
                 Para criar uma meta pessoal, clique em <strong>Nova Meta</strong>: preencha título, descrição
                 (opcional), quantidade e prazo, depois <strong>Confirmar Meta</strong>. Para aceitar uma
-                sugestão da IA, clique em <strong>Sugestão IA</strong> e, quando aparecer a sugestão, abra
+                sugestão pedagógica, clique em <strong>Sugestão Pedagógica</strong> e, quando aparecer a sugestão, abra
                 o modal e confirme. Para atualizar o progresso de uma meta (ex.: &quot;Li 2 de 5 capítulos&quot;),
                 use o controle de progresso no card da meta; quando atingir 100%, ela vai para Concluídas.
               </p>
