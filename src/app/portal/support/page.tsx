@@ -111,7 +111,7 @@ const GLOBAL_FAQS: FaqItem[] = [
   },
   {
     question: 'Como funcionam as metas?',
-    answer: 'No menu, acesse "Metas". Use "Nova Meta" para criar uma meta pessoal (título, quantidade e prazo) ou "Sugestão IA" para receber uma sugestão. Acompanhe o progresso nos cards; ao concluir, a meta vai para a aba "Concluídas". Há também a aba "Ranking" com o hall da fama.',
+    answer: 'No menu, acesse "Metas". Use "Nova Meta" para criar uma meta pessoal (título, quantidade e prazo) ou "Sugestão Pedagógica" para receber uma sugestão. Acompanhe o progresso nos cards; ao concluir, a meta vai para a aba "Concluídas". Há também a aba "Ranking" com o hall da fama.',
     category: 'Metas',
     roles: ['student'],
   },
@@ -147,7 +147,7 @@ function buildSearchIndex(faqs: FaqItem[], effectiveRole: string): SearchEntry[]
     { type: 'kb', title: 'Banco de Questões', snippet: 'Filtros por matéria, tópico, ano e dificuldade. Como responder e reportar erro.', keywords: ['banco', 'questões', 'questão', 'filtro', 'matéria', 'tópico', 'ano', 'dificuldade', 'reportar', 'erro', 'gabarito', 'responder'], url: `${KB_LINK}#banco` },
     { type: 'kb', title: 'Simulados', snippet: 'Como iniciar simulado, quantidade de questões, cronômetro e resultado.', keywords: ['simulado', 'prova', 'cronômetro', 'questões', 'quantidade', 'matéria', 'resultado', 'gabarito', 'enem'], url: `${KB_LINK}#simulado` },
     { type: 'kb', title: 'Gamificação e SpeedRun', snippet: 'XP, streak, ranking e jogo SpeedRun contra o tempo.', keywords: ['gamificação', 'xp', 'streak', 'speedrun', 'jogo', 'ranking', 'pontuação', 'tempo', 'combo'], url: `${KB_LINK}#gamificacao` },
-    { type: 'kb', title: 'Metas', snippet: 'Metas pessoais, sugestão da IA, progresso e ranking.', keywords: ['meta', 'metas', 'objetivo', 'sugestão', 'ia', 'progresso', 'concluída', 'ranking'], url: `${KB_LINK}#metas` },
+    { type: 'kb', title: 'Metas', snippet: 'Metas pessoais, sugestão pedagógica, progresso e ranking.', keywords: ['meta', 'metas', 'objetivo', 'sugestão', 'pedagógica', 'ia', 'progresso', 'concluída', 'ranking'], url: `${KB_LINK}#metas` },
     { type: 'kb', title: 'Meu Desempenho', snippet: 'Precisão, questões respondidas, streak e desempenho por matéria.', keywords: ['desempenho', 'precisão', 'acertos', 'questões', 'streak', 'matéria', 'gráfico', 'estatística'], url: `${KB_LINK}#desempenho` },
     { type: 'kb', title: 'Suporte e Canais', snippet: 'Base de conhecimento, WhatsApp e e-mail de suporte.', keywords: ['suporte', 'ajuda', 'whatsapp', 'email', 'contato', 'dúvida'], url: `${KB_LINK}#suporte` },
   ];
@@ -435,7 +435,7 @@ export default function AjudaESuportePage() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-emerald-900">Todos os sistemas operacionais</h3>
-                  <p className="text-xs font-medium text-emerald-700 mt-0.5">Banco de questões, IA e integrações funcionando 100%.</p>
+                  <p className="text-xs font-medium text-emerald-700 mt-0.5">Banco de questões, Inteligência Pedagógica e integrações funcionando 100%.</p>
                 </div>
               </div>
             </div>

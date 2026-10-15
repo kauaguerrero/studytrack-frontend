@@ -457,7 +457,7 @@ export default function CorrigirGabaritoPage() {
                   style={{ backgroundColor: 'var(--brand-primary)' }}
                 >
                   {readingLoading ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> Lendo gabarito com IA...</>
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Lendo gabarito automaticamente...</>
                   ) : (
                     <><ClipboardList className="h-4 w-4" /> Ler Gabarito</>
                   )}

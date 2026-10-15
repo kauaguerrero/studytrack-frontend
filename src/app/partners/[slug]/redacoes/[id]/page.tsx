@@ -226,7 +226,7 @@ type DiffSegment = { key: string; start: number; end: number; text: string; alte
 
 // Segmentação paralela à de buildSegments, mas ignorando anotações: usada só
 // no modo "ver alterações do aluno", que troca os destaques de correção pelos
-// trechos que divergem da transcrição bruta da IA (transcription_altered_spans).
+// trechos que divergem da transcrição automática bruta (transcription_altered_spans).
 function buildDiffSegments(text: string, spans: Array<{ start: number; end: number }>): DiffSegment[] {
   if (!text.length) return [];
 
@@ -879,7 +879,7 @@ export default function CorrecaoRedacaoPage() {
   }
 
   // Modo "ver alterações do aluno": some com os destaques de correção e marca
-  // só os trechos que divergem da transcrição bruta da IA.
+  // só os trechos que divergem da transcrição automática bruta.
   function renderDiffText(): ReactNode {
     return diffSegments.map((segment) => (
       segment.altered ? (
@@ -1254,7 +1254,7 @@ export default function CorrecaoRedacaoPage() {
                 <div className="flex items-center gap-2">
                   {essay.transcription_modified && (
                     <span
-                      title={`Transcrição alterada pelo aluno depois que a IA leu a foto${typeof essay.transcription_change_pct === 'number' ? ` (cerca de ${essay.transcription_change_pct}% do texto mudou)` : ''}. Vale conferir com a imagem original se o trecho parecer estranho.`}
+                      title={`Transcrição alterada pelo aluno depois da transcrição automática da foto${typeof essay.transcription_change_pct === 'number' ? ` (cerca de ${essay.transcription_change_pct}% do texto mudou)` : ''}. Vale conferir com a imagem original se o trecho parecer estranho.`}
                       className="inline-flex cursor-help items-center gap-1 rounded-full border border-blue-300 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-300"
                     >
                       <PencilLine className="h-2.5 w-2.5" />
@@ -1306,7 +1306,7 @@ export default function CorrecaoRedacaoPage() {
             {showAlteredDiff && (
               <p className="mb-2 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                 <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-300 dark:bg-blue-400/50" />
-                Em azul: trechos que não estão na transcrição original da IA (podem ser correção legítima ou conteúdo acrescentado pelo aluno).
+                Em azul: trechos que não estão na transcrição automática original (podem ser correção legítima ou conteúdo acrescentado pelo aluno).
               </p>
             )}
             <div
