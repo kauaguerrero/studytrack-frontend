@@ -82,10 +82,10 @@ export async function generateMetadata({ params, searchParams }: OrgLandingProps
   const image = site.seo.og_image_url || site.org.logo_url || undefined;
 
   return {
-    title,
+    // `absolute` escapa do template "%s | StudyTrack" do layout raiz: a página
+    // é da escola, e o título dela é o que aparece no card do WhatsApp.
+    title: { absolute: title },
     description,
-    // Sobrescreve o template "%s | StudyTrack" do layout raiz: a página é da
-    // escola, não da StudyTrack.
     alternates: { canonical: url },
     robots: { index: true, follow: true },
     openGraph: {

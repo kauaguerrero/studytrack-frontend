@@ -1,9 +1,8 @@
 'use client';
 
 import { useReducedMotion } from 'framer-motion';
-import { BrandMark, CtaButton, Reveal, useStageParallax } from '../primitives';
+import { BrandMark, CtaButton, Reveal, TitleLines, useStageParallax } from '../primitives';
 import {
-  interpolateYears,
   resolveCtaHref,
   ctaIsExternal,
   type CtaContext,
@@ -35,7 +34,7 @@ export function HeroSection({
   const reduced = useReducedMotion();
   const stageRef = useStageParallax(!reduced);
 
-  const lead = interpolateYears(hero.lead_html, hero.founded_year);
+  const lead = hero.lead_html;
   const person = hero.person;
   const checklist = hero.checklist;
 
@@ -61,13 +60,11 @@ export function HeroSection({
           )}
 
           <Reveal as="h1" index={1} id="hero-title" className="hero__title">
-            {hero.title_lines.map((line, i) => (
-              <span key={line + i}>
-                {line}
-                <br />
-              </span>
-            ))}
-            {hero.title_highlight && <em>{hero.title_highlight}</em>}
+            <TitleLines
+              lines={hero.title_lines}
+              highlight={hero.title_highlight}
+              inline={hero.title_highlight_inline}
+            />
           </Reveal>
 
           {lead && (
@@ -147,6 +144,12 @@ export function HeroSection({
             <img
               className="stage__person"
               src={person.image_url}
+              srcSet={
+                person.image_sources?.length
+                  ? person.image_sources.map((s) => `${s.url} ${s.width}w`).join(', ')
+                  : undefined
+              }
+              sizes="(max-width: 600px) 90vw, (max-width: 1100px) 70vw, 46vw"
               alt={person.alt || `${person.name}${person.role ? `, ${person.role}` : ''}`}
               fetchPriority="high"
               decoding="async"

@@ -1,9 +1,9 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { useReducedMotion } from 'framer-motion';
+import { Fragment, useState } from 'react';
 import { BrandMark, DemoTag, Reveal, SectionTitle } from '../primitives';
 import type {
+  CompetencyScore,
   CorrectionDemo as CorrectionData,
   MethodSection as MethodData,
 } from '@/lib/org-public-site';
@@ -40,7 +40,7 @@ export function MethodSection({
             </Reveal>
           )}
           <Reveal index={1}>
-            <SectionTitle id="met-title" title={method.title} highlight={method.title_highlight} />
+            <SectionTitle id="met-title" title={method.title} highlight={method.title_highlight} inline={method.title_highlight_inline} />
           </Reveal>
         </header>
 
@@ -164,39 +164,18 @@ function CorrectionDemo({
   );
 }
 
-/** Barra da competência, que cresce ao entrar na viewport. */
-function CompetencyRow({ score }: { score: { key: string; label: string; score: number; max_score: number } }) {
-  const reduced = useReducedMotion();
-  const ref = useRef<HTMLLIElement | null>(null);
-  const [grown, setGrown] = useState(false);
-
-  useEffect(() => {
-    if (reduced) return;
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) {
-            setGrown(true);
-            io.disconnect();
-          }
-        }
-      },
-      { threshold: 0.4 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [reduced]);
-
+/**
+ * Linha de uma competência. A largura final vem sempre do conteúdo (`--v`); o
+ * crescimento é puramente CSS, gated por `.js-reveal` — ver premium-v1.css.
+ */
+function CompetencyRow({ score }: { score: CompetencyScore }) {
   const ratio = score.max_score > 0 ? score.score / score.max_score : 0;
-
   return (
-    <li ref={ref}>
+    <li>
       <span>{score.key}</span>
       <em>{score.label}</em>
       <div className="bar">
-        <i style={{ '--v': grown || reduced ? ratio : 0 } as React.CSSProperties} />
+        <i style={{ '--v': ratio } as React.CSSProperties} />
       </div>
       <b>{score.score}</b>
     </li>

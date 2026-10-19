@@ -8,6 +8,7 @@ import { InsideSection } from './sections/InsideSection';
 import { EnrollSection } from './sections/EnrollSection';
 import { SiteFooter } from './sections/SiteFooter';
 import { OrgSiteJsonLd } from './OrgSiteJsonLd';
+import { REVEAL_BOOTSTRAP_SCRIPT, RevealController } from './primitives';
 import './premium-v1.css';
 
 /**
@@ -33,6 +34,10 @@ export function OrgSiteTemplate({ site, baseUrl }: { site: OrgPublicSiteView; ba
 
   return (
     <div data-org-site="premium_v1" className={orgSiteFontClassName} style={themeToCssVars(theme)}>
+      {/* Liga a revelação ao rolar antes da primeira pintura — ver Reveal. */}
+      <script dangerouslySetInnerHTML={{ __html: REVEAL_BOOTSTRAP_SCRIPT }} />
+      <RevealController />
+
       {preview && <PreviewBanner enabled={site.enabled} />}
 
       {content.nav?.visible !== false && content.nav && (

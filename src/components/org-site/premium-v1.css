@@ -502,6 +502,25 @@ html:has([data-org-site]) {
    * Abaixo: o que NÃO existe no protótipo, escrito na mesma linguagem visual.
    * ===================================================================== */
 
+  /* ---------- revelação ao rolar ----------
+     Opacidade zero SÓ quando `.js-reveal` está no wrapper, classe que um script
+     inline põe antes da primeira pintura e apenas se houver JS e o usuário não
+     pedir redução de movimento. Sem isso (JS desligado, erro de hidratação,
+     prefers-reduced-motion, crawler), o conteúdo nasce visível — que é o
+     comportamento correto e o que o SSR entrega ao robô do WhatsApp. */
+  .reveal{transition:opacity 1s var(--ease),transform 1s var(--ease)}
+  &.js-reveal .reveal{opacity:0;transform:translateY(28px)}
+  &.js-reveal .reveal.is-in{opacity:1;transform:none}
+
+  /* Barras de competência e linha do gráfico: o estado FINAL é o padrão (é o
+     que o protótipo entrega e o que um leitor sem JS precisa ver). A animação
+     só existe sob `.js-reveal`, disparada pelo `.is-in` do bloco que as
+     contém — sem JS, sem IntersectionObserver e sem risco de ficar vazio. */
+  &.js-reveal .bar i{transform:scaleX(0)}
+  &.js-reveal .is-in .bar i{transform:none}
+  &.js-reveal .evo__line{stroke-dashoffset:600}
+  &.js-reveal .is-in .evo__line{stroke-dashoffset:0}
+
   /* ---------- nav: link "Entrar" (aluno que já estuda na escola) ---------- */
   .nav__enter{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:14px;color:rgba(255,255,255,.9);padding:11px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.22);transition:background .3s,border-color .3s,color .3s}
   .nav__enter:hover{background:rgba(255,255,255,.12)}
@@ -570,6 +589,7 @@ html:has([data-org-site]) {
     translate: none !important;
   }
   [data-org-site] .evo__line { stroke-dashoffset: 0 !important; }
+  [data-org-site] .reveal { opacity: 1 !important; transform: none !important; }
   html:has([data-org-site]) { scroll-behavior: auto; }
 }
 

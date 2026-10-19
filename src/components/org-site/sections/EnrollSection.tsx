@@ -1,6 +1,6 @@
 'use client';
 
-import { CtaButton, Reveal, useTilt } from '../primitives';
+import { CtaButton, Reveal, TitleLines, useTilt } from '../primitives';
 import {
   ctaIsExternal,
   resolveCtaHref,
@@ -49,13 +49,11 @@ export function EnrollSection({
           )}
 
           <Reveal as="h2" index={1} id="en-title" className="enroll__title">
-            {enroll.title_lines.map((line, i) => (
-              <span key={line + i}>
-                {line}
-                <br />
-              </span>
-            ))}
-            {enroll.title_highlight && <em>{enroll.title_highlight}</em>}
+            <TitleLines
+              lines={enroll.title_lines}
+              highlight={enroll.title_highlight}
+              inline={enroll.title_highlight_inline}
+            />
           </Reveal>
 
           {enroll.perks.length > 0 && (

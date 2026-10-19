@@ -1,7 +1,5 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useReducedMotion } from 'framer-motion';
 import { BrandMark, DemoTag, Reveal, SectionTitle, useTilt } from '../primitives';
 import type { Approvals, Evolution, FeaturedEssay, ResultsSection as ResultsData } from '@/lib/org-public-site';
 
@@ -43,7 +41,7 @@ export function ResultsSection({
             </Reveal>
           )}
           <Reveal index={1}>
-            <SectionTitle id="res-title" title={results.title} highlight={results.title_highlight} />
+            <SectionTitle id="res-title" title={results.title} highlight={results.title_highlight} inline={results.title_highlight_inline} />
           </Reveal>
           {results.lead && (
             <Reveal as="p" index={2} className="sec-lead">
@@ -130,29 +128,7 @@ export function ScoreStamp({ score, max }: { score: number; max: number }) {
  * pontos do conteúdo, então qualquer org pode ter a própria curva.
  */
 function EvolutionCard({ evolution }: { evolution: Evolution }) {
-  const reduced = useReducedMotion();
   const tilt = useTilt();
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const [drawn, setDrawn] = useState(false);
-
-  useEffect(() => {
-    if (reduced) return;
-    const el = svgRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setDrawn(true);
-            io.disconnect();
-          }
-        }
-      },
-      { threshold: 0.4 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [reduced]);
 
   const pts = evolution.points;
   const W = 420;
@@ -181,7 +157,6 @@ function EvolutionCard({ evolution }: { evolution: Evolution }) {
         </div>
 
         <svg
-          ref={svgRef}
           className="evo__chart"
           viewBox={`0 0 ${W} ${H}`}
           role="img"
@@ -199,7 +174,7 @@ function EvolutionCard({ evolution }: { evolution: Evolution }) {
             <line x1="0" y1="120" x2={W} y2="120" />
           </g>
           <path d={area} fill="url(#ops-evoFill)" />
-          <path className="evo__line" d={line} style={{ strokeDashoffset: drawn || reduced ? 0 : 600 }} />
+          <path className="evo__line" d={line} />
           <g className="evo__pts">
             {coords.map((c, i) => (
               <circle
@@ -244,12 +219,15 @@ function ApprovalsCard({ approvals, preview }: { approvals: Approvals; preview: 
               ))
             : /* Espaço reservado — o filtro público já garante que isto só
                  chega aqui em preview/admin. */
-              ['Universidade', 'Curso aprovado', 'Vestibular'].map((label) => (
-                <span className="chip" key={label}>
-                  <i />
-                  {label}
-                </span>
-              ))}
+              <>
+                {['Universidade', 'Curso aprovado', 'Vestibular'].map((label) => (
+                  <span className="chip" key={label}>
+                    <i />
+                    {label}
+                  </span>
+                ))}
+                <span className="chip chip--more">+ turma {new Date().getFullYear()}</span>
+              </>}
         </div>
 
         {!hasItems && preview && (

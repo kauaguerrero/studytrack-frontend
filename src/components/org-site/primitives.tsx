@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -8,7 +9,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
+import { useReducedMotion } from 'framer-motion';
 import type { Cta } from '@/lib/org-public-site';
 
 /* ===========================================================================
@@ -23,11 +24,25 @@ import type { Cta } from '@/lib/org-public-site';
 // Reveal — entrada ao rolar, com stagger de 90ms entre irmãos
 // ---------------------------------------------------------------------------
 
+/**
+ * Elemento que entra com fade + translateY ao rolar.
+ *
+ * Renderiza SEMPRE um elemento comum e visível — a opacidade zero vem do CSS e
+ * só vale sob `.js-reveal`, classe posta antes da primeira pintura pelo script
+ * de RevealBootstrap (ver abaixo) e apenas quando há JS e o usuário não pediu
+ * redução de movimento.
+ *
+ * Esta é a razão de não usar `whileInView` do framer-motion aqui: ele escreve
+ * `opacity:0` inline já no HTML do servidor, e qualquer coisa que impeça a
+ * animação de rodar (reduced-motion, erro de JS, crawler sem JS) deixaria a
+ * página inteira invisível. Com CSS gated, o pior caso é "sem animação".
+ * O `index` dá o stagger de 90ms entre irmãos, como no protótipo.
+ */
 export function Reveal({
   children,
   index = 0,
   className,
-  as = 'div',
+  as: As = 'div',
   style,
   ...rest
 }: {
@@ -39,35 +54,63 @@ export function Reveal({
   as?: 'div' | 'p' | 'h1' | 'h2' | 'ul' | 'ol' | 'li' | 'figure' | 'article' | 'header' | 'blockquote' | 'aside';
   style?: CSSProperties;
 } & Record<string, unknown>) {
-  const reduced = useReducedMotion();
-  const Comp = motion[as] as typeof motion.div;
-
-  if (reduced) {
-    const Plain = as as 'div';
-    return (
-      <Plain className={className} style={style} {...rest}>
-        {children}
-      </Plain>
-    );
-  }
-
   return (
-    <Comp
-      className={className}
-      style={style}
-      initial={{ opacity: 0, y: 28 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.15 }}
-      transition={{
-        duration: 1,
-        ease: [0.2, 0.8, 0.2, 1],
-        delay: index * 0.09,
-      }}
+    <As
+      className={className ? `${className} reveal` : 'reveal'}
+      style={index ? { ...style, transitionDelay: `${index * 90}ms` } : style}
       {...rest}
     >
       {children}
-    </Comp>
+    </As>
   );
+}
+
+/**
+ * Liga o mecanismo de revelação: marca o wrapper com `.js-reveal` antes da
+ * primeira pintura (script inline, sem flash) e observa os `.reveal`.
+ *
+ * O script inline roda ANTES do React hidratar; o observer entra depois. Entre
+ * um e outro o conteúdo fica invisível por alguns ms — aceitável, e é o mesmo
+ * comportamento do protótipo. Se o React nunca hidratar, o `setTimeout` de
+ * segurança do próprio script revela tudo.
+ */
+export const REVEAL_BOOTSTRAP_SCRIPT = `(function(){try{
+if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+var r=document.querySelector('[data-org-site]');
+if(!r)return;r.classList.add('js-reveal');
+/* rede de segurança: se o React nunca hidratar, revela tudo em vez de deixar
+   a página em branco */
+setTimeout(function(){if(!r.dataset.revealReady)r.classList.remove('js-reveal');},4000);
+}catch(e){}})();`;
+
+/**
+ * Observa os `.reveal` do wrapper e marca `is-in` quando entram na viewport.
+ * Vive num componente próprio porque OrgSiteTemplate é server component.
+ */
+export function RevealController() {
+  const anchorRef = useRef<HTMLSpanElement | null>(null);
+
+  useEffect(() => {
+    const root = anchorRef.current?.closest<HTMLElement>('[data-org-site]');
+    if (!root) return;
+    root.dataset.revealReady = '1';
+    if (!root.classList.contains('js-reveal')) return;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add('is-in');
+          io.unobserve(entry.target);
+        }
+      },
+      { threshold: 0.15 },
+    );
+    for (const t of root.querySelectorAll<HTMLElement>('.reveal')) io.observe(t);
+    return () => io.disconnect();
+  }, []);
+
+  return <span ref={anchorRef} hidden aria-hidden="true" />;
 }
 
 // ---------------------------------------------------------------------------
@@ -330,6 +373,36 @@ export function CtaButton({
 }
 
 /**
+ * Linhas de título com o trecho final em itálico colorido.
+ *
+ * `inline = false` põe o destaque numa linha própria ("Toda aprovação / começa
+ * pela / *palavra certa.*"); `inline = true` fecha a última linha com ele
+ * ("...pode / ser *a sua.*"). Os dois casos existem no protótipo.
+ */
+export function TitleLines({
+  lines,
+  highlight,
+  inline = false,
+}: {
+  lines: string[];
+  highlight?: string;
+  inline?: boolean;
+}) {
+  return (
+    <>
+      {lines.map((line, i) => (
+        <Fragment key={line + i}>
+          {line}
+          {(i < lines.length - 1 || (highlight && !inline)) && <br />}
+          {i === lines.length - 1 && highlight && inline ? ' ' : null}
+        </Fragment>
+      ))}
+      {highlight ? <em>{highlight}</em> : null}
+    </>
+  );
+}
+
+/**
  * Título de seção com o trecho em itálico colorido. O protótipo usa <br> entre
  * a linha base e o destaque.
  */
@@ -337,22 +410,29 @@ export function SectionTitle({
   id,
   title,
   highlight,
+  inline = false,
   className = 'sec-title',
 }: {
   id?: string;
+  /** "\n" vira quebra de linha. */
   title: string;
   highlight?: string;
+  /** Destaque na mesma linha do fim do título, em vez de numa linha própria. */
+  inline?: boolean;
   className?: string;
 }) {
+  const lines = title.split('\n');
   return (
     <h2 id={id} className={className}>
-      {title}
-      {highlight ? (
-        <>
-          <br />
-          <em>{highlight}</em>
-        </>
-      ) : null}
+      {lines.map((line, i) => (
+        <Fragment key={i}>
+          {line}
+          {/* sem <br> depois da última linha quando o destaque é inline */}
+          {(i < lines.length - 1 || (highlight && !inline)) && <br />}
+          {i === lines.length - 1 && highlight && inline ? ' ' : null}
+        </Fragment>
+      ))}
+      {highlight ? <em>{highlight}</em> : null}
     </h2>
   );
 }

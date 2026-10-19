@@ -35,7 +35,7 @@ export function InsideSection({ inside, preview }: { inside: InsideData; preview
             </Reveal>
           )}
           <Reveal index={1}>
-            <SectionTitle id="in-title" title={inside.title} highlight={inside.title_highlight} />
+            <SectionTitle id="in-title" title={inside.title} highlight={inside.title_highlight} inline={inside.title_highlight_inline} />
           </Reveal>
           {inside.lead && (
             <Reveal as="p" index={2} className="sec-lead">

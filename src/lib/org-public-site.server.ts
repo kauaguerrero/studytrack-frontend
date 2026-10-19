@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   filterContentForPublic,
+  interpolateYearsDeep,
   resolveSiteTheme,
   type OrgPublicSiteView,
   type SiteContent,
@@ -95,7 +96,12 @@ export async function getOrgPublicSite(
   const { org, site } = row;
   if (!site.enabled && !preview) return null;
 
-  const content = filterContentForPublic(site.content, { preview });
+  // `{years}` é expandido aqui, uma vez, para todo o conteúdo — ver
+  // interpolateYearsDeep.
+  const content = interpolateYearsDeep(
+    filterContentForPublic(site.content, { preview }),
+    site.content?.hero?.founded_year,
+  );
   // Sem seção nenhuma não há página — evita publicar uma URL em branco.
   if (Object.keys(content).length === 0) return null;
 

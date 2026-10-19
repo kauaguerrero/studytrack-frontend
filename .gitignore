@@ -44,3 +44,6 @@ next-env.d.ts
 .vscode/
 .codex
 .claude/
+
+# artefatos dos scripts de teste (tsc --outDir)
+.tmp-*-tests/

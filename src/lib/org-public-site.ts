@@ -76,12 +76,20 @@ export interface HeroSection {
   eyebrow: string;
   title_lines: string[];
   title_highlight: string;
+  title_highlight_inline: boolean;
   lead_html: string;
   founded_year: number | null;
   primary_cta: Cta | null;
   secondary_cta: Cta | null;
   proof: { value: string; label: string }[];
-  person: { image_url: string | null; name: string; role: string; alt: string } | null;
+  person: {
+    image_url: string | null;
+    /** Variantes para srcset — a foto do herói costuma ser o LCP da página. */
+    image_sources: { url: string; width: number }[];
+    name: string;
+    role: string;
+    alt: string;
+  } | null;
   checklist: { title: string; items: { text: string; done: boolean }[] } | null;
   sheet_label: string;
   sheet_number: string;
@@ -116,8 +124,15 @@ export interface Approvals {
 export interface ResultsSection {
   visible: boolean;
   eyebrow: string;
+  /** Pode conter "\n" para quebrar linha, como no protótipo. */
   title: string;
   title_highlight: string;
+  /**
+   * true = o destaque continua na MESMA linha do fim do título
+   * ("Cada redação conta / uma *evolução.*"); false = linha própria
+   * ("Por dentro da / *Ave, Palavra!*").
+   */
+  title_highlight_inline: boolean;
   lead: string;
   featured_essay: FeaturedEssay | null;
   evolution: Evolution | null;
@@ -163,8 +178,15 @@ export interface CorrectionDemo {
 export interface MethodSection {
   visible: boolean;
   eyebrow: string;
+  /** Pode conter "\n" para quebrar linha, como no protótipo. */
   title: string;
   title_highlight: string;
+  /**
+   * true = o destaque continua na MESMA linha do fim do título
+   * ("Cada redação conta / uma *evolução.*"); false = linha própria
+   * ("Por dentro da / *Ave, Palavra!*").
+   */
+  title_highlight_inline: boolean;
   steps: { n: string; title: string; text: string; accent: boolean }[];
   correction_demo: CorrectionDemo | null;
 }
@@ -181,8 +203,15 @@ export interface VideoItem {
 export interface InsideSection {
   visible: boolean;
   eyebrow: string;
+  /** Pode conter "\n" para quebrar linha, como no protótipo. */
   title: string;
   title_highlight: string;
+  /**
+   * true = o destaque continua na MESMA linha do fim do título
+   * ("Cada redação conta / uma *evolução.*"); false = linha própria
+   * ("Por dentro da / *Ave, Palavra!*").
+   */
+  title_highlight_inline: boolean;
   lead: string;
   main_video: VideoItem | null;
   reels: VideoItem[];
@@ -194,6 +223,7 @@ export interface EnrollSection {
   eyebrow: string;
   title_lines: string[];
   title_highlight: string;
+  title_highlight_inline: boolean;
   perks: string[];
   primary_cta: Cta | null;
   secondary_cta: Cta | null;
@@ -490,6 +520,22 @@ export function interpolateYears(text: string, foundedYear?: number | null, now 
   if (!foundedYear) return text.replace(/\{years\}/g, '');
   const years = Math.max(0, now.getFullYear() - foundedYear);
   return text.replace(/\{years\}/g, String(years));
+}
+
+/**
+ * Expande `{years}` em TODO o conteúdo, não só no lead do herói: o marcador
+ * aparece também nos perks de matrículas, e espalhar a chamada por cada seção
+ * seria fácil de esquecer na próxima. Roda uma vez, no servidor.
+ */
+export function interpolateYearsDeep<T>(node: T, foundedYear?: number | null, now = new Date()): T {
+  if (typeof node === 'string') return interpolateYears(node, foundedYear, now) as unknown as T;
+  if (Array.isArray(node)) return node.map((item) => interpolateYearsDeep(item, foundedYear, now)) as unknown as T;
+  if (node && typeof node === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(node)) out[k] = interpolateYearsDeep(v, foundedYear, now);
+    return out as T;
+  }
+  return node;
 }
 
 /** `https://wa.me/<digits>` a partir de um número solto do conteúdo. */
