@@ -33,6 +33,7 @@ import {
 import {
   RevealGroup, RevealItem, ElevatedCard, SectionTitle, BrandButton, BrandHero, HERO_ACCENT_COLOR,
 } from '@/components/partners/founder-ui';
+import { OrgPublicSiteCard } from '@/components/partners/OrgPublicSiteCard';
 
 const BRAND_SWATCHES = ['#2563EB', '#7C3AED', '#059669', '#DC2626', '#D97706'];
 
@@ -1245,6 +1246,11 @@ export default function ConfiguracoesPage() {
           <Save className="h-4 w-4" />
           {saving ? 'Salvando...' : 'Salvar Configurações'}
         </BrandButton>
+        </RevealItem>
+
+        {/* Página pública da org — só aparece para quem já tem uma criada. */}
+        <RevealItem>
+          <OrgPublicSiteCard slug={org.slug} brandPrimary={org.brand_primary} />
         </RevealItem>
 
         <RevealItem>

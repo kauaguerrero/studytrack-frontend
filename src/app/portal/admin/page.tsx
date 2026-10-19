@@ -10,6 +10,7 @@ import UsageTimeCard from "@/components/admin/UsageTimeCard";
 import StickinessCard, { type HealthData } from "@/components/admin/StickinessCard";
 import AIUsageRecentCard from "@/components/admin/AIUsageRecentCard";
 import InfraCostCards from "@/components/admin/InfraCostCards";
+import { OrgPublicSiteModal } from "@/components/admin/OrgPublicSiteModal";
 import { KpiCard, ElevatedCard } from "@/components/partners/founder-ui";
 import { SmokeBackground } from "@/components/ui/spooky-smoke-animation";
 import { ExpandingIconButton } from "@/components/ui/expanding-icon-button";
@@ -20,7 +21,7 @@ import {
   ExternalLink, Target, Activity, Github, TrendingUp, TrendingDown,
   Settings, Puzzle, Trophy, WalletCards, PenLine, ClipboardCheck,
   Video, LifeBuoy, BookOpen, BadgeCheck, ChevronRight, ChevronDown, Trash2, AlertTriangle,
-  EyeOff, UserPlus, Eye, Loader2, Sparkles,
+  EyeOff, UserPlus, Eye, Loader2, Sparkles, Globe,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -356,6 +357,7 @@ export default function SuperAdminDashboard() {
   });
   const [savingDemoOrg, setSavingDemoOrg] = useState(false);
   const [orgSettingsModal, setOrgSettingsModal] = useState<{ open: boolean; org: Org | null }>({ open: false, org: null });
+  const [publicSiteModal, setPublicSiteModal] = useState<{ open: boolean; org: Org | null }>({ open: false, org: null });
   const [settingsForm, setSettingsForm]   = useState({
     name: '', slug: '', plan_tier: 'b2b_basic', max_students: 200,
     contact_email: '', monthly_value: '', logo_url: '',
@@ -1130,6 +1132,14 @@ export default function SuperAdminDashboard() {
       </div>
 
       {/* ── Modal Configurações da Org ────────────────────────────────────── */}
+      {publicSiteModal.open && publicSiteModal.org && (
+        <OrgPublicSiteModal
+          slug={publicSiteModal.org.slug}
+          orgName={publicSiteModal.org.name}
+          onClose={() => setPublicSiteModal({ open: false, org: null })}
+        />
+      )}
+
       {orgSettingsModal.open && orgSettingsModal.org && (() => {
         const org = orgSettingsModal.org;
         return (
@@ -1329,6 +1339,23 @@ export default function SuperAdminDashboard() {
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-indigo-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                </button>
+              </div>
+
+              {/* Página pública da org */}
+              <div className="px-6 pb-2">
+                <button
+                  onClick={() => { setOrgSettingsModal({ open: false, org: null }); setPublicSiteModal({ open: true, org }); }}
+                  className="w-full flex items-center justify-between gap-3 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 px-4 py-3 hover:bg-teal-100 dark:hover:bg-teal-950/70 transition-colors group"
+                >
+                  <div className="flex items-center gap-3">
+                    <Globe className="w-5 h-5 text-teal-500 shrink-0" />
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-teal-700 dark:text-teal-300">Página pública</p>
+                      <p className="text-xs text-teal-500/70 dark:text-teal-400/60">Conteúdo, SEO e publicação do site institucional</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-teal-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
                 </button>
               </div>
 
