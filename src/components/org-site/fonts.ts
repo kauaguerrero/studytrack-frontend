@@ -11,6 +11,14 @@ import localFont from 'next/font/local';
  * A Fraunces é o arquivo variável COMPLETO de propósito: o protótipo usa os
  * eixos `opsz`, `SOFT` e `WONK` (font-variation-settings no CSS do template);
  * uma versão só com peso perderia o itálico "wonky" dos títulos.
+ *
+ * Fixar o eixo `opsz` em 144 cortaria os dois arquivos de 264KB para 143KB,
+ * mas o parágrafo da redação corrigida usa `opsz 14` — com o eixo fixo ele
+ * renderiza condensado e bem menos legível (comparado lado a lado). Os 121KB
+ * extras ficam, de propósito.
+ *
+ * Nenhuma das três entra em preload: o LCP da página é a foto do herói, e os
+ * arquivos de fonte competiam com ela pela banda. Todas usam `display: swap`.
  */
 
 export const fraunces = localFont({
@@ -21,6 +29,8 @@ export const fraunces = localFont({
   variable: '--font-ops-serif',
   display: 'swap',
   fallback: ['Georgia', 'serif'],
+  // Em preload: desenha o <h1> do herói. Tirá-la do preload atrasa o FCP em
+  // ~1,4s (medido), o que é pior do que a banda que ela disputa.
   preload: true,
 });
 
@@ -35,7 +45,10 @@ export const manrope = localFont({
   variable: '--font-ops-sans',
   display: 'swap',
   fallback: ['system-ui', 'sans-serif'],
-  preload: true,
+  // Fora do preload de propósito: são 5 pesos, e pré-carregar todos tirava
+  // banda da foto do herói, que é o LCP. Com `display: swap` o texto aparece
+  // na fonte de sistema e troca — alguns ms depois, sem bloquear nada.
+  preload: false,
 });
 
 // Só aparece nos comentários "à mão" da redação — não precisa de preload.

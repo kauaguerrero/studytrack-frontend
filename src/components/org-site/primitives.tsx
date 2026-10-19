@@ -6,10 +6,10 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { useReducedMotion } from 'framer-motion';
 import type { Cta } from '@/lib/org-public-site';
 
 /* ===========================================================================
@@ -19,6 +19,31 @@ import type { Cta } from '@/lib/org-public-site';
  * só montam a marcação e devolvem o comportamento que, no protótipo, vivia em
  * main.js. Nada de estilo inline que dispute com o CSS.
  * ======================================================================== */
+
+/**
+ * `prefers-reduced-motion` sem framer-motion.
+ *
+ * O framer-motion traz `useReducedMotion`, mas importá-lo só por isso colocava
+ * a biblioteca inteira no bundle desta rota — e a página pública precisa ser
+ * leve. `useSyncExternalStore` com snapshot de servidor `false` evita
+ * divergência de hidratação.
+ */
+const MQ_REDUZIDO = '(prefers-reduced-motion: reduce)';
+
+function assinarMq(aoMudar: () => void) {
+  if (typeof window === 'undefined') return () => {};
+  const mq = window.matchMedia(MQ_REDUZIDO);
+  mq.addEventListener('change', aoMudar);
+  return () => mq.removeEventListener('change', aoMudar);
+}
+
+export function useReducedMotion(): boolean {
+  return useSyncExternalStore(
+    assinarMq,
+    () => window.matchMedia(MQ_REDUZIDO).matches,
+    () => false,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Reveal — entrada ao rolar, com stagger de 90ms entre irmãos
@@ -138,6 +163,11 @@ export function useStageParallax(enabled: boolean) {
     let my = 0;
     let sy = 0;
     let raf: number | null = null;
+    // Fora da viewport não há o que mover: sem isto o parallax segue escrevendo
+    // em 8 camadas a cada evento de scroll durante a página inteira.
+    let visivel = true;
+    const io = new IntersectionObserver(([e]) => { visivel = e.isIntersecting; }, { rootMargin: '120px' });
+    io.observe(root);
 
     const paint = () => {
       raf = null;
@@ -147,6 +177,7 @@ export function useStageParallax(enabled: boolean) {
       }
     };
     const schedule = () => {
+      if (!visivel) return;
       raf ??= requestAnimationFrame(paint);
     };
 
@@ -164,12 +195,35 @@ export function useStageParallax(enabled: boolean) {
     window.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
+      io.disconnect();
       if (fine) window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('scroll', onScroll);
       if (raf) cancelAnimationFrame(raf);
       for (const layer of layers) layer.style.translate = '';
     };
   }, [enabled]);
+
+  return ref;
+}
+
+/**
+ * Marca o elemento com `.is-offscreen` quando ele sai da viewport, para o CSS
+ * pausar as animações em loop. O herói tem cinco delas rodando ao mesmo tempo;
+ * mantê-las vivas enquanto o usuário lê o resto da página é custo puro.
+ */
+export function usePauseWhenOffscreen<T extends HTMLElement = HTMLElement>() {
+  const ref = useRef<T | null>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => el.classList.toggle('is-offscreen', !entry.isIntersecting),
+      { rootMargin: '120px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   return ref;
 }

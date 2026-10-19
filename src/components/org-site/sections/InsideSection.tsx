@@ -57,15 +57,21 @@ export function InsideSection({ inside, preview }: { inside: InsideData; preview
                         “
                       </span>
                       <p>{t.text}</p>
-                      <footer>
-                        <span className={`avatar${i % 2 === 1 ? ' avatar--teal' : ''}`}>
-                          {(t.name || '?').slice(0, 1).toUpperCase()}
-                        </span>
-                        <div>
-                          <b>{t.name}</b>
-                          <span>{t.detail}</span>
-                        </div>
-                      </footer>
+                      {/* Sem nome não há rodapé: um avatar com "?" e campos
+                          vazios diria menos do que o próprio depoimento. */}
+                      {(t.name || t.detail) && (
+                        <footer>
+                          {t.name && (
+                            <span className={`avatar${i % 2 === 1 ? ' avatar--teal' : ''}`}>
+                              {t.name.slice(0, 1).toUpperCase()}
+                            </span>
+                          )}
+                          <div>
+                            {t.name && <b>{t.name}</b>}
+                            {t.detail && <span>{t.detail}</span>}
+                          </div>
+                        </footer>
+                      )}
                     </Reveal>
                   ))
                 : PLACEHOLDER_QUOTES.map((q, i) => (

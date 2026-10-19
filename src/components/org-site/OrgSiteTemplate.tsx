@@ -32,8 +32,30 @@ export function OrgSiteTemplate({ site, baseUrl }: { site: OrgPublicSiteView; ba
   const logoDark = content.nav?.logo_dark_url ?? org.logo_url;
   const showPoweredBy = content.footer?.show_powered_by ?? true;
 
+  // A foto do herói é o LCP e vem de outra origem (storage). Sem preconnect, o
+  // navegador só abre a conexão depois de processar o CSS — são 3 RTTs de
+  // atraso em rede móvel. O preload a torna descobrível já no head.
+  const heroImage = content.hero?.person?.image_url ?? null;
+  const heroSrcSet = content.hero?.person?.image_sources?.length
+    ? content.hero.person.image_sources.map((s) => `${s.url} ${s.width}w`).join(', ')
+    : undefined;
+  const assetOrigin = (() => {
+    try { return heroImage ? new URL(heroImage).origin : null; } catch { return null; }
+  })();
+
   return (
     <div data-org-site="premium_v1" className={orgSiteFontClassName} style={themeToCssVars(theme)}>
+      {assetOrigin && <link rel="preconnect" href={assetOrigin} crossOrigin="anonymous" />}
+      {heroImage && (
+        <link
+          rel="preload"
+          as="image"
+          href={heroImage}
+          imageSrcSet={heroSrcSet}
+          imageSizes="(max-width: 600px) 90vw, (max-width: 1100px) 70vw, 46vw"
+          fetchPriority="high"
+        />
+      )}
       {/* Liga a revelação ao rolar antes da primeira pintura — ver Reveal. */}
       <script dangerouslySetInnerHTML={{ __html: REVEAL_BOOTSTRAP_SCRIPT }} />
       <RevealController />

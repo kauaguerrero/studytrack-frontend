@@ -1,7 +1,6 @@
 'use client';
 
-import { useReducedMotion } from 'framer-motion';
-import { BrandMark, CtaButton, Reveal, TitleLines, useStageParallax } from '../primitives';
+import { BrandMark, CtaButton, Reveal, TitleLines, usePauseWhenOffscreen, useReducedMotion, useStageParallax } from '../primitives';
 import {
   resolveCtaHref,
   ctaIsExternal,
@@ -33,13 +32,14 @@ export function HeroSection({
 }) {
   const reduced = useReducedMotion();
   const stageRef = useStageParallax(!reduced);
+  const heroRef = usePauseWhenOffscreen();
 
   const lead = hero.lead_html;
   const person = hero.person;
   const checklist = hero.checklist;
 
   return (
-    <section className="hero" aria-labelledby="hero-title">
+    <section className="hero" aria-labelledby="hero-title" ref={heroRef}>
       <div className="hero__sky" aria-hidden="true">
         <div className="beam beam--1" />
         <div className="beam beam--2" />
