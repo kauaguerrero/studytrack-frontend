@@ -132,36 +132,6 @@ export function extractImageUrls(value: unknown): string[] {
   return direct ? [direct] : []
 }
 
-/**
- * Ordem canônica de uma questão: contexto, depois imagens, depois o comando.
- * Parte do acervo guarda a imagem no PRIMEIRO parágrafo do contexto (376
- * questões em out/2026) — aqui ela é destacada do texto para ser exibida logo
- * abaixo dele. Imagens no meio ou no fim do contexto ficam onde estão: elas
- * pertencem à frase que as introduz ("conforme a figura abaixo").
- */
-export function hoistLeadingContextImages(text?: string | null): {
-  images: string[]
-  context: string
-} {
-  const raw = String(text || '')
-  if (!raw.trim()) return { images: [], context: '' }
-
-  const leadingImage = /^!\[[^\]]*]\((.*?)\)[ \t]*\n?/
-  const images: string[] = []
-  let rest = raw.trimStart()
-
-  for (;;) {
-    const match = rest.match(leadingImage)
-    if (!match) break
-    const url = normalizeQuestionImageUrl(match[1] || '')
-    if (!url) break
-    images.push(url)
-    rest = rest.slice(match[0].length).trimStart()
-  }
-
-  return images.length > 0 ? { images, context: rest } : { images: [], context: raw }
-}
-
 export function stripMarkdownImages(text?: string | null): string {
   if (!text) return ''
   return text.replace(questionMarkdownImageRegex, '').trim()

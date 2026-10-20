@@ -6,7 +6,6 @@ import {
   extractAlternativeImageUrls,
   extractDetachedQuestionImageUrls,
   getQuestionContentBlocks,
-  hoistLeadingContextImages,
   splitQuestionContextSegments,
 } from '@/components/questions/rendering';
 
@@ -72,21 +71,9 @@ export function QuestionDisplay({
     );
   }, [question.images, question.context, question.statement]);
 
-  // Imagem gravada no topo do contexto é exibida depois do texto, mantendo a
-  // ordem canônica: contexto, imagens, comando, alternativas.
-  const hoistedContext = useMemo(
-    () => hoistLeadingContextImages(question.context),
-    [question.context],
-  );
-
   const contextSegments = useMemo(
-    () => splitQuestionContextSegments(hoistedContext.context),
-    [hoistedContext.context],
-  );
-
-  const contextImages = useMemo(
-    () => [...hoistedContext.images, ...supportImages],
-    [hoistedContext.images, supportImages],
+    () => splitQuestionContextSegments(question.context),
+    [question.context],
   );
 
   const hasContentBlocks = useMemo(
@@ -95,7 +82,7 @@ export function QuestionDisplay({
   );
 
   const hasContextContent = !suppressContext && (
-    hasContentBlocks || contextSegments.length > 0 || contextImages.length > 0
+    hasContentBlocks || contextSegments.length > 0 || supportImages.length > 0
   );
 
   const contextBlock = (
@@ -129,8 +116,8 @@ export function QuestionDisplay({
               ),
             )}
 
-          {!suppressContext && contextImages.length > 0 && (
-            <QuestionSupportImages images={contextImages} metadata={question.metadata} className={compact ? 'mb-3' : 'mb-6'} />
+          {!suppressContext && supportImages.length > 0 && (
+            <QuestionSupportImages images={supportImages} metadata={question.metadata} className={compact ? 'mb-3' : 'mb-6'} />
           )}
         </>
       )}
