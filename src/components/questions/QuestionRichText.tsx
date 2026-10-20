@@ -292,7 +292,7 @@ function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
   }
 
   return (
-    <span className="my-4 block max-w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/50">
+    <span className="my-3 block max-w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2 shadow-sm dark:border-slate-700 dark:bg-slate-800/50">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
@@ -571,7 +571,8 @@ export function QuestionRichText({ text, className, style }: { text?: string | n
   )
 
   return (
-    <div className={className} style={style}>
+    // break-words evita que URLs/termos longos estourem a largura da coluna
+    <div className={['min-w-0 break-words', className].filter(Boolean).join(' ')} style={style}>
       {paragraphs.map((paragraph, paragraphIndex) => {
         const table = parseMarkdownTable(paragraph)
         if (table) {
