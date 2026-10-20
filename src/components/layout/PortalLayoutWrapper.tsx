@@ -27,6 +27,10 @@ export function PortalLayoutWrapper({
   initialSidebarCollapsed = true,
 }: PortalLayoutWrapperProps) {
   const resolvedRole: UserRole = role;
+  const pathname = usePathname();
+  // Ferramentas densas (curadoria) ocupam a altura inteira: sem padding e sem
+  // scroll do shell, quem rola é o canvas interno da própria página.
+  const isFullBleed = pathname?.startsWith('/portal/admin/questions') ?? false;
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -42,14 +46,18 @@ export function PortalLayoutWrapper({
         <div className="flex h-screen w-full bg-[#F0F4F8] dark:bg-background text-slate-900 dark:text-foreground">
           <PortalSidebar {...sidebarProps} />
 
-          <main className="flex-1 overflow-y-auto h-full relative flex flex-col min-w-0 transition-[margin] duration-300 ease-in-out">
+          <main className={`flex-1 h-full relative flex flex-col min-w-0 transition-[margin] duration-300 ease-in-out ${isFullBleed ? 'overflow-hidden' : 'overflow-y-auto'}`}>
             <PortalHeader
               resolvedRole={resolvedRole}
               onOpenMobileMenu={() => setMobileMenuOpen(true)}
               minimal={resolvedRole === 'admin'}
             />
 
-            <div className="flex-1 p-4 md:p-8 max-w-[1600px] w-full mx-auto animate-in fade-in duration-150 pb-8">
+            <div
+              className={isFullBleed
+                ? 'flex-1 min-h-0 w-full'
+                : 'flex-1 p-4 md:p-8 max-w-[1600px] w-full mx-auto animate-in fade-in duration-150 pb-8'}
+            >
               {children}
             </div>
           </main>

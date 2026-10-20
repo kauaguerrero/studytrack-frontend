@@ -1,7 +1,7 @@
 'use client';
 
-import { Fragment, useState, useEffect, useMemo } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
@@ -16,7 +16,6 @@ import {
   Trash2,
   Search,
   Bot,
-  Calendar,
   AlertCircle,
   ArrowLeft,
   Edit3,
@@ -26,15 +25,16 @@ import {
   ImagePlus,
   Archive,
   ArchiveRestore,
-  FileText,
   Filter,
-  PanelRightClose,
-  PanelRightOpen,
+  ChevronLeft,
+  ChevronRight,
+  Keyboard,
+  RotateCcw,
+  ArrowDownUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 // UI Components
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -247,22 +247,6 @@ function getDisplayTitle(question?: AdminQuestion): string {
     return '';
   }
   return title;
-}
-
-function getQuestionHeaderLabel(question?: AdminQuestion | null): string {
-  const title = getDisplayTitle(question as AdminQuestion);
-  if (title) return title;
-
-  const intro = String(question?.alternatives_intro || '').trim();
-  if (!intro) return '';
-
-  // Strip $...$ math delimiters so raw LaTeX doesn't appear in plain-text <h2> headers
-  return intro
-    .replace(/\$\$[\s\S]*?\$\$/g, ' ')
-    .replace(/\$[^$\n]*\$/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-    .slice(0, 140);
 }
 
 const DEFAULT_FILTERS: QuestionFiltersState = {
@@ -521,14 +505,10 @@ export default function AdminQuestionApproval() {
   const [questionImageUploading, setQuestionImageUploading] = useState(false);
   const [alternativeImageInputs, setAlternativeImageInputs] = useState<Record<string, string>>({});
   const [alternativeImageUploading, setAlternativeImageUploading] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
-  const [showPdf, setShowPdf] = useState(true);
-  const [sourcePdfUrl, setSourcePdfUrl] = useState<string | null>(null);
-  const [sourcePdfLoading, setSourcePdfLoading] = useState(false);
-  const [sourcePdfError, setSourcePdfError] = useState<string | null>(null);
+  const [toolPanel, setToolPanel] = useState<'filters' | 'shortcuts' | null>(null);
+  const [commentOpen, setCommentOpen] = useState(false);
 
   const supabase = createClient();
-  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
 
   const parseQuestionRow = (q: any): AdminQuestion => {
     let parsedAlternatives = [];
@@ -894,6 +874,7 @@ export default function AdminQuestionApproval() {
 
       // Update local state directly
       setQuestions(prev => prev.map(q => q.id === editForm.id ? { ...q, ...payload } : q));
+      setArchivedQuestions(prev => prev.map(q => q.id === editForm.id ? { ...q, ...payload } : q));
       setAuditItems(prev => prev.map(item => (
         item.question.id === editForm.id
           ? { ...item, question: { ...item.question, ...payload } }
@@ -1121,10 +1102,6 @@ export default function AdminQuestionApproval() {
     : mode === 'archived'
       ? (filteredArchived.length ? filteredArchived[Math.min(currentIndex, filteredArchived.length - 1)] : undefined)
       : (filteredQuestions.length ? filteredQuestions[Math.min(currentIndex, filteredQuestions.length - 1)] : undefined);
-  const activeQuestionDisplayTitle = useMemo(
-    () => getDisplayTitle(activeQuestion),
-    [activeQuestion],
-  );
   const activeQuestionComment = useMemo(
     () => getQuestionComment(activeQuestion),
     [activeQuestion],
@@ -1147,55 +1124,6 @@ export default function AdminQuestionApproval() {
       metadata: activeQuestion.metadata,
     };
   }, [activeQuestion, activeQuestionComment]);
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl: string | null = null;
-
-    const fetchSourcePdf = async () => {
-      if (!activeQuestion?.id || isEditing || !showPdf) {
-        setSourcePdfUrl(null);
-        setSourcePdfError(null);
-        setSourcePdfLoading(false);
-        return;
-      }
-
-      setSourcePdfLoading(true);
-      setSourcePdfError(null);
-      setSourcePdfUrl(null);
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const headers: HeadersInit = session?.access_token
-          ? { Authorization: `Bearer ${session.access_token}` }
-          : {};
-        const response = await fetch(`${apiUrl}/api/admin/questions/${activeQuestion.id}/source-pdf`, {
-          headers,
-        });
-        if (cancelled) return;
-
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
-          setSourcePdfError(payload?.error || payload?.message || `Falha ao carregar PDF (HTTP ${response.status}).`);
-          return;
-        }
-
-        const blob = await response.blob();
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setSourcePdfUrl(objectUrl);
-      } catch (error: any) {
-        if (cancelled) return;
-        setSourcePdfError(error?.message || 'Falha ao carregar PDF da prova.');
-      } finally {
-        if (!cancelled) setSourcePdfLoading(false);
-      }
-    };
-
-    void fetchSourcePdf();
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [activeQuestion?.id, isEditing, showPdf, apiUrl, supabase]);
 
   useEffect(() => {
     setCurrentIndex(0);
@@ -1226,6 +1154,12 @@ export default function AdminQuestionApproval() {
 
       if (isTyping || isEditing) return;
 
+      if (isModifierPressed && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        setCommentOpen(current => !current);
+        return;
+      }
+
       if (e.key === 'ArrowRight') {
         e.preventDefault();
         setCurrentIndex(i => Math.min(i + 1, currentItems.length - 1));
@@ -1240,10 +1174,15 @@ export default function AdminQuestionApproval() {
         e.preventDefault();
         setQuestionPublishingAction('delete');
         handleDecision(activeQuestion.id, 'reject');
-      } else if (mode === 'curation' && isModifierPressed && e.key.toLowerCase() === 'a') {
-        e.preventDefault();
-        void handleArchive(activeQuestion.id);
-      } else if (mode === 'curation' && !isModifierPressed && e.key.toLowerCase() === 'e') {
+      } else if (isModifierPressed && e.key.toLowerCase() === 'a') {
+        if (mode === 'curation') {
+          e.preventDefault();
+          void handleArchive(activeQuestion.id);
+        } else if (mode === 'archived') {
+          e.preventDefault();
+          void handleUnarchive(activeQuestion.id);
+        }
+      } else if (mode !== 'audit' && !isModifierPressed && e.key.toLowerCase() === 'e') {
         e.preventDefault();
         startEditing();
       }
@@ -1280,16 +1219,6 @@ export default function AdminQuestionApproval() {
   };
 
   // --- RENDER HELPERS ---
-  const getDifficultyColor = (diff: string) => {
-    if (!diff) return 'bg-slate-100 text-slate-700';
-    switch (diff.toLowerCase()) {
-      case 'fácil': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'médio': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'difícil': return 'bg-rose-100 text-rose-700 border-rose-200';
-      default: return 'bg-slate-100 text-slate-700';
-    }
-  };
-
   const getSeverityColor = (severity: AuditQuestionItem['severity']) => {
     switch (severity) {
       case 'critical': return 'bg-rose-100 text-rose-700 border-rose-200';
@@ -1300,708 +1229,515 @@ export default function AdminQuestionApproval() {
     }
   };
 
-  const queueLabel = currentItems.length > 0
-    ? `${currentIndex + 1} de ${currentItems.length} na fila`
-    : '0 na fila';
+  const queuePosition = currentItems.length > 0
+    ? `${currentIndex + 1}/${currentItems.length}`
+    : '0';
   const activeSource = resolveQuestionSource(activeQuestion);
   const activeQuestionVariant = activeQuestion?.metadata?.tipo || activeQuestion?.metadata?.variant || '';
   const modeTitle = mode === 'curation' ? 'Curadoria' : mode === 'audit' ? 'Auditoria' : 'Arquivados';
-  const modeBadge = mode === 'curation' ? 'Workspace Editorial' : mode === 'audit' ? 'Qualidade & Diagnóstico' : 'Histórico';
-  const modeDescription = mode === 'curation'
-    ? 'Revise questões com foco em leitura, edição e publicação rápida.'
-    : mode === 'audit'
-      ? 'Inspecione achados automatizados antes de devolver ou publicar.'
-      : 'Recupere itens arquivados sem perder o contexto editorial.';
+  const isListLoading = mode === 'curation' ? loading : mode === 'archived' ? archivedLoading : auditLoading;
+  const refreshCurrentList = mode === 'curation' ? fetchPending : mode === 'archived' ? fetchArchived : fetchAuditQueue;
+  const isBusy = !!processingId || !!auditProcessingId || questionPublishingAction !== null;
+  const goToOffset = (offset: number) => {
+    setCurrentIndex(current => Math.min(Math.max(0, current + offset), Math.max(0, currentItems.length - 1)));
+  };
+
+  const renderRailButton = (config: {
+    id: 'filters' | 'shortcuts';
+    icon: ReactNode;
+    label: string;
+    badge?: number;
+  }) => (
+    <button
+      key={config.id}
+      type="button"
+      title={config.label}
+      aria-label={config.label}
+      aria-pressed={toolPanel === config.id}
+      onClick={() => setToolPanel(current => (current === config.id ? null : config.id))}
+      className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
+        toolPanel === config.id
+          ? 'bg-slate-900 text-white'
+          : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+      }`}
+    >
+      {config.icon}
+      {config.badge ? (
+        <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[9px] font-bold text-white">
+          {config.badge}
+        </span>
+      ) : null}
+    </button>
+  );
+
+  const selectTriggerClass = 'h-9 rounded-lg border-slate-200 bg-white text-sm shadow-none';
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.12),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-2 font-sans text-slate-900 md:p-4 xl:p-6">
-      <div className="mx-auto flex w-full max-w-[1760px] flex-col gap-4">
+    <div className="flex h-full min-h-0 w-full overflow-hidden bg-slate-100 font-sans text-slate-900">
 
-        {!showFilters && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 shadow-sm backdrop-blur md:px-4">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <Badge className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white hover:bg-slate-900">
-                {modeTitle}
-              </Badge>
-              <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-slate-600">
-                {queueLabel}
-              </Badge>
-              <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-slate-600">
-                {activeFilterCount > 0 ? `${activeFilterCount} filtro(s)` : 'Filtros ocultos'}
-              </Badge>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
+      {/* ================= COLUNA PRINCIPAL ================= */}
+      <div className="flex min-w-0 flex-1 flex-col">
+
+        {/* --- BARRA DE COMANDO (única faixa fixa) --- */}
+        <header className="z-30 flex h-12 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-2 md:px-3">
+          <Link href="/portal/admin" title="Voltar ao portal admin">
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-slate-500 hover:text-slate-900">
+              <ArrowLeft size={18} />
+            </Button>
+          </Link>
+
+          <div className="flex shrink-0 items-center rounded-lg bg-slate-100 p-0.5">
+            {([
+              { id: 'curation' as const, label: 'Curadoria' },
+              { id: 'archived' as const, label: 'Arquivados' },
+            ]).map(item => (
+              <button
+                key={item.id}
                 type="button"
-                variant="outline"
-                className="h-9 rounded-xl bg-white px-3 text-sm"
-                onClick={() => setShowFilters(true)}
+                disabled={isEditing}
+                onClick={() => setMode(item.id)}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                  mode === item.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                }`}
               >
-                <Filter className="mr-2 h-4 w-4" />
-                Mostrar filtros
-              </Button>
-              {!isEditing && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-9 rounded-xl bg-white px-3 text-sm"
-                  onClick={() => setShowPdf(current => !current)}
-                >
-                  {showPdf ? <PanelRightClose className="mr-2 h-4 w-4" /> : <PanelRightOpen className="mr-2 h-4 w-4" />}
-                  {showPdf ? 'Ocultar PDF' : 'Mostrar PDF'}
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* --- HEADER & TOOLBAR --- */}
-        {showFilters && (
-        <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white/90 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)] backdrop-blur">
-          <div className="border-b border-slate-200/80 bg-[linear-gradient(135deg,_rgba(15,23,42,0.04),_rgba(59,130,246,0.06))] px-3 py-4 md:px-5 lg:px-6">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-              <div className="flex items-start gap-4">
-                <Link href="/portal/admin">
-                  <Button variant="outline" size="icon" className="mt-0.5 h-10 w-10 shrink-0 rounded-xl border-slate-200 bg-white/90 hover:bg-white hover:text-slate-900">
-                    <ArrowLeft size={20} />
-                  </Button>
-                </Link>
-
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white hover:bg-slate-900">
-                      Portal Admin
-                    </Badge>
-                    <Badge variant="secondary" className="rounded-full border border-sky-100 bg-sky-50 px-2.5 py-1 text-[10px] font-semibold text-sky-700">
-                      {modeBadge}
-                    </Badge>
-                  </div>
-
-                  <div>
-                    <h1 className="text-[1.65rem] font-bold tracking-tight text-slate-950 md:text-[2rem]">
-                      {modeTitle}
-                    </h1>
-                    <p className="mt-1 max-w-2xl text-[13px] leading-5 text-slate-600 md:text-sm">
-                      {modeDescription}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:min-w-[400px]">
-                <div className="rounded-xl border border-slate-200 bg-white/90 px-3.5 py-2.5 shadow-sm">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Posição Atual</p>
-                  <div className="mt-2 flex items-center gap-2 text-slate-900">
-                    <div className={`h-2.5 w-2.5 rounded-full ${currentItems.length > 0 ? 'bg-orange-500 animate-pulse' : 'bg-emerald-500'}`} />
-                    <p className="text-base font-semibold">{queueLabel}</p>
-                  </div>
-                </div>
-
-                <div className={`rounded-xl border px-3.5 py-2.5 shadow-sm ${
-                  mode === 'audit'
-                    ? 'border-amber-200 bg-amber-50/80'
-                    : mode === 'archived'
-                      ? 'border-slate-200 bg-slate-100/80'
-                      : 'border-emerald-200 bg-emerald-50/80'
-                }`}>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    {mode === 'audit' ? 'Cobertura da Auditoria' : mode === 'archived' ? 'Arquivo' : 'Ritmo da Curadoria'}
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-slate-900">
-                    {mode === 'audit'
-                      ? `${auditSummary.flagged} achado(s) em ${auditSummary.totalAudited}`
-                      : mode === 'archived'
-                        ? `${filteredArchived.length} item(ns) visíveis`
-                        : `${filteredQuestions.length} pendente(s) nos filtros`}
-                  </p>
-                </div>
-              </div>
-            </div>
+                {item.label}
+              </button>
+            ))}
           </div>
 
-          <div className="px-3 py-3 md:px-5 lg:px-6">
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant={mode === 'curation' ? 'default' : 'outline'}
-                    className={mode === 'curation' ? 'h-9 rounded-xl bg-slate-900 px-3 text-sm text-white hover:bg-slate-800' : 'h-9 rounded-xl bg-white px-3 text-sm'}
-                    onClick={() => setMode('curation')}
-                  >
-                    Curadoria
-                  </Button>
-                  <Button
-                    variant={mode === 'archived' ? 'default' : 'outline'}
-                    className={mode === 'archived' ? 'h-9 rounded-xl bg-slate-500 px-3 text-sm text-white hover:bg-slate-600' : 'h-9 rounded-xl bg-white px-3 text-sm'}
-                    onClick={() => setMode('archived')}
-                  >
-                    <Archive className="mr-2 h-4 w-4" />
-                    Arquivados
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 rounded-xl bg-white px-3 text-sm"
-                    onClick={() => setShowFilters(false)}
-                  >
-                    <Filter className="mr-2 h-4 w-4" />
-                    Ocultar filtros
-                  </Button>
-                  {!isEditing && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-9 rounded-xl bg-white px-3 text-sm"
-                      onClick={() => setShowPdf(current => !current)}
-                    >
-                      {showPdf ? <PanelRightClose className="mr-2 h-4 w-4" /> : <PanelRightOpen className="mr-2 h-4 w-4" />}
-                      {showPdf ? 'Ocultar PDF' : 'Mostrar PDF'}
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {mode === 'audit' && (
-                <div className="flex flex-wrap gap-2">
-                  <Button variant={auditType === 'media' ? 'default' : 'outline'} className={auditType === 'media' ? 'h-9 rounded-xl bg-amber-600 px-3 text-sm text-white hover:bg-amber-700' : 'h-9 rounded-xl bg-white px-3 text-sm'} onClick={() => setAuditType('media')}>
-                    Asset Audit
-                  </Button>
-                  <Button variant={auditType === 'data' ? 'default' : 'outline'} className={auditType === 'data' ? 'h-9 rounded-xl bg-amber-600 px-3 text-sm text-white hover:bg-amber-700' : 'h-9 rounded-xl bg-white px-3 text-sm'} onClick={() => setAuditType('data')}>
-                    Data Audit
-                  </Button>
-                  <Button variant={auditType === 'classification' ? 'default' : 'outline'} className={auditType === 'classification' ? 'h-9 rounded-xl bg-amber-600 px-3 text-sm text-white hover:bg-amber-700' : 'h-9 rounded-xl bg-white px-3 text-sm'} onClick={() => setAuditType('classification')}>
-                    Classification Audit
-                  </Button>
-                  <Button variant={auditType === 'render' ? 'default' : 'outline'} className={auditType === 'render' ? 'h-9 rounded-xl bg-amber-600 px-3 text-sm text-white hover:bg-amber-700' : 'h-9 rounded-xl bg-white px-3 text-sm'} onClick={() => setAuditType('render')}>
-                    Render Audit
-                  </Button>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 gap-2.5">
-                <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
-                  <div className="flex flex-col gap-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-slate-600">
-                          {activeFilterCount > 0 ? `${activeFilterCount} filtro(s) ativo(s)` : 'Sem filtros extras'}
-                        </Badge>
-                        <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 text-slate-600">
-                          Ordem: {SORT_FIELD_LABELS[filters.sortField]} • {filters.sortDirection === 'asc' ? 'crescente' : 'decrescente'}
-                        </Badge>
-                      </div>
-                      {activeFilterCount > 0 ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          disabled={isEditing}
-                          className="h-8 rounded-lg px-2.5 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                          onClick={() => setFilters(DEFAULT_FILTERS)}
-                        >
-                          Limpar filtros
-                        </Button>
-                      ) : null}
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-2.5 xl:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,0.8fr))]">
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                        <Input
-                          value={filters.query}
-                          onChange={(event) => setFilters(current => ({ ...current, query: event.target.value }))}
-                          placeholder="Buscar por external ID, título, contexto..."
-                          className="h-10 rounded-xl border-slate-200 pl-10 text-sm"
-                          disabled={isEditing}
-                        />
-                      </div>
-
-                      <Select value={filters.source} onValueChange={(value) => setFilters(current => ({ ...current, source: value }))} disabled={isEditing}>
-                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
-                          <SelectValue placeholder="Fonte" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todas as fontes</SelectItem>
-                          {sources.map(source => <SelectItem key={source} value={source}>{source}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-
-                      <Select value={filters.subject} onValueChange={(value) => setFilters(current => ({ ...current, subject: value }))} disabled={isEditing}>
-                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
-                          <SelectValue placeholder="Matéria" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todas as matérias</SelectItem>
-                          {subjects.map(subject => <SelectItem key={subject} value={subject}>{subject}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-
-                      <Select value={filters.discipline} onValueChange={(value) => setFilters(current => ({ ...current, discipline: value }))} disabled={isEditing}>
-                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
-                          <SelectValue placeholder="Disciplina" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todas as disciplinas</SelectItem>
-                          {disciplines.map(discipline => <SelectItem key={discipline} value={discipline}>{discipline}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 xl:grid-cols-5">
-                      <Select value={filters.difficulty} onValueChange={(value) => setFilters(current => ({ ...current, difficulty: value }))} disabled={isEditing}>
-                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
-                          <SelectValue placeholder="Dificuldade" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Dificuldade</SelectItem>
-                          <SelectItem value="Fácil">Fácil</SelectItem>
-                          <SelectItem value="Médio">Médio</SelectItem>
-                          <SelectItem value="Difícil">Difícil</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <Select value={filters.year} onValueChange={(value) => setFilters(current => ({ ...current, year: value }))} disabled={isEditing}>
-                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
-                          <SelectValue placeholder="Ano" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todos os anos</SelectItem>
-                          {years.map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-
-                      <Select value={filters.hasImages} onValueChange={(value) => setFilters(current => ({ ...current, hasImages: value }))} disabled={isEditing}>
-                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
-                          <SelectValue placeholder="Imagens" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Todas</SelectItem>
-                          <SelectItem value="with">Com imagens</SelectItem>
-                          <SelectItem value="without">Sem imagens</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <Select value={filters.sortField} onValueChange={(value) => setFilters(current => ({ ...current, sortField: value as SortField }))} disabled={isEditing}>
-                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
-                          <SelectValue placeholder="Ordenar por" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="created_at">Data de criação</SelectItem>
-                          <SelectItem value="exam_year">Ano da prova</SelectItem>
-                          <SelectItem value="external_id">External ID</SelectItem>
-                          <SelectItem value="subject">Matéria</SelectItem>
-                          <SelectItem value="discipline">Disciplina</SelectItem>
-                          <SelectItem value="difficulty">Dificuldade</SelectItem>
-                          <SelectItem value="status">Status editorial</SelectItem>
-                          <SelectItem value="source">Fonte</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <Select value={filters.sortDirection} onValueChange={(value) => setFilters(current => ({ ...current, sortDirection: value as SortDirection }))} disabled={isEditing}>
-                        <SelectTrigger className="h-10 rounded-xl border-slate-200 bg-white text-sm shadow-none">
-                          <SelectValue placeholder="Direção" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="asc">Crescente</SelectItem>
-                          <SelectItem value="desc">Decrescente</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-slate-400 hover:text-slate-900"
+              title="Anterior (seta esquerda)"
+              disabled={isEditing || currentIndex === 0}
+              onClick={() => goToOffset(-1)}
+            >
+              <ChevronLeft size={16} />
+            </Button>
+            <span className="min-w-[54px] text-center font-mono text-xs font-semibold tabular-nums text-slate-600">
+              {queuePosition}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-slate-400 hover:text-slate-900"
+              title="Próxima (seta direita)"
+              disabled={isEditing || currentIndex >= currentItems.length - 1}
+              onClick={() => goToOffset(1)}
+            >
+              <ChevronRight size={16} />
+            </Button>
           </div>
-        </section>
-        )}
 
-        {/* --- CONTENT AREA: THE QUEUE --- */}
-        <div className="flex flex-col">
-          {(mode === 'curation' ? loading : mode === 'archived' ? archivedLoading : auditLoading) ? (
-            <Card className="w-full bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden h-[600px] flex flex-col">
-              <CardHeader className="border-b border-slate-100 p-6">
-                <Skeleton className="h-6 w-1/3 mb-2" />
-                <Skeleton className="h-4 w-1/4" />
-              </CardHeader>
-              <CardContent className="p-8 flex-1 space-y-6">
-                <Skeleton className="h-32 w-full" />
-                <div className="space-y-3">
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-12 w-full" />
-                </div>
-              </CardContent>
-            </Card>
-          ) : !activeQuestion ? (
-            <div className="flex flex-col items-center justify-center py-24 bg-white rounded-3xl border border-dashed border-slate-300 shadow-sm animate-in fade-in zoom-in duration-300">
-              <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 ring-8 ${mode === 'archived' ? 'bg-slate-50 ring-slate-50/50' : 'bg-emerald-50 ring-emerald-50/50'}`}>
-                {mode === 'archived'
-                  ? <Archive size={40} className="text-slate-400" />
-                  : <CheckCircle2 size={40} className="text-emerald-500" />}
-              </div>
-              <h3 className="text-2xl font-bold text-slate-900">
-                {mode === 'curation' ? 'Fila Limpa!' : mode === 'audit' ? 'Auditoria Limpa!' : 'Arquivo Vazio'}
-              </h3>
-              <p className="text-slate-500 mt-2 max-w-sm text-center">
-                {mode === 'curation'
-                  ? 'Nenhuma questão pendente para os filtros atuais. A curadoria está em dia.'
-                  : mode === 'audit'
-                    ? 'Nenhum achado aberto para os filtros atuais. A auditoria está em dia.'
-                    : 'Nenhuma questão arquivada para os filtros atuais.'}
-              </p>
-              {activeFilterCount > 0 && (
-                <Button
-                  variant="link"
-                  onClick={() => setFilters(DEFAULT_FILTERS)}
-                  className="mt-4 text-blue-600"
-                >
-                  Limpar filtros e ver tudo
-                </Button>
-              )}
+          <div className="min-w-0 flex-1" />
+
+          {/* AÇÕES */}
+          {isEditing && editForm ? (
+            <div className="flex shrink-0 items-center gap-2">
               <Button
-                onClick={mode === 'curation' ? fetchPending : mode === 'archived' ? fetchArchived : fetchAuditQueue}
-                variant="outline"
-                className="mt-6 border-slate-300 text-slate-600"
+                variant="ghost"
+                className="h-8 rounded-lg px-3 text-sm text-slate-500 hover:text-slate-900"
+                onClick={cancelEditing}
+                disabled={!!processingId}
               >
-                Recarregar Base
+                Cancelar
+              </Button>
+              <Button
+                className="h-8 rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white hover:bg-blue-700"
+                onClick={saveEditing}
+                disabled={!!processingId}
+                title="Ctrl/Cmd + S"
+              >
+                {processingId === editForm.id
+                  ? <LoaderCircle className="mr-1.5 h-4 w-4 animate-spin" />
+                  : <Save className="mr-1.5 h-4 w-4" />}
+                Salvar
+              </Button>
+            </div>
+          ) : !activeQuestion ? null : mode === 'curation' ? (
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                title="Deletar questão (Delete)"
+                disabled={isBusy}
+                onClick={() => {
+                  setQuestionPublishingAction('delete');
+                  void handleDecision(activeQuestion.id, 'reject');
+                }}
+              >
+                {questionPublishingAction === 'delete'
+                  ? <LoaderCircle className="h-4 w-4 animate-spin" />
+                  : <Trash2 className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-slate-400 hover:bg-slate-100 hover:text-slate-900"
+                title="Arquivar (Ctrl/Cmd + A)"
+                disabled={isBusy}
+                onClick={() => void handleArchive(activeQuestion.id)}
+              >
+                {questionPublishingAction === 'archive'
+                  ? <LoaderCircle className="h-4 w-4 animate-spin" />
+                  : <Archive className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="outline"
+                className="h-8 rounded-lg border-slate-200 px-2.5 text-sm font-medium text-slate-700"
+                title="Editar questão (E)"
+                disabled={!!processingId}
+                onClick={startEditing}
+              >
+                <Edit3 className="h-4 w-4 md:mr-1.5" />
+                <span className="hidden md:inline">Editar</span>
+              </Button>
+              <Button
+                className="h-8 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800"
+                title="Aprovar e publicar (Enter)"
+                disabled={isBusy}
+                onClick={() => {
+                  setQuestionPublishingAction('approve');
+                  void handleDecision(activeQuestion.id, 'approve');
+                }}
+              >
+                {questionPublishingAction === 'approve'
+                  ? <LoaderCircle className="h-4 w-4 md:mr-1.5 animate-spin" />
+                  : <CheckCircle2 className="h-4 w-4 md:mr-1.5" />}
+                <span className="hidden md:inline">Aprovar</span>
+              </Button>
+            </div>
+          ) : mode === 'archived' ? (
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                variant="outline"
+                className="h-8 rounded-lg border-slate-200 px-2.5 text-sm font-medium text-slate-700"
+                title="Editar questão (E)"
+                disabled={!!processingId}
+                onClick={startEditing}
+              >
+                <Edit3 className="h-4 w-4 md:mr-1.5" />
+                <span className="hidden md:inline">Editar</span>
+              </Button>
+              <Button
+                className="h-8 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white hover:bg-slate-800"
+                title="Desarquivar e devolver à curadoria (Ctrl/Cmd + A)"
+                disabled={isBusy}
+                onClick={() => void handleUnarchive(activeQuestion.id)}
+              >
+                {questionPublishingAction === 'unarchive'
+                  ? <LoaderCircle className="h-4 w-4 md:mr-1.5 animate-spin" />
+                  : <ArchiveRestore className="h-4 w-4 md:mr-1.5" />}
+                <span className="hidden md:inline">Desarquivar</span>
               </Button>
             </div>
           ) : (
-            /* ACTIVE QUESTION CARD */
-            <Card
-              key={activeQuestion.id}
-              className="group relative flex w-full animate-in flex-col rounded-[24px] border border-slate-200/80 bg-white shadow-[0_24px_72px_-36px_rgba(15,23,42,0.42)] slide-in-from-right-8 fade-in duration-300"
-            >
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Button
+                variant="outline"
+                className="h-8 rounded-lg border-amber-200 px-2.5 text-sm font-medium text-amber-700 hover:bg-amber-50"
+                disabled={!!auditProcessingId || activeQuestion.is_verified === false}
+                onClick={() => moveQuestionToCuration(activeQuestion.id)}
+              >
+                {auditProcessingId === activeQuestion.id ? 'Movendo...' : 'Mover para curadoria'}
+              </Button>
+              <Button
+                className="h-8 rounded-lg bg-amber-600 px-3 text-sm font-semibold text-white hover:bg-amber-700"
+                disabled={!!auditProcessingId || activeQuestion.is_verified === true}
+                onClick={() => handleDecision(activeQuestion.id, 'approve')}
+              >
+                {activeQuestion.is_verified === true ? 'Já publicada' : 'Aprovar após correção'}
+              </Button>
+            </div>
+          )}
+        </header>
 
-              {/* HEADER DA QUESTÃO */}
-              <div className="border-b border-slate-200 bg-[linear-gradient(135deg,_rgba(248,250,252,0.95),_rgba(239,246,255,0.9))] px-3 py-4 md:px-5 lg:px-6">
-                <div className="flex flex-col gap-5">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge className="rounded-full bg-blue-600 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white hover:bg-blue-700">
-                          {activeQuestion.subject}
-                        </Badge>
-                        <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-slate-600">
-                          {activeSource}
-                        </Badge>
-                        {activeQuestionVariant && (
-                          <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-slate-600">
-                            {activeQuestionVariant}
-                          </Badge>
-                        )}
-                        {activeQuestion.discipline && (
-                          <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-slate-600">
-                            {activeQuestion.discipline}
-                          </Badge>
-                        )}
-                        <Badge variant="outline" className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${getDifficultyColor(activeQuestion.difficulty)}`}>
-                          {activeQuestion.difficulty}
-                        </Badge>
-                        {activeQuestion.exam_year && (
-                          <Badge variant="outline" className="rounded-full border-slate-200 bg-white px-2.5 py-1 text-[10px] text-slate-600">
-                            <Calendar size={12} className="mr-1" /> {activeQuestion.exam_year}
-                          </Badge>
-                        )}
-                        {activeQuestion.is_ai_generated && (
-                          <Badge className="rounded-full border border-purple-200 bg-purple-100 px-2.5 py-1 text-[10px] text-purple-700 hover:bg-purple-200">
-                            <Bot size={12} className="mr-1" /> IA Gerada
-                          </Badge>
-                        )}
-                        {mode === 'audit' && activeAuditItem && (
-                          <>
-                            <Badge variant="outline" className={`rounded-full ${getSeverityColor(activeAuditItem.severity)}`}>
-                              Auditoria {activeAuditItem.severity}
-                            </Badge>
-                            <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-slate-600">
-                              {activeAuditItem.issue_codes.length} achado(s)
-                            </Badge>
-                          </>
-                        )}
-                      </div>
+        {/* --- CANVAS DA QUESTÃO (único elemento rolável) --- */}
+        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="mx-auto w-full max-w-[1200px] px-3 py-2 md:px-5 md:py-2.5">
 
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h2 className="text-lg font-bold tracking-tight text-slate-950 md:text-[1.35rem]">
-                            {getQuestionHeaderLabel(activeQuestion) || 'Questão em revisão'}
-                          </h2>
-                        </div>
-                        {mode === 'curation' ? (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-[10px] text-slate-500">Enter aprova</Badge>
-                            <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-[10px] text-slate-500">Delete deleta</Badge>
-                            <Badge variant="outline" className="rounded-full border-slate-200 bg-white text-[10px] text-slate-500">Ctrl/Cmd + A arquiva</Badge>
-                            <Badge variant="outline" className="cursor-pointer rounded-full border-slate-200 bg-white text-[10px] text-slate-500 hover:bg-slate-100" onClick={startEditing}>Editar questão</Badge>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="rounded-xl border border-slate-200 bg-white/90 px-3.5 py-3 shadow-sm lg:min-w-[220px]">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Identificador</p>
-                      <p className="mt-2 break-all font-mono text-xs text-slate-600">
-                        {activeQuestion.external_id || activeQuestion.id.substring(0, 8)}
-                      </p>
-                      <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Fila</p>
-                          <p className="mt-1 font-semibold text-slate-900">{queueLabel}</p>
-                        </div>
-                        <div>
-                          <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Modo</p>
-                          <p className="mt-1 font-semibold text-slate-900">{modeTitle}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
+            {isListLoading ? (
+              <div className="space-y-5 rounded-3xl border border-slate-200 bg-white p-6">
+                <Skeleton className="h-5 w-1/3" />
+                <Skeleton className="h-24 w-full" />
+                <div className="space-y-3">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
                 </div>
               </div>
+            ) : !activeQuestion ? (
+              <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white py-20">
+                <div className={`mb-5 flex h-16 w-16 items-center justify-center rounded-full ${mode === 'archived' ? 'bg-slate-50' : 'bg-emerald-50'}`}>
+                  {mode === 'archived'
+                    ? <Archive size={32} className="text-slate-400" />
+                    : <CheckCircle2 size={32} className="text-emerald-500" />}
+                </div>
+                <h3 className="text-xl font-bold text-slate-900">
+                  {mode === 'curation' ? 'Fila limpa' : mode === 'audit' ? 'Auditoria limpa' : 'Arquivo vazio'}
+                </h3>
+                <p className="mt-1.5 max-w-sm text-center text-sm text-slate-500">
+                  {mode === 'curation'
+                    ? 'Nenhuma questão pendente para os filtros atuais.'
+                    : mode === 'audit'
+                      ? 'Nenhum achado aberto para os filtros atuais.'
+                      : 'Nenhuma questão arquivada para os filtros atuais.'}
+                </p>
+                <div className="mt-5 flex gap-2">
+                  {activeFilterCount > 0 && (
+                    <Button variant="outline" className="h-9 rounded-lg text-sm" onClick={() => setFilters(DEFAULT_FILTERS)}>
+                      Limpar filtros
+                    </Button>
+                  )}
+                  <Button variant="outline" className="h-9 rounded-lg text-sm" onClick={refreshCurrentList}>
+                    <RotateCcw className="mr-1.5 h-4 w-4" />
+                    Recarregar
+                  </Button>
+                </div>
+              </div>
+            ) : isEditing && editForm ? (
+              <div className="space-y-5">
+                <p className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                  <span className="font-semibold text-slate-900">Editor.</span>{' '}
+                  Ctrl/Cmd + B negrito · I itálico · U sublinhado · Enter parágrafo · S salvar. Clique na letra da alternativa para definir o gabarito.
+                </p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-500">Matéria</label>
+                <Input value={editForm.subject || ''} onChange={e => setEditForm({ ...editForm, subject: e.target.value })} className="mt-1 bg-white" />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-500">Disciplina</label>
+                <Input value={editForm.discipline || ''} onChange={e => setEditForm({ ...editForm, discipline: e.target.value })} className="mt-1 bg-white" />
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-500">Dificuldade</label>
+                <select
+                  value={editForm.difficulty || ''}
+                  onChange={e => setEditForm({ ...editForm, difficulty: e.target.value })}
+                  className="mt-1 w-full rounded-md border border-slate-300 bg-white p-2 text-sm outline-none focus:border-slate-500"
+                >
+                  <option value="Fácil">Fácil</option>
+                  <option value="Médio">Médio</option>
+                  <option value="Difícil">Difícil</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-500">Ano</label>
+                <Input type="number" value={editForm.exam_year || ''} onChange={e => setEditForm({ ...editForm, exam_year: parseInt(e.target.value) || 0 })} className="mt-1 bg-white" />
+              </div>
+            </div>
 
-              {/* CONTEÚDO (MUDANÇA ENTRE MODO DE EXIBIÇÃO E EDIÇÃO) */}
-              {isEditing && editForm ? (
-                <div className="space-y-5 bg-slate-50/40 px-3 py-5 md:px-5 lg:px-6">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
-                    <p className="font-semibold text-slate-900">Editor de curadoria</p>
-                    <p className="mt-1">Use `Ctrl/Cmd + B` para negrito, `Ctrl/Cmd + I` para itálico, `Ctrl/Cmd + U` para sublinhado, `Ctrl/Cmd + Enter` para parágrafo e `Ctrl/Cmd + S` para salvar. Clique na letra da alternativa para definir o gabarito.</p>
-                  </div>
+            <div>
+              <label className="text-xs font-bold uppercase text-slate-500">Contexto / Texto Base</label>
+              <textarea
+                value={editForm.context || ''}
+                onChange={e => setEditForm({ ...editForm, context: e.target.value })}
+                onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => setEditForm({ ...editForm, context: nextValue }))}
+                rows={6}
+                className="mt-1 min-h-[140px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-sm outline-none focus:border-slate-500"
+              />
+            </div>
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                    <div>
-                      <label className="text-xs font-bold uppercase text-slate-500">Matéria</label>
-                      <Input value={editForm.subject || ''} onChange={e => setEditForm({ ...editForm, subject: e.target.value })} className="mt-1 bg-white" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold uppercase text-slate-500">Disciplina</label>
-                      <Input value={editForm.discipline || ''} onChange={e => setEditForm({ ...editForm, discipline: e.target.value })} className="mt-1 bg-white" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold uppercase text-slate-500">Dificuldade</label>
-                      <select
-                        value={editForm.difficulty || ''}
-                        onChange={e => setEditForm({ ...editForm, difficulty: e.target.value })}
-                        className="mt-1 w-full rounded-md border border-slate-300 bg-white p-2 text-sm outline-none focus:border-slate-500"
-                      >
-                        <option value="Fácil">Fácil</option>
-                        <option value="Médio">Médio</option>
-                        <option value="Difícil">Difícil</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold uppercase text-slate-500">Ano</label>
-                      <Input type="number" value={editForm.exam_year || ''} onChange={e => setEditForm({ ...editForm, exam_year: parseInt(e.target.value) || 0 })} className="mt-1 bg-white" />
-                    </div>
-                  </div>
+            <div>
+              <label className="text-xs font-bold uppercase text-slate-500">Título</label>
+              <textarea
+                value={editForm.title || ''}
+                onChange={e => setEditForm({ ...editForm, title: e.target.value })}
+                onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => setEditForm({ ...editForm, title: nextValue }))}
+                rows={3}
+                className="mt-1 min-h-[88px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-sm outline-none focus:border-slate-500"
+              />
+            </div>
 
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-500">Contexto / Texto Base</label>
-                    <textarea
-                      value={editForm.context || ''}
-                      onChange={e => setEditForm({ ...editForm, context: e.target.value })}
-                      onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => setEditForm({ ...editForm, context: nextValue }))}
-                      rows={6}
-                      className="mt-1 min-h-[140px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-sm outline-none focus:border-slate-500"
-                    />
-                  </div>
+            <div>
+              <label className="text-xs font-bold uppercase text-slate-500">Comando / Introdução das alternativas</label>
+              <textarea
+                value={editForm.alternatives_intro || ''}
+                onChange={e => setEditForm({ ...editForm, alternatives_intro: e.target.value })}
+                onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => setEditForm({ ...editForm, alternatives_intro: nextValue }))}
+                rows={3}
+                className="mt-1 min-h-[88px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-sm outline-none focus:border-slate-500"
+              />
+            </div>
 
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-500">Título</label>
-                    <textarea
-                      value={editForm.title || ''}
-                      onChange={e => setEditForm({ ...editForm, title: e.target.value })}
-                      onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => setEditForm({ ...editForm, title: nextValue }))}
-                      rows={3}
-                      className="mt-1 min-h-[88px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-sm outline-none focus:border-slate-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-500">Comando / Introdução das alternativas</label>
-                    <textarea
-                      value={editForm.alternatives_intro || ''}
-                      onChange={e => setEditForm({ ...editForm, alternatives_intro: e.target.value })}
-                      onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => setEditForm({ ...editForm, alternatives_intro: nextValue }))}
-                      rows={3}
-                      className="mt-1 min-h-[88px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-sm outline-none focus:border-slate-500"
-                    />
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <label className="text-xs font-bold uppercase text-slate-500">Imagens da questão</label>
-                    <div className="mt-3 flex flex-col gap-3 md:flex-row">
-                      <Input value={newImageUrl} onChange={e => setNewImageUrl(e.target.value)} placeholder="Adicionar URL de imagem" className="bg-white md:flex-1" />
-                      <Button
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <label className="text-xs font-bold uppercase text-slate-500">Imagens da questão</label>
+              <div className="mt-3 flex flex-col gap-3 md:flex-row">
+                <Input value={newImageUrl} onChange={e => setNewImageUrl(e.target.value)} placeholder="Adicionar URL de imagem" className="bg-white md:flex-1" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="bg-white"
+                  disabled={questionImageUploading}
+                  onClick={async () => {
+                    const value = newImageUrl.trim();
+                    if (!value) return;
+                    setQuestionImageUploading(true);
+                    try {
+                      const res = await fetch('/api/admin/question-audits/upload-question-image', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          imageUrl: value,
+                          questionId: editForm.id,
+                          externalId: activeQuestion?.external_id || editForm.id,
+                        }),
+                      });
+                      const json = await res.json();
+                      if (!res.ok) {
+                        alert(json.error || 'Falha ao fazer upload da imagem.');
+                        return;
+                      }
+                      setEditForm({
+                        ...editForm,
+                        images: [...(editForm.images || []), json.publicUrl],
+                        metadata: updateImageAssetMetadata(editForm.metadata, json.publicUrl, {
+                          role: 'context_image',
+                          display_hint: 'responsive_fit',
+                          original_layout: 'single',
+                        }),
+                      });
+                      setNewImageUrl('');
+                    } catch {
+                      alert('Erro ao conectar ao servidor de upload.');
+                    } finally {
+                      setQuestionImageUploading(false);
+                    }
+                  }}
+                >
+                  {questionImageUploading ? 'Enviando…' : 'Adicionar imagem'}
+                </Button>
+              </div>
+              <div className="mt-3">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  disabled={questionImageUploading}
+                  className="bg-white"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    e.currentTarget.value = '';
+                    if (file) void uploadQuestionImageFile(file);
+                  }}
+                />
+                <p className="mt-1 text-xs text-slate-500">Upload direto envia a imagem para o bucket público padrão e vincula a URL à questão.</p>
+              </div>
+              {editForm.images?.length ? (
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  {editForm.images.map((img, i) => (
+                    <div key={img + i} className="relative rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <img src={img} className="mx-auto h-32 w-auto rounded-lg border border-slate-200 bg-white object-contain" alt={`Imagem ${i + 1}`} />
+                      <button
                         type="button"
-                        variant="outline"
-                        className="bg-white"
-                        disabled={questionImageUploading}
-                        onClick={async () => {
-                          const value = newImageUrl.trim();
-                          if (!value) return;
-                          setQuestionImageUploading(true);
-                          try {
-                            const res = await fetch('/api/admin/question-audits/upload-question-image', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                imageUrl: value,
-                                questionId: editForm.id,
-                                externalId: activeQuestion?.external_id || editForm.id,
-                              }),
-                            });
-                            const json = await res.json();
-                            if (!res.ok) {
-                              alert(json.error || 'Falha ao fazer upload da imagem.');
-                              return;
-                            }
+                        onClick={() => setEditForm({ ...editForm, images: editForm.images.filter((_, idx) => idx !== i) })}
+                        className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white shadow-sm hover:bg-red-600"
+                      >
+                        <X size={14} />
+                      </button>
+                      <div className="mt-3 space-y-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full bg-white"
+                          onClick={() => {
+                            const markdown = `![Imagem da questão](${img})`;
                             setEditForm({
                               ...editForm,
-                              images: [...(editForm.images || []), json.publicUrl],
-                              metadata: updateImageAssetMetadata(editForm.metadata, json.publicUrl, {
-                                role: 'context_image',
-                                display_hint: 'responsive_fit',
-                                original_layout: 'single',
-                              }),
+                              context: [editForm.context || '', markdown].filter(Boolean).join('\n\n'),
                             });
-                            setNewImageUrl('');
-                          } catch {
-                            alert('Erro ao conectar ao servidor de upload.');
-                          } finally {
-                            setQuestionImageUploading(false);
-                          }
-                        }}
-                      >
-                        {questionImageUploading ? 'Enviando…' : 'Adicionar imagem'}
-                      </Button>
-                    </div>
-                    <div className="mt-3">
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        disabled={questionImageUploading}
-                        className="bg-white"
-                        onChange={e => {
-                          const file = e.target.files?.[0];
-                          e.currentTarget.value = '';
-                          if (file) void uploadQuestionImageFile(file);
-                        }}
-                      />
-                      <p className="mt-1 text-xs text-slate-500">Upload direto envia a imagem para o bucket público padrão e vincula a URL à questão.</p>
-                    </div>
-                    {editForm.images?.length ? (
-                      <div className="mt-4 grid gap-4 md:grid-cols-2">
-                        {editForm.images.map((img, i) => (
-                          <div key={img + i} className="relative rounded-xl border border-slate-200 bg-slate-50 p-3">
-                            <img src={img} className="mx-auto h-32 w-auto rounded-lg border border-slate-200 bg-white object-contain" alt={`Imagem ${i + 1}`} />
-                            <button
-                              type="button"
-                              onClick={() => setEditForm({ ...editForm, images: editForm.images.filter((_, idx) => idx !== i) })}
-                              className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white shadow-sm hover:bg-red-600"
-                            >
-                              <X size={14} />
-                            </button>
-                            <div className="mt-3 space-y-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                className="w-full bg-white"
-                                onClick={() => {
-                                  const markdown = `![Imagem da questão](${img})`;
-                                  setEditForm({
-                                    ...editForm,
-                                    context: [editForm.context || '', markdown].filter(Boolean).join('\n\n'),
-                                  });
-                                }}
-                              >
-                                Inserir no contexto
-                              </Button>
-                              <Input
-                                value={findImageAssetMetadata(editForm.metadata, img).caption || ''}
-                                placeholder="Legenda da imagem"
-                                className="bg-white"
-                                onChange={e => setEditForm({
-                                  ...editForm,
-                                  metadata: updateImageAssetMetadata(editForm.metadata, img, { caption: e.target.value || null }),
-                                })}
-                              />
-                              <Input
-                                value={findImageAssetMetadata(editForm.metadata, img).source || ''}
-                                placeholder="Fonte da imagem"
-                                className="bg-white"
-                                onChange={e => setEditForm({
-                                  ...editForm,
-                                  metadata: updateImageAssetMetadata(editForm.metadata, img, { source: e.target.value || null }),
-                                })}
-                              />
-                              <select
-                                value={findImageAssetMetadata(editForm.metadata, img).original_layout || 'single'}
-                                onChange={e => setEditForm({
-                                  ...editForm,
-                                  metadata: updateImageAssetMetadata(editForm.metadata, img, { original_layout: e.target.value }),
-                                })}
-                                className="w-full rounded-md border border-slate-300 bg-white p-2 text-sm outline-none focus:border-slate-500"
-                              >
-                                <option value="single">Imagem única</option>
-                                <option value="side_by_side">Lado a lado</option>
-                                <option value="stacked">Empilhada</option>
-                                <option value="inline">Inline</option>
-                              </select>
-                            </div>
-                          </div>
-                        ))}
+                          }}
+                        >
+                          Inserir no contexto
+                        </Button>
+                        <Input
+                          value={findImageAssetMetadata(editForm.metadata, img).caption || ''}
+                          placeholder="Legenda da imagem"
+                          className="bg-white"
+                          onChange={e => setEditForm({
+                            ...editForm,
+                            metadata: updateImageAssetMetadata(editForm.metadata, img, { caption: e.target.value || null }),
+                          })}
+                        />
+                        <Input
+                          value={findImageAssetMetadata(editForm.metadata, img).source || ''}
+                          placeholder="Fonte da imagem"
+                          className="bg-white"
+                          onChange={e => setEditForm({
+                            ...editForm,
+                            metadata: updateImageAssetMetadata(editForm.metadata, img, { source: e.target.value || null }),
+                          })}
+                        />
+                        <select
+                          value={findImageAssetMetadata(editForm.metadata, img).original_layout || 'single'}
+                          onChange={e => setEditForm({
+                            ...editForm,
+                            metadata: updateImageAssetMetadata(editForm.metadata, img, { original_layout: e.target.value }),
+                          })}
+                          className="w-full rounded-md border border-slate-300 bg-white p-2 text-sm outline-none focus:border-slate-500"
+                        >
+                          <option value="single">Imagem única</option>
+                          <option value="side_by_side">Lado a lado</option>
+                          <option value="stacked">Empilhada</option>
+                          <option value="inline">Inline</option>
+                        </select>
                       </div>
-                    ) : (
-                      <p className="mt-3 text-sm text-slate-500">Nenhuma imagem vinculada.</p>
-                    )}
-                  </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-slate-500">Nenhuma imagem vinculada.</p>
+              )}
+            </div>
 
-                  <div className="space-y-3">
-                    <label className="text-xs font-bold uppercase text-slate-500">Alternativas</label>
-                    {editForm.alternatives?.map((alt, i) => {
-                      const isSelected = editForm.correct_alternative === alt.letter;
-                      const alternativeImages = extractAlternativeImageUrls(alt);
-                      const isUploading = alternativeImageUploading === alt.letter;
-                      return (
-                        <div key={alt.letter} className={`rounded-2xl border p-4 ${isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
-                          <div className="flex items-start gap-3">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const nextAlternatives = editForm.alternatives.map(item => ({ ...item, isCorrect: item.letter === alt.letter }));
-                                setEditForm({ ...editForm, correct_alternative: alt.letter, alternatives: nextAlternatives });
-                              }}
-                              className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm font-bold ${isSelected ? 'border-emerald-600 bg-emerald-500 text-white' : 'border-slate-300 bg-slate-100 text-slate-700'}`}
-                            >
-                              {alt.letter}
-                            </button>
-                            <textarea
-                              value={alt.text}
-                              onChange={e => {
-                                const nextAlternatives = [...editForm.alternatives];
-                                nextAlternatives[i].text = e.target.value;
-                                setEditForm({ ...editForm, alternatives: nextAlternatives });
-                              }}
-                              onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => {
-                                const nextAlternatives = [...editForm.alternatives];
-                                nextAlternatives[i].text = nextValue;
-                                setEditForm({ ...editForm, alternatives: nextAlternatives });
-                              })}
-                              rows={3}
-                              className="min-h-[84px] flex-1 rounded-xl border border-slate-200 bg-white p-3 font-mono text-sm outline-none focus:border-slate-400"
-                              placeholder={`Texto da alternativa ${alt.letter}`}
-                            />
-                          </div>
+            <div className="space-y-3">
+              <label className="text-xs font-bold uppercase text-slate-500">Alternativas</label>
+              {editForm.alternatives?.map((alt, i) => {
+                const isSelected = editForm.correct_alternative === alt.letter;
+                const alternativeImages = extractAlternativeImageUrls(alt);
+                const isUploading = alternativeImageUploading === alt.letter;
+                return (
+                  <div key={alt.letter} className={`rounded-2xl border p-4 ${isSelected ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                    <div className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextAlternatives = editForm.alternatives.map(item => ({ ...item, isCorrect: item.letter === alt.letter }));
+                          setEditForm({ ...editForm, correct_alternative: alt.letter, alternatives: nextAlternatives });
+                        }}
+                        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm font-bold ${isSelected ? 'border-emerald-600 bg-emerald-500 text-white' : 'border-slate-300 bg-slate-100 text-slate-700'}`}
+                      >
+                        {alt.letter}
+                      </button>
+                      <textarea
+                        value={alt.text}
+                        onChange={e => {
+                          const nextAlternatives = [...editForm.alternatives];
+                          nextAlternatives[i].text = e.target.value;
+                          setEditForm({ ...editForm, alternatives: nextAlternatives });
+                        }}
+                        onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => {
+                          const nextAlternatives = [...editForm.alternatives];
+                          nextAlternatives[i].text = nextValue;
+                          setEditForm({ ...editForm, alternatives: nextAlternatives });
+                        })}
+                        rows={3}
+                        className="min-h-[84px] flex-1 rounded-xl border border-slate-200 bg-white p-3 font-mono text-sm outline-none focus:border-slate-400"
+                        placeholder={`Texto da alternativa ${alt.letter}`}
+                      />
+                    </div>
 
-                          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-                            <div className="flex flex-col gap-3 md:flex-row">
-                              <Input
-                                value={alternativeImageInputs[alt.letter] || ''}
-                                onChange={e => setAlternativeImageInputs(current => ({ ...current, [alt.letter]: e.target.value }))}
-                                placeholder={`URL da imagem da alternativa ${alt.letter}`}
-                                className="bg-white md:flex-1"
-                              />
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                      <div className="flex flex-col gap-3 md:flex-row">
+                        <Input
+                          value={alternativeImageInputs[alt.letter] || ''}
+                          onChange={e => setAlternativeImageInputs(current => ({ ...current, [alt.letter]: e.target.value }))}
+                          placeholder={`URL da imagem da alternativa ${alt.letter}`}
+                          className="bg-white md:flex-1"
+                        />
 	                              <Button type="button" variant="outline" className="bg-white" disabled={isUploading} onClick={() => void importAlternativeImage(i)}>
 	                                {isUploading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
 	                                Inserir imagem
@@ -2021,315 +1757,337 @@ export default function AdminQuestionApproval() {
 	                              />
 	                            </div>
 	                            {alternativeImages.length > 0 ? (
-                              <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
-                                {alternativeImages.map((img, index) => (
-                                  <div key={`${alt.letter}-${img}-${index}`} className="relative shrink-0">
-                                    <img src={img} alt={`Alternativa ${alt.letter}`} className="h-28 w-auto rounded-lg border border-slate-200 object-contain" />
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const nextAlternatives = [...editForm.alternatives];
-                                        nextAlternatives[i] = { ...nextAlternatives[i], image: null, file: null };
-                                        setEditForm({ ...editForm, alternatives: nextAlternatives });
-                                      }}
-                                      className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white shadow-sm hover:bg-red-600"
-                                    >
-                                      <X size={14} />
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="mt-3 text-sm text-slate-500">Nenhuma imagem vinculada a esta alternativa.</p>
-                            )}
-                          </div>
+                        <div className="mt-3 flex gap-3 overflow-x-auto pb-2">
+                          {alternativeImages.map((img, index) => (
+                            <div key={`${alt.letter}-${img}-${index}`} className="relative shrink-0">
+                              <img src={img} alt={`Alternativa ${alt.letter}`} className="h-28 w-auto rounded-lg border border-slate-200 object-contain" />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextAlternatives = [...editForm.alternatives];
+                                  nextAlternatives[i] = { ...nextAlternatives[i], image: null, file: null };
+                                  setEditForm({ ...editForm, alternatives: nextAlternatives });
+                                }}
+                                className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white shadow-sm hover:bg-red-600"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                      );
-                    })}
+                      ) : (
+                        <p className="mt-3 text-sm text-slate-500">Nenhuma imagem vinculada a esta alternativa.</p>
+                      )}
+                    </div>
                   </div>
+                );
+              })}
+            </div>
 
-                  <div>
-                    <label className="text-xs font-bold uppercase text-purple-600">Comentário do professor (`ai_reasoning`)</label>
-                    <textarea
-                      value={editForm.ai_reasoning?.thought || ''}
-                      onChange={e => setEditForm({ ...editForm, ai_reasoning: { ...editForm.ai_reasoning, thought: e.target.value } })}
-                      onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => setEditForm({ ...editForm, ai_reasoning: { ...editForm.ai_reasoning, thought: nextValue } }))}
-                      rows={5}
-                      className="mt-1 min-h-[128px] w-full rounded-xl border border-purple-200 bg-purple-50/40 p-3 font-mono text-sm outline-none focus:border-purple-400"
-                    />
+            <div>
+              <label className="text-xs font-bold uppercase text-purple-600">Comentário do professor (`ai_reasoning`)</label>
+              <textarea
+                value={editForm.ai_reasoning?.thought || ''}
+                onChange={e => setEditForm({ ...editForm, ai_reasoning: { ...editForm.ai_reasoning, thought: e.target.value } })}
+                onKeyDown={e => applyInlineFormattingShortcut(e, nextValue => setEditForm({ ...editForm, ai_reasoning: { ...editForm.ai_reasoning, thought: nextValue } }))}
+                rows={5}
+                className="mt-1 min-h-[128px] w-full rounded-xl border border-purple-200 bg-purple-50/40 p-3 font-mono text-sm outline-none focus:border-purple-400"
+              />
+            </div>
+              </div>
+            ) : (
+              <>
+                {/* Identidade da questão: uma linha, sem caixa */}
+                <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-[11px] leading-4 text-slate-400">
+                  <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                    {activeQuestion.subject}
+                  </span>
+                  <span className="font-mono text-slate-500">
+                    {activeQuestion.external_id || activeQuestion.id.substring(0, 8)}
+                  </span>
+                  {getDisplayTitle(activeQuestion) && (
+                    <><span>·</span><span className="max-w-[280px] truncate">{getDisplayTitle(activeQuestion)}</span></>
+                  )}
+                  {activeQuestion.discipline && <><span>·</span><span>{activeQuestion.discipline}</span></>}
+                  {activeQuestionVariant && <><span>·</span><span className="uppercase">{activeQuestionVariant}</span></>}
+                  {activeSource && activeSource !== 'UNKNOWN' && (
+                    <><span>·</span><span>{activeSource}</span></>
+                  )}
+                  {activeQuestion.exam_year && <><span>·</span><span>{activeQuestion.exam_year}</span></>}
+                  {activeQuestion.difficulty && <><span>·</span><span>{activeQuestion.difficulty}</span></>}
+                  {activeQuestion.is_ai_generated && (
+                    <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
+                      <Bot size={11} /> IA gerada
+                    </span>
+                  )}
+                  {mode === 'archived' && (
+                    <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                      <Archive size={11} /> Arquivada
+                    </span>
+                  )}
+                </div>
+
+                {mode === 'audit' && activeAuditItem && (
+                  <div className="mb-3 space-y-2 rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle size={15} className="text-amber-700" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-900">Achados da auditoria</span>
+                      <Badge variant="outline" className={`rounded-full text-[10px] uppercase ${getSeverityColor(activeAuditItem.severity)}`}>
+                        {activeAuditItem.severity}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {activeAuditItem.issue_codes.map(code => (
+                        <Badge key={code} variant="outline" className="border-amber-200 bg-white text-[11px] text-amber-800">
+                          {code}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="px-3 py-5 md:px-5 lg:px-6">
-                  <div className={`grid grid-cols-1 items-start gap-5 ${showPdf ? 'xl:grid-cols-2' : ''} xl:gap-6`}>
-                    <section className={`min-w-0 overflow-y-auto pr-1 ${showFilters ? 'xl:h-[calc(100vh-320px)]' : 'xl:h-[calc(100vh-210px)]'} xl:min-h-[620px]`}>
-                      <div className="space-y-8">
-                        {mode === 'audit' && activeAuditItem && (
-                          <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
-                            <div className="flex items-center gap-2">
-                              <AlertCircle size={16} className="text-amber-700" />
-                              <span className="text-sm font-bold uppercase tracking-wider text-amber-900">Achados da Auditoria</span>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {activeAuditItem.issue_codes.map(code => (
-                                <Badge key={code} variant="outline" className="border-amber-200 bg-white text-amber-800">
-                                  {code}
-                                </Badge>
-                              ))}
-                            </div>
-                            <p className="text-xs text-amber-900">
-                              Última execução: {activeAuditItem.latest_run_at ? new Date(activeAuditItem.latest_run_at).toLocaleString('pt-BR') : 'N/A'}
-                              {activeAuditItem.latest_run_version ? ` • versão ${activeAuditItem.latest_run_version}` : ''}
-                            </p>
-                          </div>
-                        )}
+                )}
 
-                        {activeQuestionPreview ? (
-                          <QuestionDisplay
-                            question={activeQuestionPreview}
-                            showAnswer
-                            readOnly
-                            footer={activeQuestionComment ? (
-                              <div className="mt-8 rounded-2xl border border-blue-100 bg-blue-50/60 p-5">
-                                <div className="mb-3 flex items-center gap-2">
-                                  <div className="rounded-lg bg-blue-100 p-2 text-blue-600">
-                                    <Bot size={18} />
-                                  </div>
-                                  <h3 className="font-semibold text-blue-950">Comentário do Professor</h3>
-                                </div>
-                                <QuestionRichText text={activeQuestionComment} className="text-sm leading-relaxed text-slate-700" />
-                              </div>
-                            ) : undefined}
-                          />
-                        ) : (
-                          <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
-                            <AlertCircle size={20} className="shrink-0" />
-                            <span className="font-medium">ATENÇÃO:</span> Nenhuma questão selecionada.
-                          </div>
-                        )}
-                      </div>
-                    </section>
-
-                    {showPdf && (
-                      <aside className="min-w-0 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm xl:sticky xl:top-6">
-                        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <FileText size={16} className="text-slate-600" />
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">PDF da prova</p>
-                              <p className="text-xs text-slate-500">{activeQuestion.external_id || activeQuestion.id}</p>
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="h-8 rounded-lg px-2.5 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                            onClick={() => setShowPdf(false)}
-                          >
-                            Ocultar
-                          </Button>
-                        </div>
-
-                        <div className={`h-[70vh] min-h-[560px] bg-slate-100 ${showFilters ? 'xl:h-[calc(100vh-320px)]' : 'xl:h-[calc(100vh-210px)]'} xl:min-h-[620px]`}>
-                          {sourcePdfLoading ? (
-                            <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-                              <LoaderCircle className="h-8 w-8 animate-spin text-slate-500" />
-                              <p className="text-sm text-slate-500">Carregando PDF da prova...</p>
-                            </div>
-                          ) : sourcePdfUrl ? (
-                            <iframe
-                              title={`PDF da prova ${activeQuestion.external_id || activeQuestion.id}`}
-                              src={sourcePdfUrl}
-                              className="h-full w-full border-0 bg-white"
-                            />
-                          ) : (
-                            <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-                              <FileText className="h-10 w-10 text-slate-400" />
-                              <p className="text-sm font-semibold text-slate-800">PDF indisponível</p>
-                              <p className="max-w-sm text-xs leading-5 text-slate-500">
-                                {sourcePdfError || 'Não foi possível localizar o PDF de origem para esta questão.'}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </aside>
-                    )}
+                {activeQuestionPreview ? (
+                  <QuestionDisplay
+                    key={activeQuestion.id}
+                    question={activeQuestionPreview}
+                    showAnswer
+                    readOnly
+                    compact
+                    splitLayout
+                    className="[&_img]:max-h-[150px] [&_img]:object-contain"
+                    footer={activeQuestionComment ? (
+                      <details
+                        className="group mt-3 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2"
+                        open={commentOpen}
+                        onToggle={(event) => setCommentOpen(event.currentTarget.open)}
+                      >
+                        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-blue-950 marker:content-['']">
+                          <Bot size={15} className="text-blue-600" />
+                          Comentário do professor
+                          <kbd className="ml-auto rounded border border-blue-200 bg-white/70 px-1.5 py-0.5 font-mono text-[10px] font-normal text-blue-500">
+                            Ctrl/Cmd + M
+                          </kbd>
+                          <ChevronRight size={14} className="text-blue-400 transition-transform group-open:rotate-90" />
+                        </summary>
+                        <QuestionRichText
+                          text={activeQuestionComment}
+                          className="mt-2 text-sm leading-snug text-slate-700 [&_p]:my-2 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0"
+                        />
+                      </details>
+                    ) : undefined}
+                  />
+                ) : (
+                  <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+                    <AlertCircle size={20} className="shrink-0" />
+                    <span className="font-medium">Nenhuma questão selecionada.</span>
                   </div>
-                </div>
-              )}
-
-              {/* STICKY FOOTER ACTIONS (Decision Layer) */}
-              {isEditing ? (
-                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-white/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6">
-                  <div className="flex flex-col gap-3 md:flex-row">
-                  <Button
-                    variant="outline"
-                    className="h-12 flex-1 rounded-xl border-slate-300 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                    onClick={cancelEditing}
-                    disabled={!!processingId}
-                  >
-                    Cancelar Edição
-                  </Button>
-
-                  <Button
-                    className="h-12 flex-[2] rounded-xl bg-blue-600 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all hover:translate-y-[-1px] hover:bg-blue-700"
-                    onClick={saveEditing}
-                    disabled={!!processingId}
-                  >
-                    {processingId === activeQuestion?.id ? (
-                      <><LoaderCircle className="w-5 h-5 mr-2 animate-spin" />Salvando...</>
-                    ) : (
-                      <>
-                        <Save className="w-5 h-5 mr-2" />
-                        Salvar Alterações
-                      </>
-                    )}
-                  </Button>
-                </div>
-                </div>
-              ) : mode === 'audit' ? (
-                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6 xl:hidden">
-                  <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
-                  <Button
-                    variant="outline"
-                    className="h-12 min-w-[160px] flex-1 rounded-xl border-slate-300 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                    onClick={fetchAuditQueue}
-                    disabled={!!auditProcessingId}
-                  >
-                    Recarregar Auditoria
-                  </Button>
-
-                  <Button
-                    className="h-12 min-w-[200px] flex-[2] rounded-xl bg-amber-600 text-sm font-semibold text-white shadow-lg shadow-amber-600/20 transition-all hover:translate-y-[-1px] hover:bg-amber-700"
-                    onClick={() => handleDecision(activeQuestion.id, 'approve')}
-                    disabled={!!auditProcessingId || activeQuestion.is_verified === true}
-                  >
-                    {activeQuestion.is_verified === true ? 'Já publicada' : 'Aprovar após Correção'}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="h-12 min-w-[200px] flex-[2] rounded-xl border-amber-300 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-50 hover:text-amber-800"
-                    onClick={() => moveQuestionToCuration(activeQuestion.id)}
-                    disabled={!!auditProcessingId || activeQuestion.is_verified === false}
-                  >
-                    {auditProcessingId === activeQuestion.id ? 'Movendo...' : (activeQuestion.is_verified === false ? 'Já está na Curadoria' : 'Mover para Curadoria')}
-                  </Button>
-                </div>
-                </div>
-              ) : mode === 'archived' ? (
-                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6 xl:hidden">
-                  <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
-                  <Button
-                    variant="outline"
-                    className="h-12 min-w-[160px] flex-1 rounded-xl border-slate-300 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                    onClick={fetchArchived}
-                    disabled={!!questionPublishingAction}
-                  >
-                    Recarregar Arquivo
-                  </Button>
-
-                  <Button
-                    className="h-12 min-w-[200px] flex-[2] rounded-xl bg-slate-700 text-sm font-semibold text-white shadow-lg shadow-slate-700/20 transition-all hover:translate-y-[-1px] hover:bg-slate-800"
-                    onClick={() => void handleUnarchive(activeQuestion.id)}
-                    disabled={!!questionPublishingAction}
-                  >
-                    {questionPublishingAction === 'unarchive' ? (
-                      <><LoaderCircle className="w-5 h-5 mr-2 animate-spin" />Desarquivando...</>
-                    ) : (
-                      <>
-                        <ArchiveRestore className="w-5 h-5 mr-2" />
-                        Desarquivar (volta à curadoria)
-                      </>
-                    )}
-                  </Button>
-                </div>
-                </div>
-              ) : (
-                <div className="sticky bottom-2 z-20 border-t border-slate-200 bg-slate-50/95 px-3 py-3 backdrop-blur md:px-5 lg:px-6 xl:hidden">
-                  <div className="mb-3 flex flex-wrap gap-2 md:hidden">
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 shadow-sm">
-                      Delete = Deletar
-                    </span>
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 shadow-sm">
-                      Ctrl/Cmd + A = Arquivar
-                    </span>
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 shadow-sm">
-                      Enter = Aprovar
-                    </span>
-                  </div>
-                  {/* Dicas de Teclado Flutuantes */}
-                  <div className="absolute -top-8 left-0 right-0 flex justify-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                    <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
-                      DELETE = Deletar
-                    </span>
-                    <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
-                      Ctrl/Cmd + A = Arquivar
-                    </span>
-                    <span className="text-[10px] font-bold text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm uppercase tracking-wider">
-                      ENTER = Aprovar
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col gap-3 md:flex-row md:flex-wrap">
-                  <Button
-                    variant="outline"
-                    className="h-12 min-w-[110px] flex-1 rounded-xl border-red-200 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700"
-                    onClick={() => {
-                      setQuestionPublishingAction('delete');
-                      void handleDecision(activeQuestion.id, 'reject');
-                    }}
-                    disabled={!!processingId || questionPublishingAction !== null}
-                  >
-                    {questionPublishingAction === 'delete' ? <LoaderCircle className="w-5 h-5 mr-2 animate-spin" /> : <Trash2 className="w-5 h-5 mr-2" />}
-                    Deletar
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="h-12 min-w-[110px] flex-1 rounded-xl border-slate-300 text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                    onClick={() => void handleArchive(activeQuestion.id)}
-                    disabled={!!processingId || questionPublishingAction !== null}
-                  >
-                    {questionPublishingAction === 'archive' ? <LoaderCircle className="w-5 h-5 mr-2 animate-spin" /> : <Archive className="w-5 h-5 mr-2" />}
-                    Arquivar
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    className="h-12 min-w-[110px] flex-1 rounded-xl border-slate-300 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                    onClick={startEditing}
-                    disabled={!!processingId}
-                  >
-                    <Edit3 className="w-5 h-5 mr-2" />
-                    Editar
-                  </Button>
-
-                  <Button
-                    className="h-12 min-w-[180px] flex-[2] rounded-xl bg-slate-900 text-sm font-semibold text-white shadow-lg shadow-slate-900/10 transition-all hover:translate-y-[-1px] hover:bg-slate-800"
-                    onClick={() => {
-                      setQuestionPublishingAction('approve');
-                      void handleDecision(activeQuestion.id, 'approve');
-                    }}
-                    disabled={!!processingId || questionPublishingAction !== null}
-                  >
-                    {processingId === activeQuestion.id || questionPublishingAction === 'approve' ? (
-                      <><LoaderCircle className="w-5 h-5 mr-2 animate-spin" />Processando...</>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-5 h-5 mr-2" />
-                        Aprovar e Publicar
-                      </>
-                    )}
-                  </Button>
-                </div>
-                </div>
-              )}
-            </Card>
-          )}
-        </div>
-
+                )}
+              </>
+            )}
+          </div>
+        </main>
       </div>
+
+      {/* ================= GAVETA DE FERRAMENTAS ================= */}
+      {toolPanel && (
+        <aside className="flex w-[300px] shrink-0 flex-col border-l border-slate-200 bg-white">
+          <div className="flex h-12 shrink-0 items-center justify-between border-b border-slate-200 px-3">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+              {toolPanel === 'filters' ? 'Filtros e ordenação' : 'Atalhos'}
+            </p>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-slate-400 hover:text-slate-900"
+              onClick={() => setToolPanel(null)}
+              aria-label="Fechar painel"
+            >
+              <X size={15} />
+            </Button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+            {toolPanel === 'filters' ? (
+              <div className="space-y-3">
+                {mode === 'audit' && (
+                  <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50/60 p-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-800">
+                      Auditoria · {auditSummary.flagged} achado(s) em {auditSummary.totalAudited}
+                    </p>
+                    <Select value={auditType} onValueChange={(value) => setAuditType(value as typeof auditType)} disabled={isEditing}>
+                      <SelectTrigger className={selectTriggerClass}><SelectValue placeholder="Tipo de auditoria" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="media">Asset audit</SelectItem>
+                        <SelectItem value="data">Data audit</SelectItem>
+                        <SelectItem value="classification">Classification audit</SelectItem>
+                        <SelectItem value="render">Render audit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={filters.query}
+                    onChange={(event) => setFilters(current => ({ ...current, query: event.target.value }))}
+                    placeholder="Buscar ID, título, contexto..."
+                    className="h-9 rounded-lg border-slate-200 pl-9 text-sm"
+                    disabled={isEditing}
+                  />
+                </div>
+
+                <Select value={filters.source} onValueChange={(value) => setFilters(current => ({ ...current, source: value }))} disabled={isEditing}>
+                  <SelectTrigger className={selectTriggerClass}><SelectValue placeholder="Fonte" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as fontes</SelectItem>
+                    {sources.map(source => <SelectItem key={source} value={source}>{source}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+
+                <Select value={filters.subject} onValueChange={(value) => setFilters(current => ({ ...current, subject: value }))} disabled={isEditing}>
+                  <SelectTrigger className={selectTriggerClass}><SelectValue placeholder="Matéria" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as matérias</SelectItem>
+                    {subjects.map(subject => <SelectItem key={subject} value={subject}>{subject}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+
+                <Select value={filters.discipline} onValueChange={(value) => setFilters(current => ({ ...current, discipline: value }))} disabled={isEditing}>
+                  <SelectTrigger className={selectTriggerClass}><SelectValue placeholder="Disciplina" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as disciplinas</SelectItem>
+                    {disciplines.map(discipline => <SelectItem key={discipline} value={discipline}>{discipline}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <Select value={filters.difficulty} onValueChange={(value) => setFilters(current => ({ ...current, difficulty: value }))} disabled={isEditing}>
+                    <SelectTrigger className={selectTriggerClass}><SelectValue placeholder="Dificuldade" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Dificuldade</SelectItem>
+                      <SelectItem value="Fácil">Fácil</SelectItem>
+                      <SelectItem value="Médio">Médio</SelectItem>
+                      <SelectItem value="Difícil">Difícil</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filters.year} onValueChange={(value) => setFilters(current => ({ ...current, year: value }))} disabled={isEditing}>
+                    <SelectTrigger className={selectTriggerClass}><SelectValue placeholder="Ano" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os anos</SelectItem>
+                      {years.map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Select value={filters.hasImages} onValueChange={(value) => setFilters(current => ({ ...current, hasImages: value }))} disabled={isEditing}>
+                  <SelectTrigger className={selectTriggerClass}><SelectValue placeholder="Imagens" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Com e sem imagens</SelectItem>
+                    <SelectItem value="with">Com imagens</SelectItem>
+                    <SelectItem value="without">Sem imagens</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="space-y-2 border-t border-slate-100 pt-3">
+                  <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    <ArrowDownUp size={12} /> Ordenação
+                  </p>
+                  <Select value={filters.sortField} onValueChange={(value) => setFilters(current => ({ ...current, sortField: value as SortField }))} disabled={isEditing}>
+                    <SelectTrigger className={selectTriggerClass}><SelectValue placeholder="Ordenar por" /></SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(SORT_FIELD_LABELS) as SortField[]).map(field => (
+                        <SelectItem key={field} value={field}>{SORT_FIELD_LABELS[field]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filters.sortDirection} onValueChange={(value) => setFilters(current => ({ ...current, sortDirection: value as SortDirection }))} disabled={isEditing}>
+                    <SelectTrigger className={selectTriggerClass}><SelectValue placeholder="Direção" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="asc">Crescente</SelectItem>
+                      <SelectItem value="desc">Decrescente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
+                  <span>{currentItems.length} item(ns) na fila</span>
+                  {activeFilterCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      className="h-7 rounded-md px-2 text-xs text-slate-500 hover:text-slate-900"
+                      disabled={isEditing}
+                      onClick={() => setFilters(DEFAULT_FILTERS)}
+                    >
+                      Limpar
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 text-sm">
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Fila</p>
+                  {[
+                    ['← →', 'Navegar entre questões'],
+                    ['Enter', 'Aprovar e publicar'],
+                    ['Delete', 'Deletar permanentemente'],
+                    ['Ctrl/Cmd + A', mode === 'archived' ? 'Desarquivar' : 'Arquivar'],
+                    ['E', 'Editar questão'],
+                    ['Ctrl/Cmd + M', 'Abrir/fechar comentário do professor'],
+                  ].map(([keys, description]) => (
+                    <div key={keys} className="flex items-center justify-between gap-3 text-slate-600">
+                      <span className="text-[13px]">{description}</span>
+                      <kbd className="shrink-0 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">{keys}</kbd>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-1.5 border-t border-slate-100 pt-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Editor</p>
+                  {[
+                    ['Ctrl/Cmd + B', 'Negrito'],
+                    ['Ctrl/Cmd + I', 'Itálico'],
+                    ['Ctrl/Cmd + U', 'Sublinhado'],
+                    ['Ctrl/Cmd + Enter', 'Novo parágrafo'],
+                    ['Ctrl/Cmd + S', 'Salvar alterações'],
+                  ].map(([keys, description]) => (
+                    <div key={keys} className="flex items-center justify-between gap-3 text-slate-600">
+                      <span className="text-[13px]">{description}</span>
+                      <kbd className="shrink-0 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] text-slate-500">{keys}</kbd>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </aside>
+      )}
+
+      {/* ================= RÉGUA DE FERRAMENTAS ================= */}
+      <nav className="flex w-12 shrink-0 flex-col items-center gap-1 border-l border-slate-200 bg-white py-2">
+        {renderRailButton({
+          id: 'filters',
+          icon: <Filter size={17} />,
+          label: 'Filtros e ordenação',
+          badge: activeFilterCount || undefined,
+        })}
+        {renderRailButton({
+          id: 'shortcuts',
+          icon: <Keyboard size={17} />,
+          label: 'Atalhos de teclado',
+        })}
+        <button
+          type="button"
+          title={`Recarregar ${modeTitle.toLowerCase()}`}
+          aria-label={`Recarregar ${modeTitle.toLowerCase()}`}
+          onClick={refreshCurrentList}
+          disabled={isListLoading}
+          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40"
+        >
+          <RotateCcw size={17} className={isListLoading ? 'animate-spin' : undefined} />
+        </button>
+      </nav>
     </div>
   );
 }
