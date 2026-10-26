@@ -12,6 +12,7 @@ import { Typewriter } from '@/components/ui/typewriter';
 import { SmokeBackground } from '@/components/ui/spooky-smoke-animation';
 import { createClient } from '@/lib/supabase/client';
 import { usePartnerGamification } from '@/hooks/usePartnerGamification';
+import { MOCK_STUDENT_DASHBOARD_STATE } from '../../../../../../studytrack-tutorial-mock';
 import { getProgressTierMeta, getAccountLevel } from '@/components/partners/gamification/titleSystem';
 import { summarizePodiumStreaks } from '@/lib/podium-streak';
 import { useOrg } from '@/contexts/OrgContext';
@@ -388,9 +389,9 @@ export function DashboardClient({
 
   // ── Gamification hook ──────────────────────────────────────────────────────
   const {
-    summary,
+    summary: gamificationSummary,
     popupState,
-    ranking,
+    ranking: gamificationRanking,
     submitMonthlyCheckIn,
     refreshRanking,
     dismissPopup,
@@ -398,6 +399,15 @@ export function DashboardClient({
     applyStreakDecay,
     refreshSummary,
   } = usePartnerGamification();
+  // Org demo: quem está logado é o founder/admin apresentando, não um aluno —
+  // o resumo real dele não tem XP de aluno (admin sem org nem recebe resposta),
+  // e o card "Nível" ficava carregando. Mesmo mock da página de ranking do aluno.
+  const summary = org.is_mock
+    ? (MOCK_STUDENT_DASHBOARD_STATE.summary as typeof gamificationSummary)
+    : gamificationSummary;
+  const ranking = org.is_mock
+    ? (MOCK_STUDENT_DASHBOARD_STATE.ranking as unknown as typeof gamificationRanking)
+    : gamificationRanking;
   const { currentPopup, enqueuePopup, dismissCurrentPopup } = usePopupQueue();
 
   // ── Missão do dia ──────────────────────────────────────────────────────────

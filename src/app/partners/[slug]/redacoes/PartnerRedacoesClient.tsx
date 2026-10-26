@@ -1201,6 +1201,12 @@ export default function PartnerRedacoesClient({ slug, initialOverview }: Partner
   }
 
   async function handleOpenForCorrection(item: EssayListItem) {
+    // Org demo: a redação só existe no mock — não há lock a reservar (o PATCH
+    // falharia e o toast diria que alguém já está corrigindo).
+    if (org.is_mock) {
+      window.location.href = `/partners/${slug}/redacoes/${item.id}`;
+      return;
+    }
     setOpeningEssayId(item.id);
     try {
       const res = await fetch(`/api/partners/${slug}/essays/${item.id}/lock`, {

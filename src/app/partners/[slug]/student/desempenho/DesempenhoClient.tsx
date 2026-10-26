@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { addDaysToDateKey, todayBrtDateKey } from '@/lib/brt-date';
 import Link from 'next/link';
 import {
   Area,
@@ -287,7 +288,7 @@ function buildActivityChart(
 
   const allKeys = Array.from(new Set([...questionMap.keys(), ...essayCountMap.keys()])).sort();
 
-  return allKeys.slice(-12).map((key) => {
+  return allKeys.map((key) => {
     const date = new Date(`${key}T12:00:00`);
     const label = Number.isNaN(date.getTime())
       ? key
@@ -376,10 +377,17 @@ function buildSimuladoSubjectStats(sessions: SimuladoSession[]) {
     .sort((a, b) => b.accuracy - a.accuracy);
 }
 
+// Recorte por data (últimos N dias corridos, incluindo hoje) — não por
+// quantidade de entradas: o histórico só tem linha nos dias com atividade,
+// então "últimas 7 entradas" podia cobrir semanas.
+function sinceDaysAgo(days: number) {
+  return addDaysToDateKey(todayBrtDateKey(), -(days - 1));
+}
+
 function buildHabits(history: AnalyticsResponse['activity_history']) {
-  const recent30 = history.slice(-30);
-  const last7 = recent30.slice(-7);
-  const previous7 = recent30.slice(-14, -7);
+  const recent30 = history.filter((item) => item.usage_date >= sinceDaysAgo(30));
+  const last7 = recent30.filter((item) => item.usage_date >= sinceDaysAgo(7));
+  const previous7 = recent30.filter((item) => item.usage_date >= sinceDaysAgo(14) && item.usage_date < sinceDaysAgo(7));
 
   const countActiveDays = (items: typeof recent30) => items.filter((item) => (
     Number(item.questions_count || 0) > 0 || Number(item.simulations_count || 0) > 0
@@ -810,8 +818,8 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
     .slice()
     .sort((a, b) => a.accuracy - b.accuracy)
     .slice(0, MAX_WEAK_TOPICS);
-  const filteredActivityChart = activityChart.slice(-evolutionPeriod);
-  const habitsChartData = analytics.activity_history.slice(-habitsPeriod).map((item) => ({
+  const filteredActivityChart = activityChart.filter((item) => item.key >= sinceDaysAgo(evolutionPeriod));
+  const habitsChartData = analytics.activity_history.filter((item) => item.usage_date >= sinceDaysAgo(habitsPeriod)).map((item) => ({
     label: formatDateShort(item.usage_date),
     questions: item.questions_count,
     simulados: item.simulations_count,

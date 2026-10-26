@@ -5,7 +5,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { animate, motion, useMotionValue, useTransform } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
-import { MOCK_SIMULADO_PARTICIPANTS } from '../../../../../../../studytrack-tutorial-mock';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import {
   ArrowRight,
@@ -97,6 +96,8 @@ interface ClassReportJob {
   status: 'pending' | 'processing' | 'completed' | 'failed';
   downloadUrl: string | null;
   errorMessage: string | null;
+  /** Só no relatório da org demo: downloadUrl é um blob local, sem Content-Disposition. */
+  fileName?: string;
 }
 
 function formatDateBR(iso?: string | null) {
@@ -267,22 +268,23 @@ export default function PrintedExamResultsPage() {
     setLoading(true);
     setError(null);
 
-    if (org.is_mock) {
-      setParticipants(MOCK_SIMULADO_PARTICIPANTS as unknown as Participant[]);
-      setLoading(false);
-      return;
-    }
     try {
-      const examsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams?scheduled_simulado_id=${scheduledId}`);
-      if (!examsRes.ok) {
-        const data = await examsRes.json().catch(() => ({}));
-        setError(data.error ?? 'Não foi possível carregar a prova impressa.');
-        return;
-      }
+      // Org demo: o simulado não existe no banco, então não há prova impressa —
+      // os resultados online vêm do ranking, que o backend serve a partir do
+      // fixture demo (mesma fonte do relatório geral).
+      let exam: PrintedExam | null = null;
+      if (!org.is_mock) {
+        const examsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams?scheduled_simulado_id=${scheduledId}`);
+        if (!examsRes.ok) {
+          const data = await examsRes.json().catch(() => ({}));
+          setError(data.error ?? 'Não foi possível carregar a prova impressa.');
+          return;
+        }
 
-      const examsData = await examsRes.json();
-      const exam: PrintedExam | null = (examsData.printed_exams ?? [])[0] ?? null;
-      setPrintedExam(exam);
+        const examsData = await examsRes.json();
+        exam = (examsData.printed_exams ?? [])[0] ?? null;
+        setPrintedExam(exam);
+      }
 
       let printedParticipants: Participant[] = [];
 
@@ -364,6 +366,10 @@ export default function PrintedExamResultsPage() {
     setGeneratingClassReport(true);
     setError(null);
     setClassReportJob(null);
+    if (org.is_mock) {
+      await downloadDemoClassReport();
+      return;
+    }
     try {
       const res = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/${scheduledId}/report.pdf`, {
         method: 'POST',
@@ -378,6 +384,30 @@ export default function PrintedExamResultsPage() {
     } catch {
       setError('Erro de conexão ao gerar o relatório geral da turma.');
       setGeneratingClassReport(false);
+    }
+  }
+
+  // Org demo: sem job (o simulado demo não existe em scheduled_simulados) — o
+  // backend devolve o PDF pronto na própria resposta.
+  async function downloadDemoClassReport() {
+    try {
+      const res = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/${scheduledId}/demo-report.pdf`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setClassReportJob({ jobId: 'demo', status: 'failed', downloadUrl: null, errorMessage: data.error ?? null });
+        return;
+      }
+      const fileName = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'RELATORIO GERAL.pdf';
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      setClassReportJob({ jobId: 'demo', status: 'completed', downloadUrl: url, errorMessage: null, fileName });
+    } catch {
+      setClassReportJob({ jobId: 'demo', status: 'failed', downloadUrl: null, errorMessage: 'Erro de conexão ao gerar o relatório geral da turma.' });
     }
   }
 
@@ -569,12 +599,13 @@ export default function PrintedExamResultsPage() {
           </div>
         </div>
 
-        {!org.is_mock && !loading && !error && participants.length > 0 && (
+        {!loading && !error && participants.length > 0 && (
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             {classReportJob?.status === 'completed' && classReportJob.downloadUrl ? (
               <div className="flex items-center gap-2">
                 <a
                   href={classReportJob.downloadUrl}
+                  download={classReportJob.fileName}
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   <Download className="h-4 w-4" />
@@ -603,7 +634,8 @@ export default function PrintedExamResultsPage() {
               </button>
             )}
 
-            {individualJob?.status === 'completed' && individualJob.downloadUrl ? (
+            {/* Relatórios individuais dependem de job + Storage reais — fora da demo. */}
+            {org.is_mock ? null : individualJob?.status === 'completed' && individualJob.downloadUrl ? (
               <div className="flex items-center gap-2">
                 <a
                   href={individualJob.downloadUrl}
