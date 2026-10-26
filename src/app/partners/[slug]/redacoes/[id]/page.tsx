@@ -410,6 +410,36 @@ export default function CorrecaoRedacaoPage() {
 
       if (org.is_mock) {
         if (!mounted) return;
+        // Redação pendente da demo → abre no fluxo de correção (formulário
+        // zerado, ferramentas de anotação ativas). Não existe no banco; o
+        // envio é simulado em doSubmitCorrection.
+        const pendingMock = (MOCK_ESSAYS_OVERVIEW.pending_items as Array<{ id: string; essay_type: string; theme: string; submitted_at: string; text: string }>)
+          .find((e) => e.id === id);
+        if (pendingMock) {
+          const pendingTypeConfig = ESSAY_TYPE_CONFIGS[(pendingMock.essay_type as EssayType) || 'enem'] ?? ESSAY_TYPE_CONFIGS.enem;
+          const emptyScores = pendingTypeConfig.competencies.map((_, idx) => ({ competency: idx + 1, score: 0, comment: '' }));
+          setEssay({
+            ...pendingMock,
+            status: 'pending',
+            text: normalizeEssayLineBreaks(pendingMock.text),
+            corrected_at: null,
+            second_corrected_at: null,
+            total_score: null,
+            average_score: null,
+            general_comment: null,
+            second_corrector_id: null,
+            second_corrector_name: null,
+            second_correction_requested_at: null,
+            competency_scores: [],
+            annotations: [],
+            corrections: [],
+          });
+          setAnnotations([]);
+          setScores(emptyScores);
+          setGeneralComment('');
+          setLoading(false);
+          return;
+        }
         const corrected = MOCK_ESSAYS_OVERVIEW.corrected_items as Array<{ id: string; status: string; essay_type: string; theme: string; submitted_at: string; corrected_at: string; total_score: number; average_score: null; text: string; student: { id: string; full_name: string; email: string; avatar_url: null } }>;
         const mockEssay = corrected.find(e => e.id === id) ?? corrected[0];
         const rawScores = (MOCK_STUDENT_ESSAY_COMPETENCY_SCORES as unknown as Array<{ essay_id: string; competency: number; score: number; correction_round: number }>);
@@ -519,6 +549,14 @@ export default function CorrecaoRedacaoPage() {
     if (essay.status !== 'pending' && essay.status !== 'awaiting_second') return;
     if (essay.status === 'awaiting_second' && essay.second_corrector_id && essay.second_corrector_id !== currentUserId) return;
 
+    // Org demo: sem lock real (a redação não existe no banco) — libera a
+    // edição direto. lockOwnedRef fica false, então o unmount não tenta
+    // um DELETE do lock.
+    if (org.is_mock) {
+      setLockOwned(true);
+      return () => setLockOwned(false);
+    }
+
     let cancelled = false;
     let heartbeat: number | null = null;
     async function acquireLock() {
@@ -556,7 +594,7 @@ export default function CorrecaoRedacaoPage() {
       if (heartbeat !== null) window.clearInterval(heartbeat);
       setLockOwned(false);
     };
-  }, [essay, currentUserId, id, slug, router]);
+  }, [essay, currentUserId, id, slug, router, org.is_mock]);
 
   useEffect(() => {
     return () => {
@@ -758,6 +796,13 @@ export default function CorrecaoRedacaoPage() {
 
     setSubmitting(true);
     setShowDeliveryModal(false);
+    if (org.is_mock) {
+      // Demo: nada é gravado — mostra o mesmo retorno da correção real.
+      toast.success(secondRequest ? 'Segunda correção solicitada!' : 'Correção enviada! O aluno será notificado.');
+      setSubmitting(false);
+      if (redirectAfter) router.push(`/partners/${slug}/redacoes`);
+      return true;
+    }
     try {
       const payload: Record<string, unknown> = {
         competency_scores: scores.map((s) => ({

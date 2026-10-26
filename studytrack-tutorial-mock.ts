@@ -112,6 +112,15 @@ function shiftDates<T>(value: T, key?: string): T {
   return value;
 }
 
+// Rótulo do mês corrente no formato do backend (gamification_service:
+// "Outubro 2026") — texto livre não passa pelo shiftDates, então um mês fixo
+// ficava parado no mês em que o mock foi escrito.
+const CURRENT_MONTH_LABEL = (() => {
+  const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const now = new Date();
+  return `${months[now.getUTCMonth()]} ${now.getUTCFullYear()}`;
+})();
+
 // ─── OrgStats ──────────────────────────────────────────────────────────────────
 
 const _MOCK_STATS = {
@@ -487,9 +496,15 @@ const _MOCK_STUDENT_ESSAYS: Record<string, unknown[]> = {
 
 // ─── Simulados ─────────────────────────────────────────────────────────────────
 
+const SIM1_ID = '5a000010-0000-4000-8000-000000000010';
+
+// Ranking da turma, Análise Detalhada e o relatório geral destes simulados vêm
+// do backend (app/services/analytics/demo_simulado_fixture.py), que conhece
+// estes mesmos IDs — `metrics` abaixo espelha o que ele calcula para o elenco
+// padrão das orgs demo. Mudou o fixture, atualize os números aqui.
 const _MOCK_SIMULADOS = [
   {
-    id: '5a000010-0000-4000-8000-000000000010',
+    id: SIM1_ID,
     title: 'ENEM Simulado I',
     config: { format: 'dia1', bank: 'ENEM', subject: null, difficulty: 'misto', qty: 90, time_limit_secs: 18000, allow_retry: false, same_for_all_students: true },
     starts_at: '2026-07-14T08:00:00.000Z',
@@ -497,7 +512,7 @@ const _MOCK_SIMULADOS = [
     status: 'ended' as const,
     created_at: '2026-07-10T10:00:00.000Z',
     modality: 'online' as const,
-    metrics: { total_sessions: 40, completed_sessions: 37, unique_students: 38, avg_score_pct: 64.2, best_score_pct: 89.1, worst_score_pct: 31.2 },
+    metrics: { total_sessions: 26, completed_sessions: 24, unique_students: 24, avg_score_pct: 64.3, best_score_pct: 86.7, worst_score_pct: 43.3 },
   },
   {
     id: '5a000011-0000-4000-8000-000000000011',
@@ -508,7 +523,7 @@ const _MOCK_SIMULADOS = [
     status: 'ended' as const,
     created_at: '2026-07-03T10:00:00.000Z',
     modality: 'online' as const,
-    metrics: { total_sessions: 31, completed_sessions: 28, unique_students: 29, avg_score_pct: 58.4, best_score_pct: 82.2, worst_score_pct: 24.4 },
+    metrics: { total_sessions: 25, completed_sessions: 22, unique_students: 22, avg_score_pct: 59.0, best_score_pct: 91.1, worst_score_pct: 31.1 },
   },
   {
     id: '5a000012-0000-4000-8000-000000000012',
@@ -523,149 +538,6 @@ const _MOCK_SIMULADOS = [
   },
 ];
 
-// ─── Simulado I — Ranking & Analytics ─────────────────────────────────────────
-
-const SIM1_ID = '5a000010-0000-4000-8000-000000000010';
-
-const _MOCK_SIMULADO_RANKINGS: Record<string, unknown[]> = {
-  [SIM1_ID]: [
-    { position:  1, student_id: uid(1),  full_name: 'Ana Paula Costa',   avatar_url: null, score: 80, total_questions: 90, score_pct: 88.9, tri_score: 712.4, time_taken_secs: 14200 },
-    { position:  2, student_id: uid(8),  full_name: 'Camila Pereira',    avatar_url: null, score: 75, total_questions: 90, score_pct: 83.3, tri_score: 685.3, time_taken_secs: 15800 },
-    { position:  3, student_id: uid(4),  full_name: 'Gabriela Alves',    avatar_url: null, score: 72, total_questions: 90, score_pct: 80.0, tri_score: 671.8, time_taken_secs: 16200 },
-    { position:  4, student_id: uid(27), full_name: 'Gustavo Teixeira',  avatar_url: null, score: 68, total_questions: 90, score_pct: 75.6, tri_score: 652.1, time_taken_secs: 17100 },
-    { position:  5, student_id: uid(5),  full_name: 'Rafael Santos',     avatar_url: null, score: 67, total_questions: 90, score_pct: 74.4, tri_score: 648.7, time_taken_secs: 15400 },
-    { position:  6, student_id: uid(6),  full_name: 'Isabela Lima',      avatar_url: null, score: 65, total_questions: 90, score_pct: 72.2, tri_score: 638.2, time_taken_secs: 16800 },
-    { position:  7, student_id: uid(13), full_name: 'Diego Carvalho',    avatar_url: null, score: 62, total_questions: 90, score_pct: 68.9, tri_score: 622.4, time_taken_secs: 18200 },
-    { position:  8, student_id: uid(31), full_name: 'Samuel Xavier',     avatar_url: null, score: 61, total_questions: 90, score_pct: 67.8, tri_score: 617.9, time_taken_secs: 17600 },
-    { position:  9, student_id: uid(22), full_name: 'Mariana Rocha',     avatar_url: null, score: 60, total_questions: 90, score_pct: 66.7, tri_score: 612.3, time_taken_secs: 18900 },
-    { position: 10, student_id: uid(19), full_name: 'Leonardo Nunes',    avatar_url: null, score: 58, total_questions: 90, score_pct: 64.4, tri_score: 601.8, time_taken_secs: 17400 },
-    { position: 11, student_id: uid(2),  full_name: 'Lucas Ferreira',    avatar_url: null, score: 57, total_questions: 90, score_pct: 63.3, tri_score: 596.5, time_taken_secs: 18600 },
-    { position: 12, student_id: uid(11), full_name: 'Thiago Costa',      avatar_url: null, score: 55, total_questions: 90, score_pct: 61.1, tri_score: 585.1, time_taken_secs: 19200 },
-    { position: 13, student_id: uid(23), full_name: 'Felipe Nascimento',  avatar_url: null, score: 54, total_questions: 90, score_pct: 60.0, tri_score: 578.4, time_taken_secs: 18800 },
-    { position: 14, student_id: uid(25), full_name: 'Eduardo Moreira',   avatar_url: null, score: 52, total_questions: 90, score_pct: 57.8, tri_score: 568.3, time_taken_secs: 17900 },
-    { position: 15, student_id: uid(16), full_name: 'Fernanda Ribeiro',  avatar_url: null, score: 50, total_questions: 90, score_pct: 55.6, tri_score: 555.7, time_taken_secs: 20100 },
-    { position: 16, student_id: uid(7),  full_name: 'Pedro Rodrigues',   avatar_url: null, score: 48, total_questions: 90, score_pct: 53.3, tri_score: 544.2, time_taken_secs: 19600 },
-    { position: 17, student_id: uid(34), full_name: 'Larissa Borges',    avatar_url: null, score: 46, total_questions: 90, score_pct: 51.1, tri_score: 532.8, time_taken_secs: 21200 },
-    { position: 18, student_id: uid(9),  full_name: 'Mateus Souza',      avatar_url: null, score: 42, total_questions: 90, score_pct: 46.7, tri_score: 512.4, time_taken_secs: 20800 },
-    { position: 19, student_id: uid(3),  full_name: 'Bruno Mendes',      avatar_url: null, score: 38, total_questions: 90, score_pct: 42.2, tri_score: 490.1, time_taken_secs: 22400 },
-    { position: 20, student_id: uid(10), full_name: 'Juliana Oliveira',  avatar_url: null, score: 28, total_questions: 90, score_pct: 31.2, tri_score: 451.3, time_taken_secs: 23100 },
-  ],
-};
-
-const _MOCK_SIMULADO_ANALYTICS: Record<string, unknown> = {
-  [SIM1_ID]: {
-    weighted_applied: false,
-    kpis: {
-      participants: 38,
-      sessions_total: 40,
-      completion_rate_pct: 92.5,
-      avg_score_pct: 64.2,
-      median_score_pct: 63.3,
-      best_score_pct: 88.9,
-      worst_score_pct: 31.2,
-    },
-    students: [
-      { position:  1, student_id: uid(1),  full_name: 'Ana Paula Costa',  avatar_url: null, score: 80, total_questions: 90, score_pct: 88.9, time_taken_secs: 14200, completed_at: '2026-07-14T18:03:20Z', best_subject: { name: 'Língua Portuguesa', correct: 19, total: 20, pct: 95.0 }, worst_subject: { name: 'Filosofia', correct: 7, total: 11, pct: 63.6 } },
-      { position:  2, student_id: uid(8),  full_name: 'Camila Pereira',   avatar_url: null, score: 75, total_questions: 90, score_pct: 83.3, time_taken_secs: 15800, completed_at: '2026-07-14T18:23:20Z', best_subject: { name: 'Geografia', correct: 10, total: 11, pct: 90.9 }, worst_subject: { name: 'Filosofia', correct: 6, total: 11, pct: 54.5 } },
-      { position:  3, student_id: uid(4),  full_name: 'Gabriela Alves',   avatar_url: null, score: 72, total_questions: 90, score_pct: 80.0, time_taken_secs: 16200, completed_at: '2026-07-14T18:30:00Z', best_subject: { name: 'Inglês', correct: 5, total: 5,  pct: 100.0 }, worst_subject: { name: 'Sociologia', correct: 5, total: 10, pct: 50.0 } },
-      { position:  4, student_id: uid(27), full_name: 'Gustavo Teixeira', avatar_url: null, score: 68, total_questions: 90, score_pct: 75.6, time_taken_secs: 17100, completed_at: '2026-07-14T18:45:00Z', best_subject: { name: 'Inglês', correct: 5, total: 5,  pct: 100.0 }, worst_subject: { name: 'Sociologia', correct: 4, total: 10, pct: 40.0 } },
-      { position:  5, student_id: uid(5),  full_name: 'Rafael Santos',    avatar_url: null, score: 67, total_questions: 90, score_pct: 74.4, time_taken_secs: 15400, completed_at: '2026-07-14T18:16:40Z', best_subject: { name: 'Língua Portuguesa', correct: 16, total: 20, pct: 80.0 }, worst_subject: { name: 'Artes', correct: 2, total: 5,  pct: 40.0 } },
-      { position:  6, student_id: uid(6),  full_name: 'Isabela Lima',     avatar_url: null, score: 65, total_questions: 90, score_pct: 72.2, time_taken_secs: 16800, completed_at: '2026-07-14T18:40:00Z', best_subject: { name: 'História', correct: 9, total: 11, pct: 81.8 }, worst_subject: { name: 'Artes', correct: 2, total: 5,  pct: 40.0 } },
-      { position:  7, student_id: uid(13), full_name: 'Diego Carvalho',   avatar_url: null, score: 62, total_questions: 90, score_pct: 68.9, time_taken_secs: 18200, completed_at: '2026-07-14T19:03:20Z', best_subject: { name: 'Inglês', correct: 4, total: 5,  pct: 80.0 }, worst_subject: { name: 'Filosofia', correct: 5, total: 11, pct: 45.5 } },
-      { position:  8, student_id: uid(31), full_name: 'Samuel Xavier',    avatar_url: null, score: 61, total_questions: 90, score_pct: 67.8, time_taken_secs: 17600, completed_at: '2026-07-14T18:53:20Z', best_subject: { name: 'Língua Portuguesa', correct: 15, total: 20, pct: 75.0 }, worst_subject: { name: 'Sociologia', correct: 4, total: 10, pct: 40.0 } },
-      { position:  9, student_id: uid(22), full_name: 'Mariana Rocha',    avatar_url: null, score: 60, total_questions: 90, score_pct: 66.7, time_taken_secs: 18900, completed_at: '2026-07-14T19:15:00Z', best_subject: { name: 'Geografia', correct: 9, total: 11, pct: 81.8 }, worst_subject: { name: 'Filosofia', correct: 5, total: 11, pct: 45.5 } },
-      { position: 10, student_id: uid(2),  full_name: 'Lucas Ferreira',   avatar_url: null, score: 57, total_questions: 90, score_pct: 63.3, time_taken_secs: 18600, completed_at: '2026-07-14T19:10:00Z', best_subject: { name: 'Inglês', correct: 4, total: 5,  pct: 80.0 }, worst_subject: { name: 'Filosofia', correct: 4, total: 11, pct: 36.4 } },
-    ],
-    question_distribution: [
-      {
-        question_id: 'qd100001-0000-4000-8000-000000000001', position: 1,
-        subject: 'Língua Portuguesa', discipline: 'Língua Portuguesa', difficulty: 'medio',
-        context: 'Leia o trecho a seguir, extraído de conto contemporâneo brasileiro.',
-        statement: 'A linguagem utilizada pelo narrador no trecho pode ser classificada predominantemente como:',
-        alternatives: [
-          { letter: 'A', text: 'formal e erudita, marcada pelo uso de arcaísmos e inversões sintáticas.' },
-          { letter: 'B', text: 'coloquial e regional, com traços dialetais do sertão nordestino.' },
-          { letter: 'C', text: 'técnica e objetiva, sem elementos de subjetividade.' },
-          { letter: 'D', text: 'poética e metafórica, com predominância de figuras de linguagem.' },
-          { letter: 'E', text: 'jornalística e impessoal, seguindo o padrão da norma culta escrita.' },
-        ],
-        images: [], correct_option: 'D',
-        attempts: 38, correct_count: 29, omitted_count: 0, omission_pct: 0,
-        avg_time_secs: 112, accuracy_pct: 76.3,
-        option_distribution: { A: 2, B: 3, C: 1, D: 29, E: 3 },
-      },
-      {
-        question_id: 'qd100002-0000-4000-8000-000000000002', position: 12,
-        subject: 'Inglês', discipline: 'Língua Estrangeira', difficulty: 'facil',
-        context: 'Read the following excerpt from a scientific article about artificial intelligence.',
-        statement: 'According to the text, the main challenge of AI development is:',
-        alternatives: [
-          { letter: 'A', text: 'the high cost of hardware and infrastructure.' },
-          { letter: 'B', text: 'ensuring that systems act ethically and transparently.' },
-          { letter: 'C', text: 'finding enough data to train neural networks.' },
-          { letter: 'D', text: 'replacing human labor in manufacturing industries.' },
-          { letter: 'E', text: 'developing faster programming languages.' },
-        ],
-        images: [], correct_option: 'B',
-        attempts: 38, correct_count: 32, omitted_count: 0, omission_pct: 0,
-        avg_time_secs: 95, accuracy_pct: 84.2,
-        option_distribution: { A: 2, B: 32, C: 1, D: 2, E: 1 },
-      },
-      {
-        question_id: 'qd100003-0000-4000-8000-000000000003', position: 28,
-        subject: 'Artes', discipline: 'Arte e Cultura', difficulty: 'dificil',
-        context: 'Analise a obra "O Mestiço" de Cândido Portinari, produzida em 1934.',
-        statement: 'A representação do trabalhador rural na tela de Portinari dialoga com qual movimento artístico brasileiro?',
-        alternatives: [
-          { letter: 'A', text: 'Neoclassicismo acadêmico, influenciado pelos modelos europeus do século XIX.' },
-          { letter: 'B', text: 'Arte concreta, com ênfase na geometria e na abstração das formas.' },
-          { letter: 'C', text: 'Modernismo social, comprometido com a identidade e as mazelas do povo brasileiro.' },
-          { letter: 'D', text: 'Impressionismo, com foco na captação da luz e das sensações imediatas.' },
-          { letter: 'E', text: 'Surrealismo, explorando o inconsciente e imagens oníricas.' },
-        ],
-        images: [], correct_option: 'C',
-        attempts: 37, correct_count: 19, omitted_count: 1, omission_pct: 2.6,
-        avg_time_secs: 148, accuracy_pct: 51.4,
-        option_distribution: { A: 8, B: 3, C: 19, D: 5, E: 2 },
-      },
-      {
-        question_id: 'qd100004-0000-4000-8000-000000000004', position: 51,
-        subject: 'História', discipline: 'História do Brasil', difficulty: 'medio',
-        context: 'Considere o contexto da Proclamação da República brasileira em 1889.',
-        statement: 'A transição do regime monárquico para o republicano no Brasil foi marcada principalmente por:',
-        alternatives: [
-          { letter: 'A', text: 'uma revolução popular liderada por operários e camponeses insatisfeitos com a monarquia.' },
-          { letter: 'B', text: 'um golpe militar articulado por setores do Exército insatisfeitos e apoiados pela elite cafeeira.' },
-          { letter: 'C', text: 'uma crise diplomática com Portugal que forçou a abdicação de Dom Pedro II.' },
-          { letter: 'D', text: 'um plebiscito nacional no qual a maioria da população optou pelo regime republicano.' },
-          { letter: 'E', text: 'pressões externas de potências europeias contrárias ao regime escravocrata imperial.' },
-        ],
-        images: [], correct_option: 'B',
-        attempts: 38, correct_count: 25, omitted_count: 0, omission_pct: 0,
-        avg_time_secs: 130, accuracy_pct: 65.8,
-        option_distribution: { A: 5, B: 25, C: 3, D: 2, E: 3 },
-      },
-      {
-        question_id: 'qd100005-0000-4000-8000-000000000005', position: 78,
-        subject: 'Filosofia', discipline: 'Filosofia', difficulty: 'dificil',
-        context: 'Leia o seguinte fragmento de "A República" de Platão, no qual Sócrates discute a natureza da justiça.',
-        statement: 'Para Platão, a justiça na cidade-Estado (pólis) é alcançada quando:',
-        alternatives: [
-          { letter: 'A', text: 'todos os cidadãos participam igualmente das decisões políticas por meio da democracia direta.' },
-          { letter: 'B', text: 'as leis são elaboradas pelo povo e seguidas por todos sem distinção de classe.' },
-          { letter: 'C', text: 'cada classe social exerce a função que lhe é naturalmente adequada, sem interferir nas demais.' },
-          { letter: 'D', text: 'a propriedade privada é abolida e os bens são distribuídos igualmente entre os cidadãos.' },
-          { letter: 'E', text: 'o Estado garante liberdade irrestrita a todos os indivíduos, sem hierarquias.' },
-        ],
-        images: [], correct_option: 'C',
-        attempts: 37, correct_count: 16, omitted_count: 1, omission_pct: 2.6,
-        avg_time_secs: 162, accuracy_pct: 43.2,
-        option_distribution: { A: 9, B: 4, C: 16, D: 5, E: 3 },
-      },
-    ],
-  },
-};
-
 // ─── Essays overview ────────────────────────────────────────────────────────────
 
 const ESSAY_TEXT_ANA = `A empatia, enquanto capacidade de compreender e compartilhar sentimentos alheios, constitui pilar fundamental para o tecido social contemporâneo. Numa era marcada pela fragmentação digital e pelo individualismo crescente, a ausência dessa habilidade produz consequências nefastas ao convívio coletivo.
@@ -675,6 +547,42 @@ Em primeiro lugar, cabe analisar como a cultura da virtualidade compromete os v�
 Ademais, sob perspectiva histórica, sociedades que negligenciam a empatia tendem à intolerância sistêmica. O filósofo Richard Rorty demonstrou que comunidades empáticas constroem redes de solidariedade mais resilientes, capazes de enfrentar crises coletivas com maior coesão e menor fragmentação.
 
 Portanto, o Estado e a sociedade civil devem promover a educação socioemocional desde a infância, integrando práticas de escuta ativa ao currículo nacional. Simultaneamente, plataformas digitais têm a responsabilidade de redesenhar seus algoritmos para ampliar, em vez de restringir, a exposição a perspectivas diversas. Tais medidas, articuladas, são fundamentais para restituir à empatia seu papel estruturante na vida em sociedade.`;
+
+// Redações pendentes da demo: não existem no banco, só aqui. Texto completo
+// (não só o trecho de prévia) porque o founder abre uma delas na call para
+// mostrar o fluxo de correção — anotar, corrigir trechos e dar as notas. Têm
+// alguns desvios típicos de aluno de propósito, para haver o que marcar.
+const ESSAY_TEXT_MOBILIDADE = `A mobilidade urbana é um dos maiores desafios das cidades brasileiras. Segundo o IBGE, o trabalhador das regiões metropolitanas gasta, em média, mais de duas horas por dia no deslocamento entre casa e trabalho, tempo que poderia ser dedicado ao descanso, a família e aos estudos. Esse cenário é resultado de um modelo de urbanização que privilegiou o automóvel em detrimento do transporte coletivo.
+
+Em primeiro lugar, é preciso considerar o crescimento desordenado das cidades. A partir da década de 1950, o êxodo rural levou milhões de pessoas para as periferias dos grandes centros, longe dos postos de trabalho. Como o planejamento urbano não acompanhou essa expansão, houveram bairros inteiros sem acesso a linhas de ônibus ou metrô, o que obriga os moradores a longas jornadas diárias.
+
+Além disso, as políticas públicas incentivaram o transporte individual. A redução de impostos sobre veículos e a construção de viadutos e vias expressas fizeram com que o número de carros nas ruas crescesse muito mais rápido do que a infraestrutura. Consequentemente, os congestionamentos se tornaram parte da rotina, aumentando a poluição do ar e os acidentes de trânsito, que vitimam milhares de brasileiros todos os anos.
+
+Portanto, é necessário que o Ministério das Cidades, em parceria com as prefeituras, amplie os investimentos em corredores exclusivos de ônibus e em sistemas de metrô, por meio de recursos do orçamento federal e de parcerias público-privadas. Além disso, a escola deve promover campanhas sobre o uso da bicicleta e do transporte coletivo. Dessa forma, a mobilidade deixará de ser um obstáculo e passará a garantir o direito à cidade para todos.`;
+
+const ESSAY_TEXT_VIOLENCIA = `A violência doméstica configura grave violação dos direitos humanos e atinge milhares de brasileiras diariamente. Mesmo após a criação da Lei Maria da Penha, em 2006, os índices de agressão contra a mulher continuam elevados, o que revela que a legislação, sozinha, não é capaz de resolver um problema com raízes profundas na sociedade.
+
+Inicialmente, deve-se destacar a herança patriarcal da formação brasileira. Durante séculos, a mulher foi vista como propriedade do pai e, depois, do marido, e essa mentalidade ainda se manifesta em relacionamentos abusivos. Como afirma a filósofa Simone de Beauvoir, "ninguém nasce mulher: torna-se mulher", ou seja, os papéis de gênero são construídos socialmente e, por isso, podem e devem ser transformados.
+
+Ademais, a subnotificação dificulta o combate a esse tipo de crime. Muitas vítimas não denunciam por dependência financeira, medo de represálias ou vergonha, e quando procuram ajuda, nem sempre encontram delegacias especializadas em seu município. Desse modo, os agressores permanecem impunes e o ciclo de violência se repete, chegando, em muitos casos, ao feminicídio.
+
+Portanto, cabe ao Estado ampliar a rede de proteção à mulher, com a criação de delegacias especializadas e casas de acolhimento em todos os municípios, através de verbas destinadas pelo Ministério das Mulheres. Paralelamente, as escolas devem abordar a igualdade de gênero desde o ensino fundamental, a fim de formar cidadãos que respeitem os direitos das mulheres. Assim, a violência contra a mulher poderá, enfim, ser superada.`;
+
+const ESSAY_TEXT_CRISE_HIDRICA = `A escassez de água potável afeta milhões de brasileiros, apesar do país possuir cerca de 12% da água doce disponível no planeta. Essa contradição evidencia que a crise hídrica não é apenas um fenômeno natural, mas também consequência da má gestão dos recursos e do desperdício por parte da população e do setor produtivo.
+
+Em primeiro plano, a distribuição desigual da água no território agrava o problema. Enquanto a região Norte concentra a maior parte das reservas, o Nordeste e o Sudeste, que são as regiões mais populosas, sofrem com estiagens prolongadas. Somado a isso, a falta de investimento em saneamento faz com que grande parte da água tratada seja perdida em vazamentos antes de chegar as residências.
+
+Por outro lado, o agronegócio e a indústria são responsáveis pela maior parte do consumo de água no Brasil. A irrigação de grandes plantações, muitas vezes feita de forma ineficiente, e o descarte de resíduos nos rios comprometem a disponibilidade e a qualidade da água. Fazem anos que especialistas alertam para esse problema, mas as medidas adotadas ainda são insuficientes.
+
+Logo, é fundamental que o governo federal, por meio da Agência Nacional de Águas, fiscalize o uso da água pelo setor produtivo e incentive técnicas de irrigação mais eficientes, como o gotejamento. Além disso, as companhias de saneamento devem investir na modernização das redes de distribuição para reduzir as perdas. Com essas ações, será possível garantir o acesso à água para as próximas gerações.`;
+
+const ESSAY_TEXT_SAUDE_MENTAL = `Nos últimos anos, os índices de ansiedade e depressão entre adolescentes cresceram de forma alarmante no Brasil. De acordo com a Organização Mundial da Saúde, o país é um dos que mais registram casos de transtornos de ansiedade no mundo, e os jovens estão entre os mais afetados. Esse quadro está relacionado, principalmente, à pressão por desempenho e ao uso excessivo das redes sociais.
+
+Primeiramente, a cobrança por resultados contribui para o adoecimento dos jovens. Desde cedo, os estudantes são pressionados a conquistar uma vaga na universidade e a garantir um futuro profissional de sucesso, o que gera um estado constante de tensão. Nesse sentido, o sociólogo Byung-Chul Han, em "Sociedade do Cansaço", afirma que o indivíduo contemporâneo se explora a si mesmo em busca de produtividade, até chegar ao esgotamento.
+
+Além disso, as redes sociais intensificam a comparação e o sentimento de inadequação. Os adolescentes passam horas expostos a vidas aparentemente perfeitas, o que afeta sua autoestima, mais poucos percebem que esse conteúdo é editado e não representa a realidade. Também, o tempo excessivo diante das telas prejudica o sono e reduz o convívio presencial, fatores essenciais para a saúde mental.
+
+Portanto, o Ministério da Educação deve garantir a presença de psicólogos nas escolas públicas e privadas, por meio da regulamentação da lei que prevê esse atendimento, para acolher os estudantes e identificar sinais de sofrimento. Ao mesmo tempo, a família e a escola precisam conscientizar os jovens sobre o uso saudável da internet. Dessa maneira, a juventude brasileira poderá crescer de forma mais equilibrada.`;
 
 const _MOCK_ESSAYS_OVERVIEW = {
   essay_type_filter: 'enem',
@@ -702,10 +610,10 @@ const _MOCK_ESSAYS_OVERVIEW = {
     second_corrections_count: 3,
   },
   pending_items: [
-    { id: 'ep000002-0000-4000-8000-000000000002', status: 'pending', essay_type: 'enem', theme: 'Mobilidade urbana no Brasil', submitted_at: '2026-07-24T15:30:00', corrected_at: null, total_score: null, text: 'A mobilidade urbana é um dos maiores desafios das cidades brasileiras...', student: { id: uid(6), full_name: 'Isabela Lima', email: 'isabela.lima@ave.com', avatar_url: null } },
-    { id: 'ep000003-0000-4000-8000-000000000003', status: 'pending', essay_type: 'enem', theme: 'Violência contra a mulher', submitted_at: '2026-07-24T11:00:00', corrected_at: null, total_score: null, text: 'A violência doméstica configura grave violação dos direitos humanos...', student: { id: uid(8), full_name: 'Camila Pereira', email: 'camila.pereira@ave.com', avatar_url: null } },
-    { id: 'ep000004-0000-4000-8000-000000000004', status: 'pending', essay_type: 'enem', theme: 'Crise hídrica no Brasil', submitted_at: '2026-07-23T14:00:00', corrected_at: null, total_score: null, text: 'A escassez de água potável afeta milhões de brasileiros...', student: { id: uid(9), full_name: 'Thiago Costa', email: 'thiago.costa@ave.com', avatar_url: null } },
-    { id: 'ep000005-0000-4000-8000-000000000005', status: 'pending', essay_type: 'enem', theme: 'Saúde mental entre jovens', submitted_at: '2026-07-23T09:30:00', corrected_at: null, total_score: null, text: 'Nos últimos anos, os índices de ansiedade e depressão entre adolescentes...', student: { id: uid(2), full_name: 'Lucas Ferreira', email: 'lucas.ferreira@ave.com', avatar_url: null } },
+    { id: 'ep000002-0000-4000-8000-000000000002', status: 'pending', essay_type: 'enem', theme: 'Mobilidade urbana no Brasil', submitted_at: '2026-07-24T15:30:00', corrected_at: null, total_score: null, text: ESSAY_TEXT_MOBILIDADE, student: { id: uid(6), full_name: 'Isabela Lima', email: 'isabela.lima@ave.com', avatar_url: null } },
+    { id: 'ep000003-0000-4000-8000-000000000003', status: 'pending', essay_type: 'enem', theme: 'Violência contra a mulher', submitted_at: '2026-07-24T11:00:00', corrected_at: null, total_score: null, text: ESSAY_TEXT_VIOLENCIA, student: { id: uid(8), full_name: 'Camila Pereira', email: 'camila.pereira@ave.com', avatar_url: null } },
+    { id: 'ep000004-0000-4000-8000-000000000004', status: 'pending', essay_type: 'enem', theme: 'Crise hídrica no Brasil', submitted_at: '2026-07-23T14:00:00', corrected_at: null, total_score: null, text: ESSAY_TEXT_CRISE_HIDRICA, student: { id: uid(9), full_name: 'Thiago Costa', email: 'thiago.costa@ave.com', avatar_url: null } },
+    { id: 'ep000005-0000-4000-8000-000000000005', status: 'pending', essay_type: 'enem', theme: 'Saúde mental entre jovens', submitted_at: '2026-07-23T09:30:00', corrected_at: null, total_score: null, text: ESSAY_TEXT_SAUDE_MENTAL, student: { id: uid(2), full_name: 'Lucas Ferreira', email: 'lucas.ferreira@ave.com', avatar_url: null } },
   ],
   corrected_items: [
     { id: 'ed01a9a7-78f9-4ac1-8eca-70432a0d4e3e', status: 'corrected', essay_type: 'enem', theme: 'O impacto da inteligência artificial no mercado de trabalho', submitted_at: '2026-07-26T10:00:00', corrected_at: '2026-07-26T23:41:47', total_score: 760, average_score: null, text: 'A ascensão da inteligência artificial redefine, de maneira sem precedentes, as relações entre o ser humano e o trabalho...', student: { id: '4d9124fa-83a6-4929-9525-2d8539d648c7', full_name: 'Aluno Teste Ave', email: 'alunotesteave@gmail.com', avatar_url: null } },
@@ -814,7 +722,23 @@ const _MOCK_ASSOC_RECENT_CORRECTIONS = [
 // ─── Portal do Aluno (student/*) ───────────────────────────────────────────────
 
 // 30 dias de histórico de atividade — Ana Paula, ~45 questões/dia, folgas domingo
+// Os 60 dias anteriores ao bloco fixo abaixo são gerados (mesmo ritmo, um
+// pouco menor no começo), para que os filtros 7d/15d/30d/90d do gráfico de
+// evolução mostrem recortes realmente diferentes.
+const _MOCK_STUDENT_ACTIVITY_HISTORY_EARLIER = Array.from({ length: 60 }, (_, i) => {
+  const d = new Date(Date.UTC(2026, 5, 26) - (60 - i) * 86_400_000);
+  const isSunday = d.getUTCDay() === 0;
+  const questions = isSunday ? 0 : 27 + ((i * 17 + 5) % 15) + Math.floor(i / 12);
+  return {
+    usage_date: d.toISOString().slice(0, 10),
+    questions_count: questions,
+    simulations_count: !isSunday && i % 7 === 2 ? 1 : 0,
+    correct_count: Math.round(questions * (0.68 + ((i * 7) % 6) / 100)),
+  };
+});
+
 const _MOCK_STUDENT_ACTIVITY_HISTORY = [
+  ..._MOCK_STUDENT_ACTIVITY_HISTORY_EARLIER,
   { usage_date: '2026-06-26', questions_count: 38, simulations_count: 0, correct_count: 29 },
   { usage_date: '2026-06-27', questions_count: 42, simulations_count: 0, correct_count: 32 },
   { usage_date: '2026-06-28', questions_count: 35, simulations_count: 0, correct_count: 27 },
@@ -928,11 +852,17 @@ const _MOCK_STUDENT_DASHBOARD_STATE = {
   analytics: _MOCK_STUDENT_ANALYTICS,
   essays: _MOCK_STUDENT_ESSAY_LIST_ITEMS,
   essayDetails: _MOCK_STUDENT_ESSAY_DETAILS,
+  // Tiers reais do produto (ProgressTier: Explorador → Lendário) — o card
+  // "Corrida" e o KPI de pontos exibem `next_tier` cru, então um nome fora da
+  // escada aparecia como texto solto ("diamond") e sem cor/ícone.
+  // total_points/xp_rank/study_minutes_today alimentam o card "Nível" do
+  // dashboard do aluno, que sem eles ficava carregando para sempre.
   summary: {
     monthly_points: 4203, rank_position: 1, points_to_top3: 0, prize_cutoff: 3,
-    month_label: 'Julho/26', monthly_goal: 5000, goal_reached: false,
+    month_label: CURRENT_MONTH_LABEL, monthly_goal: 5000, goal_reached: false,
     goal_progress_pct: 84, shield_count: 3,
-    progress_tier: 'gold', next_tier: 'diamond', points_to_next_tier: 797,
+    progress_tier: 'Elite' as const, next_tier: 'Lendário' as const, points_to_next_tier: 797,
+    total_points: 4832, xp_rank: 1, xp_rank_total: 27, study_minutes_today: 47,
   },
   ranking: {
     ranking: [
@@ -1234,17 +1164,6 @@ const _MOCK_TITLES_HISTORY = {
 
 const _MOCK_CHECKIN_STATUS = { required: false, completed: false };
 
-// ─── Simulado Resultados (founder) ──────────────────────────────────────────
-const _MOCK_SIMULADO_PARTICIPANTS = [
-  { id: 'p001', source: 'online' as const, student_id: '00000001-0000-4000-8000-000000000001', student_name: 'Ana Paula Costa',  score: 80, total_questions: 90, percentage: 88.9, graded_at: '2026-07-14T18:03:20Z', results_by_subject: { 'Língua Portuguesa': { correct: 19, total: 20, percentage: 95 }, 'História': { correct: 16, total: 18, percentage: 88.9 } } },
-  { id: 'p002', source: 'online' as const, student_id: '00000008-0000-4000-8000-000000000008', student_name: 'Camila Pereira',   score: 75, total_questions: 90, percentage: 83.3, graded_at: '2026-07-14T18:23:20Z', results_by_subject: { 'Língua Portuguesa': { correct: 17, total: 20, percentage: 85 }, 'História': { correct: 14, total: 18, percentage: 77.8 } } },
-  { id: 'p003', source: 'online' as const, student_id: '00000004-0000-4000-8000-000000000004', student_name: 'Gabriela Alves',   score: 72, total_questions: 90, percentage: 80.0, graded_at: '2026-07-14T18:30:00Z', results_by_subject: { 'Inglês': { correct: 5, total: 5, percentage: 100 }, 'História': { correct: 13, total: 18, percentage: 72.2 } } },
-  { id: 'p004', source: 'online' as const, student_id: '00000005-0000-4000-8000-000000000005', student_name: 'Rafael Santos',    score: 67, total_questions: 90, percentage: 74.4, graded_at: '2026-07-14T18:16:40Z', results_by_subject: { 'Língua Portuguesa': { correct: 16, total: 20, percentage: 80 }, 'Artes': { correct: 2, total: 5, percentage: 40 } } },
-  { id: 'p005', source: 'online' as const, student_id: '00000006-0000-4000-8000-000000000006', student_name: 'Isabela Lima',     score: 65, total_questions: 90, percentage: 72.2, graded_at: '2026-07-14T18:40:00Z', results_by_subject: { 'História': { correct: 9, total: 11, percentage: 81.8 } } },
-  { id: 'p006', source: 'online' as const, student_id: '00000002-0000-4000-8000-000000000002', student_name: 'Lucas Ferreira',   score: 57, total_questions: 90, percentage: 63.3, graded_at: '2026-07-14T19:10:00Z', results_by_subject: { 'Inglês': { correct: 4, total: 5, percentage: 80 } } },
-  { id: 'p007', source: 'online' as const, student_id: '00000003-0000-4000-8000-000000000003', student_name: 'Bruno Mendes',     score: 38, total_questions: 90, percentage: 42.2, graded_at: '2026-07-14T22:10:00Z', results_by_subject: { 'Língua Portuguesa': { correct: 9, total: 20, percentage: 45 } } },
-];
-
 // ─── Exports deslocados no tempo ──────────────────────────────────────────────
 // Cada constante acima é definida com datas cravadas em torno de MOCK_ANCHOR e
 // reexportada aqui já deslocada para a data atual, preservando os intervalos
@@ -1259,8 +1178,6 @@ export const MOCK_STUDENTS = shiftDates(_MOCK_STUDENTS);
 export const MOCK_STUDENT_DETAILS = shiftDates(_MOCK_STUDENT_DETAILS);
 export const MOCK_STUDENT_ESSAYS = shiftDates(_MOCK_STUDENT_ESSAYS);
 export const MOCK_SIMULADOS = shiftDates(_MOCK_SIMULADOS);
-export const MOCK_SIMULADO_RANKINGS = shiftDates(_MOCK_SIMULADO_RANKINGS);
-export const MOCK_SIMULADO_ANALYTICS = shiftDates(_MOCK_SIMULADO_ANALYTICS);
 export const MOCK_ESSAYS_OVERVIEW = shiftDates(_MOCK_ESSAYS_OVERVIEW);
 export const MOCK_ASSOCIATE_SUMMARY = shiftDates(_MOCK_ASSOCIATE_SUMMARY);
 export const MOCK_ASSOCIATE_TREND = shiftDates(_MOCK_ASSOCIATE_TREND);
@@ -1286,4 +1203,3 @@ export const MOCK_FOUNDER_RANKING = shiftDates(_MOCK_FOUNDER_RANKING);
 export const MOCK_TITLES_JOURNEY = shiftDates(_MOCK_TITLES_JOURNEY);
 export const MOCK_TITLES_HISTORY = shiftDates(_MOCK_TITLES_HISTORY);
 export const MOCK_CHECKIN_STATUS = shiftDates(_MOCK_CHECKIN_STATUS);
-export const MOCK_SIMULADO_PARTICIPANTS = shiftDates(_MOCK_SIMULADO_PARTICIPANTS);
