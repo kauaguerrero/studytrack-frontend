@@ -13,8 +13,10 @@ import { motion, AnimatePresence, useAnimation, useReducedMotion } from 'framer-
 import {
   Timer, ArrowRight, ArrowLeft, ArrowUp, CheckCircle2, Play, RotateCcw,
   Trophy, BookOpen, History, Brain, ChevronDown, ChevronLeft, TrendingUp,
-  Medal, BarChart3, Plus, Clock, Zap, Flag, Target, SlidersHorizontal, Filter,
+  Medal, BarChart3, Plus, Clock, Zap, Flag, Target, SlidersHorizontal, Filter, ClipboardList,
 } from 'lucide-react'
+import { toBrtDateKeyFromIso } from '@/lib/brt-date'
+import { formatDayBR, totalResult, type ExternalSimulado } from '@/lib/external-simulados'
 import { QuestionRichText } from '@/components/questions/QuestionRichText'
 import { AlternativeImages, QuestionContentBlocks, QuestionSupportImages } from '@/components/questions/QuestionMedia'
 import {
@@ -437,6 +439,35 @@ function aggregateBankPerf(sessions: SimuladoSession[], bankFilter: BankLabel = 
   }))
 }
 
+// Simulados externos (registrados pelo aluno, só a nota) — não têm banca,
+// então entram como série/card próprios e só no escopo "Todas as bancas".
+const EXTERNAL_COLOR = '#ec4899'
+
+interface EvolutionPoint {
+  key: string
+  label: string
+  title: string
+  pct?: number
+  ext?: number
+  bank?: BankLabel
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function EvolutionTooltip({ active, payload }: any) {
+  if (!active || !payload?.length) return null
+  const point = payload[0]?.payload as EvolutionPoint
+  const isExternal = point.ext != null
+  return (
+    <div className="bg-slate-900 dark:bg-slate-800 text-white px-3 py-2 rounded-lg text-sm shadow-lg border border-slate-700">
+      <p className="text-slate-400 text-xs mb-0.5">{point.label}</p>
+      <p className="text-slate-300 text-xs mb-0.5">
+        {isExternal ? `${point.title} · Externo` : (point.bank ? BANK_VISUALS[point.bank]?.label ?? point.bank : point.title)}
+      </p>
+      <p className="font-bold" style={{ color: isExternal ? EXTERNAL_COLOR : '#4ade80' }}>{isExternal ? point.ext : point.pct}%</p>
+    </div>
+  )
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
@@ -530,6 +561,7 @@ export default function SimuladoPage() {
 
   // Dashboard data
   const [sessions, setSessions] = useState<SimuladoSession[]>([])
+  const [externalSims, setExternalSims] = useState<ExternalSimulado[]>([])
   const [rankingData, setRankingData] = useState<RankingData | null>(null)
   const [dashLoading, setDashLoading] = useState(true)
   const [dashVersion, setDashVersion] = useState(0)
@@ -770,14 +802,17 @@ export default function SimuladoPage() {
         const supabase = createClient()
         const { data: { session: freshSession } } = await supabase.auth.getSession()
         const token = freshSession?.access_token || accessToken
-        const [histRes, rankRes, scheduledRes] = await Promise.all([
+        const [histRes, rankRes, scheduledRes, externalRes] = await Promise.all([
           fetch(`${apiUrl}/api/simulado/history?page=1&limit=20`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiUrl}/api/simulado/ranking?bank=${pageBankFilter}`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${apiUrl}/api/partners/${slug}/scheduled-simulados`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${apiUrl}/api/simulado/external`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => null),
         ])
         const histData = histRes.ok ? await histRes.json() : { sessions: [] }
         const rankJson = rankRes.ok ? await rankRes.json() : { ranking: [], user_position: null }
+        const externalData = externalRes?.ok ? await externalRes.json() : { simulados: [] }
         setSessions(histData.sessions || [])
+        setExternalSims(externalData.simulados || [])
         setRankingData(rankJson)
         if (scheduledRes.ok) {
           const scheduledData = await scheduledRes.json()
@@ -788,7 +823,7 @@ export default function SimuladoPage() {
           )
         }
       } catch {
-        setSessions([]); setRankingData(null)
+        setSessions([]); setExternalSims([]); setRankingData(null)
       } finally {
         setDashLoading(false)
       }
@@ -955,18 +990,46 @@ export default function SimuladoPage() {
         }
         return inferSessionBank(session.config) === pageBankFilter
       })
-  const totalSimuladosFiltered = pageFilteredSessions.length
+  // Externos não têm banca: só entram no escopo "Todas as bancas".
+  const externalsInScope = pageBankFilter === 'Todas' ? externalSims : []
+  const externalStats = externalsInScope.flatMap((ext) => {
+    const result = totalResult(ext)
+    return result ? [{ ext, result, dateKey: ext.day2_date ?? ext.day1_date }] : []
+  })
+  const totalSimuladosFiltered = pageFilteredSessions.length + externalsInScope.length
   const scopedSessionStats = pageFilteredSessions
     .map((session) => ({ session, scoped: getSessionScopedStats(session, pageBankFilter) }))
     .filter((entry): entry is { session: SimuladoSession; scoped: { score: number; total: number; percentage: number } } => entry.scoped != null)
-  const avgPct = scopedSessionStats.length > 0
-    ? Math.round(scopedSessionStats.reduce((sum, entry) => sum + entry.scoped.percentage, 0) / scopedSessionStats.length)
+  const allPercentages = [
+    ...scopedSessionStats.map((entry) => entry.scoped.percentage),
+    ...externalStats.map((entry) => entry.result.pct),
+  ]
+  const avgPct = allPercentages.length > 0
+    ? Math.round(allPercentages.reduce((sum, pct) => sum + pct, 0) / allPercentages.length)
     : 0
-  const bestPct = scopedSessionStats.length > 0
-    ? Math.max(...scopedSessionStats.map((entry) => entry.scoped.percentage))
-    : 0
-  const bestPersonalResults = [...scopedSessionStats]
-    .sort((a, b) => b.scoped.percentage - a.scoped.percentage)
+  const bestPct = allPercentages.length > 0 ? Math.round(Math.max(...allPercentages)) : 0
+  const bestPersonalResults = [
+    ...scopedSessionStats.map(({ session, scoped }) => ({
+      key: session.id, label: getConfigLabel(session), date: formatDate(session.started_at),
+      pct: scoped.percentage, external: false,
+    })),
+    ...externalStats.map(({ ext, result, dateKey }) => ({
+      key: `ext-${ext.id}`, label: ext.title, date: formatDayBR(dateKey, true),
+      pct: Math.round(result.pct), external: true,
+    })),
+  ]
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 5)
+  // Últimos simulados: plataforma + externos, do mais recente para o mais antigo.
+  const recentEntries = [
+    ...pageFilteredSessions.map((session) => ({
+      kind: 'platform' as const, key: session.id, dateKey: toBrtDateKeyFromIso(session.started_at), session,
+    })),
+    ...externalsInScope.map((ext) => ({
+      kind: 'external' as const, key: `ext-${ext.id}`, dateKey: ext.day2_date ?? ext.day1_date, ext,
+    })),
+  ]
+    .sort((a, b) => b.dateKey.localeCompare(a.dateKey))
     .slice(0, 5)
   const rankingPos = rankingData?.user_position ?? null
   const nextTarget = (() => {
@@ -997,25 +1060,47 @@ export default function SimuladoPage() {
   // ── Chart data ──
   const subjectOptions = ['Todas', ...Array.from(new Set(pageFilteredSessions.flatMap(s => Object.keys(s.results_by_subject || {}))))]
   const filteredSessions = evolutionSubject === 'Todas' ? pageFilteredSessions : pageFilteredSessions.filter(s => s.results_by_subject?.[evolutionSubject] != null)
-  const evolutionData = [...filteredSessions]
-    .reverse()
-    .map((session, i) => {
+  // Plataforma e externos na mesma linha do tempo (por data), cada um na sua
+  // linha. Externos guardam nota por área, não por matéria: saem do gráfico
+  // quando ele está filtrado por matéria.
+  const evolutionData: EvolutionPoint[] = [
+    ...filteredSessions.flatMap((session): Array<EvolutionPoint & { dateKey: string }> => {
       const scoped = getSessionScopedStats(session, pageBankFilter)
-      if (!scoped) return null
-      return {
-        name: `#${i + 1}`,
+      if (!scoped) return []
+      return [{
+        key: session.id,
+        dateKey: toBrtDateKeyFromIso(session.started_at),
+        label: formatDate(session.started_at),
+        title: getConfigLabel(session),
         pct: scoped.percentage,
-        date: formatDate(session.started_at),
         bank: pageBankFilter === 'Todas' ? inferSessionBank(session.config) : pageBankFilter,
-      }
-    })
-    .filter((item): item is { name: string; pct: number; date: string; bank: BankLabel } => item != null)
+      }]
+    }),
+    ...(evolutionSubject === 'Todas' ? externalStats : []).map(({ ext, result, dateKey }) => ({
+      key: `ext-${ext.id}`,
+      dateKey,
+      label: formatDayBR(dateKey, true),
+      title: ext.title,
+      ext: Math.round(result.pct),
+    })),
+  ].sort((a, b) => a.dateKey.localeCompare(b.dateKey))
+  const evolutionHasExternals = evolutionData.some((point) => point.ext != null)
   const subjectPerfData = aggregateSubjectPerf(pageFilteredSessions)
     .map((entry) => ({
       ...entry,
       fill: pageBankFilter === 'Todas' ? BANK_VISUALS.Todas.color : BANK_VISUALS[pageBankFilter].color,
     }))
   const bankPerfData = aggregateBankPerf(pageFilteredSessions, pageBankFilter)
+  if (externalStats.length > 0) {
+    const correct = externalStats.reduce((sum, entry) => sum + entry.result.correct, 0)
+    const total = externalStats.reduce((sum, entry) => sum + entry.result.total, 0)
+    bankPerfData.push({
+      bank: 'Externos',
+      pct: total > 0 ? Math.round((correct / total) * 100) : 0,
+      sessions: externalStats.length,
+      total,
+    })
+  }
   const compositionsTotalQty = useMemo(() => compositions.reduce((sum, c) => sum + c.qty, 0), [compositions])
   const customEffectiveMax = availableCustomCount != null ? Math.min(availableCustomCount, SIMULADO_MAX_QTY) : SIMULADO_MAX_QTY
   const customCountInsufficient = mode === 'custom' && compositions.length === 0 && availableCustomCount !== null && availableCustomCount < qty
@@ -1835,6 +1920,11 @@ export default function SimuladoPage() {
                   className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10 sm:flex-none">
                   <History size={16} /> Histórico
                 </Link>
+                {/* Simulados feitos fora da plataforma (só a nota) — aba "Externos" do Histórico */}
+                <Link href={`/partners/${slug}/student/simulado/historico?aba=externos`}
+                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10 sm:flex-none">
+                  <ClipboardList size={16} /> Simulado externo
+                </Link>
                 <button onClick={() => setShowConfigModal(true)}
                   className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-extrabold transition-transform hover:scale-[1.02] active:scale-[0.97] sm:flex-none"
                   style={{
@@ -2278,6 +2368,12 @@ export default function SimuladoPage() {
                         </span>
                       </div>
                     ))}
+                    {evolutionHasExternals && (
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                        <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: EXTERNAL_COLOR }} />
+                        <span className="font-semibold">Externos</span>
+                      </div>
+                    )}
                   </div>
                   {evolutionData.length < 2 ? (
                     <div className="h-48 flex flex-col items-center justify-center gap-2 text-center">
@@ -2288,22 +2384,42 @@ export default function SimuladoPage() {
                     <ResponsiveContainer width="100%" height={200}>
                       <LineChart data={evolutionData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-slate-800" />
-                        <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                        <XAxis
+                          dataKey="key"
+                          tickFormatter={(key: string) => evolutionData.find((point) => point.key === key)?.label.slice(0, 5) ?? ''}
+                          tick={{ fontSize: 11, fill: '#94a3b8' }}
+                          minTickGap={12}
+                        />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={v => `${v}%`} />
-                        <Tooltip content={<ChartTooltip />} />
+                        <Tooltip content={<EvolutionTooltip />} />
+                        {evolutionHasExternals && (
+                          <Line
+                            type="monotone"
+                            dataKey="ext"
+                            stroke={EXTERNAL_COLOR}
+                            strokeWidth={2.5}
+                            strokeDasharray="6 4"
+                            connectNulls
+                            dot={{ r: 4, fill: EXTERNAL_COLOR, stroke: 'white', strokeWidth: 1.5 }}
+                            activeDot={{ r: 6, fill: EXTERNAL_COLOR, stroke: 'white', strokeWidth: 2 }}
+                          />
+                        )}
                         <Line
                           type="monotone"
+                          connectNulls
                           dataKey="pct"
                           stroke={pageBankFilter === 'Todas' ? BANK_VISUALS.Todas.color : BANK_VISUALS[pageBankFilter].color}
                           strokeWidth={2.5}
                           dot={(props) => {
+                            if (props.payload?.pct == null) return <g key={props.key} />
                             const bank = props.payload?.bank as keyof typeof BANK_VISUALS
                             const color = pageBankFilter === 'Todas'
                               ? BANK_VISUALS[bank || 'Todas'].color
                               : BANK_VISUALS[pageBankFilter].color
-                            return <circle cx={props.cx} cy={props.cy} r={4} fill={color} stroke="white" strokeWidth={1.5} />
+                            return <circle key={props.key} cx={props.cx} cy={props.cy} r={4} fill={color} stroke="white" strokeWidth={1.5} />
                           }}
                           activeDot={(props) => {
+                            if (props.payload?.pct == null) return <g />
                             const bank = props.payload?.bank as keyof typeof BANK_VISUALS
                             const color = pageBankFilter === 'Todas'
                               ? BANK_VISUALS[bank || 'Todas'].color
@@ -2371,7 +2487,12 @@ export default function SimuladoPage() {
                     <div key={entry.bank} className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.03] p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-white/40">{entry.bank}</p>
+                          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-white/40">
+                            {entry.bank}
+                            {entry.bank === 'Externos' && (
+                              <span className="ml-1.5 normal-case font-semibold tracking-normal">· feitos fora da plataforma</span>
+                            )}
+                          </p>
                           <p className={`font-display mt-1 text-2xl font-black ${scoreColor(entry.pct)}`}>{entry.pct}%</p>
                         </div>
                         <div className="text-right text-xs text-slate-400 dark:text-white/40">
@@ -2401,7 +2522,36 @@ export default function SimuladoPage() {
                   <Link href={`/partners/${slug}/student/simulado/historico`} className="text-xs font-bold text-slate-400 dark:text-white/40 hover:text-slate-700 dark:hover:text-white/70 transition-colors">Ver todos →</Link>
                 </div>
                 <div className="space-y-3">
-                  {pageFilteredSessions.slice(0, 5).map(session => {
+                  {recentEntries.map(entry => {
+                    if (entry.kind === 'external') {
+                      const ext = entry.ext
+                      const result = totalResult(ext)
+                      const pct = result ? Math.round(result.pct) : null
+                      return (
+                        <div key={entry.key} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
+                              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{ext.title}</span>
+                              <span className="shrink-0 rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">Externo</span>
+                              <span className="text-xs text-slate-400 flex items-center gap-1 shrink-0"><Clock size={11} />{formatDayBR(entry.dateKey, true)}</span>
+                              {result && <span className="text-xs text-slate-400 shrink-0">{result.correct}/{result.total} acertos</span>}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                                {pct != null && <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: scoreBarColor(pct) }} />}
+                              </div>
+                              <span className={`text-sm font-black shrink-0 ${pct != null ? scoreColor(pct) : 'text-slate-400'}`}>{pct != null ? `${pct}%` : '—'}</span>
+                            </div>
+                          </div>
+                          <Link href={`/partners/${slug}/student/simulado/historico?aba=externos`}
+                            className="shrink-0 flex items-center gap-1.5 text-xs font-bold px-4 py-3 sm:px-3 sm:py-2 rounded-lg transition-colors min-h-[44px] sm:min-h-0 justify-center hover:opacity-80"
+                            style={{ color: 'var(--brand-primary)', background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)' }}>
+                            <ClipboardList size={13} /> Ver
+                          </Link>
+                        </div>
+                      )
+                    }
+                    const session = entry.session
                     const pct = getSessionScopedStats(session, pageBankFilter)?.percentage ?? session.percentage ?? 0
                     return (
                       <div key={session.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
@@ -2456,18 +2606,23 @@ export default function SimuladoPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {bestPersonalResults.map(({ session, scoped }, i) => {
+                  {bestPersonalResults.map((result, i) => {
                     const medals = ['🥇', '🥈', '🥉']
                     const isTop = i < 3
                     return (
-                      <div key={session.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${isTop ? 'border' : 'bg-slate-50 dark:bg-white/[0.03]'}`}
+                      <div key={result.key} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${isTop ? 'border' : 'bg-slate-50 dark:bg-white/[0.03]'}`}
                         style={isTop ? { background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)', borderColor: 'color-mix(in srgb, var(--brand-primary) 30%, transparent)' } : {}}>
                         <span className="text-lg w-7 text-center" role="img" aria-label={`${i + 1}º melhor resultado`}>{medals[i] ?? `#${i + 1}`}</span>
                         <span className="flex-1 min-w-0">
-                          <span className="block text-sm font-semibold truncate text-slate-700 dark:text-white/70">{getConfigLabel(session)}</span>
-                          <span className="block text-xs text-slate-400 dark:text-white/40">{formatDate(session.started_at)}</span>
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <span className="block text-sm font-semibold truncate text-slate-700 dark:text-white/70">{result.label}</span>
+                            {result.external && (
+                              <span className="shrink-0 rounded-full border border-slate-300 bg-white px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">Externo</span>
+                            )}
+                          </span>
+                          <span className="block text-xs text-slate-400 dark:text-white/40">{result.date}</span>
                         </span>
-                        <span className={`text-sm font-black ${scoreColor(scoped.percentage)}`}>{scoped.percentage}%</span>
+                        <span className={`text-sm font-black ${scoreColor(result.pct)}`}>{result.pct}%</span>
                       </div>
                     )
                   })}

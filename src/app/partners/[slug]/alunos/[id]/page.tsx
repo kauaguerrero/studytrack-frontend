@@ -24,6 +24,9 @@ import {
   Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { toast } from 'sonner';
+import {
+  EXTERNAL_AREAS, areaResult, formatDayBR, totalResult, type ExternalSimulado,
+} from '@/lib/external-simulados';
 import { BRT_TIMEZONE, toBrtDateKey } from '@/lib/brt-date';
 
 interface StudentDetail {
@@ -59,6 +62,8 @@ interface StudentDetail {
   daily_evolution?: { date: string; total: number; accuracy_pct: number }[];
   recent_answers: { id: string; question_id: string; selected_option: string; is_correct: boolean; subject: string; created_at: string }[];
   recent_simulados: { id: string; config: Record<string, unknown>; score: number; total_questions: number; tri_score: number | null; time_taken_secs: number; completed_at: string }[];
+  /** Registrados pelo próprio aluno (só a nota) — aparecem com o selo "Externo". */
+  recent_external_simulados?: ExternalSimulado[];
   essay_stats?: {
     delivered_count: number;
     corrected_count: number;
@@ -906,15 +911,75 @@ export default function StudentProfilePage() {
           );
         })()}
 
-        {/* Últimos simulados */}
-        {(data?.recent_simulados?.length ?? 0) > 0 && (
+        {/* Últimos simulados — da plataforma + externos (autodeclarados, selo "Externo") */}
+        {((data?.recent_simulados?.length ?? 0) > 0 || (data?.recent_external_simulados?.length ?? 0) > 0) && (
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Últimos Simulados</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {data!.recent_simulados.map((s) => {
+                {[
+                  ...(data?.recent_simulados ?? []).map((s) => ({
+                    kind: 'platform' as const, sortKey: toBrtDateKey(new Date(s.completed_at)), s,
+                  })),
+                  ...(data?.recent_external_simulados ?? []).map((e) => ({
+                    kind: 'external' as const, sortKey: e.day2_date ?? e.day1_date, e,
+                  })),
+                ]
+                  .sort((x, y) => y.sortKey.localeCompare(x.sortKey))
+                  .map((item) => {
+                  if (item.kind === 'external') {
+                    const e = item.e;
+                    const total = totalResult(e);
+                    const pct = total ? Math.round(total.pct) : null;
+                    const areas = EXTERNAL_AREAS
+                      .map(({ key, label }) => ({ label, r: areaResult(e, key) }))
+                      .filter((a) => a.r);
+                    return (
+                      <div
+                        key={`ext-${e.id}`}
+                        className="flex items-center gap-3 rounded-xl border border-dashed dark:border-slate-700 px-4 py-3"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-800 dark:text-white" title={e.title}>{e.title}</p>
+                            <Badge
+                              variant="outline"
+                              className="shrink-0 border-slate-300 bg-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                              title="Registrado pelo aluno — simulado feito fora da plataforma, sem correção"
+                            >
+                              Externo
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-slate-400">
+                            {formatDayBR(e.day1_date, true)}
+                            {e.day2_date && ` e ${formatDayBR(e.day2_date, true)}`}
+                            {areas.length > 0 && areas.length < 4 && ` · ${areas.map((a) => a.label).join(', ')}`}
+                          </p>
+                        </div>
+                        <div className="text-center shrink-0">
+                          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                            {total ? `${total.correct}/${total.total}` : '—'}
+                          </p>
+                          <p className="text-[10px] text-slate-400">questões</p>
+                        </div>
+                        <div
+                          className="text-lg font-black shrink-0 w-14 text-right"
+                          style={{ color: pct == null ? '#94a3b8' : pct >= 60 ? 'var(--brand-primary)' : '#f43f5e' }}
+                        >
+                          {pct == null ? '—' : `${pct}%`}
+                        </div>
+                        {e.essay_score != null && (
+                          <div className="text-center shrink-0 hidden sm:block">
+                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">{e.essay_score}</p>
+                            <p className="text-[10px] text-slate-400">Redação</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  const s = item.s;
                   const pct = Math.round((s.score / s.total_questions) * 100);
                   return (
                     <div
