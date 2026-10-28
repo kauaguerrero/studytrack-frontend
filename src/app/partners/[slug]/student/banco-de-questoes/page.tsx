@@ -13,12 +13,13 @@ import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { useOrg } from '@/contexts/OrgContext';
 import {
-  ChevronDown, ArrowLeft, ArrowRight, Brain, Lock,
-  CheckCircle2, Circle, Loader2, Sparkles, Calendar,
+  ArrowLeft, ArrowRight, Brain, Lock,
+  CheckCircle2, Circle, Loader2, Calendar,
   BarChart, Eye, EyeOff, SlidersHorizontal, Flag,
 } from 'lucide-react';
 import { QuestionCard } from '@/components/questions/QuestionCard';
 import { ReportDialog } from '@/components/questions/ReportDialog';
+import { MultiSelectFilter } from '@/components/questions/MultiSelectFilter';
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
 import { getStreakStage, crossedStageBoundary } from '@/components/partners/gamification/streakEvolution';
 import { toast } from 'sonner';
@@ -52,10 +53,6 @@ interface QuestionMetaRow {
 
 type FilterDimension = 'subject' | 'bank' | 'topic' | 'year' | 'difficulty';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const TOTAL_QUESTIONS = 5000;
-
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 const QuestionCardSkeleton = () => (
@@ -77,14 +74,6 @@ const QuestionCardSkeleton = () => (
     </div>
   </div>
 );
-
-// ─── Shared select style ──────────────────────────────────────────────────────
-
-const selectClass =
-  'w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl ' +
-  'pl-3 pr-8 py-3 outline-none appearance-none transition-all cursor-pointer shadow-sm ' +
-  'hover:border-slate-300 dark:hover:border-slate-600 focus:ring-2 focus:ring-[var(--brand-primary)]/20 focus:border-[var(--brand-primary)] ' +
-  'disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-50 dark:disabled:bg-slate-800/50';
 
 function normalizeBankValue(value: unknown): string {
   const normalized = String(value || '').trim().toUpperCase();
@@ -148,16 +137,21 @@ export default function BancoDeQuestoes() {
   const [activeTab, setActiveTab] = useState<'todo' | 'done'>('todo');
 
   // Pré-seleciona a matéria quando o CTA "Continue de onde parou" chega com
-  // ?subject=X (última matéria que o aluno estava respondendo).
-  const [filterSubject, setFilterSubject] = useState(() => searchParams.get('subject') || 'Todas');
+  // ?subject=X (última matéria que o aluno estava respondendo). Lista vazia =
+  // todas as matérias.
+  const [filterSubjects, setFilterSubjects] = useState<string[]>(() => {
+    const subject = searchParams.get('subject');
+    return subject ? [subject] : [];
+  });
 
   // Deep-link de report: quando ?question_id=UUID vem da página de reports do aluno,
   // exibe apenas essa questão específica (ignora filtros e paginação).
   const questionIdParam = searchParams.get('question_id');
-  const [filterBank, setFilterBank] = useState('Todas');
-  const [filterTopic, setFilterTopic] = useState('Todos');
-  const [filterYear, setFilterYear] = useState('Todos');
-  const [filterDifficulty, setFilterDifficulty] = useState('Todas');
+  // Todos os filtros são de múltipla escolha; lista vazia = sem filtro.
+  const [filterBanks, setFilterBanks] = useState<string[]>([]);
+  const [filterTopics, setFilterTopics] = useState<string[]>([]);
+  const [filterYears, setFilterYears] = useState<string[]>([]);
+  const [filterDifficulties, setFilterDifficulties] = useState<string[]>([]);
 
   // Universo bruto de questões verificadas (buscado uma única vez) a partir
   // do qual TODAS as opções de filtro (matéria, banca, tópico, ano,
@@ -182,7 +176,6 @@ export default function BancoDeQuestoes() {
   const [isLockedByQuota, setIsLockedByQuota] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportQuestionId, setReportQuestionId] = useState<string | null>(null);
-  const totalQuestions = TOTAL_QUESTIONS;
 
   // ── Refs ─────────────────────────────────────────────────────────────────────
   const isLoadingRef = useRef(false);
@@ -201,12 +194,8 @@ export default function BancoDeQuestoes() {
   const shouldReduce = useReducedMotion();
 
   // ── Derived ──────────────────────────────────────────────────────────────────
-  const activeSecondaryCount = [
-    filterBank !== 'Todas',
-    filterTopic !== 'Todos',
-    filterYear !== 'Todos',
-    filterDifficulty !== 'Todas',
-  ].filter(Boolean).length;
+  const activeSecondaryCount =
+    filterBanks.length + filterTopics.length + filterYears.length + filterDifficulties.length;
 
   // ── 1. Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -277,24 +266,25 @@ export default function BancoDeQuestoes() {
   // OUTROS filtros já escolhidos, em qualquer ordem, sem se autoexcluir.
   const matchesOtherFilters = useCallback(
     (row: QuestionMetaRow, exclude: FilterDimension): boolean => {
-      if (exclude !== 'subject' && filterSubject !== 'Todas') {
-        if (String(row.subject || '').trim().toLowerCase() !== filterSubject.trim().toLowerCase()) return false;
+      if (exclude !== 'subject' && filterSubjects.length > 0) {
+        const rowSubject = String(row.subject || '').trim().toLowerCase();
+        if (!filterSubjects.some((s) => s.trim().toLowerCase() === rowSubject)) return false;
       }
-      if (exclude !== 'bank' && filterBank !== 'Todas') {
-        if (inferQuestionBank(row) !== filterBank) return false;
+      if (exclude !== 'bank' && filterBanks.length > 0) {
+        if (!filterBanks.includes(inferQuestionBank(row))) return false;
       }
-      if (exclude !== 'topic' && filterTopic !== 'Todos') {
-        if (topicOf(row) !== filterTopic) return false;
+      if (exclude !== 'topic' && filterTopics.length > 0) {
+        if (!filterTopics.includes(topicOf(row) ?? '')) return false;
       }
-      if (exclude !== 'year' && filterYear !== 'Todos') {
-        if (String(row.exam_year ?? '').trim() !== filterYear) return false;
+      if (exclude !== 'year' && filterYears.length > 0) {
+        if (!filterYears.includes(String(row.exam_year ?? '').trim())) return false;
       }
-      if (exclude !== 'difficulty' && filterDifficulty !== 'Todas') {
-        if (String(row.difficulty || '').trim() !== filterDifficulty) return false;
+      if (exclude !== 'difficulty' && filterDifficulties.length > 0) {
+        if (!filterDifficulties.includes(String(row.difficulty || '').trim())) return false;
       }
       return true;
     },
-    [filterSubject, filterBank, filterTopic, filterYear, filterDifficulty, topicOf]
+    [filterSubjects, filterBanks, filterTopics, filterYears, filterDifficulties, topicOf]
   );
 
   // ── 2b. Opções dos filtros — cruzadas: cada uma reflete as demais já
@@ -332,36 +322,41 @@ export default function BancoDeQuestoes() {
       .map(([name, count]) => ({ name, count }));
   }, [allQuestionMeta, matchesOtherFilters, topicOf]);
 
-  // ── 2d. Auto-correção: se a seleção atual de um filtro deixou de existir
-  // para a combinação dos demais (ex.: trocar o ano derrubou a única
-  // disciplina que estava selecionada), volta esse filtro para "todos" — sem
-  // apagar seleções que continuam válidas. Só roda depois que os dados
+  const topicNames = useMemo(() => availableTopics.map((t) => t.name), [availableTopics]);
+
+  // ── 2d. Auto-correção: se NENHUM dos itens selecionados de um filtro
+  // existe mais para a combinação dos demais (ex.: trocar o ano derrubou a
+  // única disciplina escolhida), o filtro volta para "todos". Se ao menos um
+  // item continua válido, a seleção fica intacta: com OR dentro do filtro, um
+  // item sem questões não muda o resultado, e removê-lo encolheria as opções
+  // dos outros filtros em cascata (marcar "Fácil" chegava a apagar matéria,
+  // banca e ano escolhidos e esconder "Médio"). Só roda depois que os dados
   // carregaram, para não resetar um filtro vindo de deep-link (?subject=)
   // antes da primeira busca terminar.
   useEffect(() => {
     if (allQuestionMeta.length === 0) return;
-    if (filterSubject !== 'Todas' && !filterOptions.subjects.includes(filterSubject)) setFilterSubject('Todas');
-  }, [allQuestionMeta.length, filterOptions.subjects, filterSubject]);
+    if (filterSubjects.length > 0 && !filterSubjects.some((s) => filterOptions.subjects.includes(s))) setFilterSubjects([]);
+  }, [allQuestionMeta.length, filterOptions.subjects, filterSubjects]);
 
   useEffect(() => {
     if (allQuestionMeta.length === 0) return;
-    if (filterBank !== 'Todas' && !filterOptions.banks.includes(filterBank)) setFilterBank('Todas');
-  }, [allQuestionMeta.length, filterOptions.banks, filterBank]);
+    if (filterBanks.length > 0 && !filterBanks.some((b) => filterOptions.banks.includes(b))) setFilterBanks([]);
+  }, [allQuestionMeta.length, filterOptions.banks, filterBanks]);
 
   useEffect(() => {
     if (allQuestionMeta.length === 0) return;
-    if (filterTopic !== 'Todos' && !availableTopics.some((t) => t.name === filterTopic)) setFilterTopic('Todos');
-  }, [allQuestionMeta.length, availableTopics, filterTopic]);
+    if (filterTopics.length > 0 && !filterTopics.some((t) => topicNames.includes(t))) setFilterTopics([]);
+  }, [allQuestionMeta.length, topicNames, filterTopics]);
 
   useEffect(() => {
     if (allQuestionMeta.length === 0) return;
-    if (filterYear !== 'Todos' && !filterOptions.years.includes(filterYear)) setFilterYear('Todos');
-  }, [allQuestionMeta.length, filterOptions.years, filterYear]);
+    if (filterYears.length > 0 && !filterYears.some((y) => filterOptions.years.includes(y))) setFilterYears([]);
+  }, [allQuestionMeta.length, filterOptions.years, filterYears]);
 
   useEffect(() => {
     if (allQuestionMeta.length === 0) return;
-    if (filterDifficulty !== 'Todas' && !filterOptions.difficulties.includes(filterDifficulty)) setFilterDifficulty('Todas');
-  }, [allQuestionMeta.length, filterOptions.difficulties, filterDifficulty]);
+    if (filterDifficulties.length > 0 && !filterDifficulties.some((d) => filterOptions.difficulties.includes(d))) setFilterDifficulties([]);
+  }, [allQuestionMeta.length, filterOptions.difficulties, filterDifficulties]);
 
   // ── Single-question mode: busca questão específica via deep-link de report ────
   useEffect(() => {
@@ -415,7 +410,7 @@ export default function BancoDeQuestoes() {
       setHasMore(true);
       fetchQuestions(1, false);
     }
-  }, [filterSubject, filterBank, filterTopic, filterYear, filterDifficulty, activeTab, userId]);
+  }, [filterSubjects, filterBanks, filterTopics, filterYears, filterDifficulties, activeTab, userId]);
 
   // ── 3. Core fetch ─────────────────────────────────────────────────────────────
   const fetchQuestions = useCallback(
@@ -449,11 +444,11 @@ export default function BancoDeQuestoes() {
 
       try {
         const params = new URLSearchParams({ page: targetPage.toString(), limit: '20' });
-        if (filterSubject && filterSubject !== 'Todas') params.append('subject', filterSubject);
-        if (filterBank && filterBank !== 'Todas') params.append('bank', filterBank);
-        if (filterTopic && filterTopic !== 'Todos') params.append('topic', filterTopic);
-        if (filterYear && filterYear !== 'Todos') params.append('year', filterYear);
-        if (filterDifficulty && filterDifficulty !== 'Todas') params.append('difficulty', filterDifficulty);
+        filterSubjects.forEach((s) => params.append('subject', s));
+        filterBanks.forEach((b) => params.append('bank', b));
+        filterTopics.forEach((t) => params.append('topic', t));
+        filterYears.forEach((y) => params.append('year', y));
+        filterDifficulties.forEach((d) => params.append('difficulty', d));
         params.append('tab', activeTab);
 
         const res = await fetch(`/api/proxy/questions/?${params.toString()}`, {
@@ -509,7 +504,7 @@ export default function BancoDeQuestoes() {
         }
       }
     },
-    [userId, activeTab, filterSubject, filterBank, filterTopic, filterYear, filterDifficulty]
+    [userId, activeTab, filterSubjects, filterBanks, filterTopics, filterYears, filterDifficulties]
   );
 
   // ── Infinite scroll ───────────────────────────────────────────────────────────
@@ -649,6 +644,47 @@ export default function BancoDeQuestoes() {
 
   const isTabTodo = activeTab === 'todo';
 
+  // Mesmos 4 filtros na grade do desktop e no painel recolhível do mobile.
+  const secondaryFilters = (
+    <>
+      <MultiSelectFilter
+        options={filterOptions.banks}
+        value={filterBanks}
+        onChange={setFilterBanks}
+        placeholder="Todas as Bancas"
+        searchPlaceholder="Buscar banca..."
+        accentTextColor={brandTextColor}
+      />
+      <MultiSelectFilter
+        options={topicNames}
+        value={filterTopics}
+        onChange={setFilterTopics}
+        placeholder="Todos os Tópicos"
+        searchPlaceholder="Buscar tópico..."
+        accentTextColor={brandTextColor}
+      />
+      <MultiSelectFilter
+        options={filterOptions.years}
+        value={filterYears}
+        onChange={setFilterYears}
+        placeholder="Todos os Anos"
+        searchPlaceholder="Buscar ano..."
+        icon={<Calendar size={13} />}
+        accentTextColor={brandTextColor}
+      />
+      <MultiSelectFilter
+        options={filterOptions.difficulties}
+        value={filterDifficulties}
+        onChange={setFilterDifficulties}
+        placeholder="Todas Dificuldades"
+        searchPlaceholder="Buscar dificuldade..."
+        icon={<BarChart size={13} />}
+        align="right"
+        accentTextColor={brandTextColor}
+      />
+    </>
+  );
+
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <ModuleGuard permKey="banco_questoes_enabled">
@@ -735,28 +771,23 @@ export default function BancoDeQuestoes() {
                 </div>
               </div>
 
-              {/* Row 2: Primary filter (Matéria) + secondary toggle */}
-              <div className="flex gap-2 items-center">
-                {/* Matéria — full width on mobile, 40% on sm+ */}
-                <div className="relative flex-1 sm:flex-none sm:w-56">
-                  <select
-                    className={selectClass}
-                    onChange={(e) => setFilterSubject(e.target.value)}
-                    value={filterSubject}
-                  >
-                    <option value="" disabled>Selecione a Matéria</option>
-                    <option value="Todas">Todas as Matérias</option>
-                    {filterOptions.subjects.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                </div>
+              {/* Row 2: Matéria + demais filtros (todos de múltipla escolha) */}
+              <div className="flex gap-2 items-start">
+                {/* Matéria — full width on mobile; sm: 1/3 ao lado da grade 2×2; lg: tudo numa linha */}
+                <MultiSelectFilter
+                  className="flex-1 lg:flex-[1.4]"
+                  options={filterOptions.subjects}
+                  value={filterSubjects}
+                  onChange={setFilterSubjects}
+                  placeholder="Todas as Matérias"
+                  searchPlaceholder="Buscar matéria..."
+                  accentTextColor={brandTextColor}
+                />
 
                 {/* "Filtros" button — mobile: visible, sm+: hidden (secondary always visible) */}
                 <button
                   onClick={() => setShowSecondaryFilters((v) => !v)}
-                  className={`sm:hidden flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-colors shrink-0 ${activeSecondaryCount > 0
+                  className={`sm:hidden flex items-center gap-1.5 px-3 py-3 rounded-xl border text-xs font-bold transition-colors shrink-0 ${activeSecondaryCount > 0
                     ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
                     : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700'
                     }`}
@@ -774,146 +805,25 @@ export default function BancoDeQuestoes() {
                   )}
                 </button>
 
-                {/* Desktop: Tópico, Ano, Dificuldade inline */}
-                <div className="hidden sm:flex flex-1 gap-2">
-                  <div className="relative flex-1">
-                    <select
-                      className={selectClass}
-                      onChange={(e) => setFilterBank(e.target.value)}
-                      value={filterBank}
-                    >
-                      <option value="Todas">Todas as Bancas</option>
-                      {filterOptions.banks.map((bank) => (
-                        <option key={bank} value={bank}>{bank}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  </div>
-
-                  {/* Tópico */}
-                  <div className="relative flex-1">
-                    <select
-                      className={selectClass}
-                      onChange={(e) => setFilterTopic(e.target.value)}
-                      value={filterTopic}
-                      disabled={availableTopics.length === 0}
-                    >
-                      <option value="Todos">Todos os Tópicos</option>
-                      {availableTopics.map((t) => (
-                        <option key={t.name} value={t.name}>{t.name}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  </div>
-
-                  {/* Ano */}
-                  <div className="relative flex-1">
-                    <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                    <select
-                      className={`${selectClass} pl-8`}
-                      onChange={(e) => setFilterYear(e.target.value)}
-                      value={filterYear}
-                    >
-                      <option value="Todos">Todos os Anos</option>
-                      {filterOptions.years.map((y) => (
-                        <option key={y} value={y}>{y}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  </div>
-
-                  {/* Dificuldade */}
-                  <div className="relative flex-1">
-                    <BarChart size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                    <select
-                      className={`${selectClass} pl-8`}
-                      onChange={(e) => setFilterDifficulty(e.target.value)}
-                      value={filterDifficulty}
-                    >
-                      <option value="Todas">Todas Dificuldades</option>
-                      {filterOptions.difficulties.map((d) => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  </div>
+                {/* Desktop: Banca, Tópico, Ano, Dificuldade */}
+                <div className="hidden sm:grid flex-[2] lg:flex-[4] grid-cols-2 lg:grid-cols-4 gap-2 min-w-0">
+                  {secondaryFilters}
                 </div>
               </div>
 
-              {/* Row 3: Secondary filters — mobile only, collapsible */}
+              {/* Row 3: Secondary filters — mobile only, collapsible. Sem
+                  overflow-hidden/altura animada: cortaria a lista dos dropdowns. */}
               <AnimatePresence>
                 {showSecondaryFilters && (
                   <motion.div
                     key="secondary-filters"
-                    initial={shouldReduce ? false : { opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
+                    initial={shouldReduce ? false : { opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
                     transition={{ duration: 0.2, ease: 'easeOut' }}
-                    className="overflow-hidden sm:hidden"
+                    className="grid grid-cols-1 gap-2 sm:hidden"
                   >
-                    <div className="grid grid-cols-3 gap-2 pt-1">
-                      <div className="relative col-span-3">
-                        <select
-                          className={selectClass}
-                          onChange={(e) => setFilterBank(e.target.value)}
-                          value={filterBank}
-                        >
-                          <option value="Todas">Todas as Bancas</option>
-                          {filterOptions.banks.map((bank) => (
-                            <option key={bank} value={bank}>{bank}</option>
-                          ))}
-                        </select>
-                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      </div>
-
-                      {/* Tópico */}
-                      <div className="relative col-span-3">
-                        <select
-                          className={selectClass}
-                          onChange={(e) => setFilterTopic(e.target.value)}
-                          value={filterTopic}
-                          disabled={availableTopics.length === 0}
-                        >
-                          <option value="Todos">Todos os Tópicos</option>
-                          {availableTopics.map((t) => (
-                            <option key={t.name} value={t.name}>{t.name}</option>
-                          ))}
-                        </select>
-                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      </div>
-
-                      {/* Ano */}
-                      <div className="relative col-span-3 sm:col-span-1">
-                        <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                        <select
-                          className={`${selectClass} pl-8`}
-                          onChange={(e) => setFilterYear(e.target.value)}
-                          value={filterYear}
-                        >
-                          <option value="Todos">Todos os Anos</option>
-                          {filterOptions.years.map((y) => (
-                            <option key={y} value={y}>{y}</option>
-                          ))}
-                        </select>
-                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      </div>
-
-                      {/* Dificuldade */}
-                      <div className="relative col-span-3 sm:col-span-1">
-                        <BarChart size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                        <select
-                          className={`${selectClass} pl-8`}
-                          onChange={(e) => setFilterDifficulty(e.target.value)}
-                          value={filterDifficulty}
-                        >
-                          <option value="Todas">Todas Dificuldades</option>
-                          {filterOptions.difficulties.map((d) => (
-                            <option key={d} value={d}>{d}</option>
-                          ))}
-                        </select>
-                        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      </div>
-                    </div>
+                    {secondaryFilters}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -954,38 +864,6 @@ export default function BancoDeQuestoes() {
               <div className="h-5 w-24 bg-slate-200 dark:bg-slate-800 rounded-lg animate-pulse" />
             </div>
             <QuestionCardSkeleton />
-          </motion.div>
-
-        ) : !filterSubject ? (
-
-          /* Welcome State */
-          <motion.div initial={fadeSlideInitial} animate={fadeSlideAnimate} transition={fadeSlideTransition}>
-            <div className="flex flex-col items-center justify-center py-16 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mt-4 text-center px-6">
-              <div
-                className="w-20 h-20 rounded-full flex items-center justify-center mb-5 ring-8"
-                style={{
-                  background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)',
-                  ['--tw-ring-color' as string]: 'color-mix(in srgb, var(--brand-primary) 5%, transparent)'
-                } as React.CSSProperties}
-              >
-                <Sparkles size={34} style={{ color: 'var(--brand-primary)' }} />
-              </div>
-              <h2 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 mb-3">
-                Banco de Questões StudyTrack
-              </h2>
-              <p className="text-slate-500 dark:text-slate-400 max-w-sm text-sm leading-relaxed">
-                Mais de{' '}
-                <span className="font-bold text-slate-800 dark:text-slate-100">
-                  {totalQuestions.toLocaleString('pt-BR')} questões
-                </span>{' '}
-                disponíveis no banco da plataforma.{' '}
-                <span className="font-semibold">Selecione a matéria e a banca</span> acima para começar.
-              </p>
-              <div className="mt-6 flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded-xl px-4 py-2.5 border border-slate-100 dark:border-slate-700/50">
-                <SlidersHorizontal size={13} />
-                Use os filtros para refinar por tópico, ano ou dificuldade
-              </div>
-            </div>
           </motion.div>
 
         ) : currentQ ? (
