@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { ESSAY_TYPE_CONFIGS, type EssayType } from '@/lib/essay-types';
+import {
+  R2_MAX_SIGN_TTL_SECONDS,
+  deleteEssayImages,
+  essayImageKeyFromUrl,
+  isR2SignedUrl,
+  signEssayImageUrl,
+} from '@/lib/r2';
 
 type ProfileRow = {
   role: string | null;
@@ -443,34 +450,38 @@ export async function GET(
   }
 
   // URL assinada da imagem servida na tela (falha silenciosa — referência opcional).
+  // Imagens ficam no Cloudflare R2 (bucket privado, ver `@/lib/r2`). A chave do
+  // objeto é a mesma do antigo bucket do Supabase, então sai do mesmo regex
+  // tanto pra URL antiga (`.../storage/v1/object/public/essay-images/<key>`)
+  // quanto pra nova (`https://<conta>.r2.cloudflarestorage.com/essay-images/<key>`).
   // item 5 (egress): serve `display_image_url` (cópia ~1400px/q68, ~0.6 MB) e não
   // `image_url` (original ~2-3 MB). Redações anteriores ao backfill: cai no original.
   // item 2 (egress): reusa a signed URL guardada na linha até faltar < 1 dia pra
-  // expirar, em vez de gerar token novo a cada abertura (token novo = cache-miss
-  // na CDN). Se o path mudou (ex: backfill trocou original -> display), re-assina.
-  const SIGN_TTL_SECONDS = 7 * 24 * 3600;
+  // expirar, em vez de gerar token novo a cada abertura. Se o path mudou (ex:
+  // backfill trocou original -> display), re-assina.
+  const SIGN_TTL_SECONDS = R2_MAX_SIGN_TTL_SECONDS;
   const REFRESH_MARGIN_MS = 24 * 3600 * 1000;
   const sourceImageUrl =
     ((essay.display_image_url as string | null) ?? (essay.image_url as string | null)) || null;
-  const storagePathMatch = sourceImageUrl ? sourceImageUrl.match(/essay-images\/(.+)$/) : null;
-  const storagePath = storagePathMatch ? storagePathMatch[1] : null;
+  const storagePath = essayImageKeyFromUrl(sourceImageUrl);
   const cachedSignedUrl = (essay.signed_image_url as string | null) ?? null;
   const cachedExpiresAt = essay.signed_image_expires_at
     ? new Date(essay.signed_image_expires_at as string).getTime()
     : 0;
-  // Só reaproveita o cache se ele aponta pro path atual (senão o backfill do
-  // item 5 deixaria a tela servindo o original grande por até 7 dias).
-  const cachedMatchesSource = !!cachedSignedUrl && !!storagePath && cachedSignedUrl.includes(storagePath);
+  // Só reaproveita o cache se ele é do R2 (URLs assinadas antigas do Supabase
+  // são descartadas e re-assinadas) e aponta pro path atual (senão o backfill
+  // do item 5 deixaria a tela servindo o original grande por até 7 dias).
+  const cachedMatchesSource =
+    !!cachedSignedUrl && !!storagePath && isR2SignedUrl(cachedSignedUrl) &&
+    essayImageKeyFromUrl(cachedSignedUrl) === storagePath;
   let signedImageUrl: string | null = cachedMatchesSource ? cachedSignedUrl : null;
   const needsFreshSignedUrl =
     !!storagePath && (!signedImageUrl || cachedExpiresAt - Date.now() < REFRESH_MARGIN_MS);
   if (needsFreshSignedUrl && storagePath) {
     try {
-      const { data: signedUrlData } = await admin.storage
-        .from('essay-images')
-        .createSignedUrl(storagePath, SIGN_TTL_SECONDS);
-      if (signedUrlData?.signedUrl) {
-        signedImageUrl = signedUrlData.signedUrl;
+      const freshSignedUrl = await signEssayImageUrl(storagePath, SIGN_TTL_SECONDS);
+      if (freshSignedUrl) {
+        signedImageUrl = freshSignedUrl;
         // Persiste pra reusar nas próximas aberturas (roda ~1x/6 dias por redação).
         await admin
           .from('essays')
@@ -900,10 +911,18 @@ export async function DELETE(
 
   const { data: essay } = await auth.admin
     .from('essays')
-    .select('id, status, correction_lock_user_id, correction_lock_at')
+    .select('id, status, correction_lock_user_id, correction_lock_at, image_url, display_image_url, processed_image_url')
     .eq('id', essayId)
     .eq('org_id', auth.orgId)
-    .maybeSingle<{ id: string; status: string; correction_lock_user_id: string | null; correction_lock_at: string | null }>();
+    .maybeSingle<{
+      id: string;
+      status: string;
+      correction_lock_user_id: string | null;
+      correction_lock_at: string | null;
+      image_url: string | null;
+      display_image_url: string | null;
+      processed_image_url: string | null;
+    }>();
   if (!essay) return NextResponse.json({ error: 'Redação não encontrada.' }, { status: 404 });
 
   const lockAgeMs = essay.correction_lock_at ? Date.now() - new Date(essay.correction_lock_at).getTime() : Number.POSITIVE_INFINITY;
@@ -945,6 +964,18 @@ export async function DELETE(
       },
       { status: 500 },
     );
+  }
+
+  // Apaga as imagens do R2 só depois do DELETE no banco: se falhar aqui, sobra
+  // um arquivo órfão (inofensivo), nunca uma redação sem imagem.
+  try {
+    await deleteEssayImages([
+      essayImageKeyFromUrl(essay.image_url),
+      essayImageKeyFromUrl(essay.display_image_url),
+      essayImageKeyFromUrl(essay.processed_image_url),
+    ]);
+  } catch (e) {
+    console.error(`[EssayRoute] Falha ao apagar imagens da redação ${essayId} no R2:`, e);
   }
 
   return NextResponse.json({ ok: true });
