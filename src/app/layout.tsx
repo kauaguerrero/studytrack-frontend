@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans, Geist_Mono, Caveat } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "sonner";
@@ -14,21 +13,31 @@ const generalSans = localFont({
   display: "swap",
 });
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+// Fontes self-hosted (antes via next/font/google). O next/font/google baixa os
+// arquivos do fonts.gstatic.com durante o build, e uma falha nesse download
+// derrubou builds na Vercel (2026-11-04). Arquivos: versões variáveis, subset
+// latin (o mesmo que era carregado), tirados de @fontsource-variable/* 5.3.0.
+// Licenças OFL em public/fonts/licenses/.
+const plusJakartaSans = localFont({
+  src: "../../public/fonts/PlusJakartaSans-Variable-latin.woff2",
   variable: "--font-plus-jakarta",
+  weight: "200 800",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "../../public/fonts/GeistMono-Variable-latin.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: "100 900",
+  display: "swap",
+  adjustFontFallback: false,
 });
 
-const caveat = Caveat({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+const caveat = localFont({
+  src: "../../public/fonts/Caveat-Variable-latin.woff2",
   variable: "--font-caveat",
+  weight: "400 700",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
