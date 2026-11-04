@@ -77,4 +77,5 @@ Feature-based under `src/components/`:
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase public access
 - `NEXT_PUBLIC_API_URL` — Flask backend URL (default: `http://127.0.0.1:5000`)
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — server-side admin access (API routes only)
+- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ESSAY_BUCKET` (optional, default `essay-images`) — Cloudflare R2, server-only. Essay images live in a private R2 bucket; `src/lib/r2.ts` signs read URLs (the backend does the writes). Object keys are the same as the old Supabase `essay-images` bucket, so old `image_url`s still resolve.
 (There is no Anthropic key here — the model call lives in the Flask backend. `NEXT_PUBLIC_API_KEY` used to hold one and has no reader left in `src/`.)
