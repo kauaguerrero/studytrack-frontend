@@ -854,8 +854,7 @@ export default function ConfiguracoesPage() {
                 setSavingConcursos(true);
                 try {
                   const { data: { session } } = await createClient().auth.getSession();
-                  const api = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
-                  const res = await fetch(`${api}/api/partners/${org.slug}/settings`, { method: 'PATCH', headers: { Authorization: `Bearer ${session?.access_token ?? ''}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ concursos_enabled: concursosEnabled }) });
+                  const res = await fetch(`/api/partners/${encodeURIComponent(org.slug)}/settings/concursos`, { method: 'PATCH', headers: { Authorization: `Bearer ${session?.access_token ?? ''}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ concursos_enabled: concursosEnabled }) });
                   if (!res.ok) throw new Error();
                   window.location.reload();
                 } catch { toast.error('Não foi possível salvar a configuração de concursos.'); setSavingConcursos(false); }
