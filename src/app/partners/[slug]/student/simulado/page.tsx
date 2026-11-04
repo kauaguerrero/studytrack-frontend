@@ -44,6 +44,8 @@ import { toast } from 'sonner'
 import { ModuleGuard } from '@/components/partners/ModuleGuard'
 import { RevealGroup, RevealItem, ElevatedCard, SectionTitle, KpiCard } from '@/components/partners/founder-ui'
 import { SimuladoComposerModal, type SimuladoComposition } from '@/components/partners/simulado/SimuladoComposerModal'
+import { ContestQuotaBuilder, type ContestQuota } from '../../simulados/ContestQuotaBuilder'
+import { VESTIBULAR_BANK_OPTIONS as BANK_OPTIONS } from '@/lib/simuladoBanks'
 import { MOCK_SIMULADO_RANKING_STUDENT, MOCK_SCHEDULED_SIMULADOS_STUDENT } from '../../../../../../studytrack-tutorial-mock'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -95,8 +97,9 @@ interface FinishResult {
 
 interface SessionConfig {
   mode?: string; format?: string; subject?: string; difficulty?: string; qty?: number; bank?: string
+  question_type?: string
   year?: number | null; results_by_bank?: Record<string, BankResult>
-  compositions?: Array<{ subject: string; topic?: string | null; qty: number; include_answered?: boolean }>
+  compositions?: Array<{ subject?: string; subjects?: string[]; topic?: string | null; topics?: string[]; qty: number; include_answered?: boolean }>
 }
 
 interface SimuladoSession {
@@ -113,7 +116,7 @@ interface RankingData {
   ranking: RankEntry[]; user_position?: number | null; user_best?: { percentage: number } | null
 }
 
-type BankLabel = 'Todas' | 'ENEM' | 'UFU' | 'UEG' | 'UFG' | 'UNESP'
+type BankLabel = string
 type PresetBank = 'ENEM' | 'UFU' | 'UEG' | 'UFG' | 'UNESP'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -158,15 +161,6 @@ const UFG_BLOCK_FORMATS = [
   { value: 'matematica',  label: 'Matemática',              emoji: '📐', qty: 24 },
   { value: 'completo',    label: 'UFG Completo',            emoji: '🎯', qty: 96 },
 ]
-
-const BANK_OPTIONS = [
-  { value: 'Todas', label: 'Todas as bancas' },
-  { value: 'ENEM',  label: 'ENEM' },
-  { value: 'UFU',   label: 'UFU' },
-  { value: 'UEG',   label: 'UEG' },
-  { value: 'UFG',   label: 'UFG' },
-  { value: 'UNESP', label: 'UNESP' },
-] as const
 
 const SIMULADO_YEARS = ['Todos', ...Array.from({ length: 18 }, (_, i) => String(new Date().getFullYear() - i))]
 const SIMULADO_MAX_QTY = 180
@@ -299,6 +293,10 @@ const BANK_VISUALS = {
   Todas: { label: 'Todos Vestibulares', color: '#64748b', bgClass: 'bg-slate-500' },
 } as const
 
+function bankVisual(bank: string) {
+  return (BANK_VISUALS as Record<string, { label: string; color: string; bgClass: string }>)[bank] || { label: bank, color: '#6366f1', bgClass: 'bg-indigo-500' }
+}
+
 function celebrationMessage(pct: number): { emoji: string; title: string; sub: string } {
   if (pct >= 80) return { emoji: '🏆', title: 'Resultado extraordinário!', sub: 'Você está no caminho certo para a aprovação.' }
   if (pct >= 70) return { emoji: '🎉', title: 'Excelente resultado!', sub: 'Continue assim e a aprovação é certa.' }
@@ -313,7 +311,7 @@ function normalizeBank(value?: string | null): BankLabel {
   if (normalized === 'UFG' || normalized === 'UFG_VEST') return 'UFG'
   if (normalized === 'ENEM' || normalized === 'INEP_ENEM' || normalized === 'ENEM_OFICIAL') return 'ENEM'
   if (normalized === 'UNESP') return 'UNESP'
-  return 'Todas'
+  return normalized && normalized !== 'TODAS' && normalized !== 'CUSTOM' ? normalized : 'Todas'
 }
 
 function getContrastTextColor(hex: string): string {
@@ -354,7 +352,11 @@ function getConfigLabel(session: SimuladoSession): string {
   }
   const bankLabel = inferSessionBank(c)
   const subj = c.compositions && c.compositions.length > 0
-    ? c.compositions.map((comp) => (comp.topic ? `${comp.subject} · ${comp.topic}` : comp.subject)).join(' + ')
+    ? c.compositions.map((comp) => {
+        const subjects = comp.subjects?.length ? comp.subjects.join(' + ') : (comp.subject || 'Matéria')
+        const topics = comp.topics?.length ? comp.topics.join(' + ') : comp.topic
+        return topics ? `${subjects} · ${topics}` : subjects
+      }).join(' / ')
     : (c.subject || 'Todas')
   const qty = session.total_questions || c.qty || 0
   const diff = DIFFICULTIES.find(d => d.value === c.difficulty)?.label || 'Misto'
@@ -461,7 +463,7 @@ function EvolutionTooltip({ active, payload }: any) {
     <div className="bg-slate-900 dark:bg-slate-800 text-white px-3 py-2 rounded-lg text-sm shadow-lg border border-slate-700">
       <p className="text-slate-400 text-xs mb-0.5">{point.label}</p>
       <p className="text-slate-300 text-xs mb-0.5">
-        {isExternal ? `${point.title} · Externo` : (point.bank ? BANK_VISUALS[point.bank]?.label ?? point.bank : point.title)}
+        {isExternal ? `${point.title} · Externo` : (point.bank ? bankVisual(point.bank).label : point.title)}
       </p>
       <p className="font-bold" style={{ color: isExternal ? EXTERNAL_COLOR : '#4ade80' }}>{isExternal ? point.ext : point.pct}%</p>
     </div>
@@ -509,6 +511,9 @@ export default function SimuladoPage() {
 
   const [step, setStep] = useState<'setup' | 'quiz' | 'result'>('setup')
   const [showConfigModal, setShowConfigModal] = useState(false)
+  const [showContestModal, setShowContestModal] = useState(false)
+  const [dashboardType, setDashboardType] = useState<'vestibular' | 'concurso'>('vestibular')
+  const contestRequestRef = useRef<{bank:string; role:string; quotas:ContestQuota[]} | null>(null)
 
   // Config
   const [mode, setMode] = useState<'custom' | 'preset'>('custom')
@@ -981,9 +986,10 @@ export default function SimuladoPage() {
   }, [step])
 
   // ── Derived KPIs ──
+  const modalitySessions = sessions.filter(session => (session.config?.question_type || 'vestibular') === dashboardType)
   const pageFilteredSessions = pageBankFilter === 'Todas'
-    ? sessions
-    : sessions.filter((session) => {
+    ? modalitySessions
+    : modalitySessions.filter((session) => {
         const storedBreakdown = session.results_by_bank || session.config?.results_by_bank
         if (storedBreakdown && Object.keys(storedBreakdown).length > 0) {
           return storedBreakdown[pageBankFilter] != null
@@ -991,7 +997,7 @@ export default function SimuladoPage() {
         return inferSessionBank(session.config) === pageBankFilter
       })
   // Externos não têm banca: só entram no escopo "Todas as bancas".
-  const externalsInScope = pageBankFilter === 'Todas' ? externalSims : []
+  const externalsInScope = dashboardType === 'vestibular' && pageBankFilter === 'Todas' ? externalSims : []
   const externalStats = externalsInScope.flatMap((ext) => {
     const result = totalResult(ext)
     return result ? [{ ext, result, dateKey: ext.day2_date ?? ext.day1_date }] : []
@@ -1088,7 +1094,7 @@ export default function SimuladoPage() {
   const subjectPerfData = aggregateSubjectPerf(pageFilteredSessions)
     .map((entry) => ({
       ...entry,
-      fill: pageBankFilter === 'Todas' ? BANK_VISUALS.Todas.color : BANK_VISUALS[pageBankFilter].color,
+      fill: bankVisual(pageBankFilter).color,
     }))
   const bankPerfData = aggregateBankPerf(pageFilteredSessions, pageBankFilter)
   if (externalStats.length > 0) {
@@ -1119,7 +1125,7 @@ export default function SimuladoPage() {
           ? UNESP_BLOCK_FORMATS
           : ENEM_BLOCK_FORMATS
   const evolutionLegend = pageBankFilter === 'Todas'
-    ? (['ENEM', 'UFU', 'UEG', 'UNESP', 'Todas'] as const)
+    ? Array.from(new Set(evolutionData.map(item => item.bank).filter((bank): bank is string => Boolean(bank))))
     : ([pageBankFilter] as const)
   const subjectLegend = pageBankFilter === 'Todas'
     ? (['Todas'] as const)
@@ -1170,7 +1176,7 @@ export default function SimuladoPage() {
   }
 
   // ── Handlers ──
-  const startSimulado = async (scheduledId?: string, discardActive?: boolean, language?: string) => {
+  const startSimulado = async (scheduledId?: string, discardActive?: boolean, language?: string, contest?: {bank:string; role:string; quotas:ContestQuota[]}) => {
     const token = await getFreshAccessToken()
     if (!token) { toast.error('Sessão expirada', { description: 'Faça login novamente para continuar.' }); return }
     setLoading(true)
@@ -1182,6 +1188,8 @@ export default function SimuladoPage() {
     ]
     try {
       const body: Record<string, unknown> = { difficulty }
+      if (contest) contestRequestRef.current = contest
+      else if (!discardActive) contestRequestRef.current = null
       if (discardActive) body.discard_active = true
       if (year !== 'Todos') body.year = Number(year)
       if (mode === 'custom') {
@@ -1203,6 +1211,11 @@ export default function SimuladoPage() {
       }
       if (scheduledId) body.scheduled_simulado_id = scheduledId
       if (language) body.language = language
+      const contestConfig = contest || (discardActive && !scheduledId ? contestRequestRef.current : null)
+      if (contestConfig && !scheduledId) {
+        Object.assign(body, { format: 'custom', bank: contestConfig.bank, question_type: 'concurso', role: contestConfig.role || null, difficulty: 'misto', compositions: contestConfig.quotas.map(q => ({ ...q, include_answered: true })) })
+        delete body.year
+      }
       const res = await fetch(`${apiUrl}/api/simulado/start`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) })
       const data = await res.json()
       if (res.status === 403) {
@@ -1232,11 +1245,13 @@ export default function SimuladoPage() {
         // Dialog do Radix é modal e mantém `pointer-events: none` no body, então
         // o aviso aparecia por cima mas nenhum dos dois botões respondia ao clique.
         setShowConfigModal(false)
+        setShowContestModal(false)
         setActiveSessionConflict(data.active_session ?? null)
         return
       }
       if (!res.ok) { toast.error('Erro ao iniciar simulado', { description: data.error || 'Tente novamente em instantes.' }); return }
       setShowConfigModal(false)
+      setShowContestModal(false)
       setActiveSessionConflict(null)
       setSessionId(data.session_id)
       setQuestions(data.questions)
@@ -1681,6 +1696,12 @@ export default function SimuladoPage() {
       </Dialog>
 
       {/* ── Config modal ── */}
+      <Dialog open={showContestModal} onOpenChange={setShowContestModal}>
+        <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader><DialogTitle>Simulado de concurso</DialogTitle><DialogDescription>Escolha a banca, as matérias e as quantidades.</DialogDescription></DialogHeader>
+          <ContestQuotaBuilder slug={slug} onStart={(bank, role, quotas) => void startSimulado(undefined, false, undefined, {bank, role, quotas})} />
+        </DialogContent>
+      </Dialog>
       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
           <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto dark:border-slate-800 dark:bg-slate-900 sm:max-w-lg">
           <DialogHeader>
@@ -1690,6 +1711,7 @@ export default function SimuladoPage() {
             </DialogTitle>
             <DialogDescription className="dark:text-slate-400">Escolha o formato e as opções do seu simulado.</DialogDescription>
           </DialogHeader>
+          {org.permissions?.concursos_enabled && <button type="button" onClick={() => { setShowConfigModal(false); setShowContestModal(true) }} className="rounded-xl border border-indigo-300 px-4 py-3 text-sm font-bold text-indigo-700">Montar simulado de concurso</button>}
 
           {/* Mode toggle */}
           <div className="grid grid-cols-1 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 sm:grid-cols-2">
@@ -1940,6 +1962,7 @@ export default function SimuladoPage() {
             <RevealItem>
             <ElevatedCard accentColor="var(--brand-primary)">
               <div className="flex flex-col gap-4 p-4 sm:p-5">
+                {org.permissions?.concursos_enabled && <label className="space-y-1 sm:max-w-xs"><span className="text-xs font-medium uppercase tracking-wide text-slate-500">Modalidade</span><select value={dashboardType} onChange={e => { setDashboardType(e.target.value as 'vestibular' | 'concurso'); setPageBankFilter('Todas') }} className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:bg-slate-900"><option value="vestibular">Vestibular</option><option value="concurso">Concursos</option></select></label>}
                 <label className="space-y-1 sm:max-w-xs">
                   <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-white/40">Filtro Global · Banca</span>
                   <select
@@ -1947,7 +1970,8 @@ export default function SimuladoPage() {
                     onChange={(e) => setPageBankFilter(e.target.value as BankLabel)}
                     className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
                   >
-                    {BANK_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    <option value="Todas">Todas as bancas</option>
+                    {Array.from(new Set(modalitySessions.map(s => inferSessionBank(s.config)))).filter(value => value !== 'Todas').map(value => <option key={value} value={value}>{value}</option>)}
                   </select>
                 </label>
                 <div className="flex items-start gap-3 rounded-xl bg-slate-50 dark:bg-white/[0.04] p-3.5">
@@ -2361,10 +2385,10 @@ export default function SimuladoPage() {
                       <div key={bankKey} className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                         <span
                           className="inline-block w-2.5 h-2.5 rounded-full"
-                          style={{ backgroundColor: BANK_VISUALS[bankKey].color }}
+                          style={{ backgroundColor: bankVisual(bankKey).color }}
                         />
                         <span className="font-semibold">
-                          {bankKey === 'Todas' ? 'Tendência geral' : BANK_VISUALS[bankKey].label}
+                          {bankKey === 'Todas' ? 'Tendência geral' : bankVisual(bankKey).label}
                         </span>
                       </div>
                     ))}
@@ -2408,22 +2432,24 @@ export default function SimuladoPage() {
                           type="monotone"
                           connectNulls
                           dataKey="pct"
-                          stroke={pageBankFilter === 'Todas' ? BANK_VISUALS.Todas.color : BANK_VISUALS[pageBankFilter].color}
+                          stroke={bankVisual(pageBankFilter).color}
                           strokeWidth={2.5}
                           dot={(props) => {
                             if (props.payload?.pct == null) return <g key={props.key} />
                             const bank = props.payload?.bank as keyof typeof BANK_VISUALS
                             const color = pageBankFilter === 'Todas'
-                              ? BANK_VISUALS[bank || 'Todas'].color
-                              : BANK_VISUALS[pageBankFilter].color
+
+                              ? bankVisual(bank || 'Todas').color
+                              : bankVisual(pageBankFilter).color
                             return <circle key={props.key} cx={props.cx} cy={props.cy} r={4} fill={color} stroke="white" strokeWidth={1.5} />
+
                           }}
                           activeDot={(props) => {
                             if (props.payload?.pct == null) return <g />
                             const bank = props.payload?.bank as keyof typeof BANK_VISUALS
                             const color = pageBankFilter === 'Todas'
-                              ? BANK_VISUALS[bank || 'Todas'].color
-                              : BANK_VISUALS[pageBankFilter].color
+                              ? bankVisual(bank || 'Todas').color
+                              : bankVisual(pageBankFilter).color
                             return <circle cx={props.cx} cy={props.cy} r={6} fill={color} stroke="white" strokeWidth={2} />
                           }}
                         />
@@ -2442,9 +2468,9 @@ export default function SimuladoPage() {
                       <div key={bankKey} className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                         <span
                           className="inline-block w-2.5 h-2.5 rounded-full"
-                          style={{ backgroundColor: BANK_VISUALS[bankKey].color }}
+                          style={{ backgroundColor: bankVisual(bankKey).color }}
                         />
-                        <span className="font-semibold">{BANK_VISUALS[bankKey].label}</span>
+                        <span className="font-semibold">{bankVisual(bankKey).label}</span>
                       </div>
                     ))}
                     {pageBankFilter === 'Todas' ? (

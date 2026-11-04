@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
-import { TAXONOMY } from '@/constants/taxonomy';
+import { useOrg } from '@/contexts/OrgContext';
 import { CheckCircle2, Loader2, PlusCircle, Search, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -28,7 +28,17 @@ interface Props {
   slug: string;
 }
 
+interface Facet { bank: string | null; subject: string | null; discipline: string | null; role: string | null; institution: string | null; area: string | null; region: string | null }
+
 export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Props) {
+  const { org } = useOrg();
+  const concursosEnabled = Boolean(org.permissions?.concursos_enabled);
+  const [questionType, setQuestionType] = useState('vestibular');
+  const [role, setRole] = useState('all');
+  const [institution, setInstitution] = useState('all');
+  const [area, setArea] = useState('all');
+  const [region, setRegion] = useState('all');
+  const [facets, setFacets] = useState<Facet[]>([]);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [count, setCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -41,8 +51,13 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
   const [preview, setPreview] = useState<QuestionItem | null>(null);
   const [varyingId, setVaryingId] = useState<string | null>(null);
 
-  const subjects = Object.keys(TAXONOMY);
-  const disciplines = subject !== 'all' ? [...(TAXONOMY[subject as keyof typeof TAXONOMY] ?? [])] : [];
+  const scoped = facets.filter((item) => (role === 'all' || item.role === role) && (bank === 'all' || item.bank === bank) && (institution === 'all' || item.institution === institution) && (area === 'all' || item.area === area) && (region === 'all' || item.region === region));
+  const unique = (values: Array<string | null>) => [...new Set(values.filter((v): v is string => Boolean(v)))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const subjects = unique(scoped.map((item) => item.subject));
+  const disciplines = unique(scoped.filter((item) => item.subject === subject).map((item) => item.discipline));
+  const banks = unique(facets.filter((item) => role === 'all' || item.role === role).map((item) => item.bank));
+  const roles = unique(facets.map((item) => item.role));
+  const roleFacets = facets.filter((item) => role === 'all' || item.role === role);
 
   async function getToken() {
     const supabase = createClient();
@@ -64,6 +79,11 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
         bank,
         discipline,
         difficulty,
+        question_type: questionType,
+        role,
+        institution,
+        area,
+        region,
       });
       const res = await fetch(`${api}/api/partners/${slug}/assessment/questions/search?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -90,7 +110,25 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
       void fetchQuestions(true);
     }, 300);
     return () => clearTimeout(timeout);
-  }, [slug, query, subject, bank, discipline, difficulty]);
+  }, [slug, query, subject, bank, discipline, difficulty, questionType, role, institution, area, region]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFacets([]);
+    void (async () => {
+      try {
+        const token = await getToken();
+        const api = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+        const res = await fetch(`${api}/api/partners/${slug}/assessment/questions/facets?question_type=${questionType}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) throw new Error('Falha ao carregar filtros.');
+        const data = await res.json();
+        if (!cancelled) setFacets(data.data || []);
+      } catch {
+        if (!cancelled) toast.error('Não foi possível carregar os filtros.');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [slug, questionType]);
 
   async function handleGenerateVariation(question: QuestionItem) {
     setVaryingId(question.id);
@@ -127,6 +165,21 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
   return (
     <div className="space-y-4">
       <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        {concursosEnabled && <div className="mb-3 grid gap-3 md:grid-cols-2">
+          <select aria-label="Modalidade" value={questionType} onChange={(e) => { setQuestionType(e.target.value); setRole('all'); setBank('all'); setSubject('all'); setDiscipline('all'); setInstitution('all'); setArea('all'); setRegion('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm">
+            <option value="vestibular">Vestibular</option><option value="concurso">Concursos</option>
+          </select>
+          {questionType === 'concurso' && <select aria-label="Cargo" value={role} onChange={(e) => { setRole(e.target.value); setBank('all'); setSubject('all'); setInstitution('all'); setArea('all'); setRegion('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm">
+            <option value="all">Todos os cargos</option>{roles.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>}
+        </div>}
+        {questionType === 'concurso' && <div className="mb-3 grid gap-3 md:grid-cols-3">
+          {([
+            ['Instituição', institution, setInstitution, unique(roleFacets.map((item) => item.institution))],
+            ['Área', area, setArea, unique(roleFacets.map((item) => item.area))],
+            ['Região', region, setRegion, unique(roleFacets.map((item) => item.region))],
+          ] as const).map(([label, value, setter, options]) => options.length > 0 && <select key={label} aria-label={label} value={value} onChange={(e) => { setter(e.target.value); setSubject('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm"><option value="all">{label}: todas</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select>)}
+        </div>}
         <div className="grid gap-3 md:grid-cols-5">
           <label className="relative md:col-span-2">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -141,12 +194,9 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
             <option value="all">Todas as matérias</option>
             {subjects.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
-          <select value={bank} onChange={(e) => setBank(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
+          <select value={bank} onChange={(e) => { setBank(e.target.value); setSubject('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
             <option value="all">Todas as bancas</option>
-            <option value="ENEM">ENEM</option>
-            <option value="UFU">UFU</option>
-            <option value="UEG">UEG</option>
-            <option value="UFG">UFG</option>
+            {banks.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
           <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
             <option value="all">Qualquer dificuldade</option>
