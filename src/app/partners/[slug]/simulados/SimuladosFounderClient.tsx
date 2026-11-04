@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useOrg } from '@/contexts/OrgContext';
+import { VESTIBULAR_BANK_LABELS } from '@/lib/simuladoBanks';
 import { useRouter } from 'next/navigation';
 import { MOCK_SIMULADOS } from '../../../../../studytrack-tutorial-mock';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
@@ -133,9 +134,7 @@ interface SimuladoAnalytics {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-const BANK_LABELS: Record<string, string> = {
-  ENEM: 'ENEM', UFU: 'UFU', UEG: 'UEG', UFG: 'UFG', Todas: 'Todas as bancas',
-};
+const BANK_LABELS = VESTIBULAR_BANK_LABELS;
 const DIFFICULTY_LABELS: Record<string, string> = {
   facil: 'Fácil', medio: 'Médio', dificil: 'Difícil', misto: 'Misto',
 };
@@ -1132,6 +1131,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     type="button"
                     role="switch"
                     aria-checked={Boolean(form.same_for_all_students)}
+                    disabled={form.modality === 'hybrid'}
                     onClick={() => setForm((f) => ({ ...f, same_for_all_students: !f.same_for_all_students }))}
                     className={`relative inline-flex h-11 w-14 shrink-0 items-center rounded-full transition-colors focus:outline-none ${form.same_for_all_students ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
                   >
@@ -1177,7 +1177,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       disabled={!!editingId}
                       onClick={() => {
                         if (editingId) return;
-                        setForm((f) => ({ ...f, modality: m, ...(m === 'online' ? { location_name: '', location_address: '' } : {}) }));
+                        setForm((f) => ({ ...f, modality: m, ...(m === 'hybrid' ? { same_for_all_students: true } : {}), ...(m === 'online' ? { location_name: '', location_address: '' } : {}) }));
                       }}
                       className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${editingId ? 'cursor-not-allowed opacity-60' : ''} ${form.modality === m ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5 text-[var(--brand-primary)]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
                     >
@@ -1386,7 +1386,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           type="button"
                           onClick={() => {
                             setDeliveryMode('online');
-                            setForm((f) => ({ ...f, modality: 'hybrid' }));
+                            setForm((f) => ({ ...f, modality: 'hybrid', same_for_all_students: true }));
                             setTypeSelectorStep(2);
                           }}
                           className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"

@@ -42,6 +42,10 @@ interface QuestionFilterOptions {
 // Linha "crua" usada só para montar as opções dos filtros (facetas), nunca
 // para exibir a questão em si.
 interface QuestionMetaRow {
+  role: string | null;
+  institution: string | null;
+  area: string | null;
+  region: string | null;
   subject: string | null;
   discipline: string | null;
   difficulty: string | null;
@@ -74,6 +78,8 @@ const QuestionCardSkeleton = () => (
     </div>
   </div>
 );
+
+const selectClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200';
 
 function normalizeBankValue(value: unknown): string {
   const normalized = String(value || '').trim().toUpperCase();
@@ -147,11 +153,19 @@ export default function BancoDeQuestoes() {
   // Deep-link de report: quando ?question_id=UUID vem da página de reports do aluno,
   // exibe apenas essa questão específica (ignora filtros e paginação).
   const questionIdParam = searchParams.get('question_id');
+
   // Todos os filtros são de múltipla escolha; lista vazia = sem filtro.
   const [filterBanks, setFilterBanks] = useState<string[]>([]);
   const [filterTopics, setFilterTopics] = useState<string[]>([]);
   const [filterYears, setFilterYears] = useState<string[]>([]);
   const [filterDifficulties, setFilterDifficulties] = useState<string[]>([]);
+
+  const [questionType, setQuestionType] = useState<'vestibular' | 'concurso'>('vestibular');
+  const [filterRole, setFilterRole] = useState('Todas');
+  const [filterInstitution, setFilterInstitution] = useState('Todas');
+  const [filterArea, setFilterArea] = useState('Todas');
+  const [filterRegion, setFilterRegion] = useState('Todas');
+
 
   // Universo bruto de questões verificadas (buscado uma única vez) a partir
   // do qual TODAS as opções de filtro (matéria, banca, tópico, ano,
@@ -236,24 +250,26 @@ export default function BancoDeQuestoes() {
 
   // ── 2a. Universo bruto de questões — buscado uma única vez ──────────────────
   useEffect(() => {
+    const controller = new AbortController();
     async function loadQuestionMeta() {
       try {
         const supabase = createClient();
-        const { data, error } = await supabase
-          .from('questions')
-          .select('subject, discipline, difficulty, exam_year, bank, metadata, external_id')
-          .eq('is_verified', true)
-          .limit(10000);
-
-        if (error) throw error;
-        setAllQuestionMeta(data || []);
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await fetch(`/api/proxy/questions/facets?question_type=${questionType}`, {
+          headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Falha ao carregar filtros');
+        const data = await response.json();
+        setAllQuestionMeta(data.data || []);
       } catch (err) {
-        void reportError('QuestionBankFilterOptionsError', String(err));
+        if (!controller.signal.aborted) void reportError('QuestionBankFilterOptionsError', String(err));
       }
     }
 
     loadQuestionMeta();
-  }, []);
+    return () => controller.abort();
+  }, [questionType]);
 
   // Um tópico/disciplina de uma linha bruta, com o mesmo fallback usado em
   // todo o resto do arquivo (discipline > metadata.ai_topic).
@@ -266,9 +282,15 @@ export default function BancoDeQuestoes() {
   // OUTROS filtros já escolhidos, em qualquer ordem, sem se autoexcluir.
   const matchesOtherFilters = useCallback(
     (row: QuestionMetaRow, exclude: FilterDimension): boolean => {
+      if (filterRole !== 'Todas' && row.role !== filterRole) return false;
+      if (filterInstitution !== 'Todas' && row.institution !== filterInstitution) return false;
+      if (filterArea !== 'Todas' && row.area !== filterArea) return false;
+      if (filterRegion !== 'Todas' && row.region !== filterRegion) return false;
+
       if (exclude !== 'subject' && filterSubjects.length > 0) {
         const rowSubject = String(row.subject || '').trim().toLowerCase();
         if (!filterSubjects.some((s) => s.trim().toLowerCase() === rowSubject)) return false;
+
       }
       if (exclude !== 'bank' && filterBanks.length > 0) {
         if (!filterBanks.includes(inferQuestionBank(row))) return false;
@@ -284,7 +306,9 @@ export default function BancoDeQuestoes() {
       }
       return true;
     },
-    [filterSubjects, filterBanks, filterTopics, filterYears, filterDifficulties, topicOf]
+
+    [filterSubjects, filterBanks, filterTopics, filterYears, filterDifficulties, filterRole, filterInstitution, filterArea, filterRegion, topicOf]
+
   );
 
   // ── 2b. Opções dos filtros — cruzadas: cada uma reflete as demais já
@@ -410,7 +434,9 @@ export default function BancoDeQuestoes() {
       setHasMore(true);
       fetchQuestions(1, false);
     }
-  }, [filterSubjects, filterBanks, filterTopics, filterYears, filterDifficulties, activeTab, userId]);
+
+  }, [filterSubjects, filterBanks, filterTopics, filterYears, filterDifficulties, activeTab, userId, questionType, filterRole, filterInstitution, filterArea, filterRegion]);
+
 
   // ── 3. Core fetch ─────────────────────────────────────────────────────────────
   const fetchQuestions = useCallback(
@@ -444,11 +470,18 @@ export default function BancoDeQuestoes() {
 
       try {
         const params = new URLSearchParams({ page: targetPage.toString(), limit: '20' });
+        params.append('question_type', questionType);
+        if (filterRole !== 'Todas') params.append('role', filterRole);
+        if (filterInstitution !== 'Todas') params.append('institution', filterInstitution);
+        if (filterArea !== 'Todas') params.append('area', filterArea);
+        if (filterRegion !== 'Todas') params.append('region', filterRegion);
+
         filterSubjects.forEach((s) => params.append('subject', s));
         filterBanks.forEach((b) => params.append('bank', b));
         filterTopics.forEach((t) => params.append('topic', t));
         filterYears.forEach((y) => params.append('year', y));
         filterDifficulties.forEach((d) => params.append('difficulty', d));
+
         params.append('tab', activeTab);
 
         const res = await fetch(`/api/proxy/questions/?${params.toString()}`, {
@@ -504,7 +537,9 @@ export default function BancoDeQuestoes() {
         }
       }
     },
-    [userId, activeTab, filterSubjects, filterBanks, filterTopics, filterYears, filterDifficulties]
+
+    [userId, activeTab, filterSubjects, filterBanks, filterTopics, filterYears, filterDifficulties, questionType, filterRole, filterInstitution, filterArea, filterRegion]
+
   );
 
   // ── Infinite scroll ───────────────────────────────────────────────────────────
@@ -771,6 +806,22 @@ export default function BancoDeQuestoes() {
                 </div>
               </div>
 
+
+              {/* Row 2: Primary filter (Matéria) + secondary toggle */}
+              {org.permissions?.concursos_enabled && <div className="flex gap-2 mb-3">
+                <select aria-label="Modalidade" className={selectClass} value={questionType} onChange={(e) => { setQuestionType(e.target.value as 'vestibular' | 'concurso'); setFilterRole('Todas'); setFilterInstitution('Todas'); setFilterArea('Todas'); setFilterRegion('Todas'); setFilterSubjects([]); setFilterBanks([]); setFilterTopics([]); setFilterYears([]); setFilterDifficulties([]); setAllQuestionMeta([]); }}>
+                  <option value="vestibular">Vestibular</option><option value="concurso">Concursos</option>
+                </select>
+                {questionType === 'concurso' && <select aria-label="Cargo" className={selectClass} value={filterRole} onChange={(e) => { setFilterRole(e.target.value); setFilterInstitution('Todas'); setFilterArea('Todas'); setFilterRegion('Todas'); setFilterSubjects([]); setFilterBanks([]); setFilterTopics([]); }}>
+                  <option value="Todas">Todos os cargos</option>{uniqueSorted(allQuestionMeta.map((row) => row.role)).map((role) => <option key={role} value={role}>{role}</option>)}
+                </select>}
+              </div>}
+              {questionType === 'concurso' && <div className="mb-3 grid gap-2 sm:grid-cols-3">{([
+                ['Instituição', filterInstitution, setFilterInstitution, 'institution'],
+                ['Área', filterArea, setFilterArea, 'area'],
+                ['Região', filterRegion, setFilterRegion, 'region'],
+              ] as const).map(([label, value, setter, field]) => { const options = uniqueSorted(allQuestionMeta.filter(row => filterRole === 'Todas' || row.role === filterRole).map(row => row[field])); return options.length ? <select key={field} aria-label={label} className={selectClass} value={value} onChange={e => { setter(e.target.value); setFilterSubjects([]); setFilterBanks([]); setFilterTopics([]); }}><option value="Todas">{label}: todas</option>{options.map(option => <option key={option} value={option}>{option}</option>)}</select> : null; })}</div>}
+
               {/* Row 2: Matéria + demais filtros (todos de múltipla escolha) */}
               <div className="flex gap-2 items-start">
                 {/* Matéria — full width on mobile; sm: 1/3 ao lado da grade 2×2; lg: tudo numa linha */}
@@ -783,6 +834,7 @@ export default function BancoDeQuestoes() {
                   searchPlaceholder="Buscar matéria..."
                   accentTextColor={brandTextColor}
                 />
+
 
                 {/* "Filtros" button — mobile: visible, sm+: hidden (secondary always visible) */}
                 <button

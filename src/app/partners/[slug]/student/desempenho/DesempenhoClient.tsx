@@ -36,6 +36,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { useOrg } from '@/contexts/OrgContext';
+import { toast } from 'sonner';
 import { ESSAY_TYPE_CONFIGS, normalizeEssayType, pickDominantEssayType, type EssayType } from '@/lib/essay-types';
 import { cn } from '@/lib/utils';
 import { RevealGroup, RevealItem } from '@/components/partners/founder-ui';
@@ -176,6 +177,7 @@ interface SimuladoSession {
   time_taken_secs: number | null;
   completed_at: string;
   results_by_subject?: Record<string, { correct: number; total: number; percentage: number }>;
+  config?: { question_type?: string };
 }
 
 interface SimuladoHistoryResponse {
@@ -548,6 +550,25 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
   const [essayTypeFilter, setEssayTypeFilter] = useState<EssayType | 'all'>('all');
   const [essayTypeFilterOpen, setEssayTypeFilterOpen] = useState(false);
   const [subjectSort, setSubjectSort] = useState<'accuracy' | 'volume'>('accuracy');
+  const [analyticsType, setAnalyticsType] = useState<'all' | 'vestibular' | 'concurso'>('all');
+
+  useEffect(() => {
+    if (!state || !org.permissions?.concursos_enabled) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const { data: { session } } = await createClient().auth.getSession();
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+        const suffix = analyticsType === 'all' ? '' : `?question_type=${analyticsType}`;
+        const response = await fetch(`${apiUrl}/api/student/analytics/dashboard${suffix}`, { headers: { Authorization: `Bearer ${session?.access_token ?? ''}` }, cache: 'no-store', signal: controller.signal });
+        if (!response.ok) throw new Error();
+        const analytics: AnalyticsResponse = await response.json();
+        if (!controller.signal.aborted) setState(current => current ? { ...current, analytics } : current);
+      } catch { if (!controller.signal.aborted) toast.error('Não foi possível carregar o desempenho por modalidade.'); }
+    })();
+    return () => controller.abort();
+  // Recarrega somente quando muda a modalidade ou o estado inicial chega.
+  }, [analyticsType, org.permissions?.concursos_enabled, Boolean(state)]);
 
   useEffect(() => {
     if (initialState !== null) return; // server já pré-buscou com sucesso
@@ -674,7 +695,8 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
   const derived = useMemo(() => {
     if (!state) return null;
 
-    const { analytics, essays, essayDetails, summary, simuladoSessions } = state;
+    const { analytics, essays, essayDetails, summary } = state;
+    const simuladoSessions = state.simuladoSessions.filter(item => analyticsType === 'all' || (item.config?.question_type || 'vestibular') === analyticsType);
     const effectiveEssayType = essayTypeFilter === 'all' ? dominantEssayType : essayTypeFilter;
     const essayTypeConfig = ESSAY_TYPE_CONFIGS[effectiveEssayType] ?? ESSAY_TYPE_CONFIGS.enem;
     const essaysByType = essays.filter((item) => item.essay_type === effectiveEssayType);
@@ -762,7 +784,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
       habits,
       summary,
     };
-  }, [state, essayTypeFilter, dominantEssayType]);
+  }, [state, essayTypeFilter, dominantEssayType, analyticsType]);
 
   if (loading) return <LoadingState />;
 
@@ -846,6 +868,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.92),_rgba(241,245,249,0.98)_42%,_#e2e8f0_100%)] text-slate-900 dark:bg-[radial-gradient(circle_at_top_left,_rgba(51,65,85,0.4),_rgba(15,23,42,0.98)_34%,_#020617_100%)] dark:text-slate-100">
       <div className="mx-auto max-w-7xl px-4 py-5 md:px-6 md:py-7">
         <RevealGroup className="space-y-4 lg:space-y-5">
+          {org.permissions?.concursos_enabled && <RevealItem><label className="flex max-w-xs flex-col gap-1 text-sm font-semibold">Modalidade do desempenho<select value={analyticsType} onChange={e => setAnalyticsType(e.target.value as 'all' | 'vestibular' | 'concurso')} className="rounded-xl border bg-white px-3 py-2 dark:bg-slate-900"><option value="all">Todas</option><option value="vestibular">Vestibular</option><option value="concurso">Concursos</option></select></label><p className="mt-1 text-xs text-slate-500">Sequência, pontos e ranking continuam gerais.</p></RevealItem>}
           <RevealItem>
           <Link
             href={`/partners/${slug}/student/dashboard`}

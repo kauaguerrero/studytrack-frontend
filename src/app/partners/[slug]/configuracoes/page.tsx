@@ -181,6 +181,8 @@ export default function ConfiguracoesPage() {
   );
   const [themeSaving, setThemeSaving] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingConcursos, setSavingConcursos] = useState(false);
+  const [concursosEnabled, setConcursosEnabled] = useState(Boolean(org.permissions?.concursos_enabled));
   const [orgTimezone, setOrgTimezone] = useState(org.timezone ?? DEFAULT_BRAZIL_TIMEZONE);
   const [windowEnabled, setWindowEnabled] = useState(org.essay_window_enabled ?? false);
   const [windowStartDay, setWindowStartDay] = useState(org.essay_window_start_day ?? 'wednesday');
@@ -843,6 +845,24 @@ export default function ConfiguracoesPage() {
         </RevealItem>
 
         <div className="flex flex-col gap-5">
+
+        <RevealItem>
+          <ElevatedCard accentColor="var(--brand-primary)">
+            <div className="flex flex-wrap items-center justify-between gap-4 p-5">
+              <div><h2 className="font-bold text-slate-900 dark:text-white">Concursos públicos</h2><p className="text-sm text-slate-500">Disponibilize questões e simulados de concurso para sua turma.</p></div>
+              <div className="flex items-center gap-3"><Switch aria-label="Habilitar concursos" checked={concursosEnabled} disabled={savingConcursos} onCheckedChange={setConcursosEnabled} /><button type="button" disabled={savingConcursos || concursosEnabled === Boolean(org.permissions?.concursos_enabled)} onClick={async () => {
+                setSavingConcursos(true);
+                try {
+                  const { data: { session } } = await createClient().auth.getSession();
+                  const api = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+                  const res = await fetch(`${api}/api/partners/${org.slug}/settings`, { method: 'PATCH', headers: { Authorization: `Bearer ${session?.access_token ?? ''}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ concursos_enabled: concursosEnabled }) });
+                  if (!res.ok) throw new Error();
+                  window.location.reload();
+                } catch { toast.error('Não foi possível salvar a configuração de concursos.'); setSavingConcursos(false); }
+              }} className="rounded-xl border px-4 py-2 text-sm font-bold disabled:opacity-50">{savingConcursos ? 'Salvando...' : 'Salvar'}</button></div>
+            </div>
+          </ElevatedCard>
+        </RevealItem>
 
         {/* Identidade Visual */}
         <RevealItem>

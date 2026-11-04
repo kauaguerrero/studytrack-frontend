@@ -12,12 +12,13 @@ import { ArrowRight, Database, Eye, FileText, PenTool, Sparkles, Trash2, X } fro
 import { QuestionBankExplorer } from '@/components/assessments/QuestionBankExplorer';
 import { AiQuestionFactory } from '@/components/assessments/AiQuestionFactory';
 import { ManualQuestionForm } from '@/components/assessments/ManualQuestionForm';
+import { ContestQuotaBuilder } from './ContestQuotaBuilder';
 import SimuladoPreviewModal from '@/components/partners/simulados/SimuladoPreviewModal';
 import { downloadBlobResponse } from '@/lib/download-blob';
 import type { SelectedQuestion } from '@/types/simulado-preview';
 import { toCustomQuestionSnapshot, deriveContextAndStatement } from '@/types/simulado-preview';
 
-type Method = 'bank' | 'ai' | 'manual' | null;
+type Method = 'bank' | 'ai' | 'manual' | 'quotas' | null;
 
 interface PoolCandidate {
   id: string;
@@ -54,6 +55,7 @@ const methodCards: Array<{
   { id: 'bank', title: 'Banco de Questões', description: 'Busque itens verificados e monte o pool manualmente.', icon: Database },
   { id: 'ai', title: 'Gerar com IA', description: 'Descreva o tema e revise a questão antes de salvar.', icon: Sparkles },
   { id: 'manual', title: 'Criar do Zero', description: 'Escreva enunciado, alternativas e gabarito manualmente.', icon: PenTool },
+  { id: 'quotas', title: 'Concursos por quotas', description: 'Combine matérias e quantidades para selecionar questões verificadas.', icon: Database },
 ];
 
 export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, printedMode, onCreatedPrinted }: Props) {
@@ -63,6 +65,7 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, p
   const [method, setMethod] = useState<Method>(null);
   const [step, setStep] = useState<'pool' | 'config'>('pool');
   const [pool, setPool] = useState<SelectedQuestion[]>([]);
+  const [contest, setContest] = useState<{ bank: string; role: string } | null>(null);
   const [title, setTitle] = useState('');
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
@@ -186,7 +189,9 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, p
           ends_at: endsAt ? new Date(endsAt).toISOString() : undefined,
           config: {
             format: 'custom',
-            bank: 'CUSTOM',
+            bank: contest?.bank || 'CUSTOM',
+            question_type: contest ? 'concurso' : undefined,
+            role: contest?.role || undefined,
             time_limit_secs: timeLimitMins ? Number(timeLimitMins) * 60 : undefined,
             allow_retry: false,
             custom_questions: pool.map((question) => ({
@@ -222,6 +227,9 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, p
   }
 
   const content = useMemo(() => {
+    if (method === 'quotas') {
+      return <ContestQuotaBuilder slug={slug} onGenerated={(questions, bank, role) => { setPool([]); addManyToPool(questions); setContest({bank, role}); }} />;
+    }
     if (method === 'bank') {
       return <QuestionBankExplorer slug={slug} selectedIds={pool.map((item) => item.id)} onSelectQuestion={addToPool} />;
     }
@@ -233,10 +241,10 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, p
     }
     return (
       <div className="grid gap-4 md:grid-cols-3">
-        {methodCards.map((item) => {
+        {methodCards.filter(item => item.id !== 'quotas' || Boolean(org.permissions?.concursos_enabled)).map((item) => {
           const Icon = item.icon;
           return (
-            <button key={item.id} type="button" onClick={() => setMethod(item.id)} className="text-left">
+            <button key={item.id} type="button" onClick={() => { setMethod(item.id); setContest(null); }} className="text-left">
               <ElevatedCard accentColor={org.brand_primary} className="h-full p-6 transition-transform duration-200 hover:-translate-y-0.5">
                 <div
                   className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl"
@@ -252,7 +260,7 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, p
         })}
       </div>
     );
-  }, [method, pool, slug, org.brand_primary, brandText]);
+  }, [method, pool, slug, org.brand_primary, org.permissions, brandText]);
 
   return (
     <div className="fixed inset-0 z-[110] bg-black/55 backdrop-blur-[2px]">
@@ -271,14 +279,14 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, p
             </div>
 
             <div className="shrink-0 grid gap-3 p-4 sm:grid-cols-3 md:p-5 xl:grid-cols-1">
-              {methodCards.map((item) => {
+              {methodCards.filter(item => item.id !== 'quotas' || Boolean(org.permissions?.concursos_enabled)).map((item) => {
                 const Icon = item.icon;
                 const active = method === item.id;
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setMethod(item.id)}
+                    onClick={() => { setMethod(item.id); setContest(null); }}
                     className="flex w-full items-start gap-3 rounded-2xl px-4 py-3 text-left transition-all"
                     style={active
                       ? { background: org.brand_primary, color: onBrand, boxShadow: `0 8px 20px -8px ${org.brand_primary}` }
