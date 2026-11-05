@@ -112,4 +112,66 @@ assertSourceInvariant(
   'Layout do aluno deve popular o cache local com o tema do banco.',
 )
 
+// Regressão do bug "escolho Escuro e nada acontece" (2026-11-05): a classe
+// `dark` não pode ser prop do React, senão a hidratação do tema "system"
+// (SSR sem matchMedia = claro, cliente = escuro) deixa o DOM preso no claro.
+const shellPath = path.resolve('src/components/partners/StudentThemeShell.tsx')
+
+assertSourceAbsent(
+  shellPath,
+  /className=\{isDark/,
+  'StudentThemeShell não deve controlar a classe dark via prop do React.',
+)
+
+assertSourceInvariant(
+  layoutPath,
+  /data-student-theme-root/,
+  'Layout do aluno deve renderizar a raiz [data-student-theme-root].',
+)
+
+assertSourceInvariant(
+  layoutPath,
+  /document\.currentScript&&document\.currentScript\.parentElement/,
+  'Script inline deve aplicar a classe dark na raiz antes do primeiro paint.',
+)
+
+assertSourceInvariant(
+  contextPath,
+  /classList\.toggle\('dark', resolved === 'dark'\)/,
+  'StudentThemeProvider deve aplicar o tema direto no DOM.',
+)
+
+assertSourceInvariant(
+  contextPath,
+  /const setTheme = useCallback\(/,
+  'setTheme deve ter identidade estável (usado em deps de efeitos).',
+)
+
+assertSourceAbsent(
+  profilePagePath,
+  /\}, \[profileResponse, setStudentTheme\]\)/,
+  'Sync de tema do perfil não deve depender do objeto inteiro do perfil.',
+)
+
+// Equipe (founder/admin/associado): o banco vence o localStorage.
+const partnerLayoutPath = path.resolve('src/app/partners/[slug]/layout.tsx')
+
+assertSourceAbsent(
+  partnerLayoutPath,
+  /storedFixed/,
+  'Script de tema da equipe não deve deixar o localStorage vencer o banco.',
+)
+
+assertSourceInvariant(
+  path.resolve('src/app/portal/layout.tsx'),
+  /<PortalThemeSync themePreference=/,
+  'Portal (admin/dev) deve aplicar o tema salvo no banco.',
+)
+
+assertSourceInvariant(
+  path.resolve('src/app/partners/[slug]/perfil/page.tsx'),
+  /persistPartnerStaffTheme\(next\)/,
+  'Perfil do associado deve permitir trocar e salvar o tema.',
+)
+
 console.log('student theme tests: ok')

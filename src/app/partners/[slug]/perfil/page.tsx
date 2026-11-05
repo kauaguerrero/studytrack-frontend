@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Mail, ShieldCheck, LogOut, Lock } from 'lucide-react';
+import { Mail, ShieldCheck, LogOut, Lock, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
@@ -9,10 +9,42 @@ import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import {
+  applyPartnerStaffTheme,
+  getAppliedPartnerStaffTheme,
+  persistPartnerStaffTheme,
+  type PartnerStaffTheme,
+} from '@/lib/partner-staff-theme';
 
 export default function PartnerProfilePage() {
   const { org, userProfile } = useOrg();
   const [email, setEmail] = useState<string | null>(null);
+  const [themeMode, setThemeMode] = useState<PartnerStaffTheme>('light');
+  const [themeSaving, setThemeSaving] = useState(false);
+
+  // Reflete o tema aplicado no <html> (vindo do banco via layout).
+  useEffect(() => {
+    setThemeMode(getAppliedPartnerStaffTheme());
+  }, []);
+
+  async function handleThemeChange(checked: boolean) {
+    const prev = themeMode;
+    const next: PartnerStaffTheme = checked ? 'dark' : 'light';
+    setThemeMode(next);
+    applyPartnerStaffTheme(org.slug, next);
+    setThemeSaving(true);
+    try {
+      await persistPartnerStaffTheme(next);
+      toast.success('Tema atualizado.');
+    } catch (err) {
+      setThemeMode(prev);
+      applyPartnerStaffTheme(org.slug, prev);
+      toast.error(err instanceof Error ? err.message : 'Não foi possível salvar o tema.');
+    } finally {
+      setThemeSaving(false);
+    }
+  }
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -115,6 +147,31 @@ export default function PartnerProfilePage() {
               <p className="text-sm font-medium capitalize text-slate-800 dark:text-slate-100">{userProfile.role}</p>
             </div>
           </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
+            <Palette className="h-4 w-4" />
+            Aparência
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-4">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              {themeMode === 'dark' ? 'Modo escuro' : 'Modo claro'}
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 dark:text-slate-400">Claro</span>
+              <Switch
+                checked={themeMode === 'dark'}
+                disabled={themeSaving}
+                onCheckedChange={(checked) => { void handleThemeChange(checked); }}
+                aria-label="Alternar modo claro/escuro"
+              />
+              <span className="text-xs text-slate-500 dark:text-slate-400">Escuro</span>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+            Salvo na sua conta: vale em qualquer dispositivo.
+          </p>
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">

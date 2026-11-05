@@ -46,6 +46,9 @@ import {
   Trophy,
   Lock,
   ChevronRight,
+  Circle,
+  Eye,
+  Sparkles,
 } from 'lucide-react'
 import { isPushSupported, hasActiveSubscription, requestAndSubscribe, disablePush } from '@/lib/push'
 import { getAchievementIcon, getDifficultyStyle, formatChancePct } from '@/lib/achievement-icons'
@@ -156,6 +159,104 @@ function formatPlanPeriod(period?: 'week' | 'month' | null) {
   return 'por mês'
 }
 
+/**
+ * Checklist "Complete seu perfil" (destino do card da sidebar). Conta só os
+ * dois passos completáveis — foto e biografia, iguais aos do card. O Perfil
+ * Público é só um lembrete para conferir: não precisa alterar e não conta.
+ * Os status usam os valores SALVOS (profile), não o rascunho dos campos.
+ */
+function ProfileCompletionChecklist({
+  hasAvatar,
+  hasBio,
+  publicProfile,
+  onAddPhoto,
+  onWriteBio,
+  onReviewPublicProfile,
+}: {
+  hasAvatar: boolean
+  hasBio: boolean
+  publicProfile: boolean
+  onAddPhoto: () => void
+  onWriteBio: () => void
+  onReviewPublicProfile: () => void
+}) {
+  const done = [hasAvatar, hasBio].filter(Boolean).length
+  const total = 2
+  const complete = done === total
+  const steps = [
+    {
+      key: 'avatar',
+      done: hasAvatar,
+      title: 'Foto de perfil',
+      description: hasAvatar ? 'Foto adicionada.' : 'Adicione uma foto para seus colegas te reconhecerem.',
+      action: hasAvatar ? null : 'Adicionar foto',
+      onClick: onAddPhoto,
+    },
+    {
+      key: 'bio',
+      done: hasBio,
+      title: 'Biografia',
+      description: hasBio ? 'Biografia salva.' : 'Escreva algumas linhas sobre você e clique em "Salvar Identidade".',
+      action: hasBio ? null : 'Escrever',
+      onClick: onWriteBio,
+    },
+  ]
+
+  return (
+    <div
+      className="mb-5 rounded-2xl border p-4 sm:p-5"
+      style={{
+        borderColor: 'color-mix(in srgb, var(--brand-primary) 25%, transparent)',
+        background: 'color-mix(in srgb, var(--brand-primary) 5%, transparent)',
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <Sparkles className="h-4 w-4 shrink-0" style={{ color: BRAND_PRIMARY }} />
+        <p className="flex-1 text-sm font-bold text-slate-900 dark:text-slate-100">
+          {complete ? 'Perfil completo!' : 'Complete seu perfil'}
+        </p>
+        <span className="text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-400">{done}/{total}</span>
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+        <div className="h-full rounded-full transition-[width] duration-500 ease-out" style={{ width: `${(done / total) * 100}%`, background: BRAND_PRIMARY }} />
+      </div>
+
+      <ul className="mt-4 space-y-2">
+        {steps.map((step) => (
+          <li key={step.key} className="flex items-center gap-3 rounded-xl bg-white/70 px-3 py-2.5 dark:bg-slate-900/60">
+            {step.done
+              ? <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" aria-label="Concluído" />
+              : <Circle className="h-5 w-5 shrink-0 text-slate-300 dark:text-slate-600" aria-label="Pendente" />}
+            <div className="min-w-0 flex-1">
+              <p className={`text-sm font-semibold ${step.done ? 'text-slate-500 line-through decoration-slate-300 dark:text-slate-400' : 'text-slate-800 dark:text-slate-100'}`}>{step.title}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{step.description}</p>
+            </div>
+            {step.action && (
+              <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 rounded-lg text-xs font-semibold" onClick={step.onClick}>
+                {step.action}
+              </Button>
+            )}
+          </li>
+        ))}
+        <li className="flex items-center gap-3 rounded-xl border border-dashed border-slate-200 px-3 py-2.5 dark:border-slate-700">
+          <Eye className="h-5 w-5 shrink-0 text-slate-400" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+              Confira seu Perfil Público <span className="font-normal text-slate-400">(opcional)</span>
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Hoje está <strong className="font-semibold">{publicProfile ? 'público' : 'privado'}</strong>: {publicProfile ? 'seu nome e foto aparecem no ranking.' : 'você aparece no ranking como usuário secreto.'} Não precisa alterar.
+            </p>
+          </div>
+          <Button type="button" variant="ghost" size="sm" className="h-8 shrink-0 rounded-lg text-xs font-semibold" onClick={onReviewPublicProfile}>
+            Conferir
+          </Button>
+        </li>
+      </ul>
+    </div>
+  )
+}
+
 export default function PerfilPage() {
   const router = useRouter()
   const { slug } = useParams<{ slug: string }>()
@@ -171,6 +272,16 @@ export default function PerfilPage() {
     const fromQuery = searchParams.get('tab')
     return isValidTab(fromQuery) ? fromQuery : 'personal'
   })
+
+  // Veio pelo card "Complete seu perfil" da sidebar? Então o checklist fica
+  // visível mesmo depois de completo (mostra o "Perfil completo!").
+  const cameFromCompletionNudge = searchParams.get('completar') === '1'
+  const [highlightPublicProfile, setHighlightPublicProfile] = useState(false)
+  // Clicar no card estando já no perfil (outra aba) não remonta a página —
+  // então troca para Identidade quando o parâmetro chega.
+  useEffect(() => {
+    if (cameFromCompletionNudge) setActiveTab('personal')
+  }, [cameFromCompletionNudge])
 
   // Affordance da navegação de abas no mobile (rolagem horizontal): a setinha
   // some sozinha assim que o aluno rolar uma vez — depois disso o degradê nas
@@ -313,13 +424,18 @@ export default function PerfilPage() {
     setDaysPerWeek(typeof p.days_per_week === 'number' ? Math.min(7, Math.max(1, p.days_per_week)) : 5)
     setHoursPerDay(typeof p.hours_per_day === 'number' ? Math.min(12, Math.max(1, p.hours_per_day)) : 2)
     setPersonalGoal(typeof p.personal_monthly_goal === 'number' && p.personal_monthly_goal > 0 ? p.personal_monthly_goal : null)
-    // Sincroniza o tema do contexto com o valor salvo no banco ao carregar o perfil.
-    // Garante que o SELECT reflita o que está no DB, independente do initialTheme do SSR.
-    const savedTheme = p.theme_preference as 'light' | 'dark' | 'system' | null
+  }, [profileResponse])
+
+  // Sincroniza o tema do contexto com o valor salvo no banco — só quando ESSE
+  // valor muda. Depender do objeto inteiro (ou de um setter instável) fazia o
+  // efeito rodar de novo no meio da troca e reaplicar o tema antigo do cache.
+  const savedThemePreference = profileResponse?.profile?.theme_preference
+  useEffect(() => {
+    const savedTheme = savedThemePreference
     if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') {
       setStudentTheme(savedTheme)
     }
-  }, [profileResponse, setStudentTheme])
+  }, [savedThemePreference, setStudentTheme])
 
   useEffect(() => {
     if (profileError) toast.error(profileError instanceof Error ? profileError.message : 'Erro ao carregar perfil.')
@@ -448,11 +564,27 @@ export default function PerfilPage() {
       if (!res.ok) throw new Error('Falha ao salvar alterações.')
       toast.success('Perfil atualizado com sucesso.')
       mutateProfile()
+      // A bio alimenta o card "Complete seu perfil" da sidebar, que lê do
+      // layout (SSR) — refresh pra ele atualizar sem recarregar a página.
+      if ('bio' in payload) router.refresh()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Falha ao salvar.')
     } finally {
       loaderSetter(false)
     }
+  }
+
+  const focusBioField = () => {
+    const el = document.getElementById('bio') as HTMLTextAreaElement | null
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.focus({ preventScroll: true })
+  }
+
+  const reviewPublicProfile = () => {
+    document.getElementById('public-profile-toggle')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightPublicProfile(true)
+    window.setTimeout(() => setHighlightPublicProfile(false), 2200)
   }
 
   const handleSavePersonal = () => handleUpdateProfile({
@@ -927,6 +1059,17 @@ export default function PerfilPage() {
               {/* ── TAB: IDENTIDADE ─────────────────────────────────────── */}
               {activeTab === 'personal' && (
                 profileLoading ? <PersonalTabSkeleton /> : (
+                  <>
+                  {(cameFromCompletionNudge || !profile?.avatar_url || !profile?.bio?.trim()) && (
+                    <ProfileCompletionChecklist
+                      hasAvatar={Boolean(profile?.avatar_url)}
+                      hasBio={Boolean(profile?.bio?.trim())}
+                      publicProfile={profile?.public_profile ?? publicProfile}
+                      onAddPhoto={() => fileInputRef.current?.click()}
+                      onWriteBio={focusBioField}
+                      onReviewPublicProfile={reviewPublicProfile}
+                    />
+                  )}
                   <Card className={sectionCardClassName}>
                     <CardHeader className="border-b border-slate-100 dark:border-slate-800 px-5 pb-5 pt-6 sm:px-8 sm:pb-6 sm:pt-8">
                       <CardTitle className="text-xl font-bold tracking-tight dark:text-slate-50">Identidade Pessoal</CardTitle>
@@ -1025,7 +1168,10 @@ export default function PerfilPage() {
                             <Label htmlFor="accessibilityNeeds" className="text-slate-700 dark:text-slate-200 font-bold">Necessidade de Acessibilidade</Label>
                             <Textarea id="accessibilityNeeds" value={accessibilityNeeds} onChange={(e) => setAccessibilityNeeds(e.target.value)} placeholder="Ex: dislexia, daltonismo, baixa visão..." maxLength={500} className={`rounded-xl bg-slate-50/50 resize-none min-h-[72px] ${focusRingStyle}`} />
                           </div>
-                          <div className="flex flex-col gap-3 rounded-xl bg-slate-50 dark:bg-white/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                          <div
+                            id="public-profile-toggle"
+                            className={`flex flex-col gap-3 rounded-xl bg-slate-50 dark:bg-white/5 px-5 py-4 transition-shadow duration-500 sm:flex-row sm:items-center sm:justify-between ${highlightPublicProfile ? 'ring-2 ring-offset-2 ring-[var(--brand-primary)] ring-offset-white dark:ring-offset-slate-900' : ''}`}
+                          >
                             <div className="space-y-0.5">
                               <Label className="text-slate-700 dark:text-slate-200 font-bold">Perfil Público</Label>
                               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -1044,6 +1190,7 @@ export default function PerfilPage() {
                       </BrandButton>
                     </CardFooter>
                   </Card>
+                  </>
                 )
               )}
 

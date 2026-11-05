@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useStudentTheme } from '@/contexts/StudentThemeContext'
 import { useOrg } from '@/contexts/OrgContext'
 import { PartnerLayout } from './PartnerLayout'
 import { ForcePasswordChangeModal } from './ForcePasswordChangeModal'
@@ -14,11 +13,11 @@ import { PushManager } from './PushManager'
 import { fetchPartnerGamificationCheckInStatusCached } from '@/hooks/usePartnerGamification'
 
 /**
- * Aplica a classe `dark` em um contêiner isolado para as rotas de aluno.
+ * Shell das rotas de aluno (layout, popups, push).
  *
- * O @custom-variant do Tailwind v4 (`&:is(.dark *)`) propaga o tema escuro
- * para TODOS os descendentes, incluindo componentes shadcn/ui, textos,
- * botões e ícones — sem afetar nenhuma outra rota da aplicação.
+ * O tema escuro é aplicado na raiz [data-student-theme-root] do layout; o
+ * @custom-variant do Tailwind v4 (`&:is(.dark *)`) propaga para todos os
+ * descendentes sem afetar nenhuma outra rota da aplicação.
  */
 function StudentThemeShellContent({
   children,
@@ -27,8 +26,6 @@ function StudentThemeShellContent({
   children: ReactNode
   mustChangePassword?: boolean
 }) {
-  const { resolvedTheme } = useStudentTheme()
-  const isDark = resolvedTheme === 'dark'
   const { org } = useOrg()
   const { slug } = org
   const pathname = usePathname()
@@ -111,11 +108,9 @@ function StudentThemeShellContent({
   }, [enqueuePopup, pathname, slug])
 
   return (
-    <div
-      className={isDark ? 'dark' : ''}
-      style={{ colorScheme: isDark ? 'dark' : 'light' }}
-      suppressHydrationWarning
-    >
+    // A classe `dark` fica na raiz [data-student-theme-root] (student/layout.tsx),
+    // aplicada pelo StudentThemeProvider direto no DOM — não como prop aqui.
+    <div>
       <PartnerLayout variant="student">
         {children}
       </PartnerLayout>

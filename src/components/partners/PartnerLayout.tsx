@@ -171,8 +171,10 @@ function SidebarNavItem({
 }
 
 // ─── Nudge "Complete seu perfil" (sidebar do aluno) ────────────────────────────
-// Ocupa o espaço vazio entre a navegação e o rodapé de usuário — some sozinho
-// assim que os 3 campos (foto, @ de usuário, data de nascimento) existirem.
+// Fica no pé da navegação — some sozinho assim que foto e biografia existirem.
+// Compacto de propósito: no hover da sidebar ele não pode crescer a ponto de
+// empurrar os itens. O clique abre o perfil com o checklist dos passos
+// (?completar=1), incluindo a conferência do Perfil Público (que não conta).
 
 function ProfileCompletionNudge({
   collapsed,
@@ -188,7 +190,7 @@ function ProfileCompletionNudge({
   onNavigate?: () => void;
 }) {
   const pct = Math.round((completedCount / totalCount) * 100);
-  const href = `/partners/${slug}/student/perfil`;
+  const href = `/partners/${slug}/student/perfil?tab=personal&completar=1`;
 
   if (collapsed) {
     return (
@@ -221,7 +223,8 @@ function ProfileCompletionNudge({
     <Link
       href={href}
       onClick={onNavigate}
-      className="mx-3 block shrink-0 rounded-xl border p-3 transition-colors hover:bg-slate-50 dark:hover:bg-white/5"
+      aria-label={`Complete seu perfil — ${completedCount} de ${totalCount} concluído`}
+      className="mx-3 block shrink-0 rounded-lg border px-2.5 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-white/5"
       style={{
         borderColor: 'color-mix(in srgb, var(--brand-primary) 22%, transparent)',
         background: 'color-mix(in srgb, var(--brand-primary) 6%, transparent)',
@@ -229,17 +232,17 @@ function ProfileCompletionNudge({
     >
       <div className="flex items-center gap-1.5">
         <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
-        <p className="text-xs font-bold text-slate-800 dark:text-slate-100">Complete seu perfil!</p>
+        <p className="min-w-0 flex-1 truncate text-xs font-bold text-slate-800 dark:text-slate-100">Complete seu perfil</p>
+        <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">
+          {completedCount}/{totalCount}
+        </span>
       </div>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+      <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
         <div
           className="h-full rounded-full transition-[width] duration-500 ease-out"
           style={{ width: `${pct}%`, background: 'var(--brand-primary)' }}
         />
       </div>
-      <p className="mt-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-        {completedCount}/{totalCount} concluído — clique para finalizar
-      </p>
     </Link>
   );
 }
@@ -422,11 +425,11 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
       : navItems.filter((item) => founderBottomHrefs.has(item.href));
 
   // Nudge "Complete seu perfil" — só faz sentido pro aluno, e some sozinho
-  // quando os 3 campos existirem.
+  // quando foto e biografia existirem. (Conferir o Perfil Público é só
+  // orientação no checklist do perfil — não conta.)
   const profileCompletionFlags = [
     Boolean(userProfile.avatarUrl),
-    Boolean(userProfile.username && userProfile.username.trim().length > 0),
-    Boolean(userProfile.birthDate),
+    Boolean(userProfile.bio && userProfile.bio.trim().length > 0),
   ];
   const profileCompletedCount = profileCompletionFlags.filter(Boolean).length;
   const profileTotalCount = profileCompletionFlags.length;
@@ -523,11 +526,11 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
 
       {/* Navigation — nav items no topo, nudge de perfil grudado embaixo do
           espaço restante (mt-auto), preenchendo o vão antes do rodapé.
-          Sem overflow-hidden aqui de propósito: o <nav> original nunca teve
-          corte nenhum, e cortar essa área faz o card sumir se, por um
-          instante durante a transição de largura do hover, o conteúdo
-          ultrapassar por qualquer pixel o espaço disponível. */}
-      <div className="flex flex-1 flex-col">
+          min-h-0 + overflow-y-auto: em telas baixas (ou com muitos módulos
+          ativos) a lista rola dentro da sidebar em vez de empurrar itens e o
+          rodapé para fora da tela. overflow-x fica oculto para a transição de
+          largura do hover não criar barra horizontal. */}
+      <div className="partner-sidebar-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain">
         <nav className={cn('partner-sidebar-links space-y-1 py-4', c ? 'px-2' : 'px-3')}>
           {navItems.map((item) => (
             <SidebarNavItem
