@@ -166,8 +166,9 @@ function shouldPreserveManualLineBreaks(paragraph: string, previousParagraph?: s
   const dialogueLines = lines.filter((line) => /^\s*[\u2014-]\s+\S/.test(line)).length
   if (dialogueLines >= 2) return true
 
-  // Roman numeral lists common in vestibular questions (I. II. III. IV. ...)
-  const romanNumeralLines = lines.filter((line) => /^[IVX]+\.\s+\S/.test(line.trim())).length
+  // Roman numeral lists common in vestibular questions (I. II. III. IV. ...
+  // ou, em bancas como a PMMG, "I - ", "II - " com hífen em vez de ponto).
+  const romanNumeralLines = lines.filter((line) => /^[IVX]+\s*[.\-–]\s+\S/.test(line.trim())).length
   if (romanNumeralLines >= 2) return true
 
   // Listas numeradas "1. "/"2. " (às vezes com o ponto escapado "1\." para
@@ -484,8 +485,47 @@ const markdownComponents: Components = {
   ),
 }
 
+// Imagem markdown `![alt](url)` cujo alt-text traz LaTeX do Mathpix (ex.:
+// "circunferência $C_2$ de centro $(x_0, y_0)$") era despedaçada porque o
+// split por `mathSegmentRegex` abaixo rodava sobre o parágrafo inteiro,
+// inclusive dentro do `![...]`. O `$...$` do alt virava um segmento isolado
+// e o resto do `![alt...](url)` sobrava partido em pedaços sem o `![` de
+// abertura — cada pedaço ia pro ReactMarkdown sozinho, que não reconhecia
+// mais sintaxe de imagem nenhuma e devolvia a URL crua como texto.
+// Fix: extrai tokens de imagem markdown INTEIROS antes do split de
+// matemática, e só aplica o split (via renderInlineTextSegments) no texto
+// que sobra ao redor — o `$...$` de dentro do alt nunca é tocado.
+const markdownImageTokenRegex = /!\[([\s\S]*?)\]\(([^)\s]+)\)/g
+
 function renderInlineRichText(rawText: string, keyPrefix: string) {
   const text = restoreProtectedMathDelimiters(rawText)
+
+  markdownImageTokenRegex.lastIndex = 0
+  if (markdownImageTokenRegex.test(text)) {
+    markdownImageTokenRegex.lastIndex = 0
+    const parts: ReactNode[] = []
+    let lastIndex = 0
+    let match: RegExpExecArray | null
+    let imgIndex = 0
+
+    while ((match = markdownImageTokenRegex.exec(text)) !== null) {
+      const before = text.slice(lastIndex, match.index)
+      if (before) parts.push(...renderInlineTextSegments(before, `${keyPrefix}-pre${imgIndex}`))
+      parts.push(<MarkdownImage key={`${keyPrefix}-img${imgIndex}`} src={match[2]} alt={match[1]} />)
+      lastIndex = match.index + match[0].length
+      imgIndex += 1
+    }
+
+    const after = text.slice(lastIndex)
+    if (after) parts.push(...renderInlineTextSegments(after, `${keyPrefix}-post${imgIndex}`))
+
+    return parts
+  }
+
+  return renderInlineTextSegments(text, keyPrefix)
+}
+
+function renderInlineTextSegments(text: string, keyPrefix: string) {
   const segments = text.split(mathSegmentRegex).filter(Boolean)
 
   return segments.map((segment, segmentIndex) => {
