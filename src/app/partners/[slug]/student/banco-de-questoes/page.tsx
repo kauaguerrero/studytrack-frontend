@@ -705,7 +705,7 @@ export default function BancoDeQuestoes() {
               <span className="inline-flex items-center gap-2 whitespace-nowrap">Ver questões <ArrowRight size={17} /></span>
             </button>
           </div>
-          {org.permissions?.concursos_enabled && <div className="mb-4 grid max-w-2xl grid-cols-3 gap-2">
+          {org.permissions?.concursos_enabled && <div className="mb-4 grid w-full grid-cols-3 gap-2">
             {(['todos', 'concurso', 'vestibular'] as const).map(type => <button key={type} type="button" onClick={() => { if (questionType === type) return; setQuestionType(type); if (type === 'vestibular') { setFilterRole('Todas'); setFilterInstitution('Todas'); setFilterArea('Todas'); setFilterRegion('Todas'); } setAllQuestionMeta([]); }} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-bold shadow-sm dark:border-slate-700" style={questionType === type ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>{type === 'concurso' ? <Briefcase size={18} /> : type === 'vestibular' ? <GraduationCap size={18} /> : <BookOpen size={18} />}{type === 'concurso' ? 'Concursos' : type === 'vestibular' ? 'Vestibular' : 'Todas'}</button>)}
           </div>}
           {questionType !== 'vestibular' && <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
