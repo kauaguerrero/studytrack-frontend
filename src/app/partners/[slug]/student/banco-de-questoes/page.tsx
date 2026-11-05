@@ -13,13 +13,15 @@ import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { useOrg } from '@/contexts/OrgContext';
 import {
-  ArrowLeft, ArrowRight, Brain, Lock,
+  ArrowLeft, ArrowRight, Lock,
   CheckCircle2, Circle, Loader2, Calendar,
-  BarChart, Eye, EyeOff, SlidersHorizontal, Flag,
+  BarChart, Flag, BookOpen, Landmark, Layers, ChevronDown, Trash2, Briefcase, GraduationCap,
 } from 'lucide-react';
 import { QuestionCard } from '@/components/questions/QuestionCard';
 import { ReportDialog } from '@/components/questions/ReportDialog';
 import { MultiSelectFilter } from '@/components/questions/MultiSelectFilter';
+import { buildQuestionBankQuery } from '@/components/questions/questionBankQuery';
+import { capitalizeQuestionLabel } from '@/components/questions/questionBankLabels';
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
 import { getStreakStage, crossedStageBoundary } from '@/components/partners/gamification/streakEvolution';
 import { toast } from 'sonner';
@@ -79,7 +81,7 @@ const QuestionCardSkeleton = () => (
   </div>
 );
 
-const selectClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200';
+const selectClass = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200';
 
 function normalizeBankValue(value: unknown): string {
   const normalized = String(value || '').trim().toUpperCase();
@@ -140,7 +142,7 @@ export default function BancoDeQuestoes() {
   const [currentIdx, setCurrentIdx] = useState(0);
 
   // ── State: Filters & Logic ──────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'todo' | 'done'>('todo');
+  const [activeTab, setActiveTab] = useState<'todo' | 'done' | 'all'>('all');
 
   // Pré-seleciona a matéria quando o CTA "Continue de onde parou" chega com
   // ?subject=X (última matéria que o aluno estava respondendo). Lista vazia =
@@ -160,7 +162,9 @@ export default function BancoDeQuestoes() {
   const [filterYears, setFilterYears] = useState<string[]>([]);
   const [filterDifficulties, setFilterDifficulties] = useState<string[]>([]);
 
-  const [questionType, setQuestionType] = useState<'vestibular' | 'concurso'>('vestibular');
+  const [questionType, setQuestionType] = useState<'vestibular' | 'concurso' | 'todos'>(
+    () => org.permissions?.concursos_enabled ? 'todos' : 'vestibular'
+  );
   const [filterRole, setFilterRole] = useState('Todas');
   const [filterInstitution, setFilterInstitution] = useState('Todas');
   const [filterArea, setFilterArea] = useState('Todas');
@@ -174,8 +178,7 @@ export default function BancoDeQuestoes() {
   const [allQuestionMeta, setAllQuestionMeta] = useState<QuestionMetaRow[]>([]);
 
   // ── State: UI Controls ──────────────────────────────────────────────────────
-  const [isMenuOpen, setIsMenuOpen] = useState(true);
-  const [showSecondaryFilters, setShowSecondaryFilters] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(!questionIdParam);
 
   // ── State: Loading & User ───────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
@@ -199,6 +202,10 @@ export default function BancoDeQuestoes() {
   const requestIdRef = useRef(0);
   const authTokenRef = useRef<string | null>(null);
   const questionTopRef = useRef<HTMLDivElement>(null);
+  // Questões confirmadas nesta sessão. O backend é a fonte de verdade, mas
+  // este registro evita reapresentar uma questão já respondida enquanto uma
+  // atualização de filtros ainda está em trânsito.
+  const answeredQuestionIdsRef = useRef(new Set<string>());
 
   // ── Session points (gamification B2B) ────────────────────────────────────────
   const SESSION_KEY = 'qsr_pending_points';
@@ -208,8 +215,6 @@ export default function BancoDeQuestoes() {
   const shouldReduce = useReducedMotion();
 
   // ── Derived ──────────────────────────────────────────────────────────────────
-  const activeSecondaryCount =
-    filterBanks.length + filterTopics.length + filterYears.length + filterDifficulties.length;
 
   // ── 1. Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -289,14 +294,15 @@ export default function BancoDeQuestoes() {
 
       if (exclude !== 'subject' && filterSubjects.length > 0) {
         const rowSubject = String(row.subject || '').trim().toLowerCase();
-        if (!filterSubjects.some((s) => s.trim().toLowerCase() === rowSubject)) return false;
+        if (!filterSubjects.some((s) => rowSubject.includes(s.trim().toLowerCase()))) return false;
 
       }
       if (exclude !== 'bank' && filterBanks.length > 0) {
         if (!filterBanks.includes(inferQuestionBank(row))) return false;
       }
       if (exclude !== 'topic' && filterTopics.length > 0) {
-        if (!filterTopics.includes(topicOf(row) ?? '')) return false;
+        const candidates = [row.discipline, typeof row.metadata?.ai_topic === 'string' ? row.metadata.ai_topic : ''];
+        if (!filterTopics.some(topic => candidates.some(candidate => String(candidate || '').toLowerCase().includes(topic.toLowerCase())))) return false;
       }
       if (exclude !== 'year' && filterYears.length > 0) {
         if (!filterYears.includes(String(row.exam_year ?? '').trim())) return false;
@@ -347,40 +353,6 @@ export default function BancoDeQuestoes() {
   }, [allQuestionMeta, matchesOtherFilters, topicOf]);
 
   const topicNames = useMemo(() => availableTopics.map((t) => t.name), [availableTopics]);
-
-  // ── 2d. Auto-correção: se NENHUM dos itens selecionados de um filtro
-  // existe mais para a combinação dos demais (ex.: trocar o ano derrubou a
-  // única disciplina escolhida), o filtro volta para "todos". Se ao menos um
-  // item continua válido, a seleção fica intacta: com OR dentro do filtro, um
-  // item sem questões não muda o resultado, e removê-lo encolheria as opções
-  // dos outros filtros em cascata (marcar "Fácil" chegava a apagar matéria,
-  // banca e ano escolhidos e esconder "Médio"). Só roda depois que os dados
-  // carregaram, para não resetar um filtro vindo de deep-link (?subject=)
-  // antes da primeira busca terminar.
-  useEffect(() => {
-    if (allQuestionMeta.length === 0) return;
-    if (filterSubjects.length > 0 && !filterSubjects.some((s) => filterOptions.subjects.includes(s))) setFilterSubjects([]);
-  }, [allQuestionMeta.length, filterOptions.subjects, filterSubjects]);
-
-  useEffect(() => {
-    if (allQuestionMeta.length === 0) return;
-    if (filterBanks.length > 0 && !filterBanks.some((b) => filterOptions.banks.includes(b))) setFilterBanks([]);
-  }, [allQuestionMeta.length, filterOptions.banks, filterBanks]);
-
-  useEffect(() => {
-    if (allQuestionMeta.length === 0) return;
-    if (filterTopics.length > 0 && !filterTopics.some((t) => topicNames.includes(t))) setFilterTopics([]);
-  }, [allQuestionMeta.length, topicNames, filterTopics]);
-
-  useEffect(() => {
-    if (allQuestionMeta.length === 0) return;
-    if (filterYears.length > 0 && !filterYears.some((y) => filterOptions.years.includes(y))) setFilterYears([]);
-  }, [allQuestionMeta.length, filterOptions.years, filterYears]);
-
-  useEffect(() => {
-    if (allQuestionMeta.length === 0) return;
-    if (filterDifficulties.length > 0 && !filterDifficulties.some((d) => filterOptions.difficulties.includes(d))) setFilterDifficulties([]);
-  }, [allQuestionMeta.length, filterOptions.difficulties, filterDifficulties]);
 
   // ── Single-question mode: busca questão específica via deep-link de report ────
   useEffect(() => {
@@ -440,7 +412,7 @@ export default function BancoDeQuestoes() {
 
   // ── 3. Core fetch ─────────────────────────────────────────────────────────────
   const fetchQuestions = useCallback(
-    async (targetPage = 1, append = false, retryCount = 0, requestId?: number) => {
+    async (targetPage = 1, append = false, retryCount = 0, requestId?: number, silent = false) => {
       if (!userId) return;
       // Uma troca de filtro sempre inicia uma busca nova (id novo) mesmo que a
       // anterior ainda esteja em voo — a resposta antiga será descartada abaixo
@@ -464,25 +436,19 @@ export default function BancoDeQuestoes() {
       }
       if (retryCount === 0) {
         isLoadingRef.current = true;
-        if (!append) setLoading(true);
-        else setLoadingMore(true);
+        if (!append) {
+          if (!silent) { setLoading(true); setLoadingMore(false); }
+        } else {
+          setLoadingMore(true);
+        }
       }
 
       try {
-        const params = new URLSearchParams({ page: targetPage.toString(), limit: '20' });
-        params.append('question_type', questionType);
-        if (filterRole !== 'Todas') params.append('role', filterRole);
-        if (filterInstitution !== 'Todas') params.append('institution', filterInstitution);
-        if (filterArea !== 'Todas') params.append('area', filterArea);
-        if (filterRegion !== 'Todas') params.append('region', filterRegion);
-
-        filterSubjects.forEach((s) => params.append('subject', s));
-        filterBanks.forEach((b) => params.append('bank', b));
-        filterTopics.forEach((t) => params.append('topic', t));
-        filterYears.forEach((y) => params.append('year', y));
-        filterDifficulties.forEach((d) => params.append('difficulty', d));
-
-        params.append('tab', activeTab);
+        const params = buildQuestionBankQuery({
+          questionType, role: filterRole, institution: filterInstitution, area: filterArea,
+          region: filterRegion, subjects: filterSubjects, banks: filterBanks,
+          topics: filterTopics, years: filterYears, difficulties: filterDifficulties, tab: activeTab,
+        }, targetPage);
 
         const res = await fetch(`/api/proxy/questions/?${params.toString()}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -513,11 +479,13 @@ export default function BancoDeQuestoes() {
         else setIsLockedByQuota(false);
 
         const rawQuestions = data.data || [];
-        const filteredQuestions = rawQuestions;
+        const filteredQuestions = activeTab === 'todo'
+          ? rawQuestions.filter((question: { id?: string }) => !answeredQuestionIdsRef.current.has(String(question.id || '')))
+          : rawQuestions;
         const shouldFetchNext = rawQuestions.length > 0 && filteredQuestions.length === 0;
 
         if (shouldFetchNext) {
-          await fetchQuestions(targetPage + 1, append, retryCount + 1, myRequestId);
+          await fetchQuestions(targetPage + 1, append, retryCount + 1, myRequestId, silent);
         } else {
           if (append) setQuestions((prev) => [...prev, ...filteredQuestions]);
           else {
@@ -531,8 +499,10 @@ export default function BancoDeQuestoes() {
         void reportError('QuestionBankError', String(err));
       } finally {
         if (retryCount === 0 && myRequestId === requestIdRef.current) {
-          setLoading(false);
-          setLoadingMore(false);
+          if (!silent) {
+            setLoading(false);
+            setLoadingMore(false);
+          }
           isLoadingRef.current = false;
         }
       }
@@ -559,12 +529,7 @@ export default function BancoDeQuestoes() {
   const handleNext = () => {
     if (isLockedByQuota) { toast.info('Limite de questões atingido', { description: 'Entre em contato com o administrador da sua organização.' }); return; }
     if (loadingMore && currentIdx >= questions.length - 1) return;
-    const current = questions[currentIdx];
-    const currentGroupId = current?.testlet_group_id;
-    const groupIndexes = currentGroupId
-      ? questions.map((q, index) => q.testlet_group_id === currentGroupId ? index : -1).filter((index) => index >= 0)
-      : [];
-    const nextIndex = groupIndexes.length > 1 ? Math.max(...groupIndexes) + 1 : currentIdx + 1;
+    const nextIndex = currentIdx + 1;
     if (nextIndex < questions.length) {
       setCurrentIdx(nextIndex);
       questionTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -572,12 +537,7 @@ export default function BancoDeQuestoes() {
   };
 
   const handlePrev = () => {
-    const current = questions[currentIdx];
-    const currentGroupId = current?.testlet_group_id;
-    const groupIndexes = currentGroupId
-      ? questions.map((q, index) => q.testlet_group_id === currentGroupId ? index : -1).filter((index) => index >= 0)
-      : [];
-    const previousIndex = groupIndexes.length > 1 ? Math.min(...groupIndexes) - 1 : currentIdx - 1;
+    const previousIndex = currentIdx - 1;
     if (previousIndex >= 0) {
       setCurrentIdx(previousIndex);
       questionTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -586,6 +546,10 @@ export default function BancoDeQuestoes() {
 
   const handleAnswerResult = useCallback(
     (qId: string, result: { is_correct?: boolean; new_streak?: number; streak_updated?: boolean; gamification?: { points_awarded: number; shield_awarded?: boolean } }) => {
+      answeredQuestionIdsRef.current.add(qId);
+      if (activeTab === 'todo') {
+        setTotalQuestionsFound((current) => Math.max(0, current - 1));
+      }
       // Usa os pontos da API quando disponíveis (usuários com org_id — backend já
       // persiste monthly_points). Para usuários sem org_id, fallback via RPC direto.
       const hasBackendGamification = result.gamification !== undefined;
@@ -623,8 +587,22 @@ export default function BancoDeQuestoes() {
         });
       }
     },
-    [SESSION_KEY, enqueuePopup, userId],
+    [SESSION_KEY, activeTab, enqueuePopup, userId],
   );
+
+  const handleOpenFilters = useCallback(() => {
+    setIsMenuOpen(true);
+    if (activeTab === 'todo') {
+      // A tela de filtros deve refletir instantaneamente o que acabou de ser
+      // respondido, mesmo antes da revalidação terminar.
+      setQuestions((current) => current.filter((question) => !answeredQuestionIdsRef.current.has(String(question.id || ''))));
+      setCurrentIdx(0);
+    }
+    // A resposta já foi confirmada pela API antes de chegar aqui. Recarregar
+    // garante que "A fazer", a contagem e as opções cruzadas reflitam o banco,
+    // mas sem trocar a UI por um estado de carregamento.
+    if (!questionIdParam) void fetchQuestions(1, false, 0, undefined, true);
+  }, [activeTab, fetchQuestions, questionIdParam]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────
   const currentQ = questions[currentIdx];
@@ -655,21 +633,18 @@ export default function BancoDeQuestoes() {
     return map;
   }, [questions]);
   const currentTestletInfo = currentQ ? testletPositionMap.get(currentQ.id) : undefined;
-  const currentGroupLastIndex = isCurrentTestletGroup
-    ? Math.max(...currentTestletQuestions.map((groupQuestion) => questions.findIndex((q) => q.id === groupQuestion.id)))
-    : currentIdx;
-  const isNextDisabled = currentGroupLastIndex >= questions.length - 1;
+  const isNextDisabled = currentIdx >= questions.length - 1;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!currentQ) return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (!currentQ || isMenuOpen) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLButtonElement) return;
       if (e.key === 'ArrowRight') { e.preventDefault(); handleNext(); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); handlePrev(); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIdx, questions.length, currentQ, isLockedByQuota, loadingMore]);
+  }, [currentIdx, questions.length, currentQ, isLockedByQuota, loadingMore, isMenuOpen]);
 
   // ── Animation helpers ─────────────────────────────────────────────────────────
   // Always passes valid motion props; when reduced, initial === animate (no movement).
@@ -677,48 +652,7 @@ export default function BancoDeQuestoes() {
   const fadeSlideAnimate = { opacity: 1, y: 0 };
   const fadeSlideTransition = { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const };
 
-  const isTabTodo = activeTab === 'todo';
-
-  // Mesmos 4 filtros na grade do desktop e no painel recolhível do mobile.
-  const secondaryFilters = (
-    <>
-      <MultiSelectFilter
-        options={filterOptions.banks}
-        value={filterBanks}
-        onChange={setFilterBanks}
-        placeholder="Todas as Bancas"
-        searchPlaceholder="Buscar banca..."
-        accentTextColor={brandTextColor}
-      />
-      <MultiSelectFilter
-        options={topicNames}
-        value={filterTopics}
-        onChange={setFilterTopics}
-        placeholder="Todos os Tópicos"
-        searchPlaceholder="Buscar tópico..."
-        accentTextColor={brandTextColor}
-      />
-      <MultiSelectFilter
-        options={filterOptions.years}
-        value={filterYears}
-        onChange={setFilterYears}
-        placeholder="Todos os Anos"
-        searchPlaceholder="Buscar ano..."
-        icon={<Calendar size={13} />}
-        accentTextColor={brandTextColor}
-      />
-      <MultiSelectFilter
-        options={filterOptions.difficulties}
-        value={filterDifficulties}
-        onChange={setFilterDifficulties}
-        placeholder="Todas Dificuldades"
-        searchPlaceholder="Buscar dificuldade..."
-        icon={<BarChart size={13} />}
-        align="right"
-        accentTextColor={brandTextColor}
-      />
-    </>
-  );
+  const isTabTodo = activeTab !== 'done';
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
@@ -742,170 +676,48 @@ export default function BancoDeQuestoes() {
         }}
       />
 
-      {/* ── Filter Header ──────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {isMenuOpen && (
-          <motion.div
-            key="filter-header"
-            initial={shouldReduce ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 rounded-xl shadow-sm mb-2"
-          >
-            <div className="max-w-4xl mx-auto px-4 py-3 space-y-3">
+      {isMenuOpen ? (
+        <section className="mx-auto max-w-6xl px-4 pb-24 pt-5 sm:px-6 lg:px-10">
+          <div className="mb-5 flex items-start gap-3">
+            <a href={`/partners/${org.slug}/student/dashboard`} aria-label="Voltar ao início" className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"><ArrowLeft size={19} /></a>
+            <div><h1 className="text-2xl font-bold text-slate-900 dark:text-white">Banco de Questões</h1><p className="mt-1 text-sm text-slate-500 sm:text-base">Configure os filtros e comece a resolver questões</p></div>
+          </div>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="flex shrink-0 flex-wrap gap-1 text-sm" aria-label="Situação das questões">
+            {([['all', 'Todas'], ['todo', 'A fazer'], ['done', 'Respondidas']] as const).map(([tab, label]) => (
+              <button key={tab} type="button" aria-pressed={activeTab === tab} onClick={() => setActiveTab(tab)} className={`rounded-lg px-3 py-2 font-semibold ${activeTab === tab ? 'bg-slate-200 dark:bg-slate-700' : ''}`}>{label}</button>
+            ))}
+          </div>
+          <div className="flex flex-1 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg dark:border-slate-700 dark:bg-slate-900 max-sm:fixed max-sm:inset-x-2 max-sm:bottom-2 max-sm:z-40 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:shadow-none">
+            <button type="button" onClick={() => { setFilterRole('Todas'); setFilterInstitution('Todas'); setFilterArea('Todas'); setFilterRegion('Todas'); setFilterSubjects([]); setFilterBanks([]); setFilterTopics([]); setFilterYears([]); setFilterDifficulties([]); }} className="flex items-center gap-2 px-2 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-200"><Trash2 size={18} /><span className="hidden sm:inline">Limpar filtros</span><span className="sm:hidden">Limpar</span></button>
+            <div className="flex items-center gap-3"><span className="text-xs font-semibold text-slate-600 dark:text-slate-200 sm:text-sm">{loading ? 'Buscando questões…' : <>{totalQuestionsFound} questões<span className="hidden sm:inline"> encontradas</span></>}</span><button type="button" onClick={() => setIsMenuOpen(false)} className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold sm:px-5" style={{ background: 'var(--brand-primary)', color: brandTextColor }}><span className="hidden sm:inline">Resolver questões</span><span className="sm:hidden">Resolver</span><ArrowRight size={17} /></button></div>
+          </div>
 
-              {/* Row 1: Title + Tabs + Toggle */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 shrink-0">
-                  <Brain size={18} style={{ color: 'var(--brand-primary)' }} />
-                  <h1 className="text-base font-extrabold text-slate-800 dark:text-slate-100 leading-none">
-                    Banco de Questões
-                  </h1>
-                </div>
+          </div>
+          {org.permissions?.concursos_enabled && <div className="mb-4 grid max-w-2xl grid-cols-3 gap-2">
+            {(['todos', 'concurso', 'vestibular'] as const).map(type => <button key={type} type="button" onClick={() => { if (questionType === type) return; setQuestionType(type); if (type === 'vestibular') { setFilterRole('Todas'); setFilterInstitution('Todas'); setFilterArea('Todas'); setFilterRegion('Todas'); } setAllQuestionMeta([]); }} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-bold shadow-sm dark:border-slate-700" style={questionType === type ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>{type === 'concurso' ? <Briefcase size={18} /> : type === 'vestibular' ? <GraduationCap size={18} /> : <BookOpen size={18} />}{type === 'concurso' ? 'Concursos' : type === 'vestibular' ? 'Vestibular' : 'Todas'}</button>)}
+          </div>}
+          {questionType !== 'vestibular' && <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">Cargo<select aria-label="Cargo" className={`${selectClass} mt-1.5`} value={filterRole} onChange={e => { setFilterRole(e.target.value); }}><option value="Todas">Todos os cargos</option>{uniqueSorted(allQuestionMeta.map(row => row.role)).map(role => <option key={role} value={role}>{capitalizeQuestionLabel(role)}</option>)}</select></label>
+            {([['Instituição', filterInstitution, setFilterInstitution, 'institution'], ['Área', filterArea, setFilterArea, 'area'], ['Região', filterRegion, setFilterRegion, 'region']] as const).map(([label, value, setter, field]) => { const options = uniqueSorted(allQuestionMeta.filter(row => filterRole === 'Todas' || row.role === filterRole).map(row => row[field])); return <label key={field} className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">{label}<select className={`${selectClass} mt-1.5`} value={value} onChange={e => { setter(e.target.value); }}><option value="Todas">Todas</option>{uniqueSorted([...options, value === 'Todas' ? null : value]).map(option => <option key={option} value={option}>{capitalizeQuestionLabel(option)}</option>)}</select></label>; })}
+          </div>}
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:px-6">
+            {([
+              ['Matérias', BookOpen, filterSubjects, setFilterSubjects, filterOptions.subjects, 'Todas as matérias'],
+              ['Bancas', Landmark, filterBanks, setFilterBanks, filterOptions.banks, 'Todas as bancas'],
+              ['Tópicos', Layers, filterTopics, setFilterTopics, topicNames, 'Todos os tópicos'],
+              ['Ano da questão', Calendar, filterYears, setFilterYears, filterOptions.years, 'Todos os anos'],
+              ['Dificuldade', BarChart, filterDifficulties, setFilterDifficulties, filterOptions.difficulties, 'Todas as dificuldades'],
+            ] as const).map(([label, Icon, value, setter, options, placeholder]) => <details key={label} className="group border-b border-slate-200 last:border-0 dark:border-slate-700"><summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 font-bold text-slate-900 marker:content-none dark:text-slate-100"><Icon size={19} className="text-slate-600 dark:text-slate-300" /><span className="flex-1">{label}</span>{value.length > 0 && <span className="rounded-full px-3 py-1 text-xs font-bold" style={{ background: 'var(--brand-primary)', color: brandTextColor }}>{value.length} <span className="hidden sm:inline">selecionadas</span></span>}<ChevronDown size={18} className="transition-transform group-open:rotate-180" /></summary><div className="pb-3"><MultiSelectFilter options={options} value={value} onChange={setter} placeholder={placeholder} formatOption={capitalizeQuestionLabel} accentTextColor={brandTextColor} /></div></details>)}
+          </div>
 
-                <div className="flex items-center gap-2 min-w-0">
-                  {/* Tabs */}
-                  <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shrink-0">
-                    <button
-                      onClick={() => setActiveTab('todo')}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isTabTodo
-                        ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      <Circle
-                        size={10}
-                        style={isTabTodo ? { fill: 'var(--brand-primary)', color: 'var(--brand-primary)' } : {}}
-                      />
-                      <span className="hidden xs:inline">A Fazer</span>
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('done')}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!isTabTodo
-                        ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                        }`}
-                    >
-                      <CheckCircle2
-                        size={12}
-                        className={!isTabTodo ? 'text-emerald-600 dark:text-emerald-400' : ''}
-                      />
-                      <span className="hidden xs:inline">Respondidas</span>
-                    </button>
-                  </div>
-
-                  {/* Collapse toggle */}
-                  <button
-                    onClick={() => setIsMenuOpen(false)}
-                    title="Focar na questão"
-                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors shrink-0"
-                  >
-                    <EyeOff size={16} />
-                  </button>
-                </div>
-              </div>
-
-
-              {/* Row 2: Primary filter (Matéria) + secondary toggle */}
-              {org.permissions?.concursos_enabled && <div className="flex gap-2 mb-3">
-                <select aria-label="Modalidade" className={selectClass} value={questionType} onChange={(e) => { setQuestionType(e.target.value as 'vestibular' | 'concurso'); setFilterRole('Todas'); setFilterInstitution('Todas'); setFilterArea('Todas'); setFilterRegion('Todas'); setFilterSubjects([]); setFilterBanks([]); setFilterTopics([]); setFilterYears([]); setFilterDifficulties([]); setAllQuestionMeta([]); }}>
-                  <option value="vestibular">Vestibular</option><option value="concurso">Concursos</option>
-                </select>
-                {questionType === 'concurso' && <select aria-label="Cargo" className={selectClass} value={filterRole} onChange={(e) => { setFilterRole(e.target.value); setFilterInstitution('Todas'); setFilterArea('Todas'); setFilterRegion('Todas'); setFilterSubjects([]); setFilterBanks([]); setFilterTopics([]); }}>
-                  <option value="Todas">Todos os cargos</option>{uniqueSorted(allQuestionMeta.map((row) => row.role)).map((role) => <option key={role} value={role}>{role}</option>)}
-                </select>}
-              </div>}
-              {questionType === 'concurso' && <div className="mb-3 grid gap-2 sm:grid-cols-3">{([
-                ['Instituição', filterInstitution, setFilterInstitution, 'institution'],
-                ['Área', filterArea, setFilterArea, 'area'],
-                ['Região', filterRegion, setFilterRegion, 'region'],
-              ] as const).map(([label, value, setter, field]) => { const options = uniqueSorted(allQuestionMeta.filter(row => filterRole === 'Todas' || row.role === filterRole).map(row => row[field])); return options.length ? <select key={field} aria-label={label} className={selectClass} value={value} onChange={e => { setter(e.target.value); setFilterSubjects([]); setFilterBanks([]); setFilterTopics([]); }}><option value="Todas">{label}: todas</option>{options.map(option => <option key={option} value={option}>{option}</option>)}</select> : null; })}</div>}
-
-              {/* Row 2: Matéria + demais filtros (todos de múltipla escolha) */}
-              <div className="flex gap-2 items-start">
-                {/* Matéria — full width on mobile; sm: 1/3 ao lado da grade 2×2; lg: tudo numa linha */}
-                <MultiSelectFilter
-                  className="flex-1 lg:flex-[1.4]"
-                  options={filterOptions.subjects}
-                  value={filterSubjects}
-                  onChange={setFilterSubjects}
-                  placeholder="Todas as Matérias"
-                  searchPlaceholder="Buscar matéria..."
-                  accentTextColor={brandTextColor}
-                />
-
-
-                {/* "Filtros" button — mobile: visible, sm+: hidden (secondary always visible) */}
-                <button
-                  onClick={() => setShowSecondaryFilters((v) => !v)}
-                  className={`sm:hidden flex items-center gap-1.5 px-3 py-3 rounded-xl border text-xs font-bold transition-colors shrink-0 ${activeSecondaryCount > 0
-                    ? 'border-[var(--brand-primary)] text-[var(--brand-primary)]'
-                    : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700'
-                    }`}
-                  style={activeSecondaryCount > 0 ? { background: 'color-mix(in srgb, var(--brand-primary) 5%, transparent)' } : {}}
-                >
-                  <SlidersHorizontal size={14} />
-                  Filtros
-                  {activeSecondaryCount > 0 && (
-                    <span
-                      className="flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-black"
-                      style={{ background: 'var(--brand-primary)', color: brandTextColor }}
-                    >
-                      {activeSecondaryCount}
-                    </span>
-                  )}
-                </button>
-
-                {/* Desktop: Banca, Tópico, Ano, Dificuldade */}
-                <div className="hidden sm:grid flex-[2] lg:flex-[4] grid-cols-2 lg:grid-cols-4 gap-2 min-w-0">
-                  {secondaryFilters}
-                </div>
-              </div>
-
-              {/* Row 3: Secondary filters — mobile only, collapsible. Sem
-                  overflow-hidden/altura animada: cortaria a lista dos dropdowns. */}
-              <AnimatePresence>
-                {showSecondaryFilters && (
-                  <motion.div
-                    key="secondary-filters"
-                    initial={shouldReduce ? false : { opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
-                    className="grid grid-cols-1 gap-2 sm:hidden"
-                  >
-                    {secondaryFilters}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-            </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-      {/* Show-filters pill (when header is collapsed) */}
-      <AnimatePresence>
-        {!isMenuOpen && (
-          <motion.button
-            key="show-filters-pill"
-            initial={shouldReduce ? false : { opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.18 }}
-            onClick={() => setIsMenuOpen(true)}
-            title="Mostrar filtros"
-            className="fixed top-[4.75rem] right-4 z-50 flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-800 shadow-md text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 transition-colors"
-          >
-            <Eye size={14} />
-            Filtros
-          </motion.button>
-        )}
-      </AnimatePresence>
+        </section>
+      ) : (
+        <header className="mx-auto flex max-w-4xl items-center justify-between gap-3 border-b border-slate-200 px-4 py-5 dark:border-slate-800"><div className="flex items-center gap-3"><button onClick={handleOpenFilters} aria-label="Voltar aos filtros" className="rounded-xl p-2 text-slate-700 dark:text-slate-200"><ArrowLeft size={20} /></button><h1 className="text-xl font-bold text-slate-900 dark:text-white">Banco de Questões</h1></div><button onClick={handleOpenFilters} className="rounded-xl border px-4 py-2 text-sm font-bold" style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}>Filtros</button></header>
+      )}
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
-      <main className="max-w-4xl mx-auto px-4 py-5 w-full">
+      <main className={`max-w-4xl mx-auto px-4 py-5 w-full ${isMenuOpen ? 'hidden' : ''}`}>
 
         {loading && page === 1 ? (
 
@@ -937,7 +749,7 @@ export default function BancoDeQuestoes() {
                     ? <Circle size={9} fill="currentColor" />
                     : <CheckCircle2 size={11} />
                   }
-                  {isCurrentTestletGroup ? `Testlet ${currentTestletQuestions.length} questões` : `Questão ${currentIdx + 1}`}
+                  {`Questão ${currentIdx + 1} de ${totalQuestionsFound || questions.length}`}
                 </span>
 
                 {questionIdParam && (
@@ -965,7 +777,7 @@ export default function BancoDeQuestoes() {
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 px-3 py-1 rounded-lg border border-slate-100 dark:border-slate-800 shadow-sm">
                   {totalQuestionsFound > 0
                     ? `${totalQuestionsFound} questões`
-                    : activeTab === 'todo'
+                    : activeTab !== 'done'
                       ? 'Nesta trilha'
                       : 'Histórico'}
                 </span>
@@ -978,7 +790,7 @@ export default function BancoDeQuestoes() {
                 <motion.div
                   className="h-full rounded-full"
                   style={{ background: 'var(--brand-primary)' }}
-                  animate={{ width: `${Math.round(((currentIdx + 1) / questions.length) * 100)}%` }}
+                  animate={{ width: `${Math.round(((currentIdx + 1) / Math.max(totalQuestionsFound, questions.length)) * 100)}%` }}
                   transition={{ duration: 0.3, ease: 'easeOut' }}
                 />
               </div>
@@ -998,20 +810,20 @@ export default function BancoDeQuestoes() {
                   }`}
               >
                 <div className={isCurrentTestletGroup ? 'divide-y divide-slate-100 dark:divide-slate-800' : ''}>
-                  {currentTestletQuestions.map((questionInGroup, groupIndex) => {
+                  {currentTestletQuestions.map((questionInGroup) => {
                     const testletInfo = testletPositionMap.get(questionInGroup.id);
                     return (
+                      <div key={questionInGroup.id} hidden={questionInGroup.id !== currentQ.id}>
                       <QuestionCard
-                        key={questionInGroup.id}
                         userId={userId || ''}
                         question={{
                           id: questionInGroup.id,
                           external_id: questionInGroup.external_id,
                           year: questionInGroup.exam_year,
                           bank: questionInGroup.bank,
-                          subject: questionInGroup.subject,
-                          difficulty: questionInGroup.difficulty || 'Médio',
-                          context: questionInGroup.context,
+                          subject: capitalizeQuestionLabel(questionInGroup.subject || ''),
+                          difficulty: capitalizeQuestionLabel(questionInGroup.difficulty || 'Médio'),
+                          context: questionInGroup.context || currentTestletQuestions.find(q => q.context)?.context || '',
                           statement: questionInGroup.statement,
                           alternatives: questionInGroup.alternatives,
                           correct_option: questionInGroup.correct_option,
@@ -1020,7 +832,7 @@ export default function BancoDeQuestoes() {
                           metadata: questionInGroup.metadata,
                         }}
                         testletInfo={testletInfo}
-                        suppressContext={isCurrentTestletGroup && groupIndex > 0}
+                        suppressContext={false}
                         onQuotaReached={handleQuotaLimitReached}
                         onAnswer={(result) => handleAnswerResult(questionInGroup.id, result)}
                         onReportError={() => {
@@ -1028,6 +840,7 @@ export default function BancoDeQuestoes() {
                           setReportDialogOpen(true);
                         }}
                       />
+                      </div>
                     );
                   })}
                 </div>
@@ -1083,7 +896,7 @@ export default function BancoDeQuestoes() {
 
       {/* ── Navigation Bar ───────────────────────────────────────────────────── */}
       <AnimatePresence>
-        {currentQ && userId && !loading && (
+        {!isMenuOpen && currentQ && userId && !loading && (
           <motion.div
             key="nav-bar"
             initial={shouldReduce ? false : { opacity: 0, y: 16 }}

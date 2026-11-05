@@ -9,6 +9,8 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown, X } from 'lucide-react';
 
+const INITIAL_OPTION_BATCH_SIZE = 80;
+
 interface Props {
   options: string[];
   value: string[];
@@ -22,6 +24,7 @@ interface Props {
   /** Lado em que a lista se ancora quando é mais larga que o campo. */
   align?: 'left' | 'right';
   className?: string;
+  formatOption?: (option: string) => string;
 }
 
 export function MultiSelectFilter({
@@ -34,10 +37,12 @@ export function MultiSelectFilter({
   icon,
   align = 'left',
   className = '',
+  formatOption = (option) => option,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [highlighted, setHighlighted] = useState(0);
+  const [visibleLimit, setVisibleLimit] = useState(INITIAL_OPTION_BATCH_SIZE);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listId = useId();
@@ -50,11 +55,17 @@ export function MultiSelectFilter({
     const term = search.trim().toLowerCase();
     return term ? all.filter((o) => o.toLowerCase().includes(term)) : all;
   }, [options, value, search]);
+  const renderedOptions = useMemo(
+    () => visibleOptions.slice(0, visibleLimit),
+    [visibleLimit, visibleOptions],
+  );
+  const hasMoreOptions = renderedOptions.length < visibleOptions.length;
 
   const close = () => {
     setOpen(false);
     setSearch('');
     setHighlighted(0);
+    setVisibleLimit(INITIAL_OPTION_BATCH_SIZE);
   };
 
   // Fecha ao clicar fora.
@@ -65,6 +76,7 @@ export function MultiSelectFilter({
       setOpen(false);
       setSearch('');
       setHighlighted(0);
+        setVisibleLimit(INITIAL_OPTION_BATCH_SIZE);
     };
     document.addEventListener('pointerdown', handlePointerDown);
     return () => document.removeEventListener('pointerdown', handlePointerDown);
@@ -80,13 +92,13 @@ export function MultiSelectFilter({
     e.stopPropagation();
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlighted((h) => Math.min(h + 1, visibleOptions.length - 1));
+      setHighlighted((h) => Math.min(h + 1, renderedOptions.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlighted((h) => Math.max(h - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const option = visibleOptions[highlighted];
+      const option = renderedOptions[highlighted];
       if (option) toggle(option);
     } else if (e.key === 'Escape') {
       close();
@@ -108,10 +120,11 @@ export function MultiSelectFilter({
         aria-controls={open ? listId : undefined}
         onClick={() => {
           setOpen(true);
+          setVisibleLimit(INITIAL_OPTION_BATCH_SIZE);
           inputRef.current?.focus();
         }}
         className={
-          'flex min-h-[46px] w-full cursor-text flex-wrap items-center gap-1.5 rounded-xl border bg-white py-2 pr-8 shadow-sm transition-all dark:bg-slate-900 ' +
+          'flex min-h-[46px] max-h-28 w-full cursor-text flex-wrap items-center gap-1.5 overflow-y-auto rounded-xl border bg-white py-2 pr-8 shadow-sm transition-all dark:bg-slate-900 ' +
           (icon ? 'pl-8 ' : 'pl-2.5 ') +
           (open
             ? 'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/20'
@@ -121,14 +134,14 @@ export function MultiSelectFilter({
         {value.map((item) => (
           <span
             key={item}
-            title={item}
+            title={formatOption(item)}
             className="inline-flex max-w-full items-center gap-1 rounded-lg py-1 pl-2 pr-1 text-xs font-bold text-slate-700 dark:text-slate-100"
             style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}
           >
-            <span className="truncate">{item}</span>
+            <span className="truncate">{formatOption(item)}</span>
             <button
               type="button"
-              aria-label={`Remover ${item}`}
+              aria-label={`Remover ${formatOption(item)}`}
               onClick={(e) => {
                 e.stopPropagation();
                 toggle(item);
@@ -147,6 +160,7 @@ export function MultiSelectFilter({
             onChange={(e) => {
               setSearch(e.target.value);
               setHighlighted(0);
+              setVisibleLimit(INITIAL_OPTION_BATCH_SIZE);
             }}
             autoFocus
             onKeyDown={handleKeyDown}
@@ -188,7 +202,7 @@ export function MultiSelectFilter({
           {visibleOptions.length === 0 ? (
             <li className="px-3 py-2.5 text-sm text-slate-400">Nenhuma opção encontrada</li>
           ) : (
-            visibleOptions.map((option, idx) => {
+            renderedOptions.map((option, idx) => {
               const isSelected = selected.has(option);
               return (
                 <li
@@ -210,10 +224,21 @@ export function MultiSelectFilter({
                   >
                     {isSelected && <Check size={11} strokeWidth={3.5} style={{ color: accentTextColor }} />}
                   </span>
-                  <span className="min-w-0 break-words">{option}</span>
+                  <span className="min-w-0 break-words">{formatOption(option)}</span>
                 </li>
               );
             })
+          )}
+          {hasMoreOptions && (
+            <li className="p-1">
+              <button
+                type="button"
+                onClick={() => setVisibleLimit((current) => current + INITIAL_OPTION_BATCH_SIZE)}
+                className="w-full rounded-lg px-2.5 py-2 text-left text-sm font-bold text-[var(--brand-primary)] hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Mostrar mais {Math.min(INITIAL_OPTION_BATCH_SIZE, visibleOptions.length - renderedOptions.length)} opções
+              </button>
+            </li>
           )}
         </ul>
       )}

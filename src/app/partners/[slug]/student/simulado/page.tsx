@@ -13,7 +13,7 @@ import { motion, AnimatePresence, useAnimation, useReducedMotion } from 'framer-
 import {
   Timer, ArrowRight, ArrowLeft, ArrowUp, CheckCircle2, Play, RotateCcw,
   Trophy, BookOpen, History, Brain, ChevronDown, ChevronLeft, TrendingUp,
-  Medal, BarChart3, Plus, Clock, Zap, Flag, Target, SlidersHorizontal, Filter, ClipboardList,
+  Medal, BarChart3, Plus, Clock, Zap, Flag, Target, SlidersHorizontal, ClipboardList,
 } from 'lucide-react'
 import { toBrtDateKeyFromIso } from '@/lib/brt-date'
 import { formatDayBR, totalResult, type ExternalSimulado } from '@/lib/external-simulados'
@@ -1925,66 +1925,71 @@ export default function SimuladoPage() {
           )}
           <RevealGroup className="relative mx-auto max-w-6xl space-y-5 pb-8">
             {/* Hero */}
-            <RevealItem className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <RevealItem className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1.5">
                   <Link href={`/partners/${slug}/student/dashboard`} className="text-xs font-semibold text-slate-400 dark:text-white/40 hover:text-slate-600 dark:hover:text-white/70 transition-colors flex items-center gap-1">
                     <ChevronLeft size={14} /> Dashboard
                   </Link>
                 </div>
-                <h1 className="font-display text-[28px] font-black leading-tight text-slate-900 dark:text-white sm:text-[32px]">Simulados</h1>
+                <div className="flex items-center justify-between gap-3">
+                  <h1 className="font-display text-[28px] font-black leading-tight text-slate-900 dark:text-white sm:text-[32px]">Simulados</h1>
+                  <div className="flex shrink-0 items-center gap-1.5 sm:hidden" aria-label="Filtros dos simulados">
+                    {org.permissions?.concursos_enabled && (
+                      <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-white/10 dark:bg-white/[0.05]" role="group" aria-label="Modalidade">
+                        {([['vestibular', 'Vestibular'], ['concurso', 'Concursos']] as const).map(([type, label]) => (
+                          <button key={type} type="button" aria-label={label} aria-pressed={dashboardType === type} onClick={() => { if (dashboardType !== type) { setDashboardType(type); setPageBankFilter('Todas'); } }} className={`rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors ${dashboardType === type ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white' : 'text-slate-500 hover:text-slate-800 dark:text-white/60 dark:hover:text-white'}`}>{type === 'vestibular' ? 'Vest.' : 'Conc.'}</button>
+                        ))}
+                      </div>
+                    )}
+                    <label className="sr-only" htmlFor="simulados-bank-filter-mobile">Filtrar simulados por banca</label>
+                    <select id="simulados-bank-filter-mobile" value={pageBankFilter} onChange={(e) => setPageBankFilter(e.target.value as BankLabel)} className="h-8 max-w-[6.5rem] rounded-lg border border-slate-200 bg-white px-1.5 text-[11px] font-semibold text-slate-600 outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:border-white/10 dark:bg-slate-900 dark:text-white/80">
+                      <option value="Todas">Bancas</option>
+                      {Array.from(new Set(modalitySessions.map(s => inferSessionBank(s.config)))).filter(value => value !== 'Todas').map(value => <option key={value} value={value}>{value}</option>)}
+                    </select>
+                  </div>
+                </div>
                 <div className="mt-0.5 text-[13px] text-slate-500 dark:text-white/40">
                   {dashLoading ? <Skeleton className="h-4 w-64" /> : heroSubtitle}
                 </div>
               </div>
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:items-end">
+                <div className="hidden flex-wrap items-center justify-start gap-2 sm:flex sm:justify-end" aria-label="Filtros dos simulados">
+                  {org.permissions?.concursos_enabled && (
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-white/10 dark:bg-white/[0.05]" role="group" aria-label="Modalidade">
+                      {([['vestibular', 'Vestibular'], ['concurso', 'Concursos']] as const).map(([type, label]) => (
+                        <button key={type} type="button" aria-pressed={dashboardType === type} onClick={() => { if (dashboardType !== type) { setDashboardType(type); setPageBankFilter('Todas'); } }} className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${dashboardType === type ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white' : 'text-slate-500 hover:text-slate-800 dark:text-white/60 dark:hover:text-white'}`}>{label}</button>
+                      ))}
+                    </div>
+                  )}
+                  <label className="sr-only" htmlFor="simulados-bank-filter">Filtrar simulados por banca</label>
+                  <select id="simulados-bank-filter" value={pageBankFilter} onChange={(e) => setPageBankFilter(e.target.value as BankLabel)} className="h-9 max-w-[10rem] rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] dark:border-white/10 dark:bg-slate-900 dark:text-white/80">
+                    <option value="Todas">Todas as bancas</option>
+                    {Array.from(new Set(modalitySessions.map(s => inferSessionBank(s.config)))).filter(value => value !== 'Todas').map(value => <option key={value} value={value}>{value}</option>)}
+                  </select>
+                </div>
+              <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-row">
                 <Link href={`/partners/${slug}/student/simulado/historico`}
-                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10 sm:flex-none">
-                  <History size={16} /> Histórico
+                  className="flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10 sm:flex-none sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm sm:font-bold">
+                  <History size={16} className="shrink-0" /> Histórico
                 </Link>
                 {/* Simulados feitos fora da plataforma (só a nota) — aba "Externos" do Histórico */}
                 <Link href={`/partners/${slug}/student/simulado/historico?aba=externos`}
-                  className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10 sm:flex-none">
-                  <ClipboardList size={16} /> Simulado externo
+                  aria-label="Simulado externo"
+                  className="flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10 sm:flex-none sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm sm:font-bold">
+                  <ClipboardList size={16} className="shrink-0" /> <span className="sm:hidden">Externo</span><span className="hidden sm:inline">Simulado externo</span>
                 </Link>
-                <button onClick={() => setShowConfigModal(true)}
-                  className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-[13px] font-extrabold transition-transform hover:scale-[1.02] active:scale-[0.97] sm:flex-none"
+                <button onClick={() => setShowConfigModal(true)} aria-label="Novo simulado"
+                  className="flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-bold transition-transform hover:scale-[1.02] active:scale-[0.97] sm:flex-none sm:gap-1.5 sm:rounded-full sm:px-4 sm:py-2.5 sm:text-[13px] sm:font-extrabold"
                   style={{
                     background: org.brand_primary || 'var(--brand-primary)',
                     color: brandTextColor,
                     boxShadow: `0 6px 16px -6px ${org.brand_primary || 'var(--brand-primary)'}`,
                   }}>
-                  <Plus size={18} /> Novo Simulado
+                  <Plus size={16} className="shrink-0" /> <span>Novo<span className="hidden sm:inline"> Simulado</span></span>
                 </button>
               </div>
-            </RevealItem>
-
-            <RevealItem>
-            <ElevatedCard accentColor="var(--brand-primary)">
-              <div className="flex flex-col gap-4 p-4 sm:p-5">
-                {org.permissions?.concursos_enabled && <label className="space-y-1 sm:max-w-xs"><span className="text-xs font-medium uppercase tracking-wide text-slate-500">Modalidade</span><select value={dashboardType} onChange={e => { setDashboardType(e.target.value as 'vestibular' | 'concurso'); setPageBankFilter('Todas') }} className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 dark:bg-slate-900"><option value="vestibular">Vestibular</option><option value="concurso">Concursos</option></select></label>}
-                <label className="space-y-1 sm:max-w-xs">
-                  <span className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-white/40">Filtro Global · Banca</span>
-                  <select
-                    value={pageBankFilter}
-                    onChange={(e) => setPageBankFilter(e.target.value as BankLabel)}
-                    className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
-                  >
-                    <option value="Todas">Todas as bancas</option>
-                    {Array.from(new Set(modalitySessions.map(s => inferSessionBank(s.config)))).filter(value => value !== 'Todas').map(value => <option key={value} value={value}>{value}</option>)}
-                  </select>
-                </label>
-                <div className="flex items-start gap-3 rounded-xl bg-slate-50 dark:bg-white/[0.04] p-3.5">
-                  <Filter size={18} className="mt-0.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
-                  <p className="text-sm font-medium leading-snug text-slate-600 dark:text-white/60">
-                    Este filtro de banca, selecionado acima, é aplicado a{' '}
-                    <span className="font-bold text-slate-800 dark:text-white/85">
-                      cards, gráficos, histórico recente, ranking e configuração inicial do simulado
-                    </span>.
-                  </p>
-                </div>
               </div>
-            </ElevatedCard>
             </RevealItem>
 
             {/* Modal de conflito: simulado avulso já em andamento (outro dispositivo/aba) */}
