@@ -688,11 +688,22 @@ export default function BancoDeQuestoes() {
               <button key={tab} type="button" aria-pressed={activeTab === tab} onClick={() => setActiveTab(tab)} className={`rounded-lg px-3 py-2 font-semibold ${activeTab === tab ? 'bg-slate-200 dark:bg-slate-700' : ''}`}>{label}</button>
             ))}
           </div>
-          <div className="flex flex-1 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg dark:border-slate-700 dark:bg-slate-900 max-sm:fixed max-sm:inset-x-2 max-sm:bottom-2 max-sm:z-40 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:shadow-none">
+          <div className="hidden flex-1 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-1.5 shadow-none dark:border-slate-700 dark:bg-slate-900 sm:flex">
             <button type="button" onClick={() => { setFilterRole('Todas'); setFilterInstitution('Todas'); setFilterArea('Todas'); setFilterRegion('Todas'); setFilterSubjects([]); setFilterBanks([]); setFilterTopics([]); setFilterYears([]); setFilterDifficulties([]); }} className="flex items-center gap-2 px-2 py-1.5 text-sm font-semibold text-slate-600 dark:text-slate-200"><Trash2 size={18} /><span className="hidden sm:inline">Limpar filtros</span><span className="sm:hidden">Limpar</span></button>
             <div className="flex items-center gap-3"><span className="text-xs font-semibold text-slate-600 dark:text-slate-200 sm:text-sm">{loading ? 'Buscando questões…' : <>{totalQuestionsFound} questões<span className="hidden sm:inline"> encontradas</span></>}</span><button type="button" onClick={() => setIsMenuOpen(false)} className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold sm:px-5" style={{ background: 'var(--brand-primary)', color: brandTextColor }}><span className="hidden sm:inline">Resolver questões</span><span className="sm:hidden">Resolver</span><ArrowRight size={17} /></button></div>
           </div>
 
+          </div>
+          <div className="fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 sm:hidden">
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(false)}
+              className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-4 text-sm font-bold shadow-lg"
+              style={{ background: 'var(--brand-primary)', color: brandTextColor }}
+            >
+              <span>{loading ? 'Buscando questões…' : `${totalQuestionsFound} questões encontradas`}</span>
+              <span className="inline-flex items-center gap-2 whitespace-nowrap">Ver questões <ArrowRight size={17} /></span>
+            </button>
           </div>
           {org.permissions?.concursos_enabled && <div className="mb-4 grid max-w-2xl grid-cols-3 gap-2">
             {(['todos', 'concurso', 'vestibular'] as const).map(type => <button key={type} type="button" onClick={() => { if (questionType === type) return; setQuestionType(type); if (type === 'vestibular') { setFilterRole('Todas'); setFilterInstitution('Todas'); setFilterArea('Todas'); setFilterRegion('Todas'); } setAllQuestionMeta([]); }} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-bold shadow-sm dark:border-slate-700" style={questionType === type ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>{type === 'concurso' ? <Briefcase size={18} /> : type === 'vestibular' ? <GraduationCap size={18} /> : <BookOpen size={18} />}{type === 'concurso' ? 'Concursos' : type === 'vestibular' ? 'Vestibular' : 'Todas'}</button>)}
