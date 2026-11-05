@@ -4,6 +4,7 @@ import { reportError } from '@/lib/reportError';
 import { QuestionDisplay } from '@/components/questions/QuestionDisplay';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
 import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 interface Alternative {
   letter: string;
@@ -102,14 +103,20 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
         }
 
         const res = await submitAnswerWithRetry();
-
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
 
         // --- TRATAMENTO DE ERRO DE COTA ---
         if (res.status === 403) {
             if (onQuotaReached) onQuotaReached(data.code);
             setIsSubmitting(false); // Libera para tentar de novo se comprar
             return;
+        }
+
+        // Nunca revela o gabarito, credita pontos ou avisa o pai antes de a
+        // resposta estar persistida. Antes, um 5xx era tratado como sucesso
+        // local e a questão voltava a aparecer ao recarregar os filtros.
+        if (!res.ok) {
+            throw new Error(data.error || 'Não foi possível salvar sua resposta. Tente novamente.');
         }
 
         // Verifica Trigger de Sucesso (Ex: respondeu 15ª questão)
@@ -124,7 +131,13 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
           gamification: data.gamification,
         };
 
-    } catch(e) { console.error(e); void reportError("QuestionCardError", String(e)); }
+    } catch(e) {
+      console.error(e);
+      void reportError("QuestionCardError", String(e));
+      toast.error('Sua resposta não foi salva. Tente confirmar novamente.');
+      setIsSubmitting(false);
+      return;
+    }
 
     setShowAnswer(true);
     setIsSubmitting(false);

@@ -868,7 +868,6 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.92),_rgba(241,245,249,0.98)_42%,_#e2e8f0_100%)] text-slate-900 dark:bg-[radial-gradient(circle_at_top_left,_rgba(51,65,85,0.4),_rgba(15,23,42,0.98)_34%,_#020617_100%)] dark:text-slate-100">
       <div className="mx-auto max-w-7xl px-4 py-5 md:px-6 md:py-7">
         <RevealGroup className="space-y-4 lg:space-y-5">
-          {org.permissions?.concursos_enabled && <RevealItem><label className="flex max-w-xs flex-col gap-1 text-sm font-semibold">Modalidade do desempenho<select value={analyticsType} onChange={e => setAnalyticsType(e.target.value as 'all' | 'vestibular' | 'concurso')} className="rounded-xl border bg-white px-3 py-2 dark:bg-slate-900"><option value="all">Todas</option><option value="vestibular">Vestibular</option><option value="concurso">Concursos</option></select></label><p className="mt-1 text-xs text-slate-500">Sequência, pontos e ranking continuam gerais.</p></RevealItem>}
           <RevealItem>
           <Link
             href={`/partners/${slug}/student/dashboard`}
@@ -887,12 +886,30 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
               <h1 className="font-display text-2xl font-black tracking-tight text-slate-950 dark:text-white md:text-3xl">Desempenho</h1>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">Redações, simulados e hábitos.</p>
             </div>
-            {summary?.month_label && (
-              <span className="partner-elevated-card inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:bg-slate-900 dark:text-slate-300">
-                <CalendarDays className="h-3.5 w-3.5" style={{ color: readableBrandText(org.brand_primary, 'var(--brand-primary)') }} />
-                {summary.month_label}
-              </span>
-            )}
+            <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
+              {org.permissions?.concursos_enabled && (
+                <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 dark:border-white/10 dark:bg-white/[0.05]" role="group" aria-label="Modalidade do desempenho" title="Sequência, pontos e ranking continuam gerais.">
+                  {([['all', 'Todas'], ['vestibular', 'Vestibular'], ['concurso', 'Concursos']] as const).map(([type, label]) => (
+                    <button
+                      key={type}
+                      type="button"
+                      aria-pressed={analyticsType === type}
+                      onClick={() => setAnalyticsType(type)}
+                      className={`rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors sm:px-2.5 sm:text-xs ${analyticsType === type ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white' : 'text-slate-500 hover:text-slate-800 dark:text-white/60 dark:hover:text-white'}`}
+                    >
+                      <span className="sm:hidden">{type === 'vestibular' ? 'Vest.' : type === 'concurso' ? 'Conc.' : 'Todas'}</span>
+                      <span className="hidden sm:inline">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {summary?.month_label && (
+                <span className="partner-elevated-card inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:bg-slate-900 dark:text-slate-300">
+                  <CalendarDays className="h-3.5 w-3.5" style={{ color: readableBrandText(org.brand_primary, 'var(--brand-primary)') }} />
+                  {summary.month_label}
+                </span>
+              )}
+            </div>
           </RevealItem>
 
           <RevealItem className="grid gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:gap-4">
