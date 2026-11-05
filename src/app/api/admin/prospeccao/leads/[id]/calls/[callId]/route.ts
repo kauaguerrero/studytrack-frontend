@@ -31,10 +31,6 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Ligação não encontrada' }, { status: 404 });
   }
 
-  if (call.audio_path) {
-    await db.storage.from('lead-call-recordings').remove([call.audio_path]);
-  }
-
   const { error: deleteError } = await db
     .from('lead_calls')
     .delete()
@@ -43,6 +39,15 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
 
   if (deleteError) {
     return NextResponse.json({ error: 'Erro ao excluir ligação' }, { status: 500 });
+  }
+
+  // Áudio só depois do DELETE: se falhar aqui, sobra arquivo órfão, nunca
+  // registro apontando para áudio inexistente.
+  if (call.audio_path) {
+    const { error: storageError } = await db.storage.from('lead-call-recordings').remove([call.audio_path]);
+    if (storageError) {
+      console.error(`[LeadCallDelete] Falha ao apagar áudio da ligação ${callId}:`, storageError);
+    }
   }
 
   return NextResponse.json({ ok: true });
