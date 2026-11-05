@@ -165,11 +165,22 @@ function normalizeParagraphBreaks(text: string): string {
   // esse espaço/\n é exatamente o início do fragmento. Só o início de um
   // NOVO parágrafo (block[index > 0], depois de um \n{2,} de verdade dentro
   // do próprio fragmento) deve ter a indentação removida.
+  //
+  // Bug: um `\n{2,}` bem na BORDA do fragmento (ex.: "Dados:\n\n" logo antes
+  // de uma fórmula, ou " kg\n\n" logo antes da fórmula seguinte) produz um
+  // bloco vazio na borda ("" no fim ou no início do split). O antigo
+  // `.filter(block => block.trim())` descartava esse bloco vazio — mas é
+  // justamente ele que carrega a informação "havia quebra de parágrafo
+  // aqui" para o `.join('\n\n')` reconstruir. Sem ele, duas fórmulas
+  // separadas por um rótulo ("Dados:") ou por uma unidade ("kg") colavam
+  // uma na outra sem quebra nenhuma no texto final (ex.: "kg$e = ...$").
+  // Blocos vazios remanescentes no resultado final são inofensivos: o
+  // `normalizeQuestionParagraphs` do QuestionRichText já filtra parágrafos
+  // vazios depois de montar o texto inteiro.
   return text
     .replace(/\r\n?/g, '\n')
     .split(/\n{2,}/)
     .map((block, index) => (index === 0 ? block : block.replace(/^\s+/, '')))
-    .filter((block) => block.trim())
     .join('\n\n');
 }
 
