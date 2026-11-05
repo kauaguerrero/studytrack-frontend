@@ -1295,9 +1295,14 @@ export function LeadDrawer({ lead, onClose, onLeadUpdate, onRequestScheduleCall,
                     </div>
                   </div>
 
-                  {/* Player */}
-                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                  <audio controls src={call.audio_url} className="w-full h-8" />
+                  {/* Player — some quando o áudio foi apagado do storage */}
+                  {call.audio_url ? (
+                    <audio controls src={call.audio_url} className="w-full h-8" />
+                  ) : (
+                    <p className="text-[11px] text-slate-400 dark:text-zinc-500 italic">
+                      Áudio removido — transcrição e análise mantidas.
+                    </p>
+                  )}
 
                   {/* Transcrição colapsável */}
                   {call.transcription && (
