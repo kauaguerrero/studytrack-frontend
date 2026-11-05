@@ -60,10 +60,10 @@ export default async function PartnerStudentLayout({ children, params }: Student
   const adminClient = createAdminClient();
 
   // 2. Busca perfil via adminClient para garantir leitura de organization_id sem bloqueio de RLS
-  type ProfileRow = { role: string | null; organization_id: string | null; plan_tier: string | null; full_name: string | null; avatar_url: string | null; theme_preference: string | null; must_change_password: boolean | null; username: string | null; birth_date: string | null };
+  type ProfileRow = { role: string | null; organization_id: string | null; plan_tier: string | null; full_name: string | null; avatar_url: string | null; theme_preference: string | null; must_change_password: boolean | null; username: string | null; birth_date: string | null; bio: string | null };
   const profileRes = await adminClient
     .from('profiles')
-    .select('role, organization_id, plan_tier, full_name, avatar_url, theme_preference, must_change_password, username, birth_date')
+    .select('role, organization_id, plan_tier, full_name, avatar_url, theme_preference, must_change_password, username, birth_date, bio')
     .eq('id', user.id)
     .single();
   const profile = profileRes.data as ProfileRow | null;
@@ -135,10 +135,6 @@ export default async function PartnerStudentLayout({ children, params }: Student
   };
   // Escapa < > & para evitar quebra prematura da tag <script> caso o slug
   // contenha sequências como "</script>" (JSON.stringify não escapa "/" por padrão).
-  const safeSlugJson = JSON.stringify(slug)
-    .replace(/</g, '\\u003c')
-    .replace(/>/g, '\\u003e')
-    .replace(/&/g, '\\u0026');
   const safeThemeJson = JSON.stringify(initialTheme)
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
@@ -158,15 +154,9 @@ export default async function PartnerStudentLayout({ children, params }: Student
         isTestAccount: profile.plan_tier === 'b2b_test',
         username: profile.username ?? null,
         birthDate: profile.birth_date ?? null,
+        bio: profile.bio ?? null,
       }}
     >
-      {/* Inline script: resolve o tema a partir do localStorage antes do primeiro paint do React,
-          usando o banco como fonte de verdade e sincronizando o cache local. */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `(function(){try{var slug=${safeSlugJson};var theme=${safeThemeJson};var key=${safeStorageKeyJson};var resolved=theme==='dark'?'dark':theme==='light'?'light':(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');localStorage.setItem(key,theme);window.__pst=window.__pst||{};window.__pst[slug]=resolved;}catch(e){}})()`,
-        }}
-      />
       <style>{`
         :root {
           --brand-primary: ${brandPrimary};
@@ -175,6 +165,18 @@ export default async function PartnerStudentLayout({ children, params }: Student
         }
       `}</style>
 
+      {/* Raiz do tema do aluno. A classe `dark` NÃO é controlada pelo React aqui:
+          se fosse, o SSR (sem matchMedia) renderizaria "claro" para o tema "system",
+          o cliente hidrataria achando "escuro", e o React nunca corrigiria o DOM
+          (hidratação não corrige atributos divergentes). Resultado: escolher
+          "Escuro" não fazia nada. Agora o script abaixo aplica a classe antes do
+          primeiro paint, e o StudentThemeProvider sincroniza direto no DOM. */}
+      <div data-student-theme-root="" suppressHydrationWarning>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `(function(){try{var el=document.currentScript&&document.currentScript.parentElement;var theme=${safeThemeJson};var key=${safeStorageKeyJson};var resolved=theme==='dark'?'dark':theme==='light'?'light':(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');if(el){if(resolved==='dark'){el.classList.add('dark');}else{el.classList.remove('dark');}el.style.colorScheme=resolved;}localStorage.setItem(key,theme);}catch(e){}})()`,
+        }}
+      />
       <EssayNotificationProvider slug={slug}>
         <AnnouncementNotificationProvider>
           <ReportNotificationProvider>
@@ -187,6 +189,7 @@ export default async function PartnerStudentLayout({ children, params }: Student
           </ReportNotificationProvider>
         </AnnouncementNotificationProvider>
       </EssayNotificationProvider>
+      </div>
     </OrgProvider>
   );
 }

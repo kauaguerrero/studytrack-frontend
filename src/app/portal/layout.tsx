@@ -16,6 +16,7 @@ import {
   parseSidebarCollapsedCookie,
 } from '@/lib/sidebar-cookie';
 import PortalLoading from './loading';
+import { PortalThemeSync } from '@/components/layout/PortalThemeSync';
 
 /**
  * Async sub-component that fetches the user profile.
@@ -34,7 +35,7 @@ async function PortalShell({
   const supabase = await createClient();
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, full_name, avatar_url, plan_tier, organization_id')
+    .select('role, full_name, avatar_url, plan_tier, organization_id, theme_preference')
     .eq('id', userId)
     .single();
 
@@ -123,6 +124,7 @@ async function PortalShell({
       avatarUrl={avatarUrl}
       initialSidebarCollapsed={initialSidebarCollapsed}
     >
+      <PortalThemeSync themePreference={profile?.theme_preference} />
       {children}
     </PortalLayoutWrapper>
   );
