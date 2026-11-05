@@ -685,7 +685,7 @@ export default function BancoDeQuestoes() {
           <div className="mb-4 flex flex-wrap items-center gap-2">
           <div className="flex shrink-0 flex-wrap gap-1 text-sm" aria-label="Situação das questões">
             {([['all', 'Todas'], ['todo', 'A fazer'], ['done', 'Respondidas']] as const).map(([tab, label]) => (
-              <button key={tab} type="button" aria-pressed={activeTab === tab} onClick={() => setActiveTab(tab)} className={`rounded-lg px-3 py-2 font-semibold ${activeTab === tab ? 'bg-slate-200 dark:bg-slate-700' : ''}`}>{label}</button>
+              <button key={tab} type="button" aria-pressed={activeTab === tab} onClick={() => setActiveTab(tab)} className={`rounded-lg px-3 py-2 font-semibold ${activeTab === tab ? 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-white' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}>{label}</button>
             ))}
           </div>
           <div className="hidden flex-1 items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-1.5 shadow-none dark:border-slate-700 dark:bg-slate-900 sm:flex">
@@ -706,7 +706,7 @@ export default function BancoDeQuestoes() {
             </button>
           </div>
           {org.permissions?.concursos_enabled && <div className="mb-4 grid max-w-2xl grid-cols-3 gap-2">
-            {(['todos', 'concurso', 'vestibular'] as const).map(type => <button key={type} type="button" onClick={() => { if (questionType === type) return; setQuestionType(type); if (type === 'vestibular') { setFilterRole('Todas'); setFilterInstitution('Todas'); setFilterArea('Todas'); setFilterRegion('Todas'); } setAllQuestionMeta([]); }} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-bold shadow-sm dark:border-slate-700" style={questionType === type ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>{type === 'concurso' ? <Briefcase size={18} /> : type === 'vestibular' ? <GraduationCap size={18} /> : <BookOpen size={18} />}{type === 'concurso' ? 'Concursos' : type === 'vestibular' ? 'Vestibular' : 'Todas'}</button>)}
+            {(['todos', 'concurso', 'vestibular'] as const).map(type => <button key={type} type="button" onClick={() => { if (questionType === type) return; setQuestionType(type); if (type === 'vestibular') { setFilterRole('Todas'); setFilterInstitution('Todas'); setFilterArea('Todas'); setFilterRegion('Todas'); } setAllQuestionMeta([]); }} className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" style={questionType === type ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>{type === 'concurso' ? <Briefcase size={18} /> : type === 'vestibular' ? <GraduationCap size={18} /> : <BookOpen size={18} />}{type === 'concurso' ? 'Concursos' : type === 'vestibular' ? 'Vestibular' : 'Todas'}</button>)}
           </div>}
           {questionType !== 'vestibular' && <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <label className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">Cargo<select aria-label="Cargo" className={`${selectClass} mt-1.5`} value={filterRole} onChange={e => { setFilterRole(e.target.value); }}><option value="Todas">Todos os cargos</option>{uniqueSorted(allQuestionMeta.map(row => row.role)).map(role => <option key={role} value={role}>{capitalizeQuestionLabel(role)}</option>)}</select></label>
@@ -724,7 +724,7 @@ export default function BancoDeQuestoes() {
 
         </section>
       ) : (
-        <header className="mx-auto flex max-w-4xl items-center justify-between gap-3 border-b border-slate-200 px-4 py-5 dark:border-slate-800"><div className="flex items-center gap-3"><button onClick={handleOpenFilters} aria-label="Voltar aos filtros" className="rounded-xl p-2 text-slate-700 dark:text-slate-200"><ArrowLeft size={20} /></button><h1 className="text-xl font-bold text-slate-900 dark:text-white">Banco de Questões</h1></div><button onClick={handleOpenFilters} className="rounded-xl border px-4 py-2 text-sm font-bold" style={{ borderColor: 'var(--brand-primary)', color: 'var(--brand-primary)' }}>Filtros</button></header>
+        <header className="mx-auto flex max-w-4xl items-center justify-between gap-3 border-b border-slate-200 px-4 py-5 dark:border-slate-800"><div className="flex items-center gap-3"><button onClick={handleOpenFilters} aria-label="Voltar aos filtros" className="rounded-xl p-2 text-slate-700 dark:text-slate-200"><ArrowLeft size={20} /></button><h1 className="text-xl font-bold text-slate-900 dark:text-white">Banco de Questões</h1></div><button onClick={handleOpenFilters} className="rounded-xl border border-[var(--brand-primary)] px-4 py-2 text-sm font-bold text-[var(--brand-primary)] dark:border-[color-mix(in_srgb,var(--brand-primary)_45%,white)] dark:text-[color-mix(in_srgb,var(--brand-primary)_45%,white)]">Filtros</button></header>
       )}
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}
@@ -751,10 +751,9 @@ export default function BancoDeQuestoes() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span
                   className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${isTabTodo
-                    ? 'border-[var(--brand-primary)]/20'
+                    ? 'border-[color-mix(in_srgb,var(--brand-primary)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-primary)_8%,transparent)] text-[var(--brand-primary)] dark:border-[color-mix(in_srgb,var(--brand-primary)_40%,transparent)] dark:bg-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] dark:text-[color-mix(in_srgb,var(--brand-primary)_45%,white)]'
                     : 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800'
                     }`}
-                  style={isTabTodo ? { color: 'var(--brand-primary)', background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)' } : {}}
                 >
                   {isTabTodo
                     ? <Circle size={9} fill="currentColor" />
