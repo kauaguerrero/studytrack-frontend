@@ -263,9 +263,13 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
           : undefined,
       }}
     >
+      {/* Tema da equipe (founder/admin/associado): o banco (`pref`) é a fonte de
+          verdade. O localStorage é só cache e NUNCA vence o banco — antes vencia
+          e, para "system", gravava o valor resolvido como fixo, congelando o
+          tema e ignorando trocas feitas em outro dispositivo. */}
       <script
         dangerouslySetInnerHTML={{
-          __html: `(function(){try{var slug=${safeSlugJson};var pref=${safeThemeJson};var key='partner-founder-theme-'+slug;var stored=localStorage.getItem(key);var storedFixed=(stored==='light'||stored==='dark')?stored:null;var prefFixed=(pref==='light'||pref==='dark')?pref:null;var base=storedFixed||prefFixed||'system';var resolved=base==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):base;var root=document.documentElement;if(resolved==='dark'){root.classList.add('dark');}else{root.classList.remove('dark');}root.style.colorScheme=resolved;root.dataset.partnerTheme=resolved;if(!storedFixed){localStorage.setItem(key,resolved);}}catch(e){}})();`,
+          __html: `(function(){try{var slug=${safeSlugJson};var pref=${safeThemeJson};var key='partner-founder-theme-'+slug;var base=(pref==='light'||pref==='dark')?pref:'system';var resolved=base==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):base;var root=document.documentElement;if(resolved==='dark'){root.classList.add('dark');}else{root.classList.remove('dark');}root.style.colorScheme=resolved;root.dataset.partnerTheme=resolved;localStorage.setItem(key,base);}catch(e){}})();`,
         }}
       />
       {/* CSS variables de branding injetadas via style tag server-side */}

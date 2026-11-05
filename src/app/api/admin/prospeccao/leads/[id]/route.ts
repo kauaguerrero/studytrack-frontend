@@ -123,8 +123,26 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
     await db.from('organizations').delete().eq('id', lead.org_id);
   }
 
+  // As ligações saem do banco por ON DELETE CASCADE, mas os áudios no storage
+  // não — guarda os paths antes para apagar depois do DELETE do lead.
+  const { data: calls } = await db
+    .from('lead_calls')
+    .select('audio_path')
+    .eq('lead_id', id);
+  const audioPaths: string[] = (calls ?? [])
+    .map((c: { audio_path: string | null }) => c.audio_path)
+    .filter((p: string | null): p is string => !!p);
+
   const { error } = await db.from('leads').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Só depois do DELETE: se falhar aqui, sobra arquivo órfão, nunca lead sem áudio.
+  if (audioPaths.length > 0) {
+    const { error: storageError } = await db.storage.from('lead-call-recordings').remove(audioPaths);
+    if (storageError) {
+      console.error(`[LeadDelete] Falha ao apagar ${audioPaths.length} áudio(s) do lead ${id}:`, storageError);
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }

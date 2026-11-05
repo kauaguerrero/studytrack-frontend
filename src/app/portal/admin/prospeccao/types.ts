@@ -130,7 +130,8 @@ export interface LeadCall {
   lead_id: string;
   recorded_by: string;
   recorded_by_name: string | null;
-  audio_url: string;
+  /** null quando o áudio foi apagado do storage (transcrição/análise continuam). */
+  audio_url: string | null;
   duration_seconds: number | null;
   transcription: string | null;
   transcription_status: 'processing' | 'done' | 'failed';

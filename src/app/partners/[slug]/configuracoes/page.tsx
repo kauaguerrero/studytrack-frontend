@@ -18,6 +18,12 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { onBrandText } from '@/lib/brand-color';
 import {
+  applyPartnerStaffTheme,
+  getAppliedPartnerStaffTheme,
+  persistPartnerStaffTheme,
+  type PartnerStaffTheme,
+} from '@/lib/partner-staff-theme';
+import {
   getOrgTypewriterPreviewKey,
   normalizeOrgTypewriterTagline,
   ORG_TYPEWRITER_LIMITS,
@@ -210,14 +216,11 @@ export default function ConfiguracoesPage() {
     animatedTexts: taglineAnimatedTexts,
   });
 
+  // O switch reflete o tema efetivamente aplicado no <html> (que o layout tirou
+  // do banco). `userProfile.themePreference` pode estar velho após navegação
+  // client-side, e o localStorage não é fonte de verdade.
   useEffect(() => {
-    const fromProfile = userProfile.themePreference === 'dark' ? 'dark' : 'light';
-    const stored = localStorage.getItem(`partner-founder-theme-${org.slug}`);
-    if (stored === 'dark' || stored === 'light') {
-      setThemeMode(stored);
-      return;
-    }
-    setThemeMode(fromProfile);
+    setThemeMode(getAppliedPartnerStaffTheme());
   }, [org.slug, userProfile.themePreference]);
 
   useEffect(() => {
@@ -226,54 +229,14 @@ export default function ConfiguracoesPage() {
     };
   }, [avatarCropUrl]);
 
-  function applyFounderTheme(next: 'light' | 'dark') {
-    const root = document.documentElement;
-    if (next === 'dark') root.classList.add('dark');
-    else root.classList.remove('dark');
-    root.style.colorScheme = next;
-    root.dataset.partnerTheme = next;
-    localStorage.setItem(`partner-founder-theme-${org.slug}`, next);
+  function applyFounderTheme(next: PartnerStaffTheme) {
+    applyPartnerStaffTheme(org.slug, next);
   }
 
-  async function persistThemePreference(next: 'light' | 'dark'): Promise<boolean> {
+  async function persistThemePreference(next: PartnerStaffTheme): Promise<boolean> {
     setThemeSaving(true);
     try {
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id || !session.access_token) throw new Error('Sessão inválida.');
-      const userId = session.user.id;
-
-      const api = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000').replace(/\/$/, '');
-      const apiRes = await fetch(`${api}/api/account/profile`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ theme_preference: next }),
-      });
-
-      if (!apiRes.ok) {
-        // Fallback direto no Supabase caso API externa esteja indisponível.
-        const { error } = await supabase
-          .from('profiles')
-          .update({ theme_preference: next })
-          .eq('id', userId);
-
-        if (error) throw error;
-      }
-
-      // Verifica persistência real para evitar falso positivo de sucesso.
-      const { data: profileCheck, error: profileCheckError } = await supabase
-        .from('profiles')
-        .select('theme_preference')
-        .eq('id', userId)
-        .single();
-
-      if (profileCheckError) throw profileCheckError;
-      if (profileCheck?.theme_preference !== next) {
-        throw new Error('Não foi possível persistir o tema no banco de dados.');
-      }
+      await persistPartnerStaffTheme(next);
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Não foi possível salvar o tema.';
