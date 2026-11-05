@@ -121,7 +121,6 @@ export function MultiSelectFilter({
         onClick={() => {
           setOpen(true);
           setVisibleLimit(INITIAL_OPTION_BATCH_SIZE);
-          inputRef.current?.focus();
         }}
         className={
           'flex min-h-[46px] max-h-28 w-full cursor-text flex-wrap items-center gap-1.5 overflow-y-auto rounded-xl border bg-white py-2 pr-8 shadow-sm transition-all dark:bg-slate-900 ' +
@@ -162,7 +161,6 @@ export function MultiSelectFilter({
               setHighlighted(0);
               setVisibleLimit(INITIAL_OPTION_BATCH_SIZE);
             }}
-            autoFocus
             onKeyDown={handleKeyDown}
             placeholder={value.length === 0 ? searchPlaceholder : ''}
             aria-autocomplete="list"
