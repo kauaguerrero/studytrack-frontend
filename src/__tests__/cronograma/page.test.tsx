@@ -207,13 +207,31 @@ describe('navegação', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hoje' }));
     expect(await screen.findByRole('region', { name: 'SEG 09/11' })).toBeInTheDocument();
   });
-  it('CT-P19 abas "Semana N" do mês', async () => {
+  it('CT-P19 roda de semanas: atual no meio, anterior em cima e seguinte embaixo', async () => {
     await ready();
-    const tabs = screen.getAllByRole('tab');
-    expect(tabs.length).toBe(6); // 26/10 .. 30/11
-    expect(tabs[2]).toHaveAttribute('aria-selected', 'true'); // 09/11 é a 3ª semana
-    fireEvent.click(tabs[4]);
-    await waitFor(() => expect(calls('GET', /^\/\?start=2026-11-23&days=7$/)).toHaveLength(1));
+    const wheel = screen.getByRole('group', { name: 'Seletor de semana' });
+    expect(within(wheel).getByText('09/11 – 15/11')).toBeInTheDocument();
+    expect(within(wheel).getByText('Esta semana')).toBeInTheDocument();
+    const next = within(wheel).getByRole('button', { name: 'Ir para o período seguinte: 16/11 – 22/11' });
+    within(wheel).getByRole('button', { name: 'Ir para o período anterior: 02/11 – 08/11' });
+    fireEvent.click(next);
+    await waitFor(() => expect(calls('GET', /^\/\?start=2026-11-16&days=7$/)).toHaveLength(1));
+    expect(await within(wheel).findByText('16/11 – 22/11', { selector: '[aria-current] *' })).toBeInTheDocument();
+  });
+  it('CT-P19b roda responde a ↓/↑ do teclado', async () => {
+    await ready();
+    const wheel = screen.getByRole('group', { name: 'Seletor de semana' });
+    fireEvent.keyDown(wheel, { key: 'ArrowDown' });
+    await waitFor(() => expect(calls('GET', /^\/\?start=2026-11-16&days=7$/)).toHaveLength(1));
+    fireEvent.keyDown(wheel, { key: 'ArrowUp' });
+    await screen.findByRole('region', { name: 'SEG 09/11' });
+  });
+  it('CT-P19c roda no modo mês mostra meses', async () => {
+    await ready();
+    fireEvent.click(screen.getByRole('button', { name: 'Mês' }));
+    const wheel = await screen.findByRole('group', { name: 'Seletor de mês' });
+    expect(within(wheel).getByText('Este mês')).toBeInTheDocument();
+    expect(within(wheel).getByRole('button', { name: /seguinte: dezembro 2026/ })).toBeInTheDocument();
   });
 });
 

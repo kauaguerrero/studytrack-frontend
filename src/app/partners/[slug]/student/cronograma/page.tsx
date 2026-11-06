@@ -19,12 +19,13 @@ import { MonthGrid } from '@/components/cronograma/MonthGrid';
 import { InsightsPanel } from '@/components/cronograma/InsightsPanel';
 import { AgentChat } from '@/components/cronograma/AgentChat';
 import { NextStep } from '@/components/cronograma/NextStep';
+import { PeriodWheel, type WheelEntry } from '@/components/cronograma/PeriodWheel';
 import { SetupWizard } from '@/components/cronograma/SetupWizard';
 import { StartStudyModal, type StartTarget } from '@/components/cronograma/StartStudyModal';
 import { ReviewQuizModal } from '@/components/cronograma/ReviewQuizModal';
 import { ReviewListModal } from '@/components/cronograma/ReviewListModal';
 import {
-  CronogramaApiError, MONTHS, addDays, cronogramaFetch, parseISODate, toISODate, weekStart,
+  CronogramaApiError, MONTHS, addDays, cronogramaFetch, formatDayMonth, formatMinutes, parseISODate, toISODate, weekStart,
   type CronogramaStatus, type CronogramaView, type Insights, type PlanItem, type Proposal,
 } from '@/lib/cronograma';
 
@@ -33,15 +34,6 @@ type Mode = 'semana' | 'mes';
 function monthGridStart(anchor: string): string {
   const d = parseISODate(anchor);
   return weekStart(toISODate(new Date(d.getFullYear(), d.getMonth(), 1)));
-}
-
-/** Segundas-feiras das semanas que tocam o mês de `anchor`. */
-function weeksOfMonth(anchor: string): string[] {
-  const d = parseISODate(anchor);
-  const last = toISODate(new Date(d.getFullYear(), d.getMonth() + 1, 0));
-  const out: string[] = [];
-  for (let w = monthGridStart(anchor); w <= last; w = addDays(w, 7)) out.push(w);
-  return out;
 }
 
 export default function CronogramaPage() {
@@ -277,7 +269,7 @@ function CronogramaInner() {
   const anchorDate = anchor ? parseISODate(mode === 'semana' ? addDays(anchor, 3) : anchor) : new Date();
   const monthLabel = `${MONTHS[anchorDate.getMonth()]} ${anchorDate.getFullYear()}`;
   const monthShort = `${MONTHS[anchorDate.getMonth()].slice(0, 3)} ${anchorDate.getFullYear()}`;
-  const weeks = anchor ? weeksOfMonth(toISODate(anchorDate)) : [];
+  const wheel = buildWheel(mode, anchor ?? weekStart(today), today, minStart, mode === 'semana' ? view : null);
 
   const examYear = parseISODate(status.plan!.exam_date).getFullYear();
   const subtitle = insights
@@ -289,7 +281,8 @@ function CronogramaInner() {
     <div className="relative min-h-screen -m-4 bg-slate-50 px-4 py-5 dark:bg-[#080808] md:-m-8 md:px-8 md:py-8">
     <RevealGroup className="relative space-y-5 pb-8">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <RevealItem className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <RevealItem className="space-y-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-8">
         <div className="min-w-0">
           <Link href={`/partners/${slug}/student/dashboard`}
             className="mb-1.5 flex w-fit items-center gap-1 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-600 dark:text-white/40 dark:hover:text-white/70">
@@ -325,26 +318,20 @@ function CronogramaInner() {
             <CalendarDays className="h-4 w-4" /><span className="sr-only sm:not-sr-only">Hoje</span>
           </button>
         </div>
+        </div>
+        {anchor && (
+          <PeriodWheel
+            ariaLabel={mode === 'semana' ? 'Seletor de semana' : 'Seletor de mês'}
+            prev={wheel.prev} current={wheel.current} next={wheel.next} detail={wheel.detail}
+            onPrev={() => (mode === 'semana' ? goWeeks(-1) : goMonths(-1))}
+            onNext={() => (mode === 'semana' ? goWeeks(1) : goMonths(1))}
+            className="w-full sm:max-w-[420px]"
+          />
+        )}
       </RevealItem>
 
       {/* ── Quadro ────────────────────────────────────────────────────────── */}
       <RevealItem>
-        {mode === 'semana' && weeks.length > 0 && (
-          <div className="mb-3 hidden flex-wrap gap-1.5 sm:flex" role="tablist" aria-label="Semanas do mês">
-            {weeks.map((w, k) => {
-              const active = anchor === w;
-              return (
-                <button key={w} type="button" role="tab" aria-selected={active}
-                  disabled={w < weekStart(minStart)}
-                  onClick={() => setAnchor(w)}
-                  className={`rounded-full px-3.5 py-1 text-[12px] font-bold transition disabled:opacity-30 ${active ? 'shadow-sm' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-white/[0.05] dark:text-white/65 dark:ring-white/10'}`}
-                  style={active ? { background: 'var(--brand-primary)', color: onBrandText(org.brand_primary) } : undefined}>
-                  Semana {k + 1}
-                </button>
-              );
-            })}
-          </div>
-        )}
         <div className="relative">
           {loadingView && !view && <div className="h-[340px] animate-pulse rounded-[20px] bg-slate-200/60 dark:bg-white/5" />}
           {view && mode === 'semana' && (
@@ -430,4 +417,53 @@ function CronogramaInner() {
     </RevealGroup>
     </div>
   );
+}
+
+// ─── Roda de período (estilo Outlook) ────────────────────────────────────────
+
+function relWeeks(n: number): string {
+  if (n === 0) return 'Esta semana';
+  if (n === -1) return 'Semana passada';
+  if (n === 1) return 'Próxima semana';
+  return n > 1 ? `Daqui a ${n} semanas` : `Há ${-n} semanas`;
+}
+
+function relMonths(n: number): string {
+  if (n === 0) return 'Este mês';
+  if (n === -1) return 'Mês passado';
+  if (n === 1) return 'Próximo mês';
+  return n > 1 ? `Daqui a ${n} meses` : `Há ${-n} meses`;
+}
+
+function buildWheel(mode: Mode, anchor: string, today: string, minStart: string, view: CronogramaView | null) {
+  if (mode === 'semana') {
+    const cur = weekStart(anchor);
+    const base = weekStart(today);
+    const entry = (monday: string): WheelEntry => {
+      const n = Math.round((parseISODate(monday).getTime() - parseISODate(base).getTime()) / (7 * 864e5));
+      return {
+        key: monday, label: `${formatDayMonth(monday)} – ${formatDayMonth(addDays(monday, 6))}`, hint: relWeeks(n),
+        disabled: monday < weekStart(minStart),
+      };
+    };
+    let detail: string | undefined;
+    if (view && view.range.start === cur) {
+      const planned = view.days.reduce((t, d) => t + d.minutes, 0);
+      const countable = view.items.filter((i) => i.status !== 'skipped');
+      const done = countable.filter((i) => i.status === 'done').length;
+      detail = planned > 0
+        ? `${formatMinutes(planned)} planejadas${countable.length ? ` · ${done}/${countable.length} feitos` : ''}`
+        : 'Semana livre';
+    }
+    return { prev: entry(addDays(cur, -7)), current: entry(cur), next: entry(addDays(cur, 7)), detail };
+  }
+  const a = parseISODate(anchor);
+  const t = parseISODate(today);
+  const entry = (k: number): WheelEntry => {
+    const d = new Date(a.getFullYear(), a.getMonth() + k, 1);
+    const last = toISODate(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+    const n = (d.getFullYear() - t.getFullYear()) * 12 + d.getMonth() - t.getMonth();
+    return { key: toISODate(d), label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`, hint: relMonths(n), disabled: last < minStart };
+  };
+  return { prev: entry(-1), current: entry(0), next: entry(1), detail: undefined };
 }
