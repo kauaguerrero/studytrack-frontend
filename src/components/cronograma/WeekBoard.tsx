@@ -69,6 +69,16 @@ export function WeekBoard({
   );
   const [dragging, setDragging] = useState<PlanItem | null>(null);
 
+  // No celular a faixa de dias abre já em "hoje" (sem mexer na rolagem vertical da página).
+  const stripRef = useRef<HTMLDivElement>(null);
+  const firstDay = days[0]?.date;
+  useLayoutEffect(() => {
+    const el = stripRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    const target = el.querySelector<HTMLElement>(`[data-date="${today}"]`) ?? el.querySelector<HTMLElement>('[data-date]');
+    if (target) el.scrollLeft = target.offsetLeft - el.offsetLeft - (parseFloat(getComputedStyle(el).paddingLeft) || 0);
+  }, [firstDay, today]);
+
   const byDay = useMemo(() => {
     const m = new Map<string, { studies: PlanItem[]; reviews: ReviewGroup[] }>();
     for (const d of days) m.set(d.date, { studies: [], reviews: [] });
@@ -93,7 +103,10 @@ export function WeekBoard({
 
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-7 lg:gap-0 lg:divide-x lg:divide-slate-200 lg:rounded-2xl lg:bg-white lg:shadow-sm dark:lg:divide-white/10 dark:lg:bg-slate-900">
+      {/* Celular/tablet: a semana rola de lado (com encaixe), começando em hoje.
+          Desktop: 7 colunas num cartão só. */}
+      <div ref={stripRef}
+        className="cronograma-week -mx-4 -my-2 flex snap-x snap-mandatory gap-2.5 overflow-x-auto scroll-px-4 px-4 py-2 md:-mx-8 md:scroll-px-8 md:px-8 lg:m-0 lg:py-0 lg:grid lg:snap-none lg:grid-cols-7 lg:gap-0 lg:divide-x lg:divide-slate-100 lg:overflow-visible [scrollbar-width:none] lg:rounded-[20px] lg:bg-white lg:px-0 lg:shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)] dark:lg:shadow-[0_1px_2px_rgba(0,0,0,0.24),0_8px_24px_-12px_rgba(0,0,0,0.55)] dark:lg:divide-white/10 dark:lg:bg-slate-900">
         {days.map((d) => (
           <DayColumn
             key={d.date}
@@ -167,12 +180,14 @@ function DayColumn({
   return (
     <section
       ref={setNodeRef}
+      data-date={day.date}
       aria-label={`${WEEKDAY_SHORT[weekdayIndex(day.date)]} ${formatDayMonth(day.date)}`}
       className={[
-        'relative flex min-h-[132px] flex-col rounded-2xl bg-white p-2.5 shadow-sm transition-colors dark:bg-slate-900 lg:min-h-[340px] lg:rounded-none lg:shadow-none',
+        'relative flex min-h-[210px] w-[80%] shrink-0 snap-start flex-col rounded-[20px] bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.24),0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-colors dark:bg-slate-900 sm:w-[44%] md:w-[31%] lg:w-auto lg:min-h-[340px] lg:shrink lg:rounded-none lg:p-2.5 lg:shadow-none',
+        isToday ? 'lg:bg-[color-mix(in_srgb,var(--brand-primary)_4%,transparent)]' : 'lg:bg-transparent lg:dark:bg-transparent',
         isOver ? 'bg-slate-50 dark:bg-white/5' : '',
         isPast ? 'opacity-60' : '',
-        'first:lg:rounded-l-2xl last:lg:rounded-r-2xl',
+        'first:lg:rounded-l-[20px] last:lg:rounded-r-[20px]',
       ].join(' ')}
       style={isOver ? { outline: '2px dashed color-mix(in srgb, var(--brand-primary) 55%, transparent)', outlineOffset: -4 } : undefined}
     >

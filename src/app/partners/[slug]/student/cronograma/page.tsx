@@ -7,16 +7,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Loader2, CalendarRange } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronLeft, ChevronRight, Loader2, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { ElevatedCard, RevealGroup, RevealItem, Segmented, SectionTitle } from '@/components/partners/founder-ui';
 import { useOrg } from '@/contexts/OrgContext';
-import { brandTextVars } from '@/lib/brand-color';
+import { onBrandText } from '@/lib/brand-color';
 import { WeekBoard, type ReviewGroup } from '@/components/cronograma/WeekBoard';
 import { MonthGrid } from '@/components/cronograma/MonthGrid';
 import { InsightsPanel } from '@/components/cronograma/InsightsPanel';
 import { AgentChat } from '@/components/cronograma/AgentChat';
+import { NextStep } from '@/components/cronograma/NextStep';
 import { SetupWizard } from '@/components/cronograma/SetupWizard';
 import { StartStudyModal, type StartTarget } from '@/components/cronograma/StartStudyModal';
 import { ReviewQuizModal } from '@/components/cronograma/ReviewQuizModal';
@@ -253,70 +255,77 @@ function CronogramaInner() {
 
   const anchorDate = anchor ? parseISODate(mode === 'semana' ? addDays(anchor, 3) : anchor) : new Date();
   const monthLabel = `${MONTHS[anchorDate.getMonth()]} ${anchorDate.getFullYear()}`;
+  const monthShort = `${MONTHS[anchorDate.getMonth()].slice(0, 3)} ${anchorDate.getFullYear()}`;
   const weeks = anchor ? weeksOfMonth(toISODate(anchorDate)) : [];
 
+  const examYear = parseISODate(status.plan!.exam_date).getFullYear();
+  const subtitle = insights
+    ? `ENEM ${examYear} · faltam ${insights.weeks_to_exam} semanas · ${insights.coverage_pct}% do conteúdo estudado`
+    : `${org.name} · ENEM ${examYear}`;
+
   return (
-    <RevealGroup className="space-y-4 px-4 py-5 lg:space-y-5 lg:px-8 lg:py-7">
-      {/* ── Cabeçalho ─────────────────────────────────────────────────────── */}
-      <RevealItem>
-        <ElevatedCard accentColor="var(--brand-primary)">
-          <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between lg:p-5">
-            <div>
-              <p className="text-[10.5px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--brand-primary)' }}>
-                {org.name} · ENEM {parseISODate(status.plan!.exam_date).getFullYear()}
-              </p>
-              <h1 className="font-display text-[24px] font-black text-slate-900 dark:text-white">Cronograma Inteligente</h1>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Segmented<Mode>
-                options={[{ value: 'semana', label: 'Semana' }, { value: 'mes', label: 'Mês' }]}
-                value={mode}
-                onChange={(m) => { setMode(m); if (m === 'semana' && anchor) setAnchor(weekStart(anchor < today && mode === 'mes' ? today : anchor)); }}
-                hex={org.brand_primary}
-              />
-              <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1 dark:bg-white/10">
-                <button type="button" aria-label={mode === 'semana' ? 'Semana anterior' : 'Mês anterior'}
-                  disabled={!range || range.start <= minStart}
-                  onClick={() => (mode === 'semana' ? goWeeks(-1) : goMonths(-1))}
-                  className="rounded-full p-1.5 text-slate-600 hover:bg-white disabled:opacity-30 dark:text-white/70 dark:hover:bg-slate-800">
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <span className="min-w-[110px] text-center text-[13px] font-bold capitalize text-slate-800 dark:text-white">{monthLabel}</span>
-                <button type="button" aria-label={mode === 'semana' ? 'Próxima semana' : 'Próximo mês'}
-                  onClick={() => (mode === 'semana' ? goWeeks(1) : goMonths(1))}
-                  className="rounded-full p-1.5 text-slate-600 hover:bg-white dark:text-white/70 dark:hover:bg-slate-800">
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-              <button type="button" onClick={() => { setMode('semana'); setAnchor(weekStart(today)); }}
-                className="rounded-full border border-slate-200 px-3 py-1.5 text-[12px] font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-white/70 dark:hover:bg-white/5">
-                Hoje
-              </button>
-            </div>
+    // Mesmo esqueleto da página de Simulados: fundo cinza, coluna de 6xl, hero com voltar.
+    <div className="relative min-h-screen -m-4 bg-slate-50 px-4 py-5 dark:bg-[#080808] md:-m-8 md:px-8 md:py-8">
+    <RevealGroup className="relative mx-auto max-w-6xl space-y-5 pb-8">
+      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      <RevealItem className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <Link href={`/partners/${slug}/student/dashboard`}
+            className="mb-1.5 flex w-fit items-center gap-1 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-600 dark:text-white/40 dark:hover:text-white/70">
+            <ChevronLeft size={14} /> Dashboard
+          </Link>
+          <h1 className="font-display text-[28px] font-black leading-tight text-slate-900 dark:text-white sm:text-[32px]">Cronograma</h1>
+          <p className="mt-0.5 text-[13px] text-slate-500 dark:text-white/40">{subtitle}</p>
+        </div>
+        <div className="flex items-center gap-1.5 sm:flex-wrap sm:gap-2">
+          <Segmented<Mode>
+            options={[{ value: 'semana', label: 'Semana' }, { value: 'mes', label: 'Mês' }]}
+            value={mode}
+            onChange={(m) => { setMode(m); if (m === 'semana' && anchor) setAnchor(weekStart(anchor < today && mode === 'mes' ? today : anchor)); }}
+            hex={org.brand_primary}
+          />
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-0.5 rounded-xl border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.05] sm:flex-none">
+            <button type="button" aria-label={mode === 'semana' ? 'Semana anterior' : 'Mês anterior'}
+              disabled={!range || range.start <= minStart}
+              onClick={() => (mode === 'semana' ? goWeeks(-1) : goMonths(-1))}
+              className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:text-white/70 dark:hover:bg-white/10">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="min-w-0 truncate text-center text-[12.5px] font-bold capitalize sm:min-w-[112px] sm:text-[13px] text-slate-800 dark:text-white"><span className="sm:hidden">{monthShort}</span><span className="hidden sm:inline">{monthLabel}</span></span>
+            <button type="button" aria-label={mode === 'semana' ? 'Próxima semana' : 'Próximo mês'}
+              onClick={() => (mode === 'semana' ? goWeeks(1) : goMonths(1))}
+              className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 dark:text-white/70 dark:hover:bg-white/10">
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
-          {mode === 'semana' && weeks.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 px-4 pb-4 lg:px-5" role="tablist" aria-label="Semanas do mês">
-              {weeks.map((w, k) => {
-                const active = anchor === w;
-                return (
-                  <button key={w} type="button" role="tab" aria-selected={active}
-                    disabled={w < weekStart(minStart)}
-                    onClick={() => setAnchor(w)}
-                    className={`rounded-full px-3.5 py-1 text-[12px] font-bold transition disabled:opacity-30 ${active ? 'text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/10 dark:text-white/65'}`}
-                    style={active ? { background: 'var(--brand-primary)' } : undefined}>
-                    Semana {k + 1}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </ElevatedCard>
+          <button type="button" onClick={() => { setMode('semana'); setAnchor(weekStart(today)); }}
+            className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[13px] font-bold sm:px-3.5 transition-transform hover:scale-[1.02] active:scale-[0.97]"
+            style={{ background: org.brand_primary || 'var(--brand-primary)', color: onBrandText(org.brand_primary), boxShadow: `0 6px 16px -6px ${org.brand_primary || 'var(--brand-primary)'}` }}>
+            <CalendarDays className="h-4 w-4" /><span className="sr-only sm:not-sr-only">Hoje</span>
+          </button>
+        </div>
       </RevealItem>
 
       {/* ── Quadro ────────────────────────────────────────────────────────── */}
       <RevealItem>
+        {mode === 'semana' && weeks.length > 0 && (
+          <div className="mb-3 hidden flex-wrap gap-1.5 sm:flex" role="tablist" aria-label="Semanas do mês">
+            {weeks.map((w, k) => {
+              const active = anchor === w;
+              return (
+                <button key={w} type="button" role="tab" aria-selected={active}
+                  disabled={w < weekStart(minStart)}
+                  onClick={() => setAnchor(w)}
+                  className={`rounded-full px-3.5 py-1 text-[12px] font-bold transition disabled:opacity-30 ${active ? 'shadow-sm' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100 dark:bg-white/[0.05] dark:text-white/65 dark:ring-white/10'}`}
+                  style={active ? { background: 'var(--brand-primary)', color: onBrandText(org.brand_primary) } : undefined}>
+                  Semana {k + 1}
+                </button>
+              );
+            })}
+          </div>
+        )}
         <div className="relative">
-          {loadingView && !view && <div className="h-[340px] animate-pulse rounded-2xl bg-slate-100 dark:bg-white/5" />}
+          {loadingView && !view && <div className="h-[340px] animate-pulse rounded-[20px] bg-slate-200/60 dark:bg-white/5" />}
           {view && mode === 'semana' && (
             <WeekBoard
               days={view.days}
@@ -347,11 +356,13 @@ function CronogramaInner() {
         </div>
       </RevealItem>
 
-      {/* ── Chat + insights ───────────────────────────────────────────────── */}
-      <RevealItem className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-5">
-        <ElevatedCard>
-          <div className="p-4 lg:p-5">
-            <SectionTitle kicker="Assistente" title="Ajuste seu cronograma" hex={org.brand_primary} />
+      {/* ── Assistente (vidro, sem card) + Sua semana ─────────────────────── */}
+      <RevealItem className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <div className="relative">
+          {/* brilho atrás do vidro (é ele que dá o efeito de "glass") */}
+          <div aria-hidden className="pointer-events-none absolute -inset-x-4 -inset-y-6 opacity-70 blur-2xl dark:opacity-40"
+            style={{ background: 'radial-gradient(45% 60% at 20% 40%, color-mix(in srgb, var(--brand-primary) 22%, transparent), transparent 70%), radial-gradient(35% 50% at 85% 70%, color-mix(in srgb, #a855f7 16%, transparent), transparent 70%)' }} />
+          <div className="relative">
             <AgentChat
               today={today}
               proposal={proposal}
@@ -363,16 +374,19 @@ function CronogramaInner() {
               onDiscard={discard}
               onUndo={undo}
             />
+            {view && !proposal && (
+              <div className="mt-3">
+                <NextStep items={view.items} today={today} onOpen={(i) => setStartTarget(i)} />
+              </div>
+            )}
+          </div>
+        </div>
+        <ElevatedCard accentColor="var(--brand-primary)">
+          <div className="p-4 lg:p-5">
+            <SectionTitle kicker="Sua semana" title="Como você está indo" hex={org.brand_primary} />
+            <InsightsPanel data={insights} />
           </div>
         </ElevatedCard>
-        <div
-          className="rounded-[20px] border border-[color-mix(in_srgb,var(--brand-primary)_16%,transparent)] bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)] p-4 dark:border-white/10 dark:bg-[color-mix(in_srgb,var(--brand-primary)_22%,#0f172a)] lg:p-5"
-          style={brandTextVars('--bta', org.brand_primary, 'var(--brand-primary)')}
-        >
-          <SectionTitle kicker="Sua semana" title="Como você está indo" hex={org.brand_primary}
-            action={<CalendarRange className="h-4 w-4 brand-text-adaptive" />} />
-          <InsightsPanel data={insights} />
-        </div>
       </RevealItem>
 
       <StartStudyModal
@@ -395,5 +409,6 @@ function CronogramaInner() {
         onDone={() => { refresh(); }}
       />
     </RevealGroup>
+    </div>
   );
 }

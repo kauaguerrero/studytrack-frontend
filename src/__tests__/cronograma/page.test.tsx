@@ -61,12 +61,14 @@ beforeEach(() => {
 });
 
 const day = (label: string) => screen.getByRole('region', { name: label });
+// o quadro (o "Próximo passo" repete o tópico fora dele)
+const board = () => screen.getAllByRole('region')[0].parentElement as HTMLElement;
 async function ready() {
   render(<CronogramaPage />);
-  await screen.findByText('Logaritmos');
+  await waitFor(() => within(board()).getByText('Logaritmos'));
 }
 const moveVia = (topic: string, to: string) => {
-  const card = screen.getByText(topic).closest('div.relative') as HTMLElement;
+  const card = within(board()).getByText(topic).closest('div.relative') as HTMLElement;
   fireEvent.click(within(card).getByLabelText('Mover para…'));
   fireEvent.click(within(card).getByText(to));
 };
@@ -96,7 +98,7 @@ describe('carga', () => {
     fireEvent.click(screen.getByRole('button', { name: /Continuar/ }));
     fireEvent.click(screen.getByRole('button', { name: /Continuar/ }));
     fireEvent.click(screen.getByRole('button', { name: /Montar meu cronograma/ }));
-    expect(await screen.findByText('Logaritmos')).toBeInTheDocument();
+    await waitFor(() => expect(within(board()).getByText('Logaritmos')).toBeInTheDocument());
   });
   it('CT-P05 ancora na semana de "hoje" do backend', async () => {
     await ready();
@@ -299,7 +301,7 @@ describe('estudar e revisar', () => {
   it('CT-P28 concluir pelo modal fecha, avisa e recarrega', async () => {
     on('POST', /^\/items\/A\/complete$/, () => { items = items.map((i) => (i.id === 'A' ? { ...i, status: 'done' } : i)); return {}; });
     await ready();
-    fireEvent.click(screen.getByText('Logaritmos'));
+    fireEvent.click(within(board()).getByText('Logaritmos'));
     fireEvent.click(await screen.findByRole('button', { name: /Já estudei/ }));
     await waitFor(() => expect(toast.success).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -308,7 +310,7 @@ describe('estudar e revisar', () => {
   it('CT-P29 pular pelo modal', async () => {
     on('POST', /^\/items\/A\/skip$/, () => ({}));
     await ready();
-    fireEvent.click(screen.getByText('Logaritmos'));
+    fireEvent.click(within(board()).getByText('Logaritmos'));
     fireEvent.click(await screen.findByRole('button', { name: /Pular hoje/ }));
     await waitFor(() => expect(toast).toHaveBeenCalledWith('Conteúdo remarcado para outro dia.'));
   });
