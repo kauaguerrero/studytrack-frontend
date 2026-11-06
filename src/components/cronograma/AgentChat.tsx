@@ -74,6 +74,8 @@ export function AgentChat({
     ? Math.min(8, proposal.diff.moved.length) + Math.min(5, proposal.diff.added.length) + Math.min(5, proposal.diff.removed.length)
     : 0;
   const locked = busy || !!proposal;
+  // Pergunta de sim/não do agente: responde com botões, nunca digitando.
+  const asking = proposal?.status === 'proposed' && !!proposal.question;
 
   return (
     <div className="space-y-3">
@@ -132,6 +134,21 @@ export function AgentChat({
                 {proposal.warnings.map((w, k) => (
                   <p key={k} className="mt-1 pl-6 text-[11.5px] font-semibold text-amber-800 dark:text-amber-200">{w.message}</p>
                 ))}
+                {asking ? (
+                  <div className="mt-3">
+                    <p className="mb-2 text-center text-[14px] font-bold text-slate-900 dark:text-white">{proposal.question}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={onConfirm} disabled={busy}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2.5 text-[14px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(5,150,105,0.8)] transition hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50">
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Sim
+                      </button>
+                      <button type="button" onClick={onDiscard} disabled={busy}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-red-600 py-2.5 text-[14px] font-bold text-white shadow-[0_6px_16px_-6px_rgba(220,38,38,0.8)] transition hover:bg-red-700 active:scale-[0.98] disabled:opacity-50">
+                        <X className="h-4 w-4" /> Não
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                 <div className="mt-3 flex justify-end gap-2">
                   <button type="button" onClick={onDiscard} disabled={busy}
                     className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:bg-white/80 disabled:opacity-50 dark:text-white/60 dark:hover:bg-white/10">
@@ -143,6 +160,7 @@ export function AgentChat({
                     {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Confirmar
                   </button>
                 </div>
+                )}
               </div>
             )}
             {proposal.status === 'failed' && (
@@ -154,6 +172,7 @@ export function AgentChat({
         )}
       </AnimatePresence>
 
+      {!asking && (<>
       {/* Campo de mensagem: vidro */}
       <div className={`${GLASS} p-1.5 transition focus-within:shadow-[0_14px_44px_-14px_color-mix(in_srgb,var(--brand-primary)_45%,transparent)]`}>
         <GlassShine />
@@ -212,6 +231,7 @@ export function AgentChat({
           </button>
         </div>
       )}
+      </>)}
     </div>
   );
 }

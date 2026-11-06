@@ -326,3 +326,17 @@ describe('estudar e revisar', () => {
     await waitFor(() => expect(n).toBeGreaterThanOrEqual(2));
   });
 });
+
+describe('pergunta sim/não do agente', () => {
+  it('CT-P31 "Sim" confirma a sugestão sem nova mensagem; "Não" descarta', async () => {
+    on('POST', /^\/agent$/, () => proposal({ question: 'Quer isso em todo sábado?' }));
+    on('POST', /confirm$/, () => ({ applied: true }));
+    await ready();
+    fireEvent.change(screen.getByLabelText('Mensagem para o assistente do cronograma'), { target: { value: 'coloca mais coisa pra sábado' } });
+    fireEvent.keyDown(screen.getByLabelText('Mensagem para o assistente do cronograma'), { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Sim' }));
+    await waitFor(() => expect(calls('POST', /^\/agent\/req-1\/confirm$/)).toHaveLength(1));
+    expect(calls('POST', /^\/agent$/)).toHaveLength(1);
+  });
+});
+

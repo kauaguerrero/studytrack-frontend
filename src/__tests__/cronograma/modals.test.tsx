@@ -480,4 +480,32 @@ describe('AgentChat', () => {
     expect(err.mock.calls.some((c) => String(c[0]).includes('same key'))).toBe(false);
     err.mockRestore();
   });
+
+  it('CT-A21 pergunta sim/não: some o chat e os chips, aparecem Sim (verde) e Não (vermelho)', () => {
+    const h = chat({ proposal: proposal({ question: 'Quer isso em todo sábado?' }) });
+    expect(screen.getByText('Quer isso em todo sábado?')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Mensagem para o assistente do cronograma')).toBeNull();
+    expect(screen.queryByText('Semana mais leve')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Confirmar/ })).toBeNull();
+    const sim = screen.getByRole('button', { name: 'Sim' });
+    const nao = screen.getByRole('button', { name: 'Não' });
+    expect(sim.className).toMatch(/emerald/);
+    expect(nao.className).toMatch(/red/);
+    fireEvent.click(sim);
+    expect(h.onConfirm).toHaveBeenCalled();
+    fireEvent.click(nao);
+    expect(h.onDiscard).toHaveBeenCalled();
+  });
+  it('CT-A22 sem pergunta continua Confirmar/Descartar e o chat volta depois', () => {
+    const r = chat({ proposal: proposal({ question: null }) });
+    expect(screen.getByRole('button', { name: /Confirmar/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sim' })).toBeNull();
+    r.rerender(<AgentChat today={TODAY} proposal={null} busy={false} canUndo={false}
+      onSend={r.onSend} onChip={r.onChip} onConfirm={r.onConfirm} onDiscard={r.onDiscard} onUndo={r.onUndo} />);
+    expect(screen.getByLabelText('Mensagem para o assistente do cronograma')).toBeEnabled();
+  });
+  it('CT-A23 pedido que falhou nunca mostra Sim/Não', () => {
+    chat({ proposal: proposal({ status: 'failed', question: 'Quer?' }) });
+    expect(screen.queryByRole('button', { name: 'Sim' })).toBeNull();
+  });
 });

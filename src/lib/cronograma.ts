@@ -106,6 +106,8 @@ export interface Proposal {
   request_id: string;
   status: 'proposed' | 'failed';
   reply: string;
+  /** Pergunta de sim/não: o front mostra botões (Sim = confirmar, Não = descartar). */
+  question?: string | null;
   diff: { moved: DiffEntry[]; added: DiffEntry[]; removed: DiffEntry[] };
   warnings: { item_id?: string; code: string; message: string }[];
   errors: { op: string | null; message: string }[];
