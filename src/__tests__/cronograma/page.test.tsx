@@ -104,7 +104,7 @@ describe('carga', () => {
     await ready();
     expect(calls('GET', /^\/\?start=2026-11-09&days=7$/)).toHaveLength(1);
     expect(within(day('QUA 11/11')).getByText(/HOJE/)).toBeInTheDocument();
-    expect(screen.getByText('novembro 2026')).toBeInTheDocument();
+    expect(screen.getByText('Semana 3 · novembro 2026')).toBeInTheDocument();
   });
   it('CT-P06 erro no status vira toast (sem tela branca quebrada)', async () => {
     on('GET', /^\/status$/, () => { throw new CronogramaApiError('Sessão expirada. Faça login novamente.', 401); });
@@ -217,6 +217,17 @@ describe('navegação', () => {
     fireEvent.click(next);
     await waitFor(() => expect(calls('GET', /^\/\?start=2026-11-16&days=7$/)).toHaveLength(1));
     expect(await within(wheel).findByText('16/11 – 22/11', { selector: '[aria-current] *' })).toBeInTheDocument();
+  });
+  it('CT-P19d rótulo do navegador acompanha a semana do mês', async () => {
+    await ready();
+    expect(screen.getByText('Semana 3 · novembro 2026')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Próxima semana'));
+    expect(await screen.findByText('Semana 4 · novembro 2026')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Próxima semana'));
+    fireEvent.click(screen.getByLabelText('Próxima semana'));
+    expect(await screen.findByText('Semana 1 · dezembro 2026')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Mês' }));
+    expect(await screen.findByText('dezembro 2026', { selector: 'span.hidden' })).toBeInTheDocument();
   });
   it('CT-P19b roda responde a ↓/↑ do teclado', async () => {
     await ready();

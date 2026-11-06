@@ -22,7 +22,7 @@ export interface WheelEntry {
 }
 
 export function PeriodWheel({
-  prev, current, next, detail, onPrev, onNext, ariaLabel, className = '',
+  prev, current, next, detail, onPrev, onNext, ariaLabel, className = '', compactAt = '',
 }: {
   prev: WheelEntry;
   current: WheelEntry;
@@ -33,6 +33,8 @@ export function PeriodWheel({
   onNext: () => void;
   ariaLabel: string;
   className?: string;
+  /** Classe que esconde o selo do período atual quando a roda fica estreita (ex.: "xl:hidden"). */
+  compactAt?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // Direção da animação: as chaves são datas ISO, então comparar já diz se avançou ou voltou.
@@ -81,15 +83,15 @@ export function PeriodWheel({
             className="absolute inset-0 flex items-center justify-between gap-2 pl-3 pr-2.5">
             <span className="flex min-w-0 items-center gap-2">
               <CalendarDays className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
-              <span className="truncate text-[13px] font-bold capitalize tabular-nums text-slate-900 dark:text-white">{current.label}</span>
+              <span className="shrink-0 text-[13px] font-bold capitalize tabular-nums text-slate-900 dark:text-white">{current.label}</span>
               {current.hint && (
-                <span className="hidden shrink-0 rounded-full px-1.5 py-px text-[10.5px] font-bold sm:inline"
+                <span className={`hidden shrink-0 rounded-full px-1.5 py-px text-[10.5px] font-bold sm:inline ${compactAt}`}
                   style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)', color: 'var(--brand-primary)' }}>
                   {current.hint}
                 </span>
               )}
             </span>
-            {detail && <span className="shrink-0 text-[11px] font-semibold text-slate-500 dark:text-white/55">{detail}</span>}
+            {detail && <span className="truncate text-[11px] font-semibold text-slate-500 dark:text-white/55">{detail}</span>}
           </motion.div>
         </AnimatePresence>
       </div>

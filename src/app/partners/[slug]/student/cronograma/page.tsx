@@ -158,7 +158,7 @@ function CronogramaInner() {
     try {
       const p = await cronogramaFetch<Proposal>('/agent', { method: 'POST', body: JSON.stringify(body) });
       setProposal(p);
-      if (p.status === 'proposed' && mode !== 'semana') setMode('semana');
+      if (p.status === 'proposed' && mode !== 'semana') { setMode('semana'); setAnchor(weekStart(today)); }
     } catch (e) {
       toast.error((e as Error).message, { duration: (e as CronogramaApiError).status === 429 ? 8000 : 4000 });
     } finally { setAgentBusy(false); }
@@ -269,6 +269,12 @@ function CronogramaInner() {
   const anchorDate = anchor ? parseISODate(mode === 'semana' ? addDays(anchor, 3) : anchor) : new Date();
   const monthLabel = `${MONTHS[anchorDate.getMonth()]} ${anchorDate.getFullYear()}`;
   const monthShort = `${MONTHS[anchorDate.getMonth()].slice(0, 3)} ${anchorDate.getFullYear()}`;
+  // No modo semana o rótulo diz qual semana do mês está na tela (a semana pertence ao mês da quinta-feira).
+  const weekOfMonth = anchor && mode === 'semana'
+    ? Math.round((parseISODate(weekStart(anchor)).getTime() - parseISODate(monthGridStart(toISODate(anchorDate))).getTime()) / (7 * 864e5)) + 1
+    : 0;
+  const navLabel = weekOfMonth ? `Semana ${weekOfMonth} · ${monthLabel}` : monthLabel;
+  const navShort = weekOfMonth ? `Sem. ${weekOfMonth} · ${MONTHS[anchorDate.getMonth()].slice(0, 3)}` : monthShort;
   const wheel = buildWheel(mode, anchor ?? weekStart(today), today, minStart, mode === 'semana' ? view : null);
 
   const examYear = parseISODate(status.plan!.exam_date).getFullYear();
@@ -281,10 +287,9 @@ function CronogramaInner() {
     <div className="relative min-h-screen -m-4 bg-slate-50 px-4 py-5 dark:bg-[#080808] md:-m-8 md:px-8 md:py-8">
     <RevealGroup className="relative space-y-5 pb-8">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      {/* Topo: à esquerda título + controles com a roda de semanas embaixo; à direita o "Próximo passo". */}
-      <RevealItem className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:items-center lg:gap-6">
+      {/* Topo: à esquerda título com os controles embaixo; à direita a roda de semanas + "Próximo passo". */}
+      <RevealItem className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] lg:items-center lg:gap-6 xl:grid-cols-[minmax(0,1fr)_auto]">
         <div className="min-w-0 space-y-3">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-8">
         <div className="min-w-0">
           <Link href={`/partners/${slug}/student/dashboard`}
             className="mb-1.5 flex w-fit items-center gap-1 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-600 dark:text-white/40 dark:hover:text-white/70">
@@ -297,7 +302,15 @@ function CronogramaInner() {
           <Segmented<Mode>
             options={[{ value: 'semana', label: 'Semana' }, { value: 'mes', label: 'Mês' }]}
             value={mode}
-            onChange={(m) => { setMode(m); if (m === 'semana' && anchor) setAnchor(weekStart(anchor < today && mode === 'mes' ? today : anchor)); }}
+            onChange={(m) => {
+              setMode(m);
+              if (m === 'semana' && anchor) setAnchor(weekStart(anchor < today && mode === 'mes' ? today : anchor));
+              // Mês abre no mesmo mês do rótulo da semana (o da quinta-feira).
+              if (m === 'mes' && anchor && mode === 'semana') {
+                const th = parseISODate(addDays(weekStart(anchor), 3));
+                setAnchor(toISODate(new Date(th.getFullYear(), th.getMonth(), 1)));
+              }
+            }}
             hex={org.brand_primary}
           />
           <div className="flex min-w-0 flex-1 items-center justify-between gap-0.5 rounded-xl border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.05] sm:flex-none">
@@ -307,7 +320,7 @@ function CronogramaInner() {
               className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:text-white/70 dark:hover:bg-white/10">
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="min-w-0 truncate text-center text-[12.5px] font-bold capitalize sm:min-w-[112px] sm:text-[13px] text-slate-800 dark:text-white"><span className="sm:hidden">{monthShort}</span><span className="hidden sm:inline">{monthLabel}</span></span>
+            <span className="min-w-0 truncate text-center text-[12.5px] font-bold capitalize sm:min-w-[168px] sm:text-[13px] text-slate-800 dark:text-white"><span className="sm:hidden">{navShort}</span><span className="hidden sm:inline">{navLabel}</span></span>
             <button type="button" aria-label={mode === 'semana' ? 'Próxima semana' : 'Próximo mês'}
               onClick={() => (mode === 'semana' ? goWeeks(1) : goMonths(1))}
               className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 dark:text-white/70 dark:hover:bg-white/10">
@@ -321,17 +334,19 @@ function CronogramaInner() {
           </button>
         </div>
         </div>
+        <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:gap-4">
         {anchor && (
           <PeriodWheel
             ariaLabel={mode === 'semana' ? 'Seletor de semana' : 'Seletor de mês'}
             prev={wheel.prev} current={wheel.current} next={wheel.next} detail={wheel.detail}
             onPrev={() => (mode === 'semana' ? goWeeks(-1) : goMonths(-1))}
             onNext={() => (mode === 'semana' ? goWeeks(1) : goMonths(1))}
-            className="w-full sm:max-w-[420px]"
+            className="w-full sm:max-w-[420px] lg:max-w-none xl:w-[250px]"
+            compactAt="xl:hidden"
           />
         )}
+        {view && <div className="min-w-0 xl:w-[360px]"><NextStep items={view.items} today={today} onOpen={(i) => setStartTarget(i)} /></div>}
         </div>
-        {view && <NextStep items={view.items} today={today} onOpen={(i) => setStartTarget(i)} />}
       </RevealItem>
 
       {/* ── Quadro ────────────────────────────────────────────────────────── */}
@@ -451,7 +466,7 @@ function buildWheel(mode: Mode, anchor: string, today: string, minStart: string,
       const countable = view.items.filter((i) => i.status !== 'skipped');
       const done = countable.filter((i) => i.status === 'done').length;
       detail = planned > 0
-        ? `${formatMinutes(planned)} planejadas${countable.length ? ` · ${done}/${countable.length} feitos` : ''}`
+        ? `${formatMinutes(planned)}${countable.length ? ` · ${done}/${countable.length}` : ''}`
         : 'Semana livre';
     }
     return { prev: entry(addDays(cur, -7)), current: entry(cur), next: entry(addDays(cur, 7)), detail };
