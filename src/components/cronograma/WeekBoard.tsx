@@ -1,0 +1,293 @@
+'use client';
+
+// Quadro da semana: 7 colunas (uma por dia) com cards de estudo arrastáveis.
+// - Arrastar um card para outro dia → onMove (o backend fixa o item e replaneja o resto).
+// - Revisões do dia são agrupadas por área num card só (não poluem o quadro).
+// - Faixa no topo do dia: carga (verde/amarelo/vermelho) = minutos / capacidade do dia.
+// - Em modo prévia (sugestão do agente), o quadro é só leitura e destaca o que muda.
+
+import { useMemo, useState } from 'react';
+import {
+  DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor,
+  useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent,
+} from '@dnd-kit/core';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { AlertTriangle, CheckCircle2, Pin, RotateCcw, MoreHorizontal, Ban } from 'lucide-react';
+import {
+  AREA_STYLE, LOAD_STYLE, WEEKDAY_SHORT, formatDayMonth, weekdayIndex,
+  type DayInfo, type PlanItem,
+} from '@/lib/cronograma';
+
+export interface ReviewGroup {
+  key: string;
+  date: string;
+  area: PlanItem['area'];
+  area_label: string;
+  items: PlanItem[];
+  minutes: number;
+}
+
+function groupReviews(items: PlanItem[]): ReviewGroup[] {
+  const map = new Map<string, ReviewGroup>();
+  for (const i of items) {
+    if (i.kind !== 'review') continue;
+    const key = `${i.date}:${i.area}`;
+    const g = map.get(key) ?? { key, date: i.date, area: i.area, area_label: i.area_label, items: [], minutes: 0 };
+    g.items.push(i);
+    g.minutes += i.minutes;
+    map.set(key, g);
+  }
+  return [...map.values()];
+}
+
+export function WeekBoard({
+  days,
+  items,
+  today,
+  readOnly,
+  highlightIds,
+  onMove,
+  onOpenItem,
+  onOpenReviews,
+}: {
+  days: DayInfo[];
+  items: PlanItem[];
+  today: string;
+  readOnly?: boolean;
+  highlightIds?: Set<string>;
+  onMove: (itemId: string, toDate: string) => void;
+  onOpenItem: (item: PlanItem) => void;
+  onOpenReviews: (group: ReviewGroup) => void;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 6 } }),
+    useSensor(KeyboardSensor),
+  );
+  const [dragging, setDragging] = useState<PlanItem | null>(null);
+
+  const byDay = useMemo(() => {
+    const m = new Map<string, { studies: PlanItem[]; reviews: ReviewGroup[] }>();
+    for (const d of days) m.set(d.date, { studies: [], reviews: [] });
+    for (const i of items) {
+      if (i.kind === 'study' && i.status !== 'skipped') m.get(i.date)?.studies.push(i);
+    }
+    for (const g of groupReviews(items)) m.get(g.date)?.reviews.push(g);
+    for (const v of m.values()) v.studies.sort((a, b) => a.position - b.position);
+    return m;
+  }, [days, items]);
+
+  const onDragStart = (e: DragStartEvent) => {
+    setDragging(items.find((i) => i.id === e.active.id) ?? null);
+  };
+  const onDragEnd = (e: DragEndEvent) => {
+    setDragging(null);
+    const to = e.over?.id as string | undefined;
+    const item = items.find((i) => i.id === e.active.id);
+    if (!to || !item || item.date === to) return;
+    onMove(item.id, to);
+  };
+
+  return (
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-7 lg:gap-0 lg:divide-x lg:divide-slate-200 lg:rounded-2xl lg:bg-white lg:shadow-sm dark:lg:divide-white/10 dark:lg:bg-slate-900">
+        {days.map((d) => (
+          <DayColumn
+            key={d.date}
+            day={d}
+            isToday={d.date === today}
+            isPast={d.date < today}
+            studies={byDay.get(d.date)?.studies ?? []}
+            reviews={byDay.get(d.date)?.reviews ?? []}
+            weekDates={days.map((x) => x.date).filter((x) => x >= today)}
+            readOnly={readOnly}
+            highlightIds={highlightIds}
+            onMove={onMove}
+            onOpenItem={onOpenItem}
+            onOpenReviews={onOpenReviews}
+          />
+        ))}
+      </div>
+      <DragOverlay dropAnimation={null}>
+        {dragging ? <StudyCardBody item={dragging} dragging /> : null}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+function DayColumn({
+  day, isToday, isPast, studies, reviews, weekDates, readOnly, highlightIds, onMove, onOpenItem, onOpenReviews,
+}: {
+  day: DayInfo;
+  isToday: boolean;
+  isPast: boolean;
+  studies: PlanItem[];
+  reviews: ReviewGroup[];
+  weekDates: string[];
+  readOnly?: boolean;
+  highlightIds?: Set<string>;
+  onMove: (itemId: string, toDate: string) => void;
+  onOpenItem: (item: PlanItem) => void;
+  onOpenReviews: (group: ReviewGroup) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: day.date, disabled: readOnly || isPast });
+  const load = LOAD_STYLE[day.level];
+  const pct = Math.min(100, Math.round(day.ratio * 100));
+  const empty = studies.length === 0 && reviews.length === 0;
+
+  return (
+    <section
+      ref={setNodeRef}
+      aria-label={`${WEEKDAY_SHORT[weekdayIndex(day.date)]} ${formatDayMonth(day.date)}`}
+      className={[
+        'relative flex min-h-[132px] flex-col rounded-2xl bg-white p-2.5 shadow-sm transition-colors dark:bg-slate-900 lg:min-h-[340px] lg:rounded-none lg:shadow-none',
+        isOver ? 'bg-slate-50 dark:bg-white/5' : '',
+        isPast ? 'opacity-60' : '',
+        'first:lg:rounded-l-2xl last:lg:rounded-r-2xl',
+      ].join(' ')}
+      style={isOver ? { outline: '2px dashed color-mix(in srgb, var(--brand-primary) 55%, transparent)', outlineOffset: -4 } : undefined}
+    >
+      <header className="mb-2 flex items-start justify-between gap-1">
+        <div>
+          <p className={`text-[10.5px] font-bold tracking-[0.12em] ${isToday ? '' : 'text-slate-500 dark:text-white/50'}`}
+            style={isToday ? { color: 'var(--brand-primary)' } : undefined}>
+            {WEEKDAY_SHORT[weekdayIndex(day.date)]}{isToday ? ' · HOJE' : ''}
+          </p>
+          <p className="font-display text-[17px] font-black text-slate-900 dark:text-white">{formatDayMonth(day.date)}</p>
+        </div>
+        {day.blocked ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-bold text-slate-600 dark:bg-white/10 dark:text-white/60">
+            <Ban className="h-3 w-3" /> Livre
+          </span>
+        ) : day.capacity > 0 ? (
+          <span className={`text-[10.5px] font-bold ${load.text}`} title={`${day.minutes} de ${day.capacity} min`}>
+            {day.minutes}/{day.capacity}min
+          </span>
+        ) : null}
+      </header>
+      {!day.blocked && day.capacity > 0 && (
+        <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10" role="meter"
+          aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={`Carga do dia: ${load.label}`}>
+          <motion.div className="h-full rounded-full" style={{ background: load.bar }} initial={false} animate={{ width: `${pct}%` }} />
+        </div>
+      )}
+
+      <div className="flex flex-1 flex-col gap-1.5">
+        <AnimatePresence initial={false}>
+          {studies.map((s) => (
+            <DraggableStudy key={s.id} item={s} readOnly={readOnly || isPast || s.status !== 'pending'}
+              highlighted={highlightIds?.has(s.id)} weekDates={weekDates} onMove={onMove} onOpen={() => onOpenItem(s)} />
+          ))}
+          {reviews.map((g) => (
+            <motion.button
+              key={g.key}
+              layout
+              type="button"
+              onClick={() => onOpenReviews(g)}
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className={`w-full rounded-xl border border-dashed p-2 text-left transition hover:shadow-sm ${g.items.some((i) => highlightIds?.has(i.id)) ? 'ring-2 ring-amber-400' : ''} border-slate-300 bg-slate-50 dark:border-white/15 dark:bg-white/5`}
+            >
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-white/60">
+                <RotateCcw className="h-3 w-3" /> Revisão · {g.area_label}
+              </span>
+              <span className="mt-0.5 block text-[12px] font-semibold text-slate-800 dark:text-white/80">
+                {g.items.length} {g.items.length === 1 ? 'tópico' : 'tópicos'} · {g.minutes} min
+              </span>
+              {g.items.every((i) => i.status === 'done') && (
+                <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600"><CheckCircle2 className="h-3 w-3" /> feita</span>
+              )}
+              {g.items.every((i) => i.projected) && (
+                <span className="mt-0.5 block text-[10.5px] text-slate-500 dark:text-white/45">prevista</span>
+              )}
+            </motion.button>
+          ))}
+        </AnimatePresence>
+        {empty && (
+          <p className="m-auto text-center text-[11.5px] text-slate-400 dark:text-white/35">
+            {day.blocked ? 'Dia livre' : day.capacity === 0 ? 'Folga' : isPast ? '' : 'Arraste um conteúdo para cá'}
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function DraggableStudy({
+  item, readOnly, highlighted, weekDates, onMove, onOpen,
+}: {
+  item: PlanItem;
+  readOnly?: boolean;
+  highlighted?: boolean;
+  weekDates: string[];
+  onMove: (itemId: string, toDate: string) => void;
+  onOpen: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: item.id, disabled: readOnly });
+  const reduce = useReducedMotion();
+  const [menu, setMenu] = useState(false);
+
+  return (
+    <motion.div
+      layout={!reduce}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: isDragging ? 0.35 : 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+      className="relative"
+    >
+      <div ref={setNodeRef} {...attributes} {...listeners} onClick={onOpen}
+        className={`${readOnly ? '' : 'cursor-grab active:cursor-grabbing'} touch-manipulation rounded-xl ${highlighted ? 'ring-2 ring-amber-400' : ''}`}>
+        <StudyCardBody item={item} />
+      </div>
+      {!readOnly && weekDates.length > 1 && (
+        <div className="absolute right-1 top-1 lg:hidden">
+          <button type="button" aria-label="Mover para…" onClick={(e) => { e.stopPropagation(); setMenu((m) => !m); }}
+            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10">
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+          {menu && (
+            <div className="absolute right-0 z-20 mt-1 w-40 rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-white/10 dark:bg-slate-900">
+              <p className="px-2 py-1 text-[10.5px] font-bold uppercase text-slate-400">Mover para</p>
+              {weekDates.filter((d) => d !== item.date).map((d) => (
+                <button key={d} type="button" onClick={(e) => { e.stopPropagation(); setMenu(false); onMove(item.id, d); }}
+                  className="block w-full rounded-lg px-2 py-1.5 text-left text-[12.5px] text-slate-700 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10">
+                  {WEEKDAY_SHORT[weekdayIndex(d)]} {formatDayMonth(d)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+export function StudyCardBody({ item, dragging }: { item: PlanItem; dragging?: boolean }) {
+  const area = AREA_STYLE[item.area] ?? AREA_STYLE.geral;
+  const done = item.status === 'done';
+  return (
+    <div
+      className={`rounded-xl border bg-white p-2 pl-2.5 transition dark:bg-slate-800/60 ${dragging ? 'rotate-1 shadow-xl' : 'hover:shadow-md'} ${done ? 'opacity-70' : ''}`}
+      style={{ borderColor: `color-mix(in srgb, ${area.dot} 30%, #e2e8f0)`, borderLeft: `3px solid ${area.dot}` }}
+    >
+      <p className="flex items-center gap-1 pr-5 text-[10.5px] font-bold uppercase tracking-wide" style={{ color: area.dot }}>
+        {item.q_subject || item.area_label}
+        {item.pinned && <Pin className="h-2.5 w-2.5 text-slate-400" aria-label="Fixado por você" />}
+      </p>
+      <p className={`mt-0.5 line-clamp-3 text-[12.5px] font-semibold leading-snug text-slate-900 dark:text-white ${done ? 'line-through' : ''}`}>
+        {item.topic}
+      </p>
+      <div className="mt-1 flex items-center gap-1.5 text-[10.5px] text-slate-500 dark:text-white/50">
+        <span>{item.minutes} min</span>
+        {done && <span className="inline-flex items-center gap-0.5 font-bold text-emerald-600"><CheckCircle2 className="h-3 w-3" /> feito</span>}
+        {item.depends_on_late.length > 0 && (
+          <span className="inline-flex items-center gap-0.5 font-bold text-amber-600" title={`Depende de: ${item.depends_on_late.join(', ')}`}>
+            <AlertTriangle className="h-3 w-3" /> pré-requisito
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}

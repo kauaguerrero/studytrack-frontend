@@ -158,7 +158,11 @@ export default function BancoDeQuestoes() {
 
   // Todos os filtros são de múltipla escolha; lista vazia = sem filtro.
   const [filterBanks, setFilterBanks] = useState<string[]>([]);
-  const [filterTopics, setFilterTopics] = useState<string[]>([]);
+  // ?topic=X vem do Cronograma Inteligente (discipline do conteúdo do dia).
+  const [filterTopics, setFilterTopics] = useState<string[]>(() => {
+    const topic = searchParams.get('topic');
+    return topic ? [topic] : [];
+  });
   const [filterYears, setFilterYears] = useState<string[]>([]);
   const [filterDifficulties, setFilterDifficulties] = useState<string[]>([]);
 

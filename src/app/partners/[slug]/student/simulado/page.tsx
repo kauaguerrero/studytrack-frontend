@@ -673,6 +673,22 @@ export default function SimuladoPage() {
     init()
   }, [])
 
+  // Deep-link do Cronograma Inteligente (?cronograma=1&subject=X&topic=Y&qty=N):
+  // abre a configuração já com a composição da matéria do dia — o aluno só confirma.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('cronograma') !== '1') return
+    const subject = params.get('subject')
+    if (!subject) return
+    const topic = params.get('topic')
+    const n = Math.max(5, Math.min(30, Number(params.get('qty')) || 10))
+    setMode('custom')
+    setCompositions([{ id: `cronograma-${Date.now()}`, subject, topic: topic || null, qty: n, includeAnswered: false }])
+    setShowConfigModal(true)
+    router.replace(`/partners/${slug}/student/simulado`)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     const t = setInterval(() => setNowTs(Date.now()), 30000)
     return () => clearInterval(t)

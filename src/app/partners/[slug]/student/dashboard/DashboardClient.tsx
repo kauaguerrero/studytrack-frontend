@@ -44,6 +44,8 @@ import { ReportBountyRewardPopup } from '@/components/partners/gamification/Repo
 import { AchievementInfoModal } from '@/components/partners/AchievementInfoModal';
 import { getAchievementIcon, getDifficultyStyle } from '@/lib/achievement-icons';
 import { usePopupQueue } from '@/components/partners/gamification/PopupQueueContext';
+import { StartStudyModal, type StartTarget } from '@/components/cronograma/StartStudyModal';
+import type { NextItem, NextResponse } from '@/lib/cronograma';
 import type { MonthlyCheckInResult } from '@/types/gamification';
 
 // ─── Types & helpers ─────────────────────────────────────────────────────────
@@ -304,6 +306,12 @@ export function DashboardClient({
   const [activityFeed, setActivityFeed] = useState<FeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [lastActivity, setLastActivity] = useState<{ type: 'question' | 'simulado' | 'essay' | null; subject: string | null }>({ type: null, subject: null });
+  // Cronograma Inteligente: quando o aluno tem plano, o CTA do hero vira
+  // "Continuar cronograma" e abre a decisão única (banco × simulado / revisão).
+  const [cronogramaNext, setCronogramaNext] = useState<NextItem | null>(null);
+  const [cronogramaDoneToday, setCronogramaDoneToday] = useState(false);
+  const [cronogramaTarget, setCronogramaTarget] = useState<StartTarget | null>(null);
+  const cronogramaEnabled = org.permissions?.cronograma_enabled === true;
   const [feedInfoOpen, setFeedInfoOpen] = useState(false);
   const [activityModalOpen, setActivityModalOpen] = useState(false);
   const [achievementModalItem, setAchievementModalItem] = useState<FeedItem | null>(null);
@@ -362,6 +370,20 @@ export function DashboardClient({
         .then((data) => { if (Array.isArray(data)) setActivityFeed(data); })
         .catch(() => {})
         .finally(() => setFeedLoading(false));
+
+      if (cronogramaEnabled) {
+        fetch(`${api}/api/student/cronograma/next`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+          .then((r) => r.ok ? r.json() : null)
+          .then((data: NextResponse | null) => {
+            const n = data?.next;
+            if (!n) return;
+            if ('done_today' in n && n.done_today) setCronogramaDoneToday(true);
+            else if ('id' in n && n.id) setCronogramaNext(n as NextItem);
+          })
+          .catch(() => {});
+      }
 
       fetch(`${api}/api/student/analytics/last-activity`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -918,7 +940,11 @@ export function DashboardClient({
   const hasAccuracyLeaderBadge = (isTestAccount && devBadgeOverrides.accuracy) || Boolean(selfRankingEntry?.has_accuracy_leader_badge);
 
   // ── CTA de retomada (hero) ─────────────────────────────────────────────────
-  const resumeSubtitle = effectiveCurrentStreak > 0
+  const resumeSubtitle = cronogramaNext
+    ? `${cronogramaNext.overdue ? 'Pendente' : 'Hoje'}: ${cronogramaNext.kind === 'review' ? 'revisão de ' : ''}${cronogramaNext.topic}`
+    : cronogramaDoneToday
+      ? 'Cronograma de hoje concluído. Quer adiantar?'
+      : effectiveCurrentStreak > 0
     ? `Sequência de ${effectiveCurrentStreak} ${effectiveCurrentStreak === 1 ? 'dia' : 'dias'} — continue estudando hoje.`
     : questionsCount > 0
       ? `Você já respondeu ${questionsCount.toLocaleString('pt-BR')} questões. Vamos continuar?`
@@ -1001,7 +1027,12 @@ export function DashboardClient({
                   {resumeSubtitle}
                 </p>
                 <Link
-                  href={resumeHref}
+                  href={cronogramaDoneToday && !cronogramaNext ? `/partners/${slug}/student/cronograma` : resumeHref}
+                  onClick={(e) => {
+                    if (!cronogramaNext) return;
+                    e.preventDefault();
+                    setCronogramaTarget(cronogramaNext);
+                  }}
                   className="cta-glow-pulse group relative inline-block select-none rounded-2xl"
                   style={{ ['--cta-glow-color' as string]: 'color-mix(in srgb, var(--brand-accent) 55%, transparent)' }}
                 >
@@ -1020,7 +1051,7 @@ export function DashboardClient({
                     }}
                   >
                     <Play className="h-4 w-4" fill="currentColor" strokeWidth={0} />
-                    Continue de onde parou
+                    {cronogramaNext || cronogramaDoneToday ? 'Continuar cronograma' : 'Continue de onde parou'}
                   </span>
                 </Link>
               </div>
@@ -1612,6 +1643,15 @@ export function DashboardClient({
       {activityModalOpen && (
         <ActivityHistoryModal onClose={() => setActivityModalOpen(false)} />
       )}
+
+      {/* Cronograma: decisão única a partir do CTA do hero. Concluir/pular e a
+          revisão (mini-quiz) acontecem dentro do próprio cronograma. */}
+      <StartStudyModal
+        slug={slug}
+        target={cronogramaTarget}
+        onClose={() => setCronogramaTarget(null)}
+        onStartReview={() => router.push(`/partners/${slug}/student/cronograma`)}
+      />
 
       {/* ── Info-card de conquista (clicada no feed) ───────────────────── */}
       {achievementModalItem && achievementModalItem.student_achievement_id && (
