@@ -1,13 +1,13 @@
 'use client';
 
-// Área de insights (o "azul" do esboço). Tudo calculado no backend, sem IA.
+// Área de insights (o painel colorido do esboço, na cor da org). Tudo calculado no backend, sem IA.
 
 import { Flame, Gauge, Brain, CalendarDays, AlertCircle } from 'lucide-react';
 import { AREA_STYLE, type Insights } from '@/lib/cronograma';
 
 const PACE: Record<Insights['pace'], { label: string; cls: string }> = {
   adiantado: { label: 'Adiantado', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-200 dark:border-emerald-500/40' },
-  no_ritmo:  { label: 'No ritmo', cls: 'bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-500/15 dark:text-sky-200 dark:border-sky-500/40' },
+  no_ritmo:  { label: 'No ritmo', cls: 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-white/10 dark:text-white/85 dark:border-white/20' },
   atrasado:  { label: 'Atrasado', cls: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/15 dark:text-amber-200 dark:border-amber-500/40' },
 };
 
@@ -72,8 +72,9 @@ function Stat({ icon: Icon, label, value, sub }: { icon: React.ElementType; labe
 
 function Note({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex gap-2 rounded-xl border border-sky-200 bg-white p-2.5 text-[12px] leading-snug text-slate-700 dark:border-sky-500/30 dark:bg-slate-900 dark:text-white/70">
-      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-600" /> <span>{children}</span>
+    <p className="flex gap-2 rounded-xl border border-[color-mix(in_srgb,var(--brand-primary)_22%,transparent)] bg-white p-2.5 text-[12px] leading-snug text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-white/70">
+      {/* cor da org (vars --bta-* vêm do painel) */}
+      <AlertCircle className="brand-text-adaptive mt-0.5 h-3.5 w-3.5 shrink-0" /> <span>{children}</span>
     </p>
   );
 }

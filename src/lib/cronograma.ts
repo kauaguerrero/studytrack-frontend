@@ -185,8 +185,10 @@ export async function cronogramaFetch<T>(path: string, init?: RequestInit): Prom
   let data: unknown = null;
   try { data = await res.json(); } catch { /* corpo vazio */ }
   if (!res.ok) {
-    const d = (data || {}) as { error?: string; code?: string };
-    throw new CronogramaApiError(d.error || 'Não foi possível falar com o cronograma.', res.status, d.code);
+    const d = (data || {}) as { error?: string; code?: string; detail?: string };
+    // `detail` só vem do backend fora de produção (diagnóstico local).
+    const msg = (d.error || 'Não foi possível falar com o cronograma.') + (d.detail ? ` (${d.detail})` : '');
+    throw new CronogramaApiError(msg, res.status, d.code);
   }
   return data as T;
 }

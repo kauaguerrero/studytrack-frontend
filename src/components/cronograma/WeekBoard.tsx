@@ -6,7 +6,7 @@
 // - Faixa no topo do dia: carga (verde/amarelo/vermelho) = minutos / capacidade do dia.
 // - Em modo prévia (sugestão do agente), o quadro é só leitura e destaca o que muda.
 
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor,
   useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent,
@@ -17,6 +17,9 @@ import {
   AREA_STYLE, LOAD_STYLE, WEEKDAY_SHORT, formatDayMonth, weekdayIndex,
   type DayInfo, type PlanItem,
 } from '@/lib/cronograma';
+
+// Máximo de cards visíveis por dia antes da rolagem interna.
+const VISIBLE_CARDS = 3;
 
 export interface ReviewGroup {
   key: string;
@@ -135,6 +138,31 @@ function DayColumn({
   const pct = Math.min(100, Math.round(day.ratio * 100));
   const empty = studies.length === 0 && reviews.length === 0;
 
+  // Contador do dia: estudos + tópicos de revisão (não conta revisões só previstas).
+  const countable = [...studies, ...reviews.flatMap((g) => g.items)].filter((i) => !i.projected);
+  const doneCount = countable.filter((i) => i.status === 'done').length;
+
+  // Mostra no máximo 3 cards; o resto fica numa rolagem interna do dia
+  // (a coluna não estica a tela). A altura é medida porque os cards variam.
+  const listRef = useRef<HTMLDivElement>(null);
+  const [maxH, setMaxH] = useState<number | undefined>(undefined);
+  const cardCount = studies.length + reviews.length;
+  useLayoutEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const measure = () => {
+      const kids = Array.from(el.children) as HTMLElement[];
+      if (kids.length <= VISIBLE_CARDS) { setMaxH(undefined); return; }
+      const fourth = kids[VISIBLE_CARDS];
+      // Mostra uma "pontinha" do 4º card para indicar que há mais.
+      setMaxH(fourth.offsetTop - el.offsetTop + 18);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [cardCount]);
+
   return (
     <section
       ref={setNodeRef}
@@ -154,6 +182,12 @@ function DayColumn({
             {WEEKDAY_SHORT[weekdayIndex(day.date)]}{isToday ? ' · HOJE' : ''}
           </p>
           <p className="font-display text-[17px] font-black text-slate-900 dark:text-white">{formatDayMonth(day.date)}</p>
+          {countable.length > 0 && (
+            <p className={`mt-0.5 inline-flex items-center gap-1 text-[10.5px] font-bold ${doneCount === countable.length ? 'text-emerald-600' : 'text-slate-500 dark:text-white/50'}`}
+              aria-label={`${doneCount} de ${countable.length} concluídos`}>
+              <CheckCircle2 className="h-3 w-3" /> {doneCount}/{countable.length}
+            </p>
+          )}
         </div>
         {day.blocked ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-bold text-slate-600 dark:bg-white/10 dark:text-white/60">
@@ -172,7 +206,11 @@ function DayColumn({
         </div>
       )}
 
-      <div className="flex flex-1 flex-col gap-1.5">
+      <div ref={listRef}
+        className={`cronograma-day-scroll -mr-1 flex flex-col gap-1.5 overflow-y-auto overscroll-contain pr-1 ${empty ? "flex-1" : ""}`}
+        style={maxH ? { maxHeight: maxH } : undefined}
+        tabIndex={maxH ? 0 : undefined}
+        aria-label={maxH ? `${cardCount} itens, role para ver todos` : undefined}>
         <AnimatePresence initial={false}>
           {studies.map((s) => (
             <DraggableStudy key={s.id} item={s} readOnly={readOnly || isPast || s.status !== 'pending'}
@@ -210,6 +248,11 @@ function DayColumn({
           </p>
         )}
       </div>
+      {maxH !== undefined && (
+        <p className="mt-1 text-center text-[10.5px] font-semibold text-slate-400 dark:text-white/40">
+          +{cardCount - VISIBLE_CARDS} · role para ver
+        </p>
+      )}
     </section>
   );
 }
@@ -243,21 +286,25 @@ function DraggableStudy({
       </div>
       {!readOnly && weekDates.length > 1 && (
         <div className="absolute right-1 top-1 lg:hidden">
-          <button type="button" aria-label="Mover para…" onClick={(e) => { e.stopPropagation(); setMenu((m) => !m); }}
+          <button type="button" aria-label="Mover para…" aria-expanded={menu}
+            onClick={(e) => { e.stopPropagation(); setMenu((m) => !m); }}
             className="rounded-md p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10">
             <MoreHorizontal className="h-4 w-4" />
           </button>
-          {menu && (
-            <div className="absolute right-0 z-20 mt-1 w-40 rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-white/10 dark:bg-slate-900">
-              <p className="px-2 py-1 text-[10.5px] font-bold uppercase text-slate-400">Mover para</p>
-              {weekDates.filter((d) => d !== item.date).map((d) => (
-                <button key={d} type="button" onClick={(e) => { e.stopPropagation(); setMenu(false); onMove(item.id, d); }}
-                  className="block w-full rounded-lg px-2 py-1.5 text-left text-[12.5px] text-slate-700 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10">
-                  {WEEKDAY_SHORT[weekdayIndex(d)]} {formatDayMonth(d)}
-                </button>
-              ))}
-            </div>
-          )}
+        </div>
+      )}
+      {menu && !readOnly && (
+        // No fluxo (não absoluto): a rolagem interna do dia não corta o menu.
+        <div className="mt-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-slate-900 lg:hidden">
+          <p className="px-2 py-1 text-[10.5px] font-bold uppercase text-slate-400">Mover para</p>
+          <div className="grid grid-cols-2 gap-0.5">
+            {weekDates.filter((d) => d !== item.date).map((d) => (
+              <button key={d} type="button" onClick={(e) => { e.stopPropagation(); setMenu(false); onMove(item.id, d); }}
+                className="rounded-lg px-2 py-1.5 text-left text-[12.5px] text-slate-700 hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/10">
+                {WEEKDAY_SHORT[weekdayIndex(d)]} {formatDayMonth(d)}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </motion.div>

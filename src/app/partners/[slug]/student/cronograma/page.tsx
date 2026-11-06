@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { ElevatedCard, RevealGroup, RevealItem, Segmented, SectionTitle } from '@/components/partners/founder-ui';
 import { useOrg } from '@/contexts/OrgContext';
+import { brandTextVars } from '@/lib/brand-color';
 import { WeekBoard, type ReviewGroup } from '@/components/cronograma/WeekBoard';
 import { MonthGrid } from '@/components/cronograma/MonthGrid';
 import { InsightsPanel } from '@/components/cronograma/InsightsPanel';
@@ -360,9 +361,12 @@ function CronogramaInner() {
             />
           </div>
         </ElevatedCard>
-        <div className="rounded-[20px] bg-sky-50 p-4 dark:bg-sky-500/10 lg:p-5">
-          <SectionTitle kicker="Sua semana" title="Como você está indo" hex="#0284c7" colorVar="#0284c7"
-            action={<CalendarRange className="h-4 w-4 text-sky-600" />} />
+        <div
+          className="rounded-[20px] border border-[color-mix(in_srgb,var(--brand-primary)_16%,transparent)] bg-[color-mix(in_srgb,var(--brand-primary)_6%,white)] p-4 dark:border-white/10 dark:bg-[color-mix(in_srgb,var(--brand-primary)_22%,#0f172a)] lg:p-5"
+          style={brandTextVars('--bta', org.brand_primary, 'var(--brand-primary)')}
+        >
+          <SectionTitle kicker="Sua semana" title="Como você está indo" hex={org.brand_primary}
+            action={<CalendarRange className="h-4 w-4 brand-text-adaptive" />} />
           <InsightsPanel data={insights} />
         </div>
       </RevealItem>
