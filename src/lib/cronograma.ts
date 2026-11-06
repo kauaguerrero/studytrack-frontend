@@ -145,7 +145,7 @@ export interface QuizQuestion {
 
 export interface QuizResponse extends NodeView {
   item_id: string;
-  basis: 'node' | 'discipline' | 'self';
+  basis: 'node' | 'mixed' | 'discipline' | 'self';
   questions: QuizQuestion[];
 }
 

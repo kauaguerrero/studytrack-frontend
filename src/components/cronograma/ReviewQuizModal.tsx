@@ -81,7 +81,9 @@ export function ReviewQuizModal({
           <DialogDescription className="text-[12.5px] text-slate-500 dark:text-white/60">
             {quiz?.basis === 'discipline'
               ? `Questões de ${quiz.q_discipline}, baseadas na disciplina.`
-              : quiz?.basis === 'node' ? 'Questões deste conteúdo.' : 'Como foi lembrar deste conteúdo?'}
+              : quiz?.basis === 'mixed'
+                ? `Questões deste conteúdo, completadas com outras de ${quiz.q_discipline}.`
+                : quiz?.basis === 'node' ? 'Questões deste conteúdo.' : 'Como foi lembrar deste conteúdo?'}
           </DialogDescription>
         </DialogHeader>
 
