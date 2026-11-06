@@ -90,7 +90,7 @@ export function StartStudyModal({
                   </span>
                   <span>
                     <span className="block text-[14px] font-bold text-slate-900 dark:text-white">Fazer a revisão</span>
-                    <span className="block text-[12px] text-slate-500 dark:text-white/55">5 questões rápidas. Seu acerto define a próxima revisão.</span>
+                    <span className="block text-[12px] text-slate-500 dark:text-white/55">3 questões rápidas. Seu acerto define a próxima revisão.</span>
                   </span>
                 </button>
               </div>
