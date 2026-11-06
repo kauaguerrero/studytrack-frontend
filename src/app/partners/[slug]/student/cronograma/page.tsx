@@ -188,6 +188,21 @@ function CronogramaInner() {
     } finally { setAgentBusy(false); }
   };
 
+  // Aluno muda o tempo da prévia direto (sem IA, não gasta cota).
+  const adjust = async (index: number, minutes: number) => {
+    if (!proposal) return;
+    setAgentBusy(true);
+    try {
+      const p = await cronogramaFetch<Proposal>(`/agent/${proposal.request_id}/adjust`, {
+        method: 'POST', body: JSON.stringify({ index, minutes }),
+      });
+      setProposal(p);
+    } catch (e) {
+      toast.error((e as Error).message);
+      if ((e as CronogramaApiError).status === 409) setProposal(null);
+    } finally { setAgentBusy(false); }
+  };
+
   const discard = async () => {
     if (!proposal) return;
     const id = proposal.request_id;
@@ -379,6 +394,7 @@ function CronogramaInner() {
               onConfirm={confirm}
               onDiscard={discard}
               onUndo={undo}
+              onAdjust={adjust}
             />
             {view && !proposal && (
               <div className="mt-3">

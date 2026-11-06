@@ -148,3 +148,14 @@ describe('cronogramaFetch', () => {
     expect(e.message).toMatch(/conexão/i);
   });
 });
+
+describe('formatMinutes', () => {
+  it('CT-L28 formata minutos como no balão do agente', async () => {
+    const { formatMinutes } = await import('@/lib/cronograma');
+    expect(formatMinutes(90)).toBe('1h30');
+    expect(formatMinutes(120)).toBe('2h');
+    expect(formatMinutes(45)).toBe('45min');
+    expect(formatMinutes(135)).toBe('2h15');
+    expect(formatMinutes(65)).toBe('1h05');
+  });
+});

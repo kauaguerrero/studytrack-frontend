@@ -508,4 +508,65 @@ describe('AgentChat', () => {
     chat({ proposal: proposal({ status: 'failed', question: 'Quer?' }) });
     expect(screen.queryByRole('button', { name: 'Sim' })).toBeNull();
   });
+
+  const sat = (minutes: number) => ({
+    index: 0, op: 'set_day_capacity' as const, label: 'sábado 14/11', minutes, routine_minutes: 0, date: '2026-11-14',
+  });
+  const editing = (minutes: number, extra: Partial<Parameters<typeof proposal>[0]> = {}) => {
+    const onAdjust = vi.fn();
+    const r = chat({ onAdjust, proposal: proposal({ editable: [sat(minutes)], routine_max_minutes: 120, ...extra }) });
+    return { ...r, onAdjust };
+  };
+
+  it('CT-A24 tempo da prévia aparece com −/+ e ajusta 15 min sem passar pela IA', () => {
+    const h = editing(90);
+    const g = screen.getByRole('group', { name: 'Tempo de sábado 14/11' });
+    expect(g).toHaveTextContent('1h30');
+    fireEvent.click(screen.getByRole('button', { name: 'Mais 15 minutos' }));
+    expect(h.onAdjust).toHaveBeenCalledWith(0, 105);
+    fireEvent.click(screen.getByRole('button', { name: 'Menos 15 minutos' }));
+    expect(h.onAdjust).toHaveBeenCalledWith(0, 75);
+    expect(h.onSend).not.toHaveBeenCalled();
+  });
+  it('CT-A25 passar da rotina pergunta antes ("Opa!"), não proíbe', () => {
+    const h = editing(120);
+    fireEvent.click(screen.getByRole('button', { name: 'Mais 15 minutos' }));
+    expect(h.onAdjust).not.toHaveBeenCalled();
+    const dlg = screen.getByRole('alertdialog', { name: 'Carga acima da rotina' });
+    expect(dlg).toHaveTextContent('Opa!');
+    expect(dlg).toHaveTextContent('2h15');
+    expect(dlg).toHaveTextContent('(2h)');
+    // enquanto pergunta, não dá pra confirmar a prévia antiga
+    expect(screen.queryByRole('button', { name: /Confirmar/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Manter 2h15' }));
+    expect(h.onAdjust).toHaveBeenCalledWith(0, 135);
+  });
+  it('CT-A26 "Deixar como estava" fecha o aviso sem ajustar', () => {
+    const h = editing(120);
+    fireEvent.click(screen.getByRole('button', { name: 'Mais 15 minutos' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Deixar como estava' }));
+    expect(h.onAdjust).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(screen.getByRole('button', { name: /Confirmar/ })).toBeInTheDocument();
+  });
+  it('CT-A27 já acima da rotina: não pergunta de novo a cada +15', () => {
+    const h = editing(150);
+    fireEvent.click(screen.getByRole('button', { name: 'Mais 15 minutos' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(h.onAdjust).toHaveBeenCalledWith(0, 165);
+  });
+  it('CT-A28 diminuir nunca pergunta; mínimo de 15 min desabilita o −', () => {
+    editing(15);
+    expect(screen.getByRole('button', { name: 'Menos 15 minutos' })).toBeDisabled();
+  });
+  it('CT-A29 aviso aparece mesmo com pergunta sim/não e esconde Sim/Não', () => {
+    editing(120, { question: 'Coloco 2h no sábado?' });
+    expect(screen.getByRole('button', { name: 'Sim' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Mais 15 minutos' }));
+    expect(screen.queryByRole('button', { name: 'Sim' })).toBeNull();
+  });
+  it('CT-A30 sem onAdjust ou em pedido que falhou não há editor', () => {
+    chat({ proposal: proposal({ editable: [sat(60)], routine_max_minutes: 120 }) });
+    expect(screen.queryByRole('group', { name: /Tempo de/ })).toBeNull();
+  });
 });

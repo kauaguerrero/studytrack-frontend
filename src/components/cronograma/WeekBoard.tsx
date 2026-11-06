@@ -191,7 +191,7 @@ function DayColumn({
       ].join(' ')}
       style={isOver ? { outline: '2px dashed color-mix(in srgb, var(--brand-primary) 55%, transparent)', outlineOffset: -4 } : undefined}
     >
-      <header className="mb-2 flex items-start justify-between gap-1">
+      <header className={`${countable.length > 0 ? "mb-1" : "mb-2"} flex items-start justify-between gap-1`}>
         <div>
           <p className={`text-[10.5px] font-bold tracking-[0.12em] ${isToday ? '' : 'text-slate-500 dark:text-white/50'}`}
             style={isToday ? { color: 'var(--brand-primary)' } : undefined}>
@@ -199,7 +199,7 @@ function DayColumn({
           </p>
           <p className="font-display text-[17px] font-black text-slate-900 dark:text-white">{formatDayMonth(day.date)}</p>
           {countable.length > 0 && (
-            <p className={`mt-0.5 inline-flex items-center gap-1 text-[10.5px] font-bold ${doneCount === countable.length ? 'text-emerald-600' : 'text-slate-500 dark:text-white/50'}`}
+            <p className={`inline-flex items-center gap-1 text-[10.5px] font-bold ${doneCount === countable.length ? 'text-emerald-600' : 'text-slate-500 dark:text-white/50'}`}
               aria-label={`${doneCount} de ${countable.length} concluídos`}>
               <CheckCircle2 className="h-3 w-3" /> {doneCount}/{countable.length}
             </p>
@@ -227,7 +227,7 @@ function DayColumn({
       </header>
       {/* Barra = progresso do dia (concluídos / total), alinhada ao contador "1/1". */}
       {countable.length > 0 && (
-        <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10" role="progressbar"
+        <div className="mb-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10" role="progressbar"
           aria-valuemin={0} aria-valuemax={countable.length} aria-valuenow={doneCount} aria-label="Progresso do dia">
           <motion.div className="h-full rounded-full" initial={false}
             style={{ background: doneCount === countable.length ? '#10b981' : 'var(--brand-primary)' }}

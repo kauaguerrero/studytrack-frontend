@@ -338,5 +338,20 @@ describe('pergunta sim/não do agente', () => {
     await waitFor(() => expect(calls('POST', /^\/agent\/req-1\/confirm$/)).toHaveLength(1));
     expect(calls('POST', /^\/agent$/)).toHaveLength(1);
   });
+  it('CT-P32 ajustar o tempo chama /adjust (sem nova mensagem à IA) e troca Sim/Não por Confirmar', async () => {
+    const ed = (minutes: number) => [{ index: 0, op: 'set_day_capacity', label: 'sábado 14/11', minutes, routine_minutes: 0, date: '2026-11-14' }];
+    on('POST', /^\/agent$/, () => proposal({ question: 'Coloco 1h30 no sábado?', editable: ed(90) as never, routine_max_minutes: 120 }));
+    on('POST', /adjust$/, () => proposal({ reply: 'Ajustado: 1h45 em sábado 14/11.', editable: ed(105) as never, routine_max_minutes: 120 }));
+    await ready();
+    fireEvent.change(screen.getByLabelText('Mensagem para o assistente do cronograma'), { target: { value: 'coloca mais coisa pra sábado' } });
+    fireEvent.keyDown(screen.getByLabelText('Mensagem para o assistente do cronograma'), { key: 'Enter' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Mais 15 minutos' }));
+    await waitFor(() => expect(calls('POST', /^\/agent\/req-1\/adjust$/)).toHaveLength(1));
+    expect(JSON.parse(calls('POST', /adjust$/)[0][1].body)).toEqual({ index: 0, minutes: 105 });
+    expect(await screen.findByText('Ajustado: 1h45 em sábado 14/11.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Confirmar/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sim' })).toBeNull();
+    expect(calls('POST', /^\/agent$/)).toHaveLength(1);
+  });
 });
 

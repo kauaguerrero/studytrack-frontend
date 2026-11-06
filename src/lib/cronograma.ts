@@ -113,6 +113,28 @@ export interface Proposal {
   errors: { op: string | null; message: string }[];
   quota: { allowed: boolean; remaining: number; retry_after_seconds?: number } | null;
   preview_items: PlanItem[];
+  /** Tempos da prévia que o aluno pode mudar sem passar pela IA (POST /agent/<id>/adjust). */
+  editable?: EditableTime[];
+  /** Dia mais cheio da rotina, referência do aviso "passou do programado". */
+  routine_max_minutes?: number;
+}
+
+export interface EditableTime {
+  index: number;
+  op: 'set_day_capacity' | 'set_weekday_capacity';
+  label: string;
+  minutes: number;
+  routine_minutes: number;
+  date?: string;
+  weekday?: number;
+}
+
+/** 90 → "1h30", 120 → "2h", 45 → "45min". */
+export function formatMinutes(m: number): string {
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  if (h && r) return `${h}h${String(r).padStart(2, '0')}`;
+  return h ? `${h}h` : `${r}min`;
 }
 
 export interface NextItem extends NodeView {
