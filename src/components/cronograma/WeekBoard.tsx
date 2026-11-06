@@ -210,15 +210,28 @@ function DayColumn({
             <Ban className="h-3 w-3" /> Livre
           </span>
         ) : day.capacity > 0 ? (
-          <span className={`text-[10.5px] font-bold ${load.text}`} title={`${day.minutes} de ${day.capacity} min`}>
+          // Carga do dia (minutos planejados / capacidade): a cor diz se está tranquilo, cheio ou pesado.
+          <span role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={`Carga do dia: ${load.label}`}
+            className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold ${load.text}`}
+            style={{ background: `color-mix(in srgb, ${load.bar} 13%, transparent)` }}
+            title={`${load.label}: ${day.minutes} de ${day.capacity} min planejados`}>
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: load.bar }} />
             {day.minutes}/{day.capacity}min
+          </span>
+        ) : day.minutes > 0 ? (
+          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-bold text-slate-600 dark:bg-white/10 dark:text-white/60"
+            title="Dia de folga na sua rotina — estes itens foram colocados por você">
+            {day.minutes}min
           </span>
         ) : null}
       </header>
-      {!day.blocked && day.capacity > 0 && (
-        <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10" role="meter"
-          aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={`Carga do dia: ${load.label}`}>
-          <motion.div className="h-full rounded-full" style={{ background: load.bar }} initial={false} animate={{ width: `${pct}%` }} />
+      {/* Barra = progresso do dia (concluídos / total), alinhada ao contador "1/1". */}
+      {countable.length > 0 && (
+        <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10" role="progressbar"
+          aria-valuemin={0} aria-valuemax={countable.length} aria-valuenow={doneCount} aria-label="Progresso do dia">
+          <motion.div className="h-full rounded-full" initial={false}
+            style={{ background: doneCount === countable.length ? '#10b981' : 'var(--brand-primary)' }}
+            animate={{ width: `${Math.round((doneCount / countable.length) * 100)}%` }} />
         </div>
       )}
 

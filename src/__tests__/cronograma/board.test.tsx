@@ -106,6 +106,30 @@ describe('WeekBoard', () => {
     expect(m).toHaveAccessibleName('Carga do dia: Pesado');
     expect(within(day('QUA 11/11')).getByText('216/120min')).toBeInTheDocument();
   });
+  it('CT-W18b barra do dia é o progresso: 1/1 enche a barra', () => {
+    board([item({ status: 'done', minutes: 30 })]);
+    const bar = within(day('QUA 11/11')).getByRole('progressbar', { name: 'Progresso do dia' });
+    expect(bar).toHaveAttribute('aria-valuenow', '1');
+    expect(bar).toHaveAttribute('aria-valuemax', '1');
+    expect((bar.firstElementChild as HTMLElement).style.background).toMatch(/rgb\(16, 185, 129\)|#10b981/);
+  });
+  it('CT-W18c metade feita → barra pela metade, na cor da org', () => {
+    board([item({ status: 'done' }), item()]);
+    const bar = within(day('QUA 11/11')).getByRole('progressbar');
+    expect(bar).toHaveAttribute('aria-valuenow', '1');
+    expect(bar).toHaveAttribute('aria-valuemax', '2');
+  });
+  it('CT-W18d dia sem itens não tem barra de progresso', () => {
+    board([]);
+    expect(within(day('QUI 12/11')).queryByRole('progressbar')).toBeNull();
+  });
+  it('CT-W18e dia de folga com itens fixados mostra minutos neutros e progresso', () => {
+    const days = week(); days[5] = { ...days[5], minutes: 75, ratio: 9.99, level: 'red' };
+    board([item({ date: '2026-11-14', pinned: true, minutes: 75 })], { days });
+    expect(within(day('SÁB 14/11')).getByText('75min')).toBeInTheDocument();
+    expect(within(day('SÁB 14/11')).queryByRole('meter')).toBeNull();
+    expect(within(day('SÁB 14/11')).getByRole('progressbar')).toBeInTheDocument();
+  });
   it('CT-W19 card concluído mostra "feito"', () => {
     board([item({ topic: 'Feito1', status: 'done' })]);
     expect(screen.getByText('feito')).toBeInTheDocument();
