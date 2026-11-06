@@ -141,6 +141,10 @@ describe('StartStudyModal', () => {
     expect(screen.getByRole('link', { name: /Banco de questões/ })).toHaveAttribute('href', expect.stringContaining('/partners/cenas/student/banco-de-questoes?subject='));
     expect(screen.getByRole('link', { name: /Simulado/ })).toHaveAttribute('href', expect.stringContaining('cronograma=1'));
   });
+  it('CT-T02b banco leva o id do card (plan_item) para a barra de progresso', () => {
+    open(study({ id: 'abc' }));
+    expect(screen.getByRole('link', { name: /Banco de questões/ })).toHaveAttribute('href', expect.stringContaining('plan_item=abc'));
+  });
   it('CT-T03 cabeçalho: tipo, minutos e data', () => {
     open(study({ minutes: 60 }));
     expect(screen.getByText('Estudo · 60 min · 11/11')).toBeInTheDocument();

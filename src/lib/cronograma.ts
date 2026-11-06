@@ -282,10 +282,12 @@ export const LOAD_STYLE: Record<DayInfo['level'], { bar: string; text: string; l
 };
 
 /** Links do CTA: banco de questões filtrado ou simulado pré-montado. */
-export function studyLinks(slug: string, node: Pick<NodeView, 'q_subject' | 'q_discipline' | 'subject'>) {
+export function studyLinks(slug: string, node: Pick<NodeView, 'q_subject' | 'q_discipline' | 'subject'>, itemId?: string) {
   const subject = node.q_subject || node.subject;
   const p = new URLSearchParams({ subject });
   if (node.q_discipline) p.set('topic', node.q_discipline);
+  // plan_item liga o banco ao card: barra de progresso e conclusão ao bater a meta.
+  if (itemId) p.set('plan_item', itemId);
   const s = new URLSearchParams({ cronograma: '1', subject, qty: '10' });
   if (node.q_discipline) s.set('topic', node.q_discipline);
   return {
@@ -302,4 +304,35 @@ export function parseSimuladoDeepLink(search: string): { subject: string; topic:
   if (!subject) return null;
   const qty = Math.max(5, Math.min(30, Number(p.get('qty')) || 10));
   return { subject, topic: p.get('topic') || null, qty };
+}
+
+// ─── Sessão de estudo pelo banco de questões ────────────────────────────────
+
+export interface StudyProgress {
+  item_id: string;
+  goal: number;
+  answered: number;
+  status: 'pending' | 'done' | 'skipped';
+  just_completed: boolean;
+  topic: string | null;
+  subject: string | null;
+  discipline: string | null;
+}
+
+const studyKey = (itemId: string) => `cronograma:study-start:${itemId}`;
+
+/** Quando o aluno começou a estudar este card (guardado no navegador: sair e
+ *  voltar ao banco não zera a contagem). Só respostas a partir daqui contam. */
+export function studySessionStart(itemId: string): string {
+  const now = new Date().toISOString();
+  try {
+    const saved = localStorage.getItem(studyKey(itemId));
+    if (saved && !Number.isNaN(Date.parse(saved))) return saved;
+    localStorage.setItem(studyKey(itemId), now);
+  } catch { /* storage bloqueado: conta a partir de agora */ }
+  return now;
+}
+
+export function clearStudySession(itemId: string): void {
+  try { localStorage.removeItem(studyKey(itemId)); } catch { /* ignora */ }
 }

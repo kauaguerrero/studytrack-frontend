@@ -384,3 +384,18 @@ describe('pergunta sim/não do agente', () => {
   });
 });
 
+describe('volta do banco com a meta batida', () => {
+  it('CT-P33 ?concluido=<id> solta confete, avisa e limpa a URL', async () => {
+    window.history.replaceState(null, '', '/partners/cenas/student/cronograma?concluido=A');
+    await ready();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Conteúdo concluído: Logaritmos', expect.anything()));
+    expect(screen.getByTestId('celebration-confetti')).toBeInTheDocument();
+    expect(window.location.search).toBe('');
+  });
+  it('CT-P34 sem ?concluido não há confete', async () => {
+    window.history.replaceState(null, '', '/partners/cenas/student/cronograma');
+    await ready();
+    expect(screen.queryByTestId('celebration-confetti')).toBeNull();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+});

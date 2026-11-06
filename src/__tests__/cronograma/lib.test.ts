@@ -159,3 +159,27 @@ describe('formatMinutes', () => {
     expect(formatMinutes(65)).toBe('1h05');
   });
 });
+
+describe('sessão de estudo pelo banco', () => {
+  it('CT-L29 início da sessão fica guardado por card (sair e voltar não zera)', async () => {
+    const { studySessionStart, clearStudySession } = await import('@/lib/cronograma');
+    localStorage.clear();
+    const a = studySessionStart('x1');
+    expect(Number.isNaN(Date.parse(a))).toBe(false);
+    expect(studySessionStart('x1')).toBe(a);
+    expect(localStorage.getItem('cronograma:study-start:x1')).toBe(a);
+    clearStudySession('x1');
+    expect(localStorage.getItem('cronograma:study-start:x1')).toBeNull();
+  });
+  it('CT-L30 valor corrompido no storage é trocado por agora', async () => {
+    const { studySessionStart } = await import('@/lib/cronograma');
+    localStorage.setItem('cronograma:study-start:x2', 'lixo');
+    expect(studySessionStart('x2')).not.toBe('lixo');
+  });
+  it('CT-L31 studyLinks com itemId adiciona plan_item só no banco', async () => {
+    const { studyLinks } = await import('@/lib/cronograma');
+    const l = studyLinks('cenas', { q_subject: 'Matemática', q_discipline: 'Funções', subject: 'Funções' }, 'it-9');
+    expect(new URL(l.bank, 'http://x').searchParams.get('plan_item')).toBe('it-9');
+    expect(l.simulado).not.toContain('plan_item');
+  });
+});

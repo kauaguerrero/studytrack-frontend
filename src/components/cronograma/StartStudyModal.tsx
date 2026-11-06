@@ -38,7 +38,10 @@ export function StartStudyModal({
 }) {
   const open = !!target;
   const area = target ? AREA_STYLE[target.area] ?? AREA_STYLE.geral : AREA_STYLE.geral;
-  const links = target ? studyLinks(slug, target) : null;
+  // Itens previstos (projeção) ainda não existem no banco: sem barra de progresso.
+  const links = target
+    ? studyLinks(slug, target, target.kind === 'study' && !target.projected && !target.id.startsWith('proj-') ? target.id : undefined)
+    : null;
   const isReview = target?.kind === 'review';
   const done = target?.status === 'done';
 

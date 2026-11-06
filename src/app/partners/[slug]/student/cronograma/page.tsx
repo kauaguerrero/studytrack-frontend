@@ -20,6 +20,7 @@ import { InsightsPanel } from '@/components/cronograma/InsightsPanel';
 import { AgentChat } from '@/components/cronograma/AgentChat';
 import { NextStep } from '@/components/cronograma/NextStep';
 import { PeriodWheel, type WheelEntry } from '@/components/cronograma/PeriodWheel';
+import { CelebrationConfetti } from '@/components/cronograma/CelebrationConfetti';
 import { SetupWizard } from '@/components/cronograma/SetupWizard';
 import { StartStudyModal, type StartTarget } from '@/components/cronograma/StartStudyModal';
 import { ReviewQuizModal } from '@/components/cronograma/ReviewQuizModal';
@@ -106,6 +107,27 @@ function CronogramaInner() {
   }, [status, anchor]);
 
   useEffect(() => { loadView(); }, [loadView]);
+
+  // Volta do banco de questões com a meta batida (?concluido=<id>): confete + aviso.
+  const doneParam = useRef<string | null>(null);
+  const [celebrate, setCelebrate] = useState(0);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const id = p.get('concluido');
+    if (!id) return;
+    doneParam.current = id;
+    p.delete('concluido');
+    const q = p.toString();
+    window.history.replaceState(null, '', window.location.pathname + (q ? `?${q}` : ''));
+  }, []);
+  useEffect(() => {
+    if (!view || !doneParam.current) return;
+    const id = doneParam.current;
+    doneParam.current = null;
+    const it = view.items.find((i) => i.id === id);
+    setCelebrate((c) => c + 1);
+    toast.success(it ? `Conteúdo concluído: ${it.topic}` : 'Conteúdo concluído!', { description: 'Mandou bem! A revisão já foi agendada.' });
+  }, [view]);
   useEffect(() => { if (status?.has_plan) loadInsights(); }, [status, loadInsights]);
 
   const refresh = useCallback(async () => {
@@ -285,6 +307,7 @@ function CronogramaInner() {
   return (
     // Mesmo esqueleto da página de Simulados: fundo cinza, coluna de 6xl, hero com voltar.
     <div className="relative min-h-screen -m-4 bg-slate-50 px-4 py-5 dark:bg-[#080808] md:-m-8 md:px-8 md:py-8">
+    {celebrate > 0 && <CelebrationConfetti key={celebrate} />}
     <RevealGroup className="relative space-y-5 pb-8">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       {/* Topo: à esquerda título com os controles embaixo; à direita a roda de semanas + "Próximo passo". */}
