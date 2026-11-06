@@ -229,7 +229,7 @@ function DayColumn({
         aria-label={maxH ? `${cardCount} itens, role para ver todos` : undefined}>
         <AnimatePresence initial={false}>
           {studies.map((s) => (
-            <DraggableStudy key={s.id} item={s} readOnly={readOnly || isPast || s.status !== 'pending'}
+            <DraggableStudy key={s.id} item={s} readOnly={readOnly || isPast || s.status !== 'pending' || s.projected}
               highlighted={highlightIds?.has(s.id)} weekDates={weekDates} onMove={onMove} onOpen={() => onOpenItem(s)} />
           ))}
           {reviews.map((g) => (
@@ -344,6 +344,7 @@ export function StudyCardBody({ item, dragging }: { item: PlanItem; dragging?: b
       </p>
       <div className="mt-1 flex items-center gap-1.5 text-[10.5px] text-slate-500 dark:text-white/50">
         <span>{item.minutes} min</span>
+        {item.projected && <span className="font-semibold uppercase tracking-wide text-slate-400">previsto</span>}
         {done && <span className="inline-flex items-center gap-0.5 font-bold text-emerald-600"><CheckCircle2 className="h-3 w-3" /> feito</span>}
         {item.depends_on_late.length > 0 && (
           <span className="inline-flex items-center gap-0.5 font-bold text-amber-600" title={`Depende de: ${item.depends_on_late.join(', ')}`}>

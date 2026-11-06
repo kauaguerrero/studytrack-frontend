@@ -223,7 +223,13 @@ function CronogramaInner() {
       const rest = view.items.filter((i) => i.date < today && !previewKeys.has(i.id));
       return [...rest, ...preview].map((i, k) => ({ ...i, id: i.id ?? `preview-${k}` }));
     }
-    return view.items;
+    // Semanas além do horizonte gravado (14 dias): mostra a projeção do planner,
+    // só leitura e marcada como "previsto" (o mês já mostrava; a semana ficava vazia).
+    const projected: PlanItem[] = (view.projection ?? []).map((p, k) => ({
+      ...p, id: `proj-${p.date}-${p.node_id}-${k}`, status: 'pending', pinned: false, source: 'planner',
+      projected: true, position: k, review_due_on: null, depends_on_late: [],
+    }));
+    return [...view.items, ...projected];
   }, [view, proposal, mode, range, today]);
 
   // ── Navegação ─────────────────────────────────────────────────────────────
