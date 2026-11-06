@@ -281,8 +281,10 @@ function CronogramaInner() {
     <div className="relative min-h-screen -m-4 bg-slate-50 px-4 py-5 dark:bg-[#080808] md:-m-8 md:px-8 md:py-8">
     <RevealGroup className="relative space-y-5 pb-8">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <RevealItem className="space-y-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-8">
+      {/* Topo: à esquerda título + controles com a roda de semanas embaixo; à direita o "Próximo passo". */}
+      <RevealItem className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)] lg:items-center lg:gap-6">
+        <div className="min-w-0 space-y-3">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-8">
         <div className="min-w-0">
           <Link href={`/partners/${slug}/student/dashboard`}
             className="mb-1.5 flex w-fit items-center gap-1 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-600 dark:text-white/40 dark:hover:text-white/70">
@@ -328,6 +330,8 @@ function CronogramaInner() {
             className="w-full sm:max-w-[420px]"
           />
         )}
+        </div>
+        {view && <NextStep items={view.items} today={today} onOpen={(i) => setStartTarget(i)} />}
       </RevealItem>
 
       {/* ── Quadro ────────────────────────────────────────────────────────── */}
@@ -380,11 +384,6 @@ function CronogramaInner() {
               onUndo={undo}
               onAdjust={adjust}
             />
-            {view && !proposal && (
-              <div className="mt-3">
-                <NextStep items={view.items} today={today} onOpen={(i) => setStartTarget(i)} />
-              </div>
-            )}
           </div>
         </div>
         <ElevatedCard accentColor="var(--brand-primary)">
