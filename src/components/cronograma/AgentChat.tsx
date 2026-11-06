@@ -47,6 +47,9 @@ export function AgentChat({
   const changes = proposal
     ? proposal.diff.moved.length + proposal.diff.added.length + proposal.diff.removed.length
     : 0;
+  const shown = proposal
+    ? Math.min(8, proposal.diff.moved.length) + Math.min(5, proposal.diff.added.length) + Math.min(5, proposal.diff.removed.length)
+    : 0;
 
   return (
     <div className="space-y-2.5">
@@ -59,8 +62,8 @@ export function AgentChat({
           {proposal.status === 'proposed' && (
             <>
               <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto pl-6 text-[12px] text-slate-700 dark:text-white/70">
-                {proposal.diff.moved.slice(0, 8).map((m) => (
-                  <li key={`m-${m.id}`} className="flex items-center gap-1">
+                {proposal.diff.moved.slice(0, 8).map((m, k) => (
+                  <li key={`m-${m.id ?? k}`} className="flex items-center gap-1">
                     <span className="truncate">{m.topic}</span>
                     <span className="shrink-0 text-slate-500">{formatDayMonth(m.from!)} <MoveRight className="inline h-3 w-3" /> {formatDayMonth(m.to!)}</span>
                   </li>
@@ -70,12 +73,12 @@ export function AgentChat({
                     <Plus className="h-3 w-3" /><span className="truncate">{a.topic}</span><span className="shrink-0">({formatDayMonth(a.to!)})</span>
                   </li>
                 ))}
-                {proposal.diff.removed.slice(0, 5).map((r) => (
-                  <li key={`r-${r.id}`} className="flex items-center gap-1 text-slate-500">
+                {proposal.diff.removed.slice(0, 5).map((r, k) => (
+                  <li key={`r-${r.id ?? k}`} className="flex items-center gap-1 text-slate-500">
                     <Minus className="h-3 w-3" /><span className="truncate">{r.topic}</span><span className="shrink-0">sai de {formatDayMonth(r.from!)}</span>
                   </li>
                 ))}
-                {changes > 18 && <li className="text-slate-500">e mais {changes - 18} ajustes…</li>}
+                {changes > shown && <li className="text-slate-500">e mais {changes - shown} {changes - shown === 1 ? 'ajuste' : 'ajustes'}…</li>}
                 {changes === 0 && <li className="text-slate-500">Ajuste nas configurações (capacidade/prioridade); o quadro se reorganiza ao confirmar.</li>}
               </ul>
               {proposal.warnings.map((w, k) => (
@@ -126,7 +129,11 @@ export function AgentChat({
         <Chip disabled={busy || !!proposal} onClick={() => onChip({ chip: 'lighter_week' })}>Semana mais leve</Chip>
         <Chip disabled={busy || !!proposal} active={picker === 'more_subject'} onClick={() => setPicker(picker === 'more_subject' ? null : 'more_subject')}>Focar em uma área</Chip>
         <Chip disabled={busy || !!proposal} active={picker === 'review_mistakes'} onClick={() => setPicker(picker === 'review_mistakes' ? null : 'review_mistakes')}>Revisar uma área</Chip>
-        <Chip disabled={busy || !!proposal} active={picker === 'exam_day'} onClick={() => setPicker(picker === 'exam_day' ? null : 'exam_day')}>Tenho prova na escola</Chip>
+        <Chip disabled={busy || !!proposal} active={picker === 'exam_day'} onClick={() => {
+          // Sugere a data a partir do "hoje" atual (o do backend chega depois da 1ª renderização).
+          if (picker !== 'exam_day') setExamDate(addDays(today, 3));
+          setPicker(picker === 'exam_day' ? null : 'exam_day');
+        }}>Tenho prova na escola</Chip>
         {canUndo && !proposal && (
           <button type="button" onClick={onUndo} disabled={busy}
             className="ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:text-white/60 dark:hover:bg-white/10">

@@ -12,7 +12,8 @@
     "test:task-intelligence": "rm -rf .tmp-task-intelligence-tests && ./node_modules/.bin/tsc scripts/test-task-intelligence.ts --outDir .tmp-task-intelligence-tests --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node .tmp-task-intelligence-tests/scripts/test-task-intelligence.js",
     "test:dev-role": "node scripts/test-dev-role-logic.mjs",
     "test:overview-metrics": "node scripts/test-overview-metrics-parity.mjs",
-    "test:question-bank": "tsc src/components/questions/questionBankQuery.ts --outDir .tmp-question-bank-tests --module commonjs --target es2020 --skipLibCheck && node scripts/test-question-bank-query.mjs"
+    "test:question-bank": "tsc src/components/questions/questionBankQuery.ts --outDir .tmp-question-bank-tests --module commonjs --target es2020 --skipLibCheck && node scripts/test-question-bank-query.mjs",
+    "test:cronograma": "vitest run src/__tests__/cronograma"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -50,17 +51,24 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/katex": "^0.16.8",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.7.0",
     "babel-plugin-react-compiler": "1.0.0",
     "baseline-browser-mapping": "^2.9.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.3",
+    "jsdom": "^26.1.0",
     "react-is": "^19.2.8",
     "tailwindcss": "^4",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }

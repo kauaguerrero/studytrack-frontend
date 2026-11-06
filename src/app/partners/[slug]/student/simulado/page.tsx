@@ -46,6 +46,7 @@ import { RevealGroup, RevealItem, ElevatedCard, SectionTitle, KpiCard } from '@/
 import { SimuladoComposerModal, type SimuladoComposition } from '@/components/partners/simulado/SimuladoComposerModal'
 import { ContestQuotaBuilder, type ContestQuota } from '../../simulados/ContestQuotaBuilder'
 import { VESTIBULAR_BANK_OPTIONS as BANK_OPTIONS } from '@/lib/simuladoBanks'
+import { parseSimuladoDeepLink } from '@/lib/cronograma'
 import { MOCK_SIMULADO_RANKING_STUDENT, MOCK_SCHEDULED_SIMULADOS_STUDENT } from '../../../../../../studytrack-tutorial-mock'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -676,14 +677,10 @@ export default function SimuladoPage() {
   // Deep-link do Cronograma Inteligente (?cronograma=1&subject=X&topic=Y&qty=N):
   // abre a configuração já com a composição da matéria do dia — o aluno só confirma.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('cronograma') !== '1') return
-    const subject = params.get('subject')
-    if (!subject) return
-    const topic = params.get('topic')
-    const n = Math.max(5, Math.min(30, Number(params.get('qty')) || 10))
+    const link = parseSimuladoDeepLink(window.location.search)
+    if (!link) return
     setMode('custom')
-    setCompositions([{ id: `cronograma-${Date.now()}`, subject, topic: topic || null, qty: n, includeAnswered: false }])
+    setCompositions([{ id: `cronograma-${Date.now()}`, subject: link.subject, topic: link.topic, qty: link.qty, includeAnswered: false }])
     setShowConfigModal(true)
     router.replace(`/partners/${slug}/student/simulado`)
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -21,7 +21,7 @@ export function InsightsPanel({ data, loading }: { data: Insights | null; loadin
       <div className="grid grid-cols-2 gap-2.5">
         <Stat icon={CalendarDays} label="Até o ENEM" value={`${data.weeks_to_exam} sem`} sub={`${data.days_to_exam} dias`} />
         <Stat icon={Gauge} label="Ritmo" value={<span className={`rounded-full border px-2 py-0.5 text-[12px] font-bold ${pace.cls}`}>{pace.label}</span>}
-          sub={data.pace === 'no_ritmo' ? 'na linha do ideal' : `${Math.abs(data.pace_delta)} conteúdos ${data.pace_delta > 0 ? 'à frente' : 'atrás'}`} />
+          sub={data.pace === 'no_ritmo' ? 'na linha do ideal' : `${Math.abs(data.pace_delta)} ${Math.abs(data.pace_delta) === 1 ? 'conteúdo' : 'conteúdos'} ${data.pace_delta > 0 ? 'à frente' : 'atrás'}`} />
         <Stat icon={Flame} label="Dias cumpridos" value={String(data.streak_days)} sub="seguidos" />
         <Stat icon={Brain} label="Memória" value={data.retention_pct == null ? '-' : `${data.retention_pct}%`} sub="revisões bem lembradas (30d)" />
       </div>

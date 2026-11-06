@@ -5,7 +5,7 @@
 // chat com o agente + chips | painel de insights.
 // Regras de agenda/SRS vivem no backend; esta página só exibe e envia ações.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Loader2, CalendarRange } from 'lucide-react';
 import { toast } from 'sonner';
@@ -82,16 +82,20 @@ function CronogramaInner() {
     return mode === 'semana' ? { start: anchor, days: 7 } : { start: monthGridStart(anchor), days: 42 };
   }, [anchor, mode]);
 
+  // Navegar rápido dispara várias cargas; só a mais recente pode ir para a tela
+  // (senão uma resposta lenta da semana anterior sobrescreve a atual).
+  const viewSeq = useRef(0);
   const loadView = useCallback(async () => {
     if (!range) return;
+    const seq = ++viewSeq.current;
     setLoadingView(true);
     try {
       const v = await cronogramaFetch<CronogramaView>(`/?start=${range.start}&days=${range.days}`);
-      setView(v);
+      if (seq === viewSeq.current) setView(v);
     } catch (e) {
-      toast.error((e as Error).message);
+      if (seq === viewSeq.current) toast.error((e as Error).message);
     } finally {
-      setLoadingView(false);
+      if (seq === viewSeq.current) setLoadingView(false);
     }
   }, [range]);
 

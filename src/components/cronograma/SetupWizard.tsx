@@ -9,6 +9,7 @@ import { ElevatedCard } from '@/components/partners/founder-ui';
 import { AREA_STYLE, WEEKDAY_LONG, cronogramaFetch, type Area } from '@/lib/cronograma';
 
 const AREAS: Exclude<Area, 'geral'>[] = ['matematica', 'natureza', 'humanas', 'linguagens'];
+const MAX_DAY_MINUTES = 360;
 const CONFIDENCE = ['Muito insegura(o)', 'Insegura(o)', 'Ok', 'Segura(o)', 'Muito segura(o)'];
 
 export function SetupWizard({
@@ -22,7 +23,8 @@ export function SetupWizard({
   const [examDate, setExamDate] = useState(defaults.exam_date);
   const [capacity, setCapacity] = useState<number[]>(() => {
     const days = Math.max(1, Math.min(7, defaults.days_per_week || 5));
-    const minutes = Math.max(30, Math.min(600, (defaults.hours_per_day || 2) * 60));
+    // Teto = máximo do slider (6h); senão o slider trava no fim e o total mostra outra coisa.
+    const minutes = Math.max(30, Math.min(MAX_DAY_MINUTES, (defaults.hours_per_day || 2) * 60));
     return Array.from({ length: 7 }, (_, wd) => (wd < days ? minutes : 0));
   });
   const [confidence, setConfidence] = useState<Record<Exclude<Area, 'geral'>, number>>({ matematica: 2, natureza: 2, humanas: 2, linguagens: 2 });
@@ -82,7 +84,7 @@ export function SetupWizard({
               {WEEKDAY_LONG.map((label, wd) => (
                 <div key={label} className="flex items-center gap-3">
                   <span className="w-20 text-[13px] font-semibold text-slate-700 dark:text-white/75">{label}</span>
-                  <input type="range" min={0} max={360} step={15} value={capacity[wd]}
+                  <input type="range" min={0} max={MAX_DAY_MINUTES} step={15} value={capacity[wd]}
                     aria-label={`Minutos de estudo na ${label}`}
                     onChange={(e) => setCapacity((c) => c.map((v, i) => (i === wd ? Number(e.target.value) : v)))}
                     className="flex-1" style={{ accentColor: 'var(--brand-primary)' }} />
@@ -124,7 +126,7 @@ export function SetupWizard({
             <ArrowLeft className="h-4 w-4" /> Voltar
           </button>
           {step < 2 ? (
-            <button type="button" onClick={() => setStep((s) => s + 1)} disabled={step === 1 && weekly < 60}
+            <button type="button" onClick={() => setStep((s) => s + 1)} disabled={(step === 0 && !examDate) || (step === 1 && weekly < 60)}
               className="inline-flex items-center gap-1 rounded-full px-5 py-2 text-[13px] font-bold text-white disabled:opacity-40" style={{ background: 'var(--brand-primary)' }}>
               Continuar <ArrowRight className="h-4 w-4" />
             </button>

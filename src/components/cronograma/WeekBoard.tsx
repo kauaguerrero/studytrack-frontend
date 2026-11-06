@@ -102,7 +102,7 @@ export function WeekBoard({
             isPast={d.date < today}
             studies={byDay.get(d.date)?.studies ?? []}
             reviews={byDay.get(d.date)?.reviews ?? []}
-            weekDates={days.map((x) => x.date).filter((x) => x >= today)}
+            weekDates={days.filter((x) => x.date >= today && !x.blocked).map((x) => x.date)}
             readOnly={readOnly}
             highlightIds={highlightIds}
             onMove={onMove}
@@ -133,7 +133,7 @@ function DayColumn({
   onOpenItem: (item: PlanItem) => void;
   onOpenReviews: (group: ReviewGroup) => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: day.date, disabled: readOnly || isPast });
+  const { setNodeRef, isOver } = useDroppable({ id: day.date, disabled: readOnly || isPast || day.blocked });
   const load = LOAD_STYLE[day.level];
   const pct = Math.min(100, Math.round(day.ratio * 100));
   const empty = studies.length === 0 && reviews.length === 0;
@@ -152,7 +152,8 @@ function DayColumn({
     if (!el) return;
     const measure = () => {
       const kids = Array.from(el.children) as HTMLElement[];
-      if (kids.length <= VISIBLE_CARDS) { setMaxH(undefined); return; }
+      // Usa a contagem real (não só o DOM): cards saindo na animação ainda estão no DOM.
+      if (cardCount <= VISIBLE_CARDS || kids.length <= VISIBLE_CARDS) { setMaxH(undefined); return; }
       const fourth = kids[VISIBLE_CARDS];
       // Mostra uma "pontinha" do 4º card para indicar que há mais.
       setMaxH(fourth.offsetTop - el.offsetTop + 18);
@@ -248,7 +249,7 @@ function DayColumn({
           </p>
         )}
       </div>
-      {maxH !== undefined && (
+      {maxH !== undefined && cardCount > VISIBLE_CARDS && (
         <p className="mt-1 text-center text-[10.5px] font-semibold text-slate-400 dark:text-white/40">
           +{cardCount - VISIBLE_CARDS} · role para ver
         </p>

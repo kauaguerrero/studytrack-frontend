@@ -43,10 +43,13 @@ export function ReviewQuizModal({
     if (!itemId) return;
     setQuiz(null); setAnswers({}); setIdx(0); setResult(null);
     setLoading(true);
+    // Troca de item no meio do carregamento: a resposta antiga é descartada.
+    let stale = false;
     cronogramaFetch<QuizResponse>(`/items/${itemId}/quiz`)
-      .then(setQuiz)
-      .catch((e) => { toast.error(e.message); onClose(); })
-      .finally(() => setLoading(false));
+      .then((qz) => { if (!stale) setQuiz(qz); })
+      .catch((e) => { if (!stale) { toast.error(e.message); onClose(); } })
+      .finally(() => { if (!stale) setLoading(false); });
+    return () => { stale = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemId]);
 

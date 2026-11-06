@@ -174,14 +174,20 @@ export async function cronogramaFetch<T>(path: string, init?: RequestInit): Prom
   const supabase = createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new CronogramaApiError('Sessão expirada. Faça login novamente.', 401);
-  const res = await fetch(`${API}/api/student/cronograma${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
-      ...(init?.headers || {}),
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API}/api/student/cronograma${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+        ...(init?.headers || {}),
+      },
+    });
+  } catch {
+    // Sem isso o aluno via "Failed to fetch" (TypeError cru do navegador) no toast.
+    throw new CronogramaApiError('Sem conexão com o servidor. Verifique sua internet e tente de novo.', 0, 'network');
+  }
   let data: unknown = null;
   try { data = await res.json(); } catch { /* corpo vazio */ }
   if (!res.ok) {
@@ -262,4 +268,14 @@ export function studyLinks(slug: string, node: Pick<NodeView, 'q_subject' | 'q_d
     bank: `/partners/${slug}/student/banco-de-questoes?${p.toString()}`,
     simulado: `/partners/${slug}/student/simulado?${s.toString()}`,
   };
+}
+
+/** Lê o deep-link do simulado (?cronograma=1&subject=X&topic=Y&qty=N) — par de `studyLinks`. */
+export function parseSimuladoDeepLink(search: string): { subject: string; topic: string | null; qty: number } | null {
+  const p = new URLSearchParams(search);
+  if (p.get('cronograma') !== '1') return null;
+  const subject = p.get('subject');
+  if (!subject) return null;
+  const qty = Math.max(5, Math.min(30, Number(p.get('qty')) || 10));
+  return { subject, topic: p.get('topic') || null, qty };
 }
