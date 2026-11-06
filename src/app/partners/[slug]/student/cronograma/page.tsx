@@ -287,7 +287,7 @@ function CronogramaInner() {
   return (
     // Mesmo esqueleto da página de Simulados: fundo cinza, coluna de 6xl, hero com voltar.
     <div className="relative min-h-screen -m-4 bg-slate-50 px-4 py-5 dark:bg-[#080808] md:-m-8 md:px-8 md:py-8">
-    <RevealGroup className="relative mx-auto max-w-6xl space-y-5 pb-8">
+    <RevealGroup className="relative space-y-5 pb-8">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <RevealItem className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
@@ -377,12 +377,9 @@ function CronogramaInner() {
         </div>
       </RevealItem>
 
-      {/* ── Assistente (vidro, sem card) + Sua semana ─────────────────────── */}
+      {/* ── Assistente (balão flutuante, sem card) + Sua semana ─────────────────────── */}
       <RevealItem className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         <div className="relative">
-          {/* brilho atrás do vidro (é ele que dá o efeito de "glass") */}
-          <div aria-hidden className="pointer-events-none absolute -inset-x-4 -inset-y-6 opacity-70 blur-2xl dark:opacity-40"
-            style={{ background: 'radial-gradient(45% 60% at 20% 40%, color-mix(in srgb, var(--brand-primary) 22%, transparent), transparent 70%), radial-gradient(35% 50% at 85% 70%, color-mix(in srgb, #a855f7 16%, transparent), transparent 70%)' }} />
           <div className="relative">
             <AgentChat
               today={today}

@@ -24,21 +24,11 @@ const AREAS: Area[] = ['matematica', 'natureza', 'humanas', 'linguagens'];
 const STEP_MIN = 15;
 const STEP_MAX = 720;
 
-// Vidro: translúcido + blur + borda clara + brilho da cor da org no topo.
+// Balão "flutuando": fundo branco limpo, sem brilho no topo, com sombra embaixo.
 const GLASS =
-  'relative overflow-hidden rounded-[22px] border border-white/70 bg-white/60 shadow-[0_10px_40px_-16px_rgba(15,23,42,0.28)] ring-1 ring-slate-900/[0.04] backdrop-blur-xl backdrop-saturate-150 ' +
-  'dark:border-white/10 dark:bg-slate-900/55 dark:ring-white/[0.04] dark:shadow-[0_10px_40px_-16px_rgba(0,0,0,0.7)]';
-
-function GlassShine() {
-  return (
-    <>
-      <span aria-hidden className="pointer-events-none absolute inset-x-6 top-0 h-px"
-        style={{ background: 'linear-gradient(90deg, transparent, color-mix(in srgb, var(--brand-primary) 70%, transparent), transparent)' }} />
-      <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-16 opacity-60 dark:opacity-30"
-        style={{ background: 'radial-gradient(60% 100% at 50% 0%, color-mix(in srgb, var(--brand-primary) 14%, transparent), transparent)' }} />
-    </>
-  );
-}
+  'relative rounded-[22px] border border-slate-200/70 bg-white ' +
+  'shadow-[0_2px_4px_-2px_rgba(15,23,42,0.06),0_22px_40px_-20px_rgba(15,23,42,0.35)] ' +
+  'dark:border-white/10 dark:bg-slate-900 dark:shadow-[0_22px_40px_-20px_rgba(0,0,0,0.8)]';
 
 export function AgentChat({
   today,
@@ -129,7 +119,6 @@ export function AgentChat({
           <motion.div key={proposal.request_id}
             initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.98 }}
             className={`${GLASS} p-3.5`} aria-live="polite">
-            <GlassShine />
             <p className="relative flex items-start gap-2 text-[13px] text-slate-800 dark:text-white/85">
               <Sparkles className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--brand-primary)' }} />
               <span>{proposal.reply || (proposal.status === 'proposed' ? 'Preparei estas mudanças:' : 'Não consegui aplicar esse pedido.')}</span>
@@ -163,7 +152,7 @@ export function AgentChat({
                   <div className="mt-2.5 space-y-1.5">
                     {editable.map((e) => (
                       <div key={e.index} role="group" aria-label={`Tempo de ${e.label}`}
-                        className="flex items-center justify-between gap-2 rounded-xl border border-white/80 bg-white/70 px-2.5 py-1.5 dark:border-white/10 dark:bg-white/5">
+                        className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-2.5 py-1.5 dark:border-white/10 dark:bg-white/5">
                         <span className="flex min-w-0 items-center gap-1.5 text-[12.5px] font-semibold text-slate-700 dark:text-white/75">
                           <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
                           <span className="truncate first-letter:uppercase">{e.label}</span>
@@ -250,7 +239,6 @@ export function AgentChat({
       {!asking && (<>
       {/* Campo de mensagem: vidro */}
       <div className={`${GLASS} p-1.5 transition focus-within:shadow-[0_14px_44px_-14px_color-mix(in_srgb,var(--brand-primary)_45%,transparent)]`}>
-        <GlassShine />
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value.slice(0, 500))}
