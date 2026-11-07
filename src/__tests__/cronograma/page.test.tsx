@@ -257,7 +257,7 @@ describe('agente', () => {
   it('CT-P20 chip gera prévia: quadro fica só leitura e mostra o novo dia', async () => {
     on('POST', /^\/agent$/, () => preview());
     await ready();
-    fireEvent.click(screen.getByText('Semana mais leve'));
+    fireEvent.click(screen.getByText('Semana leve'));
     expect(await screen.findByText(/Prévia: os cards destacados/)).toBeInTheDocument();
     expect(within(day('QUI 12/11')).getByText('Logaritmos')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByLabelText('Mover para…')).toBeNull()); // após a animação de saída
@@ -267,7 +267,7 @@ describe('agente', () => {
     on('POST', /^\/agent$/, () => preview());
     on('POST', /^\/agent\/req-1\/confirm$/, () => ({ applied: true }));
     await ready();
-    fireEvent.click(screen.getByText('Semana mais leve'));
+    fireEvent.click(screen.getByText('Semana leve'));
     fireEvent.click(await screen.findByRole('button', { name: /Confirmar/ }));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Cronograma atualizado.'));
     expect(screen.getByText('Desfazer última')).toBeInTheDocument();
@@ -277,7 +277,7 @@ describe('agente', () => {
     on('POST', /^\/agent$/, () => preview());
     on('POST', /confirm$/, () => { throw new CronogramaApiError('A sugestão expirou.', 409, 'expired'); });
     await ready();
-    fireEvent.click(screen.getByText('Semana mais leve'));
+    fireEvent.click(screen.getByText('Semana leve'));
     fireEvent.click(await screen.findByRole('button', { name: /Confirmar/ }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('A sugestão expirou.'));
     expect(screen.queryByText(/Prévia:/)).toBeNull();
@@ -287,7 +287,7 @@ describe('agente', () => {
     on('POST', /^\/agent$/, () => preview());
     on('POST', /discard$/, () => ({}));
     await ready();
-    fireEvent.click(screen.getByText('Semana mais leve'));
+    fireEvent.click(screen.getByText('Semana leve'));
     fireEvent.click(await screen.findByRole('button', { name: /Descartar/ }));
     expect(calls('POST', /^\/agent\/req-1\/discard$/)).toHaveLength(1);
     expect(within(day('QUA 11/11')).getByText('Logaritmos')).toBeInTheDocument();
@@ -295,7 +295,7 @@ describe('agente', () => {
   it('CT-P24 pedido que falhou fecha sem chamar discard', async () => {
     on('POST', /^\/agent$/, () => proposal({ status: 'failed', reply: 'Não entendi.' }));
     await ready();
-    fireEvent.click(screen.getByText('Semana mais leve'));
+    fireEvent.click(screen.getByText('Semana leve'));
     fireEvent.click(await screen.findByText('Fechar'));
     expect(calls('POST', /discard$/)).toHaveLength(0);
   });
@@ -311,7 +311,7 @@ describe('agente', () => {
     on('POST', /confirm$/, () => ({ applied: true }));
     on('POST', /^\/agent\/undo$/, () => ({ undone: true }));
     await ready();
-    fireEvent.click(screen.getByText('Semana mais leve'));
+    fireEvent.click(screen.getByText('Semana leve'));
     fireEvent.click(await screen.findByRole('button', { name: /Confirmar/ }));
     fireEvent.click(await screen.findByText('Desfazer última'));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Alteração desfeita.'));
@@ -322,7 +322,7 @@ describe('agente', () => {
     await ready();
     fireEvent.click(screen.getByRole('button', { name: 'Mês' }));
     await waitFor(() => expect(calls('GET', /days=42/)).toHaveLength(1));
-    fireEvent.click(screen.getByText('Semana mais leve'));
+    fireEvent.click(screen.getByText('Semana leve'));
     expect(await screen.findByText(/Prévia: os cards destacados/)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'QUI 12/11' })).toHaveTextContent('Logaritmos');
   });

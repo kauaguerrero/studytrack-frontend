@@ -18,7 +18,7 @@ export function InsightsPanel({ data, loading }: { data: Insights | null; loadin
   if (loading || !data) {
     return (
       <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-2.5">{[0, 1, 2, 3].map((k) => <div key={k} className="h-[84px] animate-pulse rounded-2xl bg-slate-100 dark:bg-white/5" />)}</div>
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">{[0, 1, 2, 3].map((k) => <div key={k} className="h-[76px] animate-pulse rounded-2xl bg-slate-100 dark:bg-white/5" />)}</div>
         <div className="h-[92px] animate-pulse rounded-2xl bg-slate-100 dark:bg-white/5" />
       </div>
     );
@@ -29,14 +29,14 @@ export function InsightsPanel({ data, loading }: { data: Insights | null; loadin
   const totalNodes = areas.reduce((s, a) => s + a.total, 0) || 1;
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2.5">
+    <div className="space-y-2.5">
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
         <Tile icon={CalendarDays} color="var(--brand-primary)" label="Até o ENEM" value={`${data.weeks_to_exam} sem`} sub={`${data.days_to_exam} dias`} />
         <Tile icon={Gauge} color={pace.color} label="Ritmo"
-          value={<span className={`inline-block rounded-full px-2.5 py-0.5 text-[13px] font-bold ${pace.cls}`}>{pace.label}</span>}
+          value={<span className={`inline-block rounded-full px-2 py-0.5 text-[12.5px] font-bold ${pace.cls}`}>{pace.label}</span>}
           sub={data.pace === 'no_ritmo' ? 'na linha do ideal' : `${delta} ${delta === 1 ? 'conteúdo' : 'conteúdos'} ${data.pace_delta > 0 ? 'à frente' : 'atrás'}`} />
-        <Tile icon={Flame} color="#f97316" label="Dias cumpridos" value={String(data.streak_days)} sub="seguidos" />
-        <Tile icon={Brain} color="#9333ea" label="Memória" value={data.retention_pct == null ? '-' : `${data.retention_pct}%`} sub="revisões bem lembradas (30d)" />
+        <Tile icon={Flame} color="#f97316" label="Sequência" value={String(data.streak_days)} sub={data.streak_days === 1 ? 'dia cumprido' : 'dias cumpridos'} />
+        <Tile icon={Brain} color="#9333ea" label="Memória" value={data.retention_pct == null ? '-' : `${data.retention_pct}%`} sub="lembradas em 30 dias" />
       </div>
 
       <div className="rounded-2xl bg-slate-50 p-3 dark:bg-white/[0.04]">
@@ -84,18 +84,13 @@ export function InsightsPanel({ data, loading }: { data: Insights | null; loadin
 
 function Tile({ icon: Icon, color, label, value, sub }: { icon: React.ElementType; color: string; label: string; value: React.ReactNode; sub: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-3 dark:bg-white/[0.04]">
-      <div className="relative flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-white/50">{label}</p>
-          <div className="mt-1 font-display text-[22px] font-black leading-none text-slate-900 dark:text-white">{value}</div>
-          <p className="mt-1 truncate text-[10.5px] text-slate-500 dark:text-white/45">{sub}</p>
-        </div>
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl"
-          style={{ background: `color-mix(in srgb, ${color} 15%, transparent)`, color }}>
-          <Icon className="h-4 w-4" />
-        </span>
-      </div>
+    <div className="min-w-0 rounded-2xl bg-slate-50 px-3 py-2.5 dark:bg-white/[0.04]">
+      <p className="flex min-w-0 items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-white/50">
+        <Icon className="h-3.5 w-3.5 shrink-0" style={{ color }} />
+        <span className="truncate">{label}</span>
+      </p>
+      <div className="mt-1.5 font-display text-[20px] font-black leading-none text-slate-900 dark:text-white">{value}</div>
+      <p className="mt-1 truncate text-[10.5px] text-slate-500 dark:text-white/45">{sub}</p>
     </div>
   );
 }

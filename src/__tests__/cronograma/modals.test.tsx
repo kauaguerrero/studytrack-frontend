@@ -1,6 +1,6 @@
 // CT-S / CT-T / CT-Q / CT-R / CT-A: assistente de criação, modais e chat do agente.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 
 const { fetchMock, toast } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
@@ -349,7 +349,9 @@ describe('AgentChat', () => {
   const chat = (p: Partial<React.ComponentProps<typeof AgentChat>> = {}) => {
     const h = { onSend: vi.fn(), onChip: vi.fn(), onConfirm: vi.fn(), onDiscard: vi.fn(), onUndo: vi.fn() };
     const r = render(<AgentChat today={TODAY} proposal={null} busy={false} canUndo={false} {...h} {...p} />);
-    return { ...h, ...r };
+    const again = (q: Partial<React.ComponentProps<typeof AgentChat>>) =>
+      r.rerender(<AgentChat today={TODAY} proposal={null} busy={false} canUndo={false} {...h} {...p} {...q} />);
+    return { ...h, ...r, again };
   };
   const box = () => screen.getByLabelText('Mensagem para o assistente do cronograma');
 
@@ -386,32 +388,32 @@ describe('AgentChat', () => {
   });
   it('CT-A06 chips diretos', () => {
     const h = chat();
-    fireEvent.click(screen.getByText('Não vou estudar amanhã'));
-    fireEvent.click(screen.getByText('Semana mais leve'));
+    fireEvent.click(screen.getByText('Folga amanhã'));
+    fireEvent.click(screen.getByText('Semana leve'));
     expect(h.onChip.mock.calls).toEqual([[{ chip: 'skip_tomorrow' }], [{ chip: 'lighter_week' }]]);
   });
   it('CT-A07 "Focar em uma área" abre as áreas e envia a escolhida', () => {
     const h = chat();
-    fireEvent.click(screen.getByText('Focar em uma área'));
+    fireEvent.click(screen.getByText('Focar numa área'));
     fireEvent.click(screen.getByRole('button', { name: 'Natureza' }));
     expect(h.onChip).toHaveBeenCalledWith({ chip: 'more_subject', payload: { subject: 'natureza' } });
     expect(screen.queryByRole('button', { name: 'Natureza' })).toBeNull();
   });
   it('CT-A08 "Revisar uma área" usa o chip review_mistakes', () => {
     const h = chat();
-    fireEvent.click(screen.getByText('Revisar uma área'));
+    fireEvent.click(screen.getByText('Revisar área'));
     fireEvent.click(screen.getByRole('button', { name: 'Humanas' }));
     expect(h.onChip).toHaveBeenCalledWith({ chip: 'review_mistakes', payload: { subject: 'humanas' } });
   });
   it('CT-A09 clicar de novo no chip fecha o seletor', () => {
     chat();
-    fireEvent.click(screen.getByText('Focar em uma área'));
-    fireEvent.click(screen.getByText('Focar em uma área'));
+    fireEvent.click(screen.getByText('Focar numa área'));
+    fireEvent.click(screen.getByText('Focar numa área'));
     expect(screen.queryByRole('button', { name: 'Natureza' })).toBeNull();
   });
   it('CT-A10 "Tenho prova" sugere hoje+3 e envia a data', () => {
     const h = chat();
-    fireEvent.click(screen.getByText('Tenho prova na escola'));
+    fireEvent.click(screen.getByText('Prova na escola'));
     expect(screen.getByLabelText('Dia da prova:')).toHaveValue('2026-11-14');
     fireEvent.change(screen.getByLabelText('Dia da prova:'), { target: { value: '2026-11-20' } });
     fireEvent.click(screen.getByText('Liberar o dia'));
@@ -421,7 +423,7 @@ describe('AgentChat', () => {
     const r = chat({ today: '2026-11-05' });
     r.rerender(<AgentChat today={TODAY} proposal={null} busy={false} canUndo={false}
       onSend={r.onSend} onChip={r.onChip} onConfirm={r.onConfirm} onDiscard={r.onDiscard} onUndo={r.onUndo} />);
-    fireEvent.click(screen.getByText('Tenho prova na escola'));
+    fireEvent.click(screen.getByText('Prova na escola'));
     expect(screen.getByLabelText('Dia da prova:')).toHaveValue('2026-11-14');
   });
   it('CT-A12 prévia lista movidos, adicionados e removidos', () => {
@@ -455,10 +457,28 @@ describe('AgentChat', () => {
     chat({ proposal: proposal({ warnings: [{ code: 'review_far_from_due', message: 'Atrasar a revisão reduz a retenção.' }] }) });
     expect(screen.getByText('Atrasar a revisão reduz a retenção.')).toBeInTheDocument();
   });
-  it('CT-A17 com prévia aberta, chat e chips ficam travados', () => {
+  it('CT-A17 com prévia aberta, o campo trava e os atalhos dão lugar a Confirmar/Descartar', () => {
     chat({ proposal: proposal() });
     expect(box()).toBeDisabled();
-    expect(screen.getByText('Semana mais leve')).toBeDisabled();
+    expect(screen.queryByText('Semana leve')).toBeNull();
+    expect(screen.getByRole('button', { name: /Confirmar/ })).toBeInTheDocument();
+  });
+  it('CT-A31 conversa: mensagem do aluno aparece e a resposta fechada fica no histórico', () => {
+    const h = chat();
+    fireEvent.change(box(), { target: { value: 'quinta tenho consulta' } });
+    fireEvent.keyDown(box(), { key: 'Enter' });
+    const log = screen.getByRole('log', { name: 'Conversa com o assistente' });
+    expect(within(log).getByText('quinta tenho consulta')).toBeInTheDocument();
+    h.again({ proposal: proposal({ reply: 'Tirei tudo da quinta.' }) });
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar/ }));
+    h.again({ proposal: null });
+    expect(within(log).getByText('Tirei tudo da quinta.')).toBeInTheDocument();
+    expect(within(log).getByText(/Você confirmou/)).toBeInTheDocument();
+  });
+  it('CT-A32 atalho também vira mensagem do aluno na conversa', () => {
+    chat();
+    fireEvent.click(screen.getByText('Semana leve'));
+    expect(within(screen.getByRole('log')).getByText('Semana leve')).toBeInTheDocument();
   });
   it('CT-A18 pedido que falhou: só "Fechar" (descarta), sem confirmar', () => {
     const h = chat({ proposal: proposal({ status: 'failed', reply: '' }) });
@@ -489,7 +509,7 @@ describe('AgentChat', () => {
     const h = chat({ proposal: proposal({ question: 'Quer isso em todo sábado?' }) });
     expect(screen.getByText('Quer isso em todo sábado?')).toBeInTheDocument();
     expect(screen.queryByLabelText('Mensagem para o assistente do cronograma')).toBeNull();
-    expect(screen.queryByText('Semana mais leve')).toBeNull();
+    expect(screen.queryByText('Semana leve')).toBeNull();
     expect(screen.queryByRole('button', { name: /Confirmar/ })).toBeNull();
     const sim = screen.getByRole('button', { name: 'Sim' });
     const nao = screen.getByRole('button', { name: 'Não' });
