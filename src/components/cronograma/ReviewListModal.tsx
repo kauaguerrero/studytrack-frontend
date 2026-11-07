@@ -27,16 +27,16 @@ export function ReviewListModal({
                 Revisar no tempo certo é o que faz o conteúdo ficar até a prova. Cada revisão leva cerca de 15 min.
               </DialogDescription>
             </DialogHeader>
-            <ul className="space-y-1.5">
+            <ul className="min-w-0 space-y-1.5">
               {group.items.map((i) => (
                 <li key={i.id}>
                   <button type="button" disabled={i.status === 'done' || i.projected} onClick={() => onStart(i)}
-                    className="flex w-full items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-2.5 text-left hover:shadow-md disabled:cursor-default disabled:hover:shadow-none dark:border-white/10 dark:bg-slate-900">
+                    className="flex w-full min-w-0 items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-2.5 text-left hover:shadow-md disabled:cursor-default disabled:hover:shadow-none dark:border-white/10 dark:bg-slate-900">
                     {i.status === 'done'
                       ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
                       : <RotateCcw className="h-4 w-4 shrink-0 text-slate-400" />}
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-semibold text-slate-900 dark:text-white">{i.topic}</span>
+                      <span className="line-clamp-2 block text-[13px] font-semibold leading-snug text-slate-900 dark:text-white" title={i.topic}>{i.topic}</span>
                       <span className="block text-[11px] text-slate-500 dark:text-white/50">
                         {i.q_discipline || i.subject}{i.projected ? ' · prevista' : ''}
                       </span>
