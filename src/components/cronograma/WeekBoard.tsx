@@ -223,7 +223,15 @@ function DayColumn({
             </span>
           ) : null}
         </div>
-        <p className="font-display text-[17px] font-black leading-tight text-slate-900 dark:text-white">{formatDayMonth(day.date)}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="font-display text-[17px] font-black leading-tight text-slate-900 dark:text-white">{formatDayMonth(day.date)}</p>
+          {day.review_only && !day.blocked && (
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-500/15 dark:text-violet-300"
+              title="Dia de revisão: sem conteúdo novo, só revisões (as próximas são adiantadas para cá)">
+              <RotateCcw className="h-2.5 w-2.5" /> Revisão
+            </span>
+          )}
+        </div>
         {/* Progresso do dia (concluídos / total): contador + barra na mesma linha. */}
         <div className="mt-1.5 flex h-3.5 items-center gap-2">
           {countable.length > 0 && (

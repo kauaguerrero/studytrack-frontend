@@ -45,12 +45,16 @@ export interface DayInfo {
   ratio: number;
   level: 'green' | 'yellow' | 'red';
   blocked: boolean;
+  /** Dia da semana marcado como "só revisão" na rotina. */
+  review_only?: boolean;
 }
 
 export interface PlanSummary {
   id: string;
   exam_date: string;
   capacity: Record<string, number>;
+  /** Dias da semana (0=seg … 6=dom) só de revisão. */
+  review_weekdays?: number[];
   subject_weights: Record<string, number>;
   version: number;
 }
@@ -121,7 +125,7 @@ export interface Proposal {
 
 export interface EditableTime {
   index: number;
-  op: 'set_day_capacity' | 'set_weekday_capacity';
+  op: 'set_day_capacity' | 'set_weekday_capacity' | 'set_review_day';
   label: string;
   minutes: number;
   routine_minutes: number;

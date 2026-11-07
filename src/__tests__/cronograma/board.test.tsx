@@ -99,6 +99,12 @@ describe('WeekBoard', () => {
     board([], { days, onUnblock, readOnly: true });
     expect(within(day('SEX 13/11')).getByRole('button', { name: /Voltar a estudar/ })).toBeDisabled();
   });
+  it('CT-W15c dia de revisão ganha o selo "Revisão"', () => {
+    const days = week(); days[5] = { ...days[5], capacity: 90, review_only: true };
+    board([], { days });
+    expect(within(day('SÁB 14/11')).getByText('Revisão')).toBeInTheDocument();
+    expect(within(day('SEX 13/11')).queryByText('Revisão')).toBeNull();
+  });
   it('CT-W16 fim de semana com capacidade 0 mostra "Folga" e sem barra de carga', () => {
     board([]);
     expect(within(day('SÁB 14/11')).getByText('Folga')).toBeInTheDocument();

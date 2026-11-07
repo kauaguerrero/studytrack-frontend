@@ -18,6 +18,7 @@ import { StartStudyModal, type StartTarget } from '@/components/cronograma/Start
 import { ReviewQuizModal } from '@/components/cronograma/ReviewQuizModal';
 import { ReviewListModal } from '@/components/cronograma/ReviewListModal';
 import { AgentChat } from '@/components/cronograma/AgentChat';
+import { RoutineModal } from '@/components/cronograma/RoutineModal';
 import type { QuizResponse, ReviewResult } from '@/lib/cronograma';
 import { TODAY, item, proposal } from './fixtures';
 
@@ -378,6 +379,42 @@ describe('ReviewQuizModal', () => {
 });
 
 // ─── ReviewListModal ────────────────────────────────────────────────────────
+describe('RoutineModal', () => {
+  const initial = { capacity: { 0: 120, 1: 120, 2: 120, 3: 120, 4: 120, 5: 0, 6: 0 }, reviewWeekdays: [] as number[] };
+  const open = (p = {}) => {
+    const h = { onClose: vi.fn(), onSave: vi.fn() };
+    render(<RoutineModal open initial={initial} {...h} {...p} />);
+    return h;
+  };
+  it('CT-R01 marcar sábado como revisão começa com 1h e salva tempo + dia', () => {
+    const h = open();
+    expect(screen.getByRole('button', { name: 'Salvar rotina' })).toBeDisabled(); // nada mudou
+    fireEvent.click(screen.getByRole('button', { name: 'Sábado: dia normal' }));
+    expect(screen.getByLabelText('Tempo de sábado')).toHaveValue('60');
+    fireEvent.change(screen.getByLabelText('Tempo de sábado'), { target: { value: '90' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rotina' }));
+    expect(h.onSave).toHaveBeenCalledWith({ capacity: { ...initial.capacity, 5: 90 }, reviewWeekdays: [5] });
+  });
+  it('CT-R02 dia de revisão sem tempo ou sem sobrar conteúdo novo não salva', () => {
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'Sábado: dia normal' }));
+    fireEvent.change(screen.getByLabelText('Tempo de sábado'), { target: { value: '0' } });
+    expect(screen.getByRole('alert')).toHaveTextContent('quanto tempo');
+    expect(screen.getByRole('button', { name: 'Salvar rotina' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Tempo de sábado'), { target: { value: '60' } });
+    for (const d of ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta']) {
+      fireEvent.click(screen.getByRole('button', { name: `${d}: dia normal` }));
+    }
+    expect(screen.getByRole('alert')).toHaveTextContent('conteúdo novo');
+  });
+  it('CT-R03 desmarcar dia de revisão já salvo', () => {
+    const h = open({ initial: { ...initial, capacity: { ...initial.capacity, 5: 90 }, reviewWeekdays: [5] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sábado: dia de revisão' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rotina' }));
+    expect(h.onSave).toHaveBeenCalledWith(expect.objectContaining({ reviewWeekdays: [] }));
+  });
+});
+
 describe('ReviewListModal', () => {
   it('CT-R01 lista tópicos e só deixa iniciar os pendentes reais', () => {
     const pend = item({ kind: 'review', topic: 'Pendente' });

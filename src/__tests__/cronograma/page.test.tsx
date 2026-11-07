@@ -429,6 +429,22 @@ describe('volta do banco com a meta batida', () => {
     expect(calls('POST', /^\/agent$/)).toHaveLength(0);
     expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('voltou para o cronograma'));
   });
+  it('CT-P37 "Minha rotina" salva tempo e dia de revisão em /settings e recarrega', async () => {
+    on('PATCH', /^\/settings$/, () => ({ changed: true, version: 8 }));
+    const cap = { 0: 120, 1: 120, 2: 120, 3: 120, 4: 120, 5: 0, 6: 0 };
+    on('GET', /^\/\?start=/, (path) => { const v = viewFor(path); return { ...v, plan: { ...v.plan, capacity: cap } }; });
+    await ready();
+    const before = calls('GET', /^\/\?/).length;
+    fireEvent.click(screen.getByRole('button', { name: 'Minha rotina' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Sábado: dia normal' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rotina' }));
+    await waitFor(() => expect(calls('PATCH', /^\/settings$/)).toHaveLength(1));
+    const body = JSON.parse(calls('PATCH', /^\/settings$/)[0][1]!.body as string);
+    expect(body.review_weekdays).toEqual([5]);
+    expect(body.capacity['5']).toBe(60);
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('Rotina atualizada')));
+    await waitFor(() => expect(calls('GET', /^\/\?/).length).toBeGreaterThan(before));
+  });
   it('CT-P36 "Corrigir" chama /items/<id>/fix-order, avisa a nova data e recarrega', async () => {
     items = [item({ id: 'A', topic: 'Logaritmos', date: TODAY, depends_on_late: ['Potências'] })];
     on('POST', /^\/items\/A\/fix-order$/, () => ({ date: addDays(TODAY, 3), diff: { moved: [], added: [], removed: [] } }));

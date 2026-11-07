@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Loader2, CalendarDays, TrendingUp } from 'lucide-react';
+import { ChevronLeft, Loader2, CalendarDays, TrendingUp, Clock } from 'lucide-react';
 import { CronogramaSkeleton } from '@/components/cronograma/CronogramaSkeleton';
 import { toast } from 'sonner';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
@@ -26,6 +26,7 @@ import { SetupWizard } from '@/components/cronograma/SetupWizard';
 import { StartStudyModal, type StartTarget } from '@/components/cronograma/StartStudyModal';
 import { ReviewQuizModal } from '@/components/cronograma/ReviewQuizModal';
 import { ReviewListModal } from '@/components/cronograma/ReviewListModal';
+import { RoutineModal, type RoutineValue } from '@/components/cronograma/RoutineModal';
 import {
   CronogramaApiError, MONTHS, addDays, cronogramaFetch, formatDayMonth, formatMinutes, parseISODate, toISODate, weekStart,
   type CronogramaStatus, type CronogramaView, type Insights, type PlanItem, type Proposal,
@@ -65,6 +66,8 @@ function CronogramaInner() {
   const [startTarget, setStartTarget] = useState<StartTarget | null>(null);
   const [reviewItemId, setReviewItemId] = useState<string | null>(null);
   const [reviewGroup, setReviewGroup] = useState<ReviewGroup | null>(null);
+  const [routineOpen, setRoutineOpen] = useState(false);
+  const [routineBusy, setRoutineBusy] = useState(false);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -169,6 +172,22 @@ function CronogramaInner() {
     } catch (e) {
       toast.error((e as Error).message);
     }
+  };
+
+  // "Minha rotina": tempo por dia + dias só de revisão (sem IA, sem cota).
+  const saveRoutine = async (v: RoutineValue) => {
+    setRoutineBusy(true);
+    try {
+      const capacity = Object.fromEntries(Object.entries(v.capacity).map(([k, m]) => [String(k), m]));
+      const r = await cronogramaFetch<{ changed: boolean }>('/settings', {
+        method: 'PATCH', body: JSON.stringify({ capacity, review_weekdays: v.reviewWeekdays }),
+      });
+      toast.success(r.changed ? 'Rotina atualizada. O cronograma foi reorganizado.' : 'Nada mudou na rotina.');
+      setRoutineOpen(false);
+      await refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally { setRoutineBusy(false); }
   };
 
   // "Corrigir" do aviso de pré-requisito: o conteúdo vai para depois dele (sem IA, sem cota).
@@ -387,6 +406,10 @@ function CronogramaInner() {
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[13px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10">
             <CalendarDays className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} />Hoje
           </button>
+          <button type="button" onClick={() => setRoutineOpen(true)} disabled={!view}
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[13px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10">
+            <Clock className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} />Minha rotina
+          </button>
         </div>
         </div>
         <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[330px_360px] xl:gap-4">
@@ -483,6 +506,18 @@ function CronogramaInner() {
         onFixOrder={fixOrder}
         onStartReview={(t) => { setStartTarget(null); setReviewItemId(t.id); }}
       />
+      {view && (
+        <RoutineModal
+          open={routineOpen}
+          busy={routineBusy}
+          initial={{
+            capacity: Object.fromEntries(Array.from({ length: 7 }, (_, wd) => [wd, Number(view.plan.capacity[String(wd)] ?? 0)])),
+            reviewWeekdays: view.plan.review_weekdays ?? [],
+          }}
+          onClose={() => setRoutineOpen(false)}
+          onSave={saveRoutine}
+        />
+      )}
       <ReviewListModal
         group={reviewGroup}
         onClose={() => setReviewGroup(null)}
