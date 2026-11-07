@@ -18,7 +18,7 @@ export function NextStep({ items, today, onOpen }: { items: PlanItem[]; today: s
   const doneToday = todays.filter((i) => i.status === 'done').length;
 
   return (
-    <div className="relative overflow-hidden rounded-[22px] border border-slate-200/70 bg-white p-3.5 shadow-[0_2px_4px_-2px_rgba(15,23,42,0.06),0_22px_40px_-20px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-slate-900">
+    <div className="relative flex h-full flex-col justify-center overflow-hidden rounded-[22px] border border-slate-200/70 bg-white p-3.5 shadow-[0_2px_4px_-2px_rgba(15,23,42,0.06),0_22px_40px_-20px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-slate-900">
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-white/50">Próximo passo</p>
         {todays.length > 0 && (

@@ -191,49 +191,52 @@ function DayColumn({
       ].join(' ')}
       style={isOver ? { outline: '2px dashed color-mix(in srgb, var(--brand-primary) 55%, transparent)', outlineOffset: -4 } : undefined}
     >
-      <header className={`${countable.length > 0 ? "mb-1" : "mb-2"} flex items-start justify-between gap-1`}>
-        <div>
-          <p className={`text-[10.5px] font-bold tracking-[0.12em] ${isToday ? '' : 'text-slate-500 dark:text-white/50'}`}
+      {/* Cabeçalho com altura fixa em todos os dias: os cards começam na mesma linha. */}
+      <header className="mb-2.5">
+        <div className="flex h-5 items-center justify-between gap-1">
+          <p className={`min-w-0 truncate whitespace-nowrap text-[10.5px] font-bold tracking-[0.12em] ${isToday ? '' : 'text-slate-500 dark:text-white/50'}`}
             style={isToday ? { color: 'var(--brand-primary)' } : undefined}>
             {WEEKDAY_SHORT[weekdayIndex(day.date)]}{isToday ? ' · HOJE' : ''}
           </p>
-          <p className="font-display text-[17px] font-black text-slate-900 dark:text-white">{formatDayMonth(day.date)}</p>
+          {day.blocked ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-bold text-slate-600 dark:bg-white/10 dark:text-white/60">
+              <Ban className="h-3 w-3" /> Livre
+            </span>
+          ) : day.capacity > 0 && !(isPast && day.minutes === 0) ? (
+            // Carga do dia (minutos planejados / capacidade): a cor diz se está tranquilo, cheio ou pesado.
+            <span role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={`Carga do dia: ${load.label}`}
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold tabular-nums ${load.text}`}
+              style={{ background: `color-mix(in srgb, ${load.bar} 13%, transparent)` }}
+              title={`${load.label}: ${day.minutes} de ${day.capacity} min planejados`}>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: load.bar }} />
+              {day.minutes}/{day.capacity}min
+            </span>
+          ) : day.minutes > 0 ? (
+            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-bold tabular-nums text-slate-600 dark:bg-white/10 dark:text-white/60"
+              title="Dia de folga na sua rotina — estes itens foram colocados por você">
+              {day.minutes}min
+            </span>
+          ) : null}
+        </div>
+        <p className="font-display text-[17px] font-black leading-tight text-slate-900 dark:text-white">{formatDayMonth(day.date)}</p>
+        {/* Progresso do dia (concluídos / total): contador + barra na mesma linha. */}
+        <div className="mt-1.5 flex h-3.5 items-center gap-2">
           {countable.length > 0 && (
-            <p className={`inline-flex items-center gap-1 text-[10.5px] font-bold ${doneCount === countable.length ? 'text-emerald-600' : 'text-slate-500 dark:text-white/50'}`}
-              aria-label={`${doneCount} de ${countable.length} concluídos`}>
-              <CheckCircle2 className="h-3 w-3" /> {doneCount}/{countable.length}
-            </p>
+            <>
+              <span className={`inline-flex shrink-0 items-center gap-1 text-[10.5px] font-bold tabular-nums ${doneCount === countable.length ? 'text-emerald-600' : 'text-slate-500 dark:text-white/50'}`}
+                aria-label={`${doneCount} de ${countable.length} concluídos`}>
+                <CheckCircle2 className="h-3 w-3" /> {doneCount}/{countable.length}
+              </span>
+              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10" role="progressbar"
+                aria-valuemin={0} aria-valuemax={countable.length} aria-valuenow={doneCount} aria-label="Progresso do dia">
+                <motion.span className="block h-full rounded-full" initial={false}
+                  style={{ background: doneCount === countable.length ? '#10b981' : 'var(--brand-primary)' }}
+                  animate={{ width: `${Math.round((doneCount / countable.length) * 100)}%` }} />
+              </span>
+            </>
           )}
         </div>
-        {day.blocked ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10.5px] font-bold text-slate-600 dark:bg-white/10 dark:text-white/60">
-            <Ban className="h-3 w-3" /> Livre
-          </span>
-        ) : day.capacity > 0 ? (
-          // Carga do dia (minutos planejados / capacidade): a cor diz se está tranquilo, cheio ou pesado.
-          <span role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label={`Carga do dia: ${load.label}`}
-            className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-bold ${load.text}`}
-            style={{ background: `color-mix(in srgb, ${load.bar} 13%, transparent)` }}
-            title={`${load.label}: ${day.minutes} de ${day.capacity} min planejados`}>
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: load.bar }} />
-            {day.minutes}/{day.capacity}min
-          </span>
-        ) : day.minutes > 0 ? (
-          <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-bold text-slate-600 dark:bg-white/10 dark:text-white/60"
-            title="Dia de folga na sua rotina — estes itens foram colocados por você">
-            {day.minutes}min
-          </span>
-        ) : null}
       </header>
-      {/* Barra = progresso do dia (concluídos / total), alinhada ao contador "1/1". */}
-      {countable.length > 0 && (
-        <div className="mb-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10" role="progressbar"
-          aria-valuemin={0} aria-valuemax={countable.length} aria-valuenow={doneCount} aria-label="Progresso do dia">
-          <motion.div className="h-full rounded-full" initial={false}
-            style={{ background: doneCount === countable.length ? '#10b981' : 'var(--brand-primary)' }}
-            animate={{ width: `${Math.round((doneCount / countable.length) * 100)}%` }} />
-        </div>
-      )}
 
       <div ref={listRef}
         className={`cronograma-day-scroll -mr-1 flex flex-col gap-1.5 overflow-y-auto overscroll-contain pr-1 ${empty ? "flex-1" : ""}`}

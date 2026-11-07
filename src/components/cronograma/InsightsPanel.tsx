@@ -39,7 +39,7 @@ export function InsightsPanel({ data, loading }: { data: Insights | null; loadin
         <Tile icon={Brain} color="#9333ea" label="Memória" value={data.retention_pct == null ? '-' : `${data.retention_pct}%`} sub="revisões bem lembradas (30d)" />
       </div>
 
-      <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 dark:border-white/5 dark:bg-white/[0.03]">
+      <div className="rounded-2xl bg-slate-50 p-3 dark:bg-white/[0.04]">
         <div className="mb-2 flex items-baseline justify-between gap-2">
           <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-white/50">Conteúdo estudado</p>
           <p className="text-[12px] font-bold text-slate-900 dark:text-white">{data.studied}/{data.total} · {data.coverage_pct}%</p>
@@ -84,9 +84,7 @@ export function InsightsPanel({ data, loading }: { data: Insights | null; loadin
 
 function Tile({ icon: Icon, color, label, value, sub }: { icon: React.ElementType; color: string; label: string; value: React.ReactNode; sub: string }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 dark:border-white/5 dark:bg-white/[0.03]">
-      <span aria-hidden className="pointer-events-none absolute inset-0"
-        style={{ background: `radial-gradient(circle at top right, color-mix(in srgb, ${color} 13%, transparent), transparent 65%)` }} />
+    <div className="rounded-2xl bg-slate-50 p-3 dark:bg-white/[0.04]">
       <div className="relative flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-white/50">{label}</p>

@@ -8,12 +8,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Loader2, CalendarDays } from 'lucide-react';
+import { ChevronLeft, Loader2, CalendarDays, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
-import { ElevatedCard, RevealGroup, RevealItem, Segmented, SectionTitle } from '@/components/partners/founder-ui';
+import { ElevatedCard, RevealGroup, RevealItem, Segmented } from '@/components/partners/founder-ui';
 import { useOrg } from '@/contexts/OrgContext';
-import { onBrandText } from '@/lib/brand-color';
 import { WeekBoard, type ReviewGroup } from '@/components/cronograma/WeekBoard';
 import { MonthGrid } from '@/components/cronograma/MonthGrid';
 import { InsightsPanel } from '@/components/cronograma/InsightsPanel';
@@ -290,13 +289,11 @@ function CronogramaInner() {
 
   const anchorDate = anchor ? parseISODate(mode === 'semana' ? addDays(anchor, 3) : anchor) : new Date();
   const monthLabel = `${MONTHS[anchorDate.getMonth()]} ${anchorDate.getFullYear()}`;
-  const monthShort = `${MONTHS[anchorDate.getMonth()].slice(0, 3)} ${anchorDate.getFullYear()}`;
   // No modo semana o rótulo diz qual semana do mês está na tela (a semana pertence ao mês da quinta-feira).
   const weekOfMonth = anchor && mode === 'semana'
     ? Math.round((parseISODate(weekStart(anchor)).getTime() - parseISODate(monthGridStart(toISODate(anchorDate))).getTime()) / (7 * 864e5)) + 1
     : 0;
-  const navLabel = weekOfMonth ? `Semana ${weekOfMonth} · ${monthLabel}` : monthLabel;
-  const navShort = weekOfMonth ? `Sem. ${weekOfMonth} · ${MONTHS[anchorDate.getMonth()].slice(0, 3)}` : monthShort;
+  const navLabel = weekOfMonth ? `Semana ${weekOfMonth} · ${monthLabel}` : undefined;
   const wheel = buildWheel(mode, anchor ?? weekStart(today), today, minStart, mode === 'semana' ? view : null);
 
   const examYear = parseISODate(status.plan!.exam_date).getFullYear();
@@ -311,7 +308,10 @@ function CronogramaInner() {
     <RevealGroup className="relative space-y-5 pb-8">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       {/* Topo: à esquerda título com os controles embaixo; à direita a roda de semanas + "Próximo passo". */}
-      <RevealItem className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)] lg:items-center lg:gap-6 xl:grid-cols-[minmax(0,1fr)_auto]">
+      {/* Uma faixa só: título + modo à esquerda; à direita a roda (único navegador de período)
+          e o "Próximo passo", lado a lado e com a mesma altura. Alinhados por baixo para não
+          brigar com o avatar fixo no canto superior direito. */}
+      <RevealItem className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between xl:gap-6 xl:pr-14">
         <div className="min-w-0 space-y-3">
         <div className="min-w-0">
           <Link href={`/partners/${slug}/student/dashboard`}
@@ -321,7 +321,7 @@ function CronogramaInner() {
           <h1 className="font-display text-[28px] font-black leading-tight text-slate-900 dark:text-white sm:text-[32px]">Cronograma</h1>
           <p className="mt-0.5 text-[13px] text-slate-500 dark:text-white/40">{subtitle}</p>
         </div>
-        <div className="flex items-center gap-1.5 sm:flex-wrap sm:gap-2">
+        <div className="flex items-center gap-2">
           <Segmented<Mode>
             options={[{ value: 'semana', label: 'Semana' }, { value: 'mes', label: 'Mês' }]}
             value={mode}
@@ -336,39 +336,25 @@ function CronogramaInner() {
             }}
             hex={org.brand_primary}
           />
-          <div className="flex min-w-0 flex-1 items-center justify-between gap-0.5 rounded-xl border border-slate-200 bg-white p-1 dark:border-white/10 dark:bg-white/[0.05] sm:flex-none">
-            <button type="button" aria-label={mode === 'semana' ? 'Semana anterior' : 'Mês anterior'}
-              disabled={!range || range.start <= minStart}
-              onClick={() => (mode === 'semana' ? goWeeks(-1) : goMonths(-1))}
-              className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:text-white/70 dark:hover:bg-white/10">
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="min-w-0 truncate text-center text-[12.5px] font-bold capitalize sm:min-w-[168px] sm:text-[13px] text-slate-800 dark:text-white"><span className="sm:hidden">{navShort}</span><span className="hidden sm:inline">{navLabel}</span></span>
-            <button type="button" aria-label={mode === 'semana' ? 'Próxima semana' : 'Próximo mês'}
-              onClick={() => (mode === 'semana' ? goWeeks(1) : goMonths(1))}
-              className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 dark:text-white/70 dark:hover:bg-white/10">
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          {/* Secundário de propósito: o único botão forte do topo é o "Começar". */}
           <button type="button" onClick={() => { setMode('semana'); setAnchor(weekStart(today)); }}
-            className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-xl px-3 text-[13px] font-bold sm:px-3.5 transition-transform hover:scale-[1.02] active:scale-[0.97]"
-            style={{ background: org.brand_primary || 'var(--brand-primary)', color: onBrandText(org.brand_primary), boxShadow: `0 6px 16px -6px ${org.brand_primary || 'var(--brand-primary)'}` }}>
-            <CalendarDays className="h-4 w-4" /><span className="sr-only sm:not-sr-only">Hoje</span>
+            disabled={mode === 'semana' && anchor === weekStart(today)}
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[13px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10">
+            <CalendarDays className="h-4 w-4" style={{ color: 'var(--brand-primary)' }} />Hoje
           </button>
         </div>
         </div>
-        <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:gap-4">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[330px_360px] xl:gap-4">
         {anchor && (
           <PeriodWheel
             ariaLabel={mode === 'semana' ? 'Seletor de semana' : 'Seletor de mês'}
-            prev={wheel.prev} current={wheel.current} next={wheel.next} detail={wheel.detail}
+            prev={wheel.prev} current={wheel.current} next={wheel.next} detail={wheel.detail} sub={navLabel}
             onPrev={() => (mode === 'semana' ? goWeeks(-1) : goMonths(-1))}
             onNext={() => (mode === 'semana' ? goWeeks(1) : goMonths(1))}
-            className="w-full sm:max-w-[420px] lg:max-w-none xl:w-[250px]"
-            compactAt="xl:hidden"
+            className="h-full"
           />
         )}
-        {view && <div className="min-w-0 xl:w-[360px]"><NextStep items={view.items} today={today} onOpen={(i) => setStartTarget(i)} /></div>}
+        {view && <NextStep items={view.items} today={today} onOpen={(i) => setStartTarget(i)} />}
         </div>
       </RevealItem>
 
@@ -408,8 +394,7 @@ function CronogramaInner() {
 
       {/* ── Assistente (balão flutuante, sem card) + Sua semana ─────────────────────── */}
       <RevealItem className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <div className="relative">
-          <div className="relative">
+        <div>
             <AgentChat
               today={today}
               proposal={proposal}
@@ -422,14 +407,23 @@ function CronogramaInner() {
               onUndo={undo}
               onAdjust={adjust}
             />
-          </div>
         </div>
-        <ElevatedCard accentColor="var(--brand-primary)">
-          <div className="p-4 lg:p-5">
-            <SectionTitle kicker="Sua semana" title="Como você está indo" hex={org.brand_primary} />
+        {/* Mesmo cabeçalho e mesmo cartão branco do assistente: as duas colunas começam alinhadas. */}
+        <section aria-label="Sua semana" className="space-y-3">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl"
+              style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)', color: 'var(--brand-primary)' }}>
+              <TrendingUp className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="font-display text-[15px] font-bold leading-tight text-slate-900 dark:text-white">Como você está indo</p>
+              <p className="text-[11.5px] text-slate-500 dark:text-white/50">Ritmo, constância e o que já foi estudado.</p>
+            </div>
+          </div>
+          <div className="rounded-[22px] border border-slate-200/70 bg-white p-3.5 shadow-[0_2px_4px_-2px_rgba(15,23,42,0.06),0_22px_40px_-20px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-slate-900">
             <InsightsPanel data={insights} />
           </div>
-        </ElevatedCard>
+        </section>
       </RevealItem>
 
       <StartStudyModal

@@ -160,24 +160,26 @@ describe('mover', () => {
   });
 });
 
+const nextBtn = () => screen.getByRole('button', { name: /^Ir para o período seguinte/ });
+const prevBtn = () => screen.getByRole('button', { name: /^Ir para o período anterior/ });
+
 describe('navegação', () => {
   it('CT-P13 próxima semana busca a semana seguinte', async () => {
     await ready();
-    fireEvent.click(screen.getByLabelText('Próxima semana'));
+    fireEvent.click(nextBtn());
     await waitFor(() => expect(calls('GET', /^\/\?start=2026-11-16&days=7$/)).toHaveLength(1));
   });
   it('CT-P14 não volta mais que ~30 dias', async () => {
     await ready();
-    const prev = screen.getByLabelText('Semana anterior');
-    for (let k = 0; k < 4; k++) { fireEvent.click(prev); await screen.findByRole('region', { name: `SEG ${['02/11', '26/10', '19/10', '12/10'][k]}` }); }
-    expect(prev).toBeDisabled();
+    for (let k = 0; k < 4; k++) { fireEvent.click(prevBtn()); await screen.findByRole('region', { name: `SEG ${['02/11', '26/10', '19/10', '12/10'][k]}` }); }
+    expect(prevBtn()).toBeDisabled();
   });
   it('CT-P15 respostas fora de ordem não deixam a semana errada na tela', async () => {
     await ready();
     const pending: Record<string, () => void> = {};
     on('GET', /^\/\?start=/, (p) => new Promise((r) => { pending[p] = () => r(viewFor(p)); }));
-    fireEvent.click(screen.getByLabelText('Próxima semana'));
-    fireEvent.click(screen.getByLabelText('Próxima semana'));
+    fireEvent.click(nextBtn());
+    fireEvent.click(nextBtn());
     await waitFor(() => expect(Object.keys(pending)).toHaveLength(2));
     await act(async () => { pending['/?start=2026-11-23&days=7'](); });
     await act(async () => { pending['/?start=2026-11-16&days=7'](); });
@@ -202,7 +204,7 @@ describe('navegação', () => {
   });
   it('CT-P18 "Hoje" volta para a semana atual', async () => {
     await ready();
-    fireEvent.click(screen.getByLabelText('Próxima semana'));
+    fireEvent.click(nextBtn());
     await screen.findByRole('region', { name: 'SEG 16/11' });
     fireEvent.click(screen.getByRole('button', { name: 'Hoje' }));
     expect(await screen.findByRole('region', { name: 'SEG 09/11' })).toBeInTheDocument();
@@ -221,13 +223,13 @@ describe('navegação', () => {
   it('CT-P19d rótulo do navegador acompanha a semana do mês', async () => {
     await ready();
     expect(screen.getByText('Semana 3 · novembro 2026')).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('Próxima semana'));
+    fireEvent.click(nextBtn());
     expect(await screen.findByText('Semana 4 · novembro 2026')).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('Próxima semana'));
-    fireEvent.click(screen.getByLabelText('Próxima semana'));
+    fireEvent.click(nextBtn());
+    fireEvent.click(nextBtn());
     expect(await screen.findByText('Semana 1 · dezembro 2026')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Mês' }));
-    expect(await screen.findByText('dezembro 2026', { selector: 'span.hidden' })).toBeInTheDocument();
+    expect(await within(screen.getByRole('group', { name: 'Seletor de mês' })).findByText('dezembro 2026', { selector: '[aria-current] *' })).toBeInTheDocument();
   });
   it('CT-P19b roda responde a ↓/↑ do teclado', async () => {
     await ready();
