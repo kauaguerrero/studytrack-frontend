@@ -667,7 +667,9 @@ export default function BancoDeQuestoes() {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <ModuleGuard permKey="banco_questoes_enabled">
-    <div className="bg-[#F5F5F7] dark:bg-slate-950/50 overscroll-none">
+    {/* Mesmo fundo das outras páginas do aluno, cobrindo o padding do <main>: antes era um
+        bloco de outra cor (roxo translúcido no escuro) recortado dentro do fundo da plataforma. */}
+    <div className="-m-4 min-h-screen bg-slate-50 px-0 pb-4 pt-0 dark:bg-[#080808] md:-m-8 md:pb-8 overscroll-none">
 
       <ReportDialog
         open={reportDialogOpen}

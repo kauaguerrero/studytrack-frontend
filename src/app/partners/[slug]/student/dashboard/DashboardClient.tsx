@@ -940,8 +940,10 @@ export function DashboardClient({
   const hasAccuracyLeaderBadge = (isTestAccount && devBadgeOverrides.accuracy) || Boolean(selfRankingEntry?.has_accuracy_leader_badge);
 
   // ── CTA de retomada (hero) ─────────────────────────────────────────────────
+  // O parêntese final dos tópicos ("Elementos da Comunicação (Emissor, Receptor, …)") só
+  // alonga o CTA; o nome completo fica no title.
   const resumeSubtitle = cronogramaNext
-    ? `${cronogramaNext.overdue ? 'Pendente' : 'Hoje'}: ${cronogramaNext.kind === 'review' ? 'revisão de ' : ''}${cronogramaNext.topic}`
+    ? `${cronogramaNext.overdue ? 'Pendente' : 'Hoje'}: ${cronogramaNext.kind === 'review' ? 'revisão de ' : ''}${cronogramaNext.topic.replace(/\s*\([^)]*\)\s*$/, '') || cronogramaNext.topic}`
     : cronogramaDoneToday
       ? 'Cronograma de hoje concluído. Quer adiantar?'
       : effectiveCurrentStreak > 0
@@ -1022,8 +1024,13 @@ export function DashboardClient({
 
               {/* CTA de retomada — botão "pressionável" estilo app gamificado: camada
                   de baixo mais escura simula profundidade 3D e "afunda" no clique/toque. */}
-              <div className="flex shrink-0 flex-col items-center gap-2 lg:gap-3">
-                <p className="text-center text-[11.5px] font-semibold leading-snug text-white/55">
+              {/* Largura limitada: o nome do conteúdo pode ser enorme e, com shrink-0, empurrava
+                  a coluna para fora do hero quando a sidebar expandia. */}
+              <div className="flex min-w-0 flex-col items-center gap-2 lg:w-[300px] lg:shrink-0 lg:gap-3">
+                <p
+                  className="line-clamp-2 w-full max-w-[300px] text-center text-[11.5px] font-semibold leading-snug text-white/55"
+                  title={resumeSubtitle}
+                >
                   {resumeSubtitle}
                 </p>
                 <Link

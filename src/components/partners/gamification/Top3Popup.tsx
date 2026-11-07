@@ -339,7 +339,7 @@ export function Top3Popup({ position, ranking, slug, onDismiss }: Props) {
           </button>
         </div>
 
-        <div className="relative z-10 overflow-y-auto px-4 py-4 sm:px-5">
+        <div className="relative z-10 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-5">
           <div className="space-y-3">
             <div className="rounded-[24px] p-3.5 sm:p-4" style={theme.elevatedPanelStyle}>
               <div className="mb-3 flex items-center justify-between gap-3">

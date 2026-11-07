@@ -217,7 +217,7 @@ export function MonthEndScreen({
             </div>
           )}
 
-          <div className="relative z-10 overflow-y-auto p-5 sm:p-7">
+          <div className="relative z-10 overflow-y-auto overflow-x-hidden p-5 sm:p-7">
             {/* Header */}
             <div className="mb-5 text-center">
               <motion.div

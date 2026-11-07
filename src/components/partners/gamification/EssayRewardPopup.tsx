@@ -69,7 +69,7 @@ export function EssayRewardPopup({
           }}
         />
 
-        <div className="overflow-y-auto px-5 pt-7 pb-5 space-y-5 sm:px-6 sm:pt-8 sm:pb-6">
+        <div className="overflow-y-auto overflow-x-hidden px-5 pt-7 pb-5 space-y-5 sm:px-6 sm:pt-8 sm:pb-6">
           <div className="text-center">
             <motion.div
               className="mb-3 flex justify-center"

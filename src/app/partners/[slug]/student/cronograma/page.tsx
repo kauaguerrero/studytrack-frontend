@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, Loader2, CalendarDays, TrendingUp } from 'lucide-react';
+import { CronogramaSkeleton } from '@/components/cronograma/CronogramaSkeleton';
 import { toast } from 'sonner';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { ElevatedCard, RevealGroup, RevealItem, Segmented } from '@/components/partners/founder-ui';
@@ -53,7 +54,10 @@ function CronogramaInner() {
   const [anchor, setAnchor] = useState<string | null>(null); // segunda da semana (ou dia do mês)
   const [view, setView] = useState<CronogramaView | null>(null);
   const [loadingView, setLoadingView] = useState(false);
+  const [viewFailed, setViewFailed] = useState(false);
   const [insights, setInsights] = useState<Insights | null>(null);
+  // Os insights podem falhar sem quebrar a página; o esqueleto só espera a primeira tentativa.
+  const [insightsTried, setInsightsTried] = useState(false);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [agentBusy, setAgentBusy] = useState(false);
   const [canUndo, setCanUndo] = useState(false);
@@ -86,9 +90,9 @@ function CronogramaInner() {
     setLoadingView(true);
     try {
       const v = await cronogramaFetch<CronogramaView>(`/?start=${range.start}&days=${range.days}`);
-      if (seq === viewSeq.current) setView(v);
+      if (seq === viewSeq.current) { setView(v); setViewFailed(false); }
     } catch (e) {
-      if (seq === viewSeq.current) toast.error((e as Error).message);
+      if (seq === viewSeq.current) { toast.error((e as Error).message); setViewFailed(true); }
     } finally {
       if (seq === viewSeq.current) setLoadingView(false);
     }
@@ -96,6 +100,7 @@ function CronogramaInner() {
 
   const loadInsights = useCallback(async () => {
     try { setInsights(await cronogramaFetch<Insights>('/insights')); } catch { /* painel é secundário */ }
+    finally { setInsightsTried(true); }
   }, []);
 
   // Primeira carga: descobre "hoje" pelo backend (fuso de Brasília) e ancora na semana atual.
@@ -103,7 +108,7 @@ function CronogramaInner() {
     if (!status?.has_plan || anchor) return;
     cronogramaFetch<CronogramaView>('/?days=1')
       .then((v) => setAnchor(weekStart(v.today)))
-      .catch((e) => toast.error((e as Error).message));
+      .catch((e) => { toast.error((e as Error).message); setViewFailed(true); });
   }, [status, anchor]);
 
   useEffect(() => { loadView(); }, [loadView]);
@@ -296,8 +301,21 @@ function CronogramaInner() {
   });
   const minStart = addDays(today, -30);
 
-  if (!status) {
-    return <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>;
+  // Primeira carga: esqueleto com o mesmo desenho da página até a semana e os insights
+  // chegarem, para os blocos não irem surgindo e empurrando a tela um por um.
+  if (!status || (status.enabled && status.has_plan && ((!view && !viewFailed) || !insightsTried))) {
+    return <CronogramaSkeleton />;
+  }
+  if (status.has_plan && !view) {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-center">
+        <p className="text-[14px] text-slate-600 dark:text-white/65">Não foi possível carregar o seu cronograma.</p>
+        <button type="button" onClick={() => { setViewFailed(false); setAnchor(null); loadStatus(); }}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-[13px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80">
+          Tentar de novo
+        </button>
+      </div>
+    );
   }
   if (!status.enabled) {
     return <p className="p-6 text-[14px] text-slate-600">O cronograma não está habilitado para a sua escola.</p>;
@@ -388,7 +406,6 @@ function CronogramaInner() {
       {/* ── Quadro ────────────────────────────────────────────────────────── */}
       <RevealItem>
         <div className="relative">
-          {loadingView && !view && <div className="h-[340px] animate-pulse rounded-[20px] bg-slate-200/60 dark:bg-white/5" />}
           {view && mode === 'semana' && (
             <WeekBoard
               days={view.days}

@@ -74,10 +74,28 @@ const moveVia = (topic: string, to: string) => {
 };
 
 describe('carga', () => {
-  it('CT-P01 enquanto carrega o status mostra o spinner', () => {
+  it('CT-P01 enquanto carrega o status mostra o esqueleto', () => {
     fetchMock.mockReturnValue(new Promise(() => {}));
-    const { container } = render(<CronogramaPage />);
-    expect(container.querySelector('.animate-spin')).not.toBeNull();
+    render(<CronogramaPage />);
+    expect(screen.getByRole('status', { name: 'Carregando cronograma' })).toBeInTheDocument();
+  });
+  it('CT-P01b o esqueleto só sai quando a semana e os insights chegaram', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    on('GET', /^\/insights$/, async () => { await gate; return insights(); });
+    render(<CronogramaPage />);
+    await waitFor(() => expect(calls('GET', /^\/\?start=/).length).toBeGreaterThan(0));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.getByRole('status', { name: 'Carregando cronograma' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Cronograma' })).toBeNull();
+    release();
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Cronograma' })).toBeInTheDocument());
+    expect(screen.queryByRole('status', { name: 'Carregando cronograma' })).toBeNull();
+  });
+  it('CT-P01c se a semana falhar, mostra "Tentar de novo" em vez de esqueleto eterno', async () => {
+    on('GET', /^\/\?start=/, () => { throw new Error('falhou'); });
+    render(<CronogramaPage />);
+    expect(await screen.findByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument();
   });
   it('CT-P02 módulo desligado mostra o aviso', async () => {
     on('GET', /^\/status$/, () => ({ enabled: false }));
