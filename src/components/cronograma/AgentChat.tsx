@@ -355,7 +355,8 @@ export function AgentChat({
           <div className="rounded-2xl border border-slate-200 bg-white p-1.5 transition focus-within:border-[color:color-mix(in_srgb,var(--brand-ink)_45%,transparent)] focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand-ink)_12%,transparent)] dark:border-white/10 dark:bg-white/[0.03]">
             <textarea
               value={text}
-              onChange={(e) => setText(e.target.value.slice(0, 500))}
+              maxLength={300}
+              onChange={(e) => setText(e.target.value.slice(0, 300))}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               rows={1}
               placeholder="Peça uma mudança, ex.: “quinta tenho consulta, tira tudo”"

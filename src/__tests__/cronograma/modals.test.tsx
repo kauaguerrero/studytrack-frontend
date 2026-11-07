@@ -375,10 +375,10 @@ describe('AgentChat', () => {
     expect(h.onSend).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeDisabled();
   });
-  it('CT-A04 mensagem limitada a 500 caracteres', () => {
+  it('CT-A04 mensagem limitada a 300 caracteres (mesmo teto do backend)', () => {
     chat();
     fireEvent.change(box(), { target: { value: 'x'.repeat(800) } });
-    expect((box() as HTMLTextAreaElement).value).toHaveLength(500);
+    expect((box() as HTMLTextAreaElement).value).toHaveLength(300);
   });
   it('CT-A05 ocupado não envia por Enter', () => {
     const h = chat({ busy: true });
