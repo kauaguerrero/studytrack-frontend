@@ -475,6 +475,13 @@ describe('AgentChat', () => {
     expect(within(log).getByText('Tirei tudo da quinta.')).toBeInTheDocument();
     expect(within(log).getByText(/Você confirmou/)).toBeInTheDocument();
   });
+  it('CT-A33 cada mensagem mostra o horário (hh:mm) ao lado', () => {
+    chat();
+    fireEvent.change(box(), { target: { value: 'oi' } });
+    fireEvent.keyDown(box(), { key: 'Enter' });
+    const times = within(screen.getByRole('log')).getAllByText(/^\d{2}:\d{2}$/);
+    expect(times.length).toBe(2); // saudação + mensagem do aluno
+  });
   it('CT-A32 atalho também vira mensagem do aluno na conversa', () => {
     chat();
     fireEvent.click(screen.getByText('Semana leve'));

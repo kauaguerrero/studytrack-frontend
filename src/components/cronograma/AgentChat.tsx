@@ -98,17 +98,20 @@ export function AgentChat({
   // a resposta do agente vira uma mensagem fixa com o que o aluno fez com ela.
   const [history, setHistory] = useState<ChatMsg[]>([]);
   const [lastAction, setLastAction] = useState<'confirm' | 'discard' | null>(null);
-  const [seenProposal, setSeenProposal] = useState<Proposal | null>(proposal);
-  if (seenProposal !== proposal) {
-    if (seenProposal && seenProposal.request_id !== proposal?.request_id) {
-      const closed = seenProposal;
-      const note = closed.status === 'proposed' ? (lastAction === 'confirm' ? 'Você confirmou' : 'Você descartou') : undefined;
-      setHistory((h) => [...h, { id: h.length, role: 'agent', text: replyOf(closed), note }]);
+  const [greetAt] = useState(() => new Date());
+  const [seen, setSeen] = useState<{ p: Proposal | null; at: Date }>(() => ({ p: proposal, at: new Date() }));
+  if (seen.p !== proposal) {
+    const isNew = proposal?.request_id !== seen.p?.request_id;
+    if (seen.p && isNew) {
+      const closed = seen;
+      const note = closed.p!.status === 'proposed' ? (lastAction === 'confirm' ? 'Você confirmou' : 'Você descartou') : undefined;
+      setHistory((h) => [...h, { id: h.length, role: 'agent', text: replyOf(closed.p!), note, at: closed.at }]);
       setLastAction(null);
     }
-    setSeenProposal(proposal);
+    // Ajustar o tempo devolve a mesma prévia: mantém o horário em que ela chegou.
+    setSeen({ p: proposal, at: isNew ? new Date() : seen.at });
   }
-  const say = (t: string) => setHistory((h) => [...h, { id: h.length, role: 'user', text: t }]);
+  const say = (t: string) => setHistory((h) => [...h, { id: h.length, role: 'user', text: t, at: new Date() }]);
   const chip = (label: string, body: ChipBody) => { say(label); onChip(body); };
   const confirmNow = () => { setLastAction('confirm'); onConfirm(); };
   const discardNow = () => { setLastAction('discard'); onDiscard(); };
@@ -147,13 +150,13 @@ export function AgentChat({
         <div className="relative min-h-[150px] flex-1">
           <div ref={threadRef} role="log" aria-label="Conversa com o assistente"
             className="cronograma-day-scroll max-h-[340px] space-y-2.5 overflow-y-auto overscroll-contain pr-1 lg:absolute lg:inset-0 lg:max-h-none">
-            <AgentBubble>
+            <AgentBubble at={greetAt}>
               Me conta o que mudou na sua rotina que eu reorganizo o cronograma. Você vê a prévia antes de confirmar.
             </AgentBubble>
             {history.map((m) => (m.role === 'user'
-              ? <UserBubble key={m.id}>{m.text}</UserBubble>
+              ? <UserBubble key={m.id} at={m.at}>{m.text}</UserBubble>
               : (
-                <AgentBubble key={m.id}>
+                <AgentBubble key={m.id} at={m.at}>
                   {m.text}
                   {m.note && (
                     <span className={`mt-1 flex items-center gap-1 text-[11px] font-bold ${m.note === 'Você confirmou' ? 'text-emerald-600' : 'text-slate-500 dark:text-white/50'}`}>
@@ -166,9 +169,9 @@ export function AgentChat({
             {/* Resposta aberta do agente: texto + o que muda (as ações ficam no pé do cartão). */}
             {proposal && (
               <motion.div key={proposal.request_id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                className="flex items-start gap-2" aria-live="polite">
+                className="flex items-end gap-1.5" aria-live="polite">
                 <BotDot />
-                <div className="min-w-0 max-w-[88%] rounded-2xl rounded-tl-md bg-slate-50 px-3.5 py-2.5 dark:bg-white/5">
+                <div className="min-w-0 max-w-[84%] rounded-2xl rounded-bl-md bg-slate-50 px-3.5 py-2.5 dark:bg-white/5">
                   <p className="text-[13px] text-slate-800 dark:text-white/85">
                     {proposal.reply || (proposal.status === 'proposed' ? 'Preparei estas mudanças:' : 'Não consegui aplicar esse pedido.')}
                   </p>
@@ -205,13 +208,14 @@ export function AgentChat({
                     </div>
                   )}
                 </div>
+                <Time at={seen.at} />
               </motion.div>
             )}
 
             {thinking && (
-              <div className="flex items-start gap-2" aria-label="O assistente está pensando">
+              <div className="flex items-end gap-1.5" aria-label="O assistente está pensando">
                 <BotDot />
-                <span className="flex gap-1 rounded-2xl rounded-tl-md bg-slate-50 px-3.5 py-3 dark:bg-white/5">
+                <span className="flex gap-1 rounded-2xl rounded-bl-md bg-slate-50 px-3.5 py-3 dark:bg-white/5">
                   {[0, 1, 2].map((k) => (
                     <motion.span key={k} className="h-1.5 w-1.5 rounded-full bg-slate-400"
                       animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: k * 0.15 }} />
@@ -374,36 +378,48 @@ export function AgentChat({
   );
 }
 
-type ChatMsg = { id: number; role: 'user' | 'agent'; text: string; note?: string };
+type ChatMsg = { id: number; role: 'user' | 'agent'; text: string; note?: string; at: Date };
+
+const hhmm = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 function replyOf(p: Proposal): string {
   return p.reply || (p.status === 'proposed' ? 'Preparei algumas mudanças no cronograma.' : 'Não consegui aplicar esse pedido.');
 }
 
+function Time({ at }: { at: Date }) {
+  return (
+    <time dateTime={at.toISOString()} className="shrink-0 pb-0.5 text-[10px] tabular-nums text-slate-400 dark:text-white/35">
+      {hhmm(at)}
+    </time>
+  );
+}
+
 function BotDot() {
   return (
-    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
       style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)', color: 'var(--brand-primary)' }}>
       <Sparkles className="h-3.5 w-3.5" />
     </span>
   );
 }
 
-function AgentBubble({ children }: { children: React.ReactNode }) {
+function AgentBubble({ children, at }: { children: React.ReactNode; at: Date }) {
   return (
-    <div className="flex items-start gap-2">
+    <div className="flex items-end gap-1.5">
       <BotDot />
-      <div className="min-w-0 max-w-[88%] rounded-2xl rounded-tl-md bg-slate-50 px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-700 dark:bg-white/5 dark:text-white/75">
+      <div className="min-w-0 max-w-[84%] rounded-2xl rounded-bl-md bg-slate-50 px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-700 dark:bg-white/5 dark:text-white/75">
         {children}
       </div>
+      <Time at={at} />
     </div>
   );
 }
 
-function UserBubble({ children }: { children: React.ReactNode }) {
+function UserBubble({ children, at }: { children: React.ReactNode; at: Date }) {
   return (
-    <div className="flex justify-end">
-      <p className="max-w-[80%] whitespace-pre-wrap break-words rounded-2xl rounded-tr-md px-3.5 py-2 text-[13px] text-slate-900 dark:text-white"
+    <div className="flex items-end justify-end gap-1.5">
+      <Time at={at} />
+      <p className="max-w-[80%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md px-3.5 py-2 text-[13px] text-slate-900 dark:text-white"
         style={{ background: 'color-mix(in srgb, var(--brand-primary) 13%, transparent)' }}>
         {children}
       </p>
