@@ -292,11 +292,13 @@ describe('agente', () => {
     expect(calls('POST', /^\/agent\/req-1\/discard$/)).toHaveLength(1);
     expect(within(day('QUA 11/11')).getByText('Logaritmos')).toBeInTheDocument();
   });
-  it('CT-P24 pedido que falhou fecha sem chamar discard', async () => {
+  it('CT-P24 pedido que falhou não trava nada e não chama discard', async () => {
     on('POST', /^\/agent$/, () => proposal({ status: 'failed', reply: 'Não entendi.' }));
     await ready();
     fireEvent.click(screen.getByText('Semana leve'));
-    fireEvent.click(await screen.findByText('Fechar'));
+    expect(await screen.findByText('Não entendi.')).toBeInTheDocument();
+    expect(screen.queryByText('Fechar')).toBeNull();
+    expect(screen.getByRole('button', { name: /Semana leve/ })).not.toBeDisabled();
     expect(calls('POST', /discard$/)).toHaveLength(0);
   });
   it('CT-P25 cota estourada (429) mostra o aviso por mais tempo', async () => {

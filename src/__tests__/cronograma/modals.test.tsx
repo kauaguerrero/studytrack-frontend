@@ -487,12 +487,13 @@ describe('AgentChat', () => {
     fireEvent.click(screen.getByText('Semana leve'));
     expect(within(screen.getByRole('log')).getByText('Semana leve')).toBeInTheDocument();
   });
-  it('CT-A18 pedido que falhou: só "Fechar" (descarta), sem confirmar', () => {
-    const h = chat({ proposal: proposal({ status: 'failed', reply: '' }) });
-    expect(screen.getByText('Não consegui aplicar esse pedido.')).toBeInTheDocument();
+  it('CT-A18 pedido que falhou vira mensagem comum: sem botão e com o chat liberado', () => {
+    chat({ proposal: proposal({ status: 'failed', reply: '' }) });
+    expect(within(screen.getByRole('log')).getByText('Não consegui aplicar esse pedido.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Confirmar/ })).toBeNull();
-    fireEvent.click(screen.getByText('Fechar'));
-    expect(h.onDiscard).toHaveBeenCalled();
+    expect(screen.queryByText('Fechar')).toBeNull();
+    expect(screen.getByText('Semana leve')).toBeInTheDocument();
+    expect(box()).not.toBeDisabled();
   });
   it('CT-A19 "Desfazer última" só aparece quando dá e sem prévia', () => {
     const r = chat({ canUndo: true });

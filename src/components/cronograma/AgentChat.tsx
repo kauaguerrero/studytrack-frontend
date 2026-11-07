@@ -72,7 +72,9 @@ export function AgentChat({
   const shown = proposal
     ? Math.min(8, proposal.diff.moved.length) + Math.min(5, proposal.diff.added.length) + Math.min(5, proposal.diff.removed.length)
     : 0;
-  const locked = busy || !!proposal;
+  // Só uma prévia de verdade fica "aberta". Pedido que falhou vira mensagem comum na conversa.
+  const open = proposal?.status === 'proposed' ? proposal : null;
+  const locked = busy || !!open;
   // Pergunta de sim/não do agente: responde com botões, nunca digitando.
   const asking = proposal?.status === 'proposed' && !!proposal.question;
   // Aviso "passou da rotina": vale só para a prévia em que foi aberto.
@@ -99,14 +101,21 @@ export function AgentChat({
   const [history, setHistory] = useState<ChatMsg[]>([]);
   const [lastAction, setLastAction] = useState<'confirm' | 'discard' | null>(null);
   const [greetAt] = useState(() => new Date());
-  const [seen, setSeen] = useState<{ p: Proposal | null; at: Date }>(() => ({ p: proposal, at: new Date() }));
+  // Começa sem o pedido que falhou para ele entrar na conversa já na primeira renderização.
+  const [seen, setSeen] = useState<{ p: Proposal | null; at: Date }>(() => ({ p: proposal?.status === 'proposed' ? proposal : null, at: new Date() }));
   if (seen.p !== proposal) {
-    const isNew = proposal?.request_id !== seen.p?.request_id;
-    if (seen.p && isNew) {
+    // Resposta barrada antes da IA vem sem request_id: cada uma conta como nova.
+    const isNew = proposal?.request_id !== seen.p?.request_id || (!!proposal && proposal.request_id == null);
+    if (seen.p && isNew && seen.p.status === 'proposed') {
       const closed = seen;
-      const note = closed.p!.status === 'proposed' ? (lastAction === 'confirm' ? 'Você confirmou' : 'Você descartou') : undefined;
+      const note = lastAction === 'confirm' ? 'Você confirmou' : 'Você descartou';
       setHistory((h) => [...h, { id: h.length, role: 'agent', text: replyOf(closed.p!), note, at: closed.at }]);
       setLastAction(null);
+    }
+    // Pedido que falhou não tem o que confirmar: entra direto na conversa, sem botão.
+    if (proposal && isNew && proposal.status !== 'proposed') {
+      const failed = proposal;
+      setHistory((h) => [...h, { id: h.length, role: 'agent', text: replyOf(failed), at: new Date() }]);
     }
     // Ajustar o tempo devolve a mesma prévia: mantém o horário em que ela chegou.
     setSeen({ p: proposal, at: isNew ? new Date() : seen.at });
@@ -115,7 +124,7 @@ export function AgentChat({
   const chip = (label: string, body: ChipBody) => { say(label); onChip(body); };
   const confirmNow = () => { setLastAction('confirm'); onConfirm(); };
   const discardNow = () => { setLastAction('discard'); onDiscard(); };
-  const thinking = busy && !proposal && history[history.length - 1]?.role === 'user';
+  const thinking = busy && !open && history[history.length - 1]?.role === 'user';
 
   // Mensagem nova: rola a conversa até o fim.
   const threadRef = useRef<HTMLDivElement>(null);
@@ -137,7 +146,7 @@ export function AgentChat({
             <p className="text-[11.5px] text-slate-500 dark:text-white/50">Peça um ajuste. Nada muda sem você confirmar.</p>
           </div>
         </div>
-        {canUndo && !proposal && (
+        {canUndo && !open && (
           <button type="button" onClick={onUndo} disabled={busy}
             className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white/70 px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 backdrop-blur hover:bg-white disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white/65">
             <Undo2 className="h-3.5 w-3.5" /> Desfazer última
@@ -167,29 +176,29 @@ export function AgentChat({
               )))}
 
             {/* Resposta aberta do agente: texto + o que muda (as ações ficam no pé do cartão). */}
-            {proposal && (
-              <motion.div key={proposal.request_id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+            {open && (
+              <motion.div key={open.request_id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                 className="flex items-end gap-1.5" aria-live="polite">
                 <BotDot />
                 <div className="min-w-0 max-w-[84%] rounded-2xl rounded-bl-md bg-slate-50 px-3.5 py-2.5 dark:bg-white/5">
                   <p className="text-[13px] text-slate-800 dark:text-white/85">
-                    {proposal.reply || (proposal.status === 'proposed' ? 'Preparei estas mudanças:' : 'Não consegui aplicar esse pedido.')}
+                    {open.reply || 'Preparei estas mudanças:'}
                   </p>
-                  {proposal.status === 'proposed' && (
+                  {(
                     <>
                       <ul className="mt-1.5 max-h-40 space-y-1 overflow-y-auto text-[12px] text-slate-700 dark:text-white/70">
-                        {proposal.diff.moved.slice(0, 8).map((m, k) => (
+                        {open.diff.moved.slice(0, 8).map((m, k) => (
                           <li key={`m-${m.id ?? k}`} className="flex items-center gap-1">
                             <span className="truncate">{m.topic}</span>
                             <span className="shrink-0 text-slate-500">{formatDayMonth(m.from!)} <MoveRight className="inline h-3 w-3" /> {formatDayMonth(m.to!)}</span>
                           </li>
                         ))}
-                        {proposal.diff.added.slice(0, 5).map((a, k) => (
+                        {open.diff.added.slice(0, 5).map((a, k) => (
                           <li key={`a-${k}`} className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
                             <Plus className="h-3 w-3" /><span className="truncate">{a.topic}</span><span className="shrink-0">({formatDayMonth(a.to!)})</span>
                           </li>
                         ))}
-                        {proposal.diff.removed.slice(0, 5).map((r, k) => (
+                        {open.diff.removed.slice(0, 5).map((r, k) => (
                           <li key={`r-${r.id ?? k}`} className="flex items-center gap-1 text-slate-500">
                             <Minus className="h-3 w-3" /><span className="truncate">{r.topic}</span><span className="shrink-0">sai de {formatDayMonth(r.from!)}</span>
                           </li>
@@ -197,15 +206,10 @@ export function AgentChat({
                         {changes > shown && <li className="text-slate-500">e mais {changes - shown} {changes - shown === 1 ? 'ajuste' : 'ajustes'}…</li>}
                         {changes === 0 && <li className="text-slate-500">Ajuste nas configurações (capacidade/prioridade); o quadro se reorganiza ao confirmar.</li>}
                       </ul>
-                      {proposal.warnings.map((w, k) => (
+                      {open.warnings.map((w, k) => (
                         <p key={k} className="mt-1 text-[11.5px] font-semibold text-amber-800 dark:text-amber-200">{w.message}</p>
                       ))}
                     </>
-                  )}
-                  {proposal.status === 'failed' && (
-                    <div className="mt-1 flex justify-end">
-                      <button type="button" onClick={onDiscard} className="text-[12px] font-semibold text-slate-600 hover:underline dark:text-white/60">Fechar</button>
-                    </div>
                   )}
                 </div>
                 <Time at={seen.at} />
@@ -310,7 +314,7 @@ export function AgentChat({
         )}
 
         {!asking && (<>
-          {!proposal && (
+          {!open && (
             <div className="-mx-1 flex flex-nowrap gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]">
               <Chip icon={CalendarX2} disabled={locked} onClick={() => chip('Folga amanhã', { chip: 'skip_tomorrow' })}>Folga amanhã</Chip>
               <Chip icon={Feather} disabled={locked} onClick={() => chip('Semana leve', { chip: 'lighter_week' })}>Semana leve</Chip>
@@ -324,7 +328,7 @@ export function AgentChat({
             </div>
           )}
 
-          {!proposal && (picker === 'more_subject' || picker === 'review_mistakes') && (
+          {!open && (picker === 'more_subject' || picker === 'review_mistakes') && (
             <div className="flex flex-wrap gap-1.5">
               {AREAS.map((a) => (
                 <button key={a} type="button"
@@ -339,7 +343,7 @@ export function AgentChat({
               ))}
             </div>
           )}
-          {!proposal && picker === 'exam_day' && (
+          {!open && picker === 'exam_day' && (
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-[12px] text-slate-600 dark:text-white/60" htmlFor="cronograma-exam-day">Dia da prova:</label>
               <input id="cronograma-exam-day" type="date" min={today} value={examDate} onChange={(e) => setExamDate(e.target.value)}
@@ -366,7 +370,7 @@ export function AgentChat({
             />
             <div className="relative flex items-center justify-between px-2 pb-0.5">
               <span className="text-[10.5px] text-slate-400 dark:text-white/35">{text.length > 400 ? `${text.length}/500` : 'Enter envia · Shift+Enter quebra linha'}</span>
-              <button type="button" onClick={send} disabled={busy || !text.trim() || !!proposal} aria-label="Enviar"
+              <button type="button" onClick={send} disabled={busy || !text.trim() || !!open} aria-label="Enviar"
                 className="flex h-8 w-8 items-center justify-center rounded-full text-white transition hover:scale-105 active:scale-95 disabled:scale-100 disabled:opacity-35"
                 style={{ background: 'var(--brand-primary)', boxShadow: '0 6px 16px -6px var(--brand-primary)' }}>
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}

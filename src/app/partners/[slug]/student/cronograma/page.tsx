@@ -368,7 +368,7 @@ function CronogramaInner() {
               days={view.days}
               items={boardItems}
               today={today}
-              readOnly={!!proposal}
+              readOnly={proposal?.status === 'proposed'}
               highlightIds={previewIds}
               onMove={move}
               onOpenItem={(i) => setStartTarget(i)}
