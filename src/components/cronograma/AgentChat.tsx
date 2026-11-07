@@ -8,10 +8,12 @@
 // esquerda), os atalhos numa linha e o campo de mensagem no pé.
 
 import { useEffect, useRef, useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { useStudentThemeRoot } from '@/hooks/useStudentThemeRoot';
 import { motion } from 'framer-motion';
 import {
   ArrowUp, Loader2, Sparkles, Check, X, Undo2, MoveRight, Plus, Minus, Clock, AlertTriangle,
-  CalendarX2, Feather, Target, RotateCcw, GraduationCap,
+  CalendarX2, Feather, Target, RotateCcw, GraduationCap, Maximize2, Minimize2,
 } from 'lucide-react';
 import {
   AREA_STYLE, addDays, formatDayMonth, formatMinutes, type Area, type EditableTime, type Proposal,
@@ -55,6 +57,9 @@ export function AgentChat({
   onAdjust?: (index: number, minutes: number) => void;
 }) {
   const [text, setText] = useState('');
+  // Tela maior: a MESMA conversa vai para um modal (o estado fica aqui, nada se perde).
+  const [expanded, setExpanded] = useState(false);
+  const themeRoot = useStudentThemeRoot();
   const [picker, setPicker] = useState<'more_subject' | 'review_mistakes' | 'exam_day' | null>(null);
   const [examDate, setExamDate] = useState(addDays(today, 3));
 
@@ -131,10 +136,10 @@ export function AgentChat({
   useEffect(() => {
     const el = threadRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [history.length, proposal, thinking]);
+  }, [history.length, proposal, thinking, expanded]);
 
-  return (
-    <div className="flex h-full flex-col gap-3">
+  const body = (
+    <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm"
@@ -146,19 +151,27 @@ export function AgentChat({
             <p className="text-[11.5px] text-slate-500 dark:text-white/50">Peça um ajuste. Nada muda sem você confirmar.</p>
           </div>
         </div>
-        {canUndo && !open && (
-          <button type="button" onClick={onUndo} disabled={busy}
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white/70 px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 backdrop-blur hover:bg-white disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white/65">
-            <Undo2 className="h-3.5 w-3.5" /> Desfazer última
+        <div className="flex shrink-0 items-center gap-1.5">
+          {canUndo && !open && (
+            <button type="button" onClick={onUndo} disabled={busy}
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white/70 px-2.5 py-1.5 text-[12px] font-semibold text-slate-600 backdrop-blur hover:bg-white disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white/65">
+              <Undo2 className="h-3.5 w-3.5" /> Desfazer última
+            </button>
+          )}
+          <button type="button" onClick={() => setExpanded((v) => !v)}
+            aria-label={expanded ? 'Voltar o chat ao tamanho normal' : 'Abrir o chat em tela maior'}
+            title={expanded ? 'Tamanho normal' : 'Tela maior'}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white/70 text-slate-600 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white/65 dark:hover:bg-white/10">
+            {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
           </button>
-        )}
+        </div>
       </div>
 
       {/* Um cartão só: a conversa ocupa o meio (rola por dentro), ações e campo ficam no pé. */}
       <div className={`${GLASS} flex flex-1 flex-col gap-3 p-3.5`}>
         <div className="relative min-h-[150px] flex-1">
           <div ref={threadRef} role="log" aria-label="Conversa com o assistente"
-            className="cronograma-day-scroll max-h-[340px] space-y-2.5 overflow-y-auto overscroll-contain pr-1 lg:absolute lg:inset-0 lg:max-h-none">
+            className={`cronograma-day-scroll space-y-2.5 overflow-y-auto overscroll-contain pr-1 ${expanded ? 'absolute inset-0' : 'max-h-[340px] lg:absolute lg:inset-0 lg:max-h-none'}`}>
             <AgentBubble at={greetAt}>
               Me conta o que mudou na sua rotina que eu reorganizo o cronograma. Você vê a prévia antes de confirmar.
             </AgentBubble>
@@ -381,10 +394,32 @@ export function AgentChat({
       </div>
     </div>
   );
+
+  return (
+    <>
+      {expanded ? (
+        // Lugar do chat no layout fica reservado: a página não pula.
+        <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-2 rounded-[22px] border border-dashed border-slate-300 text-center dark:border-white/15">
+          <p className="text-[13px] font-semibold text-slate-600 dark:text-white/60">Conversa aberta em tela maior</p>
+          <button type="button" onClick={() => setExpanded(false)}
+            className="text-[12.5px] font-semibold hover:underline" style={{ color: 'var(--brand-ink)' }}>
+            Voltar para cá
+          </button>
+        </div>
+      ) : body}
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogContent container={themeRoot}
+          className="flex h-[min(88dvh,820px)] max-w-3xl flex-col gap-0 rounded-[28px] border-slate-200 bg-slate-50 p-4 sm:p-5 dark:border-white/10 dark:bg-slate-950 dark:text-white">
+          <DialogTitle className="sr-only">Assistente do cronograma</DialogTitle>
+          <DialogDescription className="sr-only">Peça um ajuste no cronograma. Nada muda sem você confirmar.</DialogDescription>
+          {expanded && body}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 type ChatMsg = { id: number; role: 'user' | 'agent'; text: string; note?: string; at: Date };
-
 const hhmm = (d: Date) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 function replyOf(p: Proposal): string {

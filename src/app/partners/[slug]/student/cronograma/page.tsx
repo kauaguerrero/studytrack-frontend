@@ -155,6 +155,17 @@ function CronogramaInner() {
     }
   };
 
+  // Desbloquear um dia direto no quadro (sem IA, não gasta cota).
+  const unblock = async (date: string) => {
+    try {
+      await cronogramaFetch(`/days/${date}/unblock`, { method: 'POST' });
+      toast.success(`${formatDayMonth(date)} voltou para o cronograma.`);
+      await refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
   const complete = async (id: string) => {
     setActionBusy(true);
     try {
@@ -373,6 +384,7 @@ function CronogramaInner() {
               onMove={move}
               onOpenItem={(i) => setStartTarget(i)}
               onOpenReviews={(g) => setReviewGroup(g)}
+              onUnblock={unblock}
             />
           )}
           {view && mode === 'mes' && anchor && (

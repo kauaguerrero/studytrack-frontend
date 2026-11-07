@@ -52,6 +52,7 @@ export function WeekBoard({
   onMove,
   onOpenItem,
   onOpenReviews,
+  onUnblock,
 }: {
   days: DayInfo[];
   items: PlanItem[];
@@ -61,6 +62,8 @@ export function WeekBoard({
   onMove: (itemId: string, toDate: string) => void;
   onOpenItem: (item: PlanItem) => void;
   onOpenReviews: (group: ReviewGroup) => void;
+  /** Desfaz o bloqueio de um dia (sem IA, sem cota). */
+  onUnblock?: (date: string) => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -121,6 +124,7 @@ export function WeekBoard({
             onMove={onMove}
             onOpenItem={onOpenItem}
             onOpenReviews={onOpenReviews}
+            onUnblock={onUnblock}
           />
         ))}
       </div>
@@ -132,7 +136,7 @@ export function WeekBoard({
 }
 
 function DayColumn({
-  day, isToday, isPast, studies, reviews, weekDates, readOnly, highlightIds, onMove, onOpenItem, onOpenReviews,
+  day, isToday, isPast, studies, reviews, weekDates, readOnly, highlightIds, onMove, onOpenItem, onOpenReviews, onUnblock,
 }: {
   day: DayInfo;
   isToday: boolean;
@@ -145,6 +149,7 @@ function DayColumn({
   onMove: (itemId: string, toDate: string) => void;
   onOpenItem: (item: PlanItem) => void;
   onOpenReviews: (group: ReviewGroup) => void;
+  onUnblock?: (date: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: day.date, disabled: readOnly || isPast || day.blocked });
   const load = LOAD_STYLE[day.level];
@@ -275,9 +280,18 @@ function DayColumn({
           ))}
         </AnimatePresence>
         {empty && (
-          <p className="m-auto text-center text-[11.5px] text-slate-400 dark:text-white/35">
+          <p className={`${day.blocked && !isPast && onUnblock ? 'mx-auto mt-auto' : 'm-auto'} text-center text-[11.5px] text-slate-400 dark:text-white/35`}>
             {day.blocked ? 'Dia livre' : day.capacity === 0 ? 'Folga' : isPast ? '' : 'Arraste um conteúdo para cá'}
           </p>
+        )}
+        {/* Dia bloqueado pelo aluno: um clique devolve o dia à rotina. */}
+        {day.blocked && !isPast && onUnblock && (
+          <button type="button" onClick={() => onUnblock(day.date)} disabled={readOnly}
+            aria-label={`Voltar a estudar em ${WEEKDAY_SHORT[weekdayIndex(day.date)]} ${formatDayMonth(day.date)}`}
+            className={`mx-auto mb-auto mt-2 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition hover:bg-[color-mix(in_srgb,var(--brand-ink)_8%,transparent)] disabled:opacity-50 ${empty ? '' : 'mt-3'}`}
+            style={{ color: 'var(--brand-ink)', borderColor: 'color-mix(in srgb, var(--brand-ink) 35%, transparent)' }}>
+            <RotateCcw className="h-3 w-3" /> Voltar a estudar
+          </button>
         )}
       </div>
       {maxH !== undefined && cardCount > VISIBLE_CARDS && (

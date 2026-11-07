@@ -88,6 +88,17 @@ describe('WeekBoard', () => {
     expect(within(day('QUI 12/11')).getByText('Livre')).toBeInTheDocument();
     expect(within(day('QUI 12/11')).getByText('Dia livre')).toBeInTheDocument();
   });
+  it('CT-W15b dia bloqueado futuro tem "Voltar a estudar"; passado e prévia não', () => {
+    const onUnblock = vi.fn();
+    const days = week(); days[4] = { ...days[4], blocked: true, minutes: 0 }; days[0] = { ...days[0], blocked: true, minutes: 0 };
+    const r = board([], { days, onUnblock });
+    fireEvent.click(within(day('SEX 13/11')).getByRole('button', { name: 'Voltar a estudar em SEX 13/11' }));
+    expect(onUnblock).toHaveBeenCalledWith('2026-11-13');
+    expect(within(day('SEG 09/11')).queryByRole('button', { name: /Voltar a estudar/ })).toBeNull();
+    r.unmount();
+    board([], { days, onUnblock, readOnly: true });
+    expect(within(day('SEX 13/11')).getByRole('button', { name: /Voltar a estudar/ })).toBeDisabled();
+  });
   it('CT-W16 fim de semana com capacidade 0 mostra "Folga" e sem barra de carga', () => {
     board([]);
     expect(within(day('SÁB 14/11')).getByText('Folga')).toBeInTheDocument();

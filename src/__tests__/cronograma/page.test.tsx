@@ -396,6 +396,21 @@ describe('volta do banco com a meta batida', () => {
     expect(screen.getByTestId('celebration-confetti')).toBeInTheDocument();
     expect(window.location.search).toBe('');
   });
+  it('CT-P35 "Voltar a estudar" no dia bloqueado chama /days/<data>/unblock sem IA e recarrega', async () => {
+    const blockedDate = addDays(TODAY, 2);
+    on('GET', /^\/\?/, (p) => {
+      const v = viewFor(p);
+      return { ...v, days: v.days.map((d) => (d.date === blockedDate ? { ...d, blocked: true, minutes: 0 } : d)) };
+    });
+    on('POST', /^\/days\/.+\/unblock$/, () => ({ date: blockedDate, diff: { moved: [], added: [], removed: [] } }));
+    await ready();
+    const before = calls('GET', /^\/\?/).length;
+    fireEvent.click(screen.getByRole('button', { name: /Voltar a estudar em/ }));
+    await waitFor(() => expect(calls('POST', new RegExp(`^/days/${blockedDate}/unblock$`))).toHaveLength(1));
+    await waitFor(() => expect(calls('GET', /^\/\?/).length).toBeGreaterThan(before));
+    expect(calls('POST', /^\/agent$/)).toHaveLength(0);
+    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('voltou para o cronograma'));
+  });
   it('CT-P34 sem ?concluido não há confete', async () => {
     window.history.replaceState(null, '', '/partners/cenas/student/cronograma');
     await ready();

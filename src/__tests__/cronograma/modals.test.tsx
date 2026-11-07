@@ -475,6 +475,21 @@ describe('AgentChat', () => {
     expect(within(log).getByText('Tirei tudo da quinta.')).toBeInTheDocument();
     expect(within(log).getByText(/Você confirmou/)).toBeInTheDocument();
   });
+  it('CT-A34 tela maior abre a MESMA conversa num modal e volta sem perder nada', () => {
+    const h = chat();
+    fireEvent.change(box(), { target: { value: 'sexta tô ocupado' } });
+    fireEvent.keyDown(box(), { key: 'Enter' });
+    fireEvent.change(box(), { target: { value: 'rascunho' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir o chat em tela maior' }));
+    const dlg = screen.getByRole('dialog', { name: 'Assistente do cronograma' });
+    expect(within(dlg).getByText('sexta tô ocupado')).toBeInTheDocument();
+    expect((within(dlg).getByLabelText('Mensagem para o assistente do cronograma') as HTMLTextAreaElement).value).toBe('rascunho');
+    expect(screen.getByText('Conversa aberta em tela maior')).toBeInTheDocument();
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Voltar o chat ao tamanho normal' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(within(screen.getByRole('log')).getByText('sexta tô ocupado')).toBeInTheDocument();
+    expect(h.onSend).toHaveBeenCalledTimes(1);
+  });
   it('CT-A33 cada mensagem mostra o horário (hh:mm) ao lado', () => {
     chat();
     fireEvent.change(box(), { target: { value: 'oi' } });
