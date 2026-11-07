@@ -77,7 +77,7 @@ function RoutineForm({ initial, busy, onClose, onSave }: {
       <DialogHeader>
         <DialogTitle className="font-display text-[18px] text-slate-900 dark:text-white">Minha rotina</DialogTitle>
         <DialogDescription className="text-[12.5px] text-slate-500 dark:text-white/60">
-          Quanto tempo você tem em cada dia. Num <b>dia de revisão</b> não entra conteúdo novo: primeiro o que venceu, depois as próximas revisões adiantadas.
+          Quanto tempo você tem em cada dia. Num <b>dia de revisão</b> não entra conteúdo novo: primeiro o que venceu, depois as próximas revisões adiantadas. Na última semana antes da prova, todos os dias já ficam só de revisão.
         </DialogDescription>
       </DialogHeader>
       <ul className="min-w-0 space-y-1.5" aria-label="Dias da semana">
