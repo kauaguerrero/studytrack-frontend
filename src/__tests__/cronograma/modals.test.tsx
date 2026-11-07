@@ -490,6 +490,16 @@ describe('AgentChat', () => {
     expect(within(screen.getByRole('log')).getByText('sexta tô ocupado')).toBeInTheDocument();
     expect(h.onSend).toHaveBeenCalledTimes(1);
   });
+  it('CT-A35 "Revisar área" apaga as áreas sem nada estudado; "Focar" libera todas', () => {
+    const h = chat({ studiedAreas: ['linguagens'] });
+    fireEvent.click(screen.getByText('Revisar área'));
+    expect(screen.getByRole('button', { name: 'Matemática: nada estudado ainda' })).toBeDisabled();
+    expect(screen.getByText(/As áreas apagadas ainda não têm conteúdo estudado/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Linguagens/ }));
+    expect(h.onChip).toHaveBeenCalledWith({ chip: 'review_mistakes', payload: { subject: 'linguagens' } });
+    fireEvent.click(screen.getByText('Focar numa área'));
+    expect(screen.getByRole('button', { name: /Matemática/ })).not.toBeDisabled();
+  });
   it('CT-A33 cada mensagem mostra o horário (hh:mm) ao lado', () => {
     chat();
     fireEvent.change(box(), { target: { value: 'oi' } });

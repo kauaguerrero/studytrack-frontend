@@ -419,6 +419,7 @@ function CronogramaInner() {
               onDiscard={discard}
               onUndo={undo}
               onAdjust={adjust}
+              studiedAreas={insights?.by_area.filter((a) => a.studied > 0).map((a) => a.area)}
             />
         </div>
         {/* Mesmo cabeçalho e mesmo cartão branco do assistente: as duas colunas começam alinhadas. */}

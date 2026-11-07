@@ -43,6 +43,7 @@ export function AgentChat({
   onDiscard,
   onUndo,
   onAdjust,
+  studiedAreas,
 }: {
   today: string;
   proposal: Proposal | null;
@@ -55,6 +56,8 @@ export function AgentChat({
   onUndo: () => void;
   /** Muda o tempo de uma operação da prévia direto no backend (sem IA, sem cota). */
   onAdjust?: (index: number, minutes: number) => void;
+  /** Áreas com algum conteúdo estudado. Sem isso (insights ainda carregando) todas ficam liberadas. */
+  studiedAreas?: Area[];
 }) {
   const [text, setText] = useState('');
   // Tela maior: a MESMA conversa vai para um modal (o estado fica aqui, nada se perde).
@@ -341,21 +344,36 @@ export function AgentChat({
             </div>
           )}
 
-          {!open && (picker === 'more_subject' || picker === 'review_mistakes') && (
-            <div className="flex flex-wrap gap-1.5">
-              {AREAS.map((a) => (
-                <button key={a} type="button"
-                  onClick={() => {
-                    chip(`${picker === 'more_subject' ? 'Focar em' : 'Revisar'} ${AREA_STYLE[a].label}`, { chip: picker, payload: { subject: a } });
-                    setPicker(null);
-                  }}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold ${AREA_STYLE[a].chip}`}>
-                  <span className="h-2 w-2 rounded-full" style={{ background: AREA_STYLE[a].dot }} />
-                  {AREA_STYLE[a].label}
-                </button>
-              ))}
-            </div>
-          )}
+          {!open && (picker === 'more_subject' || picker === 'review_mistakes') && (() => {
+            // Revisar só faz sentido no que já foi estudado: as outras áreas ficam apagadas
+            // em vez de deixar o aluno clicar e receber "não deu".
+            const canReview = (a: Area) => picker !== 'review_mistakes' || !studiedAreas || studiedAreas.includes(a);
+            const someOff = AREAS.some((a) => !canReview(a));
+            return (
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap gap-1.5">
+                  {AREAS.map((a) => (
+                    <button key={a} type="button" disabled={!canReview(a)}
+                      aria-label={canReview(a) ? undefined : `${AREA_STYLE[a].label}: nada estudado ainda`}
+                      title={canReview(a) ? undefined : 'Nada estudado ainda nesta área'}
+                      onClick={() => {
+                        chip(`${picker === 'more_subject' ? 'Focar em' : 'Revisar'} ${AREA_STYLE[a].label}`, { chip: picker, payload: { subject: a } });
+                        setPicker(null);
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold disabled:cursor-not-allowed disabled:opacity-40 ${AREA_STYLE[a].chip}`}>
+                      <span className="h-2 w-2 rounded-full" style={{ background: AREA_STYLE[a].dot }} />
+                      {AREA_STYLE[a].label}
+                    </button>
+                  ))}
+                </div>
+                {someOff && (
+                  <p className="text-[11px] text-slate-500 dark:text-white/45">
+                    As áreas apagadas ainda não têm conteúdo estudado. A revisão aparece depois que você estudar.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
           {!open && picker === 'exam_day' && (
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-[12px] text-slate-600 dark:text-white/60" htmlFor="cronograma-exam-day">Dia da prova:</label>
