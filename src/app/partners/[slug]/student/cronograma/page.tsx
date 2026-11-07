@@ -166,6 +166,21 @@ function CronogramaInner() {
     }
   };
 
+  // "Corrigir" do aviso de pré-requisito: o conteúdo vai para depois dele (sem IA, sem cota).
+  const fixOrder = async (id: string) => {
+    setActionBusy(true);
+    try {
+      const r = await cronogramaFetch<{ date: string | null }>(`/items/${id}/fix-order`, { method: 'POST' });
+      toast.success(r.date
+        ? `Conteúdo movido para ${formatDayMonth(r.date)}, depois do que ele depende.`
+        : 'Conteúdo voltou para a fila: ele entra logo depois do que ele depende.');
+      setStartTarget(null);
+      await refresh();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally { setActionBusy(false); }
+  };
+
   const complete = async (id: string) => {
     setActionBusy(true);
     try {
@@ -448,6 +463,7 @@ function CronogramaInner() {
         onClose={() => setStartTarget(null)}
         onComplete={complete}
         onSkip={skip}
+        onFixOrder={fixOrder}
         onStartReview={(t) => { setStartTarget(null); setReviewItemId(t.id); }}
       />
       <ReviewListModal

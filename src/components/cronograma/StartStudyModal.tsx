@@ -27,6 +27,7 @@ export function StartStudyModal({
   onComplete,
   onSkip,
   onStartReview,
+  onFixOrder,
   busy,
 }: {
   slug: string;
@@ -35,6 +36,8 @@ export function StartStudyModal({
   onComplete?: (id: string) => void;
   onSkip?: (id: string) => void;
   onStartReview?: (t: StartTarget) => void;
+  /** "Corrigir" do aviso de pré-requisito: o backend põe o conteúdo depois dele (sem IA). */
+  onFixOrder?: (id: string) => void;
   busy?: boolean;
 }) {
   const themeRoot = useStudentThemeRoot();
@@ -68,9 +71,21 @@ export function StartStudyModal({
             </DialogHeader>
 
             {!!target.depends_on_late?.length && (
-              <div className="flex gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-[12.5px] text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>Este conteúdo depende de <b>{target.depends_on_late.join(', ')}</b>, que ainda não foi estudado.</span>
+              <div className="flex flex-col gap-2.5 rounded-xl border border-amber-300 bg-amber-50 p-3 text-[12.5px] text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200 sm:flex-row sm:items-center">
+                <span className="flex min-w-0 flex-1 gap-2">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    Este conteúdo depende de <b>{target.depends_on_late.join(', ')}</b>, que ainda não{' '}
+                    {target.depends_on_late.length > 1 ? 'foram estudados' : 'foi estudado'}.
+                  </span>
+                </span>
+                {onFixOrder && !done && !target.projected && !target.id.startsWith('proj-') && (
+                  <button type="button" disabled={busy} onClick={() => onFixOrder(target.id)}
+                    title="Coloca este conteúdo depois do que ele depende"
+                    className="shrink-0 self-start rounded-full bg-amber-600 px-3.5 py-1.5 text-[12.5px] font-bold text-white hover:bg-amber-700 disabled:opacity-50 sm:self-auto dark:bg-amber-500 dark:text-slate-950 dark:hover:bg-amber-400">
+                    Corrigir
+                  </button>
+                )}
               </div>
             )}
 

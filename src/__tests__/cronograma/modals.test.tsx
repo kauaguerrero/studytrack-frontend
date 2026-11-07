@@ -190,6 +190,20 @@ describe('StartStudyModal', () => {
   it('CT-T11 aviso de pré-requisito', () => {
     open(study({ depends_on_late: ['Frações', 'Razão'] }));
     expect(screen.getByText('Frações, Razão')).toBeInTheDocument();
+    expect(screen.getByText(/foram estudados/)).toBeInTheDocument();
+  });
+  it('CT-T12 "Corrigir" no aviso chama onFixOrder com o id; some sem o handler ou se concluído', () => {
+    const onFixOrder = vi.fn();
+    const t = study({ id: 'x1', depends_on_late: ['Frações'] });
+    const { unmount } = render(<StartStudyModal slug="cenas" target={t} onClose={vi.fn()} onFixOrder={onFixOrder} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Corrigir' }));
+    expect(onFixOrder).toHaveBeenCalledWith('x1');
+    unmount();
+    const r2 = render(<StartStudyModal slug="cenas" target={t} onClose={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Corrigir' })).toBeNull();
+    r2.unmount();
+    render(<StartStudyModal slug="cenas" target={{ ...t, status: 'done' }} onClose={vi.fn()} onFixOrder={onFixOrder} />);
+    expect(screen.queryByRole('button', { name: 'Corrigir' })).toBeNull();
   });
 });
 
@@ -271,7 +285,44 @@ describe('ReviewQuizModal', () => {
     expect(JSON.parse(init.body)).toEqual({ answers: { q1: 'A', q2: 'A', q3: 'A' } });
     expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ grade: 'good' }));
     expect(screen.getByText('67% de acerto')).toBeInTheDocument();
-    expect(screen.getByText(/Questão 2: você marcou A, gabarito C/)).toBeInTheDocument();
+    const wrong = screen.getByRole('button', { name: 'Rever questão 2: errou' });
+    expect(within(wrong).getByText('Você marcou A')).toBeInTheDocument();
+    expect(within(wrong).getByText('Gabarito C')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rever questão 1: acertou' })).toBeInTheDocument();
+    expect(screen.getByText('2 de 3 certas')).toBeInTheDocument();
+  });
+  it('CT-Q13 "Rever o que errei" abre a questão errada com gabarito e marcada destacados', async () => {
+    fetchMock.mockResolvedValueOnce(quiz()).mockResolvedValueOnce(result());
+    render(<ReviewQuizModal itemId="r1" onClose={vi.fn()} onDone={vi.fn()} />);
+    await screen.findByText('Enunciado q1');
+    answerAll();
+    fireEvent.click(screen.getByRole('button', { name: /Concluir revisão/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Rever o que errei/ }));
+    expect(screen.getByText('Enunciado q2')).toBeInTheDocument();
+    expect(screen.getByText('Você errou')).toBeInTheDocument();
+    const alts = screen.getByRole('list', { name: 'Alternativas corrigidas' });
+    expect(within(alts).getByText('Alt C de q2').closest('li')).toHaveTextContent('Gabarito');
+    expect(within(alts).getByText('Alt A de q2').closest('li')).toHaveTextContent('Sua resposta');
+    // navega e volta ao resultado sem refazer nada no backend
+    fireEvent.click(screen.getByRole('button', { name: 'Próxima questão' }));
+    expect(screen.getByText('Enunciado q3')).toBeInTheDocument();
+    expect(screen.getByText('Você acertou')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Próxima questão' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Ver resultado' }));
+    expect(screen.getByText('2 de 3 certas')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it('CT-Q14 tudo certo: botão vira "Rever questões" e abre a primeira', async () => {
+    fetchMock.mockResolvedValueOnce(quiz()).mockResolvedValueOnce(result({
+      accuracy: 1, results: ['q1', 'q2', 'q3'].map((id) => ({ question_id: id, is_correct: true, correct_option: 'A' })),
+    }));
+    render(<ReviewQuizModal itemId="r1" onClose={vi.fn()} onDone={vi.fn()} />);
+    await screen.findByText('Enunciado q1');
+    answerAll();
+    fireEvent.click(screen.getByRole('button', { name: /Concluir revisão/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Rever questões' }));
+    expect(screen.getByText('Enunciado q1')).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Alternativas corrigidas' })).getByText('Sua resposta · Gabarito')).toBeInTheDocument();
   });
   it('CT-Q07 próxima revisão em 1 dia (singular)', async () => {
     fetchMock.mockResolvedValueOnce(quiz({ questions: [] })).mockResolvedValueOnce(result({ interval_days: 1, accuracy: null, results: [], next_due_on: '2026-11-12' }));

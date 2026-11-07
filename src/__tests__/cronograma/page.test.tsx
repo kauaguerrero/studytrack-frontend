@@ -411,6 +411,17 @@ describe('volta do banco com a meta batida', () => {
     expect(calls('POST', /^\/agent$/)).toHaveLength(0);
     expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('voltou para o cronograma'));
   });
+  it('CT-P36 "Corrigir" chama /items/<id>/fix-order, avisa a nova data e recarrega', async () => {
+    items = [item({ id: 'A', topic: 'Logaritmos', date: TODAY, depends_on_late: ['Potências'] })];
+    on('POST', /^\/items\/A\/fix-order$/, () => ({ date: addDays(TODAY, 3), diff: { moved: [], added: [], removed: [] } }));
+    await ready();
+    const before = calls('GET', /^\/\?/).length;
+    fireEvent.click(within(board()).getByText('Logaritmos'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Corrigir' }));
+    await waitFor(() => expect(calls('POST', /fix-order$/)).toHaveLength(1));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('depois do que ele depende')));
+    await waitFor(() => expect(calls('GET', /^\/\?/).length).toBeGreaterThan(before));
+  });
   it('CT-P34 sem ?concluido não há confete', async () => {
     window.history.replaceState(null, '', '/partners/cenas/student/cronograma');
     await ready();
