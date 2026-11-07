@@ -93,7 +93,7 @@ export function AgentChat({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="flex h-full flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm"
@@ -113,12 +113,15 @@ export function AgentChat({
         )}
       </div>
 
-      {/* Resposta do agente: balão de vidro com "rabinho" */}
-      <AnimatePresence initial={false}>
-        {proposal && (
+      {/* Um cartão só que estica até a altura do painel ao lado: conversa no meio,
+          atalhos e campo de mensagem embaixo. */}
+      <div className={`${GLASS} flex flex-1 flex-col gap-3 p-3.5`}>
+      <div className="flex flex-1 flex-col">
+      <AnimatePresence initial={false} mode="popLayout">
+        {proposal ? (
           <motion.div key={proposal.request_id}
             initial={{ opacity: 0, y: 8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.98 }}
-            className={`${GLASS} p-3.5`} aria-live="polite">
+            className="rounded-2xl rounded-tl-md bg-slate-50 p-3.5 dark:bg-white/5" aria-live="polite">
             <p className="relative flex items-start gap-2 text-[13px] text-slate-800 dark:text-white/85">
               <Sparkles className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--brand-primary)' }} />
               <span>{proposal.reply || (proposal.status === 'proposed' ? 'Preparei estas mudanças:' : 'Não consegui aplicar esse pedido.')}</span>
@@ -233,32 +236,20 @@ export function AgentChat({
               </div>
             )}
           </motion.div>
+        ) : (
+          <motion.p key="hello" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="flex max-w-[34rem] items-start gap-2 rounded-2xl rounded-tl-md bg-slate-50 p-3.5 text-[13px] leading-relaxed text-slate-700 dark:bg-white/5 dark:text-white/75">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--brand-primary)' }} />
+            <span>
+              Me conta o que mudou na sua rotina que eu reorganizo o cronograma pra você.
+              Mostro a prévia antes e só aplico se você confirmar. Se preferir, use um dos atalhos abaixo.
+            </span>
+          </motion.p>
         )}
       </AnimatePresence>
-
-      {!asking && (<>
-      {/* Campo de mensagem: vidro */}
-      <div className={`${GLASS} p-1.5 transition focus-within:shadow-[0_14px_44px_-14px_color-mix(in_srgb,var(--brand-primary)_45%,transparent)]`}>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value.slice(0, 500))}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          rows={2}
-          placeholder="Peça uma mudança, ex.: “quinta tenho consulta, tira tudo”"
-          aria-label="Mensagem para o assistente do cronograma"
-          className="relative block w-full resize-none bg-transparent px-3 py-2.5 pr-14 text-[13.5px] text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed dark:text-white dark:placeholder:text-white/35"
-          disabled={locked}
-        />
-        <div className="relative flex items-center justify-between px-2 pb-1">
-          <span className="text-[10.5px] text-slate-400 dark:text-white/35">{text.length > 400 ? `${text.length}/500` : 'Enter envia · Shift+Enter quebra linha'}</span>
-          <button type="button" onClick={send} disabled={busy || !text.trim() || !!proposal} aria-label="Enviar"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-white transition hover:scale-105 active:scale-95 disabled:scale-100 disabled:opacity-35"
-            style={{ background: 'var(--brand-primary)', boxShadow: '0 6px 16px -6px var(--brand-primary)' }}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
-          </button>
-        </div>
       </div>
 
+      {!asking && (<>
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">
         <Chip icon={CalendarX2} disabled={locked} onClick={() => onChip({ chip: 'skip_tomorrow' })}>Não vou estudar amanhã</Chip>
         <Chip icon={Feather} disabled={locked} onClick={() => onChip({ chip: 'lighter_week' })}>Semana mais leve</Chip>
@@ -294,7 +285,30 @@ export function AgentChat({
           </button>
         </div>
       )}
+      {/* Campo de mensagem: sempre no pé do cartão */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-1.5 transition focus-within:border-[color:color-mix(in_srgb,var(--brand-primary)_45%,transparent)] focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand-primary)_12%,transparent)] dark:border-white/10 dark:bg-white/[0.03]">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value.slice(0, 500))}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          rows={2}
+          placeholder="Peça uma mudança, ex.: “quinta tenho consulta, tira tudo”"
+          aria-label="Mensagem para o assistente do cronograma"
+          className="relative block w-full resize-none bg-transparent px-3 py-2.5 pr-14 text-[13.5px] text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed dark:text-white dark:placeholder:text-white/35"
+          disabled={locked}
+        />
+        <div className="relative flex items-center justify-between px-2 pb-1">
+          <span className="text-[10.5px] text-slate-400 dark:text-white/35">{text.length > 400 ? `${text.length}/500` : 'Enter envia · Shift+Enter quebra linha'}</span>
+          <button type="button" onClick={send} disabled={busy || !text.trim() || !!proposal} aria-label="Enviar"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-white transition hover:scale-105 active:scale-95 disabled:scale-100 disabled:opacity-35"
+            style={{ background: 'var(--brand-primary)', boxShadow: '0 6px 16px -6px var(--brand-primary)' }}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+
       </>)}
+      </div>
     </div>
   );
 }
@@ -306,7 +320,7 @@ function Chip({ children, onClick, disabled, active, icon: Icon }: {
     <button type="button" onClick={onClick} disabled={disabled}
       className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-[12px] font-semibold transition disabled:opacity-45 ${active
         ? 'border-transparent text-white shadow-sm'
-        : 'border-white/80 bg-white/65 text-slate-700 shadow-[0_2px_10px_-6px_rgba(15,23,42,0.3)] backdrop-blur hover:-translate-y-px hover:bg-white dark:border-white/10 dark:bg-white/5 dark:text-white/75 dark:hover:bg-white/10'}`}
+        : 'border-slate-200 bg-white text-slate-700 hover:-translate-y-px hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white/75 dark:hover:bg-white/10'}`}
       style={active ? { background: 'var(--brand-primary)' } : undefined}>
       <Icon className="h-3.5 w-3.5 opacity-70" />
       {children}

@@ -393,8 +393,8 @@ function CronogramaInner() {
       </RevealItem>
 
       {/* ── Assistente (balão flutuante, sem card) + Sua semana ─────────────────────── */}
-      <RevealItem className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <div>
+      <RevealItem className="grid grid-cols-[minmax(0,1fr)] items-stretch gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        <div className="min-w-0">
             <AgentChat
               today={today}
               proposal={proposal}
@@ -409,7 +409,7 @@ function CronogramaInner() {
             />
         </div>
         {/* Mesmo cabeçalho e mesmo cartão branco do assistente: as duas colunas começam alinhadas. */}
-        <section aria-label="Sua semana" className="space-y-3">
+        <section aria-label="Sua semana" className="flex min-w-0 flex-col gap-3">
           <div className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl"
               style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)', color: 'var(--brand-primary)' }}>
@@ -420,7 +420,7 @@ function CronogramaInner() {
               <p className="text-[11.5px] text-slate-500 dark:text-white/50">Ritmo, constância e o que já foi estudado.</p>
             </div>
           </div>
-          <div className="rounded-[22px] border border-slate-200/70 bg-white p-3.5 shadow-[0_2px_4px_-2px_rgba(15,23,42,0.06),0_22px_40px_-20px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-slate-900">
+          <div className="flex-1 rounded-[22px] border border-slate-200/70 bg-white p-3.5 shadow-[0_2px_4px_-2px_rgba(15,23,42,0.06),0_22px_40px_-20px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-slate-900">
             <InsightsPanel data={insights} />
           </div>
         </section>
