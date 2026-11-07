@@ -383,7 +383,7 @@ describe('RoutineModal', () => {
   const initial = { capacity: { 0: 120, 1: 120, 2: 120, 3: 120, 4: 120, 5: 0, 6: 0 }, reviewWeekdays: [] as number[] };
   const open = (p = {}) => {
     const h = { onClose: vi.fn(), onSave: vi.fn() };
-    render(<RoutineModal open initial={initial} {...h} {...p} />);
+    render(<RoutineModal open initial={initial} today={TODAY} {...h} {...p} />);
     return h;
   };
   it('CT-R01 marcar sábado como revisão começa com 1h e salva tempo + dia', () => {
@@ -393,7 +393,7 @@ describe('RoutineModal', () => {
     expect(screen.getByLabelText('Tempo de sábado')).toHaveValue('60');
     fireEvent.change(screen.getByLabelText('Tempo de sábado'), { target: { value: '90' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar rotina' }));
-    expect(h.onSave).toHaveBeenCalledWith({ capacity: { ...initial.capacity, 5: 90 }, reviewWeekdays: [5] });
+    expect(h.onSave).toHaveBeenCalledWith({ capacity: { ...initial.capacity, 5: 90 }, reviewWeekdays: [5], rules: {} });
   });
   it('CT-R02 dia de revisão sem tempo ou sem sobrar conteúdo novo não salva', () => {
     open();
@@ -412,6 +412,52 @@ describe('RoutineModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sábado: dia de revisão' }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar rotina' }));
     expect(h.onSave).toHaveBeenCalledWith(expect.objectContaining({ reviewWeekdays: [] }));
+  });
+  it('CT-R04 escala 12x36: 1 trabalho + 1 folga, começando hoje', () => {
+    const h = open();
+    fireEvent.click(screen.getByRole('radio', { name: 'Escala (12x36, plantão)' }));
+    expect(screen.queryByLabelText('Tempo de segunda')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Estudo na folga'), { target: { value: '240' } });
+    // prévia: hoje é dia de trabalho (—), amanhã folga com 4h
+    const strip = screen.getByRole('list', { name: 'Próximos 7 dias' });
+    expect(strip.children[0]).toHaveTextContent('—');
+    expect(strip.children[1]).toHaveTextContent('4h');
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rotina' }));
+    expect(h.onSave).toHaveBeenCalledWith(expect.objectContaining({
+      rules: { cycle: { start: TODAY, minutes: [0, 240] } },
+    }));
+  });
+  it('CT-R05 simulado toda semana: adiciona, muda o dia e remove', () => {
+    const h = open();
+    fireEvent.click(screen.getByRole('button', { name: 'Simulado' }));
+    expect(screen.getByLabelText('Tempo do bloco de simulado')).toHaveValue('270');
+    fireEvent.change(screen.getByLabelText('Dia do bloco de simulado'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rotina' }));
+    expect(h.onSave).toHaveBeenCalledWith(expect.objectContaining({
+      rules: { blocks: [{ kind: 'simulado', weekday: 5, minutes: 270 }] },
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remover simulado' }));
+    expect(screen.queryByLabelText('Dia do bloco de simulado')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Salvar rotina' })).toBeDisabled(); // voltou ao salvo
+  });
+  it('CT-R06 mudança com data: 1h por dia nos dias em que estuda', () => {
+    const h = open();
+    fireEvent.click(screen.getByRole('button', { name: 'Agendar mudança' }));
+    fireEvent.change(screen.getByLabelText('Tempo por dia na mudança'), { target: { value: '60' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rotina' }));
+    const saved = h.onSave.mock.calls[0][0];
+    expect(saved.rules.periods).toHaveLength(1);
+    expect(saved.rules.periods[0].until).toBeNull();
+    expect(saved.rules.periods[0].from > TODAY).toBe(true);
+    // seg–sex tinham tempo: passam a 1h; sábado e domingo continuam folga
+    expect(saved.rules.periods[0].capacity).toEqual({ 0: 60, 1: 60, 2: 60, 3: 60, 4: 60, 5: 0, 6: 0 });
+  });
+  it('CT-R07 mudança começando antes de hoje não salva', () => {
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'Agendar mudança' }));
+    fireEvent.change(screen.getByLabelText('Início da mudança'), { target: { value: '2020-01-01' } });
+    expect(screen.getByRole('alert')).toHaveTextContent('datas das mudanças');
+    expect(screen.getByRole('button', { name: 'Salvar rotina' })).toBeDisabled();
   });
 });
 

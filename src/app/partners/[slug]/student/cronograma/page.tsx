@@ -180,7 +180,8 @@ function CronogramaInner() {
     try {
       const capacity = Object.fromEntries(Object.entries(v.capacity).map(([k, m]) => [String(k), m]));
       const r = await cronogramaFetch<{ changed: boolean }>('/settings', {
-        method: 'PATCH', body: JSON.stringify({ capacity, review_weekdays: v.reviewWeekdays }),
+        method: 'PATCH',
+        body: JSON.stringify({ capacity, review_weekdays: v.reviewWeekdays, schedule_rules: v.rules ?? {} }),
       });
       toast.success(r.changed ? 'Rotina atualizada. O cronograma foi reorganizado.' : 'Nada mudou na rotina.');
       setRoutineOpen(false);
@@ -440,6 +441,9 @@ function CronogramaInner() {
               onOpenItem={(i) => setStartTarget(i)}
               onOpenReviews={(g) => setReviewGroup(g)}
               onUnblock={unblock}
+              blockHref={(kind) => kind === 'simulado'
+                ? `/partners/${slug}/student/simulado`
+                : `/partners/${slug}/student/redacoes/nova`}
             />
           )}
           {view && mode === 'mes' && anchor && (
@@ -513,7 +517,9 @@ function CronogramaInner() {
           initial={{
             capacity: Object.fromEntries(Array.from({ length: 7 }, (_, wd) => [wd, Number(view.plan.capacity[String(wd)] ?? 0)])),
             reviewWeekdays: view.plan.review_weekdays ?? [],
+            rules: view.plan.schedule_rules ?? {},
           }}
+          today={view.today}
           onClose={() => setRoutineOpen(false)}
           onSave={saveRoutine}
         />

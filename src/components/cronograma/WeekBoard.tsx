@@ -7,15 +7,16 @@
 // - Em modo prévia (sugestão do agente), o quadro é só leitura e destaca o que muda.
 
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor,
   useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { AlertTriangle, CheckCircle2, Pin, RotateCcw, MoreHorizontal, Ban } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Pin, RotateCcw, MoreHorizontal, Ban, ClipboardList, PenLine } from 'lucide-react';
 import {
-  AREA_STYLE, LOAD_STYLE, WEEKDAY_SHORT, formatDayMonth, weekdayIndex,
-  type DayInfo, type PlanItem,
+  AREA_STYLE, LOAD_STYLE, WEEKDAY_SHORT, formatDayMonth, formatMinutes, weekdayIndex,
+  type BlockKind, type DayBlock, type DayInfo, type PlanItem,
 } from '@/lib/cronograma';
 
 // Máximo de cards visíveis por dia antes da rolagem interna.
@@ -53,6 +54,7 @@ export function WeekBoard({
   onOpenItem,
   onOpenReviews,
   onUnblock,
+  blockHref,
 }: {
   days: DayInfo[];
   items: PlanItem[];
@@ -64,6 +66,8 @@ export function WeekBoard({
   onOpenReviews: (group: ReviewGroup) => void;
   /** Desfaz o bloqueio de um dia (sem IA, sem cota). */
   onUnblock?: (date: string) => void;
+  /** Link do card de simulado/redação reservado na rotina. */
+  blockHref?: (kind: BlockKind) => string;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -125,6 +129,7 @@ export function WeekBoard({
             onOpenItem={onOpenItem}
             onOpenReviews={onOpenReviews}
             onUnblock={onUnblock}
+            blockHref={blockHref}
           />
         ))}
       </div>
@@ -137,6 +142,7 @@ export function WeekBoard({
 
 function DayColumn({
   day, isToday, isPast, studies, reviews, weekDates, readOnly, highlightIds, onMove, onOpenItem, onOpenReviews, onUnblock,
+  blockHref,
 }: {
   day: DayInfo;
   isToday: boolean;
@@ -150,11 +156,13 @@ function DayColumn({
   onOpenItem: (item: PlanItem) => void;
   onOpenReviews: (group: ReviewGroup) => void;
   onUnblock?: (date: string) => void;
+  blockHref?: (kind: BlockKind) => string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: day.date, disabled: readOnly || isPast || day.blocked });
   const load = LOAD_STYLE[day.level];
   const pct = Math.min(100, Math.round(day.ratio * 100));
-  const empty = studies.length === 0 && reviews.length === 0;
+  const blocks = day.blocked ? [] : (day.blocks ?? []);
+  const empty = studies.length === 0 && reviews.length === 0 && blocks.length === 0;
 
   // Contador do dia: estudos + tópicos de revisão (não conta revisões só previstas).
   const countable = [...studies, ...reviews.flatMap((g) => g.items)].filter((i) => !i.projected);
@@ -256,6 +264,9 @@ function DayColumn({
         style={maxH ? { maxHeight: maxH } : undefined}
         tabIndex={maxH ? 0 : undefined}
         aria-label={maxH ? `${cardCount} itens, role para ver todos` : undefined}>
+        {blocks.map((b) => (
+          <BlockCard key={b.kind} block={b} href={!isPast && !readOnly ? blockHref?.(b.kind) : undefined} />
+        ))}
         <AnimatePresence initial={false}>
           {studies.map((s) => (
             <DraggableStudy key={s.id} item={s} readOnly={readOnly || isPast || s.status !== 'pending' || s.projected}
@@ -365,6 +376,39 @@ function DraggableStudy({
   );
 }
 
+const BLOCK_STYLE: Record<BlockKind, { icon: typeof ClipboardList; cta: string }> = {
+  simulado: { icon: ClipboardList, cta: 'Fazer simulado' },
+  redacao: { icon: PenLine, cta: 'Escrever redação' },
+};
+
+/** Simulado/redação reservados na rotina: não é conteúdo do planner, é um atalho. */
+function BlockCard({ block, href }: { block: DayBlock; href?: string }) {
+  const { icon: Icon, cta } = BLOCK_STYLE[block.kind] ?? BLOCK_STYLE.simulado;
+  const body = (
+    <>
+      <span className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wide" style={{ color: 'var(--brand-ink)' }}>
+        <Icon className="h-3 w-3" /> {block.label}
+      </span>
+      <span className="mt-0.5 block text-[12px] font-semibold text-slate-800 dark:text-white/85">
+        {formatMinutes(block.minutes)} reservados
+      </span>
+      {href && <span className="mt-0.5 block text-[11px] font-bold underline-offset-2 group-hover:underline" style={{ color: 'var(--brand-ink)' }}>{cta} →</span>}
+    </>
+  );
+  const cls = 'group block w-full rounded-xl border p-2 text-left transition';
+  const style = {
+    borderColor: 'color-mix(in srgb, var(--brand-ink) 28%, transparent)',
+    background: 'color-mix(in srgb, var(--brand-ink) 6%, transparent)',
+  };
+  return href ? (
+    <Link href={href} className={`${cls} hover:shadow-sm`} style={style} aria-label={`${cta}: ${formatMinutes(block.minutes)} reservados`}>
+      {body}
+    </Link>
+  ) : (
+    <div className={cls} style={style}>{body}</div>
+  );
+}
+
 export function StudyCardBody({ item, dragging }: { item: PlanItem; dragging?: boolean }) {
   const area = AREA_STYLE[item.area] ?? AREA_STYLE.geral;
   const done = item.status === 'done';
@@ -382,6 +426,12 @@ export function StudyCardBody({ item, dragging }: { item: PlanItem; dragging?: b
       </p>
       <div className="mt-1 flex items-center gap-1.5 text-[10.5px] text-slate-500 dark:text-white/50">
         <span>{item.minutes} min</span>
+        {!!item.parts && item.parts > 1 && (
+          <span className="rounded-full bg-slate-100 px-1.5 font-bold tabular-nums text-slate-600 dark:bg-white/10 dark:text-white/65"
+            title="Conteúdo dividido em partes para caber no seu dia">
+            parte {item.part}/{item.parts}
+          </span>
+        )}
         {item.projected && <span className="font-semibold uppercase tracking-wide text-slate-400">previsto</span>}
         {done && <span className="inline-flex items-center gap-0.5 font-bold text-emerald-600"><CheckCircle2 className="h-3 w-3" /> feito</span>}
         {item.depends_on_late.length > 0 && (

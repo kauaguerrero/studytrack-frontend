@@ -29,6 +29,9 @@ export interface PlanItem extends NodeView {
   position: number;
   review_due_on: string | null;
   depends_on_late: string[];
+  /** Conteúdo dividido em partes (dia curto): parte `part` de `parts`. 0/0 = inteiro. */
+  part?: number;
+  parts?: number;
 }
 
 export interface ProjectedItem extends NodeView {
@@ -36,6 +39,26 @@ export interface ProjectedItem extends NodeView {
   date: string;
   minutes: number;
   projected: true;
+  part?: number;
+  parts?: number;
+}
+
+export type BlockKind = 'simulado' | 'redacao';
+
+/** Tempo reservado na semana para simulado/redação (fora do conteúdo). */
+export interface DayBlock {
+  kind: BlockKind;
+  label: string;
+  minutes: number;
+}
+
+/** Rotina além da semana fixa (study_plans.schedule_rules). */
+export interface ScheduleRules {
+  /** Escala que repete a cada N dias (12x36…): minutos de cada dia do ciclo, a partir de `start`. */
+  cycle?: { start: string; minutes: number[] };
+  /** Rotina com data: vale de `from` até `until` (ou sem fim). */
+  periods?: { from: string; until: string | null; capacity: Record<string, number> }[];
+  blocks?: { kind: BlockKind; weekday: number; minutes: number }[];
 }
 
 export interface DayInfo {
@@ -47,6 +70,8 @@ export interface DayInfo {
   blocked: boolean;
   /** Dia da semana marcado como "só revisão" na rotina. */
   review_only?: boolean;
+  /** Simulado/redação reservados neste dia (já descontados de `capacity`). */
+  blocks?: DayBlock[];
 }
 
 export interface PlanSummary {
@@ -55,6 +80,7 @@ export interface PlanSummary {
   capacity: Record<string, number>;
   /** Dias da semana (0=seg … 6=dom) só de revisão. */
   review_weekdays?: number[];
+  schedule_rules?: ScheduleRules;
   subject_weights: Record<string, number>;
   version: number;
 }

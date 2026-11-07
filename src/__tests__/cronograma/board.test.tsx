@@ -105,6 +105,22 @@ describe('WeekBoard', () => {
     expect(within(day('SÁB 14/11')).getByText('Revisão')).toBeInTheDocument();
     expect(within(day('SEX 13/11')).queryByText('Revisão')).toBeNull();
   });
+  it('CT-W15d conteúdo dividido mostra "parte k/N"', () => {
+    board([item({ topic: 'Funções', date: TODAY, minutes: 25, part: 2, parts: 3 }), item({ topic: 'Inteiro', date: TODAY })]);
+    expect(within(day('QUA 11/11')).getByText('parte 2/3')).toBeInTheDocument();
+    expect(screen.getAllByText(/^parte /)).toHaveLength(1);
+  });
+  it('CT-W15e simulado reservado vira card com link (só em dia futuro)', () => {
+    const days = week();
+    days[5] = { ...days[5], capacity: 30, blocks: [{ kind: 'simulado', label: 'Simulado', minutes: 270 }] };
+    days[0] = { ...days[0], blocks: [{ kind: 'redacao', label: 'Redação', minutes: 60 }] };
+    board([], { days, blockHref: (k) => `/x/${k}` });
+    const link = within(day('SÁB 14/11')).getByRole('link', { name: /Fazer simulado: 4h30 reservados/ });
+    expect(link).toHaveAttribute('href', '/x/simulado');
+    // dia passado: mostra o bloco, sem atalho
+    expect(within(day('SEG 09/11')).getByText('1h reservados')).toBeInTheDocument();
+    expect(within(day('SEG 09/11')).queryByRole('link')).toBeNull();
+  });
   it('CT-W16 fim de semana com capacidade 0 mostra "Folga" e sem barra de carga', () => {
     board([]);
     expect(within(day('SÁB 14/11')).getByText('Folga')).toBeInTheDocument();
