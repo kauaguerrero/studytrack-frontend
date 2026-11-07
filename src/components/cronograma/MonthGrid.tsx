@@ -56,7 +56,7 @@ export function MonthGrid({
               type="button"
               onClick={() => onPickDay(d.date)}
               className={`flex min-h-[74px] flex-col rounded-xl border p-1.5 text-left transition hover:shadow-md sm:min-h-[92px] ${inMonth ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 opacity-60 dark:bg-white/5'} ${isToday ? 'ring-2' : ''} border-slate-200 dark:border-white/10`}
-              style={isToday ? { ['--tw-ring-color' as string]: 'var(--brand-primary)' } : undefined}
+              style={isToday ? { ['--tw-ring-color' as string]: 'var(--brand-ink)' } : undefined}
             >
               <span className="flex items-center justify-between">
                 <span className={`text-[12px] font-black ${inMonth ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>{parseISODate(d.date).getDate()}</span>

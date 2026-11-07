@@ -53,9 +53,9 @@ export function SetupWizard({
   };
 
   return (
-    <ElevatedCard className="mx-auto max-w-2xl" accentColor="var(--brand-primary)">
+    <ElevatedCard className="mx-auto max-w-2xl" accentColor="var(--brand-ink)">
       <div className="p-5 lg:p-7">
-        <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--brand-primary)' }}>
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--brand-ink)' }}>
           Passo {step + 1} de 3
         </p>
 
@@ -87,7 +87,7 @@ export function SetupWizard({
                   <input type="range" min={0} max={MAX_DAY_MINUTES} step={15} value={capacity[wd]}
                     aria-label={`Minutos de estudo na ${label}`}
                     onChange={(e) => setCapacity((c) => c.map((v, i) => (i === wd ? Number(e.target.value) : v)))}
-                    className="flex-1" style={{ accentColor: 'var(--brand-primary)' }} />
+                    className="flex-1" style={{ accentColor: 'var(--brand-ink)' }} />
                   <span className="w-16 text-right text-[13px] font-bold text-slate-900 dark:text-white">
                     {capacity[wd] === 0 ? 'folga' : `${Math.floor(capacity[wd] / 60)}h${capacity[wd] % 60 ? String(capacity[wd] % 60).padStart(2, '0') : ''}`}
                   </span>

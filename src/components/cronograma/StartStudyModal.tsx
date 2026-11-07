@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { BookOpen, ClipboardCheck, CheckCircle2, Brain, SkipForward, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AREA_STYLE, studyLinks, formatDayMonth, type NodeView } from '@/lib/cronograma';
+import { useStudentThemeRoot } from '@/hooks/useStudentThemeRoot';
 
 export interface StartTarget extends NodeView {
   id: string;
@@ -36,6 +37,7 @@ export function StartStudyModal({
   onStartReview?: (t: StartTarget) => void;
   busy?: boolean;
 }) {
+  const themeRoot = useStudentThemeRoot();
   const open = !!target;
   const area = target ? AREA_STYLE[target.area] ?? AREA_STYLE.geral : AREA_STYLE.geral;
   // Itens previstos (projeção) ainda não existem no banco: sem barra de progresso.
@@ -47,7 +49,7 @@ export function StartStudyModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-md rounded-2xl">
+      <DialogContent className="max-w-md rounded-2xl dark:border-white/10 dark:bg-slate-900 dark:text-white" container={themeRoot}>
         {target && links && (
           <>
             <DialogHeader>
@@ -88,8 +90,8 @@ export function StartStudyModal({
                   onClick={() => onStartReview?.(target)}
                   className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3.5 text-left transition hover:-translate-y-[1px] hover:shadow-md disabled:opacity-50 dark:border-white/10 dark:bg-slate-900"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'color-mix(in srgb, var(--brand-primary) 14%, white)' }}>
-                    <Brain className="h-5 w-5" style={{ color: 'var(--brand-primary)' }} />
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'color-mix(in srgb, var(--brand-ink) 14%, transparent)' }}>
+                    <Brain className="h-5 w-5" style={{ color: 'var(--brand-ink)' }} />
                   </span>
                   <span>
                     <span className="block text-[14px] font-bold text-slate-900 dark:text-white">Fazer a revisão</span>

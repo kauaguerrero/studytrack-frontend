@@ -106,20 +106,20 @@ export function StudyProgressBar({ slug, itemId, answerTick }: {
         <span className="flex min-w-0 items-center gap-2">
           {done
             ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-            : <CalendarCheck2 className="h-4 w-4 shrink-0" style={{ color: 'var(--brand-primary)' }} />}
+            : <CalendarCheck2 className="h-4 w-4 shrink-0" style={{ color: 'var(--brand-ink)' }} />}
           <span className="min-w-0 truncate text-[13px] font-semibold text-slate-800 dark:text-white/85">
             {done ? 'Conteúdo já concluído' : 'Cronograma'} · {progress.topic ?? 'conteúdo do dia'}
           </span>
         </span>
         <span className="shrink-0 text-[13px] font-bold tabular-nums text-slate-900 dark:text-white">
-          {done ? <Link href={back} className="text-[12.5px] font-semibold underline-offset-2 hover:underline" style={{ color: 'var(--brand-primary)' }}>Voltar ao cronograma</Link>
+          {done ? <Link href={back} className="text-[12.5px] font-semibold underline-offset-2 hover:underline" style={{ color: 'var(--brand-ink)' }}>Voltar ao cronograma</Link>
             : <>{answered}/{progress.goal} questões</>}
         </span>
       </div>
       {!done && (
         <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10" role="progressbar"
           aria-label="Questões do conteúdo" aria-valuemin={0} aria-valuemax={progress.goal} aria-valuenow={answered}>
-          <motion.div className="h-full rounded-full" style={{ background: 'var(--brand-primary)' }}
+          <motion.div className="h-full rounded-full" style={{ background: 'var(--brand-ink)' }}
             initial={false} animate={{ width: `${pct}%` }} transition={{ type: 'spring', stiffness: 260, damping: 30 }} />
         </div>
       )}

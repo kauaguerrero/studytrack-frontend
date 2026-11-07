@@ -12,6 +12,7 @@ import { QuestionRichText } from '@/components/questions/QuestionRichText';
 import {
   cronogramaFetch, formatDayMonth, type QuizResponse, type ReviewResult,
 } from '@/lib/cronograma';
+import { useStudentThemeRoot } from '@/hooks/useStudentThemeRoot';
 
 const GRADE_LABEL: Record<ReviewResult['grade'], string> = {
   again: 'Precisa rever', hard: 'Difícil', good: 'Bom', easy: 'Fácil',
@@ -32,6 +33,7 @@ export function ReviewQuizModal({
   onClose: () => void;
   onDone: (r: ReviewResult) => void;
 }) {
+  const themeRoot = useStudentThemeRoot();
   const [quiz, setQuiz] = useState<QuizResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -76,7 +78,7 @@ export function ReviewQuizModal({
 
   return (
     <Dialog open={!!itemId} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl dark:border-white/10 dark:bg-slate-900 dark:text-white" container={themeRoot}>
         <DialogHeader>
           <DialogTitle className="font-display text-[18px] text-slate-900 dark:text-white">
             Revisão{quiz ? `: ${quiz.topic}` : ''}
@@ -163,7 +165,7 @@ export function ReviewQuizModal({
                   <button key={a.letter} type="button"
                     onClick={() => setAnswers((s) => ({ ...s, [q.id]: a.letter }))}
                     className={`flex items-start gap-3 rounded-xl border p-3 text-left text-[13.5px] transition ${selected ? 'border-transparent ring-2' : 'border-slate-200 hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5'}`}
-                    style={selected ? { ['--tw-ring-color' as string]: 'var(--brand-primary)', background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)' } : undefined}>
+                    style={selected ? { ['--tw-ring-color' as string]: 'var(--brand-ink)', background: 'color-mix(in srgb, var(--brand-ink) 8%, transparent)' } : undefined}>
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[12px] font-bold text-slate-700 dark:bg-white/10 dark:text-white/80">{a.letter}</span>
                     <span className="min-w-0 flex-1 text-slate-800 dark:text-white/85">
                       <QuestionRichText text={a.text} />

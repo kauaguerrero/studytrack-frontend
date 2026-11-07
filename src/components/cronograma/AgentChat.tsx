@@ -235,7 +235,7 @@ export function AgentChat({
                   <div key={e.index} role="group" aria-label={`Tempo de ${e.label}`}
                     className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-2.5 py-1.5 dark:border-white/10 dark:bg-white/5">
                     <span className="flex min-w-0 items-center gap-1.5 text-[12.5px] font-semibold text-slate-700 dark:text-white/75">
-                      <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
+                      <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-ink)' }} />
                       <span className="truncate first-letter:uppercase">{e.label}</span>
                     </span>
                     <span className="flex shrink-0 items-center gap-1">
@@ -352,7 +352,7 @@ export function AgentChat({
           )}
 
           {/* Campo de mensagem: sempre no pé do cartão */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-1.5 transition focus-within:border-[color:color-mix(in_srgb,var(--brand-primary)_45%,transparent)] focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand-primary)_12%,transparent)] dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-1.5 transition focus-within:border-[color:color-mix(in_srgb,var(--brand-ink)_45%,transparent)] focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand-ink)_12%,transparent)] dark:border-white/10 dark:bg-white/[0.03]">
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value.slice(0, 500))}
@@ -397,7 +397,7 @@ function Time({ at }: { at: Date }) {
 function BotDot() {
   return (
     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full"
-      style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)', color: 'var(--brand-primary)' }}>
+      style={{ background: 'color-mix(in srgb, var(--brand-ink) 12%, transparent)', color: 'var(--brand-ink)' }}>
       <Sparkles className="h-3.5 w-3.5" />
     </span>
   );
@@ -420,7 +420,7 @@ function UserBubble({ children, at }: { children: React.ReactNode; at: Date }) {
     <div className="flex items-end justify-end gap-1.5">
       <Time at={at} />
       <p className="max-w-[80%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md px-3.5 py-2 text-[13px] text-slate-900 dark:text-white"
-        style={{ background: 'color-mix(in srgb, var(--brand-primary) 13%, transparent)' }}>
+        style={{ background: 'color-mix(in srgb, var(--brand-ink) 13%, transparent)' }}>
         {children}
       </p>
     </div>

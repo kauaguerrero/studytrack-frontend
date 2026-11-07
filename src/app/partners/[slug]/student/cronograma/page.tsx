@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { ElevatedCard, RevealGroup, RevealItem, Segmented } from '@/components/partners/founder-ui';
 import { useOrg } from '@/contexts/OrgContext';
+import { onBrandText } from '@/lib/brand-color';
 import { WeekBoard, type ReviewGroup } from '@/components/cronograma/WeekBoard';
 import { MonthGrid } from '@/components/cronograma/MonthGrid';
 import { InsightsPanel } from '@/components/cronograma/InsightsPanel';
@@ -340,7 +341,7 @@ function CronogramaInner() {
           <button type="button" onClick={() => { setMode('semana'); setAnchor(weekStart(today)); }}
             disabled={mode === 'semana' && anchor === weekStart(today)}
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[13px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10">
-            <CalendarDays className="h-4 w-4" style={{ color: 'var(--brand-primary)' }} />Hoje
+            <CalendarDays className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} />Hoje
           </button>
         </div>
         </div>
@@ -412,7 +413,7 @@ function CronogramaInner() {
         <section aria-label="Sua semana" className="flex min-w-0 flex-col gap-3">
           <div className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl"
-              style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)', color: 'var(--brand-primary)' }}>
+              style={{ background: 'color-mix(in srgb, var(--brand-ink) 12%, transparent)', color: 'var(--brand-ink)' }}>
               <TrendingUp className="h-4 w-4" />
             </span>
             <div>
@@ -420,7 +421,8 @@ function CronogramaInner() {
               <p className="text-[11.5px] text-slate-500 dark:text-white/50">Ritmo, constância e o que já foi estudado.</p>
             </div>
           </div>
-          <div className="flex-1 rounded-[22px] border border-slate-200/70 bg-white p-3.5 shadow-[0_2px_4px_-2px_rgba(15,23,42,0.06),0_22px_40px_-20px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-slate-900">
+          <div className="flex-1 rounded-[22px] p-3.5 shadow-[0_2px_4px_-2px_rgba(15,23,42,0.08),0_22px_40px_-20px_rgba(15,23,42,0.45)] ring-1 ring-black/5 dark:ring-white/10"
+            style={{ background: 'var(--brand-primary)', color: onBrandText(org.brand_primary) }}>
             <InsightsPanel data={insights} />
           </div>
         </section>

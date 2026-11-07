@@ -72,16 +72,16 @@ export function PeriodWheel({
         if (e.key === 'ArrowUp') { e.preventDefault(); goPrev(); }
         if (e.key === 'ArrowDown') { e.preventDefault(); goNext(); }
       }}
-      className={`flex select-none flex-col justify-center rounded-[22px] border border-slate-200/70 bg-white p-1.5 outline-none shadow-[0_2px_4px_-2px_rgba(15,23,42,0.06),0_22px_40px_-20px_rgba(15,23,42,0.35)] focus-visible:ring-2 focus-visible:ring-[color:var(--brand-primary)] dark:border-white/10 dark:bg-slate-900 ${className}`}>
+      className={`flex select-none flex-col justify-center rounded-[22px] border border-slate-200/70 bg-white p-1.5 outline-none shadow-[0_2px_4px_-2px_rgba(15,23,42,0.06),0_22px_40px_-20px_rgba(15,23,42,0.35)] focus-visible:ring-2 focus-visible:ring-[color:var(--brand-ink)] dark:border-white/10 dark:bg-slate-900 ${className}`}>
       <Side entry={prev} onClick={goPrev} icon={<ChevronUp className="h-3 w-3" />} where="anterior" />
       <div className="relative my-0.5 h-11 overflow-hidden rounded-2xl bg-slate-50 dark:bg-white/5">
-        <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-r-full" style={{ background: 'var(--brand-primary)' }} />
+        <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-r-full" style={{ background: 'var(--brand-ink)' }} />
         <AnimatePresence initial={false} mode="popLayout" custom={dir}>
           <motion.div key={current.key} aria-current="true"
             custom={dir} variants={SLIDE} initial="enter" animate="center" exit="exit"
             transition={{ type: 'spring', stiffness: 420, damping: 34 }}
             className="absolute inset-0 flex items-center gap-2.5 pl-3 pr-3">
-            <CalendarDays className="h-4 w-4 shrink-0" style={{ color: 'var(--brand-primary)' }} />
+            <CalendarDays className="h-4 w-4 shrink-0" style={{ color: 'var(--brand-ink)' }} />
             <span className="min-w-0 flex-1 leading-tight">
               <span className="flex items-baseline justify-between gap-2">
                 <span className="truncate text-[13.5px] font-bold capitalize tabular-nums text-slate-900 dark:text-white">{current.label}</span>
@@ -90,7 +90,7 @@ export function PeriodWheel({
               <span className="flex min-w-0 items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-white/50">
                 {sub && <span className="truncate">{sub}</span>}
                 {sub && current.hint && <span aria-hidden>·</span>}
-                {current.hint && <span className="shrink-0" style={{ color: 'var(--brand-primary)' }}>{current.hint}</span>}
+                {current.hint && <span className="shrink-0" style={{ color: 'var(--brand-ink)' }}>{current.hint}</span>}
               </span>
             </span>
           </motion.div>

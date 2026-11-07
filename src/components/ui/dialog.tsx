@@ -28,9 +28,12 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
-  <DialogPortal>
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    /** Onde montar o portal (padrão: body). Dentro da raiz do tema do aluno, o modal herda o modo escuro. */
+    container?: HTMLElement | null;
+  }
+>(({ className, children, container, ...props }, ref) => (
+  <DialogPortal container={container ?? undefined}>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}

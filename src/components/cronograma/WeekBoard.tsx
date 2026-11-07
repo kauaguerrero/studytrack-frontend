@@ -184,18 +184,18 @@ function DayColumn({
       aria-label={`${WEEKDAY_SHORT[weekdayIndex(day.date)]} ${formatDayMonth(day.date)}`}
       className={[
         'relative flex min-h-[210px] w-[80%] shrink-0 snap-start flex-col rounded-[20px] bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.12)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.24),0_8px_24px_-12px_rgba(0,0,0,0.55)] transition-colors dark:bg-slate-900 sm:w-[44%] md:w-[31%] lg:w-auto lg:min-h-[340px] lg:shrink lg:rounded-none lg:p-2.5 lg:shadow-none',
-        isToday ? 'lg:bg-[color-mix(in_srgb,var(--brand-primary)_4%,transparent)]' : 'lg:bg-transparent lg:dark:bg-transparent',
+        isToday ? 'lg:bg-[color-mix(in_srgb,var(--brand-ink)_4%,transparent)]' : 'lg:bg-transparent lg:dark:bg-transparent',
         isOver ? 'bg-slate-50 dark:bg-white/5' : '',
         isPast ? 'opacity-60' : '',
         'first:lg:rounded-l-[20px] last:lg:rounded-r-[20px]',
       ].join(' ')}
-      style={isOver ? { outline: '2px dashed color-mix(in srgb, var(--brand-primary) 55%, transparent)', outlineOffset: -4 } : undefined}
+      style={isOver ? { outline: '2px dashed color-mix(in srgb, var(--brand-ink) 55%, transparent)', outlineOffset: -4 } : undefined}
     >
       {/* Cabeçalho com altura fixa em todos os dias: os cards começam na mesma linha. */}
       <header className="mb-2.5">
         <div className="flex h-5 items-center justify-between gap-1">
           <p className={`min-w-0 truncate whitespace-nowrap text-[10.5px] font-bold tracking-[0.12em] ${isToday ? '' : 'text-slate-500 dark:text-white/50'}`}
-            style={isToday ? { color: 'var(--brand-primary)' } : undefined}>
+            style={isToday ? { color: 'var(--brand-ink)' } : undefined}>
             {WEEKDAY_SHORT[weekdayIndex(day.date)]}{isToday ? ' · HOJE' : ''}
           </p>
           {day.blocked ? (
@@ -230,7 +230,7 @@ function DayColumn({
               <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10" role="progressbar"
                 aria-valuemin={0} aria-valuemax={countable.length} aria-valuenow={doneCount} aria-label="Progresso do dia">
                 <motion.span className="block h-full rounded-full" initial={false}
-                  style={{ background: doneCount === countable.length ? '#10b981' : 'var(--brand-primary)' }}
+                  style={{ background: doneCount === countable.length ? '#10b981' : 'var(--brand-ink)' }}
                   animate={{ width: `${Math.round((doneCount / countable.length) * 100)}%` }} />
               </span>
             </>

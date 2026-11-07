@@ -4,6 +4,7 @@ import { CheckCircle2, RotateCcw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatDayMonth, type PlanItem } from '@/lib/cronograma';
 import type { ReviewGroup } from './WeekBoard';
+import { useStudentThemeRoot } from '@/hooks/useStudentThemeRoot';
 
 export function ReviewListModal({
   group, onClose, onStart,
@@ -12,9 +13,10 @@ export function ReviewListModal({
   onClose: () => void;
   onStart: (item: PlanItem) => void;
 }) {
+  const themeRoot = useStudentThemeRoot();
   return (
     <Dialog open={!!group} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-md rounded-2xl">
+      <DialogContent className="max-w-md rounded-2xl dark:border-white/10 dark:bg-slate-900 dark:text-white" container={themeRoot}>
         {group && (
           <>
             <DialogHeader>

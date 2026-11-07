@@ -1,25 +1,26 @@
 'use client';
 
 // Painel "Sua semana". Tudo calculado no backend, sem IA.
-// Visual: blocos com ícone colorido (mesma linguagem dos KpiCards do simulado)
-// e barra particionada por área (inspirada no Partition Bar, 21st.dev/@8starlabs):
-// cada segmento tem a largura do peso da área no plano e preenche conforme o estudado.
+// Visual: fica sobre o cartão na cor da org (o pai define fundo e `color`). Por isso
+// os tons aqui saem de `currentColor` (texto) com opacidade, e não de cinzas fixos:
+// funciona com marca escura (texto branco) ou clara (texto escuro), no claro e no escuro.
+// Barra particionada por área: cada segmento tem a largura do peso da área no plano.
 
 import { Flame, Gauge, Brain, CalendarDays, AlertCircle } from 'lucide-react';
 import { AREA_STYLE, type Insights } from '@/lib/cronograma';
 
 const PACE: Record<Insights['pace'], { label: string; color: string; cls: string }> = {
-  adiantado: { label: 'Adiantado', color: '#16a34a', cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200' },
-  no_ritmo:  { label: 'No ritmo', color: '#0ea5e9', cls: 'bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-200' },
-  atrasado:  { label: 'Atrasado', color: '#d97706', cls: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200' },
+  adiantado: { label: 'Adiantado', color: '#16a34a', cls: 'bg-emerald-100 text-emerald-800' },
+  no_ritmo:  { label: 'No ritmo', color: '#0ea5e9', cls: 'bg-sky-100 text-sky-800' },
+  atrasado:  { label: 'Atrasado', color: '#d97706', cls: 'bg-amber-100 text-amber-800' },
 };
 
 export function InsightsPanel({ data, loading }: { data: Insights | null; loading?: boolean }) {
   if (loading || !data) {
     return (
       <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">{[0, 1, 2, 3].map((k) => <div key={k} className="h-[76px] animate-pulse rounded-2xl bg-slate-100 dark:bg-white/5" />)}</div>
-        <div className="h-[92px] animate-pulse rounded-2xl bg-slate-100 dark:bg-white/5" />
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">{[0, 1, 2, 3].map((k) => <div key={k} className="h-[76px] animate-pulse rounded-2xl bg-[color-mix(in_srgb,currentColor_9%,transparent)]" />)}</div>
+        <div className="h-[92px] animate-pulse rounded-2xl bg-[color-mix(in_srgb,currentColor_9%,transparent)]" />
       </div>
     );
   }
@@ -31,7 +32,7 @@ export function InsightsPanel({ data, loading }: { data: Insights | null; loadin
   return (
     <div className="space-y-2.5">
       <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-        <Tile icon={CalendarDays} color="var(--brand-primary)" label="Até o ENEM" value={`${data.weeks_to_exam} sem`} sub={`${data.days_to_exam} dias`} />
+        <Tile icon={CalendarDays} color="currentColor" label="Até o ENEM" value={`${data.weeks_to_exam} sem`} sub={`${data.days_to_exam} dias`} />
         <Tile icon={Gauge} color={pace.color} label="Ritmo"
           value={<span className={`inline-block rounded-full px-2 py-0.5 text-[12.5px] font-bold ${pace.cls}`}>{pace.label}</span>}
           sub={data.pace === 'no_ritmo' ? 'na linha do ideal' : `${delta} ${delta === 1 ? 'conteúdo' : 'conteúdos'} ${data.pace_delta > 0 ? 'à frente' : 'atrás'}`} />
@@ -39,10 +40,10 @@ export function InsightsPanel({ data, loading }: { data: Insights | null; loadin
         <Tile icon={Brain} color="#9333ea" label="Memória" value={data.retention_pct == null ? '-' : `${data.retention_pct}%`} sub="lembradas em 30 dias" />
       </div>
 
-      <div className="rounded-2xl bg-slate-50 p-3 dark:bg-white/[0.04]">
+      <div className="rounded-2xl bg-[color-mix(in_srgb,currentColor_9%,transparent)] p-3">
         <div className="mb-2 flex items-baseline justify-between gap-2">
-          <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-white/50">Conteúdo estudado</p>
-          <p className="text-[12px] font-bold text-slate-900 dark:text-white">{data.studied}/{data.total} · {data.coverage_pct}%</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.1em] opacity-70">Conteúdo estudado</p>
+          <p className="text-[12px] font-bold">{data.studied}/{data.total} · {data.coverage_pct}%</p>
         </div>
         <div className="flex h-2.5 w-full gap-1" role="img"
           aria-label={areas.map((a) => `${a.label} ${a.pct}%`).join(', ')}>
@@ -50,7 +51,7 @@ export function InsightsPanel({ data, loading }: { data: Insights | null; loadin
             const dot = AREA_STYLE[a.area]?.dot ?? '#64748b';
             return (
               <div key={a.area} className="h-full overflow-hidden rounded-full" title={`${a.label}: ${a.studied}/${a.total}`}
-                style={{ flex: `${a.total / totalNodes} 1 0`, background: `color-mix(in srgb, ${dot} 18%, transparent)` }}>
+                style={{ flex: `${a.total / totalNodes} 1 0`, background: `color-mix(in srgb, ${dot} 28%, transparent)` }}>
                 <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${Math.max(a.pct, a.studied > 0 ? 4 : 0)}%`, background: dot }} />
               </div>
             );
@@ -59,11 +60,11 @@ export function InsightsPanel({ data, loading }: { data: Insights | null; loadin
         <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-4">
           {areas.map((a) => (
             <div key={a.area} className="min-w-0">
-              <p className="flex items-center gap-1 truncate text-[11px] font-semibold text-slate-600 dark:text-white/60">
+              <p className="flex items-center gap-1 truncate text-[11px] font-semibold opacity-75">
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: AREA_STYLE[a.area]?.dot ?? '#64748b' }} />
                 {a.label}
               </p>
-              <p className="pl-2.5 text-[11px] font-bold text-slate-900 dark:text-white">{a.pct}%</p>
+              <p className="pl-2.5 text-[11px] font-bold">{a.pct}%</p>
             </div>
           ))}
         </div>
@@ -84,21 +85,21 @@ export function InsightsPanel({ data, loading }: { data: Insights | null; loadin
 
 function Tile({ icon: Icon, color, label, value, sub }: { icon: React.ElementType; color: string; label: string; value: React.ReactNode; sub: string }) {
   return (
-    <div className="min-w-0 rounded-2xl bg-slate-50 px-3 py-2.5 dark:bg-white/[0.04]">
-      <p className="flex min-w-0 items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-white/50">
-        <Icon className="h-3.5 w-3.5 shrink-0" style={{ color }} />
+    <div className="min-w-0 rounded-2xl bg-[color-mix(in_srgb,currentColor_9%,transparent)] px-3 py-2.5">
+      <p className="flex min-w-0 items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.1em] opacity-75">
+        <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: color === 'currentColor' ? color : `color-mix(in srgb, ${color} 60%, currentColor)` }} />
         <span className="truncate">{label}</span>
       </p>
-      <div className="mt-1.5 font-display text-[20px] font-black leading-none text-slate-900 dark:text-white">{value}</div>
-      <p className="mt-1 truncate text-[10.5px] text-slate-500 dark:text-white/45">{sub}</p>
+      <div className="mt-1.5 font-display text-[20px] font-black leading-none">{value}</div>
+      <p className="mt-1 truncate text-[10.5px] opacity-65">{sub}</p>
     </div>
   );
 }
 
 function Note({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex gap-2 rounded-xl border border-[color-mix(in_srgb,var(--brand-primary)_22%,transparent)] bg-[color-mix(in_srgb,var(--brand-primary)_5%,white)] p-2.5 text-[12px] leading-snug text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-white/70">
-      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-primary)' }} /> <span>{children}</span>
+    <p className="flex gap-2 rounded-xl border border-[color-mix(in_srgb,currentColor_16%,transparent)] bg-[color-mix(in_srgb,currentColor_9%,transparent)] p-2.5 text-[12px] leading-snug">
+      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-80" /> <span className="opacity-90">{children}</span>
     </p>
   );
 }
