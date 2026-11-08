@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CalendarClock, ClipboardList, Loader2, PenLine, Plus, Repeat, RotateCcw, X } from 'lucide-react';
+import { CalendarClock, CalendarDays, ClipboardList, Loader2, PenLine, Plus, Repeat, RotateCcw, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useStudentThemeRoot } from '@/hooks/useStudentThemeRoot';
 import { addDays, formatDayMonth, parseISODate, type BlockKind, type ScheduleRules } from '@/lib/cronograma';
@@ -18,6 +18,8 @@ export interface RoutineValue {
   reviewWeekdays: number[];
   /** Escala, mudanças com data e blocos de simulado/redação. */
   rules?: ScheduleRules;
+  /** AAAA-MM-DD. Ao salvar, só vem quando o aluno mudou a data. */
+  examDate?: string;
 }
 
 type Block = NonNullable<ScheduleRules['blocks']>[number];
@@ -89,6 +91,11 @@ function RoutineForm({ initial, today, busy, onClose, onSave }: {
   }));
   const [blocks, setBlocks] = useState<Block[]>(() => [...(rules0.blocks ?? [])]);
   const [periods, setPeriods] = useState<Period[]>(() => [...(rules0.periods ?? [])]);
+  const [exam, setExam] = useState(initial.examDate ?? '');
+  // O backend exige pelo menos uma semana à frente.
+  const minExam = addDays(today, 8);
+  const examChanged = !!initial.examDate && exam !== initial.examDate;
+  const badExam = examChanged && (!exam || exam < minExam);
 
   const cycleMinutes = [...Array(cyc.work).fill(cyc.workMin), ...Array(cyc.off).fill(cyc.offMin)] as number[];
   const blockOn = (wd: number) => blocks.filter((b) => b.weekday === wd).reduce((s, b) => s + b.minutes, 0);
@@ -99,7 +106,9 @@ function RoutineForm({ initial, today, busy, onClose, onSave }: {
     : Math.round((cycleMinutes.reduce((a, b) => a + b, 0) / cycleMinutes.length) * 7);
   const reviewWithoutTime = mode === 'week' && [...review].some((wd) => (cap[wd] ?? 0) <= 0);
   const badPeriod = periods.some((p) => !p.from || p.from < today || (p.until && p.until < p.from));
-  const error = reviewWithoutTime
+  const error = badExam
+    ? 'A data da prova precisa estar pelo menos uma semana à frente.'
+    : reviewWithoutTime
     ? 'Escolha quanto tempo você tem no dia de revisão.'
     : mode === 'cycle' && cycleMinutes.every((m) => m <= 0)
       ? 'Coloque tempo de estudo na folga ou no dia de trabalho.'
@@ -114,7 +123,7 @@ function RoutineForm({ initial, today, busy, onClose, onSave }: {
     ...(periods.length ? { periods } : {}),
     ...(blocks.length ? { blocks } : {}),
   };
-  const changed = DAYS.some((_, wd) => (cap[wd] ?? 0) !== (initial.capacity[wd] ?? 0))
+  const changed = examChanged || DAYS.some((_, wd) => (cap[wd] ?? 0) !== (initial.capacity[wd] ?? 0))
     || review.size !== initial.reviewWeekdays.length || initial.reviewWeekdays.some((wd) => !review.has(wd))
     || JSON.stringify(rules) !== JSON.stringify({
       ...(rules0.cycle ? { cycle: rules0.cycle } : {}),
@@ -164,6 +173,17 @@ function RoutineForm({ initial, today, busy, onClose, onSave }: {
           Quanto tempo você tem para estudar. Num <b>dia de revisão</b> não entra conteúdo novo. Na última semana antes da prova, todos os dias já ficam só de revisão. Em dia curto, o conteúdo é dividido em partes.
         </DialogDescription>
       </DialogHeader>
+
+      {initial.examDate && (
+        <section className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-2.5 dark:border-white/10">
+          <div className="min-w-0">
+            <p className={sectionTitle}><CalendarDays className="h-4 w-4" /> Data da prova</p>
+            <p className="text-[11.5px] text-slate-500 dark:text-white/55">O cronograma se reorganiza até essa data.</p>
+          </div>
+          <input type="date" min={minExam} className={selectCls} value={exam} aria-label="Data da prova"
+            onChange={(e) => setExam(e.target.value)} />
+        </section>
+      )}
 
       <div role="radiogroup" aria-label="Tipo de rotina" className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
         {([['week', 'Por dia da semana'], ['cycle', 'Escala (12x36, plantão)']] as const).map(([m, label]) => (
@@ -337,7 +357,7 @@ function RoutineForm({ initial, today, busy, onClose, onSave }: {
           Cancelar
         </button>
         <button type="button" disabled={!!error || !changed || busy}
-          onClick={() => onSave({ capacity: cap, reviewWeekdays: [...review].sort(), rules })}
+          onClick={() => onSave({ capacity: cap, reviewWeekdays: [...review].sort(), rules, ...(examChanged ? { examDate: exam } : {}) })}
           className="inline-flex h-10 items-center gap-1.5 rounded-xl px-4 text-[13px] font-bold text-white disabled:opacity-50"
           style={{ background: 'var(--brand-ink)' }}>
           {busy && <Loader2 className="h-4 w-4 animate-spin" />} Salvar rotina

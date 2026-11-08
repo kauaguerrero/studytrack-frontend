@@ -19,6 +19,7 @@ import { ReviewQuizModal } from '@/components/cronograma/ReviewQuizModal';
 import { ReviewListModal } from '@/components/cronograma/ReviewListModal';
 import { AgentChat } from '@/components/cronograma/AgentChat';
 import { RoutineModal } from '@/components/cronograma/RoutineModal';
+import { addDays } from '@/lib/cronograma';
 import type { QuizResponse, ReviewResult } from '@/lib/cronograma';
 import { TODAY, item, proposal } from './fixtures';
 
@@ -394,6 +395,27 @@ describe('RoutineModal', () => {
     fireEvent.change(screen.getByLabelText('Tempo de sábado'), { target: { value: '90' } });
     fireEvent.click(screen.getByRole('button', { name: 'Salvar rotina' }));
     expect(h.onSave).toHaveBeenCalledWith({ capacity: { ...initial.capacity, 5: 90 }, reviewWeekdays: [5], rules: {} });
+  });
+  it('CT-R20 muda a data da prova e salva só quando ela mudou', () => {
+    const exam = addDays(TODAY, 200);
+    const h = open({ initial: { ...initial, examDate: exam } });
+    expect(screen.getByRole('button', { name: 'Salvar rotina' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Data da prova'), { target: { value: addDays(TODAY, 100) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rotina' }));
+    expect(h.onSave).toHaveBeenCalledWith(expect.objectContaining({ examDate: addDays(TODAY, 100) }));
+  });
+  it('CT-R21 prova a menos de uma semana não salva', () => {
+    const h = open({ initial: { ...initial, examDate: addDays(TODAY, 200) } });
+    fireEvent.change(screen.getByLabelText('Data da prova'), { target: { value: addDays(TODAY, 7) } });
+    expect(screen.getByRole('alert')).toHaveTextContent('pelo menos uma semana');
+    expect(screen.getByRole('button', { name: 'Salvar rotina' })).toBeDisabled();
+    expect(h.onSave).not.toHaveBeenCalled();
+  });
+  it('CT-R22 prova já próxima não trava quem só quer mudar a rotina', () => {
+    open({ initial: { ...initial, examDate: addDays(TODAY, 3) } });
+    fireEvent.change(screen.getByLabelText('Tempo de sábado'), { target: { value: '90' } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Salvar rotina' })).toBeEnabled();
   });
   it('CT-R02 dia de revisão sem tempo ou sem sobrar conteúdo novo não salva', () => {
     open();

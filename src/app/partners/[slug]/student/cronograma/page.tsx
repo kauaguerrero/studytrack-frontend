@@ -182,7 +182,10 @@ function CronogramaInner() {
       const capacity = Object.fromEntries(Object.entries(v.capacity).map(([k, m]) => [String(k), m]));
       const r = await cronogramaFetch<{ changed: boolean }>('/settings', {
         method: 'PATCH',
-        body: JSON.stringify({ capacity, review_weekdays: v.reviewWeekdays, schedule_rules: v.rules ?? {} }),
+        body: JSON.stringify({
+          capacity, review_weekdays: v.reviewWeekdays, schedule_rules: v.rules ?? {},
+          ...(v.examDate ? { exam_date: v.examDate } : {}),
+        }),
       });
       toast.success(r.changed ? 'Rotina atualizada. O cronograma foi reorganizado.' : 'Nada mudou na rotina.');
       setRoutineOpen(false);
@@ -519,6 +522,7 @@ function CronogramaInner() {
             capacity: Object.fromEntries(Array.from({ length: 7 }, (_, wd) => [wd, Number(view.plan.capacity[String(wd)] ?? 0)])),
             reviewWeekdays: view.plan.review_weekdays ?? [],
             rules: view.plan.schedule_rules ?? {},
+            examDate: view.plan.exam_date,
           }}
           today={view.today}
           onClose={() => setRoutineOpen(false)}
