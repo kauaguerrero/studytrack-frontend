@@ -30,6 +30,7 @@ import { RoutineModal, type RoutineValue } from '@/components/cronograma/Routine
 import {
   CronogramaApiError, MONTHS, addDays, cronogramaFetch, formatDayMonth, formatMinutes, parseISODate, toISODate, weekStart,
   type CronogramaStatus, type CronogramaView, type Insights, type PlanItem, type Proposal,
+  withCompleteDiff,
 } from '@/lib/cronograma';
 
 type Mode = 'semana' | 'mes';
@@ -229,7 +230,7 @@ function CronogramaInner() {
   const propose = async (body: Record<string, unknown>) => {
     setAgentBusy(true);
     try {
-      const p = await cronogramaFetch<Proposal>('/agent', { method: 'POST', body: JSON.stringify(body) });
+      const p = withCompleteDiff(await cronogramaFetch<Proposal>('/agent', { method: 'POST', body: JSON.stringify(body) }));
       setProposal(p);
       if (p.status === 'proposed' && mode !== 'semana') { setMode('semana'); setAnchor(weekStart(today)); }
     } catch (e) {
@@ -261,7 +262,7 @@ function CronogramaInner() {
       const p = await cronogramaFetch<Proposal>(`/agent/${proposal.request_id}/adjust`, {
         method: 'POST', body: JSON.stringify({ index, minutes }),
       });
-      setProposal(p);
+      setProposal(withCompleteDiff(p));
     } catch (e) {
       toast.error((e as Error).message);
       if ((e as CronogramaApiError).status === 409) setProposal(null);

@@ -138,7 +138,7 @@ export interface Proposal {
   reply: string;
   /** Pergunta de sim/não: o front mostra botões (Sim = confirmar, Não = descartar). */
   question?: string | null;
-  diff: { moved: DiffEntry[]; added: DiffEntry[]; removed: DiffEntry[] };
+  diff: ProposalDiff;
   warnings: { item_id?: string; code: string; message: string }[];
   errors: { op: string | null; message: string }[];
   quota: { allowed: boolean; remaining: number; retry_after_seconds?: number } | null;
@@ -376,4 +376,15 @@ export function studySessionStart(itemId: string): string {
 
 export function clearStudySession(itemId: string): void {
   try { localStorage.removeItem(studyKey(itemId)); } catch { /* ignora */ }
+}
+
+export interface ProposalDiff {
+  moved: DiffEntry[];
+  added: DiffEntry[];
+  removed: DiffEntry[];
+}
+
+/** Resposta sem prévia pode vir sem as listas do diff: a tela sempre recebe as três. */
+export function withCompleteDiff(p: Proposal): Proposal {
+  return { ...p, diff: { moved: p.diff?.moved ?? [], added: p.diff?.added ?? [], removed: p.diff?.removed ?? [] } };
 }
