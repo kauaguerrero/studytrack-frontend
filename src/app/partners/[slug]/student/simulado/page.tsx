@@ -515,6 +515,10 @@ export default function SimuladoPage() {
   const [showContestModal, setShowContestModal] = useState(false)
   const [dashboardType, setDashboardType] = useState<'vestibular' | 'concurso'>('vestibular')
   const contestRequestRef = useRef<{bank:string; role:string; quotas:ContestQuota[]} | null>(null)
+  // Simulado aberto pelo card do Cronograma (ENEM): sem a opção de concurso, e o card é
+  // concluído ao finalizar.
+  const [fromCronograma, setFromCronograma] = useState(false)
+  const planItemRef = useRef<string | null>(null)
 
   // Config
   const [mode, setMode] = useState<'custom' | 'preset'>('custom')
@@ -681,6 +685,8 @@ export default function SimuladoPage() {
     if (!link) return
     setMode('custom')
     setCompositions([{ id: `cronograma-${Date.now()}`, subject: link.subject, topic: link.topic, qty: link.qty, includeAnswered: false }])
+    setFromCronograma(true)
+    planItemRef.current = link.planItem
     setShowConfigModal(true)
     router.replace(`/partners/${slug}/student/simulado`)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1223,6 +1229,7 @@ export default function SimuladoPage() {
         body.bank = presetBank
       }
       if (scheduledId) body.scheduled_simulado_id = scheduledId
+      else if (planItemRef.current && !contest) body.plan_item_id = planItemRef.current
       if (language) body.language = language
       const contestConfig = contest || (discardActive && !scheduledId ? contestRequestRef.current : null)
       if (contestConfig && !scheduledId) {
@@ -1263,6 +1270,8 @@ export default function SimuladoPage() {
         return
       }
       if (!res.ok) { toast.error('Erro ao iniciar simulado', { description: data.error || 'Tente novamente em instantes.' }); return }
+      planItemRef.current = null
+      setFromCronograma(false)
       setShowConfigModal(false)
       setShowContestModal(false)
       setActiveSessionConflict(null)
@@ -1388,6 +1397,7 @@ export default function SimuladoPage() {
           try { window.localStorage.removeItem(getDraftStorageKey(sessionId)) } catch {}
           try { window.localStorage.removeItem(getActiveSessionStorageKey()) } catch {}
           setFinishResult({ ...data, session_id: sessionId })
+          if (data.plan_item_completed) toast.success('Conteúdo concluído no cronograma')
           console.log('finish response:', data)
           if (data.gamification?.shield_awarded) {
             sessionStorage.setItem('shield_earned_pending', '1')
@@ -1715,7 +1725,11 @@ export default function SimuladoPage() {
           <ContestQuotaBuilder slug={slug} onStart={(bank, role, quotas) => void startSimulado(undefined, false, undefined, {bank, role, quotas})} />
         </DialogContent>
       </Dialog>
-      <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
+      <Dialog open={showConfigModal} onOpenChange={(open) => {
+        setShowConfigModal(open)
+        // Fechou sem começar: o próximo simulado desta página já não é o do card.
+        if (!open) { planItemRef.current = null; setFromCronograma(false) }
+      }}>
           <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto dark:border-slate-800 dark:bg-slate-900 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 dark:text-slate-100">
@@ -1724,7 +1738,7 @@ export default function SimuladoPage() {
             </DialogTitle>
             <DialogDescription className="dark:text-slate-400">Escolha o formato e as opções do seu simulado.</DialogDescription>
           </DialogHeader>
-          {org.permissions?.concursos_enabled && <button type="button" onClick={() => { setShowConfigModal(false); setShowContestModal(true) }} className="rounded-xl border border-indigo-300 px-4 py-3 text-sm font-bold text-indigo-700">Montar simulado de concurso</button>}
+          {org.permissions?.concursos_enabled && !fromCronograma && <button type="button" onClick={() => { setShowConfigModal(false); setShowContestModal(true) }} className="rounded-xl border border-indigo-300 px-4 py-3 text-sm font-bold text-indigo-700">Montar simulado de concurso</button>}
 
           {/* Mode toggle */}
           <div className="grid grid-cols-1 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 sm:grid-cols-2">

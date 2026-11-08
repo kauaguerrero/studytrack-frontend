@@ -75,7 +75,7 @@ describe('studyLinks', () => {
   });
   it('CT-L16 o link do simulado é lido de volta pelo parser do simulado', () => {
     const s = studyLinks('cenas', node).simulado;
-    expect(parseSimuladoDeepLink(s.slice(s.indexOf('?')))).toEqual({ subject: 'Matemática', topic: 'Funções & Gráficos', qty: 10 });
+    expect(parseSimuladoDeepLink(s.slice(s.indexOf('?')))).toEqual({ subject: 'Matemática', topic: 'Funções & Gráficos', qty: 10, planItem: null });
   });
 });
 
@@ -90,6 +90,9 @@ describe('parseSimuladoDeepLink', () => {
     expect(parseSimuladoDeepLink('?cronograma=1&subject=A&qty=999')?.qty).toBe(30);
     expect(parseSimuladoDeepLink('?cronograma=1&subject=A&qty=1')?.qty).toBe(5);
     expect(parseSimuladoDeepLink('?cronograma=1&subject=A&qty=abc')?.qty).toBe(10);
+  });
+  it('CT-L20b leva o card do cronograma', () => {
+    expect(parseSimuladoDeepLink('?cronograma=1&subject=A&plan_item=abc')?.planItem).toBe('abc');
   });
   it('CT-L20 topic vazio vira null', () => {
     expect(parseSimuladoDeepLink('?cronograma=1&subject=A&topic=')?.topic).toBeNull();
@@ -176,10 +179,10 @@ describe('sessão de estudo pelo banco', () => {
     localStorage.setItem('cronograma:study-start:x2', 'lixo');
     expect(studySessionStart('x2')).not.toBe('lixo');
   });
-  it('CT-L31 studyLinks com itemId adiciona plan_item só no banco', async () => {
+  it('CT-L31 studyLinks com itemId adiciona plan_item no banco e no simulado', async () => {
     const { studyLinks } = await import('@/lib/cronograma');
     const l = studyLinks('cenas', { q_subject: 'Matemática', q_discipline: 'Funções', subject: 'Funções' }, 'it-9');
     expect(new URL(l.bank, 'http://x').searchParams.get('plan_item')).toBe('it-9');
-    expect(l.simulado).not.toContain('plan_item');
+    expect(new URL(l.simulado, 'http://x').searchParams.get('plan_item')).toBe('it-9');
   });
 });

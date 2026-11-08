@@ -740,9 +740,7 @@ export default function BancoDeQuestoes() {
       )}
 
       {planItem && !isMenuOpen && (
-        <div className="sticky top-2 z-30 mx-auto max-w-4xl px-4 pt-4">
-          <StudyProgressBar slug={org.slug} itemId={planItem} answerTick={answerTick} />
-        </div>
+        <StudyProgressBar slug={org.slug} itemId={planItem} answerTick={answerTick} />
       )}
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}

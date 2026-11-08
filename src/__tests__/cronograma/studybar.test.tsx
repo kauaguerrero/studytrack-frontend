@@ -7,7 +7,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 vi.mock('next/link', () => ({ default: ({ href, children, ...p }: { href: string; children: React.ReactNode }) => <a href={href} {...p}>{children}</a> }));
 vi.mock('@/lib/cronograma', async (orig) => ({ ...(await orig<typeof import('@/lib/cronograma')>()), cronogramaFetch: fetchMock }));
 
-import { StudyProgressBar, RETURN_DELAY_MS } from '@/components/cronograma/StudyProgressBar';
+import { StudyProgressBar } from '@/components/cronograma/StudyProgressBar';
 import type { StudyProgress } from '@/lib/cronograma';
 
 const prog = (over: Partial<StudyProgress> = {}): StudyProgress => ({
@@ -49,28 +49,56 @@ describe('StudyProgressBar', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(screen.getByText('4/10 questões')).toBeInTheDocument();
   });
-  it('CT-B04 meta batida: comemora e volta pro cronograma com ?concluido', async () => {
-    fetchMock.mockResolvedValue(prog({ answered: 10, status: 'done', just_completed: true }));
+  const stats = { correct: 7, total: 10, avg_seconds: 72 };
+  it('CT-B04 meta batida: abre o resumo com acertos e tempo médio, sem sair da página', async () => {
+    fetchMock.mockResolvedValue(prog({ answered: 10, status: 'done', just_completed: true, stats }));
     localStorage.setItem('cronograma:study-start:it-1', '2026-11-06T10:00:00.000Z');
     mount(); await flush();
-    expect(screen.getByRole('status')).toHaveTextContent('Meta batida!');
+    const d = screen.getByRole('dialog');
+    expect(d).toHaveTextContent('Conteúdo concluído!');
+    expect(d).toHaveTextContent('7/10');
+    expect(d).toHaveTextContent('70%');
+    expect(d).toHaveTextContent('1min 12s');
     expect(localStorage.getItem('cronograma:study-start:it-1')).toBeNull();
-    await flush(RETURN_DELAY_MS + 10);
-    expect(push).toHaveBeenCalledWith('/partners/cenas/student/cronograma?concluido=it-1');
+    await flush(10000);
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByRole('link', { name: 'Voltar ao cronograma' })).toHaveAttribute('href', '/partners/cenas/student/cronograma?concluido=it-1');
   });
-  it('CT-B05 "Continuar respondendo" cancela a volta automática', async () => {
-    fetchMock.mockResolvedValue(prog({ answered: 10, status: 'done', just_completed: true }));
+  it('CT-B05 "Continuar respondendo" fecha o resumo e deixa o resultado na barra', async () => {
+    fetchMock.mockResolvedValue(prog({ answered: 10, status: 'done', just_completed: true, stats }));
     mount(); await flush();
     fireEvent.click(screen.getByRole('button', { name: 'Continuar respondendo' }));
-    await flush(RETURN_DELAY_MS + 10);
-    expect(push).not.toHaveBeenCalled();
-    expect(screen.getByRole('link', { name: 'Ir para o cronograma' })).toHaveAttribute('href', '/partners/cenas/student/cronograma?concluido=it-1');
+    await flush(300);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText(/7\/10 acertos \(70%\) · 1min 12s por questão/)).toBeInTheDocument();
   });
-  it('CT-B06 card já concluído antes: só avisa, sem confete nem redirecionar', async () => {
-    fetchMock.mockResolvedValue(prog({ answered: 10, status: 'done', just_completed: false }));
-    mount(); await flush(RETURN_DELAY_MS + 10);
-    expect(screen.getByText(/Conteúdo já concluído/)).toBeInTheDocument();
+  it('CT-B05b resumo sem respostas (concluiu por outro caminho) não inventa número', async () => {
+    fetchMock.mockResolvedValue(prog({ answered: 10, status: 'done', just_completed: true, stats: null }));
+    mount(); await flush();
+    expect(screen.getByRole('dialog')).toHaveTextContent('Você bateu a meta de 10 questões.');
+  });
+  it('CT-B06 card já concluído antes: barra com o resultado, sem resumo nem redirecionar', async () => {
+    fetchMock.mockResolvedValue(prog({ answered: 10, status: 'done', just_completed: false, stats }));
+    mount(); await flush(4000);
+    expect(screen.getByText(/Conteúdo concluído · Elementos/)).toBeInTheDocument();
+    expect(screen.getByText(/7\/10 acertos/)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
+  });
+  it('CT-B06b ao rolar, a barra vira círculo com x/10 e a borda acompanha o progresso', async () => {
+    let cb: (e: { isIntersecting: boolean }[]) => void = () => {};
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(fn: typeof cb) { cb = fn; }
+      observe() {} disconnect() {}
+    });
+    fetchMock.mockResolvedValue(prog());
+    mount(); await flush();
+    expect(screen.queryByRole('progressbar', { name: /Progresso em/ })).toBeNull();
+    act(() => cb([{ isIntersecting: false }]));
+    const rings = screen.getAllByRole('progressbar', { name: /Progresso em/ });
+    expect(rings[0]).toHaveAttribute('aria-valuenow', '3');
+    expect(rings[0]).toHaveTextContent('3/10');
+    vi.unstubAllGlobals();
   });
   it('CT-B07 erro no backend esconde a barra (não atrapalha o banco)', async () => {
     fetchMock.mockRejectedValue(new Error('x'));

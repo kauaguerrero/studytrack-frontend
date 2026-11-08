@@ -320,6 +320,7 @@ export function studyLinks(slug: string, node: Pick<NodeView, 'q_subject' | 'q_d
   if (itemId) p.set('plan_item', itemId);
   const s = new URLSearchParams({ cronograma: '1', subject, qty: '10' });
   if (node.q_discipline) s.set('topic', node.q_discipline);
+  if (itemId) s.set('plan_item', itemId);
   return {
     bank: `/partners/${slug}/student/banco-de-questoes?${p.toString()}`,
     simulado: `/partners/${slug}/student/simulado?${s.toString()}`,
@@ -327,13 +328,13 @@ export function studyLinks(slug: string, node: Pick<NodeView, 'q_subject' | 'q_d
 }
 
 /** Lê o deep-link do simulado (?cronograma=1&subject=X&topic=Y&qty=N) — par de `studyLinks`. */
-export function parseSimuladoDeepLink(search: string): { subject: string; topic: string | null; qty: number } | null {
+export function parseSimuladoDeepLink(search: string): { subject: string; topic: string | null; qty: number; planItem: string | null } | null {
   const p = new URLSearchParams(search);
   if (p.get('cronograma') !== '1') return null;
   const subject = p.get('subject');
   if (!subject) return null;
   const qty = Math.max(5, Math.min(30, Number(p.get('qty')) || 10));
-  return { subject, topic: p.get('topic') || null, qty };
+  return { subject, topic: p.get('topic') || null, qty, planItem: p.get('plan_item') || null };
 }
 
 // ─── Sessão de estudo pelo banco de questões ────────────────────────────────
@@ -347,6 +348,16 @@ export interface StudyProgress {
   topic: string | null;
   subject: string | null;
   discipline: string | null;
+  /** Só com o conteúdo concluído; null quando não há respostas para resumir. */
+  stats?: { correct: number; total: number; avg_seconds: number | null } | null;
+}
+
+/** "45s", "1min 12s", "3min". */
+export function formatAnswerTime(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  return s % 60 ? `${m}min ${s % 60}s` : `${m}min`;
 }
 
 const studyKey = (itemId: string) => `cronograma:study-start:${itemId}`;
