@@ -139,10 +139,18 @@ const DIFFICULTY_LABELS: Record<string, string> = {
   facil: 'Fácil', medio: 'Médio', dificil: 'Difícil', misto: 'Misto',
 };
 const FORMAT_LABELS: Record<string, string> = {
-  custom: 'Personalizado', linguagens: 'Linguagens', humanas: 'Humanas',
-  natureza: 'Ciências da Natureza', matematica: 'Matemática',
-  dia1: 'Dia 1 ENEM', dia2: 'Dia 2 ENEM', completo: 'Completo',
+  custom: 'Personalizado', linguagens: 'Linguagens, Códigos e suas Tecnologias',
+  humanas: 'Ciências Humanas e suas Tecnologias',
+  natureza: 'Ciências da Natureza e suas Tecnologias',
+  matematica: 'Matemática e suas Tecnologias',
+  dia1: 'Dia 1 ENEM', dia2: 'Dia 2 ENEM', completo: 'Prova completa',
 };
+
+function formatLabel(bank: string, format: string): string {
+  return bank === 'UNESP' && format === 'completo'
+    ? '1ª fase: Conhecimentos Gerais'
+    : FORMAT_LABELS[format] ?? format;
+}
 
 // Formatos disponíveis por banca
 const FORMATS_BY_BANK: Record<string, string[]> = {
@@ -150,6 +158,7 @@ const FORMATS_BY_BANK: Record<string, string[]> = {
   UFU:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
   UEG:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
   UFG:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
+  UNESP: ['custom', 'completo'],
   Todas: ['custom'],
 };
 
@@ -162,9 +171,10 @@ const BLOCK_QTY: Record<string, Record<string, number>> = {
   UFU:  { linguagens: 20, humanas: 20, natureza: 15, matematica: 10, completo: 65 },
   UEG:  { linguagens: 13, humanas: 13, natureza: 13, matematica: 13, completo: 52 },
   UFG:  { linguagens: 24, humanas: 24, natureza: 24, matematica: 24, completo: 96 },
+  UNESP: { completo: 90 },
 };
 
-// Bancas cujo formato "completo" tem distribuição oficial por matéria e
+// Bancas cujo formato "completo" tem distribuição por áreas conhecida e
 // sabe reescalar essa distribuição proporcionalmente para qualquer
 // quantidade total (espelha simulado_service.py::_scale_subject_quota /
 // _scale_area_distribution no backend) — por isso, ao contrário das demais,
@@ -180,18 +190,19 @@ function isQtyLocked(bank: string, format: string): boolean {
   return resolveQty(bank, format) !== null;
 }
 
-// Distribuição oficial por matéria da prova completa de cada banca —
-// espelha exatamente as constantes homônimas em simulado_service.py.
+// Distribuição do sorteio por matéria. UFU define esses números no guia;
+// UEG e UFG fixam as quantidades por área, não por disciplina. Os valores
+// por disciplina destas duas bancas são uma aproximação do produto.
+// Espelha as constantes homônimas em simulado_service.py.
 const UFU_COMPLETE_SUBJECT_DISTRIBUTION: Record<string, number> = {
-  'Língua Portuguesa': 10, 'Literatura': 5, 'Inglês': 2, 'Espanhol': 2, 'Francês': 1,
+  'Língua Portuguesa': 10, 'Literatura': 5, '__idioma__': 5,
   'Matemática': 10, 'Biologia': 5, 'Física': 5, 'Química': 5,
   'Geografia': 5, 'História': 5, 'Filosofia': 5, 'Sociologia': 5,
 };
 
 const UEG_COMPLETE_AREA_DISTRIBUTION: Record<string, Record<string, number>> = {
   linguagens: {
-    'Língua Portuguesa': 3, 'Literatura': 2, 'Inglês': 2, 'Espanhol': 2,
-    'Artes': 2, 'Educação Física': 1, 'Tecnologias da Informação e Comunicação': 1,
+    'Língua Portuguesa': 9, '__idioma__': 4,
   },
   matematica: { 'Matemática': 13 },
   natureza: { 'Biologia': 5, 'Física': 4, 'Química': 4 },
@@ -235,7 +246,7 @@ function buildDistributionHintLines(bank: string, qty: number): string[] | null 
   if (bank === 'UFU') {
     const d = scaleSubjectQuota(UFU_COMPLETE_SUBJECT_DISTRIBUTION, qty);
     return [
-      `Português ${d['Língua Portuguesa']}, Literatura ${d['Literatura']}, Língua Estrangeira ${d['Inglês'] + d['Espanhol'] + d['Francês']} (Inglês ${d['Inglês']}, Espanhol ${d['Espanhol']} e Francês ${d['Francês']})`,
+      `Português ${d['Língua Portuguesa']}, Literatura ${d['Literatura']}, Língua Estrangeira ${d['__idioma__']} (um idioma à escolha: Inglês, Espanhol ou Francês)`,
       `Matemática ${d['Matemática']}`,
       `Biologia ${d['Biologia']}, Física ${d['Física']}, Química ${d['Química']}`,
       `Geografia ${d['Geografia']}, História ${d['História']}, Filosofia ${d['Filosofia']}, Sociologia ${d['Sociologia']}`,
@@ -248,7 +259,7 @@ function buildDistributionHintLines(bank: string, qty: number): string[] | null 
     );
     const scaledAreaTotals = scaleSubjectQuota(areaTotals, qty);
     return [
-      `Linguagens ${scaledAreaTotals['linguagens']} (Português, Literatura, Língua Estrangeira, Artes, Ed. Física e TIC)`,
+      `Linguagens ${scaledAreaTotals['linguagens']} (Português e língua estrangeira; composição do banco de questões)`,
       `Matemática ${scaledAreaTotals['matematica']}`,
       `Natureza ${scaledAreaTotals['natureza']} (Biologia, Física e Química)`,
       `Humanas ${scaledAreaTotals['humanas']} (História, Geografia, Filosofia e Sociologia)`,
@@ -260,7 +271,7 @@ function buildDistributionHintLines(bank: string, qty: number): string[] | null 
     const natureza = d['Biologia'] + d['Física'] + d['Química'];
     const humanas = d['História'] + d['Geografia'] + d['Filosofia'] + d['Sociologia'];
     return [
-      `Linguagens ${d['Língua Portuguesa']} (aproximação na plataforma: Língua Portuguesa)`,
+      `Linguagens ${d['Língua Portuguesa']} (inclui língua estrangeira escolhida: 6 de idioma e 18 gerais quando o bloco tem 24 questões)`,
       `Matemática ${d['Matemática']}`,
       `Natureza ${natureza} (Biologia ${d['Biologia']}, Física ${d['Física']} e Química ${d['Química']})`,
       `Humanas ${humanas} (História ${d['História']}, Geografia ${d['Geografia']}, Filosofia ${d['Filosofia']} e Sociologia ${d['Sociologia']})`,
@@ -1038,7 +1049,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     className={inputCls}
                   >
                     {(FORMATS_BY_BANK[form.bank] ?? ['custom']).map((k) => (
-                      <option key={k} value={k}>{FORMAT_LABELS[k]}</option>
+                      <option key={k} value={k}>{formatLabel(form.bank, k)}</option>
                     ))}
                   </select>
                 </div>
@@ -1054,7 +1065,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 </div>
 
                 {/* Quantidade — bloqueada para formatos com qty fixa; nas bancas
-                    com distribuição oficial proporcional (UFU/UEG/UFG "completo")
+                    com distribuição proporcional (UFU/UEG/UFG "completo")
                     fica editável e a proporção é reescalada automaticamente
                     (ver "Distribuição estimada" abaixo). */}
                 <div>
@@ -1333,7 +1344,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                   <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 px-5 py-3 md:px-6 bg-slate-50/80 dark:bg-slate-900/50">
                     <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
                       <span className="min-w-0">Fluxo com revisão e aprovação antes de publicar.</span>
-                      <span className="shrink-0">{form.bank} · {FORMAT_LABELS[form.format] ?? form.format}</span>
+                      <span className="shrink-0">{form.bank} · {formatLabel(form.bank, form.format)}</span>
                     </div>
                   </div>
                 </div>
@@ -1615,7 +1626,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             {sim.config.qty}q · {DIFFICULTY_LABELS[sim.config.difficulty] ?? sim.config.difficulty}
                           </span>
                           {sim.config.format !== 'custom' && (
-                            <span>{FORMAT_LABELS[sim.config.format] ?? sim.config.format}</span>
+                            <span>{formatLabel(sim.config.bank, sim.config.format)}</span>
                           )}
                           {sim.config.subject && <span>{sim.config.subject}</span>}
                           {sim.config.time_limit_secs && (
@@ -2297,10 +2308,10 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               <div className="mt-4 space-y-4">
                 <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
                   <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                    Questões insuficientes para a distribuição oficial
+                    Questões insuficientes para a distribuição selecionada
                   </p>
                   <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                    O formato <strong>{FORMAT_LABELS[form.format] ?? form.format}</strong> ({BANK_LABELS[form.bank] ?? form.bank}) exige{' '}
+                    O formato <strong>{formatLabel(form.bank, form.format)}</strong> ({BANK_LABELS[form.bank] ?? form.bank}) exige{' '}
                     <strong>{distributionShortfall.expected} questões</strong>, mas o banco tem apenas{' '}
                     <strong>{distributionShortfall.found}</strong> disponíveis com esses filtros.
                   </p>
@@ -2343,7 +2354,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               <div className="mt-4 space-y-2 text-sm">
                 <p><span className="font-semibold">Título:</span> {form.title || '—'}</p>
                 <p><span className="font-semibold">Banca:</span> {BANK_LABELS[form.bank] ?? form.bank}</p>
-                <p><span className="font-semibold">Formato:</span> {FORMAT_LABELS[form.format] ?? form.format}</p>
+                <p><span className="font-semibold">Formato:</span> {formatLabel(form.bank, form.format)}</p>
                 <p><span className="font-semibold">Questões:</span> {form.qty}</p>
                 <p><span className="font-semibold">Dificuldade:</span> {DIFFICULTY_LABELS[form.difficulty] ?? form.difficulty}</p>
                 <p><span className="font-semibold">Início:</span> {form.starts_at || '—'}</p>
