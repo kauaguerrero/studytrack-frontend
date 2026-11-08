@@ -1,6 +1,7 @@
 // Cliente do Cronograma Inteligente (backend Flask: /api/student/cronograma/*).
 // Toda regra de agenda/SRS vive no backend — aqui só busca, exibe e envia ações.
 
+import type { SubjectComposicao } from '@/lib/simuladoComposicao';
 import { createClient } from '@/lib/supabase/client';
 
 export type Area = 'matematica' | 'natureza' | 'humanas' | 'linguagens' | 'geral';
@@ -335,6 +336,13 @@ export function parseSimuladoDeepLink(search: string): { subject: string; topic:
   if (!subject) return null;
   const qty = Math.max(5, Math.min(30, Number(p.get('qty')) || 10));
   return { subject, topic: p.get('topic') || null, qty, planItem: p.get('plan_item') || null };
+}
+
+/** Composição do wizard de simulado para o card do Cronograma: a matéria do dia, com o assunto se houver. */
+export function deepLinkComposicao(link: { subject: string; topic: string | null; qty: number }): SubjectComposicao[] {
+  return [link.topic
+    ? { subject: link.subject, mode: 'topics', qty: link.qty, topics: [{ topic: link.topic, qty: link.qty }] }
+    : { subject: link.subject, mode: 'all', qty: link.qty, topics: [] }];
 }
 
 // ─── Sessão de estudo pelo banco de questões ────────────────────────────────

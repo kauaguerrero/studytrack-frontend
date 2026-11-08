@@ -186,3 +186,25 @@ describe('sessão de estudo pelo banco', () => {
     expect(new URL(l.simulado, 'http://x').searchParams.get('plan_item')).toBe('it-9');
   });
 });
+
+
+describe('simulado aberto pelo card do Cronograma', () => {
+  it('leva matéria, assunto e quantidade para a API do wizard, sem questões já respondidas', async () => {
+    const { composicaoToApiCompositions } = await import('@/lib/simuladoComposicao');
+    const { deepLinkComposicao, parseSimuladoDeepLink } = await import('@/lib/cronograma');
+    const link = parseSimuladoDeepLink('?cronograma=1&subject=Matemática&topic=Funções&qty=15&plan_item=abc')!;
+    expect(link.planItem).toBe('abc');
+    const api = composicaoToApiCompositions(deepLinkComposicao(link), false);
+    expect(api.reduce((n, c) => n + c.qty, 0)).toBe(15);
+    expect(api[0]).toMatchObject({ subject: 'Matemática', include_answered: false });
+    expect(api[0].topic ?? api[0].topics?.[0]).toBe('Funções');
+  });
+  it('sem assunto, usa a matéria inteira', async () => {
+    const { composicaoToApiCompositions } = await import('@/lib/simuladoComposicao');
+    const { deepLinkComposicao } = await import('@/lib/cronograma');
+    const api = composicaoToApiCompositions(deepLinkComposicao({ subject: 'Física', topic: null, qty: 10 }), false);
+    expect(api).toHaveLength(1);
+    expect(api[0]).toMatchObject({ subject: 'Física', qty: 10 });
+    expect(api[0].topic ?? null).toBeNull();
+  });
+});

@@ -13,7 +13,7 @@ import { motion, AnimatePresence, useAnimation, useReducedMotion } from 'framer-
 import {
   Timer, ArrowRight, ArrowLeft, ArrowUp, CheckCircle2, Play, RotateCcw,
   Trophy, BookOpen, History, Brain, ChevronDown, ChevronLeft, TrendingUp,
-  Medal, BarChart3, Plus, Clock, Zap, Flag, Target, SlidersHorizontal, ClipboardList,
+  Medal, BarChart3, Plus, Clock, Zap, Flag, Target, ClipboardList,
 } from 'lucide-react'
 import { toBrtDateKeyFromIso } from '@/lib/brt-date'
 import { formatDayBR, totalResult, type ExternalSimulado } from '@/lib/external-simulados'
@@ -43,10 +43,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { ModuleGuard } from '@/components/partners/ModuleGuard'
 import { RevealGroup, RevealItem, ElevatedCard, SectionTitle, KpiCard } from '@/components/partners/founder-ui'
-import { SimuladoComposerModal, type SimuladoComposition } from '@/components/partners/simulado/SimuladoComposerModal'
-import { ContestQuotaBuilder, type ContestQuota } from '../../simulados/ContestQuotaBuilder'
+import { type ContestQuota } from '../../simulados/ContestQuotaBuilder'
+import { NovoSimuladoWizard } from '@/components/partners/simulado/NovoSimuladoWizard'
+import { type Composicao, composicaoToApiCompositions } from '@/lib/simuladoComposicao'
 import { VESTIBULAR_BANK_OPTIONS as BANK_OPTIONS } from '@/lib/simuladoBanks'
-import { parseSimuladoDeepLink } from '@/lib/cronograma'
+import { deepLinkComposicao, parseSimuladoDeepLink } from '@/lib/cronograma'
 import { MOCK_SIMULADO_RANKING_STUDENT, MOCK_SCHEDULED_SIMULADOS_STUDENT } from '../../../../../../studytrack-tutorial-mock'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -123,50 +124,47 @@ type PresetBank = 'ENEM' | 'UFU' | 'UEG' | 'UFG' | 'UNESP'
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const ENEM_BLOCK_FORMATS = [
-  { value: 'linguagens',  label: 'Linguagens e Códigos',         emoji: '📖', qty: 45 },
-  { value: 'humanas',     label: 'Ciências Humanas',             emoji: '🏛️', qty: 45 },
-  { value: 'natureza',    label: 'Ciências da Natureza',         emoji: '🧪', qty: 45 },
-  { value: 'matematica',  label: 'Matemática e suas Tecnologias',emoji: '📐', qty: 45 },
+  { value: 'linguagens',  label: 'Linguagens, Códigos e suas Tecnologias', emoji: '📖', qty: 45 },
+  { value: 'humanas',     label: 'Ciências Humanas e suas Tecnologias',   emoji: '🏛️', qty: 45 },
+  { value: 'natureza',    label: 'Ciências da Natureza e suas Tecnologias',emoji: '🧪', qty: 45 },
+  { value: 'matematica',  label: 'Matemática e suas Tecnologias',          emoji: '📐', qty: 45 },
   { value: 'dia1',        label: 'Dia 1 (Linguagens + Humanas)', emoji: '📅', qty: 90 },
   { value: 'dia2',        label: 'Dia 2 (Natureza + Matemática)',emoji: '📅', qty: 90 },
   { value: 'completo',    label: 'ENEM Completo',                emoji: '🎯', qty: 180 },
 ]
 
 const UFU_BLOCK_FORMATS = [
-  { value: 'linguagens',  label: 'Linguagens',                   emoji: '📖', qty: 22 },
-  { value: 'humanas',     label: 'Ciências Humanas',             emoji: '🏛️', qty: 22 },
-  { value: 'natureza',    label: 'Ciências da Natureza',         emoji: '🧪', qty: 22 },
-  { value: 'matematica',  label: 'Matemática',                   emoji: '📐', qty: 22 },
-  { value: 'completo',    label: 'UFU Completo',                 emoji: '🎯', qty: 88 },
+  { value: 'linguagens',  label: 'Linguagens, Códigos e suas Tecnologias', emoji: '📖', qty: 20 },
+  { value: 'humanas',     label: 'Ciências Humanas e suas Tecnologias',   emoji: '🏛️', qty: 20 },
+  { value: 'natureza',    label: 'Ciências da Natureza e suas Tecnologias',emoji: '🧪', qty: 15 },
+  { value: 'matematica',  label: 'Matemática e suas Tecnologias',          emoji: '📐', qty: 10 },
+  { value: 'completo',    label: 'UFU Completo',                 emoji: '🎯', qty: 65 },
 ]
 
 const UEG_BLOCK_FORMATS = [
-  { value: 'linguagens',  label: 'Linguagens',                   emoji: '📖', qty: 13 },
-  { value: 'humanas',     label: 'Ciências Humanas',             emoji: '🏛️', qty: 13 },
-  { value: 'natureza',    label: 'Ciências da Natureza',         emoji: '🧪', qty: 13 },
-  { value: 'matematica',  label: 'Matemática',                   emoji: '📐', qty: 13 },
+  { value: 'linguagens',  label: 'Linguagens, Códigos e suas Tecnologias', emoji: '📖', qty: 13 },
+  { value: 'humanas',     label: 'Ciências Humanas e suas Tecnologias',   emoji: '🏛️', qty: 13 },
+  { value: 'natureza',    label: 'Ciências da Natureza e suas Tecnologias',emoji: '🧪', qty: 13 },
+  { value: 'matematica',  label: 'Matemática e suas Tecnologias',          emoji: '📐', qty: 13 },
   { value: 'completo',    label: 'UEG Completo',                 emoji: '🎯', qty: 52 },
 ]
 
 const UNESP_BLOCK_FORMATS = [
-  { value: 'linguagens',  label: 'Linguagens e Códigos',                emoji: '📖', qty: 30 },
-  { value: 'humanas',     label: 'Ciências Humanas',                    emoji: '🏛️', qty: 30 },
-  { value: 'natureza',    label: 'Ciências da Natureza e Matemática',   emoji: '🧪', qty: 30 },
-  { value: 'completo',    label: 'UNESP 1ª Fase Completo',              emoji: '🎯', qty: 90 },
+  { value: 'completo',    label: 'UNESP 1ª fase: Conhecimentos Gerais', emoji: '🎯', qty: 90 },
 ]
 
 const UFG_BLOCK_FORMATS = [
-  { value: 'linguagens',  label: 'Linguagens',             emoji: '📖', qty: 24 },
-  { value: 'humanas',     label: 'Ciências Humanas',        emoji: '🏛️', qty: 24 },
-  { value: 'natureza',    label: 'Ciências da Natureza',    emoji: '🧪', qty: 24 },
-  { value: 'matematica',  label: 'Matemática',              emoji: '📐', qty: 24 },
+  { value: 'linguagens',  label: 'Linguagens, Códigos e suas Tecnologias', emoji: '📖', qty: 24 },
+  { value: 'humanas',     label: 'Ciências Humanas e suas Tecnologias',   emoji: '🏛️', qty: 24 },
+  { value: 'natureza',    label: 'Ciências da Natureza e suas Tecnologias',emoji: '🧪', qty: 24 },
+  { value: 'matematica',  label: 'Matemática e suas Tecnologias',          emoji: '📐', qty: 24 },
   { value: 'completo',    label: 'UFG Completo',            emoji: '🎯', qty: 96 },
 ]
 
 const SIMULADO_YEARS = ['Todos', ...Array.from({ length: 18 }, (_, i) => String(new Date().getFullYear() - i))]
 const SIMULADO_MAX_QTY = 180
 
-// CUSTOM_SUBJECTS agora vive em @/lib/simuladoSubjects (reaproveitado pelo SimuladoComposerModal)
+// CUSTOM_SUBJECTS agora vive em @/lib/simuladoSubjects (reaproveitado pelas etapas de Matérias/Composição)
 
 const DIFFICULTY_LABELS: Record<string, string> = {
   facil: 'Fácil',
@@ -512,9 +510,15 @@ export default function SimuladoPage() {
 
   const [step, setStep] = useState<'setup' | 'quiz' | 'result'>('setup')
   const [showConfigModal, setShowConfigModal] = useState(false)
-  const [showContestModal, setShowContestModal] = useState(false)
+  const [wizardStep, setWizardStep] = useState<
+    'formato' | 'configuracao' | 'configBanca' | 'configQty' | 'configAno' | 'configDificuldade' | 'materiasComposicao'
+    | 'concursoConfig' | 'concursoTemas' | 'concursoResumo' | 'revisao'
+  >('formato')
+  const [simuladoFormat, setSimuladoFormat] = useState<'vestibular' | 'concurso'>('vestibular')
+  const [concursoSelection, setConcursoSelection] = useState<{ bank: string; role: string; quotas: ContestQuota[]; includeAnswered: boolean } | null>(null)
   const [dashboardType, setDashboardType] = useState<'vestibular' | 'concurso'>('vestibular')
-  const contestRequestRef = useRef<{bank:string; role:string; quotas:ContestQuota[]} | null>(null)
+  const contestRequestRef = useRef<{bank:string; role:string; quotas:ContestQuota[]; includeAnswered: boolean} | null>(null)
+  const startingRef = useRef(false)
   // Simulado aberto pelo card do Cronograma (ENEM): sem a opção de concurso, e o card é
   // concluído ao finalizar.
   const [fromCronograma, setFromCronograma] = useState(false)
@@ -529,10 +533,11 @@ export default function SimuladoPage() {
   const [difficulty, setDifficulty] = useState('misto')
   const [enemFormat, setEnemFormat] = useState('linguagens')
   const [presetBank, setPresetBank] = useState<PresetBank>('ENEM')
+  const [presetLanguage, setPresetLanguage] = useState('Inglês')
   const [availableCustomCount, setAvailableCustomCount] = useState<number | null>(null)
   const [loadingCustomCount, setLoadingCustomCount] = useState(false)
-  const [compositions, setCompositions] = useState<SimuladoComposition[]>([])
-  const [showComposerModal, setShowComposerModal] = useState(false)
+  const [composicao, setComposicao] = useState<Composicao>([])
+  const [includeAnswered, setIncludeAnswered] = useState(false)
 
   // Quiz state
   const [questions, setQuestions] = useState<Question[]>([])
@@ -684,9 +689,12 @@ export default function SimuladoPage() {
     const link = parseSimuladoDeepLink(window.location.search)
     if (!link) return
     setMode('custom')
-    setCompositions([{ id: `cronograma-${Date.now()}`, subject: link.subject, topic: link.topic, qty: link.qty, includeAnswered: false }])
+    setSimuladoFormat('vestibular')
+    setComposicao(deepLinkComposicao(link))
+    setIncludeAnswered(false)
     setFromCronograma(true)
     planItemRef.current = link.planItem
+    setWizardStep('revisao')
     setShowConfigModal(true)
     router.replace(`/partners/${slug}/student/simulado`)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1126,14 +1134,7 @@ export default function SimuladoPage() {
       total,
     })
   }
-  const compositionsTotalQty = useMemo(() => compositions.reduce((sum, c) => sum + c.qty, 0), [compositions])
   const customEffectiveMax = availableCustomCount != null ? Math.min(availableCustomCount, SIMULADO_MAX_QTY) : SIMULADO_MAX_QTY
-  const customCountInsufficient = mode === 'custom' && compositions.length === 0 && availableCustomCount !== null && availableCustomCount < qty
-  const customStartDisabled = mode === 'custom' && (compositions.length > 0 ? compositionsTotalQty <= 0 : customCountInsufficient)
-  const compositionsSummaryLabel = compositions.length === 0
-    ? 'Personalizar Assuntos e Matérias'
-    : compositions.map((c) => (c.topic ? `${c.subject} · ${c.topic}` : c.subject)).join(' + ')
-  const customDifficultyLabel = difficulty !== 'misto' ? (DIFFICULTIES.find((item) => item.value === difficulty)?.label ?? null) : null
   const presetFormats = presetBank === 'UFU'
     ? UFU_BLOCK_FORMATS
     : presetBank === 'UEG'
@@ -1162,20 +1163,21 @@ export default function SimuladoPage() {
     }
   }, [presetFormats, enemFormat])
 
-  // UFG e UEG têm bloco de língua estrangeira nos formatos completo/linguagens
+  // UFG, UEG e UFU têm bloco de língua estrangeira nos formatos completo/linguagens
   // — sem escolher, o backend rejeita o /start (UFG_LANGUAGE_REQUIRED) pra
   // evitar que o aluno receba todos os blocos de idioma em vez de só o seu.
-  // As opções mudam por banca: a UFG oferece três e a UEG só duas (no edital
-  // da UEG o candidato marca Inglês ou Espanhol na inscrição).
+  // As opções mudam por banca: UFU e UFG oferecem três; UEG e ENEM, duas.
   const LANGUAGES_BY_BANK: Record<string, readonly string[]> = {
+    ENEM: ['Inglês', 'Espanhol'],
     UFG: ['Inglês', 'Espanhol', 'Francês'],
     UEG: ['Inglês', 'Espanhol'],
+    UFU: ['Inglês', 'Espanhol', 'Francês'],
   }
 
   function languagesForConfig(config: Record<string, unknown> | undefined): readonly string[] {
     const cfgBank = String(config?.bank ?? '').toUpperCase()
     const cfgFormat = String(config?.format ?? '').toLowerCase()
-    if (cfgFormat !== 'completo' && cfgFormat !== 'linguagens') return []
+    if (cfgFormat !== 'completo' && cfgFormat !== 'linguagens' && !(cfgBank === 'ENEM' && cfgFormat === 'dia1')) return []
     return LANGUAGES_BY_BANK[cfgBank] ?? []
   }
 
@@ -1195,9 +1197,9 @@ export default function SimuladoPage() {
   }
 
   // ── Handlers ──
-  const startSimulado = async (scheduledId?: string, discardActive?: boolean, language?: string, contest?: {bank:string; role:string; quotas:ContestQuota[]}) => {
-    const token = await getFreshAccessToken()
-    if (!token) { toast.error('Sessão expirada', { description: 'Faça login novamente para continuar.' }); return }
+  const startSimulado = async (scheduledId?: string, discardActive?: boolean, language?: string, contest?: {bank:string; role:string; quotas:ContestQuota[]; includeAnswered: boolean}) => {
+    if (startingRef.current) return
+    startingRef.current = true
     setLoading(true)
     setStartStage(0)
     const stageTimers: ReturnType<typeof setTimeout>[] = [
@@ -1206,6 +1208,8 @@ export default function SimuladoPage() {
       setTimeout(() => setStartStage(3), 2100),
     ]
     try {
+      const token = await getFreshAccessToken()
+      if (!token) { toast.error('Sessão expirada', { description: 'Faça login novamente para continuar.' }); return }
       const body: Record<string, unknown> = { difficulty }
       if (contest) contestRequestRef.current = contest
       else if (!discardActive) contestRequestRef.current = null
@@ -1214,27 +1218,30 @@ export default function SimuladoPage() {
       if (mode === 'custom') {
         body.format = 'custom'
         body.bank = bank
-        if (compositions.length > 0) {
-          body.compositions = compositions.map((c) => ({
-            subject: c.subject,
-            topic: c.topic || undefined,
-            qty: c.qty,
-            include_answered: c.includeAnswered,
-          }))
-        } else {
-          body.qty = qty
-        }
+        body.compositions = composicaoToApiCompositions(composicao, includeAnswered)
       } else {
         body.format = enemFormat
         body.bank = presetBank
+        const languages = languagesForConfig({ bank: presetBank, format: enemFormat })
+        if (languages.length > 0) body.language = languages.includes(presetLanguage) ? presetLanguage : languages[0]
       }
       if (scheduledId) body.scheduled_simulado_id = scheduledId
       else if (planItemRef.current && !contest) body.plan_item_id = planItemRef.current
       if (language) body.language = language
+      if (scheduledId) {
+        if (!language) delete body.language
+        delete body.difficulty
+        delete body.year
+        delete body.format
+        delete body.bank
+        delete body.compositions
+        delete body.qty
+      }
       const contestConfig = contest || (discardActive && !scheduledId ? contestRequestRef.current : null)
       if (contestConfig && !scheduledId) {
-        Object.assign(body, { format: 'custom', bank: contestConfig.bank, question_type: 'concurso', role: contestConfig.role || null, difficulty: 'misto', compositions: contestConfig.quotas.map(q => ({ ...q, include_answered: true })) })
+        Object.assign(body, { format: 'custom', bank: contestConfig.bank, question_type: 'concurso', role: contestConfig.role || null, difficulty: 'misto', compositions: contestConfig.quotas.map(q => ({ ...q, include_answered: contestConfig.includeAnswered })) })
         delete body.year
+        delete body.qty
       }
       const res = await fetch(`${apiUrl}/api/simulado/start`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) })
       const data = await res.json()
@@ -1259,13 +1266,18 @@ export default function SimuladoPage() {
         }
         toast.error('Acesso indisponível', { description: 'Seu acesso ao simulado está suspenso. Entre em contato com o administrador da sua organização.' }); setShowConfigModal(false); return
       }
-      if (res.status === 404) { toast.error('Nenhuma questão encontrada', { description: 'Tente reduzir a quantidade ou mudar a dificuldade para "Misto".', duration: 6000 }); return }
+      if (res.status === 404) {
+        toast.error('Não foi possível montar o simulado', {
+          description: data?.error || 'Não há questões suficientes para atender a todos os filtros e quantidades. Ajuste a seleção e tente novamente.',
+          duration: 8000,
+        })
+        return
+      }
       if (res.status === 409 && data?.code === 'ACTIVE_SESSION_EXISTS') {
         // Fecha o Dialog de configuração ANTES de abrir o aviso de conflito: o
         // Dialog do Radix é modal e mantém `pointer-events: none` no body, então
         // o aviso aparecia por cima mas nenhum dos dois botões respondia ao clique.
         setShowConfigModal(false)
-        setShowContestModal(false)
         setActiveSessionConflict(data.active_session ?? null)
         return
       }
@@ -1273,7 +1285,6 @@ export default function SimuladoPage() {
       planItemRef.current = null
       setFromCronograma(false)
       setShowConfigModal(false)
-      setShowContestModal(false)
       setActiveSessionConflict(null)
       setSessionId(data.session_id)
       setQuestions(data.questions)
@@ -1321,6 +1332,7 @@ export default function SimuladoPage() {
       setStep('quiz')
     } catch { toast.error('Erro de conexão', { description: 'Não foi possível conectar ao servidor.' }) }
     finally {
+      startingRef.current = false
       stageTimers.forEach((t) => clearTimeout(t))
       setLoading(false)
       setStartStage(0)
@@ -1477,10 +1489,15 @@ export default function SimuladoPage() {
     } catch {}
     setReportedQuestionIds(new Set()); setReportDialogOpen(false); setReportQuestionId(null)
     if (openModal) {
-      // Refazer com os mesmos filtros: bank/year/difficulty/qty/compositions já
-      // continuam corretos no state, só precisamos impedir que o efeito de
+      // Refazer com os mesmos filtros: bank/year/difficulty/qty/composicao
+      // já continuam corretos no state, só precisamos impedir que o efeito de
       // sincronização com o filtro do dashboard (pageBankFilter) os sobrescreva.
+      // Se já existem composições (ou o modo é "blocos"), tudo já está
+      // configurado — vai direto pra Revisão em vez de fazer o aluno repetir
+      // as etapas de Matérias/Composição.
       suppressBankSyncRef.current = true
+      setSimuladoFormat('vestibular')
+      setWizardStep(mode === 'preset' || composicao.length > 0 ? 'revisao' : 'configBanca')
       setShowConfigModal(true)
     }
   }
@@ -1539,11 +1556,12 @@ export default function SimuladoPage() {
   }
 
   useEffect(() => {
-    if (!accessToken || !showConfigModal || mode !== 'custom' || compositions.length > 0) return
+    if (!accessToken || !showConfigModal || mode !== 'custom' || composicao.length > 0) return
 
     const controller = new AbortController()
     const fetchAvailability = async () => {
       setLoadingCustomCount(true)
+      setAvailableCustomCount(null)
       try {
         const params = new URLSearchParams({ page: '1', limit: '1', tab: 'all' })
         if (bank !== 'Todas') params.append('bank', bank)
@@ -1572,14 +1590,14 @@ export default function SimuladoPage() {
 
     fetchAvailability()
     return () => controller.abort()
-  }, [accessToken, showConfigModal, mode, compositions.length, bank, year, difficulty])
+  }, [accessToken, showConfigModal, mode, composicao.length, bank, year, difficulty])
 
   // Nunca deixa a quantidade escolhida passar do que está disponível nem do limite
   // de 180 questões por simulado.
   useEffect(() => {
-    if (compositions.length > 0) return
+    if (composicao.length > 0) return
     setQty((prev) => (prev > customEffectiveMax ? Math.max(1, customEffectiveMax) : prev))
-  }, [customEffectiveMax, compositions.length])
+  }, [customEffectiveMax, composicao.length])
 
   useEffect(() => {
     if (!showConfigModal) return
@@ -1718,208 +1736,59 @@ export default function SimuladoPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Config modal ── */}
-      <Dialog open={showContestModal} onOpenChange={setShowContestModal}>
-        <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader><DialogTitle>Simulado de concurso</DialogTitle><DialogDescription>Escolha a banca, as matérias e as quantidades.</DialogDescription></DialogHeader>
-          <ContestQuotaBuilder slug={slug} onStart={(bank, role, quotas) => void startSimulado(undefined, false, undefined, {bank, role, quotas})} />
-        </DialogContent>
-      </Dialog>
-      <Dialog open={showConfigModal} onOpenChange={(open) => {
-        setShowConfigModal(open)
-        // Fechou sem começar: o próximo simulado desta página já não é o do card.
-        if (!open) { planItemRef.current = null; setFromCronograma(false) }
-      }}>
-          <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] overflow-y-auto dark:border-slate-800 dark:bg-slate-900 sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 dark:text-slate-100">
-              <Timer className="w-5 h-5" style={{ color: 'var(--brand-primary)' }} />
-              Configurar Simulado
-            </DialogTitle>
-            <DialogDescription className="dark:text-slate-400">Escolha o formato e as opções do seu simulado.</DialogDescription>
-          </DialogHeader>
-          {org.permissions?.concursos_enabled && !fromCronograma && <button type="button" onClick={() => { setShowConfigModal(false); setShowContestModal(true) }} className="rounded-xl border border-indigo-300 px-4 py-3 text-sm font-bold text-indigo-700">Montar simulado de concurso</button>}
-
-          {/* Mode toggle */}
-          <div className="grid grid-cols-1 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 sm:grid-cols-2">
-            {(['custom', 'preset'] as const).map(m => (
-              <button key={m} onClick={() => setMode(m)}
-                className={`min-h-11 rounded-lg px-3 py-2 text-sm font-bold transition-all cursor-pointer ${mode === m ? 'bg-white dark:bg-slate-700 shadow text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>
-                {m === 'custom' ? 'Personalizado' : 'Blocos por Banca'}
-              </button>
-            ))}
-          </div>
-
-          <div className="space-y-5">
-            {mode === 'custom' ? (
-              <>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Banca</label>
-                  <div className="relative">
-                    <select
-                      className="w-full p-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800 focus:ring-2 font-semibold text-slate-700 dark:text-slate-200 appearance-none pr-10 cursor-pointer outline-none"
-                      style={{ ['--tw-ring-color' as string]: 'var(--brand-primary)' }}
-                      value={bank}
-                      onChange={e => setBank(e.target.value as BankLabel)}
-                    >
-                      {BANK_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Matéria</label>
-                  <button type="button" onClick={() => setShowComposerModal(true)}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 p-3.5 text-sm font-bold text-slate-600 transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-800 cursor-pointer">
-                    <SlidersHorizontal size={16} className="shrink-0" />
-                    <span className="min-w-0 truncate">{compositionsSummaryLabel}</span>
-                  </button>
-                </div>
-
-                {compositions.length === 0 ? (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Quantidade</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[5, 10, 15, 30, 45, 90, 180].map(val => {
-                        const disabled = val > customEffectiveMax
-                        return (
-                          <button key={val} disabled={disabled} onClick={() => setQty(val)}
-                            className={`p-2.5 rounded-xl border-2 font-bold text-sm transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${qty === val ? 'text-white border-transparent' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 border-slate-200 dark:border-slate-700'}`}
-                            style={qty === val ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)' } : {}}>
-                            {val}
-                          </button>
-                        )
-                      })}
-                    </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Ou digite:</span>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        max={customEffectiveMax}
-                        value={qty}
-                        onChange={(e) => {
-                          const raw = parseInt(e.target.value, 10)
-                          if (Number.isNaN(raw)) { setQty(1); return }
-                          setQty(Math.min(Math.max(raw, 1), customEffectiveMax))
-                        }}
-                        className="w-24 rounded-xl border border-slate-200 bg-white p-2 text-center text-sm font-bold text-slate-700 outline-none focus:ring-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                        style={{ ['--tw-ring-color' as string]: 'var(--brand-primary)' }}
-                      />
-                      <span className="text-xs text-slate-400 dark:text-slate-500">Max: {customEffectiveMax}</span>
-                    </div>
-                    {loadingCustomCount && (
-                      <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">Verificando disponibilidade real para os filtros selecionados...</p>
-                    )}
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Quantidade</label>
-                    <p className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                      Total: {compositionsTotalQty} questões · {compositions.length} {compositions.length === 1 ? 'composição' : 'composições'}
-                    </p>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div>
-                <div className="mb-4">
-                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Banca do Bloco</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['ENEM', 'UFU', 'UEG', 'UFG', 'UNESP'] as const).map((option) => (
-                      <button
-                        key={option}
-                        onClick={() => setPresetBank(option)}
-                        className={`min-h-11 rounded-xl border-2 p-2.5 text-sm font-bold transition-all cursor-pointer ${
-                          presetBank === option
-                            ? 'border-transparent'
-                            : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 border-slate-200 dark:border-slate-700'
-                        }`}
-                        style={presetBank === option ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: brandTextColor } : {}}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                  {presetBank === 'UFU' || presetBank === 'UEG' || presetBank === 'UFG' || presetBank === 'UNESP' ? 'Bloco da Prova' : 'Área de Conhecimento'}
-                </label>
-                <div className="space-y-2">
-                  {presetFormats.map(f => (
-                    <button key={f.value} onClick={() => setEnemFormat(f.value)}
-                      className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border-2 p-3 text-left text-sm font-semibold transition-all cursor-pointer ${enemFormat === f.value ? 'border-transparent' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
-                      style={enemFormat === f.value ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: brandTextColor } : {}}>
-                      <span className="min-w-0 break-words">{f.emoji} {f.label}</span>
-                      <span className="text-xs font-normal" style={enemFormat === f.value ? { color: brandTextColor === '#ffffff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' } : { color: '#94a3b8' }}>{f.qty}q</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Ano</label>
-              <div className="relative">
-                <select
-                  className="w-full p-3.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800 focus:ring-2 font-semibold text-slate-700 dark:text-slate-200 appearance-none pr-10 cursor-pointer outline-none"
-                  style={{ ['--tw-ring-color' as string]: 'var(--brand-primary)' }}
-                  value={year}
-                  onChange={e => setYear(e.target.value)}
-                >
-                  {SIMULADO_YEARS.map(value => <option key={value} value={value}>{value === 'Todos' ? 'Todos os anos' : value}</option>)}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4 pointer-events-none" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Dificuldade</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {DIFFICULTIES.map(d => (
-                  <button key={d.value} onClick={() => setDifficulty(d.value)}
-                    className={`min-h-11 rounded-xl border-2 p-2.5 text-xs font-bold transition-all cursor-pointer ${difficulty === d.value ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-900 dark:border-slate-100' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700'}`}>
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 pt-2 sm:gap-2">
-            <button onClick={() => setShowConfigModal(false)}
-              className="min-h-11 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer">
-              Cancelar
-            </button>
-            <button onClick={() => startSimulado()} disabled={loading || !accessToken || customStartDisabled}
-              aria-disabled={loading || !accessToken || customStartDisabled}
-              className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all disabled:opacity-70 cursor-pointer"
-              style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
-              {loading ? (<><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> {START_STAGES[startStage] ?? 'Preparando...'}</>) : (<><Play size={16} /> Iniciar Simulado</>)}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Composer de matérias/assuntos (simulado custom) ── */}
-      <SimuladoComposerModal
-        open={showComposerModal}
-        onOpenChange={setShowComposerModal}
-        initialCompositions={compositions}
-        onSave={setCompositions}
-        apiUrl={apiUrl}
-        accessToken={accessToken}
-        bank={bank}
-        year={year}
-        difficultyLabel={customDifficultyLabel}
-        brandTextColor={brandTextColor}
-      />
+      {/* ── Criação de simulado ── */}
+      {showConfigModal && (
+        <NovoSimuladoWizard
+          slug={slug}
+          apiUrl={apiUrl}
+          concursosEnabled={!!org.permissions?.concursos_enabled && !fromCronograma}
+          brandTextColor={brandTextColor}
+          accessToken={accessToken}
+          onClose={() => { setShowConfigModal(false); planItemRef.current = null; setFromCronograma(false) }}
+          wizardStep={wizardStep}
+          setWizardStep={setWizardStep}
+          simuladoFormat={simuladoFormat}
+          setSimuladoFormat={setSimuladoFormat}
+          concursoSelection={concursoSelection}
+          setConcursoSelection={setConcursoSelection}
+          mode={mode}
+          setMode={setMode}
+          bank={bank}
+          setBank={(value) => setBank(value as BankLabel)}
+          bankOptions={BANK_OPTIONS}
+          year={year}
+          setYear={setYear}
+          years={SIMULADO_YEARS}
+          difficulty={difficulty}
+          setDifficulty={setDifficulty}
+          difficulties={DIFFICULTIES}
+          qty={qty}
+          setQty={setQty}
+          composicao={composicao}
+          setComposicao={setComposicao}
+          includeAnswered={includeAnswered}
+          setIncludeAnswered={setIncludeAnswered}
+          customEffectiveMax={customEffectiveMax}
+          loadingCustomCount={loadingCustomCount}
+          availableCustomCount={availableCustomCount}
+          presetBank={presetBank}
+          setPresetBank={setPresetBank}
+          enemFormat={enemFormat}
+          setEnemFormat={setEnemFormat}
+          presetFormats={presetFormats}
+          presetLanguage={presetLanguage}
+          setPresetLanguage={setPresetLanguage}
+          languagesForConfig={languagesForConfig}
+          onResetFilters={() => { setYear('Todos'); setDifficulty('misto'); if (mode === 'custom') { setBank('Todas'); setComposicao([]); setIncludeAnswered(false); setQty(10) } }}
+          loading={loading}
+          startStage={startStage}
+          startStages={START_STAGES}
+          startSimulado={startSimulado}
+        />
+      )}
 
       {/* ══════════════════════════ SETUP ════════════════════════════════════ */}
-      {step === 'setup' && (
+      {step === 'setup' && !showConfigModal && (
         <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 bg-slate-50 dark:bg-[#080808]">
           {loading && (
             <div className="fixed inset-0 z-[70] bg-black/35 backdrop-blur-[1px] flex items-center justify-center px-4">
@@ -2006,7 +1875,7 @@ export default function SimuladoPage() {
                   className="flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10 sm:flex-none sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm sm:font-bold">
                   <ClipboardList size={16} className="shrink-0" /> <span className="sm:hidden">Externo</span><span className="hidden sm:inline">Simulado externo</span>
                 </Link>
-                <button onClick={() => setShowConfigModal(true)} aria-label="Novo simulado"
+                <button onClick={() => { setWizardStep('formato'); setShowConfigModal(true) }} aria-label="Novo simulado"
                   className="flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-bold transition-transform hover:scale-[1.02] active:scale-[0.97] sm:flex-none sm:gap-1.5 sm:rounded-full sm:px-4 sm:py-2.5 sm:text-[13px] sm:font-extrabold"
                   style={{
                     background: org.brand_primary || 'var(--brand-primary)',
@@ -2374,7 +2243,7 @@ export default function SimuladoPage() {
                     <p className="text-slate-500 dark:text-white/40 max-w-md mx-auto mb-6 text-sm leading-relaxed">
                       Monte simulados com questões reais de vários vestibulares. Acompanhe sua evolução por matéria e por banca.
                     </p>
-                    <button onClick={() => setShowConfigModal(true)}
+                    <button onClick={() => { setWizardStep('formato'); setShowConfigModal(true) }}
                       className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-8 py-3.5 font-bold shadow transition-all cursor-pointer"
                       style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
                       <Play size={18} /> Começar meu primeiro simulado
