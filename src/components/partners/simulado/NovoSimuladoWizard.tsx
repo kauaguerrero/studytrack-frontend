@@ -5,16 +5,44 @@ import {
   ArrowLeft, ArrowRight, ChevronDown, Clock, GraduationCap, Layers,
   Navigation, Play, Shield, SlidersHorizontal, Target,
 } from 'lucide-react'
-import type { ContestQuota } from '@/app/partners/[slug]/simulados/ContestQuotaBuilder'
 import { WizardStepper, type WizardStepperStep } from '@/components/partners/simulado/WizardStepper'
 import { WizardSidebar } from '@/components/partners/simulado/WizardSidebar'
 import { MateriasComposicaoStep } from '@/components/partners/simulado/MateriasComposicaoStep'
+import { useConcursoFacets } from '@/components/partners/simulado/ConcursoSteps'
 import {
-  ConcursoConfigStep, ConcursoResumoStep, ConcursoTemasStep, useConcursoFacets,
-} from '@/components/partners/simulado/ConcursoSteps'
-import {
-  type Composicao, composicaoDistinctSubjects, composicaoDistinctTopics, composicaoTotalQty,
+  type ApiComposition, type Composicao, type SubjectComposicao,
+  composicaoDistinctSubjects, composicaoDistinctTopics, composicaoToApiCompositions, composicaoTotalQty,
 } from '@/lib/simuladoComposicao'
+
+// `role`/`bank` de concurso são valores crus da coluna do banco (ex.: "soldado"),
+// usados como estão no payload — aqui só capitaliza pra exibição na tela.
+function capitalizeLabel(value: string): string {
+  return value.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())
+}
+
+// Distribuição oficial do CFSd Soldado (PMMG), derivada do SDD do ETL
+// (PMMG_CONCURSO_ETL_SDD.md §4.1/§4.2 — recognition page-a-página dos PDFs
+// oficiais de 2017 e 2019) e cruzada com o banco ao vivo em 2026-11-08: os
+// dois editais têm ~40 questões cada, com pequenas variações (±1-2) por
+// disciplina entre os dois anos — os números abaixo são a média/arredondamento
+// das duas provas reais, não uma única prova específica, para não travar o
+// bloco à disponibilidade de um ano só.
+const PMMG_BLOCKS: { value: string; label: string; qty: number; composicao: SubjectComposicao[] }[] = [
+  {
+    value: 'cfsd_completo',
+    label: 'Prova Completa (CFSd Soldado)',
+    qty: 40,
+    composicao: [
+      { subject: 'Língua Portuguesa', mode: 'all', qty: 10, topics: [] },
+      { subject: 'Direito Constitucional', mode: 'all', qty: 6, topics: [] },
+      { subject: 'Direito Penal', mode: 'all', qty: 6, topics: [] },
+      { subject: 'Direito Penal Militar', mode: 'all', qty: 5, topics: [] },
+      { subject: 'Direitos Humanos', mode: 'all', qty: 5, topics: [] },
+      { subject: 'Legislação Extravagante', mode: 'all', qty: 4, topics: [] },
+      { subject: 'Matemática', mode: 'all', qty: 4, topics: [] },
+    ],
+  },
+]
 
 type PresetBank = 'ENEM' | 'UFU' | 'UEG' | 'UFG' | 'UNESP'
 const PRESET_BANKS: readonly PresetBank[] = ['ENEM', 'UFU', 'UEG', 'UFG', 'UNESP']
@@ -26,25 +54,40 @@ const GLOBAL_STEPS: WizardStepperStep[] = [
   { key: 'configuracao', label: 'Configuração' },
   { key: 'revisao', label: 'Revisão' },
 ]
-const CONCURSO_LOCAL_STEPS: WizardStepperStep[] = [
-  { key: 'concursoConfig', label: 'Configuração' },
-  { key: 'concursoTemas', label: 'Disciplinas e temas' },
-  { key: 'concursoResumo', label: 'Resumo' },
-]
 const CONFIG_LOCAL_STEPS: WizardStepperStep[] = [
   { key: 'configBanca', label: 'Banca' },
   { key: 'configQty', label: 'Quantidade' },
   { key: 'configAno', label: 'Ano' },
   { key: 'configDificuldade', label: 'Dificuldade' },
 ]
+const PRESET_LOCAL_STEPS: WizardStepperStep[] = [
+  { key: 'presetBanca', label: 'Banca' },
+  { key: 'presetBloco', label: 'Bloco' },
+  { key: 'presetAno', label: 'Ano' },
+  { key: 'presetDificuldade', label: 'Dificuldade' },
+]
+const CONCURSO_CUSTOM_LOCAL_STEPS: WizardStepperStep[] = [
+  { key: 'concursoBanca', label: 'Banca' },
+  { key: 'concursoQty', label: 'Quantidade' },
+  { key: 'concursoComposicao', label: 'Matérias e assuntos' },
+]
+const CONCURSO_BLOCO_LOCAL_STEPS: WizardStepperStep[] = [
+  { key: 'concursoBlocoBanca', label: 'Banca' },
+  { key: 'concursoBlocoProva', label: 'Bloco' },
+  { key: 'concursoBlocoDificuldade', label: 'Dificuldade' },
+]
 
 interface BankOption { value: string; label: string }
 interface PresetFormatOption { value: string; label: string; emoji: string; qty: number }
 interface DifficultyOption { value: string; label: string }
-interface ConcursoSelection { bank: string; role: string; quotas: ContestQuota[]; includeAnswered: boolean }
+interface ConcursoSelection { bank: string; role: string; compositions: ApiComposition[]; includeAnswered: boolean; difficulty: string }
 type WizardStepKey =
-  | 'formato' | 'configuracao' | 'configBanca' | 'configQty' | 'configAno' | 'configDificuldade' | 'materiasComposicao'
-  | 'concursoConfig' | 'concursoTemas' | 'concursoResumo' | 'revisao'
+  | 'formato'
+  | 'configBanca' | 'configQty' | 'configAno' | 'configDificuldade' | 'materiasComposicao'
+  | 'presetBanca' | 'presetBloco' | 'presetAno' | 'presetDificuldade'
+  | 'concursoBanca' | 'concursoQty' | 'concursoComposicao'
+  | 'concursoBlocoBanca' | 'concursoBlocoProva' | 'concursoBlocoDificuldade'
+  | 'revisao'
 
 export interface NovoSimuladoWizardProps {
   slug: string
@@ -56,7 +99,7 @@ export interface NovoSimuladoWizardProps {
 
   // Navegação do wizard é controlada pelo componente pai (page.tsx) para
   // sobreviver a remounts e pra ser reaproveitável pelo fluxo de "refazer
-  // simulado" (que já abre direto em 'configuracao').
+  // simulado" (que já abre direto em 'revisao').
   wizardStep: WizardStepKey
   setWizardStep: (step: WizardStepKey) => void
   simuladoFormat: 'vestibular' | 'concurso'
@@ -118,41 +161,75 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
   } = props
 
   // ── Estado em construção do simulado de concurso — só vira `concursoSelection`
-  // (em page.tsx) quando o usuário confirma o Resumo e segue pra Revisão.
+  // (em page.tsx) quando o usuário confirma a última etapa (Composição, no
+  // modo Personalizado, ou Dificuldade, no modo Blocos por banca) e segue
+  // pra Revisão. Banca/Cargo são compartilhados pelos dois submodos.
   const [concursoBank, setConcursoBank] = useState('')
   const [concursoRole, setConcursoRole] = useState('')
-  const [concursoRows, setConcursoRows] = useState<ContestQuota[]>([{ subjects: [], topic: '', qty: 10 }])
+  const [concursoQty, setConcursoQty] = useState(10)
+  const [concursoComposicao, setConcursoComposicao] = useState<Composicao>([])
   const [concursoIncludeAnswered, setConcursoIncludeAnswered] = useState(false)
+  const [concursoBlocoValue, setConcursoBlocoValue] = useState(PMMG_BLOCKS[0]?.value ?? '')
   const { facets: concursoFacets, loading: concursoCatalogLoading, error: concursoCatalogError, retry: retryConcursoCatalog } = useConcursoFacets(slug)
-  const concursoHasOverQuota = concursoRows.some((row) => {
-    const current = concursoFacets.filter((f) => (!concursoBank || f.bank === concursoBank) && (!concursoRole || f.role === concursoRole))
-    const available = current.filter((f) => f.subject && row.subjects.includes(f.subject) && (!(row.topics || []).length || Boolean(f.discipline && row.topics?.includes(f.discipline)))).reduce((sum, f) => sum + (f.count ?? 1), 0)
-    return row.qty > available
-  })
-  const concursoConfigValid = Boolean(concursoBank) && concursoRows.every((r) => r.subjects.length > 0 && Number.isInteger(r.qty) && r.qty > 0) && concursoRows.reduce((n, r) => n + r.qty, 0) <= SIMULADO_MAX_QTY
 
-  const isConcursoLocalSubflow = wizardStep === 'concursoConfig' || wizardStep === 'concursoTemas' || wizardStep === 'concursoResumo'
+  // Catálogo de matérias/assuntos do concurso (pré-carregado via facets,
+  // escopado pela banca/cargo já escolhidos) — alimenta o MateriasComposicaoStep
+  // no modo Personalizado, no mesmo formato que ele já aceita para vestibular.
+  const concursoCurrentFacets = concursoFacets.filter((f) => (!concursoBank || f.bank === concursoBank) && (!concursoRole || f.role === concursoRole))
+  const concursoSubjectValues = [...new Set(concursoCurrentFacets.map((f) => f.subject).filter((s): s is string => Boolean(s)))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const concursoSubjectsOptions = concursoSubjectValues.map((value) => ({ value, label: value }))
+  const concursoTopicsBySubject: Record<string, { name: string; count: number }[]> = {}
+  concursoSubjectValues.forEach((subject) => {
+    const counts = new Map<string, number>()
+    concursoCurrentFacets.filter((f) => f.subject === subject && f.discipline).forEach((f) => {
+      const key = f.discipline as string
+      counts.set(key, (counts.get(key) ?? 0) + (f.count ?? 1))
+    })
+    concursoTopicsBySubject[subject] = [...counts.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  })
+
   const isConfigLocalSubflow = wizardStep === 'configBanca' || wizardStep === 'configQty' || wizardStep === 'configAno' || wizardStep === 'configDificuldade'
-  const isLocalSubflow = wizardStep === 'materiasComposicao' || isConcursoLocalSubflow || isConfigLocalSubflow
+  const isPresetLocalSubflow = wizardStep === 'presetBanca' || wizardStep === 'presetBloco' || wizardStep === 'presetAno' || wizardStep === 'presetDificuldade'
+  const isConcursoCustomLocalSubflow = wizardStep === 'concursoBanca' || wizardStep === 'concursoQty' || wizardStep === 'concursoComposicao'
+  const isConcursoBlocoLocalSubflow = wizardStep === 'concursoBlocoBanca' || wizardStep === 'concursoBlocoProva' || wizardStep === 'concursoBlocoDificuldade'
+  const isLocalSubflow = wizardStep === 'materiasComposicao' || isConfigLocalSubflow || isPresetLocalSubflow || isConcursoCustomLocalSubflow || isConcursoBlocoLocalSubflow
   const globalCurrentIndex = GLOBAL_STEPS.findIndex((s) => s.key === (isLocalSubflow ? 'configuracao' : wizardStep))
-  const localCurrentIndex = isConcursoLocalSubflow
-    ? (wizardStep === 'concursoConfig' ? 0 : wizardStep === 'concursoTemas' ? 1 : 2)
-    : isConfigLocalSubflow
-      ? (wizardStep === 'configBanca' ? 0 : wizardStep === 'configQty' ? 1 : wizardStep === 'configAno' ? 2 : 3)
-      : 0
+  const localCurrentIndex = isConfigLocalSubflow
+    ? (wizardStep === 'configBanca' ? 0 : wizardStep === 'configQty' ? 1 : wizardStep === 'configAno' ? 2 : 3)
+    : isPresetLocalSubflow
+      ? (wizardStep === 'presetBanca' ? 0 : wizardStep === 'presetBloco' ? 1 : wizardStep === 'presetAno' ? 2 : 3)
+      : isConcursoCustomLocalSubflow
+        ? (wizardStep === 'concursoBanca' ? 0 : wizardStep === 'concursoQty' ? 1 : 2)
+        : isConcursoBlocoLocalSubflow
+          ? (wizardStep === 'concursoBlocoBanca' ? 0 : wizardStep === 'concursoBlocoProva' ? 1 : 2)
+          : 0
 
   function buildSummary(): { rows: { label: string; value: string }[]; total: number } {
     if (simuladoFormat === 'concurso') {
-      const total = concursoRows.reduce((sum, q) => sum + (Number.isFinite(q.qty) ? q.qty : 0), 0)
-      return {
-        rows: [
-          { label: 'Formato', value: 'Concurso Público' },
-          { label: 'Banca', value: concursoBank || '—' },
-          { label: 'Cargo', value: concursoRole || 'Todos os cargos' },
-          { label: 'Grupos', value: String(concursoRows.length) },
-        ],
-        total,
+      if (mode === 'preset') {
+        const block = PMMG_BLOCKS.find((b) => b.value === concursoBlocoValue)
+        return {
+          rows: [
+            { label: 'Formato', value: 'Concurso Público' },
+            { label: 'Tipo', value: 'Blocos por banca' },
+            { label: 'Banca', value: concursoBank || '—' },
+            { label: 'Cargo', value: concursoRole ? capitalizeLabel(concursoRole) : '—' },
+            { label: 'Bloco', value: block?.label ?? '—' },
+            { label: 'Dificuldade', value: difficulties.find((d) => d.value === difficulty)?.label ?? difficulty },
+          ],
+          total: block?.qty ?? 0,
+        }
       }
+      const rows = [
+        { label: 'Formato', value: 'Concurso Público' },
+        { label: 'Tipo', value: 'Personalizado' },
+        { label: 'Banca', value: concursoBank || '—' },
+        { label: 'Cargo', value: concursoRole ? capitalizeLabel(concursoRole) : 'Todos os cargos' },
+        { label: 'Matérias', value: `${composicaoDistinctSubjects(concursoComposicao)} distintas` },
+      ]
+      const concursoTopicsCount = composicaoDistinctTopics(concursoComposicao)
+      if (concursoTopicsCount > 0) rows.push({ label: 'Assuntos', value: String(concursoTopicsCount) })
+      return { rows, total: composicaoTotalQty(concursoComposicao) }
     }
     const rows = [
       { label: 'Formato', value: 'Vestibular / ENEM' },
@@ -188,8 +265,11 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
   }
 
   function goBackFromRevisao() {
-    if (simuladoFormat === 'concurso') { setWizardStep('concursoResumo'); return }
-    if (mode === 'preset') { setWizardStep('configuracao'); return }
+    if (simuladoFormat === 'concurso') {
+      setWizardStep(mode === 'preset' ? 'concursoBlocoDificuldade' : 'concursoComposicao')
+      return
+    }
+    if (mode === 'preset') { setWizardStep('presetDificuldade'); return }
     setWizardStep('materiasComposicao')
   }
 
@@ -216,10 +296,14 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
         </header>
 
         <div className="mb-3 shrink-0">
-          {isConcursoLocalSubflow ? (
-            <WizardStepper steps={CONCURSO_LOCAL_STEPS} currentIndex={localCurrentIndex} brandTextColor={brandTextColor} />
-          ) : isConfigLocalSubflow ? (
+          {isConfigLocalSubflow ? (
             <WizardStepper steps={CONFIG_LOCAL_STEPS} currentIndex={localCurrentIndex} brandTextColor={brandTextColor} />
+          ) : isPresetLocalSubflow ? (
+            <WizardStepper steps={PRESET_LOCAL_STEPS} currentIndex={localCurrentIndex} brandTextColor={brandTextColor} />
+          ) : isConcursoCustomLocalSubflow ? (
+            <WizardStepper steps={CONCURSO_CUSTOM_LOCAL_STEPS} currentIndex={localCurrentIndex} brandTextColor={brandTextColor} />
+          ) : isConcursoBlocoLocalSubflow ? (
+            <WizardStepper steps={CONCURSO_BLOCO_LOCAL_STEPS} currentIndex={localCurrentIndex} brandTextColor={brandTextColor} />
           ) : (
             <WizardStepper steps={GLOBAL_STEPS} currentIndex={globalCurrentIndex} brandTextColor={brandTextColor} />
           )}
@@ -255,30 +339,28 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
                     </div>
                   </div>
 
-                  {simuladoFormat === 'vestibular' && (
-                    <div>
-                      <p className="mb-0.5 text-sm font-bold text-slate-900 dark:text-slate-100">Como deseja montar?</p>
-                      <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Escolha banca, matérias, assuntos e quantidade.</p>
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="Como montar o simulado">
-                        <FormatCard
-                          active={mode === 'custom'}
-                          icon={<SlidersHorizontal size={18} />}
-                          title="Personalizado"
-                          description="Escolha banca, matérias, assuntos e quantidade."
-                          brandTextColor={brandTextColor}
-                          onClick={() => setMode('custom')}
-                        />
-                        <FormatCard
-                          active={mode === 'preset'}
-                          icon={<Layers size={18} />}
-                          title="Blocos por banca"
-                          description="Use a distribuição oficial de uma prova."
-                          brandTextColor={brandTextColor}
-                          onClick={() => setMode('preset')}
-                        />
-                      </div>
+                  <div>
+                    <p className="mb-0.5 text-sm font-bold text-slate-900 dark:text-slate-100">Como deseja montar?</p>
+                    <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">Escolha banca, matérias, assuntos e quantidade.</p>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="Como montar o simulado">
+                      <FormatCard
+                        active={mode === 'custom'}
+                        icon={<SlidersHorizontal size={18} />}
+                        title="Personalizado"
+                        description="Escolha banca, matérias, assuntos e quantidade."
+                        brandTextColor={brandTextColor}
+                        onClick={() => setMode('custom')}
+                      />
+                      <FormatCard
+                        active={mode === 'preset'}
+                        icon={<Layers size={18} />}
+                        title="Blocos por banca"
+                        description="Use a distribuição oficial de uma prova."
+                        brandTextColor={brandTextColor}
+                        onClick={() => setMode('preset')}
+                      />
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -432,38 +514,43 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
                 </div>
               )}
 
-              {wizardStep === 'configuracao' && simuladoFormat === 'vestibular' && mode === 'preset' && (
+              {wizardStep === 'presetBanca' && (
                 <div className="space-y-5">
                   <div>
-                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Configuração por blocos</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Escolha a banca, o bloco e a área de conhecimento.</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Banca do Bloco</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Escolha a banca da prova.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PRESET_BANKS.map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        aria-pressed={presetBank === option}
+                        onClick={() => setPresetBank(option)}
+                        className={`min-h-11 cursor-pointer rounded-xl border-2 p-2.5 text-sm font-bold transition-all ${
+                          presetBank === option
+                            ? 'border-transparent'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600'
+                        }`}
+                        style={presetBank === option ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: brandTextColor } : undefined}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 'presetBloco' && (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Bloco</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Escolha o bloco ou a área de conhecimento.</p>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
                     Ideal para treinar com a distribuição oficial de uma prova — cada bloco já tem a quantidade de questões por área definida.
                   </div>
                   <div>
-                    <div className="mb-4">
-                      <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Banca do Bloco</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {PRESET_BANKS.map((option) => (
-                          <button
-                            key={option}
-                            type="button"
-                            aria-pressed={presetBank === option}
-                            onClick={() => setPresetBank(option)}
-                            className={`min-h-11 cursor-pointer rounded-xl border-2 p-2.5 text-sm font-bold transition-all ${
-                              presetBank === option
-                                ? 'border-transparent'
-                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600'
-                            }`}
-                            style={presetBank === option ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: brandTextColor } : undefined}
-                          >
-                            {option}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
                     <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                       {presetBank === 'UFU' || presetBank === 'UEG' || presetBank === 'UFG' || presetBank === 'UNESP' ? 'Bloco da Prova' : 'Área de Conhecimento'}
                     </label>
@@ -514,7 +601,15 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
                       </div>
                     )}
                   </div>
+                </div>
+              )}
 
+              {wizardStep === 'presetAno' && (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Ano</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Filtre por ano da prova, se quiser.</p>
+                  </div>
                   <div>
                     <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Ano</label>
                     <div className="relative">
@@ -532,7 +627,15 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
                       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     </div>
                   </div>
+                </div>
+              )}
 
+              {wizardStep === 'presetDificuldade' && (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Dificuldade</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Escolha o nível de dificuldade das questões.</p>
+                  </div>
                   <div>
                     <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Dificuldade</label>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -553,7 +656,6 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
                       ))}
                     </div>
                   </div>
-
                   <button
                     type="button"
                     onClick={onResetFilters}
@@ -564,51 +666,185 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
                 </div>
               )}
 
-              {wizardStep === 'concursoConfig' && (
-                <ConcursoConfigStep
-                  bank={concursoBank}
-                  setBank={setConcursoBank}
-                  role={concursoRole}
-                  setRole={setConcursoRole}
-                  rows={concursoRows}
-                  setRows={setConcursoRows}
-                  facets={concursoFacets}
-                  catalogLoading={concursoCatalogLoading}
-                  catalogError={concursoCatalogError}
-                  onRetryCatalog={retryConcursoCatalog}
+              {(wizardStep === 'concursoBanca' || wizardStep === 'concursoBlocoBanca') && (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Banca e cargo</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Escolha a banca e o cargo do concurso.</p>
+                  </div>
+                  {concursoCatalogLoading && <p role="status" className="text-sm text-slate-500 dark:text-slate-400">Carregando bancas e cargos disponíveis...</p>}
+                  {concursoCatalogError && (
+                    <div role="alert" className="rounded-xl border border-amber-300 p-3 text-sm text-amber-800 dark:text-amber-300">
+                      Não foi possível carregar as opções. <button type="button" onClick={retryConcursoCatalog} className="font-bold underline">Tentar novamente</button>
+                    </div>
+                  )}
+                  <div>
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Banca</label>
+                    <div className="relative">
+                      <select
+                        aria-label="Banca do concurso"
+                        className="w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 pr-10 font-semibold text-slate-700 outline-none focus:ring-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        style={{ ['--tw-ring-color' as string]: 'var(--brand-primary)' }}
+                        value={concursoBank}
+                        onChange={(e) => { setConcursoBank(e.target.value); setConcursoRole(''); setConcursoComposicao([]) }}
+                      >
+                        <option value="">Selecione a banca</option>
+                        {[...new Set(concursoFacets.map((f) => f.bank).filter((v): v is string => Boolean(v)))].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((v) => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cargo</label>
+                    <div className="relative">
+                      <select
+                        aria-label="Cargo do concurso"
+                        className="w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 pr-10 font-semibold text-slate-700 outline-none focus:ring-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        style={{ ['--tw-ring-color' as string]: 'var(--brand-primary)' }}
+                        value={concursoRole}
+                        onChange={(e) => { setConcursoRole(e.target.value); setConcursoComposicao([]) }}
+                      >
+                        <option value="">Todos os cargos</option>
+                        {[...new Set(concursoFacets.filter((f) => !concursoBank || f.bank === concursoBank).map((f) => f.role).filter((v): v is string => Boolean(v)))].sort((a, b) => a.localeCompare(b, 'pt-BR')).map((v) => (
+                          <option key={v} value={v}>{capitalizeLabel(v)}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 'concursoQty' && (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Quantidade de questões</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Escolha quantas questões seu simulado vai ter.</p>
+                  </div>
+                  <div>
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                      {QTY_PRESETS.map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          aria-pressed={concursoQty === val}
+                          onClick={() => setConcursoQty(val)}
+                          className={`cursor-pointer rounded-xl border-2 p-2.5 text-sm font-bold transition-all ${
+                            concursoQty === val
+                              ? 'border-transparent text-white'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600'
+                          }`}
+                          style={concursoQty === val ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: brandTextColor } : undefined}
+                        >
+                          {val}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Ou defina um valor:</span>
+                      <input
+                        type="number"
+                        aria-label="Quantidade de questões"
+                        inputMode="numeric"
+                        min={1}
+                        max={SIMULADO_MAX_QTY}
+                        value={concursoQty}
+                        onChange={(e) => {
+                          const raw = parseInt(e.target.value, 10)
+                          if (Number.isNaN(raw)) { setConcursoQty(1); return }
+                          setConcursoQty(Math.min(Math.max(raw, 1), SIMULADO_MAX_QTY))
+                        }}
+                        className="w-24 rounded-xl border border-slate-200 bg-white p-2 text-center text-sm font-bold text-slate-700 outline-none focus:ring-2 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        style={{ ['--tw-ring-color' as string]: 'var(--brand-primary)' }}
+                      />
+                      <span className="text-xs text-slate-400 dark:text-slate-500">Max: {SIMULADO_MAX_QTY}</span>
+                    </div>
+                    <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
+                      Na próxima etapa você escolhe matérias e assuntos — o sistema distribui essas questões entre eles.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 'concursoComposicao' && (
+                <MateriasComposicaoStep
+                  apiUrl={apiUrl}
+                  accessToken={accessToken}
+                  bank={concursoBank || 'Todas'}
+                  year="Todos"
+                  difficultyLabel={null}
+                  qty={concursoQty}
+                  composicao={concursoComposicao}
+                  setComposicao={setConcursoComposicao}
                   includeAnswered={concursoIncludeAnswered}
                   setIncludeAnswered={setConcursoIncludeAnswered}
+                  subjects={concursoSubjectsOptions}
+                  topicsBySubject={concursoTopicsBySubject}
                 />
               )}
 
-              {wizardStep === 'concursoTemas' && (
-                <ConcursoTemasStep
-                  bank={concursoBank}
-                  setBank={setConcursoBank}
-                  role={concursoRole}
-                  setRole={setConcursoRole}
-                  rows={concursoRows}
-                  setRows={setConcursoRows}
-                  facets={concursoFacets}
-                  catalogLoading={concursoCatalogLoading}
-                  catalogError={concursoCatalogError}
-                  onRetryCatalog={retryConcursoCatalog}
-                />
+              {wizardStep === 'concursoBlocoProva' && (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Bloco</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Use a distribuição oficial de uma prova real.</p>
+                  </div>
+                  <div className="space-y-2">
+                    {PMMG_BLOCKS.map((block) => (
+                      <button
+                        key={block.value}
+                        type="button"
+                        aria-pressed={concursoBlocoValue === block.value}
+                        onClick={() => setConcursoBlocoValue(block.value)}
+                        className={`flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-xl border-2 p-3 text-left text-sm font-semibold transition-all ${
+                          concursoBlocoValue === block.value
+                            ? 'border-transparent'
+                            : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600'
+                        }`}
+                        style={concursoBlocoValue === block.value ? { background: 'var(--brand-primary)', borderColor: 'var(--brand-primary)', color: brandTextColor } : undefined}
+                      >
+                        <span className="min-w-0 break-words">{block.label}</span>
+                        <span
+                          className="text-xs font-normal"
+                          style={concursoBlocoValue === block.value ? { color: brandTextColor === '#ffffff' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.5)' } : { color: '#94a3b8' }}
+                        >
+                          {block.qty}q
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
 
-              {wizardStep === 'concursoResumo' && (
-                <ConcursoResumoStep
-                  bank={concursoBank}
-                  setBank={setConcursoBank}
-                  role={concursoRole}
-                  setRole={setConcursoRole}
-                  rows={concursoRows}
-                  setRows={setConcursoRows}
-                  facets={concursoFacets}
-                  catalogLoading={concursoCatalogLoading}
-                  catalogError={concursoCatalogError}
-                  onRetryCatalog={retryConcursoCatalog}
-                />
+              {wizardStep === 'concursoBlocoDificuldade' && (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Dificuldade</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Escolha o nível de dificuldade das questões.</p>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Dificuldade</label>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      {difficulties.map((d) => (
+                        <button
+                          key={d.value}
+                          type="button"
+                          aria-pressed={difficulty === d.value}
+                          onClick={() => setDifficulty(d.value)}
+                          className={`min-h-11 cursor-pointer rounded-xl border-2 p-2.5 text-xs font-bold transition-all ${
+                            difficulty === d.value
+                              ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
+                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          {d.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
 
               {wizardStep === 'materiasComposicao' && (
@@ -688,7 +924,11 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
                     Cancelar
                   </button>
                   <button
-                    onClick={() => setWizardStep(simuladoFormat === 'concurso' ? 'concursoConfig' : mode === 'custom' ? 'configBanca' : 'configuracao')}
+                    onClick={() => setWizardStep(
+                      simuladoFormat === 'concurso'
+                        ? (mode === 'custom' ? 'concursoBanca' : 'concursoBlocoBanca')
+                        : (mode === 'custom' ? 'configBanca' : 'presetBanca')
+                    )}
                     className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all"
                     style={{ background: 'var(--brand-primary)', color: brandTextColor }}
                   >
@@ -769,10 +1009,64 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
                 </>
               )}
 
-              {wizardStep === 'configuracao' && simuladoFormat === 'vestibular' && mode === 'preset' && (
+              {wizardStep === 'presetBanca' && (
                 <>
                   <button
                     onClick={() => setWizardStep('formato')}
+                    className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={() => setWizardStep('presetBloco')}
+                    className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all"
+                    style={{ background: 'var(--brand-primary)', color: brandTextColor }}
+                  >
+                    Avançar <ArrowRight size={16} />
+                  </button>
+                </>
+              )}
+
+              {wizardStep === 'presetBloco' && (
+                <>
+                  <button
+                    onClick={() => setWizardStep('presetBanca')}
+                    className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={() => setWizardStep('presetAno')}
+                    className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all"
+                    style={{ background: 'var(--brand-primary)', color: brandTextColor }}
+                  >
+                    Avançar <ArrowRight size={16} />
+                  </button>
+                </>
+              )}
+
+              {wizardStep === 'presetAno' && (
+                <>
+                  <button
+                    onClick={() => setWizardStep('presetBloco')}
+                    className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={() => setWizardStep('presetDificuldade')}
+                    className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all"
+                    style={{ background: 'var(--brand-primary)', color: brandTextColor }}
+                  >
+                    Avançar <ArrowRight size={16} />
+                  </button>
+                </>
+              )}
+
+              {wizardStep === 'presetDificuldade' && (
+                <>
+                  <button
+                    onClick={() => setWizardStep('presetAno')}
                     className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
                     Voltar
@@ -787,7 +1081,7 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
                 </>
               )}
 
-              {wizardStep === 'concursoConfig' && (
+              {wizardStep === 'concursoBanca' && (
                 <>
                   <button
                     onClick={() => setWizardStep('formato')}
@@ -796,49 +1090,124 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
                     Voltar
                   </button>
                   <button
-                    onClick={() => setWizardStep('concursoTemas')}
-                    disabled={!concursoConfigValid}
+                    onClick={() => setWizardStep('concursoQty')}
+                    disabled={!concursoBank}
                     className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50"
                     style={{ background: 'var(--brand-primary)', color: brandTextColor }}
                   >
-                    Avançar: Escolher temas <ArrowRight size={16} />
+                    Avançar <ArrowRight size={16} />
                   </button>
                 </>
               )}
 
-              {wizardStep === 'concursoTemas' && (
+              {wizardStep === 'concursoQty' && (
                 <>
                   <button
-                    onClick={() => setWizardStep('concursoConfig')}
+                    onClick={() => setWizardStep('concursoBanca')}
                     className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
                     Voltar
                   </button>
                   <button
-                    onClick={() => setWizardStep('concursoResumo')}
+                    onClick={() => setWizardStep('concursoComposicao')}
                     className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all"
                     style={{ background: 'var(--brand-primary)', color: brandTextColor }}
                   >
-                    Avançar: Ver resumo <ArrowRight size={16} />
+                    Avançar: Selecionar matérias e assuntos <ArrowRight size={16} />
                   </button>
                 </>
               )}
 
-              {wizardStep === 'concursoResumo' && (
+              {wizardStep === 'concursoComposicao' && (
                 <>
                   <button
-                    onClick={() => setWizardStep('concursoTemas')}
+                    onClick={() => setWizardStep('concursoQty')}
                     className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
                     Voltar
                   </button>
                   <button
-                    onClick={() => { setConcursoSelection({ bank: concursoBank, role: concursoRole, quotas: concursoRows, includeAnswered: concursoIncludeAnswered }); setWizardStep('revisao') }}
-                    disabled={!concursoConfigValid || concursoHasOverQuota}
+                    onClick={() => {
+                      setConcursoSelection({
+                        bank: concursoBank,
+                        role: concursoRole,
+                        compositions: composicaoToApiCompositions(concursoComposicao, concursoIncludeAnswered),
+                        includeAnswered: concursoIncludeAnswered,
+                        difficulty: 'misto',
+                      })
+                      setWizardStep('revisao')
+                    }}
+                    disabled={composicaoTotalQty(concursoComposicao) !== concursoQty}
                     className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50"
                     style={{ background: 'var(--brand-primary)', color: brandTextColor }}
                   >
-                    Continuar: Revisão <ArrowRight size={16} />
+                    Avançar: Revisão <ArrowRight size={16} />
+                  </button>
+                </>
+              )}
+
+              {wizardStep === 'concursoBlocoBanca' && (
+                <>
+                  <button
+                    onClick={() => setWizardStep('formato')}
+                    className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={() => setWizardStep('concursoBlocoProva')}
+                    disabled={!concursoBank}
+                    className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{ background: 'var(--brand-primary)', color: brandTextColor }}
+                  >
+                    Avançar <ArrowRight size={16} />
+                  </button>
+                </>
+              )}
+
+              {wizardStep === 'concursoBlocoProva' && (
+                <>
+                  <button
+                    onClick={() => setWizardStep('concursoBlocoBanca')}
+                    className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={() => setWizardStep('concursoBlocoDificuldade')}
+                    className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all"
+                    style={{ background: 'var(--brand-primary)', color: brandTextColor }}
+                  >
+                    Avançar <ArrowRight size={16} />
+                  </button>
+                </>
+              )}
+
+              {wizardStep === 'concursoBlocoDificuldade' && (
+                <>
+                  <button
+                    onClick={() => setWizardStep('concursoBlocoProva')}
+                    className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={() => {
+                      const block = PMMG_BLOCKS.find((b) => b.value === concursoBlocoValue)
+                      if (!block) return
+                      setConcursoSelection({
+                        bank: concursoBank,
+                        role: concursoRole,
+                        compositions: composicaoToApiCompositions(block.composicao, false),
+                        includeAnswered: false,
+                        difficulty,
+                      })
+                      setWizardStep('revisao')
+                    }}
+                    className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all"
+                    style={{ background: 'var(--brand-primary)', color: brandTextColor }}
+                  >
+                    Avançar: Revisão <ArrowRight size={16} />
                   </button>
                 </>
               )}

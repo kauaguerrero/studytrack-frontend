@@ -43,9 +43,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { ModuleGuard } from '@/components/partners/ModuleGuard'
 import { RevealGroup, RevealItem, ElevatedCard, SectionTitle, KpiCard } from '@/components/partners/founder-ui'
-import { type ContestQuota } from '../../simulados/ContestQuotaBuilder'
 import { NovoSimuladoWizard } from '@/components/partners/simulado/NovoSimuladoWizard'
-import { type Composicao, composicaoToApiCompositions } from '@/lib/simuladoComposicao'
+import { type ApiComposition, type Composicao, composicaoToApiCompositions } from '@/lib/simuladoComposicao'
 import { VESTIBULAR_BANK_OPTIONS as BANK_OPTIONS } from '@/lib/simuladoBanks'
 import { MOCK_SIMULADO_RANKING_STUDENT, MOCK_SCHEDULED_SIMULADOS_STUDENT } from '../../../../../../studytrack-tutorial-mock'
 
@@ -510,13 +509,17 @@ export default function SimuladoPage() {
   const [step, setStep] = useState<'setup' | 'quiz' | 'result'>('setup')
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [wizardStep, setWizardStep] = useState<
-    'formato' | 'configuracao' | 'configBanca' | 'configQty' | 'configAno' | 'configDificuldade' | 'materiasComposicao'
-    | 'concursoConfig' | 'concursoTemas' | 'concursoResumo' | 'revisao'
+    'formato'
+    | 'configBanca' | 'configQty' | 'configAno' | 'configDificuldade' | 'materiasComposicao'
+    | 'presetBanca' | 'presetBloco' | 'presetAno' | 'presetDificuldade'
+    | 'concursoBanca' | 'concursoQty' | 'concursoComposicao'
+    | 'concursoBlocoBanca' | 'concursoBlocoProva' | 'concursoBlocoDificuldade'
+    | 'revisao'
   >('formato')
   const [simuladoFormat, setSimuladoFormat] = useState<'vestibular' | 'concurso'>('vestibular')
-  const [concursoSelection, setConcursoSelection] = useState<{ bank: string; role: string; quotas: ContestQuota[]; includeAnswered: boolean } | null>(null)
+  const [concursoSelection, setConcursoSelection] = useState<{ bank: string; role: string; compositions: ApiComposition[]; includeAnswered: boolean; difficulty: string } | null>(null)
   const [dashboardType, setDashboardType] = useState<'vestibular' | 'concurso'>('vestibular')
-  const contestRequestRef = useRef<{bank:string; role:string; quotas:ContestQuota[]; includeAnswered: boolean} | null>(null)
+  const contestRequestRef = useRef<{ bank: string; role: string; compositions: ApiComposition[]; includeAnswered: boolean; difficulty: string } | null>(null)
   const startingRef = useRef(false)
 
   // Config
@@ -1175,7 +1178,7 @@ export default function SimuladoPage() {
   }
 
   // ── Handlers ──
-  const startSimulado = async (scheduledId?: string, discardActive?: boolean, language?: string, contest?: {bank:string; role:string; quotas:ContestQuota[]; includeAnswered: boolean}) => {
+  const startSimulado = async (scheduledId?: string, discardActive?: boolean, language?: string, contest?: { bank: string; role: string; compositions: ApiComposition[]; includeAnswered: boolean; difficulty: string }) => {
     if (startingRef.current) return
     startingRef.current = true
     setLoading(true)
@@ -1216,7 +1219,7 @@ export default function SimuladoPage() {
       }
       const contestConfig = contest || (discardActive && !scheduledId ? contestRequestRef.current : null)
       if (contestConfig && !scheduledId) {
-        Object.assign(body, { format: 'custom', bank: contestConfig.bank, question_type: 'concurso', role: contestConfig.role || null, difficulty: 'misto', compositions: contestConfig.quotas.map(q => ({ ...q, include_answered: contestConfig.includeAnswered })) })
+        Object.assign(body, { format: 'custom', bank: contestConfig.bank, question_type: 'concurso', role: contestConfig.role || null, difficulty: contestConfig.difficulty, compositions: contestConfig.compositions })
         delete body.year
         delete body.qty
       }
