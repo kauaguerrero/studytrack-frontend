@@ -10,6 +10,7 @@ import {
 } from '@/lib/simuladoComposicao'
 
 interface Topic { name: string; count: number }
+interface SubjectOption { value: string; label: string }
 
 interface MateriasComposicaoStepProps {
   apiUrl: string
@@ -22,9 +23,16 @@ interface MateriasComposicaoStepProps {
   setComposicao: (c: Composicao) => void
   includeAnswered: boolean
   setIncludeAnswered: (v: boolean) => void
+  // Catálogo injetado (ex.: concurso, cujo catálogo de matérias/assuntos já
+  // vem todo pré-carregado via facets, escopado por banca/cargo) — quando
+  // fornecido, substitui o catálogo fixo de vestibular (CUSTOM_SUBJECTS) e
+  // desliga os fetches internos (lazy por matéria + disponibilidade), já
+  // que não há nada a buscar: tudo já está em memória.
+  subjects?: SubjectOption[]
+  topicsBySubject?: Record<string, Topic[]>
 }
 
-const SUBJECTS = CUSTOM_SUBJECTS.filter((s) => s.value !== 'Todas')
+const VESTIBULAR_SUBJECTS = CUSTOM_SUBJECTS.filter((s) => s.value !== 'Todas')
 
 function normalize(value: string): string {
   return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -32,16 +40,20 @@ function normalize(value: string): string {
 
 export function MateriasComposicaoStep({
   apiUrl, accessToken, bank, year, difficultyLabel, qty, composicao, setComposicao, includeAnswered, setIncludeAnswered,
+  subjects: subjectsProp, topicsBySubject: topicsBySubjectProp,
 }: MateriasComposicaoStepProps) {
+  const isCatalogInjected = topicsBySubjectProp !== undefined
+  const SUBJECTS = subjectsProp ?? VESTIBULAR_SUBJECTS
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [topicsBySubject, setTopicsBySubject] = useState<Record<string, Topic[]>>({})
+  const [fetchedTopicsBySubject, setFetchedTopicsBySubject] = useState<Record<string, Topic[]>>({})
   const [loadingSubjects, setLoadingSubjects] = useState<Set<string>>(new Set())
   const [touched, setTouched] = useState<Set<string>>(new Set())
   const [availability, setAvailability] = useState<Record<string, number | null>>({})
+  const topicsBySubject = topicsBySubjectProp ?? fetchedTopicsBySubject
 
   useEffect(() => {
-    if (!expanded || topicsBySubject[expanded]) return
+    if (isCatalogInjected || !expanded || fetchedTopicsBySubject[expanded]) return
     const controller = new AbortController()
     const fetchTopics = async () => {
       setLoadingSubjects((prev) => new Set(prev).add(expanded))
@@ -50,19 +62,19 @@ export function MateriasComposicaoStep({
       try {
         const res = await fetch(`${apiUrl}/api/questions/topics?${params.toString()}`, { signal: controller.signal })
         const data = res.ok ? await res.json() : []
-        setTopicsBySubject((prev) => ({ ...prev, [expanded]: Array.isArray(data) ? data : [] }))
+        setFetchedTopicsBySubject((prev) => ({ ...prev, [expanded]: Array.isArray(data) ? data : [] }))
       } catch {
-        if (!controller.signal.aborted) setTopicsBySubject((prev) => ({ ...prev, [expanded]: [] }))
+        if (!controller.signal.aborted) setFetchedTopicsBySubject((prev) => ({ ...prev, [expanded]: [] }))
       } finally {
         if (!controller.signal.aborted) setLoadingSubjects((prev) => { const next = new Set(prev); next.delete(expanded); return next })
       }
     }
     fetchTopics()
     return () => controller.abort()
-  }, [expanded, bank, apiUrl, topicsBySubject])
+  }, [isCatalogInjected, expanded, bank, apiUrl, fetchedTopicsBySubject])
 
   useEffect(() => {
-    if (!accessToken) return
+    if (isCatalogInjected || !accessToken) return
     const controller = new AbortController()
     const slots = composicao.flatMap((s) => (
       s.mode === 'all'
@@ -92,7 +104,7 @@ export function MateriasComposicaoStep({
     })
     return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composicao, accessToken, bank, year, difficultyLabel, includeAnswered])
+  }, [isCatalogInjected, composicao, accessToken, bank, year, difficultyLabel, includeAnswered])
 
   const filteredSubjects = useMemo(() => {
     if (!query.trim()) return SUBJECTS
@@ -102,7 +114,7 @@ export function MateriasComposicaoStep({
       const topics = topicsBySubject[s.value]
       return topics?.some((t) => normalize(t.name).includes(q)) ?? false
     })
-  }, [query, topicsBySubject])
+  }, [query, topicsBySubject, SUBJECTS])
 
   const distributed = composicaoTotalQty(composicao)
   const remaining = remainingBudget(composicao, qty)
