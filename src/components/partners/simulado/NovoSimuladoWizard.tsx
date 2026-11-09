@@ -10,8 +10,8 @@ import { WizardSidebar } from '@/components/partners/simulado/WizardSidebar'
 import { MateriasComposicaoStep } from '@/components/partners/simulado/MateriasComposicaoStep'
 import { useConcursoFacets } from '@/components/partners/simulado/ConcursoSteps'
 import {
-  type ApiComposition, type Composicao, type SubjectComposicao,
-  composicaoDistinctSubjects, composicaoDistinctTopics, composicaoToApiCompositions, composicaoTotalQty,
+  type ApiComposition, type AvailabilityBySlot, type Composicao, type SubjectComposicao,
+  composicaoDistinctSubjects, composicaoDistinctTopics, composicaoSlotId, composicaoToApiCompositions, composicaoTotalQty,
 } from '@/lib/simuladoComposicao'
 
 // `role`/`bank` de concurso são valores crus da coluna do banco (ex.: "soldado"),
@@ -186,6 +186,18 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
       counts.set(key, (counts.get(key) ?? 0) + (f.count ?? 1))
     })
     concursoTopicsBySubject[subject] = [...counts.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  })
+  // Disponibilidade real por slot, direto das facets (sem precisar de fetch
+  // extra como no vestibular) — modo "all" usa o total da matéria (todas as
+  // disciplinas, inclusive sem disciplina marcada); modo "topics" usa a
+  // contagem específica daquele assunto.
+  const concursoAvailabilityBySlot: AvailabilityBySlot = {}
+  concursoSubjectValues.forEach((subject) => {
+    const subjectTotal = concursoCurrentFacets.filter((f) => f.subject === subject).reduce((sum, f) => sum + (f.count ?? 1), 0)
+    concursoAvailabilityBySlot[composicaoSlotId(subject)] = subjectTotal
+    concursoTopicsBySubject[subject].forEach((t) => {
+      concursoAvailabilityBySlot[composicaoSlotId(subject, t.name)] = t.count
+    })
   })
 
   const isConfigLocalSubflow = wizardStep === 'configBanca' || wizardStep === 'configQty' || wizardStep === 'configAno' || wizardStep === 'configDificuldade'
@@ -782,6 +794,7 @@ export function NovoSimuladoWizard(props: NovoSimuladoWizardProps) {
                   setIncludeAnswered={setConcursoIncludeAnswered}
                   subjects={concursoSubjectsOptions}
                   topicsBySubject={concursoTopicsBySubject}
+                  availabilityBySlot={concursoAvailabilityBySlot}
                 />
               )}
 

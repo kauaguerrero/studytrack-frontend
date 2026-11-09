@@ -5,7 +5,8 @@ import { ChevronDown, Loader2, Minus, Plus, Search, X } from 'lucide-react'
 import { CUSTOM_SUBJECTS } from '@/lib/simuladoSubjects'
 import { Switch } from '@/components/ui/switch'
 import {
-  type Composicao, type SubjectComposicao, composicaoDistinctSubjects, composicaoDistinctTopics,
+  type AvailabilityBySlot, type Composicao, type SubjectComposicao,
+  composicaoDistinctSubjects, composicaoDistinctTopics,
   composicaoSlotId, composicaoTotalQty, clampSlotQty, redistributeQty, remainingBudget,
 } from '@/lib/simuladoComposicao'
 
@@ -30,6 +31,11 @@ interface MateriasComposicaoStepProps {
   // que não há nada a buscar: tudo já está em memória.
   subjects?: SubjectOption[]
   topicsBySubject?: Record<string, Topic[]>
+  // Teto real de disponibilidade por slot (subject ou subject::topic), já
+  // conhecido de antemão (ex.: concurso, vindo do `count` das facets) — só
+  // faz sentido junto com `topicsBySubject` injetado. Sem catálogo injetado,
+  // a disponibilidade é sempre buscada internamente (vestibular).
+  availabilityBySlot?: AvailabilityBySlot
 }
 
 const VESTIBULAR_SUBJECTS = CUSTOM_SUBJECTS.filter((s) => s.value !== 'Todas')
@@ -40,7 +46,7 @@ function normalize(value: string): string {
 
 export function MateriasComposicaoStep({
   apiUrl, accessToken, bank, year, difficultyLabel, qty, composicao, setComposicao, includeAnswered, setIncludeAnswered,
-  subjects: subjectsProp, topicsBySubject: topicsBySubjectProp,
+  subjects: subjectsProp, topicsBySubject: topicsBySubjectProp, availabilityBySlot: availabilityBySlotProp,
 }: MateriasComposicaoStepProps) {
   const isCatalogInjected = topicsBySubjectProp !== undefined
   const SUBJECTS = subjectsProp ?? VESTIBULAR_SUBJECTS
@@ -73,6 +79,12 @@ export function MateriasComposicaoStep({
     return () => controller.abort()
   }, [isCatalogInjected, expanded, bank, apiUrl, fetchedTopicsBySubject])
 
+  // Filtros que mudam o universo de questões (banca/ano/dificuldade/já
+  // respondidas) invalidam qualquer disponibilidade já em cache — a chave do
+  // cache já inclui esses filtros, então trocar um deles naturalmente busca
+  // de novo em vez de reaproveitar um teto errado de outro filtro.
+  const availabilityFilterKey = `${bank}|${year}|${difficultyLabel ?? ''}|${includeAnswered}`
+
   useEffect(() => {
     if (isCatalogInjected || !accessToken) return
     const controller = new AbortController()
@@ -82,7 +94,8 @@ export function MateriasComposicaoStep({
         : s.topics.map((t) => ({ id: composicaoSlotId(s.subject, t.topic), subject: s.subject, topic: t.topic as string | null }))
     ))
     slots.forEach((slot) => {
-      if (slot.id in availability) return
+      const cacheKey = `${availabilityFilterKey}::${slot.id}`
+      if (cacheKey in availability) return
       ;(async () => {
         try {
           const params = new URLSearchParams({ page: '1', limit: '1', tab: includeAnswered ? 'all' : 'todo', subject: slot.subject })
@@ -96,15 +109,44 @@ export function MateriasComposicaoStep({
           })
           const data = res.ok ? await res.json() : null
           const total = typeof data?.total === 'number' ? data.total : null
-          if (!controller.signal.aborted) setAvailability((prev) => ({ ...prev, [slot.id]: total }))
+          if (!controller.signal.aborted) setAvailability((prev) => ({ ...prev, [cacheKey]: total }))
         } catch {
-          if (!controller.signal.aborted) setAvailability((prev) => ({ ...prev, [slot.id]: null }))
+          if (!controller.signal.aborted) setAvailability((prev) => ({ ...prev, [cacheKey]: null }))
         }
       })()
     })
     return () => controller.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCatalogInjected, composicao, accessToken, bank, year, difficultyLabel, includeAnswered])
+  }, [isCatalogInjected, composicao, accessToken, bank, year, difficultyLabel, includeAnswered, availabilityFilterKey])
+
+  const effectiveAvailability: AvailabilityBySlot = isCatalogInjected
+    ? (availabilityBySlotProp ?? {})
+    : Object.fromEntries(
+      Object.entries(availability)
+        .filter((entry): entry is [string, number] => entry[0].startsWith(`${availabilityFilterKey}::`) && typeof entry[1] === 'number')
+        .map(([key, value]) => [key.slice(availabilityFilterKey.length + 2), value]),
+    )
+
+  // Quando a disponibilidade real de um slot chega (vestibular, busca
+  // assíncrona) e é menor do que a auto-distribuição já tinha atribuído a
+  // ele, refaz a distribuição respeitando o teto — sem isso, o sistema
+  // podia "prometer" mais questões de um assunto do que o banco realmente
+  // tem, e o erro só aparecia na hora de iniciar o simulado.
+  useEffect(() => {
+    if (Object.keys(effectiveAvailability).length === 0) return
+    const overCap = composicao.some((s) => {
+      if (s.mode === 'all') {
+        const id = composicaoSlotId(s.subject)
+        return !touched.has(id) && effectiveAvailability[id] !== undefined && s.qty > effectiveAvailability[id]
+      }
+      return s.topics.some((t) => {
+        const id = composicaoSlotId(s.subject, t.topic)
+        return !touched.has(id) && effectiveAvailability[id] !== undefined && t.qty > effectiveAvailability[id]
+      })
+    })
+    if (overCap) setComposicao(redistributeQty(composicao, qty, touched, effectiveAvailability))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveAvailability])
 
   const filteredSubjects = useMemo(() => {
     if (!query.trim()) return SUBJECTS
@@ -136,7 +178,7 @@ export function MateriasComposicaoStep({
       next = [...composicao, { subject, mode: 'all', qty: 0, topics: [] } as SubjectComposicao]
       setExpanded(subject)
     }
-    setComposicao(redistributeQty(next, qty, touched))
+    setComposicao(redistributeQty(next, qty, touched, effectiveAvailability))
   }
 
   // Modo "all" (padrão ao marcar a matéria) não marca nenhum assunto
@@ -165,7 +207,7 @@ export function MateriasComposicaoStep({
       touchedNext = new Set(touchedNext)
       touchedNext.delete(composicaoSlotId(subject))
       setTouched(touchedNext)
-      setComposicao(redistributeQty(next, qty, touchedNext))
+      setComposicao(redistributeQty(next, qty, touchedNext, effectiveAvailability))
       return
     }
 
@@ -178,12 +220,12 @@ export function MateriasComposicaoStep({
       : [...composicao, nextEntry]
 
     if (touchedNext !== touched) setTouched(touchedNext)
-    setComposicao(redistributeQty(next, qty, touchedNext))
+    setComposicao(redistributeQty(next, qty, touchedNext, effectiveAvailability))
   }
 
   function onStepperChange(id: string, delta: number) {
     const current = flatQtyOf(composicao, id)
-    const next = clampSlotQty(composicao, id, current + delta, qty)
+    const next = clampSlotQty(composicao, id, current + delta, qty, effectiveAvailability)
     setTouched((prev) => new Set(prev).add(id))
     setComposicao(next)
   }
@@ -280,7 +322,8 @@ export function MateriasComposicaoStep({
                     qty={entry.qty}
                     onDecrement={() => onStepperChange(composicaoSlotId(subject.value), -1)}
                     onIncrement={() => onStepperChange(composicaoSlotId(subject.value), 1)}
-                    disableIncrement={remaining === 0}
+                    remaining={remaining}
+                    availableCap={effectiveAvailability[composicaoSlotId(subject.value)]}
                     disableDecrement={entry.qty === 0}
                   />
                 )}
@@ -317,7 +360,8 @@ export function MateriasComposicaoStep({
                                 qty={topicQty}
                                 onDecrement={() => onStepperChange(composicaoSlotId(subject.value, topic.name), -1)}
                                 onIncrement={() => onStepperChange(composicaoSlotId(subject.value, topic.name), 1)}
-                                disableIncrement={remaining === 0}
+                                remaining={remaining}
+                                availableCap={effectiveAvailability[composicaoSlotId(subject.value, topic.name)]}
                                 disableDecrement={topicQty === 0}
                               />
                             )}
@@ -364,29 +408,38 @@ function flatQtyOf(c: Composicao, id: string): number {
 }
 
 function Stepper({
-  qty, onDecrement, onIncrement, disableIncrement, disableDecrement,
-}: { qty: number; onDecrement: () => void; onIncrement: () => void; disableIncrement: boolean; disableDecrement: boolean }) {
+  qty, onDecrement, onIncrement, remaining, availableCap, disableDecrement,
+}: { qty: number; onDecrement: () => void; onIncrement: () => void; remaining: number; availableCap?: number; disableDecrement: boolean }) {
+  const atCap = availableCap !== undefined && qty >= availableCap
+  const disableIncrement = remaining === 0 || atCap
   return (
-    <div className="flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 p-1 dark:border-slate-700">
-      <button
-        type="button"
-        onClick={onDecrement}
-        disabled={disableDecrement}
-        aria-label="Diminuir quantidade"
-        className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-slate-800"
-      >
-        <Minus size={14} />
-      </button>
-      <span className="w-6 text-center text-sm font-bold text-slate-800 dark:text-slate-100">{qty}</span>
-      <button
-        type="button"
-        onClick={onIncrement}
-        disabled={disableIncrement}
-        aria-label="Aumentar quantidade"
-        className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-slate-800"
-      >
-        <Plus size={14} />
-      </button>
+    <div className="flex shrink-0 flex-col items-end gap-0.5">
+      <div className="flex items-center gap-1 rounded-xl border border-slate-200 p-1 dark:border-slate-700">
+        <button
+          type="button"
+          onClick={onDecrement}
+          disabled={disableDecrement}
+          aria-label="Diminuir quantidade"
+          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-slate-800"
+        >
+          <Minus size={14} />
+        </button>
+        <span className="w-6 text-center text-sm font-bold text-slate-800 dark:text-slate-100">{qty}</span>
+        <button
+          type="button"
+          onClick={onIncrement}
+          disabled={disableIncrement}
+          aria-label="Aumentar quantidade"
+          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-slate-800"
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+      {availableCap !== undefined && (
+        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+          {availableCap} dispon{availableCap === 1 ? 'ível' : 'íveis'}
+        </span>
+      )}
     </div>
   )
 }
