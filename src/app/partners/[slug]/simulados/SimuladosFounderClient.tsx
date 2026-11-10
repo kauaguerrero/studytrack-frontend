@@ -479,11 +479,24 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
       if (!gabaritoRes.ok) throw new Error('Erro ao baixar PDF do gabarito.');
       await downloadBlobResponse(gabaritoRes, `gabarito_${sim.title}.pdf`);
 
-      const gabaritoOficialRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${printedId}/gabarito-oficial.pdf`);
-      if (!gabaritoOficialRes.ok) throw new Error('Erro ao baixar PDF do gabarito oficial.');
-      await downloadBlobResponse(gabaritoOficialRes, `gabarito_oficial_${sim.title}.pdf`);
+      // Bancas PMMG já embutem o gabarito oficial como 1ª página de
+      // prova.pdf (ver download_prova no backend) — baixá-lo nessa hora
+      // de novo, separado, seria o mesmo conteúdo duplicado num 3º
+      // arquivo. Outras bancas não fazem essa fusão, então pra elas o
+      // gabarito-oficial.pdf continua sendo o único lugar com as
+      // respostas certas marcadas.
+      const isPmmg = (sim.config?.bank || '').toUpperCase() === 'PMMG';
+      if (!isPmmg) {
+        const gabaritoOficialRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${printedId}/gabarito-oficial.pdf`);
+        if (!gabaritoOficialRes.ok) throw new Error('Erro ao baixar PDF do gabarito oficial.');
+        await downloadBlobResponse(gabaritoOficialRes, `gabarito_oficial_${sim.title}.pdf`);
+      }
 
-      toast.success('PDF da prova, gabarito e gabarito oficial baixados.');
+      toast.success(
+        isPmmg
+          ? 'PDF da prova (com gabarito oficial embutido) e do gabarito em branco baixados.'
+          : 'PDF da prova, gabarito e gabarito oficial baixados.',
+      );
       void loadSimulados();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível imprimir o simulado.');
