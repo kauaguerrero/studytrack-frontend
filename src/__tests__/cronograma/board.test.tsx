@@ -327,13 +327,21 @@ describe('InsightsPanel', () => {
     expect(screen.queryByText('Geral')).toBeNull();
     expect(screen.getByText('12/100 · 12%')).toBeInTheDocument();
   });
-  it('CT-I08 freio do dia explica que hoje é só revisão', () => {
-    render(<InsightsPanel data={insights({ brake_today: true, reviews_due_today: 9 })} />);
-    expect(screen.getByText(/Hoje só revisão: você tem 9 revisões vencidas/)).toBeInTheDocument();
+  it('CT-I08 freio do dia conta as revisões do quadro e as atrasadas', () => {
+    render(<InsightsPanel data={insights({ brake_today: true, reviews_due_today: 9, reviews_overdue_today: 2 })} />);
+    expect(screen.getByText(/Hoje só revisão/)).toHaveTextContent('Hoje só revisão: 9 revisões no quadro, 2 atrasadas.');
+  });
+  it('CT-I08b uma revisão, nenhuma atrasada', () => {
+    render(<InsightsPanel data={insights({ brake_today: true, reviews_due_today: 1 })} />);
+    expect(screen.getByText(/Hoje só revisão/)).toHaveTextContent('Hoje só revisão: 1 revisão no quadro.');
   });
   it('CT-I09 conteúdos que ficam de fora com a área principal', () => {
     render(<InsightsPanel data={insights({ left_out: 40, weekly_minutes: 450, left_out_by_area: [{ area: 'humanas', label: 'Humanas', count: 30 }] })} />);
-    expect(screen.getByText(/No ritmo atual \(8h por semana\)/)).toHaveTextContent('a maioria de Humanas');
+    expect(screen.getByText(/No ritmo atual \(7h30 por semana\)/)).toHaveTextContent('a maioria de Humanas');
+  });
+  it('CT-I09b rotina que muda depois aparece no aviso de conteúdos de fora', () => {
+    render(<InsightsPanel data={insights({ left_out: 920, weekly_minutes: 2130, routine_change: { from: '2026-11-18', weekly_minutes: 210 } })} />);
+    expect(screen.getByText(/Com a sua rotina/)).toHaveTextContent('Com a sua rotina (35h30 por semana agora e 3h30 a partir de 18/11), 920 conteúdos');
   });
   it('CT-I10 nada de fora → sem aviso', () => {
     render(<InsightsPanel data={insights()} />);

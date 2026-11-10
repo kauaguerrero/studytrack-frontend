@@ -116,9 +116,13 @@ export interface Insights {
   by_area: { area: Area; label: string; total: number; studied: number; pct: number }[];
   streak_days: number;
   retention_pct: number | null;
+  /** Revisões pendentes no quadro de hoje (não os cartões que vencem hoje). */
   reviews_due_today: number;
+  reviews_overdue_today?: number;
   brake_today: boolean;
   weekly_minutes: number;
+  /** Primeira mudança da semana por rotina com data, até a prova. */
+  routine_change?: { from: string; weekly_minutes: number } | null;
 }
 
 export interface DiffEntry {

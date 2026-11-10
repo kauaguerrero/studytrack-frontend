@@ -7,7 +7,7 @@
 // Barra particionada por área: cada segmento tem a largura do peso da área no plano.
 
 import { Flame, Gauge, Brain, CalendarDays, AlertCircle } from 'lucide-react';
-import { AREA_STYLE, type Insights } from '@/lib/cronograma';
+import { AREA_STYLE, formatDayMonth, formatMinutes, type Insights } from '@/lib/cronograma';
 
 const PACE: Record<Insights['pace'], { label: string; color: string; cls: string }> = {
   adiantado: { label: 'Adiantado', color: '#16a34a', cls: 'bg-emerald-100 text-emerald-800' },
@@ -71,11 +71,17 @@ export function InsightsPanel({ data, loading }: { data: Insights | null; loadin
       </div>
 
       {data.brake_today && (
-        <Note>Hoje só revisão: você tem {data.reviews_due_today} revisões vencidas. Consolidar antes de avançar faz o conteúdo ficar.</Note>
+        <Note>
+          Hoje só revisão: {data.reviews_due_today} {data.reviews_due_today === 1 ? 'revisão' : 'revisões'} no quadro
+          {data.reviews_overdue_today ? `, ${data.reviews_overdue_today} ${data.reviews_overdue_today === 1 ? 'atrasada' : 'atrasadas'}` : ''}.
+          Consolidar antes de avançar faz o conteúdo ficar.
+        </Note>
       )}
       {data.left_out > 0 && (
         <Note>
-          No ritmo atual ({Math.round(data.weekly_minutes / 60)}h por semana), <b>{data.left_out} conteúdos</b> de menor incidência
+          {data.routine_change
+            ? `Com a sua rotina (${formatMinutes(data.weekly_minutes)} por semana agora e ${formatMinutes(data.routine_change.weekly_minutes)} a partir de ${formatDayMonth(data.routine_change.from)})`
+            : `No ritmo atual (${formatMinutes(data.weekly_minutes)} por semana)`}, <b>{data.left_out} conteúdos</b> de menor incidência
           ficam para depois da prova{data.left_out_by_area[0] ? `, a maioria de ${data.left_out_by_area[0].label}` : ''}. Os mais cobrados vêm primeiro.
         </Note>
       )}
