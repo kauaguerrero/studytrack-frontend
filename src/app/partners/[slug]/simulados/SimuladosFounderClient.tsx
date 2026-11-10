@@ -2,12 +2,19 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useOrg } from '@/contexts/OrgContext';
-import { VESTIBULAR_BANK_LABELS } from '@/lib/simuladoBanks';
+import {
+  BANK_LABELS, DIFFICULTY_LABELS, FORMATS_BY_BANK, resolveQty, isQtyLocked,
+  buildDistributionHintLines, WEIGHT_KEYS_BY_BANK, UEG_GROUP_PRESETS, UEG_GROUP_COURSES,
+  formatLabel, formatDateTime, EMPTY_FORM,
+} from '@/lib/simuladoFounderForm';
 import { useRouter } from 'next/navigation';
 import { MOCK_SIMULADOS } from '../../../../../studytrack-tutorial-mock';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
 import PersonalizedSimuladoWizard from '@/app/partners/[slug]/simulados/PersonalizedSimuladoWizard';
+import NovoSimuladoAleatorioWizard from '@/app/partners/[slug]/simulados/NovoSimuladoAleatorioWizard';
+import { DateTimeField } from '@/components/partners/simulado/DateTimeField';
+import { CUSTOM_SUBJECTS } from '@/lib/simuladoSubjects';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,7 +26,7 @@ import {
   Plus, ChevronDown, Trophy, Users, BarChart2, BarChart3,
   CalendarDays, Pencil, Trash2, Play, Timer, BookOpen, X, SlidersHorizontal,
   Shuffle, ListChecks, Monitor, Printer, FileText, ClipboardList, Download,
-  MapPin, Camera, Eye, RefreshCw,
+  MapPin, Camera, Eye, RefreshCw, GraduationCap, Shield,
 } from 'lucide-react';
 import SimuladoPreviewModal from '@/components/partners/simulados/SimuladoPreviewModal';
 import { downloadBlobResponse } from '@/lib/download-blob';
@@ -30,6 +37,8 @@ import type { RawPreviewQuestion, SelectedQuestion } from '@/types/simulado-prev
 interface SimuladoConfig {
   format: string;
   bank: string;
+  question_type?: 'vestibular' | 'concurso' | null;
+  role?: string | null;
   subject: string | null;
   difficulty: string;
   qty: number;
@@ -65,6 +74,13 @@ interface ScheduledSimulado {
     best_score_pct: number | null;
     worst_score_pct: number | null;
   };
+}
+
+interface PrintedExam {
+  id: string;
+  title: string;
+  created_at: string;
+  scheduled_simulado_id: string | null;
 }
 
 interface RankingEntry {
@@ -134,159 +150,12 @@ interface SimuladoAnalytics {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-const BANK_LABELS = VESTIBULAR_BANK_LABELS;
-const DIFFICULTY_LABELS: Record<string, string> = {
-  facil: 'Fácil', medio: 'Médio', dificil: 'Difícil', misto: 'Misto',
-};
-const FORMAT_LABELS: Record<string, string> = {
-  custom: 'Personalizado', linguagens: 'Linguagens, Códigos e suas Tecnologias',
-  humanas: 'Ciências Humanas e suas Tecnologias',
-  natureza: 'Ciências da Natureza e suas Tecnologias',
-  matematica: 'Matemática e suas Tecnologias',
-  dia1: 'Dia 1 ENEM', dia2: 'Dia 2 ENEM', completo: 'Prova completa',
-};
-
-function formatLabel(bank: string, format: string): string {
-  return bank === 'UNESP' && format === 'completo'
-    ? '1ª fase: Conhecimentos Gerais'
-    : FORMAT_LABELS[format] ?? format;
-}
-
-// Formatos disponíveis por banca
-const FORMATS_BY_BANK: Record<string, string[]> = {
-  ENEM:  ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'dia1', 'dia2', 'completo'],
-  UFU:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
-  UEG:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
-  UFG:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
-  UNESP: ['custom', 'completo'],
-  Todas: ['custom'],
-};
-
-// Quantidade fixa de questões por banca/formato (espelha o backend).
-// Usada como valor padrão ao trocar banca/formato — para bancas com
-// distribuição proporcional (ver PROPORTIONAL_COMPLETE_BANKS abaixo), o
-// campo continua editável e este número é só o ponto de partida sugerido.
-const BLOCK_QTY: Record<string, Record<string, number>> = {
-  ENEM: { linguagens: 45, humanas: 45, natureza: 45, matematica: 45, dia1: 90, dia2: 90, completo: 180 },
-  UFU:  { linguagens: 20, humanas: 20, natureza: 15, matematica: 10, completo: 65 },
-  UEG:  { linguagens: 13, humanas: 13, natureza: 13, matematica: 13, completo: 52 },
-  UFG:  { linguagens: 24, humanas: 24, natureza: 24, matematica: 24, completo: 96 },
-  UNESP: { completo: 90 },
-};
-
-// Bancas cujo formato "completo" tem distribuição por áreas conhecida e
-// sabe reescalar essa distribuição proporcionalmente para qualquer
-// quantidade total (espelha simulado_service.py::_scale_subject_quota /
-// _scale_area_distribution no backend) — por isso, ao contrário das demais,
-// a quantidade fica editável mesmo no formato "completo".
-const PROPORTIONAL_COMPLETE_BANKS = new Set(['UFU', 'UEG', 'UFG']);
-
-function resolveQty(bank: string, format: string): number | null {
-  return BLOCK_QTY[bank]?.[format] ?? null; // null = custom, qty editável
-}
-
-function isQtyLocked(bank: string, format: string): boolean {
-  if (format === 'completo' && PROPORTIONAL_COMPLETE_BANKS.has(bank)) return false;
-  return resolveQty(bank, format) !== null;
-}
-
-// Distribuição do sorteio por matéria. UFU define esses números no guia;
-// UEG e UFG fixam as quantidades por área, não por disciplina. Os valores
-// por disciplina destas duas bancas são uma aproximação do produto.
-// Espelha as constantes homônimas em simulado_service.py.
-const UFU_COMPLETE_SUBJECT_DISTRIBUTION: Record<string, number> = {
-  'Língua Portuguesa': 10, 'Literatura': 5, '__idioma__': 5,
-  'Matemática': 10, 'Biologia': 5, 'Física': 5, 'Química': 5,
-  'Geografia': 5, 'História': 5, 'Filosofia': 5, 'Sociologia': 5,
-};
-
-const UEG_COMPLETE_AREA_DISTRIBUTION: Record<string, Record<string, number>> = {
-  linguagens: {
-    'Língua Portuguesa': 9, '__idioma__': 4,
-  },
-  matematica: { 'Matemática': 13 },
-  natureza: { 'Biologia': 5, 'Física': 4, 'Química': 4 },
-  humanas: { 'História': 4, 'Geografia': 3, 'Filosofia': 3, 'Sociologia': 3 },
-};
-
-const UFG_COMPLETE_SUBJECT_DISTRIBUTION: Record<string, number> = {
-  'Língua Portuguesa': 24, 'Matemática': 24, 'Biologia': 8, 'Física': 8, 'Química': 8,
-  'História': 6, 'Geografia': 6, 'Filosofia': 6, 'Sociologia': 6,
-};
-
-// Reescala uma distribuição fixa por matéria para um total diferente,
-// preservando a proporção original (método do maior resto / Hamilton) —
-// espelha _scale_subject_quota no backend. Sem isso, um corte simples
-// zeraria as matérias menores (ex.: Sociologia) num total menor.
-function scaleSubjectQuota(base: Record<string, number>, targetQty: number): Record<string, number> {
-  const subjects = Object.keys(base);
-  const totalBase = subjects.reduce((sum, s) => sum + Math.max(0, base[s]), 0);
-  if (totalBase <= 0 || targetQty <= 0) {
-    return Object.fromEntries(subjects.map((s) => [s, 0]));
-  }
-  const exact: Record<string, number> = {};
-  const scaled: Record<string, number> = {};
-  for (const s of subjects) {
-    exact[s] = (Math.max(0, base[s]) * targetQty) / totalBase;
-    scaled[s] = Math.floor(exact[s]);
-  }
-  let remainder = targetQty - subjects.reduce((sum, s) => sum + scaled[s], 0);
-  const order = [...subjects].sort((a, b) => (exact[b] - scaled[b]) - (exact[a] - scaled[a]));
-  for (let i = 0; i < order.length && remainder > 0; i += 1, remainder -= 1) {
-    scaled[order[i]] += 1;
-  }
-  return scaled;
-}
-
-// Monta o resumo "Distribuição estimada" já reescalado para a quantidade
-// escolhida (form.qty) — em vez do texto fixo de antes, que só refletia o
-// total oficial (96/65/52) e ficava errado assim que a quantidade mudasse.
-function buildDistributionHintLines(bank: string, qty: number): string[] | null {
-  if (!qty || qty <= 0) return null;
-  if (bank === 'UFU') {
-    const d = scaleSubjectQuota(UFU_COMPLETE_SUBJECT_DISTRIBUTION, qty);
-    return [
-      `Português ${d['Língua Portuguesa']}, Literatura ${d['Literatura']}, Língua Estrangeira ${d['__idioma__']} (um idioma à escolha: Inglês, Espanhol ou Francês)`,
-      `Matemática ${d['Matemática']}`,
-      `Biologia ${d['Biologia']}, Física ${d['Física']}, Química ${d['Química']}`,
-      `Geografia ${d['Geografia']}, História ${d['História']}, Filosofia ${d['Filosofia']}, Sociologia ${d['Sociologia']}`,
-      `Total ${qty} questões objetivas`,
-    ];
-  }
-  if (bank === 'UEG') {
-    const areaTotals = Object.fromEntries(
-      Object.entries(UEG_COMPLETE_AREA_DISTRIBUTION).map(([area, quota]) => [area, Object.values(quota).reduce((a, b) => a + b, 0)]),
-    );
-    const scaledAreaTotals = scaleSubjectQuota(areaTotals, qty);
-    return [
-      `Linguagens ${scaledAreaTotals['linguagens']} (Português e língua estrangeira; composição do banco de questões)`,
-      `Matemática ${scaledAreaTotals['matematica']}`,
-      `Natureza ${scaledAreaTotals['natureza']} (Biologia, Física e Química)`,
-      `Humanas ${scaledAreaTotals['humanas']} (História, Geografia, Filosofia e Sociologia)`,
-      `Total ${qty} questões objetivas`,
-    ];
-  }
-  if (bank === 'UFG') {
-    const d = scaleSubjectQuota(UFG_COMPLETE_SUBJECT_DISTRIBUTION, qty);
-    const natureza = d['Biologia'] + d['Física'] + d['Química'];
-    const humanas = d['História'] + d['Geografia'] + d['Filosofia'] + d['Sociologia'];
-    return [
-      `Linguagens ${d['Língua Portuguesa']} (inclui língua estrangeira escolhida: 6 de idioma e 18 gerais quando o bloco tem 24 questões)`,
-      `Matemática ${d['Matemática']}`,
-      `Natureza ${natureza} (Biologia ${d['Biologia']}, Física ${d['Física']} e Química ${d['Química']})`,
-      `Humanas ${humanas} (História ${d['História']}, Geografia ${d['Geografia']}, Filosofia ${d['Filosofia']} e Sociologia ${d['Sociologia']})`,
-      `Total ${qty} questões objetivas`,
-    ];
-  }
-  return null;
-}
-
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString('pt-BR', {
-    day: '2-digit', month: '2-digit', year: '2-digit',
-    hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo',
-  });
-}
+// BANK_LABELS, DIFFICULTY_LABELS, FORMATS_BY_BANK, resolveQty/isQtyLocked,
+// buildDistributionHintLines, WEIGHT_KEYS_BY_BANK, UEG_GROUP_*, EMPTY_FORM:
+// movidos para src/lib/simuladoFounderForm.ts — única fonte de verdade
+// compartilhada entre este formulário (edição) e NovoSimuladoAleatorioWizard
+// (criação).
+const VESTIBULAR_SUBJECTS = CUSTOM_SUBJECTS.filter((s) => s.value !== 'Todas');
 
 function formatDuration(secs: number): string {
   const h = Math.floor(secs / 3600);
@@ -313,53 +182,6 @@ function StatusBadge({ status }: { status: ScheduledSimulado['status'] }) {
   return <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${cls}`}>{label}</span>;
 }
 
-// ── Formulário de criação/edição ─────────────────────────────────────────────
-const EMPTY_FORM = {
-  title: '',
-  bank: 'ENEM',
-  format: 'custom',
-  subject: '',
-  difficulty: 'misto',
-  qty: 10,
-  time_limit_secs: '',
-  starts_at: '',
-  ends_at: '',
-  weights: {} as Record<string, number>,
-  allow_retry: true,
-  // Default true: garante que o founder sempre consiga ver um preview 100%
-  // idêntico ao que será enviado (ver SimuladoPreviewModal / preview endpoint).
-  // Desligar volta ao sorteio individual por aluno (sem preview garantido).
-  same_for_all_students: true,
-  ueg_weight_group: null as 'I' | 'II' | 'III' | null,
-  instructions: '',
-  modality: 'online' as 'online' | 'printed' | 'hybrid',
-  location_name: '',
-  location_address: '',
-};
-
-const UEG_GROUP_PRESETS: Record<'I' | 'II' | 'III', Record<string, number>> = {
-  I: { Linguagens: 2.5, Matemática: 4, Natureza: 2.5, Humanas: 1 },
-  II: { Linguagens: 3, Matemática: 3, Natureza: 3, Humanas: 1 },
-  III: { Linguagens: 4, Matemática: 2, Natureza: 1, Humanas: 3 },
-};
-
-const UEG_GROUP_COURSES: Record<'I' | 'II' | 'III', string> = {
-  I: 'Engenharia Agrícola, Engenharia Civil, Química Industrial',
-  II: 'Agronomia, Biomedicina, Ciências Biológicas, Educação Física, Farmácia, Fisioterapia, Medicina Veterinária, Zootecnia',
-  III: 'Arquitetura e Urbanismo e demais cursos do grupo III no edital',
-};
-
-const WEIGHT_KEYS_BY_BANK: Record<string, string[]> = {
-  ENEM: ['Linguagens', 'Humanas', 'Natureza', 'Matemática'],
-  UFU: [
-    'Língua Portuguesa', 'Literatura', 'Língua Estrangeira', 'Matemática',
-    'Biologia', 'Física', 'Química', 'Geografia', 'História', 'Filosofia', 'Sociologia',
-  ],
-  UEG: ['Linguagens', 'Matemática', 'Natureza', 'Humanas'],
-  UFG: ['Linguagens', 'Matemática', 'Natureza', 'Humanas'],
-  Todas: [],
-};
-
 // Subconjunto de config que afeta QUAIS questões são sorteadas — usado para
 // decidir, ao reabrir a edição de um simulado, se dá pra reaproveitar o
 // preview/conjunto já travado (fixed_question_ids) sem gerar um novo sorteio.
@@ -385,11 +207,26 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   const { org } = useOrg();
   const router = useRouter();
   const [simulados, setSimulados] = useState<ScheduledSimulado[]>([]);
-  const [printedSubmissionCounts, setPrintedSubmissionCounts] = useState<Record<string, number>>({});
+  const [printedExams, setPrintedExams] = useState<PrintedExam[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [showAleatorioWizard, setShowAleatorioWizard] = useState(false);
   const [showPersonalizedWizard, setShowPersonalizedWizard] = useState(false);
+  // Modalidade (+ local) é decidida uma única vez na Etapa 1 do seletor de
+  // tipo e vive como estado próprio — nunca duplicada dentro de `form` nem
+  // de um estado paralelo tipo o antigo `deliveryMode`, pra não ter duas
+  // fontes de verdade que podem divergir (ver auditoria: isso causava
+  // Híbrido/Impresso sendo perdidos entre a Etapa 1 e a tela seguinte).
+  const [modality, setModality] = useState<'online' | 'hybrid' | 'printed'>('online');
+  const [locationName, setLocationName] = useState('');
+  const [locationAddress, setLocationAddress] = useState('');
+  // Vestibular/Concurso é decidido na Etapa 1 (antes até da modalidade) e,
+  // assim como modalidade/local, nunca é tocado dentro de `form` — só o
+  // campo `form.role` (cargo) depende dele, pra saber se faz sentido mandar
+  // question_type/role no payload final (buildConfigFromForm).
+  const [simuladoFormat, setSimuladoFormat] = useState<'vestibular' | 'concurso'>('vestibular');
+  const concursosEnabled = Boolean(org.permissions?.concursos_enabled);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -407,10 +244,11 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [printingSimuladoId, setPrintingSimuladoId] = useState<string | null>(null);
-  const [deliveryMode, setDeliveryMode] = useState<'online' | 'impressa' | null>(null);
-  const [typeSelectorStep, setTypeSelectorStep] = useState<1 | 2>(1);
+  // Etapas do seletor: 1 = Vestibular/Concurso (só existe se `concursosEnabled`
+  // — senão não há nada a perguntar), 2 = Modalidade, 3 = Tipo de criação.
+  const [typeSelectorStep, setTypeSelectorStep] = useState<1 | 2 | 3>(1);
   const [printedExamId, setPrintedExamId] = useState<string | null>(null);
-  const [downloadingPrint, setDownloadingPrint] = useState<'prova' | 'gabarito' | null>(null);
+  const [downloadingPrint, setDownloadingPrint] = useState<string | null>(null);
   const [noQuestionsError, setNoQuestionsError] = useState(false);
   const [distributionShortfall, setDistributionShortfall] = useState<{
     expected: number;
@@ -427,6 +265,10 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   const [showAleatorioPreview, setShowAleatorioPreview] = useState(false);
   const [downloadingPreviewPdf, setDownloadingPreviewPdf] = useState(false);
   const onBrand = onBrandText(org.brand_primary);
+  // Edição é sempre PATCH via handleSave, mesmo que `modality` seja 'printed'
+  // num edge case (não deveria ocorrer — ver openEdit) — só uma CRIAÇÃO com
+  // modalidade impressa rotea pra handleSaveImpresso/printed-exams.
+  const isCreatingPrinted = !editingId && modality === 'printed';
 
   async function fetchWithAuth(url: string, options: RequestInit = {}) {
     const supabase = createClient();
@@ -446,59 +288,34 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   async function loadSimulados() {
     if (org.is_mock) {
       setSimulados(MOCK_SIMULADOS as unknown as ScheduledSimulado[]);
+      setPrintedExams([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const res = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados`);
-      if (!res.ok) {
+      const [res, printedRes] = await Promise.all([
+        fetchWithAuth(`/api/partners/${slug}/scheduled-simulados`),
+        fetchWithAuth(`/api/partners/${slug}/printed-exams`),
+      ]);
+      if (res.ok) {
+        const data = await res.json();
+        const scheduled = data.scheduled_simulados ?? [];
+        setSimulados(scheduled);
+      } else {
         toast.error('Não foi possível carregar os simulados');
-        return;
       }
-      const data = await res.json();
-      const scheduled = data.scheduled_simulados ?? [];
-      setSimulados(scheduled);
-      void loadPrintedSubmissionCounts(scheduled);
+      if (printedRes.ok) {
+        const printedData = await printedRes.json();
+        setPrintedExams(printedData.printed_exams ?? []);
+      } else {
+        toast.error('Não foi possível carregar as provas impressas');
+      }
     } catch {
       toast.error('Erro ao buscar simulados');
     } finally {
       setLoading(false);
     }
-  }
-
-  async function loadPrintedSubmissionCounts(scheduled: ScheduledSimulado[]) {
-    const printedOrHybrid = scheduled.filter((sim) => sim.modality === 'printed' || sim.modality === 'hybrid');
-    if (printedOrHybrid.length === 0) {
-      setPrintedSubmissionCounts({});
-      return;
-    }
-
-    const entries = await Promise.all(
-      printedOrHybrid.map(async (sim) => {
-        try {
-          const examsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams?scheduled_simulado_id=${sim.id}`);
-          if (!examsRes.ok) return [sim.id, 0] as const;
-          const examsData = await examsRes.json();
-          const printedExams: Array<{ id: string }> = examsData.printed_exams ?? [];
-          if (printedExams.length === 0) return [sim.id, 0] as const;
-
-          const counts = await Promise.all(
-            printedExams.map(async (exam) => {
-              const resultsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${exam.id}/results`);
-              if (!resultsRes.ok) return 0;
-              const resultsData = await resultsRes.json();
-              return (resultsData.submissions ?? []).length;
-            }),
-          );
-          return [sim.id, counts.reduce((sum, count) => sum + count, 0)] as const;
-        } catch {
-          return [sim.id, 0] as const;
-        }
-      }),
-    );
-
-    setPrintedSubmissionCounts(Object.fromEntries(entries));
   }
 
   useEffect(() => { loadSimulados(); }, [slug]);
@@ -544,10 +361,19 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     }
   }
 
+  // Só usado pelos botões "X"/cancelar do seletor — abandonar a criação é o
+  // único caso em que zerar modalidade/local junto é o certo. Avançar da
+  // Etapa 2 para dentro de um wizard NUNCA chama isto (ver botões "Simulado
+  // Aleatório"/"Simulado Personalizado" abaixo): não há nada pra "clobberar"
+  // porque a Etapa 2 só decide qual wizard abrir, sem tocar no que a Etapa 1
+  // já decidiu.
   function resetTypeSelectorState() {
     setShowTypeSelector(false);
-    setDeliveryMode(null);
-    setTypeSelectorStep(1);
+    setTypeSelectorStep(concursosEnabled ? 1 : 2);
+    setSimuladoFormat('vestibular');
+    setModality('online');
+    setLocationName('');
+    setLocationAddress('');
   }
 
   async function handleSaveImpresso() {
@@ -569,7 +395,14 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         body: JSON.stringify({
           title: form.title.trim(),
           question_ids: previewQuestions.map((q) => q.id),
-          config: { custom_questions: previewQuestions.map(toCustomQuestionSnapshot) },
+          config: {
+            ...buildConfigFromForm(),
+            custom_questions: previewQuestions.map(toCustomQuestionSnapshot),
+          },
+          starts_at: form.starts_at ? new Date(form.starts_at).toISOString() : undefined,
+          ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : undefined,
+          location_name: locationName.trim() || null,
+          location_address: locationAddress.trim() || null,
         }),
       });
       const json = await res.json();
@@ -578,7 +411,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         return;
       }
       setPrintedExamId(json.printed_exam_id);
+      void loadSimulados();
       setShowForm(false);
+      setShowAleatorioWizard(false);
       setShowReviewApproval(false);
       setForm(EMPTY_FORM);
       setPreviewQuestions(null);
@@ -588,26 +423,20 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     }
   }
 
-  async function downloadPrintedPdf(type: 'prova' | 'gabarito') {
-    if (!printedExamId) return;
-    setDownloadingPrint(type);
+  async function downloadPrintedPdf(type: 'prova' | 'gabarito', examId = printedExamId) {
+    if (!examId) return;
+    setDownloadingPrint(`${examId}:${type}`);
     try {
       const res = await fetchWithAuth(
-        `/api/partners/${slug}/printed-exams/${printedExamId}/${type}.pdf`,
+        `/api/partners/${slug}/printed-exams/${examId}/${type}.pdf`,
       );
       if (!res.ok) {
         toast.error('Erro ao gerar PDF');
         return;
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${type}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      await downloadBlobResponse(res, `${type}.pdf`);
+    } catch {
+      toast.error('Erro ao baixar PDF');
     } finally {
       setDownloadingPrint(null);
     }
@@ -655,6 +484,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
       await downloadBlobResponse(gabaritoOficialRes, `gabarito_oficial_${sim.title}.pdf`);
 
       toast.success('PDF da prova, gabarito e gabarito oficial baixados.');
+      void loadSimulados();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível imprimir o simulado.');
     } finally {
@@ -669,6 +499,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     return {
       format: form.format,
       bank: form.bank,
+      question_type: simuladoFormat === 'concurso' ? 'concurso' : null,
+      role: simuladoFormat === 'concurso' ? (form.role || null) : null,
       subject: overrides?.overrideSubject !== undefined ? (overrides.overrideSubject || null) : (form.subject || null),
       difficulty: overrides?.overrideDifficulty ?? form.difficulty,
       qty: Number(form.qty),
@@ -690,6 +522,10 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   // persistido aqui. Esse array — e só ele — é o que depois vira
   // custom_question_ids/question_ids no submit final (handleSave/handleSaveImpresso).
   async function handleGeneratePreview(overrides?: { overrideSubject?: string; overrideDifficulty?: string; forcePartial?: boolean }) {
+    if (form.starts_at && form.ends_at && form.ends_at <= form.starts_at) {
+      toast.error('O fim deve ser depois do início.');
+      return;
+    }
     setNoQuestionsError(false);
     setDistributionShortfall(null);
     setPreviewQuestions(null);
@@ -810,6 +646,10 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
       toast.error('Título e data de início são obrigatórios');
       return;
     }
+    if (form.ends_at && form.ends_at <= form.starts_at) {
+      toast.error('O fim deve ser depois do início.');
+      return;
+    }
     // Ponto crítico de segurança: quando o simulado é "mesma prova para todos",
     // NUNCA deixa o backend sortear de novo — usa exatamente a lista concreta e
     // ordenada que o founder já viu no preview (mesmo mecanismo do Personalizado).
@@ -830,9 +670,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         config,
         starts_at: new Date(form.starts_at).toISOString(),
         ends_at: form.ends_at ? new Date(form.ends_at).toISOString() : null,
-        modality: form.modality,
-        location_name: (form.modality === 'printed' || form.modality === 'hybrid') ? (form.location_name.trim() || null) : null,
-        location_address: (form.modality === 'printed' || form.modality === 'hybrid') ? (form.location_address.trim() || null) : null,
+        modality,
+        location_name: modality !== 'online' ? (locationName.trim() || null) : null,
+        location_address: modality !== 'online' ? (locationAddress.trim() || null) : null,
         ...(form.same_for_all_students && previewQuestions
           ? { custom_question_ids: previewQuestions.map((q) => q.id) }
           : {}),
@@ -876,6 +716,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         });
       }
       setShowForm(false);
+      setShowAleatorioWizard(false);
       setShowReviewApproval(false);
       setShowAleatorioPreview(false);
       setEditingId(null);
@@ -920,16 +761,20 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     setEditingId(sim.id);
     setEditingSim(sim);
     setPreviewQuestions(null);
-    // Editar nunca passa pelo wizard "Online ou Impresso?" (Step 1), mas
-    // `deliveryMode` pode ter ficado em 'impressa' de uma criação anterior
-    // nesta mesma sessão — sem resetar aqui, o botão de salvar (que decide
-    // handleSave vs handleSaveImpresso a partir de deliveryMode) rodaria o
-    // fluxo errado e criaria uma prova impressa avulsa em vez de salvar a
-    // edição deste simulado. Edição sempre é handleSave (PATCH).
-    setDeliveryMode(null);
+    // Edição é sempre handleSave (PATCH) — nunca passa pelo seletor de
+    // modalidade/tipo, então `modality`/local aqui só refletem o que o
+    // simulado já tem; o form de edição mostra isso como somente-leitura.
+    setModality(sim.modality ?? 'online');
+    setLocationName(sim.location_name ?? '');
+    setLocationAddress(sim.location_address ?? '');
+    // `simuladoFormat` idem — este form não tem UI pra trocar banca/cargo de
+    // concurso, mas precisa saber que é concurso pra não zerar question_type/
+    // role em buildConfigFromForm quando o founder só ajusta outro campo e salva.
+    setSimuladoFormat(sim.config.question_type === 'concurso' ? 'concurso' : 'vestibular');
       setForm({
       title: sim.title,
       bank: sim.config.bank,
+      role: sim.config.role ?? '',
       format: sim.config.format,
       subject: sim.config.subject ?? '',
       difficulty: sim.config.difficulty,
@@ -942,9 +787,6 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         same_for_all_students: sim.config.same_for_all_students ?? false,
         ueg_weight_group: (sim.config.ueg_weight_group as 'I' | 'II' | 'III' | null) ?? null,
         instructions: sim.config.instructions ?? '',
-        modality: sim.modality ?? 'online',
-        location_name: sim.location_name ?? '',
-        location_address: sim.location_address ?? '',
       });
       setShowForm(true);
   }
@@ -969,7 +811,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               </div>
               {!showForm && (
                 <BrandButton
-                  onClick={() => { setShowTypeSelector(true); setEditingId(null); setEditingSim(null); setForm(EMPTY_FORM); setPreviewQuestions(null); }}
+                  onClick={() => { setShowTypeSelector(true); setTypeSelectorStep(concursosEnabled ? 1 : 2); setSimuladoFormat('vestibular'); setEditingId(null); setEditingSim(null); setForm(EMPTY_FORM); setPreviewQuestions(null); }}
                   hex={org.brand_primary}
                   className="w-full sm:w-auto"
                 >
@@ -1130,28 +972,35 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Mesmo simulado para toda a turma</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Ativado: todos recebem o mesmo conjunto de questões. Desativado: cada aluno recebe um conjunto próprio.
-                    </p>
+              {/* "Mesmo simulado para toda a turma" não tem efeito nenhum para
+                  prova impressa (handleSaveImpresso sempre usa a lista fixa do
+                  preview) — escondido nesse caso em vez de mostrar um controle
+                  que não muda nada. Pra híbrido, continua travado em `true`
+                  (exigência do backend: scheduled_simulado.py). */}
+              {modality !== 'printed' && (
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Mesmo simulado para toda a turma</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Ativado: todos recebem o mesmo conjunto de questões. Desativado: cada aluno recebe um conjunto próprio.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={Boolean(form.same_for_all_students)}
+                      disabled={modality === 'hybrid'}
+                      onClick={() => setForm((f) => ({ ...f, same_for_all_students: !f.same_for_all_students }))}
+                      className={`relative inline-flex h-11 w-14 shrink-0 items-center rounded-full transition-colors focus:outline-none ${form.same_for_all_students ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${form.same_for_all_students ? 'translate-x-8' : 'translate-x-1.5'}`}
+                      />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={Boolean(form.same_for_all_students)}
-                    disabled={form.modality === 'hybrid'}
-                    onClick={() => setForm((f) => ({ ...f, same_for_all_students: !f.same_for_all_students }))}
-                    className={`relative inline-flex h-11 w-14 shrink-0 items-center rounded-full transition-colors focus:outline-none ${form.same_for_all_students ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
-                  >
-                    <span
-                      className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${form.same_for_all_students ? 'translate-x-8' : 'translate-x-1.5'}`}
-                    />
-                  </button>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className={labelCls}>Instruções do Simulado (Opcional)</label>
@@ -1165,39 +1014,18 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               </div>
 
               {/* Modalidade — decidida uma única vez, na escolha inicial ("Como
-                  este simulado será aplicado?"); ao editar um simulado já criado,
-                  este bloco só reflete o que foi marcado então, sem permitir
-                  trocar (não faz sentido migrar online → presencial depois, o
-                  payload e o preview de cada modalidade são diferentes). */}
+                  este simulado será aplicado?"), antes mesmo deste formulário
+                  (que só existe pra edição). Mostrada aqui só como texto: não
+                  faz sentido migrar online → presencial depois, o payload e o
+                  preview de cada modalidade são diferentes. */}
               <div>
-                <label className={labelCls}>
-                  Modalidade
-                  {!!editingId && (
-                    <span className="ml-1 normal-case font-normal text-slate-400">(definida na criação, não pode ser alterada)</span>
-                  )}
-                </label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {([
-                    { value: 'online',   label: 'Online',    Icon: Monitor },
-                    { value: 'printed',  label: 'Presencial', Icon: Printer },
-                    { value: 'hybrid',   label: 'Híbrido',   Icon: MapPin  },
-                  ] as const).map(({ value: m, label, Icon }) => (
-                    <button
-                      key={m}
-                      type="button"
-                      disabled={!!editingId}
-                      onClick={() => {
-                        if (editingId) return;
-                        setForm((f) => ({ ...f, modality: m, ...(m === 'hybrid' ? { same_for_all_students: true } : {}), ...(m === 'online' ? { location_name: '', location_address: '' } : {}) }));
-                      }}
-                      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold transition-colors ${editingId ? 'cursor-not-allowed opacity-60' : ''} ${form.modality === m ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5 text-[var(--brand-primary)]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'}`}
-                    >
-                      <Icon className="h-3.5 w-3.5 shrink-0" />
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {form.modality === 'hybrid' && (
+                <label className={labelCls}>Modalidade</label>
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  {modality === 'printed' ? <Printer className="h-3.5 w-3.5" /> : modality === 'hybrid' ? <MapPin className="h-3.5 w-3.5" /> : <Monitor className="h-3.5 w-3.5" />}
+                  {modality === 'printed' ? 'Presencial' : modality === 'hybrid' ? 'Híbrido' : 'Online'}
+                  <span className="normal-case font-normal text-slate-400">— definida na criação, não pode ser alterada</span>
+                </p>
+                {modality === 'hybrid' && (
                   <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                     Híbrido: alunos podem realizar online OU presencialmente. O resultado presencial prevalece.
                   </p>
@@ -1205,7 +1033,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               </div>
 
               <AnimatePresence>
-                {(form.modality === 'printed' || form.modality === 'hybrid') && (
+                {modality !== 'online' && (
                   <motion.div
                     key="location-fields"
                     initial={{ opacity: 0, height: 0 }}
@@ -1221,8 +1049,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           Local
                         </label>
                         <input
-                          value={form.location_name}
-                          onChange={(e) => setForm((f) => ({ ...f, location_name: e.target.value }))}
+                          value={locationName}
+                          onChange={(e) => setLocationName(e.target.value)}
                           placeholder="Ex: Sala 3 — Bloco B"
                           className={inputCls}
                         />
@@ -1230,8 +1058,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       <div>
                         <label className={labelCls}>Endereço (opcional)</label>
                         <input
-                          value={form.location_address}
-                          onChange={(e) => setForm((f) => ({ ...f, location_address: e.target.value }))}
+                          value={locationAddress}
+                          onChange={(e) => setLocationAddress(e.target.value)}
                           placeholder="Ex: Rua das Flores, 123"
                           className={inputCls}
                         />
@@ -1245,13 +1073,18 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 {/* Matéria — só para custom */}
                 {form.format === 'custom' && (
                   <div>
-                    <label className={labelCls}>Matéria (opcional)</label>
-                    <input
+                    <label className={labelCls}>Matéria</label>
+                    <select
+                      aria-label="Matéria"
                       value={form.subject}
                       onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
-                      placeholder="Ex: Matemática"
                       className={inputCls}
-                    />
+                    >
+                      <option value="">Todas as Matérias</option>
+                      {VESTIBULAR_SUBJECTS.map((s) => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
@@ -1269,26 +1102,24 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 </div>
 
                 {/* Início */}
-                <div>
-                  <label className={labelCls}>Início</label>
-                  <input
-                    type="datetime-local"
-                    value={form.starts_at}
-                    onChange={(e) => setForm((f) => ({ ...f, starts_at: e.target.value }))}
-                    className={inputCls}
-                  />
-                </div>
+                <DateTimeField
+                  label="Início"
+                  value={form.starts_at}
+                  onChange={(v) => setForm((f) => ({ ...f, starts_at: v }))}
+                  labelClassName={labelCls}
+                  inputClassName={inputCls}
+                />
 
                 {/* Fim */}
-                <div>
-                  <label className={labelCls}>Fim (opcional)</label>
-                  <input
-                    type="datetime-local"
-                    value={form.ends_at}
-                    onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))}
-                    className={inputCls}
-                  />
-                </div>
+                <DateTimeField
+                  label="Fim"
+                  hint="(opcional)"
+                  value={form.ends_at}
+                  minDateTime={form.starts_at}
+                  onChange={(v) => setForm((f) => ({ ...f, ends_at: v }))}
+                  labelClassName={labelCls}
+                  inputClassName={inputCls}
+                />
               </div>
 
               {form.format === 'completo' && buildDistributionHintLines(form.bank, form.qty) && (
@@ -1314,7 +1145,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       toast.error('Título é obrigatório');
                       return;
                     }
-                    if (deliveryMode !== 'impressa' && !form.starts_at) {
+                    if (modality !== 'printed' && !form.starts_at) {
                       toast.error('Data de início é obrigatória');
                       return;
                     }
@@ -1357,11 +1188,65 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               <div className="flex h-full items-center justify-center p-4">
                 <div className="max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6">
 
-                  {/* ── STEP 1: Online ou Impresso? ─────────────────── */}
+                  {/* ── STEP 1: Vestibular ou Concurso? (só existe se o módulo
+                      de concursos estiver habilitado pra essa org) ────── */}
                   {typeSelectorStep === 1 && (
                     <>
                       <div className="flex items-start justify-between gap-3">
                         <div>
+                          <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--brand-primary)' }}>
+                            Novo simulado
+                          </p>
+                          <h2 className="mt-1 text-xl font-extrabold text-slate-900">Vestibular ou concurso?</h2>
+                          <p className="mt-1 text-sm text-slate-500">Escolha a origem das questões antes de configurar o simulado.</p>
+                        </div>
+                        <button type="button" onClick={resetTypeSelectorState} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="mt-6 grid gap-4 md:grid-cols-2">
+                        <button
+                          type="button"
+                          onClick={() => { setSimuladoFormat('vestibular'); setTypeSelectorStep(2); }}
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                        >
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                            <GraduationCap className="h-5 w-5" />
+                          </div>
+                          <h3 className="text-base font-bold text-slate-900">Vestibular / ENEM</h3>
+                          <p className="mt-2 text-sm text-slate-500">ENEM, vestibulares e provas por banca (UFU, UEG, UFG, UNESP).</p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => { setSimuladoFormat('concurso'); setForm((f) => ({ ...f, bank: '', format: 'custom' })); setTypeSelectorStep(2); }}
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                        >
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                            <Shield className="h-5 w-5" />
+                          </div>
+                          <h3 className="text-base font-bold text-slate-900">Concurso Público</h3>
+                          <p className="mt-2 text-sm text-slate-500">Provas de concursos e seleções do catálogo da sua organização.</p>
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── STEP 2: Online, Híbrido ou Impresso? ────────────── */}
+                  {typeSelectorStep === 2 && (
+                    <>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          {concursosEnabled && (
+                            <button
+                              type="button"
+                              onClick={() => setTypeSelectorStep(1)}
+                              className="min-h-11 rounded-lg px-1 text-xs font-semibold text-slate-400 hover:text-slate-600"
+                            >
+                              ← Voltar
+                            </button>
+                          )}
                           <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--brand-primary)' }}>
                             Novo simulado
                           </p>
@@ -1377,12 +1262,14 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         <button
                           type="button"
                           onClick={() => {
-                            // A modalidade é decidida aqui, uma única vez — a tela de
-                            // configuração (form) só reflete essa escolha depois, sem
-                            // permitir trocar (ver seletor "Modalidade" mais abaixo).
-                            setDeliveryMode('online');
-                            setForm((f) => ({ ...f, modality: 'online', location_name: '', location_address: '' }));
-                            setTypeSelectorStep(2);
+                            // A modalidade é decidida aqui, uma única vez, e vive só
+                            // no estado `modality`/`locationName`/`locationAddress` —
+                            // nunca mais reconstruída/reeditada depois (nem no wizard
+                            // do Aleatório, nem no do Personalizado).
+                            setModality('online');
+                            setLocationName('');
+                            setLocationAddress('');
+                            setTypeSelectorStep(3);
                           }}
                           className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
                         >
@@ -1396,9 +1283,11 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         <button
                           type="button"
                           onClick={() => {
-                            setDeliveryMode('online');
-                            setForm((f) => ({ ...f, modality: 'hybrid', same_for_all_students: true }));
-                            setTypeSelectorStep(2);
+                            setModality('hybrid');
+                            setLocationName('');
+                            setLocationAddress('');
+                            setForm((f) => ({ ...f, same_for_all_students: true }));
+                            setTypeSelectorStep(3);
                           }}
                           className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
                         >
@@ -1412,9 +1301,10 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         <button
                           type="button"
                           onClick={() => {
-                            setDeliveryMode('impressa');
-                            setForm((f) => ({ ...f, modality: 'printed' }));
-                            setTypeSelectorStep(2);
+                            setModality('printed');
+                            setLocationName('');
+                            setLocationAddress('');
+                            setTypeSelectorStep(3);
                           }}
                           className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
                         >
@@ -1428,15 +1318,15 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     </>
                   )}
 
-                  {/* ── STEP 2: Aleatório ou Personalizado? (igual ao atual) ─── */}
-                  {typeSelectorStep === 2 && (
+                  {/* ── STEP 3: Aleatório ou Personalizado? ─────────────────── */}
+                  {typeSelectorStep === 3 && (
                     <>
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => setTypeSelectorStep(1)}
+                              onClick={() => setTypeSelectorStep(2)}
                               className="min-h-11 rounded-lg px-1 text-xs font-semibold text-slate-400 hover:text-slate-600"
                             >
                               ← Voltar
@@ -1444,12 +1334,18 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             <span className="text-xs text-slate-300">|</span>
                             <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
                               style={{
-                                backgroundColor: deliveryMode === 'impressa' ? '#FEF3C7' : form.modality === 'hybrid' ? '#EDE9FE' : '#EFF6FF',
-                                color: deliveryMode === 'impressa' ? '#92400E' : form.modality === 'hybrid' ? '#6D28D9' : '#1D4ED8',
+                                backgroundColor: modality === 'printed' ? '#FEF3C7' : modality === 'hybrid' ? '#EDE9FE' : '#EFF6FF',
+                                color: modality === 'printed' ? '#92400E' : modality === 'hybrid' ? '#6D28D9' : '#1D4ED8',
                               }}>
-                              {deliveryMode === 'impressa' ? <Printer className="h-3 w-3" /> : form.modality === 'hybrid' ? <MapPin className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
-                              {deliveryMode === 'impressa' ? 'Impresso' : form.modality === 'hybrid' ? 'Híbrido' : 'Online'}
+                              {modality === 'printed' ? <Printer className="h-3 w-3" /> : modality === 'hybrid' ? <MapPin className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
+                              {modality === 'printed' ? 'Impresso' : modality === 'hybrid' ? 'Híbrido' : 'Online'}
                             </span>
+                            {concursosEnabled && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                                {simuladoFormat === 'concurso' ? <Shield className="h-3 w-3" /> : <GraduationCap className="h-3 w-3" />}
+                                {simuladoFormat === 'concurso' ? 'Concurso' : 'Vestibular'}
+                              </span>
+                            )}
                           </div>
                           <h2 className="mt-2 text-xl font-extrabold text-slate-900">Escolha o tipo de criação</h2>
                           <p className="mt-1 text-sm text-slate-500">Use o fluxo automático ou monte questão por questão.</p>
@@ -1463,12 +1359,16 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         <button
                           type="button"
                           onClick={() => {
-                            resetTypeSelectorState();
-                            setShowForm(true);
+                            // Fecha só o seletor — `modality`/local/`simuladoFormat` da
+                            // Etapa 1/2 NÃO são tocados aqui, só o que o Aleatório
+                            // precisa pra começar do zero (form/editingId/preview).
+                            setShowTypeSelector(false);
+                            setTypeSelectorStep(concursosEnabled ? 1 : 2);
                             setEditingId(null);
                             setEditingSim(null);
-                            setForm(EMPTY_FORM);
+                            setForm({ ...EMPTY_FORM, bank: simuladoFormat === 'concurso' ? '' : EMPTY_FORM.bank });
                             setPreviewQuestions(null);
+                            setShowAleatorioWizard(true);
                           }}
                           className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
                         >
@@ -1482,7 +1382,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         <button
                           type="button"
                           onClick={() => {
-                            resetTypeSelectorState();
+                            setShowTypeSelector(false);
+                            setTypeSelectorStep(concursosEnabled ? 1 : 2);
                             setShowPersonalizedWizard(true);
                           }}
                           className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
@@ -1515,7 +1416,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     </div>
                     <button
                       type="button"
-                      onClick={() => { setPrintedExamId(null); setDeliveryMode(null); }}
+                      onClick={() => setPrintedExamId(null)}
                       className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600"
                     >
                       <X className="h-4 w-4" />
@@ -1530,7 +1431,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[var(--brand-primary)] disabled:opacity-60"
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm" style={{ color: 'var(--brand-primary)' }}>
-                        {downloadingPrint === 'prova' ? (
+                        {downloadingPrint === `${printedExamId}:prova` ? (
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                         ) : (
                           <FileText className="h-5 w-5" />
@@ -1550,7 +1451,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[var(--brand-primary)] disabled:opacity-60"
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm" style={{ color: 'var(--brand-primary)' }}>
-                        {downloadingPrint === 'gabarito' ? (
+                        {downloadingPrint === `${printedExamId}:gabarito` ? (
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                         ) : (
                           <ClipboardList className="h-5 w-5" />
@@ -1568,6 +1469,23 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
             </div>
           )}
 
+          {showAleatorioWizard && (
+            <NovoSimuladoAleatorioWizard
+              slug={slug}
+              form={form}
+              setForm={setForm}
+              modality={modality}
+              locationName={locationName}
+              setLocationName={setLocationName}
+              locationAddress={locationAddress}
+              setLocationAddress={setLocationAddress}
+              simuladoFormat={simuladoFormat}
+              brandTextColor={onBrand}
+              onClose={() => { setShowAleatorioWizard(false); setForm(EMPTY_FORM); setPreviewQuestions(null); }}
+              onReviewAndCreate={() => void handleGeneratePreview()}
+            />
+          )}
+
           {showPersonalizedWizard && (
             <PersonalizedSimuladoWizard
               slug={slug}
@@ -1576,10 +1494,11 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 setShowPersonalizedWizard(false);
                 void loadSimulados();
               }}
-              printedMode={deliveryMode === 'impressa'}
+              modality={modality}
               onCreatedPrinted={(id) => {
                 setShowPersonalizedWizard(false);
                 setPrintedExamId(id);
+                void loadSimulados();
               }}
             />
           )}
@@ -1592,17 +1511,60 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 <div key={k} className="h-32 animate-pulse rounded-[20px] bg-slate-200 dark:bg-white/10" />
               ))}
             </div>
-          ) : simulados.length === 0 ? (
+          ) : simulados.length === 0 && printedExams.every((exam) => exam.scheduled_simulado_id) ? (
             <ElevatedCard>
               <div className="p-10 text-center">
                 <BookOpen className="mx-auto mb-3 h-8 w-8 text-slate-300 dark:text-white/20" />
                 <p className="text-sm text-slate-500 dark:text-white/50">
-                  Nenhum simulado agendado ainda.
+                  Nenhuma prova ou simulado criado ainda.
                 </p>
               </div>
             </ElevatedCard>
           ) : (
             <div className="space-y-4">
+              {printedExams.filter((exam) => !exam.scheduled_simulado_id).map((exam) => (
+                <ElevatedCard key={`printed-${exam.id}`} accentColor={org.brand_primary}>
+                  <div className="p-4 sm:p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-bold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">Prova impressa</span>
+                          <h2 className="text-base font-bold text-slate-900 dark:text-white">{exam.title}</h2>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-400">
+                          <span className="flex items-center gap-1">
+                            <CalendarDays className="h-3.5 w-3.5" />
+                            Criada em {formatDateTime(exam.created_at)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void downloadPrintedPdf('prova', exam.id)}
+                          disabled={downloadingPrint !== null}
+                          className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800"
+                          title="Baixar prova em PDF"
+                          aria-label="Baixar prova em PDF"
+                        >
+                          {downloadingPrint === `${exam.id}:prova` ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <FileText className="h-4 w-4" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void downloadPrintedPdf('gabarito', exam.id)}
+                          disabled={downloadingPrint !== null}
+                          className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800"
+                          title="Baixar gabarito em PDF"
+                          aria-label="Baixar gabarito em PDF"
+                        >
+                          {downloadingPrint === `${exam.id}:gabarito` ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <ClipboardList className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </ElevatedCard>
+              ))}
               {simulados.map((sim) => (
                 <ElevatedCard
                   key={sim.id}
@@ -1615,6 +1577,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <StatusBadge status={sim.status} />
+                          {sim.modality === 'printed' && (
+                            <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-bold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">Impresso</span>
+                          )}
                           <h2 className="text-base font-bold text-slate-900 dark:text-white">
                             {sim.title}
                           </h2>
@@ -1622,7 +1587,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
                           <span className="flex items-center gap-1">
                             <BookOpen className="h-3.5 w-3.5" />
-                            {BANK_LABELS[sim.config.bank] ?? sim.config.bank} ·{' '}
+                            {sim.config.bank === 'CUSTOM' ? 'Personalizado' : (BANK_LABELS[sim.config.bank] ?? sim.config.bank)} ·{' '}
                             {sim.config.qty}q · {DIFFICULTY_LABELS[sim.config.difficulty] ?? sim.config.difficulty}
                           </span>
                           {sim.config.format !== 'custom' && (
@@ -1673,7 +1638,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           </div>
                         ) : (
                           <>
-                            {sim.status !== 'scheduled' && (
+                            {(sim.modality === 'printed' || sim.status !== 'scheduled') && (
                               <button
                                 type="button"
                                 onClick={() => router.push(`/partners/${slug}/simulados/${sim.id}/corrigir`)}
@@ -1683,20 +1648,31 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                                 <Camera className="h-4 w-4" />
                               </button>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => void handlePrintScheduledSimulado(sim)}
-                              disabled={printingSimuladoId === sim.id}
-                              className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:cursor-wait disabled:opacity-60 dark:hover:bg-slate-800"
-                              title="Imprimir"
-                            >
-                              {printingSimuladoId === sim.id ? (
-                                <span className="block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                              ) : (
-                                <Printer className="h-4 w-4" />
-                              )}
-                            </button>
-                            {sim.status !== 'scheduled' && (
+                            {sim.modality === 'printed' ? (
+                              <>
+                                <button type="button" onClick={() => void downloadPrintedPdf('prova', printedExams.find((exam) => exam.scheduled_simulado_id === sim.id)?.id)} disabled={!printedExams.some((exam) => exam.scheduled_simulado_id === sim.id) || downloadingPrint !== null} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800" title="Baixar prova em PDF" aria-label="Baixar prova em PDF">
+                                  <FileText className="h-4 w-4" />
+                                </button>
+                                <button type="button" onClick={() => void downloadPrintedPdf('gabarito', printedExams.find((exam) => exam.scheduled_simulado_id === sim.id)?.id)} disabled={!printedExams.some((exam) => exam.scheduled_simulado_id === sim.id) || downloadingPrint !== null} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800" title="Baixar gabarito em PDF" aria-label="Baixar gabarito em PDF">
+                                  <ClipboardList className="h-4 w-4" />
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => void handlePrintScheduledSimulado(sim)}
+                                disabled={printingSimuladoId === sim.id}
+                                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:cursor-wait disabled:opacity-60 dark:hover:bg-slate-800"
+                                title="Imprimir"
+                              >
+                                {printingSimuladoId === sim.id ? (
+                                  <span className="block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                                ) : (
+                                  <Printer className="h-4 w-4" />
+                                )}
+                              </button>
+                            )}
+                            {(sim.modality === 'printed' || sim.status !== 'scheduled') && (
                               <button
                                 type="button"
                                 onClick={() => router.push(`/partners/${slug}/simulados/${sim.id}/resultados`)}
@@ -1738,7 +1714,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     {/* Métricas */}
                     <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
                       {[
-                        { label: 'Participantes', value: sim.metrics.unique_students + (printedSubmissionCounts[sim.id] ?? 0), icon: Users },
+                        { label: 'Participantes', value: sim.metrics.unique_students, icon: Users },
                         { label: 'Média de acerto', value: sim.metrics.avg_score_pct != null ? `${sim.metrics.avg_score_pct}%` : '—', icon: BarChart2 },
                         { label: 'Melhor resultado', value: sim.metrics.best_score_pct != null ? `${sim.metrics.best_score_pct}%` : '—', icon: Trophy },
                       ].map(({ label, value, icon: Icon }) => (
@@ -2357,8 +2333,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 <p><span className="font-semibold">Formato:</span> {formatLabel(form.bank, form.format)}</p>
                 <p><span className="font-semibold">Questões:</span> {form.qty}</p>
                 <p><span className="font-semibold">Dificuldade:</span> {DIFFICULTY_LABELS[form.difficulty] ?? form.difficulty}</p>
-                <p><span className="font-semibold">Início:</span> {form.starts_at || '—'}</p>
-                <p><span className="font-semibold">Fim:</span> {form.ends_at || '—'}</p>
+                <p><span className="font-semibold">Início:</span> {form.starts_at ? formatDateTime(form.starts_at) : '—'}</p>
+                <p><span className="font-semibold">Fim:</span> {form.ends_at ? formatDateTime(form.ends_at) : '—'}</p>
                 <p><span className="font-semibold">Refazer:</span> {form.allow_retry ? 'Permitido' : 'Desativado'}</p>
                 <p><span className="font-semibold">Distribuição:</span> {form.same_for_all_students ? 'Mesmo simulado para todos' : 'Simulado individual por aluno'}</p>
                 {form.bank === 'UEG' && (
@@ -2382,7 +2358,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
 
                 {previewQuestions && (
                   <div className="pt-3 space-y-2">
-                    {deliveryMode !== 'impressa' && !form.same_for_all_students && (
+                    {!isCreatingPrinted && !form.same_for_all_students && (
                       <p className="text-xs text-amber-700 dark:text-amber-400">
                         Prévia ilustrativa: como &quot;sorteio individual por aluno&quot; está ativo, cada aluno vai
                         receber uma seleção diferente de questões ao iniciar — este preview mostra só um exemplo.
@@ -2431,12 +2407,12 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => deliveryMode === 'impressa' ? handleSaveImpresso() : handleSave()}
-                  disabled={saving || ((deliveryMode === 'impressa' || form.same_for_all_students) && (!previewQuestions || previewQuestions.length < 5))}
+                  onClick={() => isCreatingPrinted ? handleSaveImpresso() : handleSave()}
+                  disabled={saving || ((isCreatingPrinted || form.same_for_all_students) && (!previewQuestions || previewQuestions.length < 5))}
                   className="rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
                   style={{ backgroundColor: 'var(--brand-primary)' }}
                 >
-                  {deliveryMode === 'impressa'
+                  {isCreatingPrinted
                     ? 'Gerar prova impressa'
                     : editingId ? 'Aprovar e salvar' : 'Aprovar e criar'}
                 </button>

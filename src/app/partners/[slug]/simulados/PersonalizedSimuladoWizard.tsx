@@ -8,7 +8,10 @@ import { readableBrandText, onBrandText } from '@/lib/brand-color';
 import {
   RevealGroup, RevealItem, ElevatedCard, BrandButton, MiniBar,
 } from '@/components/partners/founder-ui';
-import { ArrowRight, Database, Eye, FileText, PenTool, Sparkles, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Database, Eye, FileText, MapPin, PenTool, Sparkles, Trash2 } from 'lucide-react';
+import { WizardStepper, type WizardStepperStep } from '@/components/partners/simulado/WizardStepper';
+import { DateTimeField } from '@/components/partners/simulado/DateTimeField';
+import { formatDateTime } from '@/lib/simuladoFounderForm';
 import { QuestionBankExplorer } from '@/components/assessments/QuestionBankExplorer';
 import { AiQuestionFactory } from '@/components/assessments/AiQuestionFactory';
 import { ManualQuestionForm } from '@/components/assessments/ManualQuestionForm';
@@ -19,6 +22,7 @@ import type { SelectedQuestion } from '@/types/simulado-preview';
 import { toCustomQuestionSnapshot, deriveContextAndStatement } from '@/types/simulado-preview';
 
 type Method = 'bank' | 'ai' | 'manual' | 'quotas' | null;
+type Step = 'metodo' | 'montagem' | 'detalhes' | 'revisao';
 
 interface PoolCandidate {
   id: string;
@@ -42,7 +46,12 @@ interface Props {
   slug: string;
   onClose: () => void;
   onCreated: () => void;
-  printedMode?: boolean;
+  // Modalidade já foi decidida na Etapa 1 do seletor de tipo, fora deste
+  // componente — chega aqui só como leitura (nunca reeditável). Local é a
+  // única parte dessa decisão que ainda precisa de um campo pra preencher,
+  // e vive localmente aqui (não precisa ser compartilhado com o resto da
+  // tela de simulados).
+  modality: 'online' | 'hybrid' | 'printed';
   onCreatedPrinted?: (printedExamId: string) => void;
 }
 
@@ -58,21 +67,33 @@ const methodCards: Array<{
   { id: 'quotas', title: 'Concursos por quotas', description: 'Combine matérias e quantidades para selecionar questões verificadas.', icon: Database },
 ];
 
-export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, printedMode, onCreatedPrinted }: Props) {
+export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, modality, onCreatedPrinted }: Props) {
   const { org } = useOrg();
   const brandText = readableBrandText(org.brand_primary, 'var(--brand-primary)');
   const onBrand = onBrandText(org.brand_primary);
+  const printedMode = modality === 'printed';
   const [method, setMethod] = useState<Method>(null);
-  const [step, setStep] = useState<'pool' | 'config'>('pool');
+  const [step, setStep] = useState<Step>('metodo');
   const [pool, setPool] = useState<SelectedQuestion[]>([]);
   const [contest, setContest] = useState<{ bank: string; role: string } | null>(null);
   const [title, setTitle] = useState('');
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
+  const invalidScheduleEnd = Boolean(startsAt && endsAt && endsAt <= startsAt);
   const [timeLimitMins, setTimeLimitMins] = useState('');
+  const [locationName, setLocationName] = useState('');
+  const [locationAddress, setLocationAddress] = useState('');
   const [creating, setCreating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [downloadingPreviewPdf, setDownloadingPreviewPdf] = useState(false);
+
+  const steps: WizardStepperStep[] = [
+    { key: 'metodo', label: 'Método' },
+    { key: 'montagem', label: 'Questões' },
+    { key: 'detalhes', label: 'Detalhes' },
+    { key: 'revisao', label: 'Revisão' },
+  ];
+  const currentIndex = steps.findIndex((s) => s.key === step);
 
   function addToPool(question: PoolCandidate) {
     const { context, statement } = deriveContextAndStatement(question.context, question.alternatives_intro);
@@ -134,12 +155,16 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, p
   }
 
   async function handleCreate() {
+    if (invalidScheduleEnd) {
+      toast.error('O fim deve ser depois do início.');
+      return;
+    }
     if (pool.length < 5) {
       toast.error('Selecione pelo menos 5 questões.');
       return;
     }
-    if (!title.trim() || !startsAt) {
-      toast.error('Título e data de início são obrigatórios.');
+    if (!title.trim() || (!printedMode && !startsAt)) {
+      toast.error(printedMode ? 'Título é obrigatório.' : 'Título e data de início são obrigatórios.');
       return;
     }
 
@@ -154,14 +179,25 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, p
       };
 
       if (printedMode) {
-        // Fluxo impresso: cria prova impressa com os IDs selecionados
+        // A API vincula a prova impressa ao simulado para correção e métricas.
         const res = await fetch(`${api}/api/partners/${slug}/printed-exams`, {
           method: 'POST',
           headers,
           body: JSON.stringify({
             title: title.trim(),
             question_ids: pool.map((q) => q.id),
+            starts_at: startsAt ? new Date(startsAt).toISOString() : undefined,
+            ends_at: endsAt ? new Date(endsAt).toISOString() : undefined,
+            location_name: locationName.trim() || null,
+            location_address: locationAddress.trim() || null,
             config: {
+              format: 'custom',
+              bank: contest?.bank || 'CUSTOM',
+              question_type: contest ? 'concurso' : 'vestibular',
+              role: contest?.role || null,
+              qty: pool.length,
+              time_limit_secs: timeLimitMins ? Number(timeLimitMins) * 60 : null,
+              allow_retry: false,
               custom_questions: pool.map((question) => ({
                 id: question.id,
                 subject: question.subject,
@@ -182,11 +218,18 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, p
         onCreatedPrinted?.(data.printed_exam_id);
         onClose();
       } else {
-        // Fluxo online — comportamento original inalterado
+        // Fluxo online/híbrido — modality e local (quando híbrido) SEMPRE vão
+        // no payload: antes desta correção, este branch nunca enviava
+        // `modality`, e o backend defaultava para "online" — Híbrido escolhido
+        // na Etapa 1 virava Online silenciosamente (achado de auditoria).
+        const hasLocation = modality !== 'online';
         const body = {
           title: title.trim(),
           starts_at: new Date(startsAt).toISOString(),
           ends_at: endsAt ? new Date(endsAt).toISOString() : undefined,
+          modality,
+          location_name: hasLocation ? (locationName.trim() || null) : null,
+          location_address: hasLocation ? (locationAddress.trim() || null) : null,
           config: {
             format: 'custom',
             bank: contest?.bank || 'CUSTOM',
@@ -226,9 +269,24 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, p
     }
   }
 
-  const content = useMemo(() => {
+  const modalityLabel = modality === 'printed' ? 'Impresso' : modality === 'hybrid' ? 'Híbrido' : 'Online';
+  const methodLabel = methodCards.find((m) => m.id === method)?.title ?? '—';
+
+  const toolContent = useMemo(() => {
     if (method === 'quotas') {
-      return <ContestQuotaBuilder slug={slug} onGenerated={(questions, bank, role) => { setPool([]); addManyToPool(questions); setContest({bank, role}); }} />;
+      return (
+        <ContestQuotaBuilder
+          slug={slug}
+          brandTextColor={onBrand}
+          onExit={() => setStep('metodo')}
+          onGenerated={(questions, bank, role) => {
+            setPool([]);
+            addManyToPool(questions);
+            setContest({ bank, role });
+            setStep('detalhes');
+          }}
+        />
+      );
     }
     if (method === 'bank') {
       return <QuestionBankExplorer slug={slug} selectedIds={pool.map((item) => item.id)} onSelectQuestion={addToPool} />;
@@ -239,248 +297,321 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, p
     if (method === 'manual') {
       return <ManualQuestionForm slug={slug} onSuccess={addManyToPool} />;
     }
-    return (
-      <div className="grid gap-4 md:grid-cols-3">
-        {methodCards.filter(item => item.id !== 'quotas' || Boolean(org.permissions?.concursos_enabled)).map((item) => {
-          const Icon = item.icon;
-          return (
-            <button key={item.id} type="button" onClick={() => { setMethod(item.id); setContest(null); }} className="text-left">
-              <ElevatedCard accentColor={org.brand_primary} className="h-full p-6 transition-transform duration-200 hover:-translate-y-0.5">
-                <div
-                  className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl"
-                  style={{ background: `color-mix(in srgb, ${org.brand_primary} 16%, white)` }}
-                >
-                  <Icon className="h-5 w-5" style={{ color: brandText }} />
-                </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">{item.title}</h3>
-                <p className="mt-2 text-sm text-slate-500 dark:text-white/50">{item.description}</p>
-              </ElevatedCard>
-            </button>
-          );
-        })}
-      </div>
-    );
-  }, [method, pool, slug, org.brand_primary, org.permissions, brandText]);
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [method, pool, slug]);
 
   return (
-    <div className="fixed inset-0 z-[110] bg-black/55 backdrop-blur-[2px]">
-      <div className="flex h-[100dvh] w-full overflow-hidden">
-        <div className="grid h-full w-full min-h-0 grid-rows-[auto_minmax(0,1fr)] bg-slate-50 dark:bg-slate-950 xl:grid-cols-[320px_minmax(0,1fr)] xl:grid-rows-1 2xl:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="flex min-h-0 flex-col overflow-hidden border-b border-slate-200 bg-white dark:border-white/10 dark:bg-slate-900 xl:border-b-0 xl:border-r">
-            <div className="flex items-start justify-between border-b border-slate-200 p-4 dark:border-white/10 md:p-5">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: brandText }}>Novo fluxo</p>
-                <h2 className="font-display mt-1 text-xl font-extrabold text-slate-900 dark:text-white">Simulado Personalizado</h2>
-                <p className="mt-1 text-sm text-slate-500 dark:text-white/50 xl:max-w-[24ch]">Monte o pool manualmente e avance para a configuração final do simulado na etapa seguinte.</p>
-              </div>
-              <button type="button" onClick={onClose} className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 dark:text-white/60 dark:hover:bg-white/10">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+    <div className="fixed inset-0 z-[95] overflow-y-auto bg-slate-50 dark:bg-slate-950">
+      <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col p-4 md:p-6">
+        <header className="mb-4 flex items-start gap-3">
+          <button
+            onClick={onClose}
+            aria-label="Cancelar"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+          >
+            <ArrowLeft size={14} />
+          </button>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white lg:text-xl">Novo Simulado — Personalizado</h1>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-white/50 lg:text-sm">Monte o pool de questões e configure a publicação pra turma.</p>
+          </div>
+        </header>
 
-            <div className="shrink-0 grid gap-3 p-4 sm:grid-cols-3 md:p-5 xl:grid-cols-1">
-              {methodCards.filter(item => item.id !== 'quotas' || Boolean(org.permissions?.concursos_enabled)).map((item) => {
-                const Icon = item.icon;
-                const active = method === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => { setMethod(item.id); setContest(null); }}
-                    className="flex w-full items-start gap-3 rounded-2xl px-4 py-3 text-left transition-all"
-                    style={active
-                      ? { background: org.brand_primary, color: onBrand, boxShadow: `0 8px 20px -8px ${org.brand_primary}` }
-                      : undefined}
-                  >
-                    <Icon
-                      className={`mt-0.5 h-4 w-4 shrink-0 ${active ? '' : 'text-slate-500 dark:text-white/50'}`}
-                      style={active ? { color: onBrand } : undefined}
-                    />
-                    <div className={active ? '' : 'text-slate-700 dark:text-white/70'}>
-                      <div className="text-sm font-semibold">{item.title}</div>
-                      <div className={`mt-1 text-xs ${active ? 'opacity-85' : 'text-slate-500 dark:text-white/40'}`}>{item.description}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+        <div className="mb-4">
+          <WizardStepper steps={steps} currentIndex={currentIndex} brandTextColor={onBrand} />
+        </div>
 
-            <div className="grid min-h-0 gap-4 border-t border-slate-200 p-4 dark:border-white/10 md:p-5 xl:flex-1 xl:grid-cols-1 xl:overflow-hidden">
-              <section className="min-h-0 xl:flex xl:min-h-0 xl:flex-col">
-                <div className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Questões selecionadas</div>
-                <div className="max-h-44 space-y-2 overflow-y-auto pr-1 md:max-h-52 xl:max-h-none xl:flex-1">
-                  {pool.length === 0 && <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-white/15 dark:text-white/40">Nenhuma questão adicionada ainda.</div>}
-                  {pool.map((question) => (
-                    <div key={question.id} className={`rounded-2xl bg-slate-50 p-3 dark:bg-white/5 ${question.testletGroupId ? 'border-l-4 border-amber-300 dark:border-amber-400/60' : ''}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="mb-1 inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:bg-white/10 dark:text-white/70">{question.subject}</div>
-                          {question.testletGroupId && question.testletTotal ? (
-                            <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                              Testlet ({question.testletTotal} itens) • Item {question.testletPosition}
-                            </div>
-                          ) : null}
-                          <div className="text-sm text-slate-700 dark:text-white/60">{question.alternatives_intro.slice(0, 60)}{question.alternatives_intro.length > 60 ? '...' : ''}</div>
+        <div className="flex-1 space-y-4">
+          {step === 'metodo' && (
+            <ElevatedCard accentColor={org.brand_primary} className="p-4 md:p-6">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Como você quer montar as questões?</p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-white/50">
+                {pool.length > 0 ? `${pool.length} questões já selecionadas — trocar de método não as descarta.` : 'Escolha uma ferramenta pra montar o pool deste simulado.'}
+              </p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {methodCards.filter((item) => item.id !== 'quotas' || Boolean(org.permissions?.concursos_enabled)).map((item) => {
+                  const Icon = item.icon;
+                  const active = method === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => { setMethod(item.id); setContest(null); setStep('montagem'); }}
+                      className="text-left"
+                    >
+                      <ElevatedCard
+                        accentColor={org.brand_primary}
+                        className={`h-full p-6 transition-transform duration-200 hover:-translate-y-0.5 ${active ? 'ring-2' : ''}`}
+                      >
+                        <div
+                          className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl"
+                          style={{ background: `color-mix(in srgb, ${org.brand_primary} 16%, white)` }}
+                        >
+                          <Icon className="h-5 w-5" style={{ color: brandText }} />
                         </div>
-                        <button type="button" onClick={() => removeFromPool(question.id)} className="rounded-xl p-2 text-slate-400 transition hover:bg-white hover:text-red-500 dark:text-white/40 dark:hover:bg-white/10 dark:hover:text-red-400">
-                          <Trash2 className="h-4 w-4" />
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white">{item.title}</h3>
+                        <p className="mt-2 text-sm text-slate-500 dark:text-white/50">{item.description}</p>
+                      </ElevatedCard>
+                    </button>
+                  );
+                })}
+              </div>
+            </ElevatedCard>
+          )}
+
+          {step === 'montagem' && (
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <RevealGroup className="min-w-0 space-y-4">
+                <RevealItem>
+                  <ElevatedCard accentColor={org.brand_primary} className="p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-white/40">Método: {methodLabel}</p>
+                        <p className="mt-1 text-sm text-slate-700 dark:text-white/70">
+                          {pool.length} questões selecionadas
+                          {pool.length > 0 && ` · ${new Set(pool.map((q) => q.subject)).size} matérias`}. O mínimo pra avançar é 5.
+                        </p>
+                        <div className="mt-2 max-w-xs">
+                          <MiniBar pct={Math.min(100, (pool.length / 5) * 100)} color={pool.length >= 5 ? '#10b981' : org.brand_primary} />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowPreview(true)}
+                          disabled={pool.length === 0}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
+                        >
+                          <Eye className="h-4 w-4" />
+                          Ver simulado
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDownloadPdfPreview()}
+                          disabled={pool.length === 0 || downloadingPreviewPdf}
+                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
+                        >
+                          <FileText className="h-4 w-4" />
+                          {downloadingPreviewPdf ? 'Gerando PDF...' : 'Baixar PDF'}
                         </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </section>
-            </div>
-          </aside>
+                  </ElevatedCard>
+                </RevealItem>
+                <RevealItem>{toolContent}</RevealItem>
+              </RevealGroup>
 
-          <main className="min-h-0 min-w-0 overflow-y-auto p-4 md:p-6">
-            <RevealGroup className="mx-auto flex w-full max-w-6xl min-w-0 flex-col gap-4">
-              <RevealItem>
-                <ElevatedCard accentColor={org.brand_primary} className="sticky top-0 z-20 p-4">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${step === 'pool' ? '' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-white/40'}`}
-                          style={step === 'pool' ? { background: org.brand_primary, color: onBrand } : undefined}
-                        >
-                          Etapa 1
-                        </span>
-                        <span
-                          className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${step === 'config' ? '' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-white/40'}`}
-                          style={step === 'config' ? { background: org.brand_primary, color: onBrand } : undefined}
-                        >
-                          Etapa 2
-                        </span>
+              <aside className="min-w-0 space-y-3">
+                <ElevatedCard accentColor={org.brand_primary} className="p-4">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Questões selecionadas</p>
+                  <div className="mt-3 max-h-[60vh] space-y-2 overflow-y-auto pr-1">
+                    {pool.length === 0 && (
+                      <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-white/15 dark:text-white/40">
+                        Nenhuma questão adicionada ainda.
                       </div>
-                      <h3 className="font-display mt-3 text-lg font-bold text-slate-900 dark:text-white">Monte o caderno antes de publicar</h3>
-                      <p className="mt-1 text-sm text-slate-500 dark:text-white/50">
-                        {pool.length} questões selecionadas. O mínimo para avançar é 5.
-                      </p>
-                      <div className="mt-2 max-w-xs">
-                        <MiniBar pct={Math.min(100, (pool.length / 5) * 100)} color={pool.length >= 5 ? '#10b981' : org.brand_primary} />
+                    )}
+                    {pool.map((question) => (
+                      <div key={question.id} className={`rounded-2xl bg-slate-50 p-3 dark:bg-white/5 ${question.testletGroupId ? 'border-l-4 border-amber-300 dark:border-amber-400/60' : ''}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="mb-1 inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:bg-white/10 dark:text-white/70">{question.subject}</div>
+                            {question.testletGroupId && question.testletTotal ? (
+                              <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                                Testlet ({question.testletTotal} itens) • Item {question.testletPosition}
+                              </div>
+                            ) : null}
+                            <div className="text-sm text-slate-700 dark:text-white/60">{question.alternatives_intro.slice(0, 60)}{question.alternatives_intro.length > 60 ? '...' : ''}</div>
+                          </div>
+                          <button type="button" onClick={() => removeFromPool(question.id)} className="rounded-xl p-2 text-slate-400 transition hover:bg-white hover:text-red-500 dark:text-white/40 dark:hover:bg-white/10 dark:hover:text-red-400">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <button
-                        type="button"
-                        onClick={() => setShowPreview(true)}
-                        disabled={pool.length === 0}
-                        className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
-                      >
-                        <Eye className="h-4 w-4" />
-                        Ver simulado
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDownloadPdfPreview()}
-                        disabled={pool.length === 0 || downloadingPreviewPdf}
-                        className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
-                      >
-                        <FileText className="h-4 w-4" />
-                        {downloadingPreviewPdf ? 'Gerando PDF...' : 'Baixar PDF'}
-                      </button>
-                      <BrandButton
-                        onClick={() => setStep('config')}
-                        disabled={pool.length < 5}
-                        hex={org.brand_primary}
-                      >
-                        Próxima etapa
-                        <ArrowRight className="h-4 w-4" />
-                      </BrandButton>
-                    </div>
+                    ))}
                   </div>
                 </ElevatedCard>
-              </RevealItem>
-
-              <RevealItem>{content}</RevealItem>
-            </RevealGroup>
-          </main>
-        </div>
-      </div>
-
-      {step === 'config' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/35 p-4 backdrop-blur-[1px]">
-          <ElevatedCard accentColor={org.brand_primary} className="w-full max-w-3xl shadow-2xl">
-            <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10 md:px-6 md:py-5">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: brandText }}>
-                  Etapa 2
-                </p>
-                <h3 className="font-display mt-1 text-xl font-extrabold text-slate-900 dark:text-white">Configuração do Simulado</h3>
-                <p className="mt-1 text-sm text-slate-500 dark:text-white/50">Defina os dados finais para publicar esse simulado personalizado para a turma.</p>
-              </div>
-              <button type="button" onClick={() => setStep('pool')} className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 dark:text-white/60 dark:hover:bg-white/10">
-                <X className="h-4 w-4" />
-              </button>
+              </aside>
             </div>
+          )}
 
-            <div className="space-y-5 px-5 py-5 md:px-6 md:py-6">
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">Título</label>
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Ex: Simulado Personalizado — Semana 4"
-                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/5 dark:text-white"
-                />
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
+          {step === 'detalhes' && (
+            <ElevatedCard accentColor={org.brand_primary} className="mx-auto max-w-2xl p-4 md:p-6">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Detalhes do simulado</p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-white/50">{pool.length} questões selecionadas, mesmo caderno pra toda a turma.</p>
+              <div className="mt-5 space-y-5">
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">Data de início</label>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">Título</label>
                   <input
-                    type="datetime-local"
-                    value={startsAt}
-                    onChange={(e) => setStartsAt(e.target.value)}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Ex: Simulado Personalizado — Semana 4"
                     className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/5 dark:text-white"
                   />
                 </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">Data de fim</label>
-                  <input
-                    type="datetime-local"
-                    value={endsAt}
-                    onChange={(e) => setEndsAt(e.target.value)}
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/5 dark:text-white"
-                  />
-                </div>
-              </div>
 
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-                <div className="rounded-2xl bg-slate-50 px-4 py-3 dark:bg-white/5">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">Resumo</div>
-                  <div className="mt-2 text-sm text-slate-700 dark:text-white/60">{pool.length} questões selecionadas, mesmo caderno para toda a turma.</div>
-                </div>
+                {modality !== 'online' && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">
+                        <MapPin className="mr-1 inline h-3 w-3" />Local
+                      </label>
+                      <input
+                        value={locationName}
+                        onChange={(e) => setLocationName(e.target.value)}
+                        placeholder="Ex: Sala 3 — Bloco B"
+                        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/5 dark:text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">Endereço (opcional)</label>
+                      <input
+                        value={locationAddress}
+                        onChange={(e) => setLocationAddress(e.target.value)}
+                        placeholder="Ex: Rua das Flores, 123"
+                        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/5 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {!printedMode && (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <DateTimeField
+                      label="Data de início"
+                      value={startsAt}
+                      onChange={setStartsAt}
+                      labelClassName="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40"
+                      inputClassName="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    />
+                    <DateTimeField
+                      label="Data de fim"
+                      hint="(opcional)"
+                      value={endsAt}
+                      minDateTime={startsAt}
+                      onChange={setEndsAt}
+                      labelClassName="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40"
+                      inputClassName="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    />
+                  </div>
+                )}
+
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">Limite de tempo</label>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">Limite de tempo (min, opcional)</label>
                   <input
                     type="number"
                     min={0}
                     value={timeLimitMins}
                     onChange={(e) => setTimeLimitMins(e.target.value)}
                     placeholder="Minutos"
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    className="h-11 w-full max-w-[220px] rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/5 dark:text-white"
                   />
                 </div>
               </div>
-            </div>
+            </ElevatedCard>
+          )}
 
-            <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 dark:border-white/10 md:flex-row md:items-center md:justify-between md:px-6">
-              <button type="button" onClick={() => setStep('pool')} className="rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5">
-                Voltar para questões
-              </button>
-              <BrandButton
-                onClick={() => void handleCreate()}
-                disabled={creating || !title.trim() || !startsAt || pool.length < 5}
-                hex={org.brand_primary}
-              >
-                {creating ? 'Criando...' : 'Criar Simulado'}
-              </BrandButton>
-            </div>
-          </ElevatedCard>
+          {step === 'revisao' && (
+            <ElevatedCard accentColor={org.brand_primary} className="mx-auto max-w-2xl p-4 md:p-6">
+              <p className="text-sm font-bold text-slate-900 dark:text-white">Revisão do simulado</p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-white/50">Confira os detalhes antes de publicar.</p>
+              <dl className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-white/10 dark:border-white/10">
+                {[
+                  { label: 'Modalidade', value: modalityLabel },
+                  { label: 'Método', value: methodLabel },
+                  { label: 'Questões', value: String(pool.length) },
+                  ...(modality !== 'online' ? [{ label: 'Local', value: locationName.trim() || '—' }] : []),
+                  ...(!printedMode ? [{ label: 'Início', value: startsAt ? formatDateTime(startsAt) : '—' }, { label: 'Fim', value: endsAt ? formatDateTime(endsAt) : '—' }] : []),
+                  { label: 'Tempo limite', value: timeLimitMins ? `${timeLimitMins} min` : 'Sem limite' },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                    <dt className="text-slate-500 dark:text-white/50">{row.label}</dt>
+                    <dd className="text-right font-semibold text-slate-800 dark:text-white/80">{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPreview(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 dark:border-white/15 dark:text-white/70"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  Ver simulado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDownloadPdfPreview()}
+                  disabled={downloadingPreviewPdf}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 disabled:opacity-50 dark:border-white/15 dark:text-white/70"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  {downloadingPreviewPdf ? 'Gerando PDF...' : 'Baixar PDF'}
+                </button>
+              </div>
+            </ElevatedCard>
+          )}
         </div>
-      )}
+
+        {!(method === 'quotas' && step === 'montagem') && (
+        <div className="sticky bottom-0 mt-4 flex flex-col-reverse gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-lg dark:border-white/10 dark:bg-slate-900 sm:flex-row">
+          {step === 'metodo' ? (
+            <button
+              onClick={onClose}
+              className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
+            >
+              Cancelar
+            </button>
+          ) : (
+            <button
+              onClick={() => setStep(step === 'montagem' ? 'metodo' : step === 'detalhes' ? 'montagem' : 'detalhes')}
+              className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
+            >
+              Voltar
+            </button>
+          )}
+          {step === 'metodo' && (
+            <p className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-dashed border-slate-200 px-4 text-xs font-semibold text-slate-400 dark:border-white/15 dark:text-white/40">
+              Escolha uma ferramenta acima pra continuar
+            </p>
+          )}
+          {step === 'montagem' && (
+            <button
+              onClick={() => setStep('detalhes')}
+              disabled={pool.length < 5}
+              className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ background: org.brand_primary, color: onBrand }}
+            >
+              Avançar <ArrowRight size={16} />
+            </button>
+          )}
+          {step === 'detalhes' && (
+            <button
+              onClick={() => {
+                if (!title.trim() || (!printedMode && !startsAt)) {
+                  toast.error(printedMode ? 'Título é obrigatório.' : 'Título e data de início são obrigatórios.');
+                  return;
+                }
+                if (invalidScheduleEnd) {
+                  toast.error('O fim deve ser depois do início.');
+                  return;
+                }
+                setStep('revisao');
+              }}
+              className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all"
+              style={{ background: org.brand_primary, color: onBrand }}
+            >
+              Avançar: Revisão <ArrowRight size={16} />
+            </button>
+          )}
+          {step === 'revisao' && (
+            <BrandButton onClick={() => void handleCreate()} disabled={creating} hex={org.brand_primary} className="flex-1 justify-center">
+              {creating ? 'Criando...' : printedMode ? 'Gerar prova impressa' : 'Criar Simulado'}
+            </BrandButton>
+          )}
+        </div>
+        )}
+      </div>
 
       {showPreview && (
         <SimuladoPreviewModal
