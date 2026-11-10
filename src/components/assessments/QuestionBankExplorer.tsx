@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
 import { useOrg } from '@/contexts/OrgContext';
-import { CheckCircle2, Loader2, PlusCircle, Search, Sparkles } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, PlusCircle, Search, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface QuestionItem {
@@ -50,6 +50,7 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
   const [difficulty, setDifficulty] = useState('all');
   const [preview, setPreview] = useState<QuestionItem | null>(null);
   const [varyingId, setVaryingId] = useState<string | null>(null);
+  const [index, setIndex] = useState(0);
 
   const scoped = facets.filter((item) => (role === 'all' || item.role === role) && (bank === 'all' || item.bank === bank) && (institution === 'all' || item.institution === institution) && (area === 'all' || item.area === area) && (region === 'all' || item.region === region));
   const unique = (values: Array<string | null>) => [...new Set(values.filter((v): v is string => Boolean(v)))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -107,6 +108,7 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
 
   useEffect(() => {
     const timeout = setTimeout(() => {
+      setIndex(0);
       void fetchQuestions(true);
     }, 300);
     return () => clearTimeout(timeout);
@@ -161,6 +163,24 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
       setVaryingId(null);
     }
   }
+
+  async function handleNext() {
+    if (index + 1 < questions.length) {
+      setIndex((i) => i + 1);
+      return;
+    }
+    if (questions.length < count) {
+      await fetchQuestions(false);
+      setIndex((i) => i + 1);
+    }
+  }
+
+  function handlePrev() {
+    setIndex((i) => Math.max(0, i - 1));
+  }
+
+  const current = questions[index];
+  const isLast = index >= questions.length - 1 && questions.length >= count;
 
   return (
     <div className="space-y-4">
@@ -258,56 +278,93 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
         </div>
       )}
 
-      <div className="space-y-3">
-        {questions.map((question) => {
-          const isSelected = selectedIds.includes(question.id);
-          return (
-            <div key={question.id} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                <span className="rounded-full bg-slate-900 px-2.5 py-1 text-white">{question.subject}</span>
-                {question.discipline && <span className="rounded-full bg-slate-100 px-2.5 py-1">{question.discipline}</span>}
-                {question.difficulty && <span className="rounded-full bg-slate-100 px-2.5 py-1">{question.difficulty}</span>}
-              </div>
-              {question.context && <QuestionRichText text={question.context} className="mb-3 text-sm text-slate-600" />}
-              <QuestionRichText text={question.alternatives_intro || ''} className="text-sm font-medium text-slate-900" />
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={isSelected}
-                  onClick={() => onSelectQuestion(question)}
-                  className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-                  style={{ backgroundColor: isSelected ? undefined : 'var(--brand-primary)' }}
-                >
-                  {isSelected ? <CheckCircle2 className="h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
-                  {isSelected ? 'Adicionada' : 'Adicionar'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleGenerateVariation(question)}
-                  disabled={varyingId === question.id}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
-                >
-                  {varyingId === question.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  Gerar variação via IA
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {questions.length < count && (
-        <div className="flex justify-center">
-          <button type="button" onClick={() => void fetchQuestions(false)} disabled={loading} className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
-            {loading ? 'Carregando...' : 'Carregar mais'}
-          </button>
-        </div>
-      )}
-
       {loading && questions.length === 0 && (
         <div className="flex items-center justify-center rounded-3xl border border-slate-200 bg-white p-10 text-slate-500">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Carregando questões...
+        </div>
+      )}
+
+      {!loading && count === 0 && (
+        <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+          Nenhuma questão encontrada com esses filtros.
+        </div>
+      )}
+
+      {current && (
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-1.5 w-full bg-slate-100">
+            <div
+              className="h-full transition-all duration-200"
+              style={{ width: `${count ? ((index + 1) / count) * 100 : 0}%`, backgroundColor: 'var(--brand-primary)' }}
+            />
+          </div>
+          <div className="p-5 sm:p-6">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
+                <span className="rounded-full bg-slate-900 px-2.5 py-1 text-white">{current.subject}</span>
+                {current.discipline && <span className="rounded-full bg-slate-100 px-2.5 py-1">{current.discipline}</span>}
+                {current.difficulty && <span className="rounded-full bg-slate-100 px-2.5 py-1">{current.difficulty}</span>}
+              </div>
+              <span className="text-xs font-semibold text-slate-400">Questão {index + 1} de {count}</span>
+            </div>
+
+            {current.context && <QuestionRichText text={current.context} className="mb-3 text-sm text-slate-600" />}
+            <QuestionRichText text={current.alternatives_intro || ''} className="text-base font-medium text-slate-900" />
+
+            {current.alternatives && current.alternatives.length > 0 && (
+              <div className="mt-4 space-y-2 text-sm text-slate-700">
+                {current.alternatives.map((alt) => (
+                  <div key={alt.letter} className="rounded-xl border border-slate-200 px-3 py-2.5">
+                    <strong>{alt.letter}.</strong> {alt.text}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={selectedIds.includes(current.id)}
+                onClick={() => { onSelectQuestion(current); void handleNext(); }}
+                className="inline-flex min-h-11 items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                style={{ backgroundColor: selectedIds.includes(current.id) ? undefined : 'var(--brand-primary)' }}
+              >
+                {selectedIds.includes(current.id) ? <CheckCircle2 className="h-4 w-4" /> : <PlusCircle className="h-4 w-4" />}
+                {selectedIds.includes(current.id) ? 'Adicionada' : 'Adicionar'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleGenerateVariation(current)}
+                disabled={varyingId === current.id}
+                className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+              >
+                {varyingId === current.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                Gerar variação via IA
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3 sm:px-6">
+            <button
+              type="button"
+              onClick={handlePrev}
+              disabled={index === 0}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Anterior
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleNext()}
+              disabled={isLast || loading}
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Próxima'}
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
     </div>

@@ -39,20 +39,10 @@ interface SubjectResult {
   percentage: number;
 }
 
-interface Submission {
-  id: string;
-  student_id?: string | null;
-  external_name?: string | null;
-  student_name?: string | null;
-  score: number | null;
-  total_questions: number | null;
-  percentage?: number | null;
-  graded_at: string;
-  results_by_subject?: Record<string, SubjectResult> | null;
-}
-
 interface RankingEntry {
   student_id: string;
+  source?: 'printed' | 'online';
+  submission_id?: string;
   full_name?: string | null;
   score: number | null;
   total_questions: number | null;
@@ -272,7 +262,6 @@ export default function PrintedExamResultsPage() {
       // Org demo: o simulado não existe no banco, então não há prova impressa —
       // os resultados online vêm do ranking, que o backend serve a partir do
       // fixture demo (mesma fonte do relatório geral).
-      let exam: PrintedExam | null = null;
       if (!org.is_mock) {
         const examsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams?scheduled_simulado_id=${scheduledId}`);
         if (!examsRes.ok) {
@@ -282,25 +271,7 @@ export default function PrintedExamResultsPage() {
         }
 
         const examsData = await examsRes.json();
-        exam = (examsData.printed_exams ?? [])[0] ?? null;
-        setPrintedExam(exam);
-      }
-
-      let printedParticipants: Participant[] = [];
-
-      if (exam) {
-        const submissionsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${exam.id}/results`);
-        if (!submissionsRes.ok) {
-          const data = await submissionsRes.json().catch(() => ({}));
-          setError(data.error ?? 'Não foi possível carregar os resultados.');
-          return;
-        }
-
-        const submissionsData = await submissionsRes.json();
-        printedParticipants = (submissionsData.submissions ?? []).map((submission: Submission) => ({
-          ...submission,
-          source: 'printed' as const,
-        }));
+        setPrintedExam((examsData.printed_exams ?? [])[0] ?? null);
       }
 
       const rankingRes = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/${scheduledId}/ranking`);
@@ -311,10 +282,10 @@ export default function PrintedExamResultsPage() {
       }
 
       const rankingData = await rankingRes.json();
-      const onlineParticipants: Participant[] = (rankingData.ranking ?? []).map((entry: RankingEntry) => ({
-        id: `online-${entry.student_id}`,
-        source: 'online',
-        student_id: entry.student_id,
+      const allParticipants: Participant[] = (rankingData.ranking ?? []).map((entry: RankingEntry) => ({
+        id: entry.source === 'printed' ? (entry.submission_id ?? `printed-${entry.student_id}`) : `online-${entry.student_id}`,
+        source: entry.source === 'printed' ? 'printed' : 'online',
+        student_id: entry.student_id.startsWith('external:') ? null : entry.student_id,
         student_name: entry.full_name,
         score: entry.score,
         total_questions: entry.total_questions,
@@ -323,7 +294,7 @@ export default function PrintedExamResultsPage() {
         results_by_subject: entry.results_by_subject ?? {},
       }));
 
-      setParticipants([...printedParticipants, ...onlineParticipants]);
+      setParticipants(allParticipants);
     } catch {
       setError('Erro de conexão. Tente novamente.');
     } finally {
