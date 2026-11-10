@@ -93,16 +93,11 @@ export default function CorrigirGabaritoPage() {
   // ── Resolve printed_exam_id on mount ──
   useEffect(() => {
     if (!scheduled_id) return;
-    const stored = sessionStorage.getItem(`printed_exam_id:${scheduled_id}`);
-    if (stored) {
-      setPrintedExamId(stored);
-    } else {
-      void createPrintedExam();
-    }
+    void loadOrCreatePrintedExam();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scheduled_id]);
 
-  async function createPrintedExam() {
+  async function loadOrCreatePrintedExam() {
     try {
       const simRes = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados`);
       if (!simRes.ok) return;
@@ -111,6 +106,17 @@ export default function CorrigirGabaritoPage() {
         (s: { id: string }) => s.id === scheduled_id,
       );
       if (!sim) return;
+
+      const examsRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams?scheduled_simulado_id=${scheduled_id}`);
+      if (!examsRes.ok) return;
+      const examsData = await examsRes.json();
+      const existingId = examsData.printed_exams?.[0]?.id;
+      if (existingId) {
+        setPrintedExamId(existingId);
+        setTotalQuestions(sim.config?.qty ?? 0);
+        sessionStorage.setItem(`printed_exam_id:${scheduled_id}`, existingId);
+        return;
+      }
 
       const createRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams`, {
         method: 'POST',
