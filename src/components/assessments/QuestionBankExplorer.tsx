@@ -26,14 +26,18 @@ interface Props {
   onSelectQuestion: (question: QuestionItem) => void;
   selectedIds: string[];
   slug: string;
+  // Quando informado, trava o tipo de banca (ex.: já decidido em uma etapa
+  // anterior do wizard de simulado) — some o seletor "Modalidade" e nunca
+  // deixa o founder trocar entre vestibular/concurso dentro do explorador.
+  lockedQuestionType?: 'vestibular' | 'concurso';
 }
 
 interface Facet { bank: string | null; subject: string | null; discipline: string | null; role: string | null; institution: string | null; area: string | null; region: string | null }
 
-export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Props) {
+export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug, lockedQuestionType }: Props) {
   const { org } = useOrg();
   const concursosEnabled = Boolean(org.permissions?.concursos_enabled);
-  const [questionType, setQuestionType] = useState('vestibular');
+  const [questionType, setQuestionType] = useState<string>(lockedQuestionType ?? 'vestibular');
   const [role, setRole] = useState('all');
   const [institution, setInstitution] = useState('all');
   const [area, setArea] = useState('all');
@@ -186,9 +190,15 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug }: Pr
     <div className="space-y-4">
       <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         {concursosEnabled && <div className="mb-3 grid gap-3 md:grid-cols-2">
-          <select aria-label="Modalidade" value={questionType} onChange={(e) => { setQuestionType(e.target.value); setRole('all'); setBank('all'); setSubject('all'); setDiscipline('all'); setInstitution('all'); setArea('all'); setRegion('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm">
-            <option value="vestibular">Vestibular</option><option value="concurso">Concursos</option>
-          </select>
+          {lockedQuestionType ? (
+            <div className="flex h-11 items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-600">
+              {lockedQuestionType === 'concurso' ? 'Concursos' : 'Vestibular'}
+            </div>
+          ) : (
+            <select aria-label="Modalidade" value={questionType} onChange={(e) => { setQuestionType(e.target.value); setRole('all'); setBank('all'); setSubject('all'); setDiscipline('all'); setInstitution('all'); setArea('all'); setRegion('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm">
+              <option value="vestibular">Vestibular</option><option value="concurso">Concursos</option>
+            </select>
+          )}
           {questionType === 'concurso' && <select aria-label="Cargo" value={role} onChange={(e) => { setRole(e.target.value); setBank('all'); setSubject('all'); setInstitution('all'); setArea('all'); setRegion('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm">
             <option value="all">Todos os cargos</option>{roles.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>}

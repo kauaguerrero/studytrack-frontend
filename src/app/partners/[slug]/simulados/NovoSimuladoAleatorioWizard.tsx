@@ -66,10 +66,10 @@ export function NovoSimuladoAleatorioWizard({
   const steps: WizardStepperStep[] = [
     { key: 'titulo', label: 'Título' },
     { key: 'banca', label: isConcurso ? 'Banca e cargo' : 'Banca' },
-    ...(isConcurso ? [] : [{ key: 'formato', label: 'Formato' }]),
+    ...((FORMATS_BY_BANK[form.bank]?.length ?? 0) > 1 ? [{ key: 'formato', label: 'Formato' }] : []),
     { key: 'quantidade', label: 'Quantidade' },
     { key: 'dificuldade', label: 'Dificuldade' },
-    ...(!isConcurso && WEIGHT_KEYS_BY_BANK[form.bank]?.length ? [{ key: 'pesos', label: 'Pesos' }] : []),
+    ...(WEIGHT_KEYS_BY_BANK[form.bank]?.length ? [{ key: 'pesos', label: 'Pesos' }] : []),
     { key: 'regras', label: 'Regras' },
     ...(modality !== 'online' ? [{ key: 'local', label: 'Local' }] : []),
     { key: 'detalhes', label: 'Detalhes' },
@@ -92,7 +92,7 @@ export function NovoSimuladoAleatorioWizard({
     return idx !== -1 && currentIndex >= idx;
   }
 
-  const distributionHint = !isConcurso && form.format === 'completo' ? buildDistributionHintLines(form.bank, form.qty) : null;
+  const distributionHint = form.format === 'completo' ? buildDistributionHintLines(form.bank, form.qty) : null;
 
   const summaryRows = [
     { label: 'Modalidade', value: modality === 'printed' ? 'Impresso' : modality === 'hybrid' ? 'Híbrido' : 'Online' },
@@ -100,7 +100,10 @@ export function NovoSimuladoAleatorioWizard({
     { label: 'Banca', value: reached('banca') ? (isConcurso ? (form.bank || '—') : (BANK_LABELS[form.bank] ?? form.bank)) : '—' },
     ...(isConcurso
       ? [{ label: 'Cargo', value: reached('banca') ? (form.role ? formatCargoLabel(form.role) : 'Todos os cargos') : '—' }]
-      : [{ label: 'Formato', value: reached('formato') ? formatLabel(form.bank, form.format) : '—' }]),
+      : []),
+    ...((FORMATS_BY_BANK[form.bank]?.length ?? 0) > 1
+      ? [{ label: 'Formato', value: reached('formato') ? formatLabel(form.bank, form.format) : '—' }]
+      : []),
     { label: 'Dificuldade', value: reached('dificuldade') ? (DIFFICULTY_LABELS[form.difficulty] ?? form.difficulty) : '—' },
   ];
 

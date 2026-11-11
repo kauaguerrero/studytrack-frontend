@@ -1508,6 +1508,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 void loadSimulados();
               }}
               modality={modality}
+              simuladoFormat={simuladoFormat}
               onCreatedPrinted={(id) => {
                 setShowPersonalizedWizard(false);
                 setPrintedExamId(id);
