@@ -630,6 +630,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           title: form.title.trim() || 'Prévia',
           question_ids: previewQuestions.map((q) => q.id),
           custom_questions: previewQuestions.map(toCustomQuestionSnapshot),
+          bank: form.bank,
+          time_limit_secs: form.time_limit_secs ? Number(form.time_limit_secs) * 60 : null,
         }),
       });
       if (!res.ok) {

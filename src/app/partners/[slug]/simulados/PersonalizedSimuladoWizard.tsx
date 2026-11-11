@@ -234,6 +234,8 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
           title: title.trim() || 'Prévia',
           question_ids: pool.map((q) => q.id),
           custom_questions: pool.map(toCustomQuestionSnapshot),
+          bank: contest?.bank || 'CUSTOM',
+          time_limit_secs: timeLimitMins ? Number(timeLimitMins) * 60 : null,
         }),
       });
       if (!res.ok) {
