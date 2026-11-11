@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { QuestionRichText } from '@/components/questions/QuestionRichText';
@@ -34,7 +34,19 @@ interface Props {
 
 interface Facet { bank: string | null; subject: string | null; discipline: string | null; role: string | null; institution: string | null; area: string | null; region: string | null }
 
-export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug, lockedQuestionType }: Props) {
+// Handle imperativo pra permitir que um shell externo (o wizard de
+// Simulado Personalizado) ofereça atalhos de teclado reais pra navegar
+// questão-a-questão sem duplicar o estado de paginação aqui dentro.
+export interface QuestionBankExplorerHandle {
+  goNext: () => void;
+  goPrev: () => void;
+  addCurrent: () => void;
+}
+
+export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props>(function QuestionBankExplorer(
+  { onSelectQuestion, selectedIds, slug, lockedQuestionType },
+  ref,
+) {
   const { org } = useOrg();
   const concursosEnabled = Boolean(org.permissions?.concursos_enabled);
   const [questionType, setQuestionType] = useState<string>(lockedQuestionType ?? 'vestibular');
@@ -185,6 +197,18 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug, lock
 
   const current = questions[index];
   const isLast = index >= questions.length - 1 && questions.length >= count;
+
+  useImperativeHandle(ref, () => ({
+    goNext: () => void handleNext(),
+    goPrev: handlePrev,
+    addCurrent: () => {
+      if (current && !selectedIds.includes(current.id)) {
+        onSelectQuestion(current);
+        void handleNext();
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [current, selectedIds, questions, count]);
 
   return (
     <div className="space-y-4">
@@ -379,4 +403,4 @@ export function QuestionBankExplorer({ onSelectQuestion, selectedIds, slug, lock
       )}
     </div>
   );
-}
+});

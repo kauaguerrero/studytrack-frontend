@@ -1,19 +1,21 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { useOrg } from '@/contexts/OrgContext';
 import { readableBrandText, onBrandText } from '@/lib/brand-color';
 import {
-  RevealGroup, RevealItem, ElevatedCard, BrandButton, MiniBar,
+  RevealGroup, RevealItem, ElevatedCard, BrandButton,
 } from '@/components/partners/founder-ui';
-import { ArrowLeft, ArrowRight, Database, Eye, FileText, MapPin, PenTool, Sparkles, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft, ArrowRight, BookOpen, Eye, FileText, Layers, MapPin, PenTool, Sparkles, Trash2,
+} from 'lucide-react';
 import { WizardStepper, type WizardStepperStep } from '@/components/partners/simulado/WizardStepper';
 import { DateTimeField } from '@/components/partners/simulado/DateTimeField';
 import { formatDateTime } from '@/lib/simuladoFounderForm';
-import { QuestionBankExplorer } from '@/components/assessments/QuestionBankExplorer';
-import { AiQuestionFactory } from '@/components/assessments/AiQuestionFactory';
+import { QuestionBankExplorer, type QuestionBankExplorerHandle } from '@/components/assessments/QuestionBankExplorer';
+import { AiQuestionChat } from '@/components/assessments/AiQuestionChat';
 import { ManualQuestionForm } from '@/components/assessments/ManualQuestionForm';
 import { ContestQuotaBuilder } from './ContestQuotaBuilder';
 import SimuladoPreviewModal from '@/components/partners/simulados/SimuladoPreviewModal';
@@ -21,8 +23,8 @@ import { downloadBlobResponse } from '@/lib/download-blob';
 import type { SelectedQuestion } from '@/types/simulado-preview';
 import { toCustomQuestionSnapshot, deriveContextAndStatement } from '@/types/simulado-preview';
 
-type Method = 'bank' | 'ai' | 'manual' | 'quotas' | null;
-type Step = 'metodo' | 'montagem' | 'detalhes' | 'revisao';
+type Method = 'bank' | 'ai' | 'manual' | 'quotas';
+type Step = 'montagem' | 'detalhes' | 'revisao';
 
 interface PoolCandidate {
   id: string;
@@ -53,32 +55,103 @@ interface Props {
   // tela de simulados).
   modality: 'online' | 'hybrid' | 'printed';
   // Vestibular/Concurso também já foi decidido antes deste wizard (mesma
-  // Etapa 1) — usado só para travar o tipo de banca dentro do método "Banco
-  // de Questões" (QuestionBankExplorer), que antes deixava trocar livremente
+  // Etapa 1) — usado só para travar o tipo de banca dentro da aba "Banco de
+  // Questões" (QuestionBankExplorer), que antes deixava trocar livremente
   // entre vestibular/concurso mesmo já tendo essa decisão tomada.
   simuladoFormat: 'vestibular' | 'concurso';
   onCreatedPrinted?: (printedExamId: string) => void;
 }
 
-const methodCards: Array<{
-  id: Exclude<Method, null>;
+const methodTabs: Array<{
+  id: Method;
   title: string;
-  description: string;
-  icon: typeof Database;
+  icon: typeof BookOpen;
 }> = [
-  { id: 'bank', title: 'Banco de Questões', description: 'Busque itens verificados e monte o pool manualmente.', icon: Database },
-  { id: 'ai', title: 'Gerar com IA', description: 'Descreva o tema e revise a questão antes de salvar.', icon: Sparkles },
-  { id: 'manual', title: 'Criar do Zero', description: 'Escreva enunciado, alternativas e gabarito manualmente.', icon: PenTool },
-  { id: 'quotas', title: 'Composição por matérias e assuntos', description: 'Combine matérias e quantidades para selecionar questões verificadas.', icon: Database },
+  { id: 'bank', title: 'Banco de questões', icon: BookOpen },
+  { id: 'ai', title: 'Criação com IA', icon: Sparkles },
+  { id: 'manual', title: 'Do zero', icon: PenTool },
+  { id: 'quotas', title: 'Composição por matérias e assuntos', icon: Layers },
 ];
+
+// Coluna direita fixa (desktop): resumo agregado do pool + atalhos de
+// teclado — layout de referência pedido pelo founder. A lista removível de
+// questões fica abaixo (não está no mock, mas é funcionalidade que já
+// existia e não pode sumir).
+function BuilderSidebar({
+  pool, onRemove, accentColor, showBankShortcuts,
+}: {
+  pool: SelectedQuestion[];
+  onRemove: (id: string) => void;
+  accentColor: string;
+  showBankShortcuts: boolean;
+}) {
+  const subjects = [...new Set(pool.map((q) => q.subject))];
+  const topics = [...new Set(pool.map((q) => q.discipline).filter((v): v is string => Boolean(v)))];
+
+  return (
+    <aside className="min-w-0 space-y-3 lg:sticky lg:top-4 lg:self-start">
+      <ElevatedCard accentColor={accentColor} className="p-4">
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-slate-400" />
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-white/40">Qtd de questões</p>
+        </div>
+        <p className="mt-1 text-2xl font-extrabold text-slate-900 dark:text-white">{pool.length}</p>
+      </ElevatedCard>
+      <ElevatedCard accentColor={accentColor} className="p-4">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-white/40">Assuntos</p>
+        <p className="mt-1 text-sm text-slate-700 dark:text-white/70">{subjects.length ? subjects.join(', ') : '—'}</p>
+      </ElevatedCard>
+      <ElevatedCard accentColor={accentColor} className="p-4">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-white/40">Tópicos</p>
+        <p className="mt-1 text-sm text-slate-700 dark:text-white/70">{topics.length ? topics.join(', ') : '—'}</p>
+      </ElevatedCard>
+      {showBankShortcuts && (
+        <ElevatedCard accentColor={accentColor} className="p-4">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-white/40">Atalhos</p>
+          <dl className="space-y-1.5 text-xs text-slate-600 dark:text-white/60">
+            {[['←', 'volta'], ['→', 'próxima'], ['Enter', 'adiciona']].map(([key, label]) => (
+              <div key={key} className="flex items-center gap-2">
+                <kbd className="rounded-md border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-[11px] dark:border-white/15 dark:bg-white/5">{key}</kbd>
+                <span>{label}</span>
+              </div>
+            ))}
+          </dl>
+        </ElevatedCard>
+      )}
+      <ElevatedCard accentColor={accentColor} className="p-4">
+        <p className="mb-2 text-sm font-semibold text-slate-900 dark:text-white">Questões selecionadas</p>
+        <div className="max-h-[40vh] space-y-2 overflow-y-auto pr-1">
+          {pool.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-xs text-slate-500 dark:border-white/15 dark:text-white/40">
+              Nenhuma questão adicionada ainda.
+            </div>
+          )}
+          {pool.map((question) => (
+            <div key={question.id} className={`rounded-2xl bg-slate-50 p-3 dark:bg-white/5 ${question.testletGroupId ? 'border-l-4 border-amber-300 dark:border-amber-400/60' : ''}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="mb-1 inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:bg-white/10 dark:text-white/70">{question.subject}</div>
+                  <div className="text-xs text-slate-700 dark:text-white/60">{question.alternatives_intro.slice(0, 50)}{question.alternatives_intro.length > 50 ? '...' : ''}</div>
+                </div>
+                <button type="button" onClick={() => onRemove(question.id)} className="rounded-xl p-1.5 text-slate-400 transition hover:bg-white hover:text-red-500 dark:text-white/40 dark:hover:bg-white/10 dark:hover:text-red-400">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </ElevatedCard>
+    </aside>
+  );
+}
 
 export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, modality, simuladoFormat, onCreatedPrinted }: Props) {
   const { org } = useOrg();
   const brandText = readableBrandText(org.brand_primary, 'var(--brand-primary)');
   const onBrand = onBrandText(org.brand_primary);
   const printedMode = modality === 'printed';
-  const [method, setMethod] = useState<Method>(null);
-  const [step, setStep] = useState<Step>('metodo');
+  const [method, setMethod] = useState<Method>('bank');
+  const [step, setStep] = useState<Step>('montagem');
   const [pool, setPool] = useState<SelectedQuestion[]>([]);
   const [contest, setContest] = useState<{ bank: string; role: string } | null>(null);
   const [title, setTitle] = useState('');
@@ -91,9 +164,9 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
   const [creating, setCreating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [downloadingPreviewPdf, setDownloadingPreviewPdf] = useState(false);
+  const bankRef = useRef<QuestionBankExplorerHandle>(null);
 
   const steps: WizardStepperStep[] = [
-    { key: 'metodo', label: 'Método' },
     { key: 'montagem', label: 'Questões' },
     { key: 'detalhes', label: 'Detalhes' },
     { key: 'revisao', label: 'Revisão' },
@@ -127,6 +200,22 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
   function removeFromPool(id: string) {
     setPool((prev) => prev.filter((question) => question.id !== id));
   }
+
+  // Atalhos de teclado reais só fazem sentido na aba "Banco de Questões"
+  // (navegação questão-a-questão) — ignora quando o foco está num campo de
+  // texto (ex.: a busca do próprio explorador) pra não atrapalhar digitação.
+  useEffect(() => {
+    if (step !== 'montagem' || method !== 'bank') return;
+    function onKeyDown(e: KeyboardEvent) {
+      const tag = (document.activeElement?.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); bankRef.current?.goPrev(); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); bankRef.current?.goNext(); }
+      else if (e.key === 'Enter') { e.preventDefault(); bankRef.current?.addCurrent(); }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [step, method]);
 
   async function handleDownloadPdfPreview() {
     if (pool.length === 0) return;
@@ -275,7 +364,8 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
   }
 
   const modalityLabel = modality === 'printed' ? 'Impresso' : modality === 'hybrid' ? 'Híbrido' : 'Online';
-  const methodLabel = methodCards.find((m) => m.id === method)?.title ?? '—';
+  const methodLabel = methodTabs.find((m) => m.id === method)?.title ?? '—';
+  const visibleTabs = methodTabs.filter((item) => item.id !== 'quotas' || Boolean(org.permissions?.concursos_enabled));
 
   const toolContent = useMemo(() => {
     if (method === 'quotas') {
@@ -283,7 +373,7 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
         <ContestQuotaBuilder
           slug={slug}
           brandTextColor={onBrand}
-          onExit={() => setStep('metodo')}
+          onExit={() => setMethod('bank')}
           onGenerated={(questions, bank, role) => {
             setPool([]);
             addManyToPool(questions);
@@ -294,10 +384,10 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
       );
     }
     if (method === 'bank') {
-      return <QuestionBankExplorer slug={slug} selectedIds={pool.map((item) => item.id)} onSelectQuestion={addToPool} lockedQuestionType={simuladoFormat} />;
+      return <QuestionBankExplorer ref={bankRef} slug={slug} selectedIds={pool.map((item) => item.id)} onSelectQuestion={addToPool} lockedQuestionType={simuladoFormat} />;
     }
     if (method === 'ai') {
-      return <AiQuestionFactory slug={slug} onQuestionSaved={addToPool} />;
+      return <AiQuestionChat slug={slug} onQuestionSaved={addToPool} />;
     }
     if (method === 'manual') {
       return <ManualQuestionForm slug={slug} onSuccess={addManyToPool} />;
@@ -306,20 +396,71 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [method, pool, slug]);
 
+  function handleAdvanceFromDetalhes() {
+    if (!title.trim() || (!printedMode && !startsAt)) {
+      toast.error(printedMode ? 'Título é obrigatório.' : 'Título e data de início são obrigatórios.');
+      return;
+    }
+    if (invalidScheduleEnd) {
+      toast.error('O fim deve ser depois do início.');
+      return;
+    }
+    setStep('revisao');
+  }
+
   return (
     <div className="fixed inset-0 z-[95] overflow-y-auto bg-slate-50 dark:bg-slate-950">
-      <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col p-4 md:p-6">
-        <header className="mb-4 flex items-start gap-3">
-          <button
-            onClick={onClose}
-            aria-label="Cancelar"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
-          >
-            <ArrowLeft size={14} />
-          </button>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-bold text-slate-900 dark:text-white lg:text-xl">Novo Simulado — Personalizado</h1>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-white/50 lg:text-sm">Monte o pool de questões e configure a publicação pra turma.</p>
+      <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col p-4 md:p-6">
+        <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <button
+              onClick={onClose}
+              aria-label="Cancelar"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+            >
+              <ArrowLeft size={14} />
+            </button>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-bold text-slate-900 dark:text-white lg:text-xl">Novo Simulado — Personalizado</h1>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-white/50 lg:text-sm">Monte o simulado selecionando questões do banco, usando IA, criando do zero ou por composição.</p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowPreview(true)}
+              disabled={pool.length === 0}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
+            >
+              <Eye className="h-4 w-4" />
+              Ver preview
+            </button>
+            {step === 'montagem' && (
+              <button
+                type="button"
+                onClick={() => setStep('detalhes')}
+                disabled={pool.length < 5 || (method === 'quotas')}
+                className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                style={{ background: org.brand_primary, color: onBrand }}
+              >
+                Próxima etapa <ArrowRight size={16} />
+              </button>
+            )}
+            {step === 'detalhes' && (
+              <button
+                type="button"
+                onClick={handleAdvanceFromDetalhes}
+                className="flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold transition-all"
+                style={{ background: org.brand_primary, color: onBrand }}
+              >
+                Próxima etapa <ArrowRight size={16} />
+              </button>
+            )}
+            {step === 'revisao' && (
+              <BrandButton onClick={() => void handleCreate()} disabled={creating} hex={org.brand_primary}>
+                {creating ? 'Criando...' : printedMode ? 'Gerar prova impressa' : 'Criar Simulado'}
+              </BrandButton>
+            )}
           </div>
         </header>
 
@@ -328,116 +469,41 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
         </div>
 
         <div className="flex-1 space-y-4">
-          {step === 'metodo' && (
-            <ElevatedCard accentColor={org.brand_primary} className="p-4 md:p-6">
-              <p className="text-sm font-bold text-slate-900 dark:text-white">Como você quer montar as questões?</p>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-white/50">
-                {pool.length > 0 ? `${pool.length} questões já selecionadas — trocar de método não as descarta.` : 'Escolha uma ferramenta pra montar o pool deste simulado.'}
-              </p>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {methodCards.filter((item) => item.id !== 'quotas' || Boolean(org.permissions?.concursos_enabled)).map((item) => {
-                  const Icon = item.icon;
-                  const active = method === item.id;
+          {step === 'montagem' && (
+            <>
+              <div className="flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 dark:border-white/10 dark:bg-white/5">
+                {visibleTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const active = method === tab.id;
                   return (
                     <button
-                      key={item.id}
+                      key={tab.id}
                       type="button"
-                      onClick={() => { setMethod(item.id); setContest(null); setStep('montagem'); }}
-                      className="text-left"
+                      onClick={() => setMethod(tab.id)}
+                      className="flex-1 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors"
+                      style={active ? { background: `color-mix(in srgb, ${org.brand_primary} 14%, white)`, color: brandText } : undefined}
                     >
-                      <ElevatedCard
-                        accentColor={org.brand_primary}
-                        className={`h-full p-6 transition-transform duration-200 hover:-translate-y-0.5 ${active ? 'ring-2' : ''}`}
-                      >
-                        <div
-                          className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl"
-                          style={{ background: `color-mix(in srgb, ${org.brand_primary} 16%, white)` }}
-                        >
-                          <Icon className="h-5 w-5" style={{ color: brandText }} />
-                        </div>
-                        <h3 className="text-base font-bold text-slate-900 dark:text-white">{item.title}</h3>
-                        <p className="mt-2 text-sm text-slate-500 dark:text-white/50">{item.description}</p>
-                      </ElevatedCard>
+                      <span className={`inline-flex items-center gap-2 ${active ? '' : 'text-slate-500 dark:text-white/50'}`}>
+                        <Icon className="h-4 w-4" />
+                        {tab.title}
+                      </span>
                     </button>
                   );
                 })}
               </div>
-            </ElevatedCard>
-          )}
 
-          {step === 'montagem' && (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <RevealGroup className="min-w-0 space-y-4">
-                <RevealItem>
-                  <ElevatedCard accentColor={org.brand_primary} className="p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-white/40">Método: {methodLabel}</p>
-                        <p className="mt-1 text-sm text-slate-700 dark:text-white/70">
-                          {pool.length} questões selecionadas
-                          {pool.length > 0 && ` · ${new Set(pool.map((q) => q.subject)).size} matérias`}. O mínimo pra avançar é 5.
-                        </p>
-                        <div className="mt-2 max-w-xs">
-                          <MiniBar pct={Math.min(100, (pool.length / 5) * 100)} color={pool.length >= 5 ? '#10b981' : org.brand_primary} />
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setShowPreview(true)}
-                          disabled={pool.length === 0}
-                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
-                        >
-                          <Eye className="h-4 w-4" />
-                          Ver simulado
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDownloadPdfPreview()}
-                          disabled={pool.length === 0 || downloadingPreviewPdf}
-                          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
-                        >
-                          <FileText className="h-4 w-4" />
-                          {downloadingPreviewPdf ? 'Gerando PDF...' : 'Baixar PDF'}
-                        </button>
-                      </div>
-                    </div>
-                  </ElevatedCard>
-                </RevealItem>
-                <RevealItem>{toolContent}</RevealItem>
-              </RevealGroup>
-
-              <aside className="min-w-0 space-y-3">
-                <ElevatedCard accentColor={org.brand_primary} className="p-4">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-white">Questões selecionadas</p>
-                  <div className="mt-3 max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-                    {pool.length === 0 && (
-                      <div className="rounded-2xl border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-white/15 dark:text-white/40">
-                        Nenhuma questão adicionada ainda.
-                      </div>
-                    )}
-                    {pool.map((question) => (
-                      <div key={question.id} className={`rounded-2xl bg-slate-50 p-3 dark:bg-white/5 ${question.testletGroupId ? 'border-l-4 border-amber-300 dark:border-amber-400/60' : ''}`}>
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="mb-1 inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:bg-white/10 dark:text-white/70">{question.subject}</div>
-                            {question.testletGroupId && question.testletTotal ? (
-                              <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                                Testlet ({question.testletTotal} itens) • Item {question.testletPosition}
-                              </div>
-                            ) : null}
-                            <div className="text-sm text-slate-700 dark:text-white/60">{question.alternatives_intro.slice(0, 60)}{question.alternatives_intro.length > 60 ? '...' : ''}</div>
-                          </div>
-                          <button type="button" onClick={() => removeFromPool(question.id)} className="rounded-xl p-2 text-slate-400 transition hover:bg-white hover:text-red-500 dark:text-white/40 dark:hover:bg-white/10 dark:hover:text-red-400">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ElevatedCard>
-              </aside>
-            </div>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                <RevealGroup className="min-w-0 space-y-4">
+                  <RevealItem>{toolContent}</RevealItem>
+                </RevealGroup>
+                <BuilderSidebar
+                  pool={pool}
+                  onRemove={removeFromPool}
+                  accentColor={org.brand_primary}
+                  showBankShortcuts={method === 'bank'}
+                />
+              </div>
+            </>
           )}
 
           {step === 'detalhes' && (
@@ -513,6 +579,14 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
                   />
                 </div>
               </div>
+              <div className="mt-6">
+                <button
+                  onClick={() => setStep('montagem')}
+                  className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
+                >
+                  Voltar
+                </button>
+              </div>
             </ElevatedCard>
           )}
 
@@ -554,68 +628,17 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
                   {downloadingPreviewPdf ? 'Gerando PDF...' : 'Baixar PDF'}
                 </button>
               </div>
+              <div className="mt-6">
+                <button
+                  onClick={() => setStep('detalhes')}
+                  className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
+                >
+                  Voltar
+                </button>
+              </div>
             </ElevatedCard>
           )}
         </div>
-
-        {!(method === 'quotas' && step === 'montagem') && (
-        <div className="sticky bottom-0 mt-4 flex flex-col-reverse gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-lg dark:border-white/10 dark:bg-slate-900 sm:flex-row">
-          {step === 'metodo' ? (
-            <button
-              onClick={onClose}
-              className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
-            >
-              Cancelar
-            </button>
-          ) : (
-            <button
-              onClick={() => setStep(step === 'montagem' ? 'metodo' : step === 'detalhes' ? 'montagem' : 'detalhes')}
-              className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/5"
-            >
-              Voltar
-            </button>
-          )}
-          {step === 'metodo' && (
-            <p className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-dashed border-slate-200 px-4 text-xs font-semibold text-slate-400 dark:border-white/15 dark:text-white/40">
-              Escolha uma ferramenta acima pra continuar
-            </p>
-          )}
-          {step === 'montagem' && (
-            <button
-              onClick={() => setStep('detalhes')}
-              disabled={pool.length < 5}
-              className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ background: org.brand_primary, color: onBrand }}
-            >
-              Avançar <ArrowRight size={16} />
-            </button>
-          )}
-          {step === 'detalhes' && (
-            <button
-              onClick={() => {
-                if (!title.trim() || (!printedMode && !startsAt)) {
-                  toast.error(printedMode ? 'Título é obrigatório.' : 'Título e data de início são obrigatórios.');
-                  return;
-                }
-                if (invalidScheduleEnd) {
-                  toast.error('O fim deve ser depois do início.');
-                  return;
-                }
-                setStep('revisao');
-              }}
-              className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all"
-              style={{ background: org.brand_primary, color: onBrand }}
-            >
-              Avançar: Revisão <ArrowRight size={16} />
-            </button>
-          )}
-          {step === 'revisao' && (
-            <BrandButton onClick={() => void handleCreate()} disabled={creating} hex={org.brand_primary} className="flex-1 justify-center">
-              {creating ? 'Criando...' : printedMode ? 'Gerar prova impressa' : 'Criar Simulado'}
-            </BrandButton>
-          )}
-        </div>
-        )}
       </div>
 
       {showPreview && (

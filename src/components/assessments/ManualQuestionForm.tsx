@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
-import { getSubjects, getTopics } from '@/constants/taxonomy';
 import { CheckCircle2, FileText, LayoutList, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { TestletQuestionForm } from '@/components/assessments/TestletQuestionForm';
+import { QuestionEditableFields, emptyEditableQuestion, type EditableQuestionValue } from '@/components/assessments/QuestionEditableFields';
+import { PublicPrivateDialog } from '@/components/assessments/PublicPrivateDialog';
 
 interface SavedQuestion {
   id: string;
@@ -32,41 +33,28 @@ type QuestionType = 'traditional' | 'testlet';
 export function ManualQuestionForm({ onSuccess, slug }: Props) {
   const [questionType, setQuestionType] = useState<QuestionType>('traditional');
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
-    subject: 'Matemática',
-    discipline: '',
-    difficulty: 'Médio',
-    statement: '',
-    context: '',
-    alternatives: [
-      { letter: 'A', text: '' },
-      { letter: 'B', text: '' },
-      { letter: 'C', text: '' },
-      { letter: 'D', text: '' },
-      { letter: 'E', text: '' },
-    ],
-    correct_alternative: '',
-    explanation: '',
-  });
+  const [showPublicPrivate, setShowPublicPrivate] = useState(false);
+  const [form, setForm] = useState<EditableQuestionValue>(emptyEditableQuestion());
 
-  useEffect(() => {
-    setForm((prev) => ({ ...prev, discipline: '' }));
-  }, [form.subject]);
+  function validate(): string | null {
+    if (!form.statement.trim()) return 'O enunciado é obrigatório.';
+    if (!form.discipline) return 'Selecione o tópico/assunto da matéria.';
+    if (!form.correct_alternative) return 'Selecione a alternativa correta.';
+    if (form.alternatives.some((alt) => !alt.text.trim())) return 'Preencha todas as alternativas.';
+    return null;
+  }
 
-  async function handleSubmit() {
-    if (!form.statement.trim()) {
-      toast.error('O enunciado é obrigatório.');
+  function handleAddClick() {
+    const error = validate();
+    if (error) {
+      toast.error(error);
       return;
     }
-    if (!form.correct_alternative) {
-      toast.error('Selecione a alternativa correta.');
-      return;
-    }
-    if (form.alternatives.some((alt) => !alt.text.trim())) {
-      toast.error('Preencha todas as alternativas.');
-      return;
-    }
+    setShowPublicPrivate(true);
+  }
 
+  async function handleSubmit(isPublic: boolean) {
+    setShowPublicPrivate(false);
     setLoading(true);
     try {
       const supabase = createClient();
@@ -79,33 +67,26 @@ export function ManualQuestionForm({ onSuccess, slug }: Props) {
           Authorization: `Bearer ${session?.access_token ?? ''}`,
         },
         body: JSON.stringify({
-          ...form,
+          subject: form.subject,
+          discipline: form.discipline,
+          difficulty: form.difficulty,
+          statement: form.statement,
+          context: form.context,
+          images: form.images,
+          explanation: form.explanation,
+          is_public: isPublic,
           alternatives: form.alternatives.map((alt) => ({
             ...alt,
             isCorrect: alt.letter === form.correct_alternative,
           })),
+          correct_alternative: form.correct_alternative,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao salvar questão.');
       onSuccess([data.question]);
       toast.success('Questão manual adicionada ao pool.');
-      setForm({
-        subject: 'Matemática',
-        discipline: '',
-        difficulty: 'Médio',
-        statement: '',
-        context: '',
-        alternatives: [
-          { letter: 'A', text: '' },
-          { letter: 'B', text: '' },
-          { letter: 'C', text: '' },
-          { letter: 'D', text: '' },
-          { letter: 'E', text: '' },
-        ],
-        correct_alternative: '',
-        explanation: '',
-      });
+      setForm(emptyEditableQuestion());
     } catch (error) {
       void reportError('PartnerManualQuestionFormError', String(error), { slug });
       toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a questão manual.');
@@ -113,9 +94,6 @@ export function ManualQuestionForm({ onSuccess, slug }: Props) {
       setLoading(false);
     }
   }
-
-  const subjects = getSubjects();
-  const topics = getTopics(form.subject);
 
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -152,53 +130,14 @@ export function ManualQuestionForm({ onSuccess, slug }: Props) {
               <p className="mt-1 text-sm text-slate-500">Preencha o item completo e adicione direto ao pool do simulado.</p>
             </div>
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
-            <select value={form.subject} onChange={(e) => setForm((prev) => ({ ...prev, subject: e.target.value }))} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
-              {subjects.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-            <select value={form.discipline} onChange={(e) => setForm((prev) => ({ ...prev, discipline: e.target.value }))} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
-              <option value="">Selecione o tópico</option>
-              {topics.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-            <select value={form.difficulty} onChange={(e) => setForm((prev) => ({ ...prev, difficulty: e.target.value }))} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
-              <option value="Fácil">Fácil</option>
-              <option value="Médio">Médio</option>
-              <option value="Difícil">Difícil</option>
-            </select>
-          </div>
-          <div className="mt-4 space-y-4">
-            <textarea value={form.context} onChange={(e) => setForm((prev) => ({ ...prev, context: e.target.value }))} placeholder="Contexto opcional" className="min-h-24 w-full rounded-3xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)]" />
-            <textarea value={form.statement} onChange={(e) => setForm((prev) => ({ ...prev, statement: e.target.value }))} placeholder="Enunciado da questão" className="min-h-28 w-full rounded-3xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)]" />
-            <div className="space-y-3">
-              {form.alternatives.map((alt, index) => (
-                <div key={alt.letter} className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setForm((prev) => ({ ...prev, correct_alternative: alt.letter }))}
-                    className={`h-11 w-11 rounded-2xl border text-sm font-bold ${form.correct_alternative === alt.letter ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 text-slate-700'}`}
-                  >
-                    {alt.letter}
-                  </button>
-                  <input
-                    value={alt.text}
-                    onChange={(e) => {
-                      const alternatives = [...form.alternatives];
-                      alternatives[index].text = e.target.value;
-                      setForm((prev) => ({ ...prev, alternatives }));
-                    }}
-                    placeholder={`Alternativa ${alt.letter}`}
-                    className="h-11 flex-1 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]"
-                  />
-                </div>
-              ))}
-            </div>
-            <textarea value={form.explanation} onChange={(e) => setForm((prev) => ({ ...prev, explanation: e.target.value }))} placeholder="Explicação do gabarito" className="min-h-24 w-full rounded-3xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)]" />
-            <div className="sticky bottom-0 -mx-6 mt-2 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+          <div className="mt-4">
+            <QuestionEditableFields value={form} onChange={setForm} slug={slug} />
+            <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <p className="text-sm text-slate-500">Quando terminar, a questão será salva e entra imediatamente no pool à esquerda.</p>
                 <button
                   type="button"
-                  onClick={() => void handleSubmit()}
+                  onClick={handleAddClick}
                   disabled={loading}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-sm"
                   style={{ backgroundColor: 'var(--brand-primary)' }}
@@ -211,6 +150,12 @@ export function ManualQuestionForm({ onSuccess, slug }: Props) {
           </div>
         </>
       )}
+
+      <PublicPrivateDialog
+        open={showPublicPrivate}
+        onClose={() => setShowPublicPrivate(false)}
+        onChoose={(isPublic) => void handleSubmit(isPublic)}
+      />
     </div>
   );
 }
