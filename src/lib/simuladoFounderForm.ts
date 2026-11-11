@@ -47,6 +47,9 @@ export const FORMATS_BY_BANK: Record<string, string[]> = {
   UEG:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
   UFG:   ['custom', 'linguagens', 'humanas', 'natureza', 'matematica', 'completo'],
   UNESP: ['custom', 'completo'],
+  // PMMG (CFSd Soldado) é prova única, sem blocos por área — só a prova
+  // oficial completa de 50 questões (ver PMMG_COMPLETE_SUBJECT_DISTRIBUTION).
+  PMMG:  ['custom', 'completo'],
   Todas: ['custom'],
 };
 
@@ -60,6 +63,7 @@ export const BLOCK_QTY: Record<string, Record<string, number>> = {
   UEG:  { linguagens: 13, humanas: 13, natureza: 13, matematica: 13, completo: 52 },
   UFG:  { linguagens: 24, humanas: 24, natureza: 24, matematica: 24, completo: 96 },
   UNESP: { completo: 90 },
+  PMMG: { completo: 50 },
 };
 
 // Bancas cujo formato "completo" tem distribuição por áreas conhecida e
@@ -67,7 +71,7 @@ export const BLOCK_QTY: Record<string, Record<string, number>> = {
 // quantidade total (espelha simulado_service.py::_scale_subject_quota /
 // _scale_area_distribution no backend) — por isso, ao contrário das demais,
 // a quantidade fica editável mesmo no formato "completo".
-const PROPORTIONAL_COMPLETE_BANKS = new Set(['UFU', 'UEG', 'UFG']);
+const PROPORTIONAL_COMPLETE_BANKS = new Set(['UFU', 'UEG', 'UFG', 'PMMG']);
 
 export function resolveQty(bank: string, format: string): number | null {
   return BLOCK_QTY[bank]?.[format] ?? null; // null = custom, qty editável
@@ -100,6 +104,19 @@ const UEG_COMPLETE_AREA_DISTRIBUTION: Record<string, Record<string, number>> = {
 const UFG_COMPLETE_SUBJECT_DISTRIBUTION: Record<string, number> = {
   'Língua Portuguesa': 24, 'Matemática': 24, 'Biologia': 8, 'Física': 8, 'Química': 8,
   'História': 6, 'Geografia': 6, 'Filosofia': 6, 'Sociologia': 6,
+};
+
+// Edital DRH/CRS nº 10/2023 (CFSd PMMG): 50 questões — Língua Portuguesa 20,
+// Literatura 5, Noções de Língua Inglesa 5, Raciocínio Lógico-Matemático 10,
+// Noções de Direito e Direitos Humanos 10. O edital não detalha a divisão
+// das 10 questões de Direito/DH entre as 5 disciplinas da taxonomia do banco
+// (Direito Constitucional, Direito Penal, Direito Penal Militar, Direitos
+// Humanos, Legislação Extravagante) — os 2 cada abaixo são uma aproximação,
+// no mesmo espírito dos valores por disciplina de UEG/UFG acima.
+const PMMG_COMPLETE_SUBJECT_DISTRIBUTION: Record<string, number> = {
+  'Língua Portuguesa': 20, 'Literatura': 5, 'Inglês': 5, 'Raciocínio Lógico-Matemático': 10,
+  'Direito Constitucional': 2, 'Direito Penal': 2, 'Direito Penal Militar': 2,
+  'Direitos Humanos': 2, 'Legislação Extravagante': 2,
 };
 
 // Reescala uma distribuição fixa por matéria para um total diferente,
@@ -166,6 +183,17 @@ export function buildDistributionHintLines(bank: string, qty: number): string[] 
       `Total ${qty} questões objetivas`,
     ];
   }
+  if (bank === 'PMMG') {
+    const d = scaleSubjectQuota(PMMG_COMPLETE_SUBJECT_DISTRIBUTION, qty);
+    const direitoEDh = d['Direito Constitucional'] + d['Direito Penal'] + d['Direito Penal Militar']
+      + d['Direitos Humanos'] + d['Legislação Extravagante'];
+    return [
+      `Língua Portuguesa ${d['Língua Portuguesa']}, Literatura ${d['Literatura']}, Inglês ${d['Inglês']}`,
+      `Raciocínio Lógico-Matemático ${d['Raciocínio Lógico-Matemático']}`,
+      `Direito e Direitos Humanos ${direitoEDh} (Direito Constitucional, Direito Penal, Direito Penal Militar, Direitos Humanos e Legislação Extravagante)`,
+      `Total ${qty} questões objetivas`,
+    ];
+  }
   return null;
 }
 
@@ -177,6 +205,9 @@ export const WEIGHT_KEYS_BY_BANK: Record<string, string[]> = {
   ],
   UEG: ['Linguagens', 'Matemática', 'Natureza', 'Humanas'],
   UFG: ['Linguagens', 'Matemática', 'Natureza', 'Humanas'],
+  // Sem presets (ao contrário de UEG) — pesos ficam em branco por padrão,
+  // o que o backend já resolve como peso 1 uniforme para todos os grupos.
+  PMMG: ['Língua Portuguesa', 'Literatura', 'Inglês', 'Raciocínio Lógico-Matemático', 'Direito e Direitos Humanos'],
   Todas: [],
 };
 

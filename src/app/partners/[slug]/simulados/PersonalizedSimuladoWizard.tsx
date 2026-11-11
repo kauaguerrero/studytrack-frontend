@@ -52,6 +52,11 @@ interface Props {
   // e vive localmente aqui (não precisa ser compartilhado com o resto da
   // tela de simulados).
   modality: 'online' | 'hybrid' | 'printed';
+  // Vestibular/Concurso também já foi decidido antes deste wizard (mesma
+  // Etapa 1) — usado só para travar o tipo de banca dentro do método "Banco
+  // de Questões" (QuestionBankExplorer), que antes deixava trocar livremente
+  // entre vestibular/concurso mesmo já tendo essa decisão tomada.
+  simuladoFormat: 'vestibular' | 'concurso';
   onCreatedPrinted?: (printedExamId: string) => void;
 }
 
@@ -64,10 +69,10 @@ const methodCards: Array<{
   { id: 'bank', title: 'Banco de Questões', description: 'Busque itens verificados e monte o pool manualmente.', icon: Database },
   { id: 'ai', title: 'Gerar com IA', description: 'Descreva o tema e revise a questão antes de salvar.', icon: Sparkles },
   { id: 'manual', title: 'Criar do Zero', description: 'Escreva enunciado, alternativas e gabarito manualmente.', icon: PenTool },
-  { id: 'quotas', title: 'Concursos por quotas', description: 'Combine matérias e quantidades para selecionar questões verificadas.', icon: Database },
+  { id: 'quotas', title: 'Composição por matérias e assuntos', description: 'Combine matérias e quantidades para selecionar questões verificadas.', icon: Database },
 ];
 
-export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, modality, onCreatedPrinted }: Props) {
+export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, modality, simuladoFormat, onCreatedPrinted }: Props) {
   const { org } = useOrg();
   const brandText = readableBrandText(org.brand_primary, 'var(--brand-primary)');
   const onBrand = onBrandText(org.brand_primary);
@@ -289,7 +294,7 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
       );
     }
     if (method === 'bank') {
-      return <QuestionBankExplorer slug={slug} selectedIds={pool.map((item) => item.id)} onSelectQuestion={addToPool} />;
+      return <QuestionBankExplorer slug={slug} selectedIds={pool.map((item) => item.id)} onSelectQuestion={addToPool} lockedQuestionType={simuladoFormat} />;
     }
     if (method === 'ai') {
       return <AiQuestionFactory slug={slug} onQuestionSaved={addToPool} />;
