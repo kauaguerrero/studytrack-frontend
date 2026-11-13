@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, ChevronDown, MapPin } from 'lucide-react';
 import { WizardStepper, type WizardStepperStep } from '@/components/partners/simulado/WizardStepper';
 import { WizardSidebar } from '@/components/partners/simulado/WizardSidebar';
 import { DateTimeField } from '@/components/partners/simulado/DateTimeField';
+import { DurationTimerField } from '@/components/partners/simulado/DurationTimerField';
 import { useFounderConcursoFacets } from '@/hooks/useFounderConcursoFacets';
 import { CUSTOM_SUBJECTS } from '@/lib/simuladoSubjects';
 import {
@@ -112,6 +113,11 @@ export function NovoSimuladoAleatorioWizard({
   const labelCls = 'mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400';
   const ringStyle = { ['--tw-ring-color' as string]: 'var(--brand-primary)' };
   const invalidScheduleEnd = Boolean(form.starts_at && form.ends_at && form.ends_at <= form.starts_at);
+  // Online/híbrido exige fim e duração (sem isso o simulado fica disponível
+  // pra sempre e o encerramento automático de sessões vencidas não tem como
+  // calcular o prazo — ver simulado_auto_finish_service.py no backend).
+  // Impresso é isento — é aplicado presencialmente.
+  const missingMandatorySchedule = modality !== 'printed' && (!form.ends_at || !form.time_limit_secs);
 
   function canAdvance(): boolean {
     if (wizardStep === 'titulo') return form.title.trim().length > 0;
@@ -123,6 +129,7 @@ export function NovoSimuladoAleatorioWizard({
     if (!form.title.trim()) return;
     if (modality !== 'printed' && !form.starts_at) return;
     if (invalidScheduleEnd) return;
+    if (missingMandatorySchedule) return;
     onReviewAndCreate();
   }
 
@@ -555,19 +562,21 @@ export function NovoSimuladoAleatorioWizard({
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {modality === 'printed'
                         ? 'Tempo limite e datas são opcionais pra prova impressa.'
-                        : 'Defina quando o simulado abre e, se quiser, quando fecha.'}
+                        : 'Defina quando o simulado abre, quando fecha e por quanto tempo cada aluno tem pra responder.'}
                     </p>
                   </div>
                   <div>
-                    <label className={labelCls}>Tempo limite (min, opcional)</label>
-                    <input
-                      type="number"
-                      min={5}
+                    <label className={labelCls}>
+                      Duração da prova
+                      {modality === 'printed' && <span className="ml-1 normal-case font-normal text-slate-400">(opcional)</span>}
+                    </label>
+                    <DurationTimerField
+                      label="Duração da prova"
                       value={form.time_limit_secs}
-                      onChange={(e) => setForm((f) => ({ ...f, time_limit_secs: e.target.value }))}
-                      placeholder="Ex: 90"
-                      className={`${inputCls} max-w-[160px]`}
-                      style={ringStyle}
+                      onChange={(secs) => setForm((f) => ({ ...f, time_limit_secs: secs }))}
+                      labelClassName="sr-only"
+                      inputClassName={inputCls}
+                      ringStyle={ringStyle}
                     />
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
@@ -582,7 +591,7 @@ export function NovoSimuladoAleatorioWizard({
                     />
                     <DateTimeField
                       label="Fim"
-                      hint="(opcional)"
+                      hint={modality === 'printed' ? '(opcional)' : undefined}
                       value={form.ends_at}
                       minDateTime={form.starts_at}
                       onChange={(v) => setForm((f) => ({ ...f, ends_at: v }))}
@@ -594,6 +603,11 @@ export function NovoSimuladoAleatorioWizard({
                   {modality !== 'printed' && !form.starts_at && (
                     <p role="status" className="text-xs font-semibold text-amber-700 dark:text-amber-400">
                       Data de início é obrigatória pra simulados online/híbridos.
+                    </p>
+                  )}
+                  {missingMandatorySchedule && form.starts_at && (
+                    <p role="status" className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                      Data de encerramento e duração da prova são obrigatórias pra simulados online/híbridos.
                     </p>
                   )}
                 </div>
@@ -619,7 +633,7 @@ export function NovoSimuladoAleatorioWizard({
               {currentIndex === steps.length - 1 ? (
                 <button
                   onClick={handleFinalAdvance}
-                  disabled={!form.title.trim() || (modality !== 'printed' && !form.starts_at) || invalidScheduleEnd}
+                  disabled={!form.title.trim() || (modality !== 'printed' && !form.starts_at) || invalidScheduleEnd || missingMandatorySchedule}
                   className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50"
                   style={{ background: 'var(--brand-primary)', color: brandTextColor }}
                 >

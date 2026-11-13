@@ -239,7 +239,10 @@ export const EMPTY_FORM = {
   subject: '',
   difficulty: 'misto',
   qty: 10,
-  time_limit_secs: '',
+  // Em SEGUNDOS (não minutos) — alimenta DurationTimerField diretamente,
+  // sem conversão ×60/÷60 no caminho até a API (mesma unidade de
+  // scheduled_simulados.config.time_limit_secs no banco).
+  time_limit_secs: null as number | null,
   starts_at: '',
   ends_at: '',
   weights: {} as Record<string, number>,

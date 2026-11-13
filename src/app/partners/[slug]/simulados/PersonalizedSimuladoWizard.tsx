@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { WizardStepper, type WizardStepperStep } from '@/components/partners/simulado/WizardStepper';
 import { DateTimeField } from '@/components/partners/simulado/DateTimeField';
+import { DurationTimerField } from '@/components/partners/simulado/DurationTimerField';
 import { formatDateTime } from '@/lib/simuladoFounderForm';
 import { QuestionBankExplorer, type QuestionBankExplorerHandle } from '@/components/assessments/QuestionBankExplorer';
 import { AiQuestionChat } from '@/components/assessments/AiQuestionChat';
@@ -25,6 +26,13 @@ import { toCustomQuestionSnapshot, deriveContextAndStatement } from '@/types/sim
 
 type Method = 'bank' | 'ai' | 'manual' | 'quotas';
 type Step = 'montagem' | 'detalhes' | 'revisao';
+
+function formatDuration(secs: number): string {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (h > 0) return `${h}h ${m}min`;
+  return `${m} min`;
+}
 
 interface PoolCandidate {
   id: string;
@@ -158,13 +166,48 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const invalidScheduleEnd = Boolean(startsAt && endsAt && endsAt <= startsAt);
-  const [timeLimitMins, setTimeLimitMins] = useState('');
+  // Em SEGUNDOS (não minutos) — mesma unidade de scheduled_simulados.config.
+  // time_limit_secs no banco, alimenta DurationTimerField direto sem ×60/÷60.
+  const [durationSecs, setDurationSecs] = useState<number | null>(null);
+  // Online/híbrido exige fim e duração (sem isso o simulado fica disponível
+  // pra sempre e o encerramento automático de sessões vencidas não tem como
+  // calcular o prazo). Impresso é isento.
+  const missingMandatorySchedule = !printedMode && (!endsAt || !durationSecs);
   const [locationName, setLocationName] = useState('');
   const [locationAddress, setLocationAddress] = useState('');
+  const [instructions, setInstructions] = useState('');
   const [creating, setCreating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [downloadingPreviewPdf, setDownloadingPreviewPdf] = useState(false);
+  // Preview somente leitura dos itens PADRÃO de instrução (banca/formato) —
+  // mesma lista que vai sair na capa do PDF e na tela pré-prova do aluno
+  // (ver pdf_service.build_exam_instruction_items). Não editável aqui.
+  const [standardInstructionItems, setStandardInstructionItems] = useState<{ text: string; sub_items: string[] }[]>([]);
   const bankRef = useRef<QuestionBankExplorerHandle>(null);
+
+  useEffect(() => {
+    if (step !== 'detalhes' || pool.length === 0) return;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        const api = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+        const qs = new URLSearchParams({ bank: contest?.bank || 'CUSTOM', qty: String(pool.length) });
+        if (durationSecs) qs.set('time_limit_secs', String(durationSecs));
+        const res = await fetch(`${api}/api/partners/${slug}/scheduled-simulados/instructions-preview?${qs.toString()}`, {
+          headers: { Authorization: `Bearer ${session?.access_token ?? ''}` },
+          signal: controller.signal,
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        setStandardInstructionItems(json.items || []);
+      } catch {
+        // dry-run cosmético — falha silenciosa não bloqueia o formulário
+      }
+    })();
+    return () => controller.abort();
+  }, [step, pool.length, contest?.bank, durationSecs, slug]);
 
   const steps: WizardStepperStep[] = [
     { key: 'montagem', label: 'Questões' },
@@ -235,7 +278,7 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
           question_ids: pool.map((q) => q.id),
           custom_questions: pool.map(toCustomQuestionSnapshot),
           bank: contest?.bank || 'CUSTOM',
-          time_limit_secs: timeLimitMins ? Number(timeLimitMins) * 60 : null,
+          time_limit_secs: durationSecs || null,
         }),
       });
       if (!res.ok) {
@@ -261,6 +304,10 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
     }
     if (!title.trim() || (!printedMode && !startsAt)) {
       toast.error(printedMode ? 'Título é obrigatório.' : 'Título e data de início são obrigatórios.');
+      return;
+    }
+    if (missingMandatorySchedule) {
+      toast.error('Data de encerramento e duração da prova são obrigatórias.');
       return;
     }
 
@@ -292,8 +339,9 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
               question_type: contest ? 'concurso' : 'vestibular',
               role: contest?.role || null,
               qty: pool.length,
-              time_limit_secs: timeLimitMins ? Number(timeLimitMins) * 60 : null,
+              time_limit_secs: durationSecs || null,
               allow_retry: false,
+              instructions: instructions.trim() ? instructions.trim() : null,
               custom_questions: pool.map((question) => ({
                 id: question.id,
                 subject: question.subject,
@@ -322,7 +370,10 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
         const body = {
           title: title.trim(),
           starts_at: new Date(startsAt).toISOString(),
-          ends_at: endsAt ? new Date(endsAt).toISOString() : undefined,
+          // ends_at é obrigatório pra online/híbrido (validado em
+          // missingMandatorySchedule antes de chegar aqui) — nunca undefined
+          // neste branch.
+          ends_at: new Date(endsAt).toISOString(),
           modality,
           location_name: hasLocation ? (locationName.trim() || null) : null,
           location_address: hasLocation ? (locationAddress.trim() || null) : null,
@@ -331,8 +382,9 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
             bank: contest?.bank || 'CUSTOM',
             question_type: contest ? 'concurso' : undefined,
             role: contest?.role || undefined,
-            time_limit_secs: timeLimitMins ? Number(timeLimitMins) * 60 : undefined,
+            time_limit_secs: durationSecs || undefined,
             allow_retry: false,
+            instructions: instructions.trim() ? instructions.trim() : undefined,
             custom_questions: pool.map((question) => ({
               id: question.id,
               subject: question.subject,
@@ -405,6 +457,10 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
     }
     if (invalidScheduleEnd) {
       toast.error('O fim deve ser depois do início.');
+      return;
+    }
+    if (missingMandatorySchedule) {
+      toast.error('Data de encerramento e duração da prova são obrigatórias.');
       return;
     }
     setStep('revisao');
@@ -559,7 +615,6 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
                     />
                     <DateTimeField
                       label="Data de fim"
-                      hint="(opcional)"
                       value={endsAt}
                       minDateTime={startsAt}
                       onChange={setEndsAt}
@@ -570,14 +625,55 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
                 )}
 
                 <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">Limite de tempo (min, opcional)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={timeLimitMins}
-                    onChange={(e) => setTimeLimitMins(e.target.value)}
-                    placeholder="Minutos"
-                    className="h-11 w-full max-w-[220px] rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/5 dark:text-white"
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">
+                    Duração da prova
+                    {printedMode && <span className="ml-1 normal-case font-normal text-slate-400">(opcional)</span>}
+                  </label>
+                  <DurationTimerField
+                    label="Duração da prova"
+                    value={durationSecs}
+                    onChange={setDurationSecs}
+                    labelClassName="sr-only"
+                    inputClassName="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/5 dark:text-white"
+                  />
+                </div>
+                {missingMandatorySchedule && (
+                  <p role="status" className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                    Data de encerramento e duração da prova são obrigatórias pra simulados online/híbridos.
+                  </p>
+                )}
+
+                {standardInstructionItems.length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3 dark:border-white/10 dark:bg-white/5">
+                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">Instruções padrão desta banca (somente leitura)</p>
+                    <ol className="list-inside list-decimal space-y-1 text-xs text-slate-600 dark:text-white/60">
+                      {standardInstructionItems.map((item, idx) => (
+                        <li key={idx}>
+                          {item.text}
+                          {item.sub_items.length > 0 && (
+                            <ul className="ml-4 mt-0.5 list-none space-y-0.5 text-slate-500 dark:text-white/40">
+                              {item.sub_items.map((sub, subIdx) => <li key={subIdx}>{sub}</li>)}
+                            </ul>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                    <p className="mt-1.5 text-[11px] text-slate-400 dark:text-white/30">
+                      Geradas automaticamente a partir da banca/formato/tempo — não editáveis aqui. Aparecem na capa do PDF e na tela de instruções do aluno antes da prova.
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-white/40">
+                    Item {standardInstructionItems.length + 1} — Instrução Adicional (opcional)
+                  </label>
+                  <textarea
+                    value={instructions}
+                    onChange={(e) => setInstructions(e.target.value)}
+                    placeholder="Ex: Foque em gestão de tempo. Pule questões longas e retorne no final."
+                    rows={3}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/5 dark:text-white"
                   />
                 </div>
               </div>
@@ -603,7 +699,7 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
                   { label: 'Questões', value: String(pool.length) },
                   ...(modality !== 'online' ? [{ label: 'Local', value: locationName.trim() || '—' }] : []),
                   ...(!printedMode ? [{ label: 'Início', value: startsAt ? formatDateTime(startsAt) : '—' }, { label: 'Fim', value: endsAt ? formatDateTime(endsAt) : '—' }] : []),
-                  { label: 'Tempo limite', value: timeLimitMins ? `${timeLimitMins} min` : 'Sem limite' },
+                  { label: 'Duração', value: durationSecs ? formatDuration(durationSecs) : 'Sem limite' },
                 ].map((row) => (
                   <div key={row.label} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                     <dt className="text-slate-500 dark:text-white/50">{row.label}</dt>
@@ -648,7 +744,7 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
           questions={pool}
           brandPrimary={org.brand_primary}
           onBrand={onBrand}
-          timeLimitMins={timeLimitMins}
+          timeLimitMins={durationSecs ? Math.round(durationSecs / 60) : null}
           onClose={() => setShowPreview(false)}
           headerExtra={
             <button

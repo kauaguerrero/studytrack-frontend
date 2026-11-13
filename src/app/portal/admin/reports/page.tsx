@@ -423,6 +423,11 @@ export default function AdminReportsPage() {
                           <Badge variant="secondary" className="text-xs">
                             {ERROR_CATEGORY_LABELS[report.error_category] ?? report.error_category}
                           </Badge>
+                          {(report.technical_context?.exam_context as { kind?: string } | undefined)?.kind === 'scheduled_simulado' && (
+                            <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-xs">
+                              ⚠️ Simulado agendado em andamento
+                            </Badge>
+                          )}
                           <span className="text-xs text-slate-400 flex items-center gap-1">
                             <Calendar size={12} />
                             {new Date(report.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
