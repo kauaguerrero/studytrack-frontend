@@ -171,7 +171,7 @@ export function QuestionDisplay({
                 {alt.text ? (
                   <QuestionRichText
                     text={alt.text}
-                    className={`${compact ? 'text-sm [&>p:first-child]:mt-0 [&>p:last-child]:mb-0' : 'text-base'} leading-snug ${showAnswer && isCorrect ? 'text-green-900 dark:text-green-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}
+                    className={`${compact ? 'text-sm' : 'text-base'} leading-snug [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 ${showAnswer && isCorrect ? 'text-green-900 dark:text-green-100 font-medium' : 'text-slate-700 dark:text-slate-100'}`}
                   />
                 ) : alternativeImages.length === 0 && (
                   <span className="text-slate-400 dark:text-slate-500 italic text-sm">(Imagem indisponível)</span>

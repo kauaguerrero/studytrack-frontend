@@ -17,6 +17,36 @@ const underlineSegmentRegex = /<u>([\s\S]*?)<\/u>/gi
 const MATH_PROTECTED_UNDERSCORE = ''
 const MATH_PROTECTED_ASTERISK = ''
 
+// Mesma técnica de placeholder (PUA) aplicada a `<u>`/`</u>` — ver nota acima
+// sobre protectMathDelimitersForMarkdown. Sem isso, quando o parágrafo cai no
+// branch de bloco markdown (lista/tabela/heading/citação, ver isMarkdownBlock)
+// o ReactMarkdown reconhece "<u>" e "</u>" como HTML inline cru e, sem
+// rehype-raw configurado, devolve cada tag como um nó de TEXTO SEPARADO do
+// texto sublinhado no meio — a tag de abertura, o conteúdo e a tag de
+// fechamento chegam como três filhos distintos em vez de uma string única.
+// `underlineSegmentRegex` (usado por renderInlineMarkdownWithUnderline) só
+// casa abertura+fechamento quando estão na MESMA string, então nesse cenário
+// ele nunca casava e as tags apareciam cruas na tela (bug reportado: "1.
+// <u>palavra</u> resto" virava literalmente "1. <u>palavra</u> resto").
+// Trocar por placeholders ANTES do ReactMarkdown mantém tudo como uma única
+// string ao longo do parse (placeholders não têm significado de sintaxe), e
+// `restoreProtectedUnderlineTags` desfaz a troca depois, já dentro de
+// renderInlineRichText — no ponto em que o texto finalmente chega como uma
+// string contígua de novo, pronta para o regex de sublinhado de verdade.
+const UNDERLINE_PROTECTED_OPEN = ''
+const UNDERLINE_PROTECTED_CLOSE = ''
+
+function protectUnderlineTagsForMarkdown(text: string): string {
+  return text.replace(/<u>/gi, UNDERLINE_PROTECTED_OPEN).replace(/<\/u>/gi, UNDERLINE_PROTECTED_CLOSE)
+}
+
+function restoreProtectedUnderlineTags(text: string): string {
+  if (!text.includes(UNDERLINE_PROTECTED_OPEN) && !text.includes(UNDERLINE_PROTECTED_CLOSE)) return text
+  return text
+    .replace(new RegExp(UNDERLINE_PROTECTED_OPEN, 'g'), '<u>')
+    .replace(new RegExp(UNDERLINE_PROTECTED_CLOSE, 'g'), '</u>')
+}
+
 // Bug: quando o parágrafo é uma lista/tabela/bloco markdown (isMarkdownBlock),
 // o texto CRU vai direto pro ReactMarkdown, que roda ANTES da extração dos
 // segmentos $...$ (isso só acontece depois, nos filhos já parseados, dentro
@@ -253,6 +283,28 @@ function renderInlineMarkdown(text: string, key: string) {
   )
 }
 
+// Empurra um trecho de texto puro (não sublinhado) pra `parts`, preservando
+// espaço de abertura/fechamento como STRING CRUA, fora do `<ReactMarkdown>`.
+// Bug raiz do "espaço sumindo" ao redor de `<u>`: o trecho de texto ENTRE
+// duas tags <u> (ou entre uma tag e a borda da linha) passa por
+// `renderInlineMarkdown` pra suportar markdown inline dentro dele (negrito,
+// links etc.) — mas o CommonMark, por especificação, APARA espaço em branco
+// no INÍCIO/FIM de um parágrafo antes de montar o conteúdo inline. Isso
+// comia de verdade o espaço de origem entre "</u>" e a palavra seguinte
+// mesmo quando o texto armazenado JÁ tinha o espaço certo (confirmado no
+// banco: "<u>Retificar</u> é o mesmo que <u>confirmar</u>." virava
+// "Retificaré..." na tela — bug reportado com evidência, não suposição de
+// espaço faltando na origem). Extrair o espaço de borda ANTES de entregar o
+// miolo pro ReactMarkdown evita que ele veja (e apague) esse espaço.
+function pushPlainSegment(parts: ReactNode[], raw: string, keyPrefix: string) {
+  if (!raw) return
+  const noLeading = raw.replace(/^\s+/, '')
+  if (noLeading.length < raw.length) parts.push(' ')
+  const trimmed = noLeading.trimEnd()
+  if (trimmed) parts.push(renderInlineMarkdown(trimmed, `${keyPrefix}-plain-${parts.length}`))
+  if (noLeading.length > trimmed.length) parts.push(' ')
+}
+
 function renderInlineMarkdownWithUnderline(text: string, keyPrefix: string): ReactNode {
   const parts: ReactNode[] = []
   let lastIndex = 0
@@ -261,14 +313,26 @@ function renderInlineMarkdownWithUnderline(text: string, keyPrefix: string): Rea
 
   while ((match = underlineSegmentRegex.exec(text)) !== null) {
     const before = text.slice(lastIndex, match.index)
-    if (before) {
-      const trimmed = before.trimEnd()
-      if (trimmed) parts.push(renderInlineMarkdown(trimmed, `${keyPrefix}-plain-${parts.length}`))
-      if (before.length > trimmed.length) parts.push(' ')
-    }
+    pushPlainSegment(parts, before, keyPrefix)
+
+    // Blindagem contra conteúdo de origem sem o espaço separador — artefato
+    // comum de ETL/OCR (ex.: "<u>mas</u>e" sem espaço antes do "e" na fonte
+    // real do conteúdo). Sem isso, a palavra vizinha gruda visualmente no
+    // texto sublinhado ("mase" em vez de "mas e" — bug reportado). Em vez de
+    // inserir um espaço de verdade (mudaria o texto selecionável/copiado) só
+    // adiciona uma margem mínima do lado onde falta espaço — e só quando o
+    // caractere vizinho é letra/dígito (não pontuação, que deve continuar
+    // colada: "<u>palavra</u>," não deve ganhar espaço antes da vírgula).
+    // Não mexe em nada quando o espaçamento de origem já está correto.
+    const prevChar = match.index > 0 ? text[match.index - 1] : ''
+    const nextChar = text[match.index + match[0].length] ?? ''
+    const isWordChar = (ch: string) => /[\p{L}\p{N}]/u.test(ch)
+    const needsLeadingGap = prevChar !== '' && isWordChar(prevChar)
+    const needsTrailingGap = nextChar !== '' && isWordChar(nextChar)
+    const gapClassName = [needsLeadingGap && 'ml-[0.15em]', needsTrailingGap && 'mr-[0.15em]'].filter(Boolean).join(' ')
 
     parts.push(
-      <u key={`${keyPrefix}-underline-${parts.length}`} className="underline underline-offset-2">
+      <u key={`${keyPrefix}-underline-${parts.length}`} className={`underline underline-offset-2 ${gapClassName}`.trim()}>
         {renderInlineMarkdown(match[1] || '', `${keyPrefix}-underline-text-${parts.length}`)}
       </u>
     )
@@ -276,11 +340,7 @@ function renderInlineMarkdownWithUnderline(text: string, keyPrefix: string): Rea
   }
 
   const after = text.slice(lastIndex)
-  if (after) {
-    const trimmed = after.trimStart()
-    if (after.length > trimmed.length) parts.push(' ')
-    if (trimmed) parts.push(renderInlineMarkdown(trimmed, `${keyPrefix}-plain-${parts.length}`))
-  }
+  pushPlainSegment(parts, after, keyPrefix)
 
   return parts.length > 0 ? parts : renderInlineMarkdown(text, `${keyPrefix}-plain`)
 }
@@ -498,7 +558,7 @@ const markdownComponents: Components = {
 const markdownImageTokenRegex = /!\[([\s\S]*?)\]\(([^)\s]+)\)/g
 
 function renderInlineRichText(rawText: string, keyPrefix: string) {
-  const text = restoreProtectedMathDelimiters(rawText)
+  const text = restoreProtectedUnderlineTags(restoreProtectedMathDelimiters(rawText))
 
   markdownImageTokenRegex.lastIndex = 0
   if (markdownImageTokenRegex.test(text)) {
@@ -683,7 +743,7 @@ export function QuestionRichText({ text, className, style }: { text?: string | n
               key={`${paragraphIndex}-${paragraph.slice(0, 20)}`}
               components={markdownComponents}
             >
-              {protectMathDelimitersForMarkdown(String(paragraph ?? ''))}
+              {protectMathDelimitersForMarkdown(protectUnderlineTagsForMarkdown(String(paragraph ?? '')))}
             </ReactMarkdown>
           )
         }
