@@ -506,7 +506,15 @@ export default function SimuladoPage() {
   const { org } = useOrg()
   const brandTextColor = getContrastTextColor(org.brand_primary)
 
-  const [step, setStep] = useState<'setup' | 'quiz' | 'result'>('setup')
+  const [step, setStep] = useState<'setup' | 'instructions' | 'quiz' | 'result'>('setup')
+  // Instruções padrão do vestibular/banca (mesmo texto da capa do PDF, ver
+  // pdf_service.build_exam_instruction_items) + instrução extra do founder —
+  // só vem preenchido no /start de uma sessão NOVA (não em retomada), ver
+  // backend. Null = pula direto pro quiz, sem tela de instruções.
+  const [preQuizInstructions, setPreQuizInstructions] = useState<{
+    items: { text: string; sub_items: string[] }[]
+    extra: string | null
+  } | null>(null)
   const [showConfigModal, setShowConfigModal] = useState(false)
   const [wizardStep, setWizardStep] = useState<
     'formato'
@@ -560,6 +568,10 @@ export default function SimuladoPage() {
 
   // Session
   const [sessionId, setSessionId] = useState<string | null>(null)
+  // Simulado agendado (vs. personalizado/solo) — usado pra marcar a origem de um
+  // report feito durante a prova (bug bounty não dá pontos em reports de agendado,
+  // já que vários alunos fazem o mesmo agendado).
+  const [isScheduledSession, setIsScheduledSession] = useState(false)
   const startTimeRef = useRef<number>(0)
   const [finishResult, setFinishResult] = useState<FinishResult | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -779,6 +791,7 @@ export default function SimuladoPage() {
         startTimeRef.current = Number.isNaN(startedAtMs) ? Date.now() : startedAtMs
         lastAutosavedRef.current = JSON.stringify(restoredAnswers)
         setSessionId(draft.sessionId)
+        setIsScheduledSession(Boolean(sessionData?.config?.scheduled_simulado_id))
         setQuestions(restoredQuestions)
         setUserAnswers(restoredAnswers)
         setCurrentIdx(restoredIdx)
@@ -872,12 +885,6 @@ export default function SimuladoPage() {
     () => questionGroups.find((group) => group.items.some(({ i }) => i === currentIdx)) ?? null,
     [currentIdx, questionGroups],
   )
-  const currentTestletInfo = (() => {
-    if (!currentQuestion?.testlet_group_id) return undefined
-    const groupItems = currentGroup?.items ?? []
-    const position = groupItems.findIndex(({ q }) => q.id === currentQuestion.id) + 1
-    return { position, total: groupItems.length }
-  })()
   const currentGroupQuestions = useMemo(
     () => currentGroup?.items.map(({ q }) => q) ?? (currentQuestion ? [currentQuestion] : []),
     [currentGroup, currentQuestion],
@@ -1265,6 +1272,7 @@ export default function SimuladoPage() {
       setShowConfigModal(false)
       setActiveSessionConflict(null)
       setSessionId(data.session_id)
+      setIsScheduledSession(Boolean(scheduledId))
       setQuestions(data.questions)
       setHasTimeLimit(!!data.time_limit_secs)
       scheduledEndsAtRef.current = null
@@ -1307,7 +1315,12 @@ export default function SimuladoPage() {
           description: 'Reabrimos sua tentativa em andamento desse simulado agendado.',
         })
       }
-      setStep('quiz')
+      if (data.instructions) {
+        setPreQuizInstructions(data.instructions)
+        setStep('instructions')
+      } else {
+        setStep('quiz')
+      }
     } catch { toast.error('Erro de conexão', { description: 'Não foi possível conectar ao servidor.' }) }
     finally {
       startingRef.current = false
@@ -1347,6 +1360,7 @@ export default function SimuladoPage() {
         : restoredQuestions.length * 3 * 60
 
       setSessionId(sid)
+      setIsScheduledSession(Boolean(sessionData?.config?.scheduled_simulado_id))
       setQuestions(restoredQuestions)
       setUserAnswers(restoredAnswers)
       setCurrentIdx(0)
@@ -1459,7 +1473,7 @@ export default function SimuladoPage() {
   const resetSimulado = (openModal = false) => {
     setStep('setup'); setQuestions([]); setCurrentIdx(0); setUserAnswers({}); setTimeLeft(0)
     setHasTimeLimit(false); setQuestionElapsed(0); scheduledEndsAtRef.current = null
-    setSessionId(null); setFinishResult(null); setDashVersion(v => v + 1)
+    setSessionId(null); setIsScheduledSession(false); setFinishResult(null); setDashVersion(v => v + 1)
     lastAutosavedRef.current = ''
     try {
       if (currentUserId) window.localStorage.removeItem(getActiveSessionStorageKey())
@@ -1502,16 +1516,12 @@ export default function SimuladoPage() {
   const annulledCount = finishResult?.annulled_questions_count ?? reportedQuestionIds.size
   const celebration = celebrationMessage(displayPct)
   const isTimeCritical = timeLeft > 0 && timeLeft <= 300
+  const unansweredQuestions = questions
+    .map((q, i) => ({ q, i }))
+    .filter(({ q }) => !userAnswers[q.id])
 
   const goToQuestionIndex = (nextIndex: number) => {
     setCurrentIdx(Math.max(0, Math.min(nextIndex, questions.length - 1)))
-  }
-
-  const goToPreviousGroup = () => {
-    if (currentGroupStartIdx <= 0) return
-    const currentGroupIndex = questionGroups.findIndex((group) => group.items.some(({ i }) => i === currentIdx))
-    const previousGroup = currentGroupIndex > 0 ? questionGroups[currentGroupIndex - 1] : null
-    goToQuestionIndex(previousGroup?.items[0]?.i ?? currentGroupStartIdx - 1)
   }
 
   const goToNextGroup = () => {
@@ -1519,15 +1529,32 @@ export default function SimuladoPage() {
     goToQuestionIndex(currentGroupEndIdx + 1)
   }
 
-  // Dentro de um testlet, "Próxima" só avança pro próximo bloco se todas as
-  // questões do testlet atual já tiverem resposta — senão, guia o aluno
-  // rolando até a primeira questão do testlet ainda sem resposta, em vez de
-  // pular pro próximo bloco deixando questões pra trás sem querer.
-  const goToNextGroupOrGuideToUnanswered = () => {
-    const firstUnanswered = currentGroupQuestions.find((q) => !userAnswers[q.id])
-    if (firstUnanswered) {
-      testletQuestionRefs.current[firstUnanswered.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      return
+  // Dentro de um testlet, Anterior/Próxima andam pergunta a pergunta a partir
+  // de onde o aluno está (currentIdx segue o scroll via IntersectionObserver),
+  // sem forçar resposta nem pular perguntas puladas de propósito. Só muda de
+  // bloco quando chega na primeira/última pergunta do testlet atual.
+  const goToPreviousTestletQuestionOrGroup = () => {
+    if (currentIdx > currentGroupStartIdx) {
+      const prevQuestion = questions[currentIdx - 1]
+      if (prevQuestion) {
+        testletQuestionRefs.current[prevQuestion.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        return
+      }
+    }
+    if (currentGroupStartIdx <= 0) return
+    const currentGroupIndex = questionGroups.findIndex((group) => group.items.some(({ i }) => i === currentIdx))
+    const previousGroup = currentGroupIndex > 0 ? questionGroups[currentGroupIndex - 1] : null
+    const previousGroupLastIdx = previousGroup?.items[previousGroup.items.length - 1]?.i
+    goToQuestionIndex(previousGroupLastIdx ?? currentGroupStartIdx - 1)
+  }
+
+  const goToNextTestletQuestionOrGroup = () => {
+    if (currentIdx < currentGroupEndIdx) {
+      const nextQuestion = questions[currentIdx + 1]
+      if (nextQuestion) {
+        testletQuestionRefs.current[nextQuestion.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        return
+      }
     }
     goToNextGroup()
   }
@@ -1680,12 +1707,13 @@ export default function SimuladoPage() {
         questionId={reportQuestionId || ''}
         authToken={accessToken}
         questionSnapshot={questions.find((q) => q.id === reportQuestionId) ?? null}
+        examContext={{ kind: isScheduledSession ? 'scheduled_simulado' : 'personalized_simulado' }}
         onSuccess={() => {
           if (!reportQuestionId) return
           setReportedQuestionIds(prev => new Set(prev).add(reportQuestionId))
           setReportDialogOpen(false)
           setReportQuestionId(null)
-          toast.success('Questão reportada. Ela será anulada no resultado final.')
+          toast.success('Questão reportada. Vamos analisar — sua resposta continua contando normalmente até lá.')
         }}
       />
 
@@ -1695,11 +1723,29 @@ export default function SimuladoPage() {
           <DialogHeader>
             <DialogTitle className="dark:text-slate-100">Finalizar simulado?</DialogTitle>
             <DialogDescription className="dark:text-slate-400">
-              {questions.length - Object.keys(userAnswers).length > 0
-                ? `Você tem ${questions.length - Object.keys(userAnswers).length} ${questions.length - Object.keys(userAnswers).length === 1 ? 'questão' : 'questões'} sem resposta. Ao finalizar, não será possível voltar.`
+              {unansweredQuestions.length > 0
+                ? `Você tem ${unansweredQuestions.length} ${unansweredQuestions.length === 1 ? 'questão' : 'questões'} sem resposta. Ao finalizar, não será possível voltar.`
                 : 'Todas as questões foram respondidas. Deseja entregar?'}
             </DialogDescription>
           </DialogHeader>
+          {unansweredQuestions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {unansweredQuestions.map(({ i }) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    setFinishDialogOpen(false)
+                    goToQuestionIndex(i)
+                  }}
+                  className="w-9 h-9 rounded-full text-xs font-extrabold bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors cursor-pointer"
+                  title={`Ir para a questão ${i + 1}`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+            </div>
+          )}
           <DialogFooter className="gap-2 sm:gap-2">
             <button onClick={() => setFinishDialogOpen(false)} className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer">
               Continuar respondendo
@@ -2539,6 +2585,49 @@ export default function SimuladoPage() {
         </div>
       )}
 
+      {/* ═══════════════════ INSTRUÇÕES PRÉ-PROVA ════════════════════════════
+          Mesmo texto das instruções padrão da banca que sai na capa do PDF
+          (ver pdf_service.build_exam_instruction_items) + instrução extra do
+          founder (se houver), como último item. Pulável: o botão "Começar"
+          fica sempre visível, sem exigir rolar até o fim. */}
+      {step === 'instructions' && preQuizInstructions && (
+        <div className="fixed inset-0 z-50 bg-[#F5F5F7] dark:bg-slate-950 flex flex-col">
+          <div className="flex-1 overflow-y-auto px-4 py-6 md:py-10">
+            <ElevatedCard accentColor="var(--brand-primary)" className="mx-auto max-w-xl p-5 md:p-7">
+              <p className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Antes de começar</p>
+              <h1 className="mt-1 text-lg md:text-xl font-black text-slate-900 dark:text-white">Instruções do simulado</h1>
+              <ol className="mt-4 space-y-3 text-sm text-slate-700 dark:text-slate-300 list-decimal list-inside">
+                {preQuizInstructions.items.map((item, idx) => (
+                  <li key={idx} className="leading-relaxed">
+                    {item.text}
+                    {item.sub_items.length > 0 && (
+                      <ul className="ml-4 mt-1 list-none space-y-1 text-slate-500 dark:text-slate-400">
+                        {item.sub_items.map((sub, subIdx) => <li key={subIdx}>{sub}</li>)}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+                {preQuizInstructions.extra && (
+                  <li className="leading-relaxed font-semibold text-slate-900 dark:text-white">
+                    {preQuizInstructions.extra}
+                  </li>
+                )}
+              </ol>
+            </ElevatedCard>
+          </div>
+          <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setStep('quiz')}
+              className="min-h-11 rounded-full px-6 py-2.5 text-sm font-bold"
+              style={{ background: 'var(--brand-primary)', color: brandTextColor }}
+            >
+              Começar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ══════════════════════════ QUIZ ═════════════════════════════════════ */}
       {step === 'quiz' && (
         <div className="fixed inset-0 z-50 bg-[#F5F5F7] dark:bg-slate-950 flex flex-col">
@@ -2619,11 +2708,6 @@ export default function SimuladoPage() {
                       {questions[currentIdx].difficulty}
                     </span>
                   )}
-                  {currentTestletInfo && (
-                    <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1 rounded-full border border-amber-200">
-                      Testlet {currentTestletInfo.position}/{currentTestletInfo.total}
-                    </span>
-                  )}
                   {questions[currentIdx].topic && (
                     <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
                       {questions[currentIdx].topic}
@@ -2631,7 +2715,7 @@ export default function SimuladoPage() {
                   )}
                   {reportedQuestionIds.has(questions[currentIdx].id) && (
                     <span className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-bold px-3 py-1 rounded-full border border-amber-200 dark:border-amber-800">
-                      Anulada ao finalizar
+                      Reportada — em análise
                     </span>
                   )}
                 </div>
@@ -2704,8 +2788,8 @@ export default function SimuladoPage() {
                     {isCurrentGroupTestlet && (
                       <div className="mb-4 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <span className="bg-amber-50 text-amber-700 text-xs font-bold px-3 py-1 rounded-full border border-amber-200">
-                            Testlet {groupIndex + 1}/{currentGroupQuestions.length}
+                          <span className="text-sm font-extrabold text-slate-500 dark:text-slate-400">
+                            Questão {currentGroupStartIdx + groupIndex + 1}
                           </span>
                         </div>
                         <button
@@ -2738,11 +2822,10 @@ export default function SimuladoPage() {
                     <div className="space-y-3">
                       {question.alternatives?.map(alt => {
                         const isSelected = userAnswers[question.id] === alt.letter
-                        const isAnnulled = reportedQuestionIds.has(question.id)
                         const alternativeImages = extractAlternativeImageUrls(alt)
                         return (
-                          <button key={`${question.id}-${alt.letter}`} onClick={() => handleSelectOption(question.id, alt.letter)} disabled={isAnnulled}
-                            className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start active:scale-[0.99] ${isAnnulled ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40' : isSelected ? 'shadow-sm cursor-pointer' : 'bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-pointer'}`}
+                          <button key={`${question.id}-${alt.letter}`} onClick={() => handleSelectOption(question.id, alt.letter)}
+                            className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start active:scale-[0.99] ${isSelected ? 'shadow-sm cursor-pointer' : 'bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 border-slate-200 dark:border-slate-700 cursor-pointer'}`}
                             style={isSelected ? {
                               background: 'color-mix(in srgb, var(--brand-primary) 8%, transparent)',
                               borderColor: 'var(--brand-primary)',
@@ -2773,7 +2856,7 @@ export default function SimuladoPage() {
                     </div>
                     {reportedQuestionIds.has(question.id) && (
                       <div className="mt-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-                        Esta questão foi reportada e será desconsiderada no resultado final do simulado.
+                        Você reportou esta questão. Ela será analisada pela nossa equipe; sua resposta continua contando normalmente até lá.
                       </div>
                     )}
                   </div>
@@ -2811,13 +2894,13 @@ export default function SimuladoPage() {
           <div className="shrink-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-100 dark:border-slate-800 p-4"
             style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
             <div className="max-w-3xl mx-auto w-full flex items-center gap-3">
-              <button onClick={() => (isCurrentGroupTestlet ? goToPreviousGroup() : goToQuestionIndex(currentIdx - 1))} disabled={currentGroupStartIdx === 0}
+              <button onClick={() => (isCurrentGroupTestlet ? goToPreviousTestletQuestionOrGroup() : goToQuestionIndex(currentIdx - 1))} disabled={currentIdx === 0}
                 className="flex-1 px-4 py-3 text-slate-500 dark:text-slate-400 disabled:opacity-30 font-bold flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer min-h-[44px]">
                 <ArrowLeft size={16} /> <span className="hidden sm:inline">Anterior</span>
               </button>
 
-              {currentGroupEndIdx < questions.length - 1 ? (
-                <button onClick={() => (isCurrentGroupTestlet ? goToNextGroupOrGuideToUnanswered() : goToQuestionIndex(currentIdx + 1))}
+              {currentGroupEndIdx < questions.length - 1 || (isCurrentGroupTestlet && currentIdx < currentGroupEndIdx) ? (
+                <button onClick={() => (isCurrentGroupTestlet ? goToNextTestletQuestionOrGroup() : goToQuestionIndex(currentIdx + 1))}
                   className="flex-[1.35] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer min-h-[44px]"
                   style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
                   Próxima <ArrowRight size={16} />

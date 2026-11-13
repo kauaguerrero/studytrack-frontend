@@ -14,6 +14,7 @@ import { QuestionRichText } from '@/components/questions/QuestionRichText';
 import PersonalizedSimuladoWizard from '@/app/partners/[slug]/simulados/PersonalizedSimuladoWizard';
 import NovoSimuladoAleatorioWizard from '@/app/partners/[slug]/simulados/NovoSimuladoAleatorioWizard';
 import { DateTimeField } from '@/components/partners/simulado/DateTimeField';
+import { DurationTimerField } from '@/components/partners/simulado/DurationTimerField';
 import { CUSTOM_SUBJECTS } from '@/lib/simuladoSubjects';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -264,11 +265,35 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [showAleatorioPreview, setShowAleatorioPreview] = useState(false);
   const [downloadingPreviewPdf, setDownloadingPreviewPdf] = useState(false);
+  // Preview somente leitura dos itens PADRÃO de instrução (banca/formato) —
+  // mesma lista que vai sair na capa do PDF e na tela pré-prova do aluno
+  // (ver pdf_service.build_exam_instruction_items). Não editável aqui: editar
+  // desincronizaria do texto real do caderno.
+  const [standardInstructionItems, setStandardInstructionItems] = useState<{ text: string; sub_items: string[] }[]>([]);
   const onBrand = onBrandText(org.brand_primary);
   // Edição é sempre PATCH via handleSave, mesmo que `modality` seja 'printed'
   // num edge case (não deveria ocorrer — ver openEdit) — só uma CRIAÇÃO com
   // modalidade impressa rotea pra handleSaveImpresso/printed-exams.
   const isCreatingPrinted = !editingId && modality === 'printed';
+
+  useEffect(() => {
+    if (!showForm || isCreatingPrinted) return;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const qs = new URLSearchParams({ bank: form.bank || 'ENEM', qty: String(form.qty || 0) });
+        if (form.time_limit_secs) qs.set('time_limit_secs', String(form.time_limit_secs));
+        const res = await fetchWithAuth(`/api/partners/${slug}/scheduled-simulados/instructions-preview?${qs.toString()}`, { signal: controller.signal });
+        if (!res.ok) return;
+        const json = await res.json();
+        setStandardInstructionItems(json.items || []);
+      } catch {
+        // dry-run cosmético — falha silenciosa não bloqueia o formulário
+      }
+    })();
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showForm, isCreatingPrinted, form.bank, form.qty, form.time_limit_secs, slug]);
 
   async function fetchWithAuth(url: string, options: RequestInit = {}) {
     const supabase = createClient();
@@ -517,7 +542,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
       subject: overrides?.overrideSubject !== undefined ? (overrides.overrideSubject || null) : (form.subject || null),
       difficulty: overrides?.overrideDifficulty ?? form.difficulty,
       qty: Number(form.qty),
-      time_limit_secs: form.time_limit_secs ? Number(form.time_limit_secs) * 60 : null,
+      time_limit_secs: form.time_limit_secs || null,
       weights: Object.keys(form.weights || {}).length > 0
         ? Object.fromEntries(
             Object.entries(form.weights).filter(([, v]) => Number(v) > 0)
@@ -631,7 +656,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           question_ids: previewQuestions.map((q) => q.id),
           custom_questions: previewQuestions.map(toCustomQuestionSnapshot),
           bank: form.bank,
-          time_limit_secs: form.time_limit_secs ? Number(form.time_limit_secs) * 60 : null,
+          time_limit_secs: form.time_limit_secs || null,
         }),
       });
       if (!res.ok) {
@@ -794,7 +819,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
       subject: sim.config.subject ?? '',
       difficulty: sim.config.difficulty,
       qty: sim.config.qty,
-        time_limit_secs: sim.config.time_limit_secs ? String(sim.config.time_limit_secs / 60) : '',
+        time_limit_secs: sim.config.time_limit_secs ?? null,
         starts_at: sim.starts_at.slice(0, 16),
         ends_at: sim.ends_at ? sim.ends_at.slice(0, 16) : '',
         weights: sim.config.weights ?? {},
@@ -1017,8 +1042,29 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 </div>
               )}
 
+              {standardInstructionItems.length > 0 && (
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3.5 py-3">
+                  <p className={`${labelCls} mb-1.5`}>Instruções padrão desta banca (somente leitura)</p>
+                  <ol className="space-y-1 text-xs text-slate-600 dark:text-slate-300 list-decimal list-inside">
+                    {standardInstructionItems.map((item, idx) => (
+                      <li key={idx}>
+                        {item.text}
+                        {item.sub_items.length > 0 && (
+                          <ul className="ml-4 mt-0.5 list-none space-y-0.5 text-slate-500 dark:text-slate-400">
+                            {item.sub_items.map((sub, subIdx) => <li key={subIdx}>{sub}</li>)}
+                          </ul>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                  <p className="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+                    Geradas automaticamente a partir da banca/formato/tempo — não editáveis aqui. Aparecem na capa do PDF e na tela de instruções do aluno antes da prova.
+                  </p>
+                </div>
+              )}
+
               <div>
-                <label className={labelCls}>Instruções do Simulado (Opcional)</label>
+                <label className={labelCls}>Item {standardInstructionItems.length + 1} — Instrução Adicional do Founder (Opcional)</label>
                 <textarea
                   value={form.instructions ?? ''}
                   onChange={(e) => setForm((f) => ({ ...f, instructions: e.target.value }))}
@@ -1103,16 +1149,18 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                   </div>
                 )}
 
-                {/* Tempo limite */}
+                {/* Duração da prova */}
                 <div>
-                  <label className={labelCls}>Tempo limite (min, opcional)</label>
-                  <input
-                    type="number"
-                    min={5}
+                  <label className={labelCls}>
+                    Duração da prova
+                    {modality === 'printed' && <span className="ml-1 normal-case font-normal text-slate-400">(opcional)</span>}
+                  </label>
+                  <DurationTimerField
+                    label="Duração da prova"
                     value={form.time_limit_secs}
-                    onChange={(e) => setForm((f) => ({ ...f, time_limit_secs: e.target.value }))}
-                    placeholder="Ex: 90"
-                    className={inputCls}
+                    onChange={(secs) => setForm((f) => ({ ...f, time_limit_secs: secs }))}
+                    labelClassName="sr-only"
+                    inputClassName={inputCls}
                   />
                 </div>
 
@@ -1128,7 +1176,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 {/* Fim */}
                 <DateTimeField
                   label="Fim"
-                  hint="(opcional)"
+                  hint={modality === 'printed' ? '(opcional)' : undefined}
                   value={form.ends_at}
                   minDateTime={form.starts_at}
                   onChange={(v) => setForm((f) => ({ ...f, ends_at: v }))}
@@ -1162,6 +1210,10 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     }
                     if (modality !== 'printed' && !form.starts_at) {
                       toast.error('Data de início é obrigatória');
+                      return;
+                    }
+                    if (modality !== 'printed' && (!form.ends_at || !form.time_limit_secs)) {
+                      toast.error('Data de encerramento e duração da prova são obrigatórias');
                       return;
                     }
                     void handleGeneratePreview();
@@ -2443,7 +2495,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           questions={previewQuestions}
           brandPrimary={org.brand_primary}
           onBrand={onBrand}
-          timeLimitMins={form.time_limit_secs}
+          timeLimitMins={form.time_limit_secs ? Math.round(form.time_limit_secs / 60) : null}
           onClose={() => setShowAleatorioPreview(false)}
           headerExtra={
             <button

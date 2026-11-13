@@ -44,6 +44,11 @@ interface ReportDialogProps {
    * permitida 1 contestação por report marcado inverídico. */
   contestReportId?: string;
   initialCategory?: ReportErrorCategory;
+  /** Quando o dialog é aberto de dentro de um simulado em andamento, identifica se é
+   * agendado ou personalizado/solo — usado no backend pra decidir a devolutiva do
+   * bug bounty (reports de simulado agendado não geram pontos, já que vários alunos
+   * fazem o mesmo agendado). Omitido fora do fluxo de simulado (banco de questões etc). */
+  examContext?: { kind: 'scheduled_simulado' | 'personalized_simulado' };
 }
 
 function compactQuestionSnapshot(snapshot: unknown) {
@@ -78,7 +83,12 @@ function compactQuestionSnapshot(snapshot: unknown) {
   };
 }
 
-function buildTechnicalContext(questionSnapshot: unknown, pathname: string, searchParams: ReturnType<typeof useSearchParams>) {
+function buildTechnicalContext(
+  questionSnapshot: unknown,
+  pathname: string,
+  searchParams: ReturnType<typeof useSearchParams>,
+  examContext?: { kind: 'scheduled_simulado' | 'personalized_simulado' },
+) {
   const query = searchParams.toString();
   const route = query ? `${pathname}?${query}` : pathname;
   const element = document.documentElement;
@@ -97,6 +107,7 @@ function buildTechnicalContext(questionSnapshot: unknown, pathname: string, sear
       preferredColorScheme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
     },
     payload_snapshot: compactQuestionSnapshot(questionSnapshot),
+    exam_context: examContext ?? null,
   };
 }
 
@@ -109,6 +120,7 @@ export function ReportDialog({
   onSuccess,
   contestReportId,
   initialCategory,
+  examContext,
 }: ReportDialogProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -171,7 +183,7 @@ export function ReportDialog({
           question_id: questionId,
           error_category: category,
           description: description.trim() || undefined,
-          technical_context: buildTechnicalContext(questionSnapshot, pathname, searchParams),
+          technical_context: buildTechnicalContext(questionSnapshot, pathname, searchParams, examContext),
           contested_report_id: contestReportId || undefined,
         }),
       });
