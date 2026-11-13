@@ -937,14 +937,19 @@ export default function SimuladoPage() {
     return () => observer.disconnect()
   }, [currentIdx, currentGroupQuestions, isCurrentGroupTestlet, questions, step])
 
-  // ── Per-question elapsed timer (resets on question change) ──
+  // ── Per-question elapsed timer (continua do acumulado ao revisitar) ──
+  // Exibe o tempo TOTAL já gasto nesta questão (somando passagens
+  // anteriores, via questionTimeAccumRef), não só o tempo desta passagem —
+  // reiniciar o visor a cada troca de questão escondia do aluno quanto
+  // tempo ele realmente já tinha investido nela.
   useEffect(() => {
     if (step !== 'quiz') return
     const activeQuestionId = currentQuestion?.id
     questionStartRef.current = Date.now()
-    setQuestionElapsed(0)
+    const baseElapsed = activeQuestionId ? (questionTimeAccumRef.current[activeQuestionId] || 0) : 0
+    setQuestionElapsed(baseElapsed)
     const id = setInterval(() => {
-      setQuestionElapsed(Math.floor((Date.now() - questionStartRef.current) / 1000))
+      setQuestionElapsed(baseElapsed + Math.floor((Date.now() - questionStartRef.current) / 1000))
     }, 1000)
     return () => {
       clearInterval(id)
@@ -1500,7 +1505,12 @@ export default function SimuladoPage() {
   const displayPct = finishResult?.percentage ?? Math.round((localScore / Math.max(questions.length, 1)) * 100)
   const weightedResult = finishResult?.weighted_result
   const hasWeighted = Boolean(weightedResult?.applied && weightedResult?.weighted_percentage != null)
-  const noteFromPct = (pct: number) => Number((pct * 10).toFixed(1))
+  // Concurso (hoje só PMMG, ver simulado_service.is_contest no backend) tem
+  // prova de escala 0-100, não 0-1000 como ENEM/vestibular — multiplicar por
+  // 10 incondicionalmente fazia a nota estourar além de 100 (ex.: 16% de
+  // acerto virava "160", bug reportado pelo founder).
+  const isContestResult = finishResult?.config?.question_type === 'concurso'
+  const noteFromPct = (pct: number) => Number((isContestResult ? pct : pct * 10).toFixed(1))
   const isUegPointsMode = weightedResult?.mode === 'ueg_objective_points'
   const weightedNote = hasWeighted
     ? (isUegPointsMode
@@ -1530,16 +1540,26 @@ export default function SimuladoPage() {
   }
 
   // Dentro de um testlet, Anterior/Próxima andam pergunta a pergunta a partir
-  // de onde o aluno está (currentIdx segue o scroll via IntersectionObserver),
-  // sem forçar resposta nem pular perguntas puladas de propósito. Só muda de
-  // bloco quando chega na primeira/última pergunta do testlet atual.
+  // de onde o aluno está, sem forçar resposta nem pular perguntas puladas de
+  // propósito. Só muda de bloco quando chega na primeira/última pergunta do
+  // testlet atual.
+  //
+  // `setCurrentIdx` é chamado diretamente aqui (não só via scroll +
+  // IntersectionObserver) — depender só do observer pra avançar o índice
+  // criava uma corrida: se o aluno clicasse "Próxima" de novo antes do
+  // scroll suave + callback do observer assentarem, o clique lia um
+  // `currentIdx`/`currentGroupEndIdx` ainda desatualizado e re-scrollava pra
+  // onde já estava, dando a impressão de que o botão "não ia" (bug
+  // reportado pelo founder, só no meio de testlets). O scroll suave
+  // continua rodando como reforço visual; o observer, ao assentar, só
+  // confirma o mesmo índice já setado aqui.
   const goToPreviousTestletQuestionOrGroup = () => {
     if (currentIdx > currentGroupStartIdx) {
-      const prevQuestion = questions[currentIdx - 1]
-      if (prevQuestion) {
-        testletQuestionRefs.current[prevQuestion.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        return
-      }
+      const prevIndex = currentIdx - 1
+      const prevQuestion = questions[prevIndex]
+      setCurrentIdx(prevIndex)
+      prevQuestion && testletQuestionRefs.current[prevQuestion.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
     }
     if (currentGroupStartIdx <= 0) return
     const currentGroupIndex = questionGroups.findIndex((group) => group.items.some(({ i }) => i === currentIdx))
@@ -1550,14 +1570,37 @@ export default function SimuladoPage() {
 
   const goToNextTestletQuestionOrGroup = () => {
     if (currentIdx < currentGroupEndIdx) {
-      const nextQuestion = questions[currentIdx + 1]
-      if (nextQuestion) {
-        testletQuestionRefs.current[nextQuestion.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        return
-      }
+      const nextIndex = currentIdx + 1
+      const nextQuestion = questions[nextIndex]
+      setCurrentIdx(nextIndex)
+      nextQuestion && testletQuestionRefs.current[nextQuestion.id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
     }
     goToNextGroup()
   }
+
+  // Setas do teclado (Esquerda/Direita) navegam Anterior/Próxima no desktop —
+  // só durante o quiz, desligado com algum diálogo aberto (confirmar entrega,
+  // reportar erro) ou com o foco num campo de texto (o diálogo de report usa
+  // textarea, onde a seta deve mover o cursor, não trocar de questão).
+  useEffect(() => {
+    if (step !== 'quiz') return
+    const handler = (e: KeyboardEvent) => {
+      if (finishDialogOpen || reportDialogOpen) return
+      const tag = (document.activeElement?.tagName || '').toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        if (isCurrentGroupTestlet) goToNextTestletQuestionOrGroup(); else goToQuestionIndex(currentIdx + 1)
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        if (isCurrentGroupTestlet) goToPreviousTestletQuestionOrGroup(); else goToQuestionIndex(currentIdx - 1)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, isCurrentGroupTestlet, currentIdx, finishDialogOpen, reportDialogOpen])
 
   useEffect(() => {
     if (!accessToken || !showConfigModal || mode !== 'custom' || composicao.length > 0) return
@@ -2594,36 +2637,62 @@ export default function SimuladoPage() {
         <div className="fixed inset-0 z-50 bg-[#F5F5F7] dark:bg-slate-950 flex flex-col">
           <div className="flex-1 overflow-y-auto px-4 py-6 md:py-10">
             <ElevatedCard accentColor="var(--brand-primary)" className="mx-auto max-w-xl p-5 md:p-7">
-              <p className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Antes de começar</p>
-              <h1 className="mt-1 text-lg md:text-xl font-black text-slate-900 dark:text-white">Instruções do simulado</h1>
-              <ol className="mt-4 space-y-3 text-sm text-slate-700 dark:text-slate-300 list-decimal list-inside">
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
+                  <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand-primary)' }} />
+                </div>
+                <div className="min-w-0 pt-0.5">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Antes de começar</p>
+                  <h1 className="mt-0.5 text-lg md:text-xl font-black text-slate-900 dark:text-white">Instruções do simulado</h1>
+                </div>
+              </div>
+
+              <ol className="mt-5 space-y-4">
                 {preQuizInstructions.items.map((item, idx) => (
-                  <li key={idx} className="leading-relaxed">
-                    {item.text}
-                    {item.sub_items.length > 0 && (
-                      <ul className="ml-4 mt-1 list-none space-y-1 text-slate-500 dark:text-slate-400">
-                        {item.sub_items.map((sub, subIdx) => <li key={subIdx}>{sub}</li>)}
-                      </ul>
-                    )}
+                  <li key={idx} className="flex gap-3">
+                    <span
+                      className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-bold"
+                      style={{ color: 'var(--brand-primary)' }}
+                    >
+                      {idx + 1}
+                    </span>
+                    <div className="min-w-0 pt-px text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                      {item.text}
+                      {item.sub_items.length > 0 && (
+                        <ul className="mt-2 space-y-1.5 border-l-2 border-slate-100 dark:border-slate-800 pl-3">
+                          {item.sub_items.map((sub, subIdx) => (
+                            <li key={subIdx} className="text-[13px] text-slate-500 dark:text-slate-400">{sub}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </li>
                 ))}
-                {preQuizInstructions.extra && (
-                  <li className="leading-relaxed font-semibold text-slate-900 dark:text-white">
-                    {preQuizInstructions.extra}
-                  </li>
-                )}
               </ol>
+
+              {preQuizInstructions.extra && (
+                <div className="mt-5 flex gap-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-4 py-3">
+                  <Flag className="h-4 w-4 shrink-0 mt-0.5" style={{ color: 'var(--brand-primary)' }} />
+                  <p className="text-sm font-semibold leading-relaxed text-slate-900 dark:text-white">
+                    {preQuizInstructions.extra}
+                  </p>
+                </div>
+              )}
             </ElevatedCard>
           </div>
-          <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setStep('quiz')}
-              className="min-h-11 rounded-full px-6 py-2.5 text-sm font-bold"
-              style={{ background: 'var(--brand-primary)', color: brandTextColor }}
-            >
-              Começar
-            </button>
+          <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3">
+            <div className="mx-auto max-w-xl flex items-center justify-between gap-3">
+              <p className="hidden sm:block text-xs text-slate-400 dark:text-slate-500">Leia com atenção antes de começar.</p>
+              <button
+                type="button"
+                onClick={() => setStep('quiz')}
+                className="min-h-11 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-full px-6 py-2.5 text-sm font-bold transition-transform active:scale-[0.98]"
+                style={{ background: 'var(--brand-primary)', color: brandTextColor }}
+              >
+                Começar
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2834,14 +2903,14 @@ export default function SimuladoPage() {
                               style={isSelected ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>
                               {alt.letter}
                             </span>
-                            <div className="flex-1 pt-1">
+                            <div className="flex-1">
                               {alternativeImages.length > 0 && (
                                 <AlternativeImages images={alternativeImages} metadata={question.metadata} letter={alt.letter} />
                               )}
                               {alt.text ? (
                                 <QuestionRichText
                                   text={alt.text}
-                                  className={`text-sm leading-snug ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
+                                  className={`text-sm leading-snug [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
                                   style={isSelected ? { color: 'var(--brand-primary)' } : undefined}
                                 />
                               ) : alternativeImages.length === 0 ? (
@@ -2865,25 +2934,23 @@ export default function SimuladoPage() {
             </div>
 
               {/* Question navigator */}
-              <div className="flex flex-wrap justify-center gap-2 mt-5">
+              <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-5 mt-6">
               {questionGroups.map((group) => (
-                  <div key={group.key} className={`rounded-2xl ${group.label ? 'border border-amber-200 bg-amber-50/60 px-2 py-1' : ''}`}>
+                  <div key={group.key} className={`relative flex flex-wrap items-center justify-center gap-2 rounded-2xl ${group.label ? 'border border-amber-200 dark:border-amber-800/40 bg-amber-50/60 dark:bg-amber-900/10 px-2 py-1' : ''}`}>
                     {group.label && (
-                      <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                      <span className="pointer-events-none absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
                         {group.label}
-                      </div>
+                      </span>
                     )}
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {group.items.map(({ q, i }) => (
-                        <button key={q.id} onClick={() => setCurrentIdx(i)}
-                          className={`w-8 h-8 rounded-full text-xs font-extrabold transition-all cursor-pointer ${
-                            i === currentIdx ? 'scale-110 shadow-sm' : userAnswers[q.id] ? 'bg-green-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                          }`}
-                          style={i === currentIdx ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>
-                          {i + 1}
-                        </button>
-                      ))}
-                    </div>
+                    {group.items.map(({ q, i }) => (
+                      <button key={q.id} onClick={() => setCurrentIdx(i)}
+                        className={`w-8 h-8 rounded-full text-xs font-extrabold transition-all cursor-pointer ${
+                          i === currentIdx ? 'scale-110 shadow-sm' : userAnswers[q.id] ? 'bg-green-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                        }`}
+                        style={i === currentIdx ? { background: 'var(--brand-primary)', color: brandTextColor } : {}}>
+                        {i + 1}
+                      </button>
+                    ))}
                   </div>
                 ))}
             </div>

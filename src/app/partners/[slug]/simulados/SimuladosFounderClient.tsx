@@ -165,8 +165,12 @@ function formatDuration(secs: number): string {
   return `${m} min`;
 }
 
-function pctToPoints(pct: number): number {
-  return Number((pct * 10).toFixed(1));
+// Concurso (hoje só PMMG, ver simulado_service.is_contest no backend) tem
+// prova de escala 0-100, não 0-1000 como ENEM/vestibular — multiplicar por
+// 10 incondicionalmente fazia a nota estourar além de 100 (ex.: 16% de
+// acerto virava "160", bug reportado pelo founder).
+function pctToPoints(pct: number, isContest = false): number {
+  return Number((isContest ? pct : pct * 10).toFixed(1));
 }
 
 function pctToUegPoints(pct: number): number {
@@ -1910,6 +1914,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           const k = analyticsMap[sim.id].kpis;
                           const weighted = Boolean(analyticsMap[sim.id].weighted_applied);
                           const isUegWeighted = weighted && sim.config.bank === 'UEG';
+                          const isContest = sim.config.question_type === 'concurso';
                           const scoreLabel = weighted ? (isUegWeighted ? 'Nota Objetiva' : 'Nota Estimada') : 'Acerto';
                           const students = analyticsMap[sim.id].students ?? [];
                           const avgTimeSecs = students.length
@@ -1940,7 +1945,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           const formatScore = (pct: number) => {
                             if (!weighted) return `${pct}%`;
                             if (isUegWeighted) return `${pctToUegPoints(pct)}/130`;
-                            return `${pctToPoints(pct)} pts`;
+                            return `${pctToPoints(pct, isContest)} pts`;
                           };
                           return (
                         <div className="mt-2 space-y-3">
@@ -1983,6 +1988,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           {(() => {
                             const weighted = Boolean(analyticsMap[sim.id].weighted_applied);
                             const isUegWeighted = weighted && sim.config.bank === 'UEG';
+                            const isContest = sim.config.question_type === 'concurso';
                             return (
                           <table className="min-w-[720px] text-sm">
                             <thead className="bg-slate-50 dark:bg-slate-800/70 text-slate-500">
@@ -2024,7 +2030,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                                     {s.score_pct}%
                                     {weighted && s.raw_score_pct != null && (
                                       <span className="ml-1 text-xs font-normal text-slate-500">
-                                        {isUegWeighted ? `(bruto ${s.raw_score_pct}%)` : `(bruto ${pctToPoints(s.raw_score_pct)} pts)`}
+                                        {isUegWeighted ? `(bruto ${s.raw_score_pct}%)` : `(bruto ${pctToPoints(s.raw_score_pct, isContest)} pts)`}
                                       </span>
                                     )}
                                   </td>
@@ -2032,7 +2038,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                                     <td className="px-3 py-2 font-semibold text-[var(--brand-primary)]">
                                       {isUegWeighted
                                         ? `${pctToUegPoints(s.weighted_score_pct ?? s.score_pct)}/130`
-                                        : `${pctToPoints(s.weighted_score_pct ?? s.score_pct)} pts`}
+                                        : `${pctToPoints(s.weighted_score_pct ?? s.score_pct, isContest)} pts`}
                                     </td>
                                   )}
                                   <td className="px-3 py-2">{s.score}/{s.total_questions}</td>
