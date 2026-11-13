@@ -82,6 +82,9 @@ function scoreColor(pct: number) {
     return 'text-red-600 dark:text-red-400'
 }
 
+// Regra hardcoded de emergência (pedido do founder, 13/11/2026): 60% de acerto aprova.
+const APPROVAL_THRESHOLD_PCT = 60
+
 function normalizeForSearch(value: string): string {
     return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
@@ -365,13 +368,26 @@ export default function RevisaoPage() {
                         {/* Summary */}
                         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm mb-4">
                             {summary && (
-                                <div>
-                                    <span className={`text-3xl font-black ${scoreColor(summary.pct)}`}>
-                                        {summary.score}/{summary.total}
-                                    </span>
-                                    <span className={`ml-2 text-base font-bold ${scoreColor(summary.pct)}`}>
-                                        ({summary.pct}%)
-                                    </span>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div>
+                                        <span className={`text-3xl font-black ${scoreColor(summary.pct)}`}>
+                                            {summary.score}/{summary.total}
+                                        </span>
+                                        <span className={`ml-2 text-base font-bold ${scoreColor(summary.pct)}`}>
+                                            ({summary.pct}%)
+                                        </span>
+                                    </div>
+                                    {summary.pct >= APPROVAL_THRESHOLD_PCT ? (
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 dark:bg-green-900/30 px-3 py-1 text-xs font-bold text-green-700 dark:text-green-300">
+                                            <CheckCircle2 size={14} />
+                                            Aprovado
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 dark:bg-red-900/30 px-3 py-1 text-xs font-bold text-red-700 dark:text-red-300">
+                                            <XCircle size={14} />
+                                            Reprovado
+                                        </span>
+                                    )}
                                 </div>
                             )}
                             {annulledCount > 0 && (
