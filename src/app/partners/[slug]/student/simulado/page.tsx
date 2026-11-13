@@ -2756,32 +2756,13 @@ export default function SimuladoPage() {
           <main ref={quizMainRef} className="flex-1 overflow-y-auto overscroll-y-contain">
             <div className="max-w-3xl mx-auto w-full px-4 py-6">
             <div ref={questionTopRef} className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-              {/* Tags */}
+              {/* Tags — matéria/banca/ano/dificuldade/tópico ficam só na revisão
+                  pós-simulado (ver [session_id]/revisao/page.tsx), não aqui:
+                  durante a prova é ruído que não ajuda o aluno a responder e
+                  pode até induzir viés (ex.: "dificuldade: fácil" baixando a
+                  guarda). Mantém só o aviso de report, que é acionável. */}
               <div className="mb-5 flex items-start justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
-                  <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
-                    {questions[currentIdx].subject}
-                  </span>
-                  {questions[currentIdx].bank && (
-                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
-                      {questions[currentIdx].bank}
-                    </span>
-                  )}
-                  {questions[currentIdx].exam_year && (
-                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
-                      {questions[currentIdx].exam_year}
-                    </span>
-                  )}
-                  {questions[currentIdx].difficulty && (
-                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
-                      {questions[currentIdx].difficulty}
-                    </span>
-                  )}
-                  {questions[currentIdx].topic && (
-                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
-                      {questions[currentIdx].topic}
-                    </span>
-                  )}
                   {reportedQuestionIds.has(questions[currentIdx].id) && (
                     <span className="bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-bold px-3 py-1 rounded-full border border-amber-200 dark:border-amber-800">
                       Reportada — em análise
