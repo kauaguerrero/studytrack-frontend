@@ -278,6 +278,7 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
           question_ids: pool.map((q) => q.id),
           custom_questions: pool.map(toCustomQuestionSnapshot),
           bank: contest?.bank || 'CUSTOM',
+          format: 'custom',
           time_limit_secs: durationSecs || null,
         }),
       });
