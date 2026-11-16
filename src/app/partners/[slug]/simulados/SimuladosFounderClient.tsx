@@ -26,7 +26,7 @@ import {
 import {
   Plus, ChevronDown, Trophy, Users, BarChart2, BarChart3,
   CalendarDays, Pencil, Trash2, Play, Timer, BookOpen, X, SlidersHorizontal,
-  Shuffle, ListChecks, Monitor, Printer, FileText, ClipboardList, Download,
+  Shuffle, ListChecks, Monitor, Printer, FileText, Download,
   MapPin, Camera, Eye, RefreshCw, GraduationCap, Shield,
 } from 'lucide-react';
 import SimuladoPreviewModal from '@/components/partners/simulados/SimuladoPreviewModal';
@@ -452,20 +452,26 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     }
   }
 
-  async function downloadPrintedPdf(type: 'prova' | 'gabarito', examId = printedExamId) {
+  // Um .zip só (prova + gabarito em branco + gabarito oficial, quando não
+  // embutido na prova — ver bundle.zip no backend) em vez de 2 downloads
+  // avulsos (só prova/gabarito em branco): era exatamente esse o buraco que
+  // deixava o founder sem acesso ao gabarito oficial — não existia NENHUM
+  // botão pra ele nas 3 telas que usam esta função (modal pós-criação,
+  // lista de provas avulsas, lista de simulados com modality='printed').
+  async function downloadPrintedBundle(examId = printedExamId) {
     if (!examId) return;
-    setDownloadingPrint(`${examId}:${type}`);
+    setDownloadingPrint(examId);
     try {
       const res = await fetchWithAuth(
-        `/api/partners/${slug}/printed-exams/${examId}/${type}.pdf`,
+        `/api/partners/${slug}/printed-exams/${examId}/bundle.zip`,
       );
       if (!res.ok) {
-        toast.error('Erro ao gerar PDF');
+        toast.error('Erro ao gerar os PDFs');
         return;
       }
-      await downloadBlobResponse(res, `${type}.pdf`);
+      await downloadBlobResponse(res, 'prova_impressa.zip');
     } catch {
-      toast.error('Erro ao baixar PDF');
+      toast.error('Erro ao baixar os PDFs');
     } finally {
       setDownloadingPrint(null);
     }
@@ -500,31 +506,20 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         throw new Error('Prova impressa criada sem identificador.');
       }
 
-      const provaRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${printedId}/prova.pdf`);
-      if (!provaRes.ok) throw new Error('Erro ao baixar PDF da prova.');
-      await downloadBlobResponse(provaRes, `prova_${sim.title}.pdf`);
+      // Um único .zip (prova + gabarito em branco + gabarito oficial) em vez
+      // de 3 downloads separados: disparar 3 `a.click()` em sequência sem
+      // gesto novo do usuário faz o Chrome bloquear silenciosamente o 2º/3º
+      // (nenhum erro aparece no app — o clique em si não lança exceção), e
+      // foi exatamente isso que fez o gabarito oficial "sumir" pra Silmara.
+      const bundleRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${printedId}/bundle.zip`);
+      if (!bundleRes.ok) throw new Error('Erro ao baixar os PDFs da prova.');
+      await downloadBlobResponse(bundleRes, `prova_impressa_${sim.title}.zip`);
 
-      const gabaritoRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${printedId}/gabarito.pdf`);
-      if (!gabaritoRes.ok) throw new Error('Erro ao baixar PDF do gabarito.');
-      await downloadBlobResponse(gabaritoRes, `gabarito_${sim.title}.pdf`);
-
-      // Bancas PMMG já embutem o gabarito oficial como 1ª página de
-      // prova.pdf (ver download_prova no backend) — baixá-lo nessa hora
-      // de novo, separado, seria o mesmo conteúdo duplicado num 3º
-      // arquivo. Outras bancas não fazem essa fusão, então pra elas o
-      // gabarito-oficial.pdf continua sendo o único lugar com as
-      // respostas certas marcadas.
       const isPmmg = (sim.config?.bank || '').toUpperCase() === 'PMMG';
-      if (!isPmmg) {
-        const gabaritoOficialRes = await fetchWithAuth(`/api/partners/${slug}/printed-exams/${printedId}/gabarito-oficial.pdf`);
-        if (!gabaritoOficialRes.ok) throw new Error('Erro ao baixar PDF do gabarito oficial.');
-        await downloadBlobResponse(gabaritoOficialRes, `gabarito_oficial_${sim.title}.pdf`);
-      }
-
       toast.success(
         isPmmg
-          ? 'PDF da prova (com gabarito oficial embutido) e do gabarito em branco baixados.'
-          : 'PDF da prova, gabarito e gabarito oficial baixados.',
+          ? 'Baixado: prova (com gabarito oficial embutido) + gabarito em branco, num .zip.'
+          : 'Baixado: prova + gabarito em branco + gabarito oficial, num .zip.',
       );
       void loadSimulados();
     } catch (error) {
@@ -660,6 +655,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           question_ids: previewQuestions.map((q) => q.id),
           custom_questions: previewQuestions.map(toCustomQuestionSnapshot),
           bank: form.bank,
+          format: form.format,
           time_limit_secs: form.time_limit_secs || null,
         }),
       });
@@ -1483,7 +1479,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     <div>
                       <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600">Prova gerada</p>
                       <h2 className="mt-1 text-xl font-extrabold text-slate-900">Download dos arquivos</h2>
-                      <p className="mt-1 text-sm text-slate-500">Baixe o PDF da prova para distribuir e o gabarito para os alunos responderem.</p>
+                      <p className="mt-1 text-sm text-slate-500">Baixe a prova, o gabarito em branco (pros alunos) e o gabarito oficial (com as respostas certas) num único .zip.</p>
                     </div>
                     <button
                       type="button"
@@ -1497,40 +1493,20 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                   <div className="mt-6 space-y-3">
                     <button
                       type="button"
-                      onClick={() => downloadPrintedPdf('prova')}
+                      onClick={() => downloadPrintedBundle()}
                       disabled={downloadingPrint !== null}
                       className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[var(--brand-primary)] disabled:opacity-60"
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm" style={{ color: 'var(--brand-primary)' }}>
-                        {downloadingPrint === `${printedExamId}:prova` ? (
+                        {downloadingPrint === printedExamId ? (
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                         ) : (
                           <FileText className="h-5 w-5" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-slate-900">PDF da Prova</p>
-                        <p className="text-xs text-slate-500">Questões e alternativas para distribuir aos alunos</p>
-                      </div>
-                      <Download className="h-4 w-4 shrink-0 text-slate-400" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => downloadPrintedPdf('gabarito')}
-                      disabled={downloadingPrint !== null}
-                      className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[var(--brand-primary)] disabled:opacity-60"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm" style={{ color: 'var(--brand-primary)' }}>
-                        {downloadingPrint === `${printedExamId}:gabarito` ? (
-                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                        ) : (
-                          <ClipboardList className="h-5 w-5" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-slate-900">PDF do Gabarito</p>
-                        <p className="text-xs text-slate-500">Folha de respostas com bolhas para o aluno marcar</p>
+                        <p className="text-sm font-bold text-slate-900">Baixar provas (.zip)</p>
+                        <p className="text-xs text-slate-500">Prova + gabarito em branco + gabarito oficial</p>
                       </div>
                       <Download className="h-4 w-4 shrink-0 text-slate-400" />
                     </button>
@@ -1614,23 +1590,13 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                         <button
                           type="button"
-                          onClick={() => void downloadPrintedPdf('prova', exam.id)}
+                          onClick={() => void downloadPrintedBundle(exam.id)}
                           disabled={downloadingPrint !== null}
                           className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800"
-                          title="Baixar prova em PDF"
-                          aria-label="Baixar prova em PDF"
+                          title="Baixar provas (prova + gabarito em branco + gabarito oficial, .zip)"
+                          aria-label="Baixar provas em PDF (zip)"
                         >
-                          {downloadingPrint === `${exam.id}:prova` ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <FileText className="h-4 w-4" />}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void downloadPrintedPdf('gabarito', exam.id)}
-                          disabled={downloadingPrint !== null}
-                          className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800"
-                          title="Baixar gabarito em PDF"
-                          aria-label="Baixar gabarito em PDF"
-                        >
-                          {downloadingPrint === `${exam.id}:gabarito` ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <ClipboardList className="h-4 w-4" />}
+                          {downloadingPrint === exam.id ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <FileText className="h-4 w-4" />}
                         </button>
                       </div>
                     </div>
@@ -1721,14 +1687,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                               </button>
                             )}
                             {sim.modality === 'printed' ? (
-                              <>
-                                <button type="button" onClick={() => void downloadPrintedPdf('prova', printedExams.find((exam) => exam.scheduled_simulado_id === sim.id)?.id)} disabled={!printedExams.some((exam) => exam.scheduled_simulado_id === sim.id) || downloadingPrint !== null} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800" title="Baixar prova em PDF" aria-label="Baixar prova em PDF">
-                                  <FileText className="h-4 w-4" />
-                                </button>
-                                <button type="button" onClick={() => void downloadPrintedPdf('gabarito', printedExams.find((exam) => exam.scheduled_simulado_id === sim.id)?.id)} disabled={!printedExams.some((exam) => exam.scheduled_simulado_id === sim.id) || downloadingPrint !== null} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800" title="Baixar gabarito em PDF" aria-label="Baixar gabarito em PDF">
-                                  <ClipboardList className="h-4 w-4" />
-                                </button>
-                              </>
+                              <button type="button" onClick={() => void downloadPrintedBundle(printedExams.find((exam) => exam.scheduled_simulado_id === sim.id)?.id)} disabled={!printedExams.some((exam) => exam.scheduled_simulado_id === sim.id) || downloadingPrint !== null} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 disabled:opacity-50 dark:hover:bg-slate-800" title="Baixar provas (prova + gabarito em branco + gabarito oficial, .zip)" aria-label="Baixar provas em PDF (zip)">
+                                {downloadingPrint === printedExams.find((exam) => exam.scheduled_simulado_id === sim.id)?.id ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> : <FileText className="h-4 w-4" />}
+                              </button>
                             ) : (
                               <button
                                 type="button"
