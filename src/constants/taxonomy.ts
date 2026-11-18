@@ -12,7 +12,7 @@ export const TAXONOMY = {
     "Filosofia": ["Filosofia Antiga (Pré-Socráticos a Helenismo)", "Filosofia Medieval (Patrística e Escolástica)", "Filosofia Moderna (Racionalismo, Empirismo, Iluminismo)", "Filosofia Contemporânea (Existencialismo, Escola de Frankfurt)", "Ética e Política", "Teoria do Conhecimento e Lógica"],
     "Sociologia": ["Teoria Sociológica Clássica", "Poder, Estado e Política", "Desigualdade, Estratificação e Violência", "Mundo do Trabalho e Produção", "Cultura, Ideologia e Indústria Cultural", "Movimentos Sociais e Cidadania"],
     "Arte": ["Arte Antiga (Egito, Grécia, Roma)", "Romantismo e Arte Acadêmica", "Impressionismo e Pós-Impressionismo", "Modernismo (Cubismo, Expressionismo, Futurismo, Abstracionismo, Surrealismo)", "Barroco e Neoclassicismo", "Arte Contemporânea (Pop Art, Arte Conceitual, Minimalismo)"],
-    "Língua Portuguesa": ["Interpretação de Texto", "Variação Linguística", "Gêneros e Tipos Textuais", "Funções e Figuras de Linguagem", "Gramática e Semântica", "Arte e Cultura", "Literatura: Escolas Literárias", "Literatura Contemporânea"],
+    "Língua Portuguesa": ["Interpretação de Texto", "Variação Linguística", "Gêneros e Tipos Textuais", "Funções e Figuras de Linguagem", "Gramática e Semântica", "Arte e Cultura", "Escolas Literárias", "Literatura Contemporânea"],
     "Inglês": ["Interpretação de Texto", "Vocabulário e Gramática"],
     "Espanhol": ["Interpretação de Texto", "Vocabulário e Gramática"],
     "Francês": ["Interpretação de Texto", "Vocabulário e Gramática"]
@@ -27,6 +27,5 @@ export function getSubjects(): string[] {
 
 // Helper: Retorna tópicos de uma matéria específica
 export function getTopics(subject: string): readonly string[] {
-    // @ts-ignore
-    return TAXONOMY[subject] || [];
+    return TAXONOMY[subject as Subject] || [];
 }
