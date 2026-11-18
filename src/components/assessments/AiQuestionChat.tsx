@@ -58,6 +58,9 @@ export function AiQuestionChat({ onQuestionSaved, slug }: Props) {
   const [publicPrivateTarget, setPublicPrivateTarget] = useState<{ turnId: string; index: number } | null>(null);
 
   const topicOptions = subjectHint ? getTopics(subjectHint) : [];
+  // Selecionar matéria/assunto conta como se o founder tivesse digitado o
+  // tópico: o backend exige um `topic` não vazio para gerar questões inéditas.
+  const effectivePrompt = prompt.trim() || [subjectHint, disciplineHint].filter(Boolean).join(' - ');
 
   async function getToken() {
     const supabase = createClient();
@@ -78,7 +81,7 @@ export function AiQuestionChat({ onQuestionSaved, slug }: Props) {
   }
 
   async function handleSend() {
-    const text = prompt.trim();
+    const text = effectivePrompt;
     if (!text) return;
     const id = crypto.randomUUID();
     setTurns((prev) => [...prev, { id, prompt: text, status: 'loading' }]);
@@ -321,9 +324,9 @@ export function AiQuestionChat({ onQuestionSaved, slug }: Props) {
           <button
             type="button"
             onClick={() => void handleSend()}
-            disabled={!prompt.trim() || turns.some((t) => t.status === 'loading')}
+            disabled={!effectivePrompt || turns.some((t) => t.status === 'loading')}
             className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-            style={{ backgroundColor: !prompt.trim() ? undefined : 'var(--brand-primary)' }}
+            style={{ backgroundColor: !effectivePrompt ? undefined : 'var(--brand-primary)' }}
           >
             <Sparkles className="h-4 w-4" />
             Gerar {count > 1 ? `(${count})` : ''}
