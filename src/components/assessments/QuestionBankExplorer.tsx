@@ -290,7 +290,7 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
             <div className="space-y-2 text-sm text-slate-700">
               {(preview.alternatives || []).map((alt) => (
                 <div key={alt.letter} className="rounded-xl border border-slate-200 px-3 py-2">
-                  <strong>{alt.letter}.</strong> {alt.text}
+                  <strong>{alt.letter}.</strong> <QuestionRichText text={alt.text} className="inline" />
                 </div>
               ))}
             </div>
@@ -350,7 +350,7 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
               <div className="mt-4 space-y-2 text-sm text-slate-700">
                 {current.alternatives.map((alt) => (
                   <div key={alt.letter} className="rounded-xl border border-slate-200 px-3 py-2.5">
-                    <strong>{alt.letter}.</strong> {alt.text}
+                    <strong>{alt.letter}.</strong> <QuestionRichText text={alt.text} className="inline" />
                   </div>
                 ))}
               </div>
