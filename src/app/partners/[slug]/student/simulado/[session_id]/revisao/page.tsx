@@ -51,6 +51,10 @@ interface SessionDetail {
     question_ids?: string[]
     answers: Record<string, string>
     questions: QuestionContent[]
+    points_earned?: number | null
+    total_points?: number | null
+    passed?: boolean | null
+    passing_score_pct?: number | null
 }
 
 interface ReviewQuestion extends QuestionContent {
@@ -122,7 +126,11 @@ export default function RevisaoPage() {
     const sessionId = params.session_id as string
 
     const [questions, setQuestions] = useState<ReviewQuestion[]>([])
-    const [summary, setSummary] = useState<{ score: number; total: number; pct: number } | null>(null)
+    const [summary, setSummary] = useState<{
+        score: number; total: number; pct: number
+        pointsEarned?: number | null; totalPoints?: number | null
+        passed?: boolean | null; passingScorePct?: number | null
+    } | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [accessToken, setAccessToken] = useState<string | null>(null)
@@ -187,6 +195,10 @@ export default function RevisaoPage() {
                 score: sessionData.score,
                 total: sessionData.total_questions,
                 pct: sessionData.percentage,
+                pointsEarned: sessionData.points_earned,
+                totalPoints: sessionData.total_points,
+                passed: sessionData.passed,
+                passingScorePct: sessionData.passing_score_pct,
             })
             setAnnulledCount(reviewData.annulled_question_ids?.length || sessionData.annulled_question_ids?.length || 0)
 
@@ -377,7 +389,7 @@ export default function RevisaoPage() {
                                             ({summary.pct}%)
                                         </span>
                                     </div>
-                                    {summary.pct >= APPROVAL_THRESHOLD_PCT ? (
+                                    {(summary.passed ?? (summary.pct >= (summary.passingScorePct ?? APPROVAL_THRESHOLD_PCT))) ? (
                                         <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 dark:bg-green-900/30 px-3 py-1 text-xs font-bold text-green-700 dark:text-green-300">
                                             <CheckCircle2 size={14} />
                                             Aprovado
@@ -386,6 +398,11 @@ export default function RevisaoPage() {
                                         <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 dark:bg-red-900/30 px-3 py-1 text-xs font-bold text-red-700 dark:text-red-300">
                                             <XCircle size={14} />
                                             Reprovado
+                                        </span>
+                                    )}
+                                    {typeof summary.pointsEarned === 'number' && typeof summary.totalPoints === 'number' && (
+                                        <span className="text-sm font-bold text-slate-500 dark:text-slate-400">
+                                            {summary.pointsEarned}/{summary.totalPoints} pontos
                                         </span>
                                     )}
                                 </div>

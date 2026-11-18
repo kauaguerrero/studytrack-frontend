@@ -5,7 +5,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import {
   BANK_LABELS, DIFFICULTY_LABELS, FORMATS_BY_BANK, resolveQty, isQtyLocked,
   buildDistributionHintLines, WEIGHT_KEYS_BY_BANK, UEG_GROUP_PRESETS, UEG_GROUP_COURSES,
-  formatLabel, formatDateTime, EMPTY_FORM,
+  formatLabel, formatDateTime, EMPTY_FORM, bankHasForeignLanguageBlock,
 } from '@/lib/simuladoFounderForm';
 import { useRouter } from 'next/navigation';
 import { MOCK_SIMULADOS } from '../../../../../studytrack-tutorial-mock';
@@ -53,6 +53,11 @@ interface SimuladoConfig {
   same_for_all_students?: boolean;
   ueg_weight_group?: 'I' | 'II' | 'III' | null;
   instructions?: string | null;
+  masthead_title?: string | null;
+  cover_label?: string | null;
+  exclude_foreign_language?: boolean;
+  total_points?: number | null;
+  passing_score_pct?: number | null;
 }
 
 interface ScheduledSimulado {
@@ -97,6 +102,9 @@ interface RankingEntry {
   weighted_mode?: string | null;
   time_taken_secs: number | null;
   tri_score: number | null;
+  points_earned?: number | null;
+  total_points?: number | null;
+  passed?: boolean | null;
 }
 
 interface QuestionDistributionItem {
@@ -204,6 +212,7 @@ function selectionRelevantSubset(cfg: Partial<SimuladoConfig> | null | undefined
     qty: c.qty ?? null,
     weights,
     ueg_weight_group: c.ueg_weight_group ?? null,
+    exclude_foreign_language: c.exclude_foreign_language ?? false,
   });
 }
 
@@ -551,6 +560,11 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
       same_for_all_students: form.same_for_all_students,
       ueg_weight_group: form.bank === 'UEG' ? (form.ueg_weight_group ?? null) : null,
       instructions: form.instructions?.trim() ? form.instructions.trim() : null,
+      masthead_title: form.masthead_title?.trim() ? form.masthead_title.trim() : null,
+      cover_label: form.cover_label?.trim() ? form.cover_label.trim() : null,
+      exclude_foreign_language: form.exclude_foreign_language,
+      total_points: form.total_points ?? null,
+      passing_score_pct: form.passing_score_pct ?? null,
     };
   }
 
@@ -657,6 +671,10 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           bank: form.bank,
           format: form.format,
           time_limit_secs: form.time_limit_secs || null,
+          masthead_title: form.masthead_title?.trim() || null,
+          cover_label: form.cover_label?.trim() || null,
+          total_points: form.total_points ?? null,
+          passing_score_pct: form.passing_score_pct ?? null,
         }),
       });
       if (!res.ok) {
@@ -827,6 +845,11 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         same_for_all_students: sim.config.same_for_all_students ?? false,
         ueg_weight_group: (sim.config.ueg_weight_group as 'I' | 'II' | 'III' | null) ?? null,
         instructions: sim.config.instructions ?? '',
+        masthead_title: sim.config.masthead_title ?? '',
+        cover_label: sim.config.cover_label ?? '',
+        exclude_foreign_language: sim.config.exclude_foreign_language ?? false,
+        total_points: sim.config.total_points ?? null,
+        passing_score_pct: sim.config.passing_score_pct ?? null,
       });
       setShowForm(true);
   }
@@ -1001,6 +1024,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                   <button
                     type="button"
                     role="switch"
+                    aria-label="Permitir refazer o simulado"
                     aria-checked={Boolean(form.allow_retry)}
                     onClick={() => setForm((f) => ({ ...f, allow_retry: !f.allow_retry }))}
                     className={`relative inline-flex h-11 w-14 shrink-0 items-center rounded-full transition-colors focus:outline-none ${form.allow_retry ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
@@ -1072,6 +1096,89 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                   rows={4}
                   className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[var(--brand-primary)]"
                 />
+              </div>
+
+              {form.bank === 'ENEM' && (
+                <div>
+                  <label className={labelCls}>Título do cabeçalho no PDF (opcional)</label>
+                  <input
+                    value={form.masthead_title ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, masthead_title: e.target.value }))}
+                    placeholder='Ex: "PROVA DE SELEÇÃO DE BOLSISTAS 2027"'
+                    maxLength={120}
+                    className="h-10 w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[var(--brand-primary)]"
+                  />
+                  <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    Substitui &quot;EXAME NACIONAL DO ENSINO MÉDIO&quot; na capa e no cabeçalho da prova impressa. Deixe em branco para manter o cabeçalho padrão.
+                  </p>
+                </div>
+              )}
+
+              {form.bank === 'ENEM' && form.format === 'custom' && (
+                <div>
+                  <label className={labelCls}>Nome na capa e no cabeçalho do PDF (opcional)</label>
+                  <input
+                    value={form.cover_label ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, cover_label: e.target.value }))}
+                    placeholder='Ex: "Cenas Pré-Vestibular"'
+                    maxLength={40}
+                    className="h-10 w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[var(--brand-primary)]"
+                  />
+                  <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    Substitui o nome da organização na marca &quot;{'{'}nome{'}'} {new Date().getFullYear()}&quot; que aparece em destaque na capa e no topo de cada página da prova. Deixe em branco para usar o nome da organização.
+                  </p>
+                </div>
+              )}
+
+              {bankHasForeignLanguageBlock(form.bank, form.format, form.subject) && (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 px-3.5 py-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Incluir Língua Estrangeira</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Desativado: exclui Espanhol/Inglês e redistribui essa cota entre as demais matérias de Linguagens.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-label="Incluir Língua Estrangeira"
+                    aria-checked={!form.exclude_foreign_language}
+                    onClick={() => setForm((f) => ({ ...f, exclude_foreign_language: !f.exclude_foreign_language }))}
+                    className={`relative inline-flex h-11 w-14 shrink-0 items-center rounded-full transition-colors focus:outline-none ${!form.exclude_foreign_language ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${!form.exclude_foreign_language ? 'translate-x-8' : 'translate-x-1.5'}`}
+                    />
+                  </button>
+                </div>
+              )}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className={labelCls}>Pontuação total da prova (opcional)</label>
+                  <input
+                    type="number"
+                    min={0.01}
+                    step="any"
+                    value={form.total_points ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, total_points: e.target.value === '' ? null : Number(e.target.value) }))}
+                    placeholder="Ex: 100"
+                    className="h-10 w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[var(--brand-primary)]"
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Nota de corte — % de acerto (opcional)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    step="any"
+                    value={form.passing_score_pct ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, passing_score_pct: e.target.value === '' ? null : Number(e.target.value) }))}
+                    placeholder="Ex: 60"
+                    className="h-10 w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-[var(--brand-primary)]"
+                  />
+                </div>
               </div>
 
               {/* Modalidade — decidida uma única vez, na escolha inicial ("Como
@@ -1852,6 +1959,16 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                               >
                                 {entry.score_pct}%
                               </p>
+                              {typeof entry.points_earned === 'number' && typeof entry.total_points === 'number' && (
+                                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                  {entry.points_earned}/{entry.total_points} pts
+                                </p>
+                              )}
+                              {typeof entry.passed === 'boolean' && (
+                                <p className={`text-[10px] font-bold ${entry.passed ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                  {entry.passed ? 'Aprovado' : 'Reprovado'}
+                                </p>
+                              )}
                               {sim.config.bank === 'ENEM' && entry.tri_score && (
                                 <p className="text-[10px] text-slate-400">TRI {entry.tri_score}</p>
                               )}

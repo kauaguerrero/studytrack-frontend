@@ -49,6 +49,10 @@ interface RankingEntry {
   score_pct?: number | null;
   completed_at?: string | null;
   results_by_subject?: Record<string, SubjectResult> | null;
+  points_earned?: number | null;
+  total_points?: number | null;
+  passed?: boolean | null;
+  passing_score_pct?: number | null;
 }
 
 interface Participant {
@@ -62,6 +66,10 @@ interface Participant {
   percentage?: number | null;
   graded_at?: string | null;
   results_by_subject?: Record<string, SubjectResult> | null;
+  pointsEarned?: number | null;
+  totalPoints?: number | null;
+  passed?: boolean | null;
+  passingScorePct?: number | null;
 }
 
 interface FailedStudent {
@@ -292,6 +300,10 @@ export default function PrintedExamResultsPage() {
         percentage: entry.score_pct,
         graded_at: entry.completed_at,
         results_by_subject: entry.results_by_subject ?? {},
+        pointsEarned: entry.points_earned,
+        totalPoints: entry.total_points,
+        passed: entry.passed,
+        passingScorePct: entry.passing_score_pct,
       }));
 
       setParticipants(allParticipants);
@@ -936,13 +948,25 @@ export default function PrintedExamResultsPage() {
                               </p>
                             </div>
                           </div>
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                            isPrinted
-                              ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
-                              : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
-                          }`}>
-                            {isPrinted ? 'Correção Presencial' : 'Online'}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                              isPrinted
+                                ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300'
+                                : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
+                            }`}>
+                              {isPrinted ? 'Correção Presencial' : 'Online'}
+                            </span>
+                            {typeof participant.passed === 'boolean' && (
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                                participant.passed
+                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                                  : 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
+                              }`}>
+                                {participant.passed ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                                {participant.passed ? 'Aprovado' : 'Reprovado'}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div className="text-left sm:text-right">
@@ -952,6 +976,11 @@ export default function PrintedExamResultsPage() {
                           <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
                             {percentage}% de acerto
                           </p>
+                          {typeof participant.pointsEarned === 'number' && typeof participant.totalPoints === 'number' && (
+                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                              {roundOne(participant.pointsEarned)} de {roundOne(participant.totalPoints)} pontos
+                            </p>
+                          )}
                         </div>
                       </div>
 
