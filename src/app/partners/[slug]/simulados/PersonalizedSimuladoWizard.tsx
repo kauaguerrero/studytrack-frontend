@@ -427,6 +427,7 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
       return (
         <ContestQuotaBuilder
           slug={slug}
+          simuladoFormat={simuladoFormat}
           brandTextColor={onBrand}
           onExit={() => setMethod('bank')}
           onGenerated={(questions, bank, role) => {

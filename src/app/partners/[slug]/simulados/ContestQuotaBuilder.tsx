@@ -8,6 +8,7 @@ import { WizardStepper, type WizardStepperStep } from '@/components/partners/sim
 import { MateriasComposicaoStep } from '@/components/partners/simulado/MateriasComposicaoStep';
 import { useFounderConcursoFacets } from '@/hooks/useFounderConcursoFacets';
 import { formatCargoLabel } from '@/lib/simuladoFounderForm';
+import { VESTIBULAR_BANK_OPTIONS } from '@/lib/simuladoBanks';
 import {
   type Composicao, composicaoSlotId, composicaoToApiCompositions, composicaoTotalQty,
 } from '@/lib/simuladoComposicao';
@@ -26,8 +27,9 @@ function unique(values: Array<string | null>): string[] {
 // (MateriasComposicaoStep) — substitui a checagem antiga (só avisava em
 // texto quando a quota excedia a disponibilidade, sem travar).
 export function ContestQuotaBuilder({
-  slug, onGenerated, onExit, brandTextColor = '#ffffff',
-}: { slug: string; onGenerated?: (questions: Candidate[], bank: string, role: string) => void; onExit?: () => void; brandTextColor?: string }) {
+  slug, simuladoFormat, onGenerated, onExit, brandTextColor = '#ffffff',
+}: { slug: string; simuladoFormat: 'vestibular' | 'concurso'; onGenerated?: (questions: Candidate[], bank: string, role: string) => void; onExit?: () => void; brandTextColor?: string }) {
+  const isConcurso = simuladoFormat === 'concurso';
   const [step, setStep] = useState<'bancaCargo' | 'quantidade' | 'composicao'>('bancaCargo');
   const [bank, setBank] = useState('');
   const [role, setRole] = useState('');
@@ -35,11 +37,11 @@ export function ContestQuotaBuilder({
   const [composicao, setComposicao] = useState<Composicao>([]);
   const [includeAnswered, setIncludeAnswered] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const { facets, loading: catalogLoading, error: catalogError, retry: retryCatalog } = useFounderConcursoFacets(slug);
+  const { facets, loading: catalogLoading, error: catalogError, retry: retryCatalog } = useFounderConcursoFacets(slug, isConcurso);
   const api = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
 
   const steps: WizardStepperStep[] = [
-    { key: 'bancaCargo', label: 'Banca' },
+    { key: 'bancaCargo', label: isConcurso ? 'Banca e cargo' : 'Banca' },
     { key: 'quantidade', label: 'Quantidade' },
     { key: 'composicao', label: 'Matérias e assuntos' },
   ];
@@ -77,7 +79,12 @@ export function ContestQuotaBuilder({
       const res = await fetch(`${api}/api/partners/${slug}/assessment/questions/compose`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session?.access_token ?? ''}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bank, role: role || null, compositions: composicaoToApiCompositions(composicao, includeAnswered) }),
+        body: JSON.stringify({
+          bank,
+          role: role || null,
+          question_type: simuladoFormat,
+          compositions: composicaoToApiCompositions(composicao, includeAnswered),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha na composição.');
@@ -105,11 +112,13 @@ export function ContestQuotaBuilder({
           </div>
         )}
 
-        {step === 'bancaCargo' && !catalogLoading && !catalogError && (
+        {step === 'bancaCargo' && (!isConcurso || (!catalogLoading && !catalogError)) && (
           <div className="space-y-5">
             <div>
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Banca e cargo</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Escolha a banca e o cargo do concurso.</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{isConcurso ? 'Banca e cargo' : 'Banca'}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {isConcurso ? 'Escolha a banca e o cargo do concurso.' : 'Escolha a banca das questões do simulado.'}
+              </p>
             </div>
             <div>
               <label className={labelCls}>Banca</label>
@@ -121,26 +130,30 @@ export function ContestQuotaBuilder({
                   className={inputCls}
                 >
                   <option value="">Selecione a banca</option>
-                  {unique(facets.map((f) => f.bank)).map((v) => <option key={v} value={v}>{v}</option>)}
+                  {isConcurso
+                    ? unique(facets.map((f) => f.bank)).map((v) => <option key={v} value={v}>{v}</option>)
+                    : VESTIBULAR_BANK_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               </div>
             </div>
-            <div>
-              <label className={labelCls}>Cargo</label>
-              <div className="relative">
-                <select
-                  aria-label="Cargo"
-                  value={role}
-                  onChange={(e) => { setRole(e.target.value); setComposicao([]); }}
-                  className={inputCls}
-                >
-                  <option value="">Todos os cargos</option>
-                  {unique(facets.filter((f) => !bank || f.bank === bank).map((f) => f.role)).map((v) => <option key={v} value={v}>{formatCargoLabel(v)}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            {isConcurso && (
+              <div>
+                <label className={labelCls}>Cargo</label>
+                <div className="relative">
+                  <select
+                    aria-label="Cargo"
+                    value={role}
+                    onChange={(e) => { setRole(e.target.value); setComposicao([]); }}
+                    className={inputCls}
+                  >
+                    <option value="">Todos os cargos</option>
+                    {unique(facets.filter((f) => !bank || f.bank === bank).map((f) => f.role)).map((v) => <option key={v} value={v}>{formatCargoLabel(v)}</option>)}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -199,9 +212,7 @@ export function ContestQuotaBuilder({
             setComposicao={setComposicao}
             includeAnswered={includeAnswered}
             setIncludeAnswered={setIncludeAnswered}
-            subjects={subjectsOptions}
-            topicsBySubject={topicsBySubject}
-            availabilityBySlot={availabilityBySlot}
+            {...(isConcurso ? { subjects: subjectsOptions, topicsBySubject, availabilityBySlot } : {})}
           />
         )}
       </div>
