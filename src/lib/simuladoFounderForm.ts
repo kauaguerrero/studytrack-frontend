@@ -253,6 +253,45 @@ export const EMPTY_FORM = {
   same_for_all_students: true,
   ueg_weight_group: null as 'I' | 'II' | 'III' | null,
   instructions: '',
+  // Sobrescreve "EXAME NACIONAL DO ENSINO MÉDIO" no cabeçalho do PDF (capa +
+  // régua de página) quando o simulado reaproveita o layout fiel ao ENEM mas
+  // não é uma edição oficial dele — ex.: "PROVA DE SELEÇÃO DE BOLSISTAS
+  // 2027". Vazio = mantém o cabeçalho padrão ENEM.
+  masthead_title: '',
+  // Sobrescreve o nome da org na marca "{nome} {ano}" da capa/cabeçalho do
+  // caderno ENEM "custom" (ver _short_org_label/enem_cover_word no backend)
+  // — só tem efeito com banca ENEM + formato "custom". Vazio = mantém o
+  // padrão (1ª palavra do nome da org + ano atual, igual já era antes).
+  cover_label: '',
+  // Remove o bloco de Língua Estrangeira (Espanhol/Inglês) da cota de
+  // Linguagens, formato ENEM (ver bank_requires_language_choice no backend).
+  exclude_foreign_language: false,
+  // Pontuação total da prova (ex.: 100 pontos) e nota de corte em % (ex.:
+  // 60) — opcionais e independentes. Convertem score_pct em "pontos
+  // obtidos"/"aprovado" nas instruções do PDF, no ranking e no resultado do
+  // aluno (ver _compute_points_and_pass no backend).
+  total_points: null as number | null,
+  passing_score_pct: null as number | null,
 };
 
 export type FounderSimuladoFormState = typeof EMPTY_FORM;
+
+// Bancas/formatos cujo bloco de Linguagens inclui um sub-bloco obrigatório
+// de língua estrangeira por padrão (espelha BANK_LANGUAGE_FORMATS no
+// backend) — só nesses casos faz sentido mostrar o toggle "Incluir língua
+// estrangeira". Por ora só ENEM: é o único onde o backend
+// (_fetch_enem_preset/_fetch_linguagens_ordered) realmente usa
+// `exclude_foreign_language` — UFG/UEG/UFU montam o bloco de idioma por um
+// caminho próprio que ainda não recebeu essa opção. "custom" entra aqui
+// também: com banca ENEM e sem matéria única travada ("Todas as matérias"),
+// o backend redireciona esse formato pro mesmo preset estratificado de
+// "completo" (ver bug real corrigido: prova de 40 questões saindo sem
+// nenhuma Química) — que também reserva bloco de idioma por padrão.
+const BANK_LANGUAGE_FORMATS: Record<string, Set<string>> = {
+  ENEM: new Set(['completo', 'dia1', 'linguagens', 'custom']),
+};
+
+export function bankHasForeignLanguageBlock(bank: string, format: string, subject?: string | null): boolean {
+  if (bank === 'ENEM' && format === 'custom' && subject) return false;
+  return BANK_LANGUAGE_FORMATS[bank]?.has(format) ?? false;
+}

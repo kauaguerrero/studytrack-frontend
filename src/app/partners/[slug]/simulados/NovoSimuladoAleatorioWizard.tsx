@@ -11,7 +11,7 @@ import { CUSTOM_SUBJECTS } from '@/lib/simuladoSubjects';
 import {
   BANK_LABELS, DIFFICULTY_LABELS, FORMATS_BY_BANK, resolveQty, isQtyLocked,
   buildDistributionHintLines, WEIGHT_KEYS_BY_BANK, UEG_GROUP_PRESETS, UEG_GROUP_COURSES,
-  formatLabel, formatCargoLabel, type FounderSimuladoFormState,
+  formatLabel, formatCargoLabel, bankHasForeignLanguageBlock, type FounderSimuladoFormState,
 } from '@/lib/simuladoFounderForm';
 
 type StepKey =
@@ -175,6 +175,7 @@ export function NovoSimuladoAleatorioWizard({
                       className={inputCls}
                     />
                   </div>
+
                 </div>
               )}
 
@@ -282,6 +283,23 @@ export function NovoSimuladoAleatorioWizard({
                       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     </div>
                   </div>
+                  {bankHasForeignLanguageBlock(form.bank, form.format, form.subject) && (
+                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 dark:border-slate-700 dark:bg-slate-800">
+                      <input
+                        type="checkbox"
+                        checked={!form.exclude_foreign_language}
+                        onChange={(e) => setForm((f) => ({ ...f, exclude_foreign_language: !e.target.checked }))}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
+                        style={ringStyle}
+                      />
+                      <span>
+                        <span className="block text-sm font-bold text-slate-900 dark:text-slate-100">Incluir Língua Estrangeira</span>
+                        <span className="block text-xs text-slate-500 dark:text-slate-400">
+                          Reserva parte da cota de Linguagens para Espanhol/Inglês. Desmarque para excluir Espanhol/Inglês e redistribuir essa cota entre as demais matérias de Linguagens.
+                        </span>
+                      </span>
+                    </label>
+                  )}
                 </div>
               )}
 
@@ -461,6 +479,41 @@ export function NovoSimuladoAleatorioWizard({
                       </div>
                     </div>
                   )}
+                  <div className="space-y-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Pontuação e aprovação (opcional)</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Aparece nas instruções da prova e no resultado do aluno. Deixe em branco para não usar.</p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className={labelCls}>Pontuação total da prova</label>
+                        <input
+                          type="number"
+                          min={0.01}
+                          step="any"
+                          value={form.total_points ?? ''}
+                          onChange={(e) => setForm((f) => ({ ...f, total_points: e.target.value === '' ? null : Number(e.target.value) }))}
+                          placeholder="Ex: 100"
+                          className={inputCls}
+                          style={ringStyle}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Nota de corte (% de acerto)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={100}
+                          step="any"
+                          value={form.passing_score_pct ?? ''}
+                          onChange={(e) => setForm((f) => ({ ...f, passing_score_pct: e.target.value === '' ? null : Number(e.target.value) }))}
+                          placeholder="Ex: 60"
+                          className={inputCls}
+                          style={ringStyle}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -505,6 +558,37 @@ export function NovoSimuladoAleatorioWizard({
                     <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Detalhes (opcional)</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">Instruções pra turma e, se o formato for Personalizado, a matéria.</p>
                   </div>
+                  {form.bank === 'ENEM' && (
+                    <div>
+                      <label className={labelCls}>Título do cabeçalho no PDF (opcional)</label>
+                      <input
+                        value={form.masthead_title}
+                        onChange={(e) => setForm((f) => ({ ...f, masthead_title: e.target.value }))}
+                        placeholder='Ex: "PROVA DE SELEÇÃO DE BOLSISTAS 2027"'
+                        maxLength={120}
+                        className={inputCls}
+                      />
+                      <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                        Substitui &quot;EXAME NACIONAL DO ENSINO MÉDIO&quot; na capa e no cabeçalho da prova impressa. Deixe em branco para manter o cabeçalho padrão.
+                      </p>
+                    </div>
+                  )}
+
+                  {form.bank === 'ENEM' && form.format === 'custom' && (
+                    <div>
+                      <label className={labelCls}>Nome na capa e no cabeçalho do PDF (opcional)</label>
+                      <input
+                        value={form.cover_label}
+                        onChange={(e) => setForm((f) => ({ ...f, cover_label: e.target.value }))}
+                        placeholder='Ex: "Cenas Pré-Vestibular"'
+                        maxLength={40}
+                        className={inputCls}
+                      />
+                      <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                        Substitui o nome da organização na marca &quot;{'{'}nome{'}'} {new Date().getFullYear()}&quot; que aparece em destaque na capa e no topo de cada página da prova. Deixe em branco para usar o nome da organização.
+                      </p>
+                    </div>
+                  )}
                   {form.format === 'custom' && isConcurso && (
                     <div>
                       <label className={labelCls}>Matéria (opcional)</label>

@@ -86,6 +86,10 @@ interface FinishResult {
   };
   annulled_question_ids?: string[];
   annulled_questions_count?: number;
+  points_earned?: number | null;
+  total_points?: number | null;
+  passed?: boolean | null;
+  passing_score_pct?: number | null;
   new_streak?: number;
   streak_updated?: boolean;
   gamification?: {
@@ -3034,6 +3038,19 @@ export default function SimuladoPage() {
                   </div>
                 </div>
 
+                {typeof finishResult?.passed === 'boolean' && (
+                  <div className={`mb-5 mx-auto flex w-fit items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold ${
+                    finishResult.passed
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                      : 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
+                  }`}>
+                    {finishResult.passed ? 'Aprovado' : 'Reprovado'}
+                    {typeof finishResult.passing_score_pct === 'number' && (
+                      <span className="font-semibold opacity-80">· nota de corte {finishResult.passing_score_pct}%</span>
+                    )}
+                  </div>
+                )}
+
                 {annulledCount > 0 && (
                   <div className="mb-5 mx-auto flex w-fit max-w-full items-start gap-2 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-2 text-left text-sm font-semibold text-amber-800 dark:text-amber-200">
                     <Flag className="h-4 w-4 shrink-0 mt-0.5" />
@@ -3079,6 +3096,14 @@ export default function SimuladoPage() {
                     <div className="text-center">
                       <div className="text-2xl font-black text-slate-700 dark:text-slate-300">{formatDuration(finishResult.time_taken_secs)}</div>
                       <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-1">Tempo</div>
+                    </div>
+                  )}
+                  {typeof finishResult?.points_earned === 'number' && typeof finishResult?.total_points === 'number' && (
+                    <div className="text-center">
+                      <div className="text-2xl font-black text-[var(--brand-primary)]">
+                        {finishResult.points_earned}/{finishResult.total_points}
+                      </div>
+                      <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-1">Pontos</div>
                     </div>
                   )}
                 </div>
