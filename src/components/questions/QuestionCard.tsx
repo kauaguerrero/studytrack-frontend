@@ -48,6 +48,9 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
   const [selected, setSelected] = useState<string | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // O gabarito não vem mais na listagem do banco para aluno: chega na resposta
+  // de POST /answer, depois de a resposta estar salva.
+  const [revealed, setRevealed] = useState<{ correct_option: string; explanation: string } | null>(null);
 
   const handleSelect = (letter: string) => {
     if (!showAnswer) setSelected(letter);
@@ -57,7 +60,9 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
     if (!selected || isSubmitting) return;
     setIsSubmitting(true);
 
-    const localIsCorrect = String(selected).toUpperCase() === String(question.correct_option).toUpperCase();
+    const localIsCorrect = question.correct_option
+      ? String(selected).toUpperCase() === String(question.correct_option).toUpperCase()
+      : undefined;
     let answerResult: {
       is_correct?: boolean;
       new_streak?: number;
@@ -124,6 +129,11 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
             onQuotaReached("DAILY_QUOTA_REACHED");
         }
 
+        setRevealed({
+          correct_option: String(data.correct_option ?? question.correct_option ?? ''),
+          explanation: String(data.explanation ?? question.explanation ?? ''),
+        });
+
         answerResult = {
           is_correct: data.is_correct ?? localIsCorrect,
           new_streak: data.new_streak,
@@ -161,7 +171,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
                 </div>
                 <div>
                     <h4 className="font-bold text-blue-900 dark:text-blue-100 mb-2">Comentário do Professor</h4>
-                    <QuestionRichText text={question.explanation} className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed" />
+                    <QuestionRichText text={revealed?.explanation || question.explanation || ''} className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed" />
                 </div>
              </div>
         )}
@@ -170,7 +180,7 @@ export function QuestionCard({ question, userId, onQuotaReached, onAnswer, onRep
 
   return (
     <QuestionDisplay
-      question={question}
+      question={revealed ? { ...question, ...revealed } : question}
       selected={selected}
       showAnswer={showAnswer}
       onSelect={handleSelect}
