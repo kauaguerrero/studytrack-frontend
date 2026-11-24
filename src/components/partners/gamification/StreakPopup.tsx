@@ -51,7 +51,7 @@ function StreakPopupInner({ streak, stage, stageName, isNewStage, onDismiss }: P
         backgroundClip: 'text',
         color: 'transparent',
       }
-    : { color: stage === 0 ? 'var(--brand-primary)' : stageMeta.color };
+    : { color: stage === 0 ? 'var(--streak-number-color)' : stageMeta.color };
 
   // No momento de evolução, tinge o overlay/faixa com a cor do estágio novo.
   const theme = usePopupTheme(
@@ -136,6 +136,11 @@ function StreakPopupInner({ streak, stage, stageName, isNewStage, onDismiss }: P
         className="relative w-full max-w-md overflow-hidden rounded-[30px] px-5 py-7 text-center sm:px-7 sm:py-9"
         style={{
           ...theme.cardStyle,
+          // Estágio 0 usa a cor da marca, que pode ser escura (ex.: azul-marinho) e sumir no
+          // modo escuro: lá ela é clareada com branco para o número continuar legível.
+          ['--streak-number-color' as string]: theme.isDark
+            ? 'color-mix(in srgb, var(--brand-primary) 40%, white)'
+            : 'var(--brand-primary)',
           maxHeight: 'min(92dvh, 760px)',
           ...(isNewStage
             ? { boxShadow: `${theme.cardStyle.boxShadow}, 0 0 56px -8px rgba(${accentRgb},0.5)` }

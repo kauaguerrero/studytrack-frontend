@@ -17,6 +17,7 @@ import { getStudentThemeStorageKey, type StudentTheme } from '@/lib/student-them
 import { normalizeOrgTypewriterTagline, type OrgTypewriterTagline } from '@/lib/org-typewriter-tagline';
 import { normalizeOrgApprovedPhotos, type OrgApprovedPhoto } from '@/lib/org-approved-photos';
 import { pingDemoOrgAccess } from '@/lib/demo-org-access';
+import { readableBrandText, readableBrandTextOnDark } from '@/lib/brand-color';
 
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 function sanitizeCssHexColor(value: string | null | undefined, fallback: string): string {
@@ -162,6 +163,11 @@ export default async function PartnerStudentLayout({ children, params }: Student
           --brand-primary: ${brandPrimary};
           --brand-secondary: ${brandSecondary};
           --brand-accent: ${brandAccent};
+          --brand-ink: ${readableBrandText(brandPrimary, 'var(--brand-primary)')};
+        }
+        /* Cor da marca legível como texto/ícone/destaque: no escuro, uma versão clara do mesmo tom. */
+        .dark {
+          --brand-ink: ${readableBrandTextOnDark(brandPrimary, 'var(--brand-primary)')};
         }
       `}</style>
 

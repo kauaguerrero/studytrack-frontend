@@ -46,6 +46,7 @@ import { RevealGroup, RevealItem, ElevatedCard, SectionTitle, KpiCard } from '@/
 import { NovoSimuladoWizard } from '@/components/partners/simulado/NovoSimuladoWizard'
 import { type ApiComposition, type Composicao, composicaoToApiCompositions } from '@/lib/simuladoComposicao'
 import { VESTIBULAR_BANK_OPTIONS as BANK_OPTIONS } from '@/lib/simuladoBanks'
+import { deepLinkComposicao, parseSimuladoDeepLink } from '@/lib/cronograma'
 import { MOCK_SIMULADO_RANKING_STUDENT, MOCK_SCHEDULED_SIMULADOS_STUDENT } from '../../../../../../studytrack-tutorial-mock'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -533,6 +534,10 @@ export default function SimuladoPage() {
   const [dashboardType, setDashboardType] = useState<'vestibular' | 'concurso'>('vestibular')
   const contestRequestRef = useRef<{ bank: string; role: string; compositions: ApiComposition[]; includeAnswered: boolean; difficulty: string } | null>(null)
   const startingRef = useRef(false)
+  // Simulado aberto pelo card do Cronograma (ENEM): sem a opção de concurso, e o card é
+  // concluído ao finalizar.
+  const [fromCronograma, setFromCronograma] = useState(false)
+  const planItemRef = useRef<string | null>(null)
 
   // Config
   const [mode, setMode] = useState<'custom' | 'preset'>('custom')
@@ -695,6 +700,23 @@ export default function SimuladoPage() {
       setCurrentUserId(session.user.id)
     }
     init()
+  }, [])
+
+  // Deep-link do Cronograma Inteligente (?cronograma=1&subject=X&topic=Y&qty=N):
+  // abre a configuração já com a composição da matéria do dia — o aluno só confirma.
+  useEffect(() => {
+    const link = parseSimuladoDeepLink(window.location.search)
+    if (!link) return
+    setMode('custom')
+    setSimuladoFormat('vestibular')
+    setComposicao(deepLinkComposicao(link))
+    setIncludeAnswered(false)
+    setFromCronograma(true)
+    planItemRef.current = link.planItem
+    setWizardStep('revisao')
+    setShowConfigModal(true)
+    router.replace(`/partners/${slug}/student/simulado`)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -1223,6 +1245,7 @@ export default function SimuladoPage() {
         if (languages.length > 0) body.language = languages.includes(presetLanguage) ? presetLanguage : languages[0]
       }
       if (scheduledId) body.scheduled_simulado_id = scheduledId
+      else if (planItemRef.current && !contest) body.plan_item_id = planItemRef.current
       if (language) body.language = language
       if (scheduledId) {
         if (!language) delete body.language
@@ -1278,6 +1301,8 @@ export default function SimuladoPage() {
         return
       }
       if (!res.ok) { toast.error('Erro ao iniciar simulado', { description: data.error || 'Tente novamente em instantes.' }); return }
+      planItemRef.current = null
+      setFromCronograma(false)
       setShowConfigModal(false)
       setActiveSessionConflict(null)
       setSessionId(data.session_id)
@@ -1410,6 +1435,7 @@ export default function SimuladoPage() {
           try { window.localStorage.removeItem(getDraftStorageKey(sessionId)) } catch {}
           try { window.localStorage.removeItem(getActiveSessionStorageKey()) } catch {}
           setFinishResult({ ...data, session_id: sessionId })
+          if (data.plan_item_completed) toast.success('Conteúdo concluído no cronograma')
           console.log('finish response:', data)
           if (data.gamification?.shield_awarded) {
             sessionStorage.setItem('shield_earned_pending', '1')
@@ -1811,10 +1837,10 @@ export default function SimuladoPage() {
         <NovoSimuladoWizard
           slug={slug}
           apiUrl={apiUrl}
-          concursosEnabled={!!org.permissions?.concursos_enabled}
+          concursosEnabled={!!org.permissions?.concursos_enabled && !fromCronograma}
           brandTextColor={brandTextColor}
           accessToken={accessToken}
-          onClose={() => setShowConfigModal(false)}
+          onClose={() => { setShowConfigModal(false); planItemRef.current = null; setFromCronograma(false) }}
           wizardStep={wizardStep}
           setWizardStep={setWizardStep}
           simuladoFormat={simuladoFormat}

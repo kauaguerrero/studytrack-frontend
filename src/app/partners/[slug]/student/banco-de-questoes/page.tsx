@@ -26,6 +26,7 @@ import { usePopupQueue } from '@/components/partners/gamification/PopupQueueCont
 import { getStreakStage, crossedStageBoundary } from '@/components/partners/gamification/streakEvolution';
 import { toast } from 'sonner';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
+import { StudyProgressBar } from '@/components/cronograma/StudyProgressBar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -142,7 +143,11 @@ export default function BancoDeQuestoes() {
   const [currentIdx, setCurrentIdx] = useState(0);
 
   // ── State: Filters & Logic ──────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'todo' | 'done' | 'all'>('all');
+  // ?plan_item=<id> vem do card do Cronograma: abre direto nas questões "A fazer"
+  // (sem repetir as já respondidas) e mostra a barra de progresso do card.
+  const planItem = searchParams.get('plan_item');
+  const [answerTick, setAnswerTick] = useState(0);
+  const [activeTab, setActiveTab] = useState<'todo' | 'done' | 'all'>(() => (planItem ? 'todo' : 'all'));
 
   // Pré-seleciona a matéria quando o CTA "Continue de onde parou" chega com
   // ?subject=X (última matéria que o aluno estava respondendo). Lista vazia =
@@ -158,7 +163,11 @@ export default function BancoDeQuestoes() {
 
   // Todos os filtros são de múltipla escolha; lista vazia = sem filtro.
   const [filterBanks, setFilterBanks] = useState<string[]>([]);
-  const [filterTopics, setFilterTopics] = useState<string[]>([]);
+  // ?topic=X vem do Cronograma Inteligente (discipline do conteúdo do dia).
+  const [filterTopics, setFilterTopics] = useState<string[]>(() => {
+    const topic = searchParams.get('topic');
+    return topic ? [topic] : [];
+  });
   const [filterYears, setFilterYears] = useState<string[]>([]);
   const [filterDifficulties, setFilterDifficulties] = useState<string[]>([]);
 
@@ -178,7 +187,7 @@ export default function BancoDeQuestoes() {
   const [allQuestionMeta, setAllQuestionMeta] = useState<QuestionMetaRow[]>([]);
 
   // ── State: UI Controls ──────────────────────────────────────────────────────
-  const [isMenuOpen, setIsMenuOpen] = useState(!questionIdParam);
+  const [isMenuOpen, setIsMenuOpen] = useState(!questionIdParam && !planItem);
 
   // ── State: Loading & User ───────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
@@ -547,6 +556,7 @@ export default function BancoDeQuestoes() {
   const handleAnswerResult = useCallback(
     (qId: string, result: { is_correct?: boolean; new_streak?: number; streak_updated?: boolean; gamification?: { points_awarded: number; shield_awarded?: boolean } }) => {
       answeredQuestionIdsRef.current.add(qId);
+      if (planItem) setAnswerTick((t) => t + 1);
       if (activeTab === 'todo') {
         setTotalQuestionsFound((current) => Math.max(0, current - 1));
       }
@@ -587,7 +597,7 @@ export default function BancoDeQuestoes() {
         });
       }
     },
-    [SESSION_KEY, activeTab, enqueuePopup, userId],
+    [SESSION_KEY, activeTab, enqueuePopup, userId, planItem],
   );
 
   const handleOpenFilters = useCallback(() => {
@@ -657,7 +667,9 @@ export default function BancoDeQuestoes() {
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <ModuleGuard permKey="banco_questoes_enabled">
-    <div className="bg-[#F5F5F7] dark:bg-slate-950/50 overscroll-none">
+    {/* Mesmo fundo das outras páginas do aluno, cobrindo o padding do <main>: antes era um
+        bloco de outra cor (roxo translúcido no escuro) recortado dentro do fundo da plataforma. */}
+    <div className="-m-4 min-h-screen bg-slate-50 px-0 pb-4 pt-0 dark:bg-[#080808] md:-m-8 md:pb-8 overscroll-none">
 
       <ReportDialog
         open={reportDialogOpen}
@@ -725,6 +737,10 @@ export default function BancoDeQuestoes() {
         </section>
       ) : (
         <header className="mx-auto flex max-w-4xl items-center justify-between gap-3 border-b border-slate-200 px-4 py-5 dark:border-slate-800"><div className="flex items-center gap-3"><button onClick={handleOpenFilters} aria-label="Voltar aos filtros" className="rounded-xl p-2 text-slate-700 dark:text-slate-200"><ArrowLeft size={20} /></button><h1 className="text-xl font-bold text-slate-900 dark:text-white">Banco de Questões</h1></div><button onClick={handleOpenFilters} className="rounded-xl border border-[var(--brand-primary)] px-4 py-2 text-sm font-bold text-[var(--brand-primary)] dark:border-[color-mix(in_srgb,var(--brand-primary)_45%,white)] dark:text-[color-mix(in_srgb,var(--brand-primary)_45%,white)]">Filtros</button></header>
+      )}
+
+      {planItem && !isMenuOpen && (
+        <StudyProgressBar slug={org.slug} itemId={planItem} answerTick={answerTick} />
       )}
 
       {/* ── Main Content ─────────────────────────────────────────────────────── */}

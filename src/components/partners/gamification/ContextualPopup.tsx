@@ -194,7 +194,7 @@ export function ContextualPopup({ popupState, ranking, slug, onDismiss }: Props)
           </button>
         </div>
 
-        <div className="relative z-10 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+        <div className="relative z-10 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5">
           {isUrgency ? (
             <div className="space-y-4">
               <div className="rounded-2xl px-4 py-4" style={theme.elevatedPanelStyle}>

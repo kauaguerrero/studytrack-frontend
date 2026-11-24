@@ -320,10 +320,13 @@ export function Segmented<T extends string>({
             className={cn(
               'rounded-full px-3.5 py-1.5 text-[12px] font-bold transition-all duration-150',
               active
-                ? 'bg-white shadow-sm dark:bg-slate-900'
+                ? 'brand-text-adaptive bg-white shadow-sm dark:bg-slate-900'
                 : 'text-slate-500 hover:text-slate-700 dark:text-white/50 dark:hover:text-white/80',
             )}
-            style={active ? { color: readableBrandText(hex, 'var(--brand-primary)') } : undefined}
+            style={active ? {
+              ['--bta-light' as string]: readableBrandText(hex, 'var(--brand-primary)'),
+              ['--bta-dark' as string]: readableBrandTextOnDark(hex, 'var(--brand-primary)'),
+            } : undefined}
           >
             {o.label}
           </button>

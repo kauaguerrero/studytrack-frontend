@@ -81,7 +81,7 @@ export function StreakPointsLostPopup({
         >
           <X className="h-4 w-4" />
         </button>
-        <div className="overflow-y-auto px-5 pt-7 pb-5 space-y-5 sm:px-6 sm:pt-8 sm:pb-6">
+        <div className="overflow-y-auto overflow-x-hidden px-5 pt-7 pb-5 space-y-5 sm:px-6 sm:pt-8 sm:pb-6">
           {/* Header */}
           <div className="text-center">
             <motion.div

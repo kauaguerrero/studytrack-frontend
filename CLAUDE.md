@@ -10,7 +10,7 @@ StudyTrack frontend is a Next.js 16 + TypeScript app for a Brazilian ENEM/vestib
 
 ## Commands
 
-There's no Jest/Vitest suite — a handful of standalone scripts double as smoke tests: `npm run test:essay-credits`, `test:student-theme`, `test:task-intelligence`, `test:dev-role` (run via `node`/`tsc` directly, see `package.json`).
+Vitest + Testing Library (jsdom, `vitest.config.mts`, TZ fixo em America/Sao_Paulo) cobre só o Cronograma Inteligente por enquanto: `npm run test:cronograma` (testes em `src/__tests__/cronograma/`, backend mockado via `cronogramaFetch`). Fora isso, scripts avulsos servem de smoke test: `npm run test:essay-credits`, `test:student-theme`, `test:task-intelligence`, `test:dev-role` (run via `node`/`tsc` directly, see `package.json`).
 
 ## Architecture
 
