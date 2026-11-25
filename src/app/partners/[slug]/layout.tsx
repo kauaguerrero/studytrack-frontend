@@ -102,7 +102,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     avatar_url: string | null;
     theme_preference: string | null;
     must_change_password: boolean | null;
-    associate_permissions: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean; active?: boolean } | null;
+    associate_permissions: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean; can_manage_content?: boolean; active?: boolean } | null;
   };
   const profileRes = await adminClient
     .from('profiles')
@@ -166,6 +166,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     const canCorrect = rawPerms.can_correct !== false;  // default true (legado)
     const canImport = rawPerms.can_import === true;     // default false
     const canViewStudents = rawPerms.can_view_students === true; // default false
+    const canManageContent = rawPerms.can_manage_content === true; // default false
     const associateHome = !canCorrect && canImport
       ? `/partners/${slug}/redacoes/minhas-importacoes`
       : canCorrect
@@ -178,7 +179,8 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
       /^\/partners\/[^/]+\/redacoes(\/.*)?$/.test(pathname) ||
       pathname === `/partners/${slug}/suporte` ||
       pathname === `/partners/${slug}/perfil` ||
-      (canViewStudents && /^\/partners\/[^/]+\/alunos(\/[0-9a-f-]{36})?$/.test(pathname));
+      (canViewStudents && /^\/partners\/[^/]+\/alunos(\/[0-9a-f-]{36})?$/.test(pathname)) ||
+      (canManageContent && /^\/partners\/[^/]+\/(simulados|turmas)(\/.*)?$/.test(pathname));
 
     // Fora das rotas permitidas → home do associate
     if (!isAllowedBaseRoute) {
@@ -259,6 +261,7 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
               can_correct: (profile.associate_permissions?.can_correct) !== false,
               can_import: profile.associate_permissions?.can_import === true,
               can_view_students: profile.associate_permissions?.can_view_students === true,
+              can_manage_content: profile.associate_permissions?.can_manage_content === true,
             }
           : undefined,
       }}

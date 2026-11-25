@@ -15,6 +15,7 @@ type AssociatePermissions = {
   can_correct?: boolean;
   can_import?: boolean;
   can_view_students?: boolean;
+  can_manage_content?: boolean;
   active?: boolean;
 };
 
@@ -171,6 +172,7 @@ export async function GET(
           can_correct: isFounder ? true : rawPerms.can_correct !== false,
           can_import: isFounder ? true : rawPerms.can_import === true,
           can_view_students: isFounder ? true : rawPerms.can_view_students === true,
+          can_manage_content: isFounder ? true : rawPerms.can_manage_content === true,
         },
       };
     });

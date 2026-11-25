@@ -36,7 +36,7 @@ interface UserProfile {
   isTestAccount?: boolean;
   themePreference?: 'light' | 'dark' | 'system' | null;
   mustChangePassword?: boolean;
-  associatePermissions?: { can_correct: boolean; can_import: boolean; can_view_students: boolean };
+  associatePermissions?: { can_correct: boolean; can_import: boolean; can_view_students: boolean; can_manage_content?: boolean };
   username?: string | null;
   birthDate?: string | null;
   /** Usado pelo nudge "Complete seu perfil" da sidebar do aluno (foto + bio). */

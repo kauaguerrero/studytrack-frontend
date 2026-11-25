@@ -105,14 +105,15 @@ export async function PATCH(
     return NextResponse.json({ error: 'Associado não encontrado nesta organização.' }, { status: 404 });
   }
 
-  const body = await request.json().catch(() => ({} as { active?: boolean; permissions?: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean } }));
+  const body = await request.json().catch(() => ({} as { active?: boolean; permissions?: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean; can_manage_content?: boolean } }));
 
   // Atualização de permissões funcionais
   if (body.permissions !== undefined) {
     const canCorrect = Boolean(body.permissions?.can_correct);
     const canImport = Boolean(body.permissions?.can_import);
     const canViewStudents = Boolean(body.permissions?.can_view_students);
-    if (!canCorrect && !canImport && !canViewStudents) {
+    const canManageContent = Boolean(body.permissions?.can_manage_content);
+    if (!canCorrect && !canImport && !canViewStudents && !canManageContent) {
       return NextResponse.json({ error: 'O associate deve ter ao menos uma permissão ativa.' }, { status: 400 });
     }
     const currentPerms = associate.associate_permissions ?? {};
@@ -123,6 +124,7 @@ export async function PATCH(
           can_correct: canCorrect,
           can_import: canImport,
           can_view_students: canViewStudents,
+          can_manage_content: canManageContent,
         },
         updated_at: new Date().toISOString(),
       } as never)

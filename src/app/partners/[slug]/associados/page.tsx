@@ -71,6 +71,7 @@ interface AssociatePermissions {
   can_correct: boolean;
   can_import: boolean;
   can_view_students: boolean;
+  can_manage_content?: boolean;
 }
 
 interface Associate {
@@ -383,7 +384,7 @@ export default function AssociadosPage() {
 
   async function handleUpdatePermission(member: Associate, key: keyof AssociatePermissions, value: boolean) {
     const next = { ...member.associate_permissions, [key]: value };
-    if (!next.can_correct && !next.can_import && !next.can_view_students) {
+    if (!next.can_correct && !next.can_import && !next.can_view_students && !next.can_manage_content) {
       toast.error('O associado deve ter ao menos uma permissão ativa.');
       return;
     }
@@ -808,6 +809,7 @@ export default function AssociadosPage() {
                                 <PermBadge label="Corrigir" active={perms.can_correct} />
                                 <PermBadge label="Importar" active={perms.can_import} />
                                 <PermBadge label="Ver Alunos" active={perms.can_view_students} />
+                                <PermBadge label="Simulados e turmas" active={perms.can_manage_content === true} />
                               </div>
                             )}
 
@@ -840,11 +842,12 @@ export default function AssociadosPage() {
                                       { key: 'can_correct' as const, label: 'Pode Corrigir' },
                                       { key: 'can_import' as const, label: 'Pode Importar' },
                                       { key: 'can_view_students' as const, label: 'Ver Alunos' },
+                                      { key: 'can_manage_content' as const, label: 'Simulados e turmas' },
                                     ]).map(({ key, label }) => (
                                       <div key={key} className="flex items-center gap-2">
                                         <Switch
                                           id={`${member.id}-${key}`}
-                                          checked={perms[key]}
+                                          checked={perms[key] === true}
                                           disabled={isBusy}
                                           onCheckedChange={v => handleUpdatePermission(member, key, v)}
                                           className="scale-[0.8]"

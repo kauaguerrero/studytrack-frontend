@@ -395,6 +395,12 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     ...(associatePerms.can_correct
       ? [{ href: `/partners/${org.slug}/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redações' }]
       : []),
+    ...(associatePerms.can_manage_content
+      ? [
+          ...(perm('simulados_enabled') ? [{ href: `/partners/${org.slug}/simulados`, icon: ClipboardCheck, label: 'Simulados', shortLabel: 'Simulados' }] : []),
+          { href: `/partners/${org.slug}/turmas`, icon: School, label: 'Turmas', shortLabel: 'Turmas' },
+        ]
+      : []),
     ...(associatePerms.can_import
       ? [
           { href: `/partners/${org.slug}/redacoes/minhas-importacoes`, icon: History, label: 'Minhas Importações', shortLabel: 'Importações' },

@@ -71,7 +71,7 @@ export async function GET(
   type AssocRow = {
     id: string; full_name: string | null; email: string | null;
     avatar_url: string | null; organization_id: string; role: string | null;
-    associate_permissions: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean; active?: boolean } | null;
+    associate_permissions: { can_correct?: boolean; can_import?: boolean; can_view_students?: boolean; can_manage_content?: boolean; active?: boolean } | null;
     created_at: string;
   };
   const assoc = associate as AssocRow;
@@ -229,6 +229,7 @@ export async function GET(
         can_correct: isFounder ? true : assoc.associate_permissions?.can_correct !== false,
         can_import: isFounder ? true : assoc.associate_permissions?.can_import === true,
         can_view_students: isFounder ? true : assoc.associate_permissions?.can_view_students === true,
+        can_manage_content: isFounder ? true : assoc.associate_permissions?.can_manage_content === true,
       },
       created_at: assoc.created_at,
     },

@@ -60,6 +60,7 @@ interface AssocPermissions {
   can_correct: boolean;
   can_import: boolean;
   can_view_students: boolean;
+  can_manage_content?: boolean;
 }
 
 interface AssocProfile {
@@ -372,9 +373,10 @@ export default function AssociadoDetailPage() {
                               { key: 'can_correct', label: 'Corrigir' },
                               { key: 'can_import', label: 'Importar' },
                               { key: 'can_view_students', label: 'Ver Alunos' },
+                              { key: 'can_manage_content', label: 'Simulados e turmas' },
                             ] as { key: keyof AssocPermissions; label: string }[]
                           ).map(({ key, label }) => {
-                            const active = profile.associate_permissions[key];
+                            const active = profile.associate_permissions[key] === true;
                             return (
                               <span
                                 key={key}
