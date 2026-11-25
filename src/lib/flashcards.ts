@@ -16,7 +16,22 @@ export const GRADES: { grade: Grade; label: string; hint: string }[] = [
 ];
 
 export interface CardDraft { front: string; back: string }
-export interface Card extends CardDraft { id: string; deck_id: string; position: number; is_new?: boolean }
+export type ReviewStatus = 'pending' | 'approved' | 'rejected' | null;
+export const REVIEW_LABELS: Record<'pending' | 'approved' | 'rejected', string> = {
+  pending: 'Aguardando aprovação',
+  approved: 'Aprovado: sua turma vê',
+  rejected: 'Recusado',
+};
+export interface Card extends CardDraft {
+  id: string; deck_id: string; position: number; is_new?: boolean;
+  review_status?: ReviewStatus; review_note?: string | null;
+}
+
+export interface ReviewGroup {
+  deck: { id: string; title: string; subject: string | null; shared: boolean };
+  author: { id: string; name: string | null; classes: string[] };
+  cards: { id: string; front: string; back: string; updated_at: string }[];
+}
 
 export interface Deck {
   id: string;
@@ -35,6 +50,9 @@ export interface StudentDeck {
   subject: string | null;
   discipline: string | null;
   mine: boolean;
+  source: 'school' | 'class' | 'mine';
+  pending?: number;
+  shared?: boolean;
   card_count: number;
   due: number;
   new: number;

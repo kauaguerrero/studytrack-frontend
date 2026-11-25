@@ -68,3 +68,54 @@ describe('Flashcards', () => {
     expect(draftsProblem([{ front: 'a', back: 'b' }])).toBeNull();
   });
 });
+
+import { ReviewQueue } from '@/components/flashcards/ReviewQueue';
+
+describe('Aprovação de cartões de aluno', () => {
+  const GROUP = {
+    deck: { id: 'D9', title: 'Fórmulas', subject: null, shared: false },
+    author: { id: 'U1', name: 'Ana', classes: ['T1'] },
+    cards: [
+      { id: 'C1', front: 'F = ?', back: 'm·a', updated_at: '' },
+      { id: 'C2', front: 'v = ?', back: 'errado', updated_at: '' },
+    ],
+  };
+
+  it('CT-F04 aprova um, recusa outro com motivo e aprova todos', async () => {
+    const onChange = vi.fn();
+    fetchMock.mockResolvedValueOnce({ groups: [GROUP] })
+      .mockResolvedValueOnce({ updated: 1 }).mockResolvedValueOnce({ groups: [{ ...GROUP, cards: [GROUP.cards[1]] }] })
+      .mockResolvedValueOnce({ updated: 1 }).mockResolvedValueOnce({ groups: [] });
+    render(<ReviewQueue slug="cenas" onChange={onChange} />);
+    expect(await screen.findByText('Ana · T1')).toBeInTheDocument();
+    expect(onChange).toHaveBeenLastCalledWith(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Aprovar: F = ?' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('cenas', '/flashcard-reviews',
+      { method: 'POST', body: JSON.stringify({ card_ids: ['C1'], action: 'approve' }) }));
+    await waitFor(() => expect(screen.queryByText('F = ?')).toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: 'Recusar: v = ?' }));
+    fireEvent.change(screen.getByLabelText('Motivo da recusa'), { target: { value: 'Resposta errada' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Recusar' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('cenas', '/flashcard-reviews',
+      { method: 'POST', body: JSON.stringify({ card_ids: ['C2'], action: 'reject', note: 'Resposta errada' }) }));
+    expect(await screen.findByText('Nenhum cartão aguardando aprovação.')).toBeInTheDocument();
+    expect(onChange).toHaveBeenLastCalledWith(0);
+  });
+
+  it('CT-F05 aluno vê baralho da turma e o status dos próprios cartões', async () => {
+    fetchMock.mockResolvedValueOnce({ enabled: true, decks: [
+      { id: 'D8', title: 'Da Bia', subject: null, discipline: null, mine: false, source: 'class', card_count: 2, due: 0, new: 2, today: 2 },
+      { id: 'D9', title: 'Fórmulas', subject: null, discipline: null, mine: true, source: 'mine', pending: 1, shared: true, card_count: 2, due: 0, new: 2, today: 2 },
+    ] }).mockResolvedValueOnce({ deck: { title: 'Fórmulas', subject: null }, cards: [
+      { id: 'C1', deck_id: 'D9', position: 0, front: 'F = ?', back: 'm·a', review_status: 'approved' },
+      { id: 'C2', deck_id: 'D9', position: 1, front: 'v = ?', back: 'x', review_status: 'rejected', review_note: 'Resposta errada' },
+    ] });
+    render(<StudentFlashcards />);
+    expect(await screen.findByText(/Da turma/)).toBeInTheDocument();
+    expect(screen.getByText('1 aguardando aprovação')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Editar Fórmulas' }));
+    expect(await screen.findByText('Aprovado: sua turma vê')).toBeInTheDocument();
+    expect(screen.getByText('Recusado: Resposta errada')).toBeInTheDocument();
+    expect(screen.getByText(/ficam só com você até a coordenação aprovar/)).toBeInTheDocument();
+  });
+});

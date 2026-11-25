@@ -9,7 +9,9 @@ import { Layers, Loader2, Pencil, Plus } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { CardsEditor } from '@/components/flashcards/CardsEditor';
 import { StudyDeck } from '@/components/flashcards/StudyDeck';
-import { cleanDrafts, draftsProblem, fcFetch, type Card, type CardDraft, type StudentDeck } from '@/lib/flashcards';
+import { REVIEW_LABELS, cleanDrafts, draftsProblem, fcFetch, type Card, type CardDraft, type StudentDeck } from '@/lib/flashcards';
+
+const SOURCE_LABEL = { school: 'Da escola', class: 'Da turma', mine: 'Meu baralho' } as const;
 
 const inputCls =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-white';
@@ -57,7 +59,7 @@ export function StudentFlashcards() {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{d.title}</p>
                   <p className="text-xs text-slate-500 dark:text-white/50">
-                    {d.mine ? 'Meu baralho' : 'Da escola'}{d.subject ? ` · ${d.subject}` : ''} · {d.card_count} cartões
+                    {SOURCE_LABEL[d.source] ?? (d.mine ? 'Meu baralho' : 'Da escola')}{d.subject ? ` · ${d.subject}` : ''} · {d.card_count} cartões
                   </p>
                 </div>
                 {d.mine && (
@@ -67,7 +69,10 @@ export function StudentFlashcards() {
                 )}
               </div>
               <div className="mt-3 flex items-center justify-between">
-                <span className="text-xs text-slate-500 dark:text-white/50">{d.due} para revisar · {d.new} novos</span>
+                <span className="text-xs text-slate-500 dark:text-white/50">
+                  {d.due} para revisar · {d.new} novos
+                  {d.mine && !!d.pending && <span className="block text-amber-600 dark:text-amber-400">{d.pending} aguardando aprovação</span>}
+                </span>
                 <button type="button" onClick={() => setStudying(d.id)} disabled={!d.today}
                   className="rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40" style={{ background: 'var(--brand-primary)' }}>
                   {d.today ? `Estudar ${d.today}` : 'Em dia'}
@@ -129,6 +134,10 @@ function OwnDeckEditor({ slug, deckId, onDone }: { slug: string; deckId: string 
     <div className="mx-auto w-full max-w-2xl space-y-4">
       <button type="button" onClick={onDone} className="text-xs font-semibold text-slate-500 hover:text-slate-700">← Baralhos</button>
       <h1 className="text-xl font-black text-slate-900 dark:text-white">{deckId ? 'Editar baralho' : 'Novo baralho'}</h1>
+      <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-white/5 dark:text-white/65">
+        Seus cartões ficam só com você até a coordenação aprovar. Os aprovados passam a aparecer para a sua turma.
+        Se você mudar o texto de um cartão aprovado, ele volta para aprovação.
+      </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <input aria-label="Nome do baralho" className={inputCls} placeholder="Nome (ex.: Fórmulas de Física)" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} />
         <input aria-label="Matéria" className={inputCls} placeholder="Matéria (opcional)" value={subject} maxLength={80} onChange={(e) => setSubject(e.target.value)} />
@@ -137,7 +146,18 @@ function OwnDeckEditor({ slug, deckId, onDone }: { slug: string; deckId: string 
         <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-white/10 dark:border-white/10">
           {existing.map((c) => (
             <li key={c.id} className="flex items-start justify-between gap-2 px-3 py-2 text-sm">
-              <span className="min-w-0"><b className="text-slate-900 dark:text-white">{c.front}</b><span className="block text-slate-500 dark:text-white/55">{c.back}</span></span>
+              <span className="min-w-0">
+                <b className="text-slate-900 dark:text-white">{c.front}</b>
+                <span className="block text-slate-500 dark:text-white/55">{c.back}</span>
+                {c.review_status && (
+                  <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                    c.review_status === 'approved' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                      : c.review_status === 'rejected' ? 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300'
+                        : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'}`}>
+                    {REVIEW_LABELS[c.review_status]}{c.review_status === 'rejected' && c.review_note ? `: ${c.review_note}` : ''}
+                  </span>
+                )}
+              </span>
               <button type="button" onClick={() => void removeCard(c.id)} className="shrink-0 text-xs font-semibold text-slate-400 hover:text-red-500">Remover</button>
             </li>
           ))}

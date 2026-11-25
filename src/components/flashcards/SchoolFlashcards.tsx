@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Layers, Loader2, Pencil, Plus } from 'lucide-react';
+import { ReviewQueue } from '@/components/flashcards/ReviewQueue';
 import { useOrg } from '@/contexts/OrgContext';
 import { useOrgClasses } from '@/lib/org-classes';
 import { ClassVisibilityPicker } from '@/components/partners/ClassVisibilityPicker';
@@ -21,9 +22,15 @@ export function SchoolFlashcards() {
   const { classes } = useOrgClasses(slug);
   const [decks, setDecks] = useState<Deck[] | null>(null);
   const [editing, setEditing] = useState<'new' | Deck | null>(null);
+  const [tab, setTab] = useState<'decks' | 'reviews'>('decks');
+  const [pending, setPending] = useState(0);
 
   const load = useCallback(async () => {
-    try { setDecks((await fcFetch<{ decks: Deck[] }>(slug, '/flashcard-decks')).decks); }
+    try {
+      const r = await fcFetch<{ decks: Deck[]; pending_reviews?: number }>(slug, '/flashcard-decks');
+      setDecks(r.decks);
+      setPending(r.pending_reviews ?? 0);
+    }
     catch (e) { toast.error(e instanceof Error ? e.message : 'Erro ao carregar.'); setDecks([]); }
   }, [slug]);
   useEffect(() => { void load(); }, [load]);
@@ -53,7 +60,17 @@ export function SchoolFlashcards() {
           <Plus className="h-4 w-4" /> Novo baralho
         </button>
       </div>
-      {decks.length === 0 ? (
+      <div className="mt-5 flex gap-2" role="tablist">
+        {([['decks', 'Baralhos da escola'], ['reviews', `Aprovar cartões dos alunos${pending ? ` (${pending})` : ''}`]] as const).map(([k, label]) => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+            className={`rounded-full px-3 py-1.5 text-xs font-bold ${tab === k ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'border border-slate-200 text-slate-600 dark:border-white/10 dark:text-white/70'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === 'reviews' ? (
+        <ReviewQueue slug={slug} onChange={setPending} />
+      ) : decks.length === 0 ? (
         <p className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-white/5 dark:text-white/70">Nenhum baralho ainda.</p>
       ) : (
         <ul className="mt-5 divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white dark:divide-white/10 dark:border-white/10 dark:bg-white/5">
