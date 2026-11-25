@@ -6,7 +6,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Archive, ArchiveRestore, Loader2, Pencil, Plus, Search, Users, X } from 'lucide-react';
+import Link from 'next/link';
+import { Archive, ArchiveRestore, CalendarClock, Loader2, Pencil, Plus, Search, UserX, Users, X } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { RevealGroup, RevealItem, ElevatedCard, SectionTitle, BrandButton } from '@/components/partners/founder-ui';
@@ -45,6 +46,10 @@ async function loadAllStudents(slug: string): Promise<StudentRow[]> {
   return out;
 }
 
+const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+interface ClassFormData { name: string; goal: ClassGoal; exam_date: string | null; default_review_weekdays: number[] }
+
 function ClassForm({
   initial,
   saving,
@@ -53,19 +58,20 @@ function ClassForm({
 }: {
   initial?: Partial<OrgClass>;
   saving: boolean;
-  onSubmit: (data: { name: string; goal: ClassGoal; exam_date: string | null }) => void;
+  onSubmit: (data: ClassFormData) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
   const [goal, setGoal] = useState<ClassGoal>(initial?.goal ?? 'ENEM');
   const [examDate, setExamDate] = useState(initial?.exam_date ?? '');
+  const [review, setReview] = useState<number[]>(initial?.default_review_weekdays ?? []);
   return (
     <form
       className="grid gap-3 sm:grid-cols-[1fr_180px_170px_auto] sm:items-end"
       onSubmit={(e) => {
         e.preventDefault();
         if (!name.trim()) return;
-        onSubmit({ name: name.trim(), goal, exam_date: examDate || null });
+        onSubmit({ name: name.trim(), goal, exam_date: examDate || null, default_review_weekdays: review });
       }}
     >
       <div>
@@ -86,7 +92,21 @@ function ClassForm({
         <input id="class-exam" type="date" className={inputCls} value={examDate}
           onChange={(e) => setExamDate(e.target.value)} />
       </div>
-      <div className="flex gap-2">
+      <div className="sm:col-span-4">
+        <span className={labelCls}>Dia de revisão da semana (padrão do cronograma dos alunos)</span>
+        <div className="flex flex-wrap gap-1.5">
+          {WEEKDAYS.map((w, i) => (
+            <button key={w} type="button" aria-pressed={review.includes(i)}
+              onClick={() => setReview((r) => (r.includes(i) ? r.filter((x) => x !== i) : [...r, i].sort()))}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold ${review.includes(i)
+                ? 'border-violet-500 bg-violet-50 text-violet-800 dark:bg-violet-500/15 dark:text-violet-200'
+                : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}>
+              {w}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex gap-2 sm:col-span-4 sm:justify-end">
         <button type="button" onClick={onCancel}
           className="rounded-full border border-slate-200 px-4 py-2 text-[13px] font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300">
           Cancelar
@@ -136,7 +156,7 @@ export default function TurmasPage() {
 
   useEffect(() => { void loadStudents(); }, [loadStudents]);
 
-  async function saveClass(data: { name: string; goal: ClassGoal; exam_date: string | null }, id?: string) {
+  async function saveClass(data: ClassFormData, id?: string) {
     setSaving(true);
     try {
       await classesFetch(slug, id ? `/classes/${id}` : '/classes', {
@@ -276,7 +296,20 @@ export default function TurmasPage() {
                           </p>
                           <p className="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
                             {c.student_count ?? 0} {c.student_count === 1 ? 'aluno' : 'alunos'}
+                            {c.default_review_weekdays?.length ? ` · revisão: ${c.default_review_weekdays.map((d) => WEEKDAYS[d]).join(', ')}` : ''}
                           </p>
+                          {!c.archived_at && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              <Link href={`/partners/${slug}/turmas/${c.id}?aba=grade`}
+                                className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                                <CalendarClock className="h-3.5 w-3.5" /> Grade de aulas
+                              </Link>
+                              <Link href={`/partners/${slug}/turmas/${c.id}?aba=faltas`}
+                                className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                                <UserX className="h-3.5 w-3.5" /> Faltas
+                              </Link>
+                            </div>
+                          )}
                         </div>
                         <div className="flex shrink-0 gap-1">
                           {!c.archived_at && (

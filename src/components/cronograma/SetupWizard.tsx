@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Loader2, CalendarDays, Clock, Gauge, ArrowRight, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { ElevatedCard } from '@/components/partners/founder-ui';
-import { AREA_STYLE, WEEKDAY_LONG, cronogramaFetch, type Area } from '@/lib/cronograma';
+import { AREA_STYLE, WEEKDAY_LONG, cronogramaFetch, formatDayMonth, parseISODate, type Area, type ClassSummary } from '@/lib/cronograma';
 
 const AREAS: Exclude<Area, 'geral'>[] = ['matematica', 'natureza', 'humanas', 'linguagens'];
 const MAX_DAY_MINUTES = 360;
@@ -14,11 +14,15 @@ const CONFIDENCE = ['Muito insegura(o)', 'Insegura(o)', 'Ok', 'Segura(o)', 'Muit
 
 export function SetupWizard({
   defaults,
+  klass,
   onCreated,
 }: {
   defaults: { exam_date: string; days_per_week: number; hours_per_day: number };
+  /** Turma do aluno: a data da prova e os dias de revisão vêm dela. */
+  klass?: ClassSummary | null;
   onCreated: () => void;
 }) {
+  const classExam = klass?.exam_date ?? null;
   const [step, setStep] = useState(0);
   const [examDate, setExamDate] = useState(defaults.exam_date);
   const [capacity, setCapacity] = useState<number[]>(() => {
@@ -29,6 +33,8 @@ export function SetupWizard({
   });
   const [confidence, setConfidence] = useState<Record<Exclude<Area, 'geral'>, number>>({ matematica: 2, natureza: 2, humanas: 2, linguagens: 2 });
   const [saving, setSaving] = useState(false);
+  // Horário em que começa a estudar em cada dia (opcional): "" = não informado.
+  const [startTimes, setStartTimes] = useState<string[]>(() => Array(7).fill(''));
 
   const weekly = capacity.reduce((a, b) => a + b, 0);
 
@@ -38,7 +44,9 @@ export function SetupWizard({
       await cronogramaFetch('/setup', {
         method: 'POST',
         body: JSON.stringify({
-          exam_date: examDate,
+          // Mesma data da turma: não envia, e o plano continua acompanhando a turma.
+          ...(classExam && examDate === classExam ? {} : { exam_date: examDate }),
+          start_times: Object.fromEntries(startTimes.map((t, wd) => [String(wd), t]).filter(([wd, t]) => t && capacity[Number(wd)] > 0)),
           capacity: Object.fromEntries(capacity.map((m, wd) => [String(wd), m])),
           self_assessment: Object.fromEntries(AREAS.map((a) => [a, confidence[a] / 4])),
         }),
@@ -67,7 +75,18 @@ export function SetupWizard({
             <p className="text-[13.5px] text-slate-600 dark:text-white/65">
               O cronograma distribui o conteúdo até essa data e garante que as revisões terminem antes dela.
             </p>
+            {classExam && (
+              <p className="rounded-xl bg-slate-50 p-3 text-[13px] text-slate-600 dark:bg-white/5 dark:text-white/65">
+                Sua turma <b>{klass!.name}</b> faz a prova em <b>{formatDayMonth(classExam)} de {parseISODate(classExam).getFullYear()}</b>.
+                {examDate !== classExam && (
+                  <> Você escolheu outra data.{' '}
+                    <button type="button" onClick={() => setExamDate(classExam)} className="font-bold underline" style={{ color: 'var(--brand-ink)' }}>Usar a data da turma</button>
+                  </>
+                )}
+              </p>
+            )}
             <input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)}
+              aria-label="Data da prova"
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[15px] font-semibold text-slate-900 dark:border-white/10 dark:bg-slate-900 dark:text-white" />
           </div>
         )}
@@ -79,6 +98,7 @@ export function SetupWizard({
             </h2>
             <p className="text-[13.5px] text-slate-600 dark:text-white/65">
               Seja realista: um plano que cabe na sua rotina funciona melhor que um plano perfeito. Dá para mudar depois.
+              {klass ? ' Conte só o tempo fora das aulas da turma: elas aparecem à parte no quadro.' : ''}
             </p>
             <div className="grid gap-2">
               {WEEKDAY_LONG.map((label, wd) => (
@@ -91,6 +111,10 @@ export function SetupWizard({
                   <span className="w-16 text-right text-[13px] font-bold text-slate-900 dark:text-white">
                     {capacity[wd] === 0 ? 'folga' : `${Math.floor(capacity[wd] / 60)}h${capacity[wd] % 60 ? String(capacity[wd] % 60).padStart(2, '0') : ''}`}
                   </span>
+                  <input type="time" value={startTimes[wd]} disabled={capacity[wd] === 0}
+                    aria-label={`Horário de início na ${label}`} title="Que horas você começa (opcional)"
+                    onChange={(e) => setStartTimes((t) => t.map((v, i) => (i === wd ? e.target.value : v)))}
+                    className="w-[92px] rounded-lg border border-slate-200 bg-white px-1.5 py-1 text-[12.5px] text-slate-900 disabled:opacity-30 dark:border-white/10 dark:bg-slate-900 dark:text-white" />
                 </div>
               ))}
             </div>

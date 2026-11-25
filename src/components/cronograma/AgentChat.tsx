@@ -44,6 +44,7 @@ export function AgentChat({
   onUndo,
   onAdjust,
   studiedAreas,
+  freeText = true,
 }: {
   today: string;
   proposal: Proposal | null;
@@ -58,6 +59,8 @@ export function AgentChat({
   onAdjust?: (index: number, minutes: number) => void;
   /** Áreas com algum conteúdo estudado. Sem isso (insights ainda carregando) todas ficam liberadas. */
   studiedAreas?: Area[];
+  /** A escola desligou o texto livre (IA): ficam só os atalhos, que não usam IA. */
+  freeText?: boolean;
 }) {
   const [text, setText] = useState('');
   // Tela maior: a MESMA conversa vai para um modal (o estado fica aqui, nada se perde).
@@ -387,6 +390,11 @@ export function AgentChat({
           )}
 
           {/* Campo de mensagem: sempre no pé do cartão */}
+          {!freeText ? (
+            <p className="rounded-2xl border border-dashed border-slate-200 px-3 py-2.5 text-[12px] text-slate-500 dark:border-white/10 dark:text-white/45">
+              Use os atalhos acima para ajustar o cronograma.
+            </p>
+          ) : (
           <div className="rounded-2xl border border-slate-200 bg-white p-1.5 transition focus-within:border-[color:color-mix(in_srgb,var(--brand-ink)_45%,transparent)] focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--brand-ink)_12%,transparent)] dark:border-white/10 dark:bg-white/[0.03]">
             <textarea
               value={text}
@@ -408,6 +416,7 @@ export function AgentChat({
               </button>
             </div>
           </div>
+          )}
         </>)}
       </div>
     </div>

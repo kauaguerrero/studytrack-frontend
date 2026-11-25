@@ -13,10 +13,10 @@ import {
   useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { AlertTriangle, CheckCircle2, Pin, RotateCcw, MoreHorizontal, Ban, ClipboardList, PenLine } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Pin, RotateCcw, MoreHorizontal, Ban, ClipboardList, PenLine, GraduationCap, Sparkles } from 'lucide-react';
 import {
-  AREA_STYLE, LOAD_STYLE, WEEKDAY_SHORT, formatDayMonth, formatMinutes, weekdayIndex,
-  type BlockKind, type DayBlock, type DayInfo, type PlanItem,
+  AREA_STYLE, LOAD_STYLE, WEEKDAY_SHORT, formatDayMonth, formatMinutes, hhmm, weekdayIndex,
+  type BlockKind, type ClassOccurrence, type DayBlock, type DayInfo, type PlanItem,
 } from '@/lib/cronograma';
 
 // Máximo de cards visíveis por dia antes da rolagem interna.
@@ -55,6 +55,8 @@ export function WeekBoard({
   onOpenReviews,
   onUnblock,
   blockHref,
+  onOpenClass,
+  onWeeklyReview,
 }: {
   days: DayInfo[];
   items: PlanItem[];
@@ -68,6 +70,10 @@ export function WeekBoard({
   onUnblock?: (date: string) => void;
   /** Link do card de simulado/redação reservado na rotina. */
   blockHref?: (kind: BlockKind) => string;
+  /** Aula da turma (card roxo): abre "vou faltar / faltei". */
+  onOpenClass?: (occ: ClassOccurrence) => void;
+  /** Dia de revisão da rotina: abre as 4 opções da revisão da semana. */
+  onWeeklyReview?: (date: string) => void;
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -130,6 +136,8 @@ export function WeekBoard({
             onOpenReviews={onOpenReviews}
             onUnblock={onUnblock}
             blockHref={blockHref}
+            onOpenClass={onOpenClass}
+            onWeeklyReview={onWeeklyReview}
           />
         ))}
       </div>
@@ -142,7 +150,7 @@ export function WeekBoard({
 
 function DayColumn({
   day, isToday, isPast, studies, reviews, weekDates, readOnly, highlightIds, onMove, onOpenItem, onOpenReviews, onUnblock,
-  blockHref,
+  blockHref, onOpenClass, onWeeklyReview,
 }: {
   day: DayInfo;
   isToday: boolean;
@@ -157,12 +165,17 @@ function DayColumn({
   onOpenReviews: (group: ReviewGroup) => void;
   onUnblock?: (date: string) => void;
   blockHref?: (kind: BlockKind) => string;
+  onOpenClass?: (occ: ClassOccurrence) => void;
+  onWeeklyReview?: (date: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: day.date, disabled: readOnly || isPast || day.blocked });
   const load = LOAD_STYLE[day.level];
   const pct = Math.min(100, Math.round(day.ratio * 100));
   const blocks = day.blocked ? [] : (day.blocks ?? []);
-  const empty = studies.length === 0 && reviews.length === 0 && blocks.length === 0;
+  const classes = day.classes ?? [];
+  // Revisão da semana: só nos dias de revisão da rotina (não na reta final), de hoje em diante.
+  const weekly = !!onWeeklyReview && !!day.review_only && !day.blocked && !isPast && day.capacity > 0;
+  const empty = studies.length === 0 && reviews.length === 0 && blocks.length === 0 && classes.length === 0 && !weekly;
 
   // Contador do dia: estudos + tópicos de revisão (não conta revisões só previstas).
   const countable = [...studies, ...reviews.flatMap((g) => g.items)].filter((i) => !i.projected);
@@ -233,6 +246,11 @@ function DayColumn({
         </div>
         <div className="flex items-center gap-1.5">
           <p className="font-display text-[17px] font-black leading-tight text-slate-900 dark:text-white">{formatDayMonth(day.date)}</p>
+          {day.start_time && !day.blocked && day.capacity > 0 && (
+            <span className="text-[10.5px] font-semibold tabular-nums text-slate-400 dark:text-white/40" title="Horário em que você começa a estudar">
+              {hhmm(day.start_time)}
+            </span>
+          )}
           {day.review_only && !day.blocked && (
             <span className="inline-flex items-center gap-0.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-500/15 dark:text-violet-300"
               title="Dia de revisão: sem conteúdo novo, só revisões (as próximas são adiantadas para cá)">
@@ -264,6 +282,18 @@ function DayColumn({
         style={maxH ? { maxHeight: maxH } : undefined}
         tabIndex={maxH ? 0 : undefined}
         aria-label={maxH ? `${cardCount} itens, role para ver todos` : undefined}>
+        {classes.map((c) => (
+          <ClassCard key={c.key} occ={c} isPast={isPast} onOpen={onOpenClass && !readOnly ? () => onOpenClass(c) : undefined} />
+        ))}
+        {weekly && (
+          <button type="button" onClick={() => onWeeklyReview!(day.date)} disabled={readOnly}
+            className="w-full rounded-xl border p-2 text-left transition hover:shadow-sm disabled:opacity-60 border-violet-300 bg-violet-50 dark:border-violet-400/30 dark:bg-violet-500/10">
+            <span className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+              <Sparkles className="h-3 w-3" /> Revisão da semana
+            </span>
+            <span className="mt-0.5 block text-[12px] font-semibold text-slate-800 dark:text-white/85">Escolha o que revisar →</span>
+          </button>
+        )}
         {blocks.map((b) => (
           <BlockCard key={b.kind} block={b} href={!isPast && !readOnly ? blockHref?.(b.kind) : undefined} />
         ))}
@@ -382,6 +412,41 @@ const BLOCK_STYLE: Record<BlockKind, { icon: typeof ClipboardList; cta: string }
 };
 
 /** Simulado/redação reservados na rotina: não é conteúdo do planner, é um atalho. */
+const ATTENDANCE_LABEL: Record<string, string> = { vai_faltar: 'Vou faltar', faltou: 'Faltei' };
+
+/** Aula da turma: roxo, com horário; não é arrastável e não ocupa o tempo de estudo. */
+function ClassCard({ occ, isPast, onOpen }: { occ: ClassOccurrence; isPast: boolean; onOpen?: () => void }) {
+  const a = occ.attendance;
+  const when = occ.starts_at ? `${hhmm(occ.starts_at)}–${hhmm(occ.ends_at)}` : formatMinutes(occ.minutes);
+  const body = (
+    <>
+      <span className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+        <GraduationCap className="h-3 w-3" /> Aula · {when}
+      </span>
+      <span className="mt-0.5 block truncate text-[12px] font-semibold text-slate-800 dark:text-white/85">
+        {occ.title || occ.subject}
+      </span>
+      {a ? (
+        <span className={`mt-0.5 inline-flex items-center gap-1 text-[10.5px] font-bold ${a.status === 'faltou' ? 'text-rose-600 dark:text-rose-300' : 'text-amber-700 dark:text-amber-300'}`}>
+          {ATTENDANCE_LABEL[a.status]}
+          {a.status === 'vai_faltar' && a.will_study ? ' · vou estudar' : ''}
+          {a.status === 'faltou' && a.studied_instead ? ' · estudei' : ''}
+          {a.status === 'faltou' && a.makeup_item_id ? ' · reposição marcada' : ''}
+        </span>
+      ) : occ.changed ? (
+        <span className="mt-0.5 block text-[10.5px] font-semibold text-violet-600 dark:text-violet-300">horário alterado</span>
+      ) : onOpen ? (
+        <span className="mt-0.5 block text-[10.5px] text-slate-500 dark:text-white/45">{isPast ? 'Faltou? Toque aqui' : 'Vai faltar? Toque aqui'}</span>
+      ) : null}
+    </>
+  );
+  const cls = 'block w-full rounded-xl border p-2 text-left transition border-violet-200 bg-violet-50/80 dark:border-violet-400/25 dark:bg-violet-500/10';
+  return onOpen ? (
+    <button type="button" onClick={onOpen} className={`${cls} hover:shadow-sm`}
+      aria-label={`Aula de ${occ.subject}, ${when}`}>{body}</button>
+  ) : <div className={cls}>{body}</div>;
+}
+
 function BlockCard({ block, href }: { block: DayBlock; href?: string }) {
   const { icon: Icon, cta } = BLOCK_STYLE[block.kind] ?? BLOCK_STYLE.simulado;
   const body = (

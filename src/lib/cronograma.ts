@@ -25,7 +25,8 @@ export interface PlanItem extends NodeView {
   minutes: number;
   status: 'pending' | 'done' | 'skipped';
   pinned: boolean;
-  source: 'planner' | 'manual' | 'agent' | 'chip';
+  /** makeup = reposição de aula perdida; temperature = revisão antecipada por tema com muitos erros. */
+  source: 'planner' | 'manual' | 'agent' | 'chip' | 'makeup' | 'temperature';
   projected: boolean;
   position: number;
   review_due_on: string | null;
@@ -60,6 +61,41 @@ export interface ScheduleRules {
   /** Rotina com data: vale de `from` até `until` (ou sem fim). */
   periods?: { from: string; until: string | null; capacity: Record<string, number> }[];
   blocks?: { kind: BlockKind; weekday: number; minutes: number }[];
+  /** Horário em que o aluno começa a estudar em cada dia da semana ("HH:MM"). */
+  start_times?: Record<string, string>;
+  /** De onde vieram os dias de revisão: padrão da turma ou escolha do aluno. */
+  review_weekdays_source?: 'class' | 'student';
+}
+
+export type AttendanceStatus = 'vai_faltar' | 'faltou';
+
+/** Aula da turma numa data (expandida da grade). Não ocupa o tempo de estudo. */
+export interface ClassOccurrence {
+  key: string;
+  date: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  minutes: number;
+  subject: string;
+  title: string | null;
+  plurall_url: string | null;
+  slot_id: string | null;
+  exception_id: string | null;
+  changed: boolean;
+  attendance: {
+    status: AttendanceStatus;
+    will_study: boolean;
+    studied_instead: boolean | null;
+    makeup_item_id: string | null;
+  } | null;
+}
+
+export interface ClassSummary {
+  id: string;
+  name: string;
+  goal?: string;
+  exam_date: string | null;
+  default_review_weekdays: number[];
 }
 
 export interface DayInfo {
@@ -73,6 +109,10 @@ export interface DayInfo {
   review_only?: boolean;
   /** Simulado/redação reservados neste dia (já descontados de `capacity`). */
   blocks?: DayBlock[];
+  /** Aulas da turma neste dia. */
+  classes?: ClassOccurrence[];
+  /** Horário de início do estudo neste dia, se o aluno informou. */
+  start_time?: string | null;
 }
 
 export interface PlanSummary {
@@ -84,6 +124,9 @@ export interface PlanSummary {
   schedule_rules?: ScheduleRules;
   subject_weights: Record<string, number>;
   version: number;
+  /** A data da prova foi escolhida pelo aluno (não segue a da turma). */
+  exam_date_is_override?: boolean;
+  class_id?: string | null;
 }
 
 export interface CronogramaView {
@@ -93,6 +136,7 @@ export interface CronogramaView {
   days: DayInfo[];
   items: PlanItem[];
   projection: ProjectedItem[];
+  class?: ClassSummary | null;
 }
 
 export interface CronogramaStatus {
@@ -100,6 +144,27 @@ export interface CronogramaStatus {
   has_plan?: boolean;
   plan?: PlanSummary | null;
   defaults?: { exam_date: string; days_per_week: number; hours_per_day: number };
+  /** Texto livre para o assistente (IA) liberado pela escola. Os atalhos funcionam sempre. */
+  agent_enabled?: boolean;
+  class?: ClassSummary | null;
+}
+
+export interface StudyLogEntry {
+  id: string;
+  plan_item_id: string | null;
+  logged_on: string;
+  subject: string | null;
+  discipline: string | null;
+  minutes: number | null;
+  questions: number | null;
+  correct: number | null;
+  note: string | null;
+  source: 'manual' | 'auto';
+  created_at: string;
+}
+
+export function hhmm(t: string | null | undefined): string {
+  return t ? t.slice(0, 5) : '';
 }
 
 export interface Insights {

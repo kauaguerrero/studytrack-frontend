@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Loader2, CalendarDays, TrendingUp, Clock } from 'lucide-react';
+import { ChevronLeft, Loader2, CalendarDays, TrendingUp, Clock, NotebookPen } from 'lucide-react';
 import { CronogramaSkeleton } from '@/components/cronograma/CronogramaSkeleton';
 import { toast } from 'sonner';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
@@ -27,9 +27,12 @@ import { StartStudyModal, type StartTarget } from '@/components/cronograma/Start
 import { ReviewQuizModal } from '@/components/cronograma/ReviewQuizModal';
 import { ReviewListModal } from '@/components/cronograma/ReviewListModal';
 import { RoutineModal, type RoutineValue } from '@/components/cronograma/RoutineModal';
+import { AttendanceModal, type AttendancePayload } from '@/components/cronograma/AttendanceModal';
+import { StudyLogModal, type StudyLogPayload, type StudyLogTarget } from '@/components/cronograma/StudyLogModal';
+import { WeeklyReviewModal } from '@/components/cronograma/WeeklyReviewModal';
 import {
   CronogramaApiError, MONTHS, addDays, cronogramaFetch, formatDayMonth, formatMinutes, parseISODate, toISODate, weekStart,
-  type CronogramaStatus, type CronogramaView, type Insights, type PlanItem, type Proposal,
+  type ClassOccurrence, type CronogramaStatus, type CronogramaView, type Insights, type PlanItem, type Proposal,
   withCompleteDiff,
 } from '@/lib/cronograma';
 
@@ -69,6 +72,9 @@ function CronogramaInner() {
   const [reviewGroup, setReviewGroup] = useState<ReviewGroup | null>(null);
   const [routineOpen, setRoutineOpen] = useState(false);
   const [routineBusy, setRoutineBusy] = useState(false);
+  const [classTarget, setClassTarget] = useState<ClassOccurrence | null>(null);
+  const [logTarget, setLogTarget] = useState<StudyLogTarget | null>(null);
+  const [weeklyDate, setWeeklyDate] = useState<string | null>(null);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -230,6 +236,32 @@ function CronogramaInner() {
     } catch (e) { toast.error((e as Error).message); } finally { setActionBusy(false); }
   };
 
+  // Aula da turma: vou faltar / faltei / desfazer (sem IA, sem cota).
+  const saveAttendance = async (p: AttendancePayload) => {
+    setActionBusy(true);
+    try {
+      const r = await cronogramaFetch<{ makeup?: { date: string } | null }>('/attendance', { method: 'POST', body: JSON.stringify(p) });
+      if (p.status === 'presente') toast.success('Falta desfeita.');
+      else if (r.makeup) toast.success(`Reposição marcada para ${formatDayMonth(r.makeup.date)}.`);
+      else if (p.status === 'vai_faltar' && p.will_study) toast.success('O tempo da aula entrou no seu cronograma.');
+      else toast.success('Falta registrada.');
+      setClassTarget(null);
+      await refresh();
+    } catch (e) { toast.error((e as Error).message); } finally { setActionBusy(false); }
+  };
+
+  // Registro manual (diário). Com card aberto, também conclui o card.
+  const saveLog = async (p: StudyLogPayload) => {
+    setActionBusy(true);
+    try {
+      const r = await cronogramaFetch<{ completed?: { done?: boolean } | null }>('/log', { method: 'POST', body: JSON.stringify(p) });
+      toast.success(r.completed?.done ? 'Estudo registrado e card concluído!' : 'Estudo registrado no seu diário.');
+      setLogTarget(null);
+      if (r.completed?.done) setCelebrate((c) => c + 1);
+      await refresh();
+    } catch (e) { toast.error((e as Error).message); } finally { setActionBusy(false); }
+  };
+
   const propose = async (body: Record<string, unknown>) => {
     setAgentBusy(true);
     try {
@@ -351,7 +383,7 @@ function CronogramaInner() {
         <p className="mx-auto mb-6 max-w-xl text-center text-[14px] text-slate-600 dark:text-white/65">
           Um plano de estudos até o ENEM que respeita a ordem dos conteúdos, prioriza o que mais cai e agenda revisões no tempo certo para você não esquecer.
         </p>
-        <SetupWizard defaults={status.defaults!} onCreated={() => { setAnchor(null); loadStatus(); }} />
+        <SetupWizard defaults={status.defaults!} klass={status.class} onCreated={() => { setAnchor(null); loadStatus(); }} />
       </div>
     );
   }
@@ -415,6 +447,11 @@ function CronogramaInner() {
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[13px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10">
             <Clock className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} />Minha rotina
           </button>
+          <button type="button" onClick={() => setLogTarget({})} disabled={!view}
+            title="Estudou fora da plataforma? Registre no diário"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[13px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10">
+            <NotebookPen className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} /><span className="hidden sm:inline">Registrar estudo</span>
+          </button>
         </div>
         </div>
         <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[330px_360px] xl:gap-4">
@@ -445,6 +482,8 @@ function CronogramaInner() {
               onOpenItem={(i) => setStartTarget(i)}
               onOpenReviews={(g) => setReviewGroup(g)}
               onUnblock={unblock}
+              onOpenClass={(c) => setClassTarget(c)}
+              onWeeklyReview={(d) => setWeeklyDate(d)}
               blockHref={(kind) => kind === 'simulado'
                 ? `/partners/${slug}/student/simulado`
                 : `/partners/${slug}/student/redacoes/nova`}
@@ -483,6 +522,7 @@ function CronogramaInner() {
               onUndo={undo}
               onAdjust={adjust}
               studiedAreas={insights?.by_area.filter((a) => a.studied > 0).map((a) => a.area)}
+              freeText={status.agent_enabled !== false}
             />
         </div>
         {/* Mesmo cabeçalho e mesmo cartão branco do assistente: as duas colunas começam alinhadas. */}
@@ -513,7 +553,12 @@ function CronogramaInner() {
         onSkip={skip}
         onFixOrder={fixOrder}
         onStartReview={(t) => { setStartTarget(null); setReviewItemId(t.id); }}
+        onLog={(t) => { setStartTarget(null); setLogTarget({ itemId: t.id, topic: t.topic, subject: t.q_subject || t.subject }); }}
+        plurallUrl={plurallFor(view, startTarget)}
       />
+      <AttendanceModal occ={classTarget} today={today} busy={actionBusy} onClose={() => setClassTarget(null)} onSave={saveAttendance} />
+      <StudyLogModal target={logTarget} today={today} busy={actionBusy} onClose={() => setLogTarget(null)} onSave={saveLog} />
+      <WeeklyReviewModal slug={slug} date={weeklyDate} onClose={() => setWeeklyDate(null)} />
       {view && (
         <RoutineModal
           open={routineOpen}
@@ -542,6 +587,14 @@ function CronogramaInner() {
     </RevealGroup>
     </div>
   );
+}
+
+/** Link do Plurall da aula da mesma matéria no dia do card (ou a próxima da semana). */
+function plurallFor(view: CronogramaView | null, t: StartTarget | null): string | null {
+  if (!view || !t || t.kind !== 'study') return null;
+  const subj = (t.q_subject || t.subject || '').toLowerCase();
+  const classes = view.days.flatMap((d) => d.classes ?? []).filter((c) => c.plurall_url && c.subject.toLowerCase() === subj);
+  return (classes.find((c) => c.date === t.date) ?? classes[0])?.plurall_url ?? null;
 }
 
 // ─── Roda de período (estilo Outlook) ────────────────────────────────────────

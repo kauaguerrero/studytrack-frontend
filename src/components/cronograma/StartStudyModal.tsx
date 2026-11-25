@@ -5,7 +5,7 @@
 // revisão → mini-quiz (nota SRS por acerto real) OU autoavaliação.
 
 import Link from 'next/link';
-import { BookOpen, ClipboardCheck, CheckCircle2, Brain, SkipForward, AlertTriangle } from 'lucide-react';
+import { BookOpen, ClipboardCheck, CheckCircle2, Brain, SkipForward, AlertTriangle, NotebookPen, ExternalLink } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AREA_STYLE, studyLinks, formatDayMonth, type NodeView } from '@/lib/cronograma';
 import { useStudentThemeRoot } from '@/hooks/useStudentThemeRoot';
@@ -28,6 +28,8 @@ export function StartStudyModal({
   onSkip,
   onStartReview,
   onFixOrder,
+  onLog,
+  plurallUrl,
   busy,
 }: {
   slug: string;
@@ -38,6 +40,10 @@ export function StartStudyModal({
   onStartReview?: (t: StartTarget) => void;
   /** "Corrigir" do aviso de pré-requisito: o backend põe o conteúdo depois dele (sem IA). */
   onFixOrder?: (id: string) => void;
+  /** Estudou fora da plataforma: registrar no diário (conclui o card). */
+  onLog?: (t: StartTarget) => void;
+  /** Material da aula/matéria no Plurall (grade da turma). */
+  plurallUrl?: string | null;
   busy?: boolean;
 }) {
   const themeRoot = useStudentThemeRoot();
@@ -141,6 +147,24 @@ export function StartStudyModal({
                     <span className="block text-[12px] text-slate-500 dark:text-white/55">10 questões cronometradas, como no dia da prova.</span>
                   </span>
                 </Link>
+                {plurallUrl && (
+                  <a href={plurallUrl} target="_blank" rel="noopener noreferrer"
+                    className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3.5 transition hover:-translate-y-[1px] hover:shadow-md dark:border-white/10 dark:bg-slate-900">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-500/15">
+                      <ExternalLink className="h-5 w-5 text-violet-600 dark:text-violet-300" />
+                    </span>
+                    <span>
+                      <span className="block text-[14px] font-bold text-slate-900 dark:text-white">Material no Plurall</span>
+                      <span className="block text-[12px] text-slate-500 dark:text-white/55">Abre o conteúdo da aula numa nova aba.</span>
+                    </span>
+                  </a>
+                )}
+                {onLog && (
+                  <button type="button" disabled={busy} onClick={() => onLog(target)}
+                    className="inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:text-white/60 dark:hover:bg-white/10">
+                    <NotebookPen className="h-3.5 w-3.5" /> Estudei fora da plataforma: registrar
+                  </button>
+                )}
                 <div className="mt-1 flex items-center justify-between gap-2">
                   {onSkip && (
                     <button type="button" disabled={busy} onClick={() => onSkip(target.id)}
