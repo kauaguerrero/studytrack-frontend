@@ -121,3 +121,17 @@ describe('Flag do agente', () => {
     expect(screen.getByText(/Use os atalhos/)).toBeInTheDocument();
   });
 });
+
+describe('Minha rotina', () => {
+  it('CT-C09 horário de início entra na rotina e some no dia de folga', async () => {
+    const { RoutineModal } = await import('@/components/cronograma/RoutineModal');
+    const onSave = vi.fn();
+    render(<RoutineModal open today={TODAY} onClose={vi.fn()} onSave={onSave}
+      initial={{ capacity: { 0: 120, 1: 120, 2: 120, 3: 120, 4: 120, 5: 0, 6: 0 }, reviewWeekdays: [], rules: { start_times: { '1': '08:00' } } }} />);
+    expect(screen.getByLabelText('Horário de início de terça')).toHaveValue('08:00');
+    expect(screen.getByLabelText('Horário de início de sábado')).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Horário de início de segunda'), { target: { value: '14:30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar rotina' }));
+    expect(onSave.mock.calls[0][0].rules.start_times).toEqual({ '0': '14:30', '1': '08:00' });
+  });
+});

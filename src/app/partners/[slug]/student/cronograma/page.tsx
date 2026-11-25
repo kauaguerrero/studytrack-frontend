@@ -190,6 +190,8 @@ function CronogramaInner() {
         method: 'PATCH',
         body: JSON.stringify({
           capacity, review_weekdays: v.reviewWeekdays, schedule_rules: v.rules ?? {},
+          // Explícito: sem horários = apaga os antigos (schedule_rules sem a chave preserva).
+          start_times: v.rules?.start_times ?? {},
           ...(v.examDate ? { exam_date: v.examDate } : {}),
         }),
       });

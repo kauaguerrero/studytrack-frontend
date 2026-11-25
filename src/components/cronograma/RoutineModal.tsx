@@ -92,6 +92,9 @@ function RoutineForm({ initial, today, busy, onClose, onSave }: {
   const [blocks, setBlocks] = useState<Block[]>(() => [...(rules0.blocks ?? [])]);
   const [periods, setPeriods] = useState<Period[]>(() => [...(rules0.periods ?? [])]);
   const [exam, setExam] = useState(initial.examDate ?? '');
+  // Horário de início por dia ("HH:MM"); vazio = não informado.
+  const [starts, setStarts] = useState<Record<string, string>>(() => ({ ...(rules0.start_times ?? {}) }));
+  const startTimes = Object.fromEntries(Object.entries(starts).filter(([wd, t]) => t && (cap[Number(wd)] ?? 0) > 0));
   // O backend exige pelo menos uma semana à frente.
   const minExam = addDays(today, 8);
   const examChanged = !!initial.examDate && exam !== initial.examDate;
@@ -122,6 +125,7 @@ function RoutineForm({ initial, today, busy, onClose, onSave }: {
     ...(mode === 'cycle' ? { cycle: { start: cyc.start, minutes: cycleMinutes } } : {}),
     ...(periods.length ? { periods } : {}),
     ...(blocks.length ? { blocks } : {}),
+    ...(mode === 'week' && Object.keys(startTimes).length ? { start_times: startTimes } : {}),
   };
   const changed = examChanged || DAYS.some((_, wd) => (cap[wd] ?? 0) !== (initial.capacity[wd] ?? 0))
     || review.size !== initial.reviewWeekdays.length || initial.reviewWeekdays.some((wd) => !review.has(wd))
@@ -129,6 +133,7 @@ function RoutineForm({ initial, today, busy, onClose, onSave }: {
       ...(rules0.cycle ? { cycle: rules0.cycle } : {}),
       ...(rules0.periods?.length ? { periods: rules0.periods } : {}),
       ...(rules0.blocks?.length ? { blocks: rules0.blocks } : {}),
+      ...(rules0.start_times && Object.keys(rules0.start_times).length ? { start_times: rules0.start_times } : {}),
     });
 
   const toggleReview = (wd: number) => {
@@ -211,6 +216,10 @@ function RoutineForm({ initial, today, busy, onClose, onSave }: {
                   className={`${selectCls} flex-1`}>
                   {withValue(OPTIONS, minutes).map((m) => <option key={m} value={m}>{fmtMinutes(m)}</option>)}
                 </select>
+                <input type="time" value={starts[String(wd)] ?? ''} disabled={minutes <= 0}
+                  aria-label={`Horário de início de ${name.toLowerCase()}`} title="Que horas você começa (opcional)"
+                  onChange={(e) => setStarts((s) => ({ ...s, [String(wd)]: e.target.value }))}
+                  className={`${selectCls} w-[88px] shrink-0 disabled:opacity-30`} />
                 <button type="button" aria-pressed={isReview} onClick={() => toggleReview(wd)}
                   aria-label={`${name}: ${isReview ? 'dia de revisão' : 'dia normal'}`}
                   className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-bold transition ${isReview

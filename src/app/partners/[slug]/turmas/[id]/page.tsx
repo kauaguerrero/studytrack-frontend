@@ -146,6 +146,10 @@ function ScheduleEditor({ slug, classId, hex }: { slug: string; classId: string;
   const [editing, setEditing] = useState<string | null>(null);
   const [cancelFor, setCancelFor] = useState<Slot | null>(null);
   const [cancelDate, setCancelDate] = useState('');
+  // Exceção da aula numa data: cancelar ou trocar o horário.
+  const [excMode, setExcMode] = useState<'cancel' | 'replace'>('cancel');
+  const [excTimes, setExcTimes] = useState({ starts_at: '', ends_at: '' });
+  const [extra, setExtra] = useState<{ date: string; starts_at: string; ends_at: string; subject: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -192,12 +196,28 @@ function ScheduleEditor({ slug, classId, hex }: { slug: string; classId: string;
     setBusy(true);
     try {
       await classesFetch(slug, `/classes/${classId}/schedule/exceptions`, {
-        method: 'POST', body: JSON.stringify({ kind: 'cancel', slot_id: cancelFor.id, date: cancelDate }),
+        method: 'POST',
+        body: JSON.stringify(excMode === 'cancel'
+          ? { kind: 'cancel', slot_id: cancelFor.id, date: cancelDate }
+          : { kind: 'replace', slot_id: cancelFor.id, date: cancelDate, ...excTimes }),
       });
-      toast.success('Aula cancelada nesse dia');
+      toast.success(excMode === 'cancel' ? 'Aula cancelada nesse dia' : 'Horário trocado nesse dia');
       setCancelFor(null); setCancelDate('');
       await load();
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Erro ao cancelar.'); } finally { setBusy(false); }
+  }
+
+  async function saveExtra() {
+    if (!extra) return;
+    setBusy(true);
+    try {
+      await classesFetch(slug, `/classes/${classId}/schedule/exceptions`, {
+        method: 'POST', body: JSON.stringify({ kind: 'extra', ...extra }),
+      });
+      toast.success('Aula extra adicionada');
+      setExtra(null);
+      await load();
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Erro ao salvar.'); } finally { setBusy(false); }
   }
 
   async function dropException(x: ScheduleException) {
@@ -282,19 +302,40 @@ function ScheduleEditor({ slug, classId, hex }: { slug: string; classId: string;
                           {s.title && <span className="block text-[11px] text-slate-500">{s.subject}</span>}
                         </button>
                         <div className="flex shrink-0 gap-0.5">
-                          <button type="button" aria-label="Cancelar numa data" title="Cancelar numa data" onClick={() => { setCancelFor(s); setCancelDate(''); }}
+                          <button type="button" aria-label="Mudar numa data" title="Cancelar ou trocar o horário numa data"
+                            onClick={() => { setCancelFor(s); setCancelDate(''); setExcMode('cancel'); setExcTimes({ starts_at: hm(s.starts_at), ends_at: hm(s.ends_at) }); }}
                             className="rounded-full p-1.5 text-slate-500 hover:bg-white dark:hover:bg-slate-800"><CalendarX className="h-3.5 w-3.5" /></button>
                           <button type="button" aria-label="Remover da grade" title="Remover da grade" onClick={() => void remove(s)}
                             className="rounded-full p-1.5 text-slate-500 hover:bg-white dark:hover:bg-slate-800"><Trash2 className="h-3.5 w-3.5" /></button>
                         </div>
                       </div>
                       {cancelFor?.id === s.id && (
-                        <div className="mt-2 flex items-center gap-1.5">
+                        <div className="mt-2 space-y-1.5">
+                          <div className="flex gap-1">
+                            {(['cancel', 'replace'] as const).map((m) => (
+                              <button key={m} type="button" aria-pressed={excMode === m} onClick={() => setExcMode(m)}
+                                className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${excMode === m ? 'bg-violet-600 text-white' : 'bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                                {m === 'cancel' ? 'Cancelar' : 'Trocar horário'}
+                              </button>
+                            ))}
+                          </div>
                           <input type="date" className={`${inputCls} py-1 text-xs`} value={cancelDate} min={isoToday()}
-                            aria-label="Data da aula cancelada" onChange={(e) => setCancelDate(e.target.value)} />
-                          <button type="button" disabled={busy || !cancelDate} onClick={() => void cancelOn()}
-                            className="rounded-full bg-rose-600 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-50">Cancelar aula</button>
-                          <button type="button" onClick={() => setCancelFor(null)} className="text-xs text-slate-500">Fechar</button>
+                            aria-label="Data da mudança" onChange={(e) => setCancelDate(e.target.value)} />
+                          {excMode === 'replace' && (
+                            <div className="flex gap-1.5">
+                              <input type="time" className={`${inputCls} py-1 text-xs`} value={excTimes.starts_at} aria-label="Novo início"
+                                onChange={(e) => setExcTimes((t) => ({ ...t, starts_at: e.target.value }))} />
+                              <input type="time" className={`${inputCls} py-1 text-xs`} value={excTimes.ends_at} aria-label="Novo fim"
+                                onChange={(e) => setExcTimes((t) => ({ ...t, ends_at: e.target.value }))} />
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2">
+                            <button type="button" disabled={busy || !cancelDate} onClick={() => void cancelOn()}
+                              className={`rounded-full px-2.5 py-1 text-xs font-bold text-white disabled:opacity-50 ${excMode === 'cancel' ? 'bg-rose-600' : 'bg-violet-600'}`}>
+                              {excMode === 'cancel' ? 'Cancelar aula' : 'Trocar horário'}
+                            </button>
+                            <button type="button" onClick={() => setCancelFor(null)} className="text-xs text-slate-500">Fechar</button>
+                          </div>
                         </div>
                       )}
                     </li>
@@ -305,9 +346,36 @@ function ScheduleEditor({ slug, classId, hex }: { slug: string; classId: string;
           </div>
         )}
       </RevealItem>
-      {upcoming.length > 0 && (
-        <RevealItem>
-          <SectionTitle kicker="Exceções" title="Mudanças na grade" hex={hex} />
+      <RevealItem>
+        <SectionTitle kicker="Exceções" title="Mudanças na grade" hex={hex}
+          action={!extra ? (
+            <button type="button" onClick={() => setExtra({ date: '', starts_at: '19:00', ends_at: '20:00', subject: '' })}
+              className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">
+              <Plus className="h-3.5 w-3.5" /> Aula extra
+            </button>
+          ) : undefined} />
+        {extra && (
+          <ElevatedCard className="mb-3 p-4">
+            <div className="grid gap-3 sm:grid-cols-[160px_110px_110px_1fr]">
+              <div><label className={labelCls} htmlFor="ex-date">Data</label>
+                <input id="ex-date" type="date" min={isoToday()} className={inputCls} value={extra.date} onChange={(e) => setExtra({ ...extra, date: e.target.value })} /></div>
+              <div><label className={labelCls} htmlFor="ex-st">Início</label>
+                <input id="ex-st" type="time" className={inputCls} value={extra.starts_at} onChange={(e) => setExtra({ ...extra, starts_at: e.target.value })} /></div>
+              <div><label className={labelCls} htmlFor="ex-en">Fim</label>
+                <input id="ex-en" type="time" className={inputCls} value={extra.ends_at} onChange={(e) => setExtra({ ...extra, ends_at: e.target.value })} /></div>
+              <div><label className={labelCls} htmlFor="ex-subj">Matéria</label>
+                <input id="ex-subj" className={inputCls} value={extra.subject} maxLength={80} placeholder="Ex: Química" onChange={(e) => setExtra({ ...extra, subject: e.target.value })} /></div>
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button type="button" onClick={() => setExtra(null)}
+                className="rounded-full border border-slate-200 px-4 py-2 text-[13px] font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300">Cancelar</button>
+              <BrandButton hex={hex} onClick={() => void saveExtra()} disabled={busy || !extra.date || !extra.subject.trim()}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Adicionar'}
+              </BrandButton>
+            </div>
+          </ElevatedCard>
+        )}
+        {upcoming.length > 0 && (
           <ElevatedCard className="divide-y divide-slate-100 dark:divide-slate-800">
             {upcoming.map((x) => (
               <div key={x.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
@@ -321,8 +389,8 @@ function ScheduleEditor({ slug, classId, hex }: { slug: string; classId: string;
               </div>
             ))}
           </ElevatedCard>
-        </RevealItem>
-      )}
+        )}
+      </RevealItem>
     </>
   );
 }
