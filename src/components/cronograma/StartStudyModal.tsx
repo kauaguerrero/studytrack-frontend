@@ -5,7 +5,7 @@
 // revisão → mini-quiz (nota SRS por acerto real) OU autoavaliação.
 
 import Link from 'next/link';
-import { BookOpen, ClipboardCheck, CheckCircle2, Brain, SkipForward, AlertTriangle, NotebookPen, ExternalLink } from 'lucide-react';
+import { BookOpen, ClipboardCheck, CheckCircle2, Brain, SkipForward, AlertTriangle, NotebookPen, ExternalLink, Timer } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AREA_STYLE, studyLinks, formatDayMonth, type NodeView } from '@/lib/cronograma';
 import { useStudentThemeRoot } from '@/hooks/useStudentThemeRoot';
@@ -30,6 +30,7 @@ export function StartStudyModal({
   onFixOrder,
   onLog,
   plurallUrl,
+  onStartTimer,
   busy,
 }: {
   slug: string;
@@ -44,6 +45,8 @@ export function StartStudyModal({
   onLog?: (t: StartTarget) => void;
   /** Material da aula/matéria no Plurall (grade da turma). */
   plurallUrl?: string | null;
+  /** Timer de estudo ligado: cronometra este card (vai para o diário ao encerrar). */
+  onStartTimer?: (t: StartTarget) => void;
   busy?: boolean;
 }) {
   const themeRoot = useStudentThemeRoot();
@@ -158,6 +161,12 @@ export function StartStudyModal({
                       <span className="block text-[12px] text-slate-500 dark:text-white/55">Abre o conteúdo da aula numa nova aba.</span>
                     </span>
                   </a>
+                )}
+                {onStartTimer && (
+                  <button type="button" disabled={busy} onClick={() => onStartTimer(target)}
+                    className="inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 dark:text-white/60 dark:hover:bg-white/10">
+                    <Timer className="h-3.5 w-3.5" /> Iniciar timer para este conteúdo
+                  </button>
                 )}
                 {onLog && (
                   <button type="button" disabled={busy} onClick={() => onLog(target)}

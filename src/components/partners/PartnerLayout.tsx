@@ -8,6 +8,7 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
+import { StudyTimerWidget } from '@/components/timer/StudyTimerWidget';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
 import { useReportNotification } from '@/contexts/ReportNotificationContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -37,6 +38,7 @@ import {
   History,
   Sparkles,
   Layers,
+  Timer,
   ArrowLeftRight,
   TriangleAlert,
   CalendarRange,
@@ -332,6 +334,10 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
   const isAssociate = userProfile.role === 'associate';
   const isPartnerStudent = variant === 'student';
+  const layoutPath = usePathname() ?? '';
+  // Timer flutuante: fora da tela do timer e do simulado (que tem cronômetro próprio).
+  const showTimerWidget = isPartnerStudent && org.permissions?.timer_enabled === true
+    && !/\/student\/(timer|simulado)(\/|$)/.test(layoutPath);
 
   // Alterna entre visão founder e visão aluno numa org demo.
   //
@@ -370,6 +376,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     ...(perm('simulados_enabled') ? [{ href: `/partners/${org.slug}/simulados`, icon: ClipboardCheck,  label: 'Simulados',        shortLabel: 'Simulados' }] : []),
     ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
     ...(perm('flashcards_enabled', false) ? [{ href: `/partners/${org.slug}/flashcards`, icon: Layers, label: 'Flashcards', shortLabel: 'Cartões' }] : []),
+    ...(perm('timer_enabled', false) ? [{ href: `/partners/${org.slug}/tempo-de-estudo`, icon: Timer, label: 'Tempo de estudo', shortLabel: 'Tempo' }] : []),
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
     ...(perm('suporte_enabled')   ? [{ href: `/partners/${org.slug}/suporte`,   icon: LifeBuoy,        label: 'Suporte',          shortLabel: 'Suporte'   }] : []),
     ...(org.hasAssociates        ? [{ href: `/partners/${org.slug}/associados`, icon: UsersRound,      label: 'Associados',        shortLabel: 'Equipe'    }] : []),
@@ -383,6 +390,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     ...(perm('banco_questoes_enabled') ? [{ href: `/partners/${org.slug}/student/meus-erros`,        icon: Flame,          label: 'Meus erros',     shortLabel: 'Erros'      }] : []),
     ...(perm('lista_magica_enabled', false) ? [{ href: `/partners/${org.slug}/student/lista-magica`, icon: Sparkles,       label: 'Lista mágica',   shortLabel: 'Lista'      }] : []),
     ...(perm('flashcards_enabled', false)   ? [{ href: `/partners/${org.slug}/student/flashcards`,   icon: Layers,         label: 'Flashcards',     shortLabel: 'Cartões'    }] : []),
+    ...(perm('timer_enabled', false)        ? [{ href: `/partners/${org.slug}/student/timer`,        icon: Timer,          label: 'Timer',          shortLabel: 'Timer'      }] : []),
     ...(perm('simulados_enabled')      ? [{ href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck, label: 'Simulados',      shortLabel: 'Simulado'   }] : []),
     ...(perm('ranking_enabled')        ? [{ href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,         label: 'Ranking',        shortLabel: 'Ranking'     }] : []),
     ...(perm('titulos_enabled')        ? [{ href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck,     label: 'Títulos',        shortLabel: 'Título'     }] : []),
@@ -785,6 +793,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
         <main className={cn('partner-main min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 pb-24 md:pb-8', compactSidebar ? 'md:p-5' : 'md:p-8')}>
           {children}
         </main>
+        {showTimerWidget && <StudyTimerWidget slug={org.slug} />}
       </div>
 
       {/* ── Mobile bottom tab bar ──────────────────────────────────────────── */}

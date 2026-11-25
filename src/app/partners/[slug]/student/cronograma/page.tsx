@@ -30,6 +30,7 @@ import { RoutineModal, type RoutineValue } from '@/components/cronograma/Routine
 import { AttendanceModal, type AttendancePayload } from '@/components/cronograma/AttendanceModal';
 import { StudyLogModal, type StudyLogPayload, type StudyLogTarget } from '@/components/cronograma/StudyLogModal';
 import { WeeklyReviewModal } from '@/components/cronograma/WeeklyReviewModal';
+import { broadcastTimer, timerFetch } from '@/lib/timer';
 import {
   CronogramaApiError, MONTHS, addDays, cronogramaFetch, formatDayMonth, formatMinutes, parseISODate, toISODate, weekStart,
   type ClassOccurrence, type CronogramaStatus, type CronogramaView, type Insights, type PlanItem, type Proposal,
@@ -54,6 +55,20 @@ export default function CronogramaPage() {
 function CronogramaInner() {
   const { slug } = useParams<{ slug: string }>();
   const { org } = useOrg();
+
+  // Timer de estudo (fase 8): cronometra o card; o widget flutuante assume daí.
+  const startTimer = async (t: StartTarget) => {
+    const planItemId = t.projected || t.id.startsWith('proj-') ? undefined : t.id;
+    try {
+      await timerFetch(org.slug, '/timer/start', {
+        method: 'POST',
+        body: JSON.stringify({ subject: t.q_subject || t.subject, discipline: t.q_discipline || t.topic, plan_item_id: planItemId }),
+      });
+      broadcastTimer();
+      setStartTarget(null);
+      toast.success(`Timer ligado: ${t.topic}`, { description: 'Ao encerrar, o tempo vai para o seu diário.' });
+    } catch (e) { toast.error((e as Error).message); }
+  };
   const [status, setStatus] = useState<CronogramaStatus | null>(null);
   const [mode, setMode] = useState<Mode>('semana');
   const [anchor, setAnchor] = useState<string | null>(null); // segunda da semana (ou dia do mês)
@@ -560,6 +575,7 @@ function CronogramaInner() {
         onStartReview={(t) => { setStartTarget(null); setReviewItemId(t.id); }}
         onLog={(t) => { setStartTarget(null); setLogTarget({ itemId: t.id, topic: t.topic, subject: t.q_subject || t.subject }); }}
         plurallUrl={plurallFor(view, startTarget)}
+        onStartTimer={org.permissions?.timer_enabled === true ? startTimer : undefined}
       />
       <AttendanceModal occ={classTarget} today={today} busy={actionBusy} onClose={() => setClassTarget(null)} onSave={saveAttendance} />
       <StudyLogModal target={logTarget} today={today} busy={actionBusy} onClose={() => setLogTarget(null)} onSave={saveLog} />
