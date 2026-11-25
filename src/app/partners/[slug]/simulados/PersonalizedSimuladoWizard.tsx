@@ -178,6 +178,8 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
   const [locationName, setLocationName] = useState('');
   const [locationAddress, setLocationAddress] = useState('');
   const [visibleClassIds, setVisibleClassIds] = useState<string[]>([]);
+  // Nivelamento (fase 5b): só online/híbrido — o impresso não passa pelo envio do app.
+  const [isLeveling, setIsLeveling] = useState(false);
   const { classes: orgClasses } = useOrgClasses(slug);
   const [instructions, setInstructions] = useState('');
   const [creating, setCreating] = useState(false);
@@ -390,6 +392,7 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
             role: contest?.role || undefined,
             time_limit_secs: durationSecs || undefined,
             allow_retry: false,
+            purpose: isLeveling ? 'nivelamento' : undefined,
             instructions: instructions.trim() ? instructions.trim() : undefined,
             custom_questions: pool.map((question) => ({
               id: question.id,
@@ -652,6 +655,15 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
 
                 {!printedMode && (
                   <ClassVisibilityPicker classes={orgClasses} value={visibleClassIds} onChange={setVisibleClassIds} />
+                )}
+
+                {!printedMode && (
+                  <label className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-xs text-slate-700 dark:border-white/10 dark:text-white/80">
+                    <input type="checkbox" className="mt-0.5" checked={isLeveling} onChange={(e) => setIsLeveling(e.target.checked)} />
+                    <span><span className="font-semibold">É um nivelamento</span>
+                      <span className="block text-[11px] text-slate-500 dark:text-white/50">Cada aluno recebe uma faixa por matéria (Básico, Intermediário…) e você vê a matriz da turma.</span>
+                    </span>
+                  </label>
                 )}
 
                 {standardInstructionItems.length > 0 && (
