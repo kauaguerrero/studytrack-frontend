@@ -379,6 +379,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     ...(perm('cronograma_enabled', false) ? [{ href: `/partners/${org.slug}/student/cronograma`,  icon: CalendarRange,  label: 'Cronograma',     shortLabel: 'Cronograma' }] : []),
     ...(perm('banco_questoes_enabled') ? [{ href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,       label: 'Questões',       shortLabel: 'Questão'    }] : []),
     ...(perm('banco_questoes_enabled') ? [{ href: `/partners/${org.slug}/student/meus-erros`,        icon: Flame,          label: 'Meus erros',     shortLabel: 'Erros'      }] : []),
+    ...(perm('lista_magica_enabled', false) ? [{ href: `/partners/${org.slug}/student/lista-magica`, icon: Sparkles,       label: 'Lista mágica',   shortLabel: 'Lista'      }] : []),
     ...(perm('simulados_enabled')      ? [{ href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck, label: 'Simulados',      shortLabel: 'Simulado'   }] : []),
     ...(perm('ranking_enabled')        ? [{ href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,         label: 'Ranking',        shortLabel: 'Ranking'     }] : []),
     ...(perm('titulos_enabled')        ? [{ href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck,     label: 'Títulos',        shortLabel: 'Título'     }] : []),

@@ -719,6 +719,16 @@ export default function SimuladoPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Lista mágica (e outros atalhos): ?resume=<session_id> abre a sessão já criada.
+  useEffect(() => {
+    const sid = new URLSearchParams(window.location.search).get('resume')
+    if (!sid || !/^[0-9a-f-]{36}$/i.test(sid)) return
+    resumeAttemptedRef.current = true
+    router.replace(`/partners/${slug}/student/simulado`)
+    void resumeSessionById(sid)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     const t = setInterval(() => setNowTs(Date.now()), 30000)
     return () => clearInterval(t)

@@ -80,6 +80,7 @@ const MODULE_DEFS: ModuleDef[] = [
   { key: 'video_lessons_enabled',  label: 'Videoaulas',          description: 'Biblioteca de aulas em vídeo hospedada via Bunny CDN.',       icon: Video,          defaultEnabled: false, affectsFounder: true,  affectsStudent: true, subConfig: 'max_video_lessons' },
   { key: 'concursos_enabled', label: 'Concursos', description: 'Questões e simulados de concursos públicos.', icon: BookOpen, defaultEnabled: false, affectsFounder: true, affectsStudent: true },
   { key: 'cronograma_enabled', label: 'Cronograma Inteligente', description: 'Plano de estudos ENEM com revisão espaçada e assistente.', icon: BarChart3, defaultEnabled: false, affectsFounder: false, affectsStudent: true },
+  { key: 'lista_magica_enabled', label: 'Lista mágica', description: 'Toda segunda, 10 questões inéditas dos temas em que o aluno mais errou.', icon: BarChart3, defaultEnabled: false, affectsFounder: false, affectsStudent: true },
 ];
 
 interface PerOrgStats {
@@ -370,7 +371,7 @@ export default function SuperAdminDashboard() {
   const [modulesForm, setModulesForm]     = useState({
     simulados_enabled: true, redacoes_enabled: true, ranking_enabled: true,
     planos_enabled: true, banco_questoes_enabled: true, desempenho_enabled: true,
-    titulos_enabled: true, suporte_enabled: true, video_lessons_enabled: false, concursos_enabled: false, cronograma_enabled: false,
+    titulos_enabled: true, suporte_enabled: true, video_lessons_enabled: false, concursos_enabled: false, cronograma_enabled: false, lista_magica_enabled: false,
     allow_multiple_pending_essays: false, max_video_lessons: '',
   });
   const [savingModules, setSavingModules] = useState(false);
@@ -549,6 +550,7 @@ export default function SuperAdminDashboard() {
       video_lessons_enabled:  p.video_lessons_enabled  !== undefined ? Boolean(p.video_lessons_enabled)  : false,
       concursos_enabled:      p.concursos_enabled      !== undefined ? Boolean(p.concursos_enabled)      : false,
       cronograma_enabled:     p.cronograma_enabled     !== undefined ? Boolean(p.cronograma_enabled)     : false,
+      lista_magica_enabled:   p.lista_magica_enabled   !== undefined ? Boolean(p.lista_magica_enabled)   : false,
       allow_multiple_pending_essays: org.allow_multiple_pending_essays ?? false,
       max_video_lessons: org.max_video_lessons != null ? String(org.max_video_lessons) : '',
     });
@@ -572,6 +574,7 @@ export default function SuperAdminDashboard() {
         video_lessons_enabled:  modulesForm.video_lessons_enabled,
         concursos_enabled:      modulesForm.concursos_enabled,
         cronograma_enabled:     modulesForm.cronograma_enabled,
+        lista_magica_enabled:   modulesForm.lista_magica_enabled,
       };
       const res = await fetch(`/api/admin/b2b/organizations/${modulesModal.org.id}`, {
         method: 'PATCH',
