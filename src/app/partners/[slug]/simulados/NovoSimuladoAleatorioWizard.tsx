@@ -8,6 +8,8 @@ import { DateTimeField } from '@/components/partners/simulado/DateTimeField';
 import { DurationTimerField } from '@/components/partners/simulado/DurationTimerField';
 import { useFounderConcursoFacets } from '@/hooks/useFounderConcursoFacets';
 import { CUSTOM_SUBJECTS } from '@/lib/simuladoSubjects';
+import type { OrgClass } from '@/lib/org-classes';
+import { ClassVisibilityPicker } from '@/components/partners/ClassVisibilityPicker';
 import {
   BANK_LABELS, DIFFICULTY_LABELS, FORMATS_BY_BANK, resolveQty, isQtyLocked,
   buildDistributionHintLines, WEIGHT_KEYS_BY_BANK, UEG_GROUP_PRESETS, UEG_GROUP_COURSES,
@@ -39,6 +41,9 @@ interface Props {
   setLocationName: (v: string) => void;
   locationAddress: string;
   setLocationAddress: (v: string) => void;
+  classes: OrgClass[];
+  visibleClassIds: string[];
+  setVisibleClassIds: (ids: string[]) => void;
   // Vestibular/Concurso também já foi decidido antes deste wizard (Etapa 1
   // do seletor, anterior até à modalidade) — só muda o que a etapa "Banca"
   // pergunta e de onde vem o catálogo de matérias.
@@ -53,6 +58,7 @@ interface Props {
 
 export function NovoSimuladoAleatorioWizard({
   slug, form, setForm, modality, locationName, setLocationName, locationAddress, setLocationAddress,
+  classes, visibleClassIds, setVisibleClassIds,
   simuladoFormat, brandTextColor, onClose, onReviewAndCreate,
 }: Props) {
   const [wizardStep, setWizardStep] = useState<StepKey>('titulo');
@@ -558,6 +564,7 @@ export function NovoSimuladoAleatorioWizard({
                     <p className="text-sm font-bold text-slate-900 dark:text-slate-100">Detalhes (opcional)</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">Instruções pra turma e, se o formato for Personalizado, a matéria.</p>
                   </div>
+                  <ClassVisibilityPicker classes={classes} value={visibleClassIds} onChange={setVisibleClassIds} />
                   {form.bank === 'ENEM' && (
                     <div>
                       <label className={labelCls}>Título do cabeçalho no PDF (opcional)</label>

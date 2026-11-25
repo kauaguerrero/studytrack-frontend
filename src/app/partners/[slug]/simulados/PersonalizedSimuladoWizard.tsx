@@ -21,6 +21,8 @@ import { ManualQuestionForm } from '@/components/assessments/ManualQuestionForm'
 import { ContestQuotaBuilder } from './ContestQuotaBuilder';
 import SimuladoPreviewModal from '@/components/partners/simulados/SimuladoPreviewModal';
 import { downloadBlobResponse } from '@/lib/download-blob';
+import { useOrgClasses, visibleClassIdsPayload } from '@/lib/org-classes';
+import { ClassVisibilityPicker } from '@/components/partners/ClassVisibilityPicker';
 import type { SelectedQuestion } from '@/types/simulado-preview';
 import { toCustomQuestionSnapshot, deriveContextAndStatement } from '@/types/simulado-preview';
 
@@ -175,6 +177,8 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
   const missingMandatorySchedule = !printedMode && (!endsAt || !durationSecs);
   const [locationName, setLocationName] = useState('');
   const [locationAddress, setLocationAddress] = useState('');
+  const [visibleClassIds, setVisibleClassIds] = useState<string[]>([]);
+  const { classes: orgClasses } = useOrgClasses(slug);
   const [instructions, setInstructions] = useState('');
   const [creating, setCreating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -378,6 +382,7 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
           modality,
           location_name: hasLocation ? (locationName.trim() || null) : null,
           location_address: hasLocation ? (locationAddress.trim() || null) : null,
+          ...(visibleClassIds.length ? { visible_class_ids: visibleClassIdsPayload(visibleClassIds) } : {}),
           config: {
             format: 'custom',
             bank: contest?.bank || 'CUSTOM',
@@ -643,6 +648,10 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
                   <p role="status" className="text-xs font-semibold text-amber-700 dark:text-amber-400">
                     Data de encerramento e duração da prova são obrigatórias pra simulados online/híbridos.
                   </p>
+                )}
+
+                {!printedMode && (
+                  <ClassVisibilityPicker classes={orgClasses} value={visibleClassIds} onChange={setVisibleClassIds} />
                 )}
 
                 {standardInstructionItems.length > 0 && (

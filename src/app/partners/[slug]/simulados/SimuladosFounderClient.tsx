@@ -31,6 +31,8 @@ import {
 } from 'lucide-react';
 import SimuladoPreviewModal from '@/components/partners/simulados/SimuladoPreviewModal';
 import { downloadBlobResponse } from '@/lib/download-blob';
+import { useOrgClasses, visibleClassIdsPayload } from '@/lib/org-classes';
+import { ClassVisibilityPicker } from '@/components/partners/ClassVisibilityPicker';
 import { toCustomQuestionSnapshot, toSelectedQuestion } from '@/types/simulado-preview';
 import type { RawPreviewQuestion, SelectedQuestion } from '@/types/simulado-preview';
 
@@ -72,6 +74,7 @@ interface ScheduledSimulado {
   modality?: 'online' | 'printed' | 'hybrid';
   location_name?: string | null;
   location_address?: string | null;
+  visible_class_ids?: string[] | null;
   metrics: {
     total_sessions: number;
     completed_sessions: number;
@@ -234,6 +237,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
   // Híbrido/Impresso sendo perdidos entre a Etapa 1 e a tela seguinte).
   const [modality, setModality] = useState<'online' | 'hybrid' | 'printed'>('online');
   const [locationName, setLocationName] = useState('');
+  // Turmas que veem o simulado ([] = todas). Só aparece se a org tem turma.
+  const [visibleClassIds, setVisibleClassIds] = useState<string[]>([]);
+  const { classes: orgClasses } = useOrgClasses(slug, { enabled: !org.is_mock });
   const [locationAddress, setLocationAddress] = useState('');
   // Vestibular/Concurso é decidido na Etapa 1 (antes até da modalidade) e,
   // assim como modalidade/local, nunca é tocado dentro de `form` — só o
@@ -412,6 +418,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     setModality('online');
     setLocationName('');
     setLocationAddress('');
+    setVisibleClassIds([]);
   }
 
   async function handleSaveImpresso() {
@@ -734,6 +741,11 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         ...(form.same_for_all_students && previewQuestions
           ? { custom_question_ids: previewQuestions.map((q) => q.id) }
           : {}),
+        // Só manda o campo quando há turma em jogo: antes da migration de
+        // turmas o backend não tem a coluna.
+        ...(orgClasses.length || visibleClassIds.length || editingSim?.visible_class_ids?.length
+          ? { visible_class_ids: visibleClassIdsPayload(visibleClassIds) }
+          : {}),
       };
 
       const url = editingId
@@ -825,6 +837,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     setModality(sim.modality ?? 'online');
     setLocationName(sim.location_name ?? '');
     setLocationAddress(sim.location_address ?? '');
+    setVisibleClassIds(sim.visible_class_ids ?? []);
     // `simuladoFormat` idem — este form não tem UI pra trocar banca/cargo de
     // concurso, mas precisa saber que é concurso pra não zerar question_type/
     // role em buildConfigFromForm quando o founder só ajusta outro campo e salva.
@@ -1237,6 +1250,8 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                 )}
               </AnimatePresence>
 
+              <ClassVisibilityPicker classes={orgClasses} value={visibleClassIds} onChange={setVisibleClassIds} />
+
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {/* Matéria — só para custom */}
                 {form.format === 'custom' && (
@@ -1633,6 +1648,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               setLocationName={setLocationName}
               locationAddress={locationAddress}
               setLocationAddress={setLocationAddress}
+              classes={orgClasses}
+              visibleClassIds={visibleClassIds}
+              setVisibleClassIds={setVisibleClassIds}
               simuladoFormat={simuladoFormat}
               brandTextColor={onBrand}
               onClose={() => { setShowAleatorioWizard(false); setForm(EMPTY_FORM); setPreviewQuestions(null); }}

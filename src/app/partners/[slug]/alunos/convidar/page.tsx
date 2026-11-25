@@ -21,7 +21,8 @@ import { toast } from 'sonner';
 interface ImportResult {
   imported: number;
   linked: number;
-  errors: { row: number; email: string; reason: string }[];
+  assigned_to_class?: number;
+  errors: { row: number | null; email: string | null; reason: string }[];
 }
 
 interface CsvRow {
@@ -261,7 +262,7 @@ export default function ConvidarAlunosPage() {
               action={
                 <p className="max-w-[240px] text-right text-[11px] text-slate-400 dark:text-white/40">
                   Colunas <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">nome</code> e{' '}
-                  <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">email</code>. Alunos com conta são vinculados automaticamente.
+                  <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">email</code> (opcional: <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">turma</code>). Alunos com conta são vinculados automaticamente.
                 </p>
               }
             />
@@ -414,12 +415,15 @@ export default function ConvidarAlunosPage() {
             )}
 
             {/* Resultado completo (erros e vinculados) */}
-            {result && (result.linked > 0 || result.errors.length > 0) && (
+            {result && (result.linked > 0 || result.errors.length > 0 || (result.assigned_to_class ?? 0) > 0) && (
               <div className="space-y-2 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
                 <p className="text-sm font-semibold text-slate-700 dark:text-white">Detalhes da importação</p>
                 <div className="flex gap-4 text-sm">
                   {result.linked > 0 && (
                     <span className="text-blue-600 dark:text-blue-400 font-medium">⟳ {result.linked} contas vinculadas</span>
+                  )}
+                  {(result.assigned_to_class ?? 0) > 0 && (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">{result.assigned_to_class} colocados na turma</span>
                   )}
                 </div>
                 {result.errors.length > 0 && (
@@ -429,7 +433,7 @@ export default function ConvidarAlunosPage() {
                     </p>
                     <ul className="text-xs text-rose-500 space-y-0.5">
                       {result.errors.map((e, i) => (
-                        <li key={i}>Linha {e.row}: {e.email} — {e.reason}</li>
+                        <li key={i}>{e.row ? `Linha ${e.row}: ${e.email ?? ''} — ` : ''}{e.reason}</li>
                       ))}
                     </ul>
                   </div>
