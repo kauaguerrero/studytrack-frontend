@@ -61,7 +61,7 @@ export function SchoolFlashcards() {
         </button>
       </div>
       <div className="mt-5 flex gap-2" role="tablist">
-        {([['decks', 'Baralhos da escola'], ['reviews', `Aprovar cartões dos alunos${pending ? ` (${pending})` : ''}`]] as const).map(([k, label]) => (
+        {([['decks', 'Baralhos da escola'], ['reviews', `Aprovar baralhos dos alunos${pending ? ` (${pending})` : ''}`]] as const).map(([k, label]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
             className={`rounded-full px-3 py-1.5 text-xs font-bold ${tab === k ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'border border-slate-200 text-slate-600 dark:border-white/10 dark:text-white/70'}`}>
             {label}

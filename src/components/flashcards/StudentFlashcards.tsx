@@ -72,6 +72,8 @@ export function StudentFlashcards() {
                 <span className="text-xs text-slate-500 dark:text-white/50">
                   {d.due} para revisar · {d.new} novos
                   {d.mine && !!d.pending && <span className="block text-amber-600 dark:text-amber-400">{d.pending} aguardando aprovação</span>}
+                  {d.mine && d.title_status === 'pending' && <span className="block text-amber-600 dark:text-amber-400">Nome aguardando aprovação</span>}
+                  {d.mine && d.title_status === 'rejected' && <span className="block text-red-600 dark:text-red-400">Nome recusado{d.title_note ? `: ${d.title_note}` : ''}</span>}
                 </span>
                 <button type="button" onClick={() => setStudying(d.id)} disabled={!d.today}
                   className="rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:opacity-40" style={{ background: 'var(--brand-primary)' }}>
@@ -135,8 +137,8 @@ function OwnDeckEditor({ slug, deckId, onDone }: { slug: string; deckId: string 
       <button type="button" onClick={onDone} className="text-xs font-semibold text-slate-500 hover:text-slate-700">← Baralhos</button>
       <h1 className="text-xl font-black text-slate-900 dark:text-white">{deckId ? 'Editar baralho' : 'Novo baralho'}</h1>
       <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-white/5 dark:text-white/65">
-        Seus cartões ficam só com você até a coordenação aprovar. Os aprovados passam a aparecer para a sua turma.
-        Se você mudar o texto de um cartão aprovado, ele volta para aprovação.
+        O nome do baralho e os cartões ficam só com você até a coordenação aprovar. Aprovados, passam a aparecer para a sua turma.
+        Se você mudar o nome ou o texto de um cartão aprovado, ele volta para aprovação (a turma segue vendo a versão aprovada do nome).
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <input aria-label="Nome do baralho" className={inputCls} placeholder="Nome (ex.: Fórmulas de Física)" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} />

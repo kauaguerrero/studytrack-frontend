@@ -28,9 +28,18 @@ export interface Card extends CardDraft {
 }
 
 export interface ReviewGroup {
-  deck: { id: string; title: string; subject: string | null; shared: boolean };
+  deck: {
+    id: string; title: string; subject: string | null; shared: boolean;
+    /** O que a turma vê hoje (null = nunca aprovado). */
+    published_title: string | null; published_subject: string | null;
+  };
+  /** Nome/matéria novos aguardando aprovação. */
+  title_pending: boolean;
   author: { id: string; name: string | null; classes: string[] };
   cards: { id: string; front: string; back: string; updated_at: string }[];
+  /** Aluno mudou de turma: pedido para a turma nova ver o baralho. */
+  share_requests: { id: string; class_id: string | null; class_name: string | null }[];
+  approved_cards: number;
 }
 
 export interface Deck {
@@ -53,6 +62,8 @@ export interface StudentDeck {
   source: 'school' | 'class' | 'mine';
   pending?: number;
   shared?: boolean;
+  title_status?: ReviewStatus;
+  title_note?: string | null;
   card_count: number;
   due: number;
   new: number;

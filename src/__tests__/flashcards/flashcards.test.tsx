@@ -73,12 +73,15 @@ import { ReviewQueue } from '@/components/flashcards/ReviewQueue';
 
 describe('Aprovação de cartões de aluno', () => {
   const GROUP = {
-    deck: { id: 'D9', title: 'Fórmulas', subject: null, shared: false },
+    deck: { id: 'D9', title: 'Fórmulas', subject: null, shared: false, published_title: null, published_subject: null },
+    title_pending: false,
     author: { id: 'U1', name: 'Ana', classes: ['T1'] },
     cards: [
       { id: 'C1', front: 'F = ?', back: 'm·a', updated_at: '' },
       { id: 'C2', front: 'v = ?', back: 'errado', updated_at: '' },
     ],
+    share_requests: [],
+    approved_cards: 0,
   };
 
   it('CT-F04 aprova um, recusa outro com motivo e aprova todos', async () => {
@@ -98,14 +101,31 @@ describe('Aprovação de cartões de aluno', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Recusar' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('cenas', '/flashcard-reviews',
       { method: 'POST', body: JSON.stringify({ card_ids: ['C2'], action: 'reject', note: 'Resposta errada' }) }));
-    expect(await screen.findByText('Nenhum cartão aguardando aprovação.')).toBeInTheDocument();
+    expect(await screen.findByText('Nada aguardando aprovação.')).toBeInTheDocument();
     expect(onChange).toHaveBeenLastCalledWith(0);
+  });
+
+  it('CT-F06 nome novo e pedido de turma nova: aprovar tudo manda os três tipos', async () => {
+    fetchMock.mockResolvedValueOnce({ groups: [{
+      ...GROUP, title_pending: true, cards: [GROUP.cards[0]],
+      deck: { ...GROUP.deck, title: 'Física 2', published_title: 'Física', shared: true },
+      share_requests: [{ id: 'S1', class_id: 'K2', class_name: 'T2' }], approved_cards: 4,
+    }] }).mockResolvedValueOnce({}).mockResolvedValueOnce({ groups: [] });
+    render(<ReviewQueue slug="cenas" />);
+    const title = await screen.findByTestId('title-review');
+    expect(title).toHaveTextContent('Novo nome do baralho');
+    expect(title).toHaveTextContent('Hoje a turma vê: Física');
+    expect(screen.getByText('Incluir na turma T2')).toBeInTheDocument();
+    expect(screen.getByText(/4 cartões aprovados passariam/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Aprovar tudo (3)' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('cenas', '/flashcard-reviews', { method: 'POST',
+      body: JSON.stringify({ card_ids: ['C1'], title_deck_ids: ['D9'], share_ids: ['S1'], action: 'approve' }) }));
   });
 
   it('CT-F05 aluno vê baralho da turma e o status dos próprios cartões', async () => {
     fetchMock.mockResolvedValueOnce({ enabled: true, decks: [
       { id: 'D8', title: 'Da Bia', subject: null, discipline: null, mine: false, source: 'class', card_count: 2, due: 0, new: 2, today: 2 },
-      { id: 'D9', title: 'Fórmulas', subject: null, discipline: null, mine: true, source: 'mine', pending: 1, shared: true, card_count: 2, due: 0, new: 2, today: 2 },
+      { id: 'D9', title: 'Fórmulas', subject: null, discipline: null, mine: true, source: 'mine', pending: 1, shared: true, title_status: 'rejected', title_note: 'Nome impróprio', card_count: 2, due: 0, new: 2, today: 2 },
     ] }).mockResolvedValueOnce({ deck: { title: 'Fórmulas', subject: null }, cards: [
       { id: 'C1', deck_id: 'D9', position: 0, front: 'F = ?', back: 'm·a', review_status: 'approved' },
       { id: 'C2', deck_id: 'D9', position: 1, front: 'v = ?', back: 'x', review_status: 'rejected', review_note: 'Resposta errada' },
@@ -113,9 +133,10 @@ describe('Aprovação de cartões de aluno', () => {
     render(<StudentFlashcards />);
     expect(await screen.findByText(/Da turma/)).toBeInTheDocument();
     expect(screen.getByText('1 aguardando aprovação')).toBeInTheDocument();
+    expect(screen.getByText('Nome recusado: Nome impróprio')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Editar Fórmulas' }));
     expect(await screen.findByText('Aprovado: sua turma vê')).toBeInTheDocument();
     expect(screen.getByText('Recusado: Resposta errada')).toBeInTheDocument();
-    expect(screen.getByText(/ficam só com você até a coordenação aprovar/)).toBeInTheDocument();
+    expect(screen.getByText(/O nome do baralho e os cartões ficam só com você/)).toBeInTheDocument();
   });
 });
