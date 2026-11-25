@@ -461,6 +461,13 @@ export function NovoSimuladoAleatorioWizard({
                       </button>
                     </div>
                   </div>
+                  <label className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-xs text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                    <input type="checkbox" className="mt-0.5" checked={Boolean(form.is_leveling)}
+                      onChange={(e) => setForm((f) => ({ ...f, is_leveling: e.target.checked }))} />
+                    <span><span className="font-semibold">É um nivelamento</span>
+                      <span className="block text-[11px] text-slate-500 dark:text-slate-400">Cada aluno recebe uma faixa por matéria (Básico, Intermediário…) e você vê a matriz da turma.</span>
+                    </span>
+                  </label>
                   {/* Não tem efeito pra Impresso (handleSaveImpresso sempre usa a
                       lista fixa do preview) — nem aparece nesse caso, pra não
                       mostrar um controle que não muda nada. Pra Híbrido, o

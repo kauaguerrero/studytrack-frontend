@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Loader2, CalendarDays, Clock, Gauge, ArrowRight, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { ElevatedCard } from '@/components/partners/founder-ui';
-import { AREA_STYLE, WEEKDAY_LONG, cronogramaFetch, formatDayMonth, parseISODate, type Area, type ClassSummary } from '@/lib/cronograma';
+import { AREA_STYLE, WEEKDAY_LONG, cronogramaFetch, formatDayMonth, parseISODate, type Area, type ClassSummary, type LevelingSummary } from '@/lib/cronograma';
 
 const AREAS: Exclude<Area, 'geral'>[] = ['matematica', 'natureza', 'humanas', 'linguagens'];
 const MAX_DAY_MINUTES = 360;
@@ -15,13 +15,17 @@ const CONFIDENCE = ['Muito insegura(o)', 'Insegura(o)', 'Ok', 'Segura(o)', 'Muit
 export function SetupWizard({
   defaults,
   klass,
+  leveling,
   onCreated,
 }: {
   defaults: { exam_date: string; days_per_week: number; hours_per_day: number };
   /** Turma do aluno: a data da prova e os dias de revisão vêm dela. */
   klass?: ClassSummary | null;
+  /** Com nivelamento, o resultado dele é o ponto de partida: sem autoavaliação. */
+  leveling?: LevelingSummary | null;
   onCreated: () => void;
 }) {
+  const levelingRows = leveling ? Object.entries(leveling.subjects).sort(([a], [b]) => a.localeCompare(b, 'pt-BR')) : [];
   const classExam = klass?.exam_date ?? null;
   const [step, setStep] = useState(0);
   const [examDate, setExamDate] = useState(defaults.exam_date);
@@ -48,7 +52,7 @@ export function SetupWizard({
           ...(classExam && examDate === classExam ? {} : { exam_date: examDate }),
           start_times: Object.fromEntries(startTimes.map((t, wd) => [String(wd), t]).filter(([wd, t]) => t && capacity[Number(wd)] > 0)),
           capacity: Object.fromEntries(capacity.map((m, wd) => [String(wd), m])),
-          self_assessment: Object.fromEntries(AREAS.map((a) => [a, confidence[a] / 4])),
+          ...(levelingRows.length ? {} : { self_assessment: Object.fromEntries(AREAS.map((a) => [a, confidence[a] / 4])) }),
         }),
       });
       toast.success('Cronograma criado!');
@@ -122,7 +126,26 @@ export function SetupWizard({
           </div>
         )}
 
-        {step === 2 && (
+        {step === 2 && levelingRows.length > 0 && (
+          <div className="mt-2 space-y-4">
+            <h2 className="font-display flex items-center gap-2 text-[22px] font-black text-slate-900 dark:text-white">
+              <Gauge className="h-5 w-5" /> Seu ponto de partida
+            </h2>
+            <p className="text-[13.5px] text-slate-600 dark:text-white/65">
+              Vem do seu nivelamento. Matérias com nota mais baixa ganham mais prioridade; conforme você responde questões, o seu desempenho real passa a valer mais.
+            </p>
+            <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-white/10 dark:border-white/10">
+              {levelingRows.map(([subject, r]) => (
+                <li key={subject} className="flex items-center justify-between px-3 py-2 text-[13px]">
+                  <span className="font-semibold text-slate-800 dark:text-white/80">{subject}</span>
+                  <span className="text-slate-500 dark:text-white/55">{r.band} · {Math.round(r.percentage)}%</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {step === 2 && levelingRows.length === 0 && (
           <div className="mt-2 space-y-4">
             <h2 className="font-display flex items-center gap-2 text-[22px] font-black text-slate-900 dark:text-white">
               <Gauge className="h-5 w-5" /> Como você se sente em cada área?

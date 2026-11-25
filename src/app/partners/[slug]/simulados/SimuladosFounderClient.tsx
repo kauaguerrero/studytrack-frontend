@@ -27,7 +27,7 @@ import {
   Plus, ChevronDown, Trophy, Users, BarChart2, BarChart3,
   CalendarDays, Pencil, Trash2, Play, Timer, BookOpen, X, SlidersHorizontal,
   Shuffle, ListChecks, Monitor, Printer, FileText, Download,
-  MapPin, Camera, Eye, RefreshCw, GraduationCap, Shield, ClipboardCheck,
+  MapPin, Camera, Eye, RefreshCw, GraduationCap, Shield, ClipboardCheck, Layers,
 } from 'lucide-react';
 import SimuladoPreviewModal from '@/components/partners/simulados/SimuladoPreviewModal';
 import { downloadBlobResponse } from '@/lib/download-blob';
@@ -52,6 +52,7 @@ interface SimuladoConfig {
   pool_question_ids?: string[] | null;
   weights?: Record<string, number> | null;
   allow_retry?: boolean;
+  purpose?: 'nivelamento' | null;
   same_for_all_students?: boolean;
   ueg_weight_group?: 'I' | 'II' | 'III' | null;
   instructions?: string | null;
@@ -564,6 +565,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           )
         : null,
       allow_retry: form.allow_retry,
+      purpose: form.is_leveling ? 'nivelamento' : null,
       same_for_all_students: form.same_for_all_students,
       ueg_weight_group: form.bank === 'UEG' ? (form.ueg_weight_group ?? null) : null,
       instructions: form.instructions?.trim() ? form.instructions.trim() : null,
@@ -855,6 +857,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
         ends_at: sim.ends_at ? sim.ends_at.slice(0, 16) : '',
         weights: sim.config.weights ?? {},
         allow_retry: sim.config.allow_retry ?? true,
+        is_leveling: sim.config.purpose === 'nivelamento',
         same_for_all_students: sim.config.same_for_all_students ?? false,
         ueg_weight_group: (sim.config.ueg_weight_group as 'I' | 'II' | 'III' | null) ?? null,
         instructions: sim.config.instructions ?? '',
@@ -1047,6 +1050,13 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                     />
                   </button>
                 </div>
+                <label className="mt-3 flex items-start gap-2 text-xs text-slate-700 dark:text-slate-200">
+                  <input type="checkbox" className="mt-0.5" checked={Boolean(form.is_leveling)}
+                    onChange={(e) => setForm((f) => ({ ...f, is_leveling: e.target.checked }))} />
+                  <span><span className="font-semibold">É um nivelamento</span>
+                    <span className="block text-[11px] text-slate-500 dark:text-slate-400">Cada aluno recebe uma faixa por matéria; a matriz fica em Resultados.</span>
+                  </span>
+                </label>
               </div>
 
               {/* "Mesmo simulado para toda a turma" não tem efeito nenhum para
@@ -1760,6 +1770,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           {sim.modality === 'gabarito' && (
                             <span className="rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-bold text-sky-700 dark:bg-sky-500/20 dark:text-sky-300">Por gabarito</span>
                           )}
+                          {sim.config.purpose === 'nivelamento' && (
+                            <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-bold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">Nivelamento</span>
+                          )}
                           <h2 className="text-base font-bold text-slate-900 dark:text-white">
                             {sim.title}
                           </h2>
@@ -1864,6 +1877,16 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                                 ) : (
                                   <Printer className="h-4 w-4" />
                                 )}
+                              </button>
+                            )}
+                            {sim.config.purpose === 'nivelamento' && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/partners/${slug}/simulados/nivelamento/${sim.id}`)}
+                                className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-violet-600 dark:hover:bg-slate-800"
+                                title="Matriz de nivelamento"
+                              >
+                                <Layers className="h-4 w-4" />
                               </button>
                             )}
                             {(sim.modality === 'printed' || sim.status !== 'scheduled') && (

@@ -247,6 +247,8 @@ export const EMPTY_FORM = {
   ends_at: '',
   weights: {} as Record<string, number>,
   allow_retry: true,
+  // Nivelamento (fase 5b): o envio grava a faixa por matéria do aluno.
+  is_leveling: false,
   // Default true: garante que o founder sempre consiga ver um preview 100%
   // idêntico ao que será enviado (ver SimuladoPreviewModal / preview endpoint).
   // Desligar volta ao sorteio individual por aluno (sem preview garantido).

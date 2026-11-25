@@ -63,7 +63,7 @@ export interface AnswerKeySimulado {
   starts_at: string;
   ends_at: string | null;
   status: 'scheduled' | 'active' | 'ended';
-  config: { qty?: number; reveal?: 'after_submit' | 'after_end'; bank?: string };
+  config: { qty?: number; reveal?: 'after_submit' | 'after_end'; bank?: string; purpose?: 'nivelamento' };
 }
 
 export interface ResultsResponse {
@@ -96,6 +96,23 @@ export interface SheetResponse {
   items: { number: number; subject: string; discipline: string | null; annulled: boolean }[];
   submission: { session_id: string; answers: Record<string, Option>; completed_at: string; score: number; total: number } | null;
   result: Graded | null;
+  /** Nivelamento: faixa por matéria (mesma regra de revelação da nota). */
+  leveling?: Record<string, { percentage: number; band: string }>;
+}
+
+export interface LevelingBand { min_pct: number; label: string }
+export interface LevelingSettings { bands: LevelingBand[]; use_in_cronograma: boolean }
+export interface LevelingMatrix {
+  simulado: { id: string; title: string; starts_at: string; ends_at: string | null; modality: string };
+  bands: LevelingBand[];
+  subjects: string[];
+  students: { user_id: string; full_name: string | null; email: string | null;
+    subjects: Record<string, { correct: number; total: number; percentage: number; band: string }> }[];
+  band_counts: Record<string, Record<string, number>>;
+}
+
+export function levelingFetch<T>(slug: string, path: string, init?: RequestInit) {
+  return classesFetch<T>(slug, `/leveling${path}`, init);
 }
 
 export function emptyItems(n: number, from: KeyItemDraft[] = []): KeyItemDraft[] {

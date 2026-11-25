@@ -385,7 +385,7 @@ function CronogramaInner() {
         <p className="mx-auto mb-6 max-w-xl text-center text-[14px] text-slate-600 dark:text-white/65">
           Um plano de estudos até o ENEM que respeita a ordem dos conteúdos, prioriza o que mais cai e agenda revisões no tempo certo para você não esquecer.
         </p>
-        <SetupWizard defaults={status.defaults!} klass={status.class} onCreated={() => { setAnchor(null); loadStatus(); }} />
+        <SetupWizard defaults={status.defaults!} klass={status.class} leveling={status.leveling} onCreated={() => { setAnchor(null); loadStatus(); }} />
       </div>
     );
   }

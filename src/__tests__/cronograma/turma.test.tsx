@@ -113,6 +113,23 @@ describe('Assistente de criação com turma', () => {
   });
 });
 
+describe('Nivelamento no assistente', () => {
+  it('CT-C10 com nivelamento, mostra o ponto de partida e não envia autoavaliação', async () => {
+    fetchMock.mockResolvedValue({});
+    const onCreated = vi.fn();
+    render(<SetupWizard defaults={{ exam_date: '2027-11-14', days_per_week: 5, hours_per_day: 2 }}
+      leveling={{ subjects: { 'Matemática': { percentage: 35, band: 'Básico' } } }} onCreated={onCreated} />);
+    fireEvent.click(screen.getByRole('button', { name: /Continuar/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Continuar/ }));
+    expect(screen.getByText('Seu ponto de partida')).toBeInTheDocument();
+    expect(screen.getByText(/Básico · 35%/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Confiança em/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Montar meu cronograma/ }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalled());
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).self_assessment).toBeUndefined();
+  });
+});
+
 describe('Flag do agente', () => {
   it('CT-C08 sem texto livre quando a escola desliga a IA', () => {
     render(<AgentChat today={TODAY} proposal={null} busy={false} canUndo={false} onSend={vi.fn()} onChip={vi.fn()}

@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { AlertTriangle, ChevronLeft, Loader2 } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, Layers, Loader2 } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
@@ -63,9 +63,17 @@ function DetailInner() {
                 {' · '}{data.students.length} {data.students.length === 1 ? 'envio' : 'envios'}{avg !== null ? ` · média ${avg}%` : ''}
               </p>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+            {sim.config.purpose === 'nivelamento' && (
+              <Link href={`/partners/${slug}/simulados/nivelamento/${sim.id}`}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                <Layers className="h-3.5 w-3.5" /> Matriz de nivelamento
+              </Link>
+            )}
             <Segmented<'resultados' | 'gabarito'>
               options={[{ value: 'resultados', label: 'Resultados' }, { value: 'gabarito', label: 'Gabarito' }]}
               value={tab} onChange={setTab} hex={org.brand_primary} />
+            </div>
           </div>
         </RevealItem>
         {tab === 'resultados' ? <Results data={data} /> : <KeyTab slug={slug} id={id} data={data} hex={org.brand_primary} onSaved={load} />}

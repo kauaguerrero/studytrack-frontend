@@ -147,6 +147,12 @@ export interface CronogramaStatus {
   /** Texto livre para o assistente (IA) liberado pela escola. Os atalhos funcionam sempre. */
   agent_enabled?: boolean;
   class?: ClassSummary | null;
+  /** Nivelamento que a escola usa como ponto de partida (substitui a autoavaliação). */
+  leveling?: LevelingSummary | null;
+}
+
+export interface LevelingSummary {
+  subjects: Record<string, { percentage: number; band: string }>;
 }
 
 export interface StudyLogEntry {

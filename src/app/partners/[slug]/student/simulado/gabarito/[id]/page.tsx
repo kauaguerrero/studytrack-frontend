@@ -103,7 +103,7 @@ function Sheet() {
               <div className="mt-2 flex flex-wrap gap-2">
                 {Object.entries(data.result.results_by_subject).map(([s, r]) => (
                   <span key={s} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                    {s}: {r.correct}/{r.total}
+                    {s}: {r.correct}/{r.total}{data.leveling?.[s] ? ` · ${data.leveling[s].band}` : ''}
                   </span>
                 ))}
               </div>

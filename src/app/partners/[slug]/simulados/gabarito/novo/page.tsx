@@ -45,6 +45,7 @@ function NovoInner() {
   const [endsAt, setEndsAt] = useState('');
   const [reveal, setReveal] = useState<'after_submit' | 'after_end'>('after_submit');
   const [visible, setVisible] = useState<string[]>([]);
+  const [leveling, setLeveling] = useState(false);
   const [items, setItems] = useState<KeyItemDraft[]>(() => emptyItems(45));
   const [saving, setSaving] = useState(false);
 
@@ -58,6 +59,7 @@ function NovoInner() {
         method: 'POST',
         body: JSON.stringify({
           title: title.trim(), starts_at: toIso(startsAt), ends_at: toIso(endsAt), reveal,
+          ...(leveling ? { purpose: 'nivelamento' } : {}),
           items: toPayload(items),
           ...(classes.length ? { visible_class_ids: visibleClassIdsPayload(visible) } : {}),
         }),
@@ -111,6 +113,13 @@ function NovoInner() {
               </div>
             </div>
             {classes.length > 0 && <ClassVisibilityPicker classes={classes} value={visible} onChange={setVisible} />}
+            <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+              <input type="checkbox" className="mt-1" checked={leveling} onChange={(e) => setLeveling(e.target.checked)} />
+              <span>
+                <b>É um nivelamento</b>
+                <span className="block text-xs text-slate-500">Cada aluno recebe uma faixa por matéria (Básico, Intermediário…) e você vê a matriz da turma.</span>
+              </span>
+            </label>
           </ElevatedCard>
         </RevealItem>
 
