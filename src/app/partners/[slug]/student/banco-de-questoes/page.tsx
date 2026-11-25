@@ -571,14 +571,8 @@ export default function BancoDeQuestoes() {
         const current = parseInt(sessionStorage.getItem(SESSION_KEY) || '0', 10);
         sessionStorage.setItem(SESSION_KEY, String(current + pts));
 
-        // RPC só para usuários sem org_id: o backend não atualizou monthly_points
-        if (!hasBackendGamification && userId) {
-          const supabase = createClient();
-          supabase.rpc('increment_monthly_points', { user_id: userId, points: 2 })
-            .then(({ error }) => {
-              if (error) reportError('MonthlyPointsUpdateError', String(error), { user_id: userId });
-            });
-        }
+        // Pontos são gravados só pelo backend (increment_monthly_points é
+        // service_role desde 2026-11-26); aqui só o contador da sessão.
       }
       if (result.gamification?.shield_awarded) {
         sessionStorage.setItem('qsr_shield_earned', '1');

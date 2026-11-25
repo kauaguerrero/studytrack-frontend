@@ -40,6 +40,7 @@ import {
   TriangleAlert,
   CalendarRange,
   School,
+  Flame,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -377,6 +378,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     { href: `/partners/${org.slug}/student/dashboard`,          icon: Home,           label: 'Início',         shortLabel: 'Início'      },
     ...(perm('cronograma_enabled', false) ? [{ href: `/partners/${org.slug}/student/cronograma`,  icon: CalendarRange,  label: 'Cronograma',     shortLabel: 'Cronograma' }] : []),
     ...(perm('banco_questoes_enabled') ? [{ href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,       label: 'Questões',       shortLabel: 'Questão'    }] : []),
+    ...(perm('banco_questoes_enabled') ? [{ href: `/partners/${org.slug}/student/meus-erros`,        icon: Flame,          label: 'Meus erros',     shortLabel: 'Erros'      }] : []),
     ...(perm('simulados_enabled')      ? [{ href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck, label: 'Simulados',      shortLabel: 'Simulado'   }] : []),
     ...(perm('ranking_enabled')        ? [{ href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,         label: 'Ranking',        shortLabel: 'Ranking'     }] : []),
     ...(perm('titulos_enabled')        ? [{ href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck,     label: 'Títulos',        shortLabel: 'Título'     }] : []),
