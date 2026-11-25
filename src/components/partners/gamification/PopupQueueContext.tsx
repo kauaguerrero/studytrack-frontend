@@ -44,6 +44,7 @@ import {
   type ReactNode,
 } from 'react';
 import { usePathname } from 'next/navigation';
+import type { ImportantAnnouncement } from '@/components/comms/ImportantAnnouncementPopup';
 import type {
   PartnerRankingResponse,
   PopupState,
@@ -63,6 +64,11 @@ type QueuePopupBase = {
 };
 
 export type QueuePopup =
+  | (QueuePopupBase & {
+      /** Aviso importante da escola/plataforma: só sai com "Entendi" (fase 9). */
+      kind: 'important_announcement';
+      announcement: ImportantAnnouncement;
+    })
   | (QueuePopupBase & {
       kind: 'onboarding';
       firstName: string;
@@ -161,6 +167,7 @@ interface PopupQueueContextValue {
 
 const POPUP_PRIORITIES: Record<QueuePopup['kind'], number> = {
   onboarding: 10,
+  important_announcement: 12,
   month_end: 15,
   streak_broken: 20,
   shield_popup: 30,

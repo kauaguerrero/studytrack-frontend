@@ -27,6 +27,9 @@ export interface OrgBranding {
   essay_window_start_time?: string | null;
   essay_window_end_day?: string | null;
   essay_window_end_time?: string | null;
+  /** WhatsApp da escola (só dígitos, com DDI) — fase 9. */
+  whatsapp_support?: string | null;
+  whatsapp_finance?: string | null;
 }
 
 interface UserProfile {

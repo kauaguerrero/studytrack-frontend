@@ -42,10 +42,12 @@ export interface PartnerOrgRow {
   essay_window_start_time: string | null;
   essay_window_end_day: string | null;
   essay_window_end_time: string | null;
+  whatsapp_support: string | null;
+  whatsapp_finance: string | null;
 }
 
 const ORG_COLUMNS =
-  'id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline, approved_student_photos, is_mock, timezone, essay_window_enabled, essay_window_start_day, essay_window_start_time, essay_window_end_day, essay_window_end_time';
+  'id, name, slug, logo_url, brand_primary, brand_secondary, brand_accent, plan_tier, max_students, invite_code, permissions, typewriter_tagline, approved_student_photos, is_mock, timezone, essay_window_enabled, essay_window_start_day, essay_window_start_time, essay_window_end_day, essay_window_end_time, whatsapp_support, whatsapp_finance';
 
 // Sem acesso a APIs de request (headers/cookies) aqui dentro — só o slug e o
 // admin client (service role, sem contexto de request). Requisito do

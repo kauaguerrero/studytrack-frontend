@@ -48,6 +48,8 @@ export interface OrgBranding {
   essay_window_start_time: string | null;
   essay_window_end_day: string | null;
   essay_window_end_time: string | null;
+  whatsapp_support?: string | null;
+  whatsapp_finance?: string | null;
 }
 
 interface PartnersLayoutProps {
@@ -230,6 +232,8 @@ export default async function PartnersLayout({ children, params }: PartnersLayou
     essay_window_start_time: org.essay_window_start_time ?? null,
     essay_window_end_day:    org.essay_window_end_day ?? null,
     essay_window_end_time:   org.essay_window_end_time ?? null,
+    whatsapp_support:        org.whatsapp_support ?? null,
+    whatsapp_finance:        org.whatsapp_finance ?? null,
   };
   const safePrimary = sanitizeCssHexColor(branding.brand_primary, '#6366f1');
   const safeSecondary = sanitizeCssHexColor(branding.brand_secondary, '#8b5cf6');

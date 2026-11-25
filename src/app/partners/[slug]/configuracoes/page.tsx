@@ -182,6 +182,8 @@ export default function ConfiguracoesPage() {
   const [approvedPhotos, setApprovedPhotos] = useState<OrgApprovedPhoto[]>(() => normalizeOrgApprovedPhotos(org.approved_student_photos));
   const [approvedPhotoUploading, setApprovedPhotoUploading] = useState(false);
   const [contactEmail, setContactEmail] = useState('');
+  const [waSupport, setWaSupport] = useState(org.whatsapp_support ?? '');
+  const [waFinance, setWaFinance] = useState(org.whatsapp_finance ?? '');
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(
     userProfile.themePreference === 'dark' ? 'dark' : 'light',
   );
@@ -508,6 +510,9 @@ export default function ConfiguracoesPage() {
       // Remove cache-buster antes de salvar
       if (logoUrl) payload.logo_url = logoUrl.split('?t=')[0];
       if (contactEmail) payload.contact_email = contactEmail;
+      // WhatsApp (fase 9): vazio apaga; o backend normaliza para só dígitos com DDI.
+      payload.whatsapp_support = waSupport.trim();
+      payload.whatsapp_finance = waFinance.trim();
 
       const res = await fetch(`${api}/api/partners/${org.slug}/settings`, {
         method: 'PATCH',
@@ -1209,6 +1214,17 @@ export default function ConfiguracoesPage() {
                 value={contactEmail}
                 onChange={(e) => setContactEmail(e.target.value)}
               />
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="whatsapp_support" className="text-xs">WhatsApp de suporte</Label>
+                <Input id="whatsapp_support" inputMode="tel" placeholder="(34) 99999-8888" value={waSupport} onChange={(e) => setWaSupport(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="whatsapp_finance" className="text-xs">WhatsApp do financeiro</Label>
+                <Input id="whatsapp_finance" inputMode="tel" placeholder="(34) 3333-4444" value={waFinance} onChange={(e) => setWaFinance(e.target.value)} />
+              </div>
+              <p className="text-[11px] text-slate-500 sm:col-span-2">Aparecem no menu do aluno como atalhos de WhatsApp. Deixe vazio para esconder.</p>
             </div>
           </div>
         </ElevatedCard>

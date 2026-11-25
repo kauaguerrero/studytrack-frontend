@@ -10,6 +10,8 @@ import { ShieldEarnedPopup } from './gamification/ShieldEarnedPopup'
 import { QuestionSessionRewardPopup } from './gamification/QuestionSessionRewardPopup'
 import { PopupQueueProvider, usePopupQueue } from './gamification/PopupQueueContext'
 import { PushManager } from './PushManager'
+import { ImportantAnnouncementPopup } from '@/components/comms/ImportantAnnouncementPopup'
+import { useAnnouncementNotification } from '@/contexts/AnnouncementNotificationContext'
 import { fetchPartnerGamificationCheckInStatusCached } from '@/hooks/usePartnerGamification'
 
 /**
@@ -31,6 +33,15 @@ function StudentThemeShellContent({
   const pathname = usePathname()
   const prevPathRef = useRef(pathname)
   const { currentPopup, enqueuePopup, dismissCurrentPopup, holdQueueUntilRouteChange } = usePopupQueue()
+  const { importantPending, acknowledge } = useAnnouncementNotification()
+  const [ackBusy, setAckBusy] = useState(false)
+
+  // Avisos importantes sem "Entendi" entram na fila (qualquer página; dedupe por id).
+  useEffect(() => {
+    for (const a of importantPending) {
+      enqueuePopup({ kind: 'important_announcement', routeScope: 'any', dedupeKey: `ann:${a.id}`, announcement: a })
+    }
+  }, [importantPending, enqueuePopup])
 
   // Controlado localmente: some após troca bem-sucedida sem precisar de reload
   const [showPasswordModal, setShowPasswordModal] = useState(mustChangePassword)
@@ -123,6 +134,20 @@ function StudentThemeShellContent({
           poder checar currentPopup e nunca aparecer por cima de um popup de
           gamificação (ver regras de convivência no próprio componente). */}
       <PushManager />
+
+      {currentPopup?.kind === 'important_announcement' && (
+        <ImportantAnnouncementPopup
+          announcement={currentPopup.announcement}
+          organizationName={org.name}
+          busy={ackBusy}
+          onAcknowledge={async () => {
+            setAckBusy(true)
+            try { await acknowledge(currentPopup.announcement.id); dismissCurrentPopup() }
+            catch { dismissCurrentPopup() }
+            finally { setAckBusy(false) }
+          }}
+        />
+      )}
 
       {currentPopup?.kind === 'shield_earned' && (
         <ShieldEarnedPopup onDismiss={dismissCurrentPopup} />

@@ -41,6 +41,8 @@ export interface OrgBranding {
   typewriter_tagline?: OrgTypewriterTagline | null;
   approved_student_photos?: OrgApprovedPhoto[] | null;
   is_mock?: boolean;
+  whatsapp_support?: string | null;
+  whatsapp_finance?: string | null;
 }
 
 interface StudentLayoutProps {
@@ -81,10 +83,12 @@ export default async function PartnerStudentLayout({ children, params }: Student
     typewriter_tagline: unknown;
     approved_student_photos: unknown;
     is_mock: boolean | null;
+    whatsapp_support: string | null;
+    whatsapp_finance: string | null;
   };
   const orgRes = await adminClient
     .from('organizations')
-    .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent, permissions, typewriter_tagline, approved_student_photos, is_mock')
+    .select('id, name, logo_url, brand_primary, brand_secondary, brand_accent, permissions, typewriter_tagline, approved_student_photos, is_mock, whatsapp_support, whatsapp_finance')
     .eq('slug', slug)
     .single();
   const org = orgRes.data as OrgRow | null;
@@ -133,6 +137,8 @@ export default async function PartnerStudentLayout({ children, params }: Student
     typewriter_tagline: normalizeOrgTypewriterTagline(org.typewriter_tagline),
     approved_student_photos: normalizeOrgApprovedPhotos(org.approved_student_photos),
     is_mock:          org.is_mock ?? false,
+    whatsapp_support: org.whatsapp_support ?? null,
+    whatsapp_finance: org.whatsapp_finance ?? null,
   };
   // Escapa < > & para evitar quebra prematura da tag <script> caso o slug
   // contenha sequências como "</script>" (JSON.stringify não escapa "/" por padrão).

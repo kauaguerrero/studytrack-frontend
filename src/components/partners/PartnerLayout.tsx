@@ -9,6 +9,7 @@ import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useOrg } from '@/contexts/OrgContext';
 import { StudyTimerWidget } from '@/components/timer/StudyTimerWidget';
+import { useMyLinks, whatsappHref } from '@/lib/org-comms';
 import { useEssayNotification } from '@/contexts/EssayNotificationContext';
 import { useReportNotification } from '@/contexts/ReportNotificationContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -39,6 +40,11 @@ import {
   Sparkles,
   Layers,
   Timer,
+  Megaphone,
+  CalendarDays,
+  Link2,
+  MessageCircle,
+  Wallet,
   ArrowLeftRight,
   TriangleAlert,
   CalendarRange,
@@ -59,6 +65,8 @@ interface NavItemDef {
   icon: React.ElementType;
   label: string;
   shortLabel: string;
+  /** Link para fora do portal (WhatsApp): abre em nova aba. */
+  external?: boolean;
 }
 
 function MobileAveBirdHeader() {
@@ -135,14 +143,17 @@ function SidebarNavItem({
   collapsed,
   showNotification,
   onClick,
+  external,
 }: NavItemDef & { collapsed?: boolean; showNotification?: boolean; onClick?: () => void }) {
   const pathname = usePathname();
-  const isActive = pathname === href || pathname.startsWith(href + '/');
+  const isActive = !external && (pathname === href || pathname.startsWith(href + '/'));
 
   const linkEl = (
     <Link
       href={href}
       onClick={onClick}
+      target={external ? '_blank' : undefined}
+      rel={external ? 'noopener noreferrer' : undefined}
       style={isActive ? { backgroundColor: 'var(--brand-primary)' } : undefined}
       className={cn(
         'partner-nav-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors relative',
@@ -334,6 +345,8 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
   const showPasswordModal = userProfile.mustChangePassword === true && !passwordModalDismissed;
   const isAssociate = userProfile.role === 'associate';
   const isPartnerStudent = variant === 'student';
+  // Links da escola no menu do aluno (fase 9) — uma leitura por montagem do layout.
+  const schoolLinks = useMyLinks(org.slug, isPartnerStudent && org.permissions?.links_enabled === true);
   const layoutPath = usePathname() ?? '';
   // Timer flutuante: fora da tela do timer e do simulado (que tem cronômetro próprio).
   const showTimerWidget = isPartnerStudent && org.permissions?.timer_enabled === true
@@ -377,6 +390,9 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
     ...(perm('flashcards_enabled', false) ? [{ href: `/partners/${org.slug}/flashcards`, icon: Layers, label: 'Flashcards', shortLabel: 'Cartões' }] : []),
     ...(perm('timer_enabled', false) ? [{ href: `/partners/${org.slug}/tempo-de-estudo`, icon: Timer, label: 'Tempo de estudo', shortLabel: 'Tempo' }] : []),
+    { href: `/partners/${org.slug}/avisos`, icon: Megaphone, label: 'Avisos', shortLabel: 'Avisos' },
+    ...(perm('calendario_enabled', false) ? [{ href: `/partners/${org.slug}/calendario`, icon: CalendarDays, label: 'Calendário', shortLabel: 'Agenda' }] : []),
+    ...(perm('links_enabled', false) ? [{ href: `/partners/${org.slug}/links`, icon: Link2, label: 'Links do menu', shortLabel: 'Links' }] : []),
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
     ...(perm('suporte_enabled')   ? [{ href: `/partners/${org.slug}/suporte`,   icon: LifeBuoy,        label: 'Suporte',          shortLabel: 'Suporte'   }] : []),
     ...(org.hasAssociates        ? [{ href: `/partners/${org.slug}/associados`, icon: UsersRound,      label: 'Associados',        shortLabel: 'Equipe'    }] : []),
@@ -399,6 +415,12 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/student/aulas`,      icon: Video,          label: 'Aulas',          shortLabel: 'Aulas'       }] : []),
     ...(perm('suporte_enabled')        ? [{ href: `/partners/${org.slug}/student/suporte`,           icon: LifeBuoy,       label: 'Suporte',        shortLabel: 'Suporte'     }] : []),
     { href: `/partners/${org.slug}/student/perfil`,             icon: User,           label: 'Perfil',         shortLabel: 'Perfil'      },
+    ...(perm('calendario_enabled', false) ? [{ href: `/partners/${org.slug}/student/calendario`, icon: CalendarDays, label: 'Calendário', shortLabel: 'Agenda' }] : []),
+    ...schoolLinks.map((l) => (l.embeddable === true
+      ? { href: `/partners/${org.slug}/student/links/${l.id}`, icon: Link2, label: l.title, shortLabel: l.title.slice(0, 10) }
+      : { href: l.url, icon: Link2, label: l.title, shortLabel: l.title.slice(0, 10), external: true })),
+    ...(whatsappHref(org.whatsapp_support) ? [{ href: whatsappHref(org.whatsapp_support)!, icon: MessageCircle, label: 'WhatsApp da escola', shortLabel: 'WhatsApp', external: true }] : []),
+    ...(whatsappHref(org.whatsapp_finance) ? [{ href: whatsappHref(org.whatsapp_finance)!, icon: Wallet, label: 'Financeiro', shortLabel: 'Financeiro', external: true }] : []),
   ];
 
   const associatePerms = userProfile.associatePermissions ?? { can_correct: true, can_import: false, can_view_students: false };

@@ -3,7 +3,7 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronDown, Bell as BellIcon } from 'lucide-react';
+import { X, ChevronDown, Bell as BellIcon, ExternalLink } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getAnnouncementIcon } from '@/lib/announcement-icons';
 import { useAnnouncementNotification } from '@/contexts/AnnouncementNotificationContext';
@@ -16,6 +16,10 @@ interface Announcement {
   target_plan: string;
   created_at: string;
   is_read: boolean;
+  source?: 'school' | 'platform';
+  image_url?: string | null;
+  link_url?: string | null;
+  is_important?: boolean;
 }
 
 function formatDate(iso: string): string {
@@ -56,6 +60,9 @@ function AnnouncementRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate text-sm font-bold text-white">{announcement.title}</p>
+            {announcement.source === 'school' && (
+              <span className="shrink-0 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-bold text-violet-300">Escola</span>
+            )}
             {!announcement.is_read && (
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
             )}
@@ -75,6 +82,10 @@ function AnnouncementRow({
             className="overflow-hidden"
           >
             <div className="border-t border-zinc-800 px-4 py-3.5">
+              {announcement.image_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={announcement.image_url} alt="" className="mb-3 max-h-56 w-full rounded-xl object-cover" />
+              )}
               {bullets.length > 1 ? (
                 <ul className="space-y-1.5">
                   {bullets.map((b, i) => (
@@ -86,6 +97,12 @@ function AnnouncementRow({
                 </ul>
               ) : (
                 <p className="whitespace-pre-line text-[13px] leading-relaxed text-zinc-300">{announcement.body}</p>
+              )}
+              {announcement.link_url && (
+                <a href={announcement.link_url} target="_blank" rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-1 text-[13px] font-semibold text-violet-300 hover:underline">
+                  Abrir link <ExternalLink className="h-3.5 w-3.5" />
+                </a>
               )}
             </div>
           </motion.div>
