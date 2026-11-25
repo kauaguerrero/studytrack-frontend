@@ -15,6 +15,7 @@ import { formatClock, formatDuration } from '@/lib/timer';
 import { StudyTimerPage } from '@/components/timer/StudyTimerPage';
 import { StudyTimerWidget } from '@/components/timer/StudyTimerWidget';
 import { SchoolTimerReport } from '@/components/timer/SchoolTimerReport';
+import { StudyTimeKpi } from '@/components/timer/StudyTimeKpi';
 
 const OPEN = { id: 't1', subject: 'Física', discipline: 'Cinemática', plan_item_id: null, status: 'running', started_at: '2026-11-25T13:00:00Z',
   auto_paused: false, ended_at: null, elapsed_seconds: 125 };
@@ -92,5 +93,20 @@ describe('timer', () => {
     expect(screen.getByText('1 de 2')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Turma'), { target: { value: 'c1' } });
     await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith('cenas', '/timer-report?days=7&class_id=c1'));
+  });
+
+  it('CT-T06 KPI do desempenho: 7 dias vs. anteriores, hoje e matéria top', async () => {
+    const by_day = Array.from({ length: 14 }, (_, k) => ({
+      date: `2026-11-${String(12 + k).padStart(2, '0')}`, seconds: k < 7 ? 600 : (k === 13 ? 1800 : 900),
+    }));
+    fetchMock.mockResolvedValue({ from: '2026-11-12', to: '2026-11-25', total_seconds: 0, sessions: 0, by_day,
+      by_subject: [{ subject: 'Física', seconds: 3000, sessions: 3, disciplines: [] }] });
+    render(<StudyTimeKpi slug="cenas" accent="#4f46e5" />);
+    // atual: 6×900 + 1800 = 7200 (2h); anterior: 7×600 = 4200 → +71%
+    expect(await screen.findByTestId('study-time-total')).toHaveTextContent('2h');
+    expect(screen.getByTestId('study-time-delta')).toHaveTextContent('+71% vs. 7 dias anteriores');
+    expect(screen.getByText('Hoje 30min')).toBeInTheDocument();
+    expect(screen.getByText('Mais estudada: Física')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('cenas', '/timer/report?days=14');
   });
 });

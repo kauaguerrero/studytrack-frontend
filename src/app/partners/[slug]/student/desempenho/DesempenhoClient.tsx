@@ -40,6 +40,7 @@ import { toast } from 'sonner';
 import { ESSAY_TYPE_CONFIGS, normalizeEssayType, pickDominantEssayType, type EssayType } from '@/lib/essay-types';
 import { cn } from '@/lib/utils';
 import { RevealGroup, RevealItem } from '@/components/partners/founder-ui';
+import { StudyTimeKpi } from '@/components/timer/StudyTimeKpi';
 import { StreakFlame } from '@/components/partners/gamification/StreakFlame';
 import { getStreakStage } from '@/components/partners/gamification/streakEvolution';
 import { readableBrandText } from '@/lib/brand-color';
@@ -972,6 +973,12 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
               accent={getStreakStage(analytics.overview.current_streak).id === 0 ? '#ea580c' : getStreakStage(analytics.overview.current_streak).color}
             />
           </RevealItem>
+
+          {org.permissions?.timer_enabled === true && (
+            <RevealItem>
+              <StudyTimeKpi slug={slug} accent={readableBrandText(org.brand_primary, '#4f46e5', 42)} />
+            </RevealItem>
+          )}
 
           <RevealItem className="grid gap-3 lg:grid-cols-12 lg:gap-4">
             <MetricShell className="lg:col-span-12">

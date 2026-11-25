@@ -92,7 +92,8 @@ export function useStudyTimer(slug: string, enabled = true) {
     const onChange = () => void refresh();
     window.addEventListener(TIMER_EVENT, onChange);
     window.addEventListener('focus', onChange);
-    const poll = window.setInterval(onChange, 60_000);
+    // 180s (custo de invocação na Vercel); foco na aba e as ações do próprio aluno já atualizam na hora.
+    const poll = window.setInterval(onChange, 180_000);
     return () => {
       window.removeEventListener(TIMER_EVENT, onChange);
       window.removeEventListener('focus', onChange);
