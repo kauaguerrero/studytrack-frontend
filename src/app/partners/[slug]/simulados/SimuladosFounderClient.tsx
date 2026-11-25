@@ -27,7 +27,7 @@ import {
   Plus, ChevronDown, Trophy, Users, BarChart2, BarChart3,
   CalendarDays, Pencil, Trash2, Play, Timer, BookOpen, X, SlidersHorizontal,
   Shuffle, ListChecks, Monitor, Printer, FileText, Download,
-  MapPin, Camera, Eye, RefreshCw, GraduationCap, Shield,
+  MapPin, Camera, Eye, RefreshCw, GraduationCap, Shield, ClipboardCheck,
 } from 'lucide-react';
 import SimuladoPreviewModal from '@/components/partners/simulados/SimuladoPreviewModal';
 import { downloadBlobResponse } from '@/lib/download-blob';
@@ -71,7 +71,7 @@ interface ScheduledSimulado {
   status: 'scheduled' | 'active' | 'ended';
   created_at: string;
   fixed_question_ids?: string[] | null;
-  modality?: 'online' | 'printed' | 'hybrid';
+  modality?: 'online' | 'printed' | 'hybrid' | 'gabarito';
   location_name?: string | null;
   location_address?: string | null;
   visible_class_ids?: string[] | null;
@@ -834,7 +834,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
     // Edição é sempre handleSave (PATCH) — nunca passa pelo seletor de
     // modalidade/tipo, então `modality`/local aqui só refletem o que o
     // simulado já tem; o form de edição mostra isso como somente-leitura.
-    setModality(sim.modality ?? 'online');
+    setModality(sim.modality === 'gabarito' ? 'online' : (sim.modality ?? 'online'));
     setLocationName(sim.location_name ?? '');
     setLocationAddress(sim.location_address ?? '');
     setVisibleClassIds(sim.visible_class_ids ?? []);
@@ -1504,6 +1504,20 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           <p className="mt-2 text-sm text-slate-500">Gera PDF da prova e do gabarito para aplicação em sala, no papel.</p>
                         </button>
                       </div>
+                      {/* Prova aplicada fora da plataforma (papel, PDF, livro): só o gabarito é cadastrado. */}
+                      <button
+                        type="button"
+                        onClick={() => { resetTypeSelectorState(); router.push(`/partners/${slug}/simulados/gabarito/novo`); }}
+                        className="mt-4 flex w-full items-center gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                      >
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                          <ClipboardCheck className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-slate-900">Só o gabarito</h3>
+                          <p className="mt-1 text-sm text-slate-500">A prova é sua (papel, PDF, apostila). Cadastre as respostas certas e o aluno marca A–E no app; a nota sai na hora.</p>
+                        </div>
+                      </button>
                     </>
                   )}
 
@@ -1743,6 +1757,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           {sim.modality === 'printed' && (
                             <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[11px] font-bold text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">Impresso</span>
                           )}
+                          {sim.modality === 'gabarito' && (
+                            <span className="rounded-full bg-sky-100 px-2.5 py-1 text-[11px] font-bold text-sky-700 dark:bg-sky-500/20 dark:text-sky-300">Por gabarito</span>
+                          )}
                           <h2 className="text-base font-bold text-slate-900 dark:text-white">
                             {sim.title}
                           </h2>
@@ -1799,6 +1816,25 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                               Não
                             </button>
                           </div>
+                        ) : sim.modality === 'gabarito' ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/partners/${slug}/simulados/gabarito/${sim.id}`)}
+                              className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800"
+                              title="Gabarito e resultados"
+                            >
+                              <BarChart3 className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(sim.id)}
+                              className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/10"
+                              title="Excluir"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
                         ) : (
                           <>
                             {(sim.modality === 'printed' || sim.status !== 'scheduled') && (

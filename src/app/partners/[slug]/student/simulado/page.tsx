@@ -608,7 +608,7 @@ export default function SimuladoPage() {
     starts_at: string;
     ends_at: string | null;
     already_completed: boolean;
-    modality?: 'online' | 'printed' | 'hybrid';
+    modality?: 'online' | 'printed' | 'hybrid' | 'gabarito';
     location_name?: string | null;
     location_address?: string | null;
     has_printed_submission?: boolean;
@@ -2150,6 +2150,7 @@ export default function SimuladoPage() {
                 {scheduledSimulados.map((sim) => {
                   const isPrinted = sim.modality === 'printed'
                   const isHybrid  = sim.modality === 'hybrid'
+                  const isAnswerKey = sim.modality === 'gabarito'
                   const isPast    = sim.ends_at ? new Date(sim.ends_at).getTime() <= nowTs : false
                   const hasPrintedSub = Boolean(sim.has_printed_submission)
 
@@ -2170,6 +2171,9 @@ export default function SimuladoPage() {
                         ? 'border-indigo-300/60 dark:border-indigo-500/30 bg-indigo-50/20 dark:bg-indigo-500/5'
                         : 'border-violet-300/60 dark:border-violet-500/30 bg-violet-50/30 dark:bg-violet-500/5'
                     }
+                  } else if (isAnswerKey) {
+                    badge = <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300">Cartão-resposta</span>
+                    borderCls = 'border-sky-300/60 dark:border-sky-500/30 bg-sky-50/20 dark:bg-sky-500/5'
                   } else {
                     badge = <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${sim.status === 'scheduled' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'}`}>{sim.status === 'scheduled' ? 'Agendado' : 'Ativo'}</span>
                     borderCls = sim.status === 'scheduled'
@@ -2224,6 +2228,17 @@ export default function SimuladoPage() {
                       // Estado 2: passado, sem submission, sem online → aguardando correção (badge já cuida)
                       cta = null
                     }
+                  } else if (isAnswerKey) {
+                    // Prova feita fora do app: o aluno só marca as letras no cartão-resposta.
+                    cta = (
+                      <Link
+                        href={`/partners/${slug}/student/simulado/gabarito/${sim.id}`}
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition hover:brightness-110 sm:w-auto sm:shrink-0"
+                        style={{ backgroundColor: 'var(--brand-primary)', color: brandTextColor }}
+                      >
+                        {sim.already_completed ? 'Ver resultado' : sim.status === 'scheduled' ? 'Ver cartão-resposta' : 'Marcar respostas'}
+                      </Link>
+                    )
                   } else {
                     // online puro — comportamento original
                     cta = (
@@ -2591,7 +2606,9 @@ export default function SimuladoPage() {
                             <span className={`text-sm font-black shrink-0 ${scoreColor(pct)}`}>{pct}%</span>
                           </div>
                         </div>
-                        <Link href={`/partners/${slug}/student/simulado/${session.id}/revisao`}
+                        <Link href={(session.config as { question_type?: string } | undefined)?.question_type === 'gabarito' && (session as { scheduled_simulado_id?: string | null }).scheduled_simulado_id
+                            ? `/partners/${slug}/student/simulado/gabarito/${(session as { scheduled_simulado_id?: string | null }).scheduled_simulado_id}`
+                            : `/partners/${slug}/student/simulado/${session.id}/revisao`}
                           className="shrink-0 flex items-center gap-1.5 text-xs font-bold px-4 py-3 sm:px-3 sm:py-2 rounded-lg transition-colors min-h-[44px] sm:min-h-0 justify-center hover:opacity-80"
                           style={{ color: 'var(--brand-primary)', background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)' }}>
                           <Brain size={13} /> Revisar

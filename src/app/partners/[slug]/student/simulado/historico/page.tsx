@@ -30,6 +30,7 @@ interface SimuladoSession {
     tri_score: number | null
     time_taken_secs: number
     completed_at: string
+    scheduled_simulado_id?: string | null
 }
 
 interface HistoryResponse {
@@ -264,7 +265,9 @@ export default function SimuladoHistoricoPage() {
                 />
             </div>
             <button
-                onClick={() => router.push(`/partners/${slug}/student/simulado/${s.id}/revisao`)}
+                onClick={() => router.push((s.config as { question_type?: string }).question_type === 'gabarito' && s.scheduled_simulado_id
+                    ? `/partners/${slug}/student/simulado/gabarito/${s.scheduled_simulado_id}`
+                    : `/partners/${slug}/student/simulado/${s.id}/revisao`)}
                 className="mt-3 flex items-center gap-1.5 text-xs font-bold transition-colors hover:opacity-75"
                 style={{ color: 'var(--brand-primary)' }}
             >
