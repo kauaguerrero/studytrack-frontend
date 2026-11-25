@@ -121,6 +121,21 @@ describe('WeekBoard', () => {
     expect(within(day('SEG 09/11')).getByText('1h reservados')).toBeInTheDocument();
     expect(within(day('SEG 09/11')).queryByRole('link')).toBeNull();
   });
+  it('CT-W15f flashcards e lista mágica: status de hoje, link só enquanto falta', () => {
+    const days = week();
+    days[2] = { ...days[2], blocks: [
+      { kind: 'flashcards', label: 'Flashcards', minutes: 20, auto: true, status: 'pending', detail: '12 cartões para hoje' },
+      { kind: 'lista_magica', label: 'Lista mágica', minutes: 30, auto: true, status: 'done', detail: 'Lista da semana feita' },
+    ] };
+    days[3] = { ...days[3], blocks: [{ kind: 'flashcards', label: 'Flashcards', minutes: 20, auto: true }] };
+    board([], { days, blockHref: (k) => `/x/${k}` });
+    const hoje = within(day('QUA 11/11'));
+    expect(hoje.getByRole('link', { name: /Revisar flashcards: 20min reservados/ })).toHaveAttribute('href', '/x/flashcards');
+    expect(hoje.getByText('12 cartões para hoje')).toBeInTheDocument();
+    expect(hoje.getByText('Lista da semana feita')).toBeInTheDocument();
+    expect(hoje.queryByText(/Fazer a lista →/)).toBeNull();
+    expect(within(day('QUI 12/11')).getByText('Flashcards')).toBeInTheDocument();
+  });
   it('CT-W16 fim de semana com capacidade 0 mostra "Folga" e sem barra de carga', () => {
     board([]);
     expect(within(day('SÁB 14/11')).getByText('Folga')).toBeInTheDocument();

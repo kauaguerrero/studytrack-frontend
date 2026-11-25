@@ -46,12 +46,20 @@ export interface ProjectedItem extends NodeView {
 }
 
 export type BlockKind = 'simulado' | 'redacao';
+/** Blocos que a escola liga (não são escolha do aluno): flashcards todo dia, lista mágica 1x/semana. */
+export type AutoBlockKind = 'flashcards' | 'lista_magica';
+export type DayBlockKind = BlockKind | AutoBlockKind;
 
 /** Tempo reservado na semana para simulado/redação (fora do conteúdo). */
 export interface DayBlock {
-  kind: BlockKind;
+  kind: DayBlockKind;
   label: string;
   minutes: number;
+  /** Reservado pelo sistema (módulo da escola), não pela rotina do aluno. */
+  auto?: boolean;
+  /** Só no dia de hoje, para os blocos automáticos. */
+  status?: 'pending' | 'done';
+  detail?: string;
 }
 
 /** Rotina além da semana fixa (study_plans.schedule_rules). */

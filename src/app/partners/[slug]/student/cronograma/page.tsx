@@ -486,9 +486,12 @@ function CronogramaInner() {
               onUnblock={unblock}
               onOpenClass={(c) => setClassTarget(c)}
               onWeeklyReview={(d) => setWeeklyDate(d)}
-              blockHref={(kind) => kind === 'simulado'
-                ? `/partners/${slug}/student/simulado`
-                : `/partners/${slug}/student/redacoes/nova`}
+              blockHref={(kind) => ({
+                simulado: `/partners/${slug}/student/simulado`,
+                redacao: `/partners/${slug}/student/redacoes/nova`,
+                flashcards: `/partners/${slug}/student/flashcards`,
+                lista_magica: `/partners/${slug}/student/lista-magica`,
+              })[kind]}
             />
           )}
           {view && mode === 'mes' && anchor && (

@@ -13,10 +13,10 @@ import {
   useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent,
 } from '@dnd-kit/core';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { AlertTriangle, CheckCircle2, Pin, RotateCcw, MoreHorizontal, Ban, ClipboardList, PenLine, GraduationCap, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Pin, RotateCcw, MoreHorizontal, Ban, ClipboardList, PenLine, GraduationCap, Sparkles, Layers, Wand2 } from 'lucide-react';
 import {
   AREA_STYLE, LOAD_STYLE, WEEKDAY_SHORT, formatDayMonth, formatMinutes, hhmm, weekdayIndex,
-  type BlockKind, type ClassOccurrence, type DayBlock, type DayInfo, type PlanItem,
+  type DayBlockKind, type ClassOccurrence, type DayBlock, type DayInfo, type PlanItem,
 } from '@/lib/cronograma';
 
 // Máximo de cards visíveis por dia antes da rolagem interna.
@@ -69,7 +69,7 @@ export function WeekBoard({
   /** Desfaz o bloqueio de um dia (sem IA, sem cota). */
   onUnblock?: (date: string) => void;
   /** Link do card de simulado/redação reservado na rotina. */
-  blockHref?: (kind: BlockKind) => string;
+  blockHref?: (kind: DayBlockKind) => string;
   /** Aula da turma (card roxo): abre "vou faltar / faltei". */
   onOpenClass?: (occ: ClassOccurrence) => void;
   /** Dia de revisão da rotina: abre as 4 opções da revisão da semana. */
@@ -164,7 +164,7 @@ function DayColumn({
   onOpenItem: (item: PlanItem) => void;
   onOpenReviews: (group: ReviewGroup) => void;
   onUnblock?: (date: string) => void;
-  blockHref?: (kind: BlockKind) => string;
+  blockHref?: (kind: DayBlockKind) => string;
   onOpenClass?: (occ: ClassOccurrence) => void;
   onWeeklyReview?: (date: string) => void;
 }) {
@@ -406,9 +406,11 @@ function DraggableStudy({
   );
 }
 
-const BLOCK_STYLE: Record<BlockKind, { icon: typeof ClipboardList; cta: string }> = {
+const BLOCK_STYLE: Record<DayBlockKind, { icon: typeof ClipboardList; cta: string }> = {
   simulado: { icon: ClipboardList, cta: 'Fazer simulado' },
   redacao: { icon: PenLine, cta: 'Escrever redação' },
+  flashcards: { icon: Layers, cta: 'Revisar flashcards' },
+  lista_magica: { icon: Wand2, cta: 'Fazer a lista' },
 };
 
 /** Simulado/redação reservados na rotina: não é conteúdo do planner, é um atalho. */
@@ -457,7 +459,12 @@ function BlockCard({ block, href }: { block: DayBlock; href?: string }) {
       <span className="mt-0.5 block text-[12px] font-semibold text-slate-800 dark:text-white/85">
         {formatMinutes(block.minutes)} reservados
       </span>
-      {href && <span className="mt-0.5 block text-[11px] font-bold underline-offset-2 group-hover:underline" style={{ color: 'var(--brand-ink)' }}>{cta} →</span>}
+      {block.detail && (
+        <span className={`mt-0.5 flex items-center gap-1 text-[11px] ${block.status === 'done' ? 'font-bold text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-white/65'}`}>
+          {block.status === 'done' && <CheckCircle2 className="h-3 w-3" />} {block.detail}
+        </span>
+      )}
+      {href && block.status !== 'done' && <span className="mt-0.5 block text-[11px] font-bold underline-offset-2 group-hover:underline" style={{ color: 'var(--brand-ink)' }}>{cta} →</span>}
     </>
   );
   const cls = 'group block w-full rounded-xl border p-2 text-left transition';
