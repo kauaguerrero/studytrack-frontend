@@ -50,6 +50,7 @@ import {
   CalendarRange,
   School,
   Flame,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -390,6 +391,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
     ...(perm('flashcards_enabled', false) ? [{ href: `/partners/${org.slug}/flashcards`, icon: Layers, label: 'Flashcards', shortLabel: 'Cartões' }] : []),
     ...(perm('timer_enabled', false) ? [{ href: `/partners/${org.slug}/tempo-de-estudo`, icon: Timer, label: 'Tempo de estudo', shortLabel: 'Tempo' }] : []),
+    ...(perm('materiais_enabled', false) ? [{ href: `/partners/${org.slug}/materiais`, icon: FileText, label: 'Material', shortLabel: 'Material' }] : []),
     { href: `/partners/${org.slug}/avisos`, icon: Megaphone, label: 'Avisos', shortLabel: 'Avisos' },
     { href: `/partners/${org.slug}/calendario`, icon: CalendarDays, label: 'Calendário', shortLabel: 'Agenda' },
     ...(perm('links_enabled', false) ? [{ href: `/partners/${org.slug}/links`, icon: Link2, label: 'Links do menu', shortLabel: 'Links' }] : []),
@@ -406,6 +408,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     ...(perm('banco_questoes_enabled') ? [{ href: `/partners/${org.slug}/student/meus-erros`,        icon: Flame,          label: 'Meus erros',     shortLabel: 'Erros'      }] : []),
     ...(perm('lista_magica_enabled', false) ? [{ href: `/partners/${org.slug}/student/lista-magica`, icon: Sparkles,       label: 'Lista mágica',   shortLabel: 'Lista'      }] : []),
     ...(perm('flashcards_enabled', false)   ? [{ href: `/partners/${org.slug}/student/flashcards`,   icon: Layers,         label: 'Flashcards',     shortLabel: 'Cartões'    }] : []),
+    ...(perm('materiais_enabled', false)    ? [{ href: `/partners/${org.slug}/student/materiais`,    icon: FileText,       label: 'Material',       shortLabel: 'Material'   }] : []),
     ...(perm('timer_enabled', false)        ? [{ href: `/partners/${org.slug}/student/timer`,        icon: Timer,          label: 'Timer',          shortLabel: 'Timer'      }] : []),
     ...(perm('simulados_enabled')      ? [{ href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck, label: 'Simulados',      shortLabel: 'Simulado'   }] : []),
     ...(perm('ranking_enabled')        ? [{ href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,         label: 'Ranking',        shortLabel: 'Ranking'     }] : []),
