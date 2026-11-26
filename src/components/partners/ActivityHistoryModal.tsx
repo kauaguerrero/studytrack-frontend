@@ -128,7 +128,7 @@ function renderActivityRow(item: FeedItem, i: number, onOpenAchievement: (item: 
             className="w-full h-full flex items-center justify-center"
             style={{ background: 'color-mix(in srgb, var(--brand-primary) 18%, #0f0f0f)' }}
           >
-            <User className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)', filter: 'drop-shadow(0 0 4px var(--brand-primary))' }} />
+            <User className="h-3.5 w-3.5" style={{ color: 'var(--brand-ink, var(--brand-primary))', filter: 'drop-shadow(0 0 4px var(--brand-primary))' }} />
           </div>
         )}
       </div>
@@ -137,7 +137,7 @@ function renderActivityRow(item: FeedItem, i: number, onOpenAchievement: (item: 
           {rowName} {verb}
         </span>
         {actionLabel && (
-          <span className="text-[12px] font-bold tracking-[-0.35px] truncate" style={{ color: 'var(--brand-primary)' }}>
+          <span className="text-[12px] font-bold tracking-[-0.35px] truncate" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>
             {actionLabel}
           </span>
         )}
@@ -225,7 +225,7 @@ export function ActivityHistoryModal({ onClose }: Props) {
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[8px]"
                 style={{ background: 'color-mix(in srgb, var(--brand-primary) 15%, transparent)' }}
               >
-                <Activity className="h-2.5 w-2.5" style={{ color: 'var(--brand-primary)' }} />
+                <Activity className="h-2.5 w-2.5" style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
               </div>
               <h3 className="text-sm font-extrabold text-slate-800 dark:text-white">
                 Atividades de {monthLabel}

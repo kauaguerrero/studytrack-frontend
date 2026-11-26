@@ -960,7 +960,7 @@ export function DashboardClient({
   return (
     <>
       {/* ── Container raiz — fundo adaptado ao tema ────────────────────────── */}
-      <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 px-4 pt-4 md:px-8 md:pt-8 pb-8 min-h-screen bg-slate-50 dark:bg-[#080808] transition-colors duration-200">
+      <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8 px-4 pt-4 md:px-8 md:pt-8 pb-8 min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-200">
         <RevealGroup className="flex flex-col gap-4 lg:gap-5">
 
           {/* ── 1. Hero Banner ─────────────────────────────────────────────── */}

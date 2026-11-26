@@ -84,7 +84,7 @@ export function HeroStat({ label, value, hint, className }: { label: string; val
 export function StudentPage({ kicker, title, description, icon: Icon, actions, aside, children, className }: Omit<PageShellProps, 'variant'>) {
   const { org } = useOrg();
   return (
-    <div className="relative min-h-screen -m-4 overflow-hidden bg-slate-50 px-4 py-4 md:-m-8 md:px-8 md:py-7 dark:bg-[#080808]">
+    <div className="relative min-h-screen -m-4 overflow-hidden bg-slate-50 px-4 py-4 md:-m-8 md:px-8 md:py-7 dark:bg-slate-950">
       <RevealGroup className={cn('relative z-10 space-y-5', className)}>
         <RevealItem>
           <BrandHero className="px-4 py-4 sm:px-6 sm:py-5" smokeColorHex={org.brand_primary ?? undefined} halftone={false} lighten

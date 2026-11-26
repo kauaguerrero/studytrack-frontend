@@ -970,9 +970,9 @@ export default function PerfilPage() {
   )
 
   // Estilos reutilizáveis com a cor brand
-  const brandPrimaryText = readableBrandText(org.brand_primary, BRAND_PRIMARY)
+  const brandPrimaryText = `var(--brand-ink, ${readableBrandText(org.brand_primary, BRAND_PRIMARY)})`
   const brandPrimaryOn = onBrandText(org.brand_primary)
-  const focusRingStyle = 'focus-visible:border-[var(--brand-primary)] focus-visible:ring-[var(--brand-primary)]'
+  const focusRingStyle = 'focus-visible:border-[var(--brand-ink,var(--brand-primary))] focus-visible:ring-[var(--brand-primary)]'
   const sectionCardClassName = 'partner-elevated-card partner-elevated-card-hover overflow-hidden rounded-[20px] border-0 bg-white shadow-none dark:bg-slate-900'
 
   return (
@@ -1706,7 +1706,7 @@ export default function PerfilPage() {
                           variant="outline"
                           onClick={handleTogglePush}
                           disabled={pushBusy || !pushSupported}
-                          className="w-full rounded-xl border-slate-200 font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 sm:w-[140px]"
+                          className="w-full rounded-xl border-slate-200 font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 sm:w-[140px]"
                         >
                           {pushBusy && <Loader2 size={16} className="mr-2 animate-spin" />}
                           {!pushSupported ? 'Não suportado' : pushEnabled ? 'Desativar' : 'Ativar'}
@@ -1727,7 +1727,7 @@ export default function PerfilPage() {
                           variant="outline"
                           onClick={handleToggleRankStreakPopups}
                           disabled={popupPrefSaving}
-                          className="w-full rounded-xl border-slate-200 font-semibold text-slate-700 dark:border-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 sm:w-[140px]"
+                          className="w-full rounded-xl border-slate-200 font-semibold text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 sm:w-[140px]"
                         >
                           {popupPrefSaving && <Loader2 size={16} className="mr-2 animate-spin" />}
                           {(profile?.rank_streak_popups_enabled ?? true) ? 'Desativar' : 'Ativar'}

@@ -120,7 +120,7 @@ export function CompetencyScoreBar({
                   className={cn(
                     'relative shrink-0 rounded-md p-1 transition',
                     commentOpen || hasComment
-                      ? 'text-[var(--brand-primary)] dark:text-white'
+                      ? 'text-[var(--brand-ink,var(--brand-primary))] dark:text-white'
                       : 'text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200',
                   )}
                 >
@@ -139,7 +139,7 @@ export function CompetencyScoreBar({
                     className={cn(
                       'h-8 min-w-0 flex-1 rounded-md border text-xs font-bold tabular-nums transition',
                       item.score === option
-                        ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] text-white'
+                        ? 'border-[var(--brand-ink,var(--brand-primary))] bg-[var(--brand-primary)] text-white'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white',
                     )}
                   >
@@ -161,7 +161,7 @@ export function CompetencyScoreBar({
                     value={item.comment}
                     onChange={(e) => onCommentChange(item.competency, e.target.value)}
                     placeholder="Comentário da competência (opcional)"
-                    className="min-h-[88px] w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                    className="min-h-[88px] w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-900 outline-none focus:border-[var(--brand-ink,var(--brand-primary))] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
               )}
@@ -185,7 +185,7 @@ export function CompetencyScoreBar({
             className={cn(
               'inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-xs font-semibold transition',
               open === 'general'
-                ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/10 text-slate-900 dark:text-white'
+                ? 'border-[var(--brand-ink,var(--brand-primary))] bg-[var(--brand-primary)]/10 text-slate-900 dark:text-white'
                 : generalOk
                   ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300'
                   : 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300',
@@ -218,7 +218,7 @@ export function CompetencyScoreBar({
                 value={generalComment}
                 onChange={(e) => onGeneralCommentChange(e.target.value)}
                 placeholder={`Escreva um comentário geral da redação (mín. ${GENERAL_MIN} caracteres)`}
-                className="min-h-[160px] w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                className="min-h-[160px] w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm text-slate-900 outline-none focus:border-[var(--brand-ink,var(--brand-primary))] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
               />
               <p className={cn('mt-1 text-[11px]', generalOk ? 'text-slate-400' : 'text-amber-600 dark:text-amber-400')}>
                 {generalLength} caracteres{!generalOk && ` — mínimo ${GENERAL_MIN}`}
@@ -236,7 +236,7 @@ export function CompetencyScoreBar({
           className={cn(
             'self-start rounded-md p-1.5 transition',
             pinned
-              ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] dark:text-white'
+              ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-ink,var(--brand-primary))] dark:text-white'
               : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200',
           )}
         >

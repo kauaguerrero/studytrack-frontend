@@ -1081,7 +1081,7 @@ export function PhotoEssayUploader({
             <textarea
               value={transcription}
               onChange={(e) => setTranscription(e.target.value)}
-              className="min-h-[380px] w-full resize-y rounded-xl border border-slate-300 bg-white p-4 text-sm leading-relaxed text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+              className="min-h-[380px] w-full resize-y rounded-xl border border-slate-300 bg-white p-4 text-sm leading-relaxed text-slate-900 outline-none transition focus:border-[var(--brand-ink,var(--brand-primary))] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
             />
           </div>
 

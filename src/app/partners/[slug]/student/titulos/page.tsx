@@ -112,7 +112,7 @@ export default function PartnerStudentTitlesPage() {
 
   return (
     <ModuleGuard permKey="titulos_enabled">
-    <div className="relative min-h-screen -m-4 overflow-hidden bg-slate-50 px-4 py-5 md:-m-8 md:px-8 md:py-8 dark:bg-[#080808]">
+    <div className="relative min-h-screen -m-4 overflow-hidden bg-slate-50 px-4 py-5 md:-m-8 md:px-8 md:py-8 dark:bg-slate-950">
       <RevealGroup className="relative z-10 space-y-6">
         <RevealItem>
           <BrandHero className="p-5 lg:p-8">
@@ -214,7 +214,7 @@ export default function PartnerStudentTitlesPage() {
                           }}
                         >
                           <div className="absolute inset-2 rounded-[1rem] border border-white/50 dark:border-white/10" />
-                          <IdentityIcon className="relative z-10 h-9 w-9" style={{ color: 'var(--brand-primary)' }} />
+                          <IdentityIcon className="relative z-10 h-9 w-9" style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
                         </div>
 
                         <div className="min-w-0 flex-1">

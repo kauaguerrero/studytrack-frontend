@@ -452,7 +452,7 @@ function CronogramaInner() {
 
   return (
     // Mesmo esqueleto da página de Simulados: fundo cinza, coluna de 6xl, hero com voltar.
-    <div className="relative min-h-screen -m-4 bg-slate-50 px-4 py-5 dark:bg-[#080808] md:-m-8 md:px-8 md:py-8">
+    <div className="relative min-h-screen -m-4 bg-slate-50 px-4 py-5 dark:bg-slate-950 md:-m-8 md:px-8 md:py-8">
     {celebrate > 0 && <CelebrationConfetti key={celebrate} />}
     <RevealGroup className="relative space-y-5 pb-8">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}

@@ -224,11 +224,11 @@ function ProfileCompletionNudge({
             aria-label={`Complete seu perfil — ${completedCount} de ${totalCount} concluído`}
           >
             <div
-              className="flex h-9 w-9 items-center justify-center rounded-full"
-              style={{ background: `conic-gradient(var(--brand-primary) ${pct}%, rgb(226 232 240) ${pct}%)` }}
+              className="flex h-9 w-9 items-center justify-center rounded-full [--ring-track:rgb(226_232_240)] dark:[--ring-track:rgb(51_65_85)]"
+              style={{ background: `conic-gradient(var(--brand-ink, var(--brand-primary)) ${pct}%, var(--ring-track) ${pct}%)` }}
             >
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white dark:bg-slate-900">
-                <Sparkles className="h-3.5 w-3.5" style={{ color: 'var(--brand-primary)' }} />
+                <Sparkles className="h-3.5 w-3.5" style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
               </div>
             </div>
           </Link>
@@ -252,7 +252,7 @@ function ProfileCompletionNudge({
       }}
     >
       <div className="flex items-center gap-1.5">
-        <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-primary)' }} />
+        <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
         <p className="min-w-0 flex-1 truncate text-xs font-bold text-slate-800 dark:text-slate-100">Complete seu perfil</p>
         <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">
           {completedCount}/{totalCount}
@@ -282,7 +282,7 @@ function BottomTabItem({ href, icon: Icon, shortLabel, showNotification }: NavIt
         'min-h-[56px] transition-colors touch-manipulation active:scale-95 active:opacity-70',
         'text-[10px] font-bold tracking-wide',
         isActive
-          ? 'text-[var(--brand-primary)]'
+          ? 'text-[var(--brand-ink,var(--brand-primary))]'
           : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300',
       )}
     >

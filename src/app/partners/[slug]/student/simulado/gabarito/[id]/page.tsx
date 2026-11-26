@@ -107,7 +107,7 @@ function Sheet() {
                   </span>
                 ))}
               </div>
-              <Link href={`/partners/${slug}/student/meus-erros`} className="mt-3 inline-block text-sm font-bold" style={{ color: 'var(--brand-primary)' }}>
+              <Link href={`/partners/${slug}/student/meus-erros`} className="mt-3 inline-block text-sm font-bold" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>
                 Ver os temas que mais errei →
               </Link>
             </>

@@ -39,7 +39,7 @@ export function ImportantAnnouncementPopup({ announcement, organizationName, bus
           <p className="mt-2 max-h-[40vh] overflow-y-auto whitespace-pre-line text-sm leading-relaxed text-slate-600 dark:text-white/75">{announcement.body}</p>
           {announcement.link_url && (
             <a href={announcement.link_url} target="_blank" rel="noopener noreferrer"
-              className="mt-3 inline-flex items-center gap-1 text-sm font-semibold" style={{ color: 'var(--brand-primary)' }}>
+              className="mt-3 inline-flex items-center gap-1 text-sm font-semibold" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>
               Saiba mais <ExternalLink className="h-3.5 w-3.5" />
             </a>
           )}

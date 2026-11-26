@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { STREAK_STAGES, type StreakStage } from './streakEvolution';
 
@@ -49,9 +49,12 @@ export function StreakFlame({ stage, size = 24, animated = true, className }: Pr
   const shouldReduce = useReducedMotion();
   const rootRef = useRef<HTMLSpanElement>(null);
   const isDark = useIsDark(rootRef);
-  const uid = useId().replace(/[:]/g, '');
   const s: StreakStage =
     typeof stage === 'number' ? STREAK_STAGES[Math.max(0, Math.min(STREAK_STAGES.length - 1, stage))] : stage;
+  // Id determinístico: os gradientes só dependem do estágio e do tema, então chamas
+  // iguais podem compartilhar o id. useId() divergia entre servidor e cliente
+  // (árvores diferentes acima) e gerava aviso de hidratação no dashboard.
+  const uid = `st${s.id}${isDark ? 'd' : 'l'}`;
   const move = animated && !shouldReduce;
   const rainbow = !!s.rainbow;
   // CSS custom properties não resolvem de forma confiável em <stop stop-color>;

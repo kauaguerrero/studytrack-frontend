@@ -677,7 +677,7 @@ export default function BancoDeQuestoes() {
     <ModuleGuard permKey="banco_questoes_enabled">
     {/* Mesmo fundo das outras páginas do aluno, cobrindo o padding do <main>: antes era um
         bloco de outra cor (roxo translúcido no escuro) recortado dentro do fundo da plataforma. */}
-    <div className="-m-4 min-h-screen bg-slate-50 px-0 pb-4 pt-0 dark:bg-[#080808] md:-m-8 md:pb-8 overscroll-none">
+    <div className="-m-4 min-h-screen bg-slate-50 px-0 pb-4 pt-0 dark:bg-slate-950 md:-m-8 md:pb-8 overscroll-none">
 
       <ReportDialog
         open={reportDialogOpen}
@@ -744,7 +744,7 @@ export default function BancoDeQuestoes() {
 
         </section>
       ) : (
-        <header className="mx-auto flex max-w-4xl items-center justify-between gap-3 border-b border-slate-200 px-4 py-5 dark:border-slate-800"><div className="flex items-center gap-3">{fromErrors ? <a href={errorsHref} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"><ArrowLeft size={17} /> Meus erros</a> : <button onClick={handleOpenFilters} aria-label="Voltar aos filtros" className="rounded-xl p-2 text-slate-700 dark:text-slate-200"><ArrowLeft size={20} /></button>}<h1 className="text-xl font-bold text-slate-900 dark:text-white">{fromErrors && isDeepLink ? 'Refazer erros' : 'Banco de Questões'}</h1></div>{!(fromErrors && isDeepLink) && <button onClick={handleOpenFilters} className="rounded-xl border border-[var(--brand-primary)] px-4 py-2 text-sm font-bold text-[var(--brand-primary)] dark:border-[color-mix(in_srgb,var(--brand-primary)_45%,white)] dark:text-[color-mix(in_srgb,var(--brand-primary)_45%,white)]">Filtros</button>}</header>
+        <header className="mx-auto flex max-w-4xl items-center justify-between gap-3 border-b border-slate-200 px-4 py-5 dark:border-slate-800"><div className="flex items-center gap-3">{fromErrors ? <a href={errorsHref} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"><ArrowLeft size={17} /> Meus erros</a> : <button onClick={handleOpenFilters} aria-label="Voltar aos filtros" className="rounded-xl p-2 text-slate-700 dark:text-slate-200"><ArrowLeft size={20} /></button>}<h1 className="text-xl font-bold text-slate-900 dark:text-white">{fromErrors && isDeepLink ? 'Refazer erros' : 'Banco de Questões'}</h1></div>{!(fromErrors && isDeepLink) && <button onClick={handleOpenFilters} className="rounded-xl border border-[var(--brand-ink,var(--brand-primary))] px-4 py-2 text-sm font-bold text-[var(--brand-ink,var(--brand-primary))] dark:border-[color-mix(in_srgb,var(--brand-primary)_45%,white)] dark:text-[color-mix(in_srgb,var(--brand-primary)_45%,white)]">Filtros</button>}</header>
       )}
 
       {planItem && !isMenuOpen && (
@@ -775,7 +775,7 @@ export default function BancoDeQuestoes() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span
                   className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border ${isTabTodo
-                    ? 'border-[color-mix(in_srgb,var(--brand-primary)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-primary)_8%,transparent)] text-[var(--brand-primary)] dark:border-[color-mix(in_srgb,var(--brand-primary)_40%,transparent)] dark:bg-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] dark:text-[color-mix(in_srgb,var(--brand-primary)_45%,white)]'
+                    ? 'border-[color-mix(in_srgb,var(--brand-primary)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-primary)_8%,transparent)] text-[var(--brand-ink,var(--brand-primary))] dark:border-[color-mix(in_srgb,var(--brand-primary)_40%,transparent)] dark:bg-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] dark:text-[color-mix(in_srgb,var(--brand-primary)_45%,white)]'
                     : 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800'
                     }`}
                 >

@@ -142,7 +142,7 @@ export function ListaMagica() {
                     style={{ background: t.reason === 'erro_recente' ? 'rgba(239,68,68,0.12)' : 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}>
                     {t.reason === 'erro_recente'
                       ? <Flame className="h-5 w-5 text-red-500" />
-                      : <TrendingUp className="h-5 w-5" style={{ color: 'var(--brand-primary)' }} />}
+                      : <TrendingUp className="h-5 w-5" style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">{t.subject}</p>

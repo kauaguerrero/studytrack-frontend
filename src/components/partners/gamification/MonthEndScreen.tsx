@@ -227,7 +227,7 @@ export function MonthEndScreen({
                 animate={shouldReduce ? {} : { scale: 1 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 20, delay: 0.1 }}
               >
-                <Trophy className="h-7 w-7" style={{ color: 'var(--brand-primary)' }} />
+                <Trophy className="h-7 w-7" style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
               </motion.div>
 
               <motion.h2

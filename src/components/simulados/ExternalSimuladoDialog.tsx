@@ -45,7 +45,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
 
 const inputClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 shadow-sm outline-none transition-all dark:bg-slate-900 dark:text-slate-100 dark:border-white/10 ' +
-  'placeholder:font-medium placeholder:text-slate-400 hover:border-slate-300 focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 ' +
+  'placeholder:font-medium placeholder:text-slate-400 hover:border-slate-300 focus:border-[var(--brand-ink,var(--brand-primary))] focus:ring-2 focus:ring-[var(--brand-primary)]/20 ' +
   'disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-600 dark:disabled:bg-slate-800/50';
 
 const labelClass = 'mb-1.5 block text-xs font-bold text-slate-600 dark:text-slate-300';

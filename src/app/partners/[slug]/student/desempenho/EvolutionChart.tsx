@@ -61,7 +61,7 @@ export function EvolutionChart({ data, brandPrimary }: EvolutionChartProps) {
     color: s.key === 'questions' ? brandPrimary : s.color,
   }));
 
-  const titleColor = readableBrandText(brandPrimary, 'var(--brand-primary)');
+  const titleColor = `var(--brand-ink, ${readableBrandText(brandPrimary, 'var(--brand-primary)')})`;
 
   return (
     <ElevatedCard accentColor={brandPrimary} className="bg-white dark:bg-slate-900">

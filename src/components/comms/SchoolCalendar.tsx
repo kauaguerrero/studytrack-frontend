@@ -297,7 +297,7 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
                   {it.location && <p className="mt-1 flex items-center gap-1 text-xs text-slate-600 dark:text-white/65"><MapPin className="h-3 w-3" /> {it.location}</p>}
                   {it.description && <p className="mt-1 line-clamp-4 whitespace-pre-line text-xs text-slate-600 dark:text-white/65">{it.description}</p>}
                   {it.link_url && (
-                    <a href={it.link_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--brand-primary)' }}>
+                    <a href={it.link_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs font-semibold" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>
                       Abrir link <ExternalLink className="h-3 w-3" />
                     </a>
                   )}

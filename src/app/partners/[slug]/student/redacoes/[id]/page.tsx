@@ -389,7 +389,7 @@ export default function RedacaoDetailPage() {
 
   if (error || !essay) {
     return (
-      <div className="min-h-screen overflow-x-hidden bg-slate-50 dark:bg-[#080808]">
+      <div className="min-h-screen overflow-x-hidden bg-slate-50 dark:bg-slate-950">
         <div className="mx-auto w-full max-w-5xl px-4 py-8 md:px-6">
           <div className="flex flex-col items-center rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <BrokenPencilIllustration className="mb-1 h-auto w-48 sm:w-56" />

@@ -1009,7 +1009,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
               <div className="mt-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                 <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                   {([
-                    { key: 'questions', label: 'Questões', color: org.brand_primary },
+                    { key: 'questions', label: 'Questões', color: `var(--brand-ink, ${org.brand_primary})` },
                     { key: 'simulations', label: 'Simulados', color: '#2563eb' },
                     { key: 'essays', label: 'Redações', color: '#0f766e' },
                   ] as const).map((item) => {
@@ -1375,8 +1375,8 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
               </div>
 
               <div className="mt-4 rounded-2xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-500 dark:bg-white/5 dark:text-slate-400">
-                <p><span className="font-semibold" style={{ color: 'var(--brand-primary)' }}>Precisão</span> — sua taxa de acerto na matéria.</p>
-                <p className="mt-1"><span className="font-semibold" style={{ color: 'var(--brand-primary)' }}>Volume relativo</span> — quantas questões você já fez ali, na comparação com as outras matérias. Barra curta = poucos dados = não confie no % de precisão ainda.</p>
+                <p><span className="font-semibold" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>Precisão</span> — sua taxa de acerto na matéria.</p>
+                <p className="mt-1"><span className="font-semibold" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>Volume relativo</span> — quantas questões você já fez ali, na comparação com as outras matérias. Barra curta = poucos dados = não confie no % de precisão ainda.</p>
               </div>
 
               <div className="mt-4 flex gap-2">
@@ -1555,7 +1555,7 @@ export default function DesempenhoClient({ slug, initialState }: DesempenhoClien
                 <div className="mb-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                   <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                     {([
-                      { key: 'questions', label: 'Questões', color: org.brand_primary },
+                      { key: 'questions', label: 'Questões', color: `var(--brand-ink, ${org.brand_primary})` },
                       { key: 'simulados', label: 'Simulados', color: '#2563eb' },
                     ] as const).map((item) => {
                       const active = visibleHabitsMetrics.includes(item.key);

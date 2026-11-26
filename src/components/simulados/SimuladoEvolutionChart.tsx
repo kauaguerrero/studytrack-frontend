@@ -54,7 +54,7 @@ const AREA_COLORS: Record<string, string> = {
 
 export function SimuladoEvolutionChart({ external, platform, brandPrimary }: Props) {
   const [mode, setMode] = useState<'geral' | 'areas'>('geral');
-  const titleColor = readableBrandText(brandPrimary, 'var(--brand-primary)');
+  const titleColor = `var(--brand-ink, ${readableBrandText(brandPrimary, 'var(--brand-primary)')})`;
 
   const points = useMemo<ChartPoint[]>(() => {
     const ext: ChartPoint[] = external.flatMap((sim) => {
@@ -86,7 +86,7 @@ export function SimuladoEvolutionChart({ external, platform, brandPrimary }: Pro
 
   const series = mode === 'geral'
     ? [
-        { key: 'externo', label: 'Externos', color: brandPrimary },
+        { key: 'externo', label: 'Externos', color: `var(--brand-ink, ${brandPrimary})` },
         { key: 'plataforma', label: 'Na plataforma', color: PLATFORM_COLOR },
       ]
     : EXTERNAL_AREAS.map(({ key, label }) => ({ key, label, color: AREA_COLORS[key] }));

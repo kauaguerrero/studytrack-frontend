@@ -91,7 +91,7 @@ function PopupRankRow({
       <div className="min-w-0 flex-1">
         <p
           className={`truncate text-sm font-semibold ${theme.rankingRowTextClass}`}
-          style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
+          style={isSelf ? { color: 'var(--brand-ink, var(--brand-primary))' } : undefined}
         >
           {getRankingDisplayName(entry, { isSelf, withYouSuffix: true })}
         </p>

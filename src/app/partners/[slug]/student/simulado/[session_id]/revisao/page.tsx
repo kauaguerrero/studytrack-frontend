@@ -342,7 +342,7 @@ export default function RevisaoPage() {
                         <ArrowLeft size={20} />
                     </button>
                     <div className="flex items-center gap-2">
-                        <Brain size={22} style={{ color: 'var(--brand-primary)' }} />
+                        <Brain size={22} style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
                         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Revisão</h1>
                     </div>
                 </div>
@@ -350,7 +350,7 @@ export default function RevisaoPage() {
                 {/* Loading */}
                 {loading && (
                     <div className="flex flex-col items-center justify-center py-24 gap-4">
-                        <Loader2 size={36} className="animate-spin" style={{ color: 'var(--brand-primary)' }} />
+                        <Loader2 size={36} className="animate-spin" style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
                         <p className="text-slate-500 dark:text-slate-400 font-semibold text-sm">
                             Gerando a análise pedagógica...
                         </p>
@@ -605,8 +605,8 @@ export default function RevisaoPage() {
                                                         }}
                                                     >
                                                         <div className="flex items-center gap-1.5 mb-2">
-                                                            <Brain size={14} style={{ color: 'var(--brand-primary)' }} />
-                                                            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--brand-primary)' }}>
+                                                            <Brain size={14} style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
+                                                            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>
                                                                 Explicação Pedagógica
                                                             </span>
                                                         </div>

@@ -10,6 +10,7 @@ import {
   RevealGroup, RevealItem, ElevatedCard, SectionTitle,
   KpiCard, BrandButton, MiniBar,
 } from '@/components/partners/founder-ui';
+import { StudentPage, EmptyState } from '@/components/partners/PageShell';
 import { BookOpen, CheckCircle2, Play, ChevronDown, NotebookPen, Target } from 'lucide-react';
 import { MOCK_VIDEO_MODULES } from '../../../../../../studytrack-tutorial-mock';
 
@@ -265,25 +266,7 @@ export default function StudentAulasPage() {
   }
 
   return (
-    <RevealGroup className="mx-auto max-w-6xl space-y-4 px-4 py-5 md:px-6 md:py-8 md:space-y-5">
-
-      {/* ── Cabeçalho ─────────────────────────────────────────────────────── */}
-      <RevealItem className="flex items-center gap-3">
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-          style={{
-            background: 'color-mix(in srgb, var(--brand-primary) 16%, white)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.8), 0 2px 8px color-mix(in srgb, var(--brand-primary) 22%, transparent)',
-          }}
-        >
-          <BookOpen className="h-5 w-5" style={{ color: readableBrandText(org.brand_primary, 'var(--brand-primary)', 46) }} />
-        </div>
-        <div className="min-w-0">
-          <h1 className="font-display text-xl font-black text-slate-900 dark:text-white">Aulas</h1>
-          <p className="text-[12px] text-slate-500 dark:text-white/45">Suas videoaulas, no seu ritmo</p>
-        </div>
-      </RevealItem>
-
+    <StudentPage kicker="Estudar" title="Aulas" description="Suas videoaulas, no seu ritmo." icon={Play}>
       {loading ? (
         <RevealItem className="space-y-3">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -297,14 +280,9 @@ export default function StudentAulasPage() {
         </RevealItem>
       ) : modules.length === 0 ? (
         <RevealItem>
-          <ElevatedCard accentColor="var(--brand-primary)">
-            <div className="p-10 text-center">
-              <Play className="mx-auto mb-3 h-8 w-8 text-slate-300 dark:text-white/20" />
-              <p className="text-sm text-slate-500 dark:text-white/45">
-                Nenhuma aula disponível ainda.
-              </p>
-            </div>
-          </ElevatedCard>
+          <EmptyState icon={Play} title="Suas aulas aparecem aqui"
+            description="Quando a escola publicar videoaulas, elas ficam nesta tela, separadas por módulo."
+            steps={['Assista no seu ritmo, de onde parou', 'Seu progresso fica salvo em cada aula', 'Anote o que importa ao lado do vídeo']} />
         </RevealItem>
       ) : (
         <>
@@ -369,7 +347,7 @@ export default function StudentAulasPage() {
                               </p>
                               <div className="mt-1.5 flex items-center gap-2">
                                 <div className="w-20">
-                                  <MiniBar pct={module.progress.pct} color="var(--brand-primary)" height={5} />
+                                  <MiniBar pct={module.progress.pct} color="var(--brand-ink, var(--brand-primary))" height={5} />
                                 </div>
                                 <span className="text-[10.5px] font-semibold text-slate-400 dark:text-white/35">
                                   {module.progress.completed}/{module.progress.total}
@@ -443,7 +421,7 @@ export default function StudentAulasPage() {
                                     {/* Mini barra de progresso parcial */}
                                     {lesson.watched_pct > 0 && !lesson.completed && (
                                       <div className="w-8 shrink-0">
-                                        <MiniBar pct={lesson.watched_pct} color="var(--brand-primary)" height={4} />
+                                        <MiniBar pct={lesson.watched_pct} color="var(--brand-ink, var(--brand-primary))" height={4} />
                                       </div>
                                     )}
                                   </button>
@@ -597,6 +575,6 @@ export default function StudentAulasPage() {
           </div>
         </>
       )}
-    </RevealGroup>
+    </StudentPage>
   );
 }

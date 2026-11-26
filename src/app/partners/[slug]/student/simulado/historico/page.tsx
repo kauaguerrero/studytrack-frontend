@@ -252,7 +252,7 @@ export default function SimuladoHistoricoPage() {
                         {s.percentage}%
                     </span>
                     {s.tri_score != null && (
-                        <span className="text-xs font-semibold" style={{ color: 'var(--brand-primary)' }}>
+                        <span className="text-xs font-semibold" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>
                             TRI: {s.tri_score.toFixed(1)}
                         </span>
                     )}
@@ -269,7 +269,7 @@ export default function SimuladoHistoricoPage() {
                     ? `/partners/${slug}/student/simulado/gabarito/${s.scheduled_simulado_id}`
                     : `/partners/${slug}/student/simulado/${s.id}/revisao`)}
                 className="mt-3 flex items-center gap-1.5 text-xs font-bold transition-colors hover:opacity-75"
-                style={{ color: 'var(--brand-primary)' }}
+                style={{ color: 'var(--brand-ink, var(--brand-primary))' }}
             >
                 <Brain size={13} /> Revisão
             </button>
@@ -312,7 +312,7 @@ export default function SimuladoHistoricoPage() {
                 <div className="mt-3 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     {pct != null && <div className={`h-1.5 rounded-full ${scoreBarBg(pct)}`} style={{ width: `${pct}%` }} />}
                 </div>
-                <span className="mt-3 flex items-center gap-1.5 text-xs font-bold" style={{ color: 'var(--brand-primary)' }}>
+                <span className="mt-3 flex items-center gap-1.5 text-xs font-bold" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>
                     <ClipboardList size={13} /> Editar
                 </span>
             </button>

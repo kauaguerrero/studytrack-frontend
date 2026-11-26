@@ -426,7 +426,7 @@ export default function StudentRedacoesPage() {
 
   return (
     <ModuleGuard permKey="redacoes_enabled">
-    <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 bg-slate-50 dark:bg-[#080808]">
+    <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 bg-slate-50 dark:bg-slate-950">
       <RevealGroup className="relative mx-auto max-w-6xl space-y-5 pb-8">
 
         {/* ── Header ────────────────────────────────────────────────────── */}
@@ -639,7 +639,7 @@ export default function StudentRedacoesPage() {
                 <select
                   value={essayTypeFilter}
                   onChange={(e) => setEssayTypeFilter(e.target.value as EssayType | 'all')}
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-ink,var(--brand-primary))] dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
                 >
                   <option value="all">Todas</option>
                   {(Object.entries(ESSAY_TYPE_CONFIGS) as [EssayType, typeof ESSAY_TYPE_CONFIGS[EssayType]][])
@@ -655,7 +655,7 @@ export default function StudentRedacoesPage() {
                 <select
                   value={filter}
                   onChange={(e) => setFilter(e.target.value as Filter)}
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-ink,var(--brand-primary))] dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
                 >
                   <option value="all">Todas</option>
                   <option value="pending">Pendente</option>
@@ -669,7 +669,7 @@ export default function StudentRedacoesPage() {
                 <select
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value as SortOption)}
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[var(--brand-ink,var(--brand-primary))] dark:border-white/10 dark:bg-white/[0.05] dark:text-white"
                 >
                   <option value="date">Mais recente</option>
                   <option value="score_best">Melhor nota</option>
@@ -819,7 +819,7 @@ export default function StudentRedacoesPage() {
                       </p>
                       <Link
                         href={`/partners/${slug}/student/redacoes/${essay.id}`}
-                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-[var(--brand-primary)] hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:text-white sm:w-auto"
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-[var(--brand-ink,var(--brand-primary))] hover:text-slate-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:text-white sm:w-auto"
                       >
                         <Eye className="h-4 w-4" />
                         {showScore ? 'Ver correção' : 'Ver redação'}

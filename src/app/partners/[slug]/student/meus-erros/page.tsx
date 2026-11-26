@@ -140,6 +140,27 @@ function MenuOption({ on, onClick, multi = false, children }: { on: boolean; onC
   );
 }
 
+// Trecho do enunciado em texto puro: tira os delimitadores de LaTeX ($…$) e troca
+// os comandos mais comuns pelo símbolo, para não aparecer "$\mu$" na lista.
+const TEX: Record<string, string> = {
+  mu: 'μ', Delta: 'Δ', delta: 'δ', alpha: 'α', beta: 'β', gamma: 'γ', pi: 'π', theta: 'θ', lambda: 'λ',
+  sigma: 'σ', omega: 'ω', Omega: 'Ω', rho: 'ρ', cdot: '·', times: '×', le: '≤', leq: '≤', ge: '≥', geq: '≥',
+  approx: '≈', neq: '≠', infty: '∞', degree: '°', circ: '°', to: '→', rightarrow: '→',
+};
+function plainSnippet(s: string | null | undefined): string {
+  return (s ?? '')
+    .replace(/\$\$?([^$]+)\$\$?/g, (_, m: string) => m
+      .replace(/\\(?:text|mathrm|mathbf)\{([^}]*)\}/g, '$1')
+      .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '$1/$2')
+      .replace(/\\[,;:! ]/g, ' ')
+      .replace(/\\([a-zA-Z]+)/g, (_x: string, cmd: string) => TEX[cmd] ?? cmd)
+      .replace(/[{}]/g, '')
+      .replace(/\^/g, '')
+      .replace(/_/g, ''))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function formatDate(iso: string | null): string {
   if (!iso) return '';
   try {
@@ -433,7 +454,7 @@ function MeusErros() {
                               className="group/q flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition hover:border-slate-200 hover:bg-white dark:border-white/5 dark:bg-white/5 dark:hover:bg-white/10">
                               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-black text-slate-500 shadow-sm dark:bg-white/10 dark:text-slate-300">{qi + 1}</span>
                               <span className="min-w-0 flex-1">
-                                <span className="line-clamp-2 text-[13px] leading-snug text-slate-700 dark:text-slate-300">{q.snippet || 'Questão'}</span>
+                                <span className="line-clamp-2 text-[13px] leading-snug text-slate-700 dark:text-slate-300">{plainSnippet(q.snippet) || 'Questão'}</span>
                                 {q.year && <span className="mt-1 inline-block rounded-full bg-slate-200/70 px-2 py-0.5 text-[10.5px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">{q.year}</span>}
                               </span>
                               <span className="mt-0.5 flex shrink-0 items-center gap-1 text-[11.5px] font-bold text-slate-400 transition group-hover/q:text-slate-700 dark:group-hover/q:text-white">

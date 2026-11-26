@@ -1792,8 +1792,8 @@ export default function SimuladoPage() {
     <ModuleGuard permKey="simulados_enabled">
     <>
       {openingLink && step !== 'quiz' && (
-        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-3 bg-slate-50 text-slate-600 dark:bg-[#080808] dark:text-white/70">
-          <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'var(--brand-primary)' }} />
+        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-3 bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-white/70">
+          <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
           <p className="text-sm font-semibold">Abrindo suas questões…</p>
         </div>
       )}
@@ -1908,7 +1908,7 @@ export default function SimuladoPage() {
 
       {/* ══════════════════════════ SETUP ════════════════════════════════════ */}
       {step === 'setup' && !showConfigModal && (
-        <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 bg-slate-50 dark:bg-[#080808]">
+        <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 bg-slate-50 dark:bg-slate-950">
           {loading && (
             <div className="fixed inset-0 z-[70] bg-black/35 backdrop-blur-[1px] flex items-center justify-center px-4">
               <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5 shadow-2xl">
@@ -1929,7 +1929,7 @@ export default function SimuladoPage() {
                   {START_STAGES.map((stage, idx) => (
                     <div key={stage} className="flex items-center justify-between text-xs">
                       <span className={`${idx <= startStage ? 'text-slate-700 dark:text-slate-200 font-semibold' : 'text-slate-400 dark:text-slate-500'}`}>{stage}</span>
-                      <span className={`${idx < startStage ? 'text-emerald-600 dark:text-emerald-400' : idx === startStage ? 'text-[var(--brand-primary)]' : 'text-slate-300 dark:text-slate-600'}`}>
+                      <span className={`${idx < startStage ? 'text-emerald-600 dark:text-emerald-400' : idx === startStage ? 'text-[var(--brand-ink,var(--brand-primary))]' : 'text-slate-300 dark:text-slate-600'}`}>
                         {idx < startStage ? 'Concluído' : idx === startStage ? 'Em andamento' : 'Pendente'}
                       </span>
                     </div>
@@ -2152,7 +2152,7 @@ export default function SimuladoPage() {
                                 setPendingUfgLanguageStart(null)
                                 if (pending) startSimulado(pending.simId, pending.discardActive, lang)
                               }}
-                              className="min-h-11 rounded-xl border-2 border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/5 hover:text-[var(--brand-primary)] disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-700 dark:text-slate-300 cursor-pointer"
+                              className="min-h-11 rounded-xl border-2 border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:border-[var(--brand-ink,var(--brand-primary))] hover:bg-[var(--brand-primary)]/5 hover:text-[var(--brand-ink,var(--brand-primary))] disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-700 dark:text-slate-300 cursor-pointer"
                             >
                               {lang}
                             </button>
@@ -2371,7 +2371,7 @@ export default function SimuladoPage() {
                 <ElevatedCard>
                   <div className="p-8 text-center sm:p-10">
                     <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5" style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}>
-                      <Trophy size={32} style={{ color: 'var(--brand-primary)' }} />
+                      <Trophy size={32} style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
                     </div>
                     <h2 className="font-display text-xl font-black text-slate-900 dark:text-white mb-2">Bem-vindo aos Simulados!</h2>
                     <p className="text-slate-500 dark:text-white/40 max-w-md mx-auto mb-6 text-sm leading-relaxed">
@@ -2606,7 +2606,7 @@ export default function SimuladoPage() {
                           </div>
                           <Link href={`/partners/${slug}/student/simulado/historico?aba=externos`}
                             className="shrink-0 flex items-center gap-1.5 text-xs font-bold px-4 py-3 sm:px-3 sm:py-2 rounded-lg transition-colors min-h-[44px] sm:min-h-0 justify-center hover:opacity-80"
-                            style={{ color: 'var(--brand-primary)', background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)' }}>
+                            style={{ color: 'var(--brand-ink, var(--brand-primary))', background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)' }}>
                             <ClipboardList size={13} /> Ver
                           </Link>
                         </div>
@@ -2633,7 +2633,7 @@ export default function SimuladoPage() {
                             ? `/partners/${slug}/student/simulado/gabarito/${(session as { scheduled_simulado_id?: string | null }).scheduled_simulado_id}`
                             : `/partners/${slug}/student/simulado/${session.id}/revisao`}
                           className="shrink-0 flex items-center gap-1.5 text-xs font-bold px-4 py-3 sm:px-3 sm:py-2 rounded-lg transition-colors min-h-[44px] sm:min-h-0 justify-center hover:opacity-80"
-                          style={{ color: 'var(--brand-primary)', background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)' }}>
+                          style={{ color: 'var(--brand-ink, var(--brand-primary))', background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)' }}>
                           <Brain size={13} /> Revisar
                         </Link>
                       </div>
@@ -2709,7 +2709,7 @@ export default function SimuladoPage() {
             <ElevatedCard accentColor="var(--brand-primary)" className="mx-auto max-w-xl p-5 md:p-7">
               <div className="flex items-start gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
-                  <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand-primary)' }} />
+                  <ClipboardList className="h-5 w-5" style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
                 </div>
                 <div className="min-w-0 pt-0.5">
                   <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Antes de começar</p>
@@ -2722,7 +2722,7 @@ export default function SimuladoPage() {
                   <li key={idx} className="flex gap-3">
                     <span
                       className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-bold"
-                      style={{ color: 'var(--brand-primary)' }}
+                      style={{ color: 'var(--brand-ink, var(--brand-primary))' }}
                     >
                       {idx + 1}
                     </span>
@@ -2742,7 +2742,7 @@ export default function SimuladoPage() {
 
               {preQuizInstructions.extra && (
                 <div className="mt-5 flex gap-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-4 py-3">
-                  <Flag className="h-4 w-4 shrink-0 mt-0.5" style={{ color: 'var(--brand-primary)' }} />
+                  <Flag className="h-4 w-4 shrink-0 mt-0.5" style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
                   <p className="text-sm font-semibold leading-relaxed text-slate-900 dark:text-white">
                     {preQuizInstructions.extra}
                   </p>
@@ -2962,7 +2962,7 @@ export default function SimuladoPage() {
                                 <QuestionRichText
                                   text={alt.text}
                                   className={`text-sm leading-snug [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
-                                  style={isSelected ? { color: 'var(--brand-primary)' } : undefined}
+                                  style={isSelected ? { color: 'var(--brand-ink, var(--brand-primary))' } : undefined}
                                 />
                               ) : alternativeImages.length === 0 ? (
                                 <span className="text-sm italic text-slate-400 dark:text-slate-500">
@@ -3134,7 +3134,7 @@ export default function SimuladoPage() {
                   </div>
                   {hasWeighted && (
                     <div className="text-center">
-                      <div className="text-2xl font-black text-[var(--brand-primary)]">
+                      <div className="text-2xl font-black text-[var(--brand-ink,var(--brand-primary))]">
                         {weightedNote}{isUegPointsMode ? `/${weightedResult?.weighted_max_points ?? 130}` : ''}
                       </div>
                       <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-1">
@@ -3166,7 +3166,7 @@ export default function SimuladoPage() {
                   )}
                   {typeof finishResult?.points_earned === 'number' && typeof finishResult?.total_points === 'number' && (
                     <div className="text-center">
-                      <div className="text-2xl font-black text-[var(--brand-primary)]">
+                      <div className="text-2xl font-black text-[var(--brand-ink,var(--brand-primary))]">
                         {finishResult.points_earned}/{finishResult.total_points}
                       </div>
                       <div className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-1">Pontos</div>

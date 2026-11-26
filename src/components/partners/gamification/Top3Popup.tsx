@@ -193,7 +193,7 @@ function RankingSliceRow({
       <div className="min-w-0 flex-1">
         <p
           className={`truncate text-[13px] font-semibold ${popupTheme.rankingRowTextClass}`}
-          style={isSelf ? { color: 'var(--brand-primary)' } : undefined}
+          style={isSelf ? { color: 'var(--brand-ink, var(--brand-primary))' } : undefined}
         >
           {getRankingDisplayName(entry, { isSelf, withYouSuffix: true })}
         </p>
@@ -208,7 +208,7 @@ function RankingSliceRow({
 
       <div className="flex shrink-0 flex-col items-end gap-1">
         <div className="flex items-center gap-1">
-          {isPrize && <Zap className="h-3 w-3" style={{ color: 'var(--brand-primary)' }} />}
+          {isPrize && <Zap className="h-3 w-3" style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />}
           <span
             className={`text-[13px] font-extrabold tabular-nums ${popupTheme.rankingRowValueClass}`}
             style={isTop3 && theme ? { color: theme.textColor } : undefined}

@@ -38,7 +38,7 @@ function DayColumn({ i }: { i: number }) {
 export function CronogramaSkeleton() {
   return (
     <div role="status" aria-label="Carregando cronograma"
-      className="relative min-h-screen -m-4 bg-slate-50 px-4 py-5 dark:bg-[#080808] md:-m-8 md:px-8 md:py-8">
+      className="relative min-h-screen -m-4 bg-slate-50 px-4 py-5 dark:bg-slate-950 md:-m-8 md:px-8 md:py-8">
       <span className="sr-only">Carregando cronograma…</span>
       <div className="space-y-5 pb-8">
         {/* Hero: título + controles à esquerda, roda de semanas + próximo passo à direita. */}

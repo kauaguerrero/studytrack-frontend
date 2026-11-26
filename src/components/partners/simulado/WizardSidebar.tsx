@@ -28,7 +28,7 @@ export function WizardSidebar({ rows, totalLabel, totalValue }: WizardSidebarPro
         </dl>
         <div className="mt-4 rounded-xl p-3" style={{ background: 'color-mix(in srgb, var(--brand-primary) 10%, transparent)' }}>
           <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">{totalLabel}</p>
-          <p className="text-2xl font-extrabold" style={{ color: 'var(--brand-primary)' }}>
+          <p className="text-2xl font-extrabold" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>
             {totalValue}
           </p>
         </div>

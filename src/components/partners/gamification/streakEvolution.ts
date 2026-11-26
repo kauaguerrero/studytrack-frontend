@@ -24,7 +24,7 @@ export interface StreakStage {
 }
 
 export const STREAK_STAGES: StreakStage[] = [
-  { id: 0, minDays: 0, name: 'Faísca', color: 'var(--brand-primary)', glowRgb: '249,115,22', particles: 0, whiteCore: false, haloPulse: false },
+  { id: 0, minDays: 0, name: 'Faísca', color: 'var(--brand-ink, var(--brand-primary))', glowRgb: '249,115,22', particles: 0, whiteCore: false, haloPulse: false },
   { id: 1, minDays: 7, name: 'Chama', color: '#F97316', glowRgb: '249,115,22', particles: 0, whiteCore: false, haloPulse: false },
   { id: 2, minDays: 30, name: 'Chama Intensa', color: '#EF4444', glowRgb: '239,68,68', particles: 3, whiteCore: false, haloPulse: false },
   { id: 3, minDays: 60, name: 'Fogo Azul', color: '#3B82F6', glowRgb: '59,130,246', particles: 4, whiteCore: true, haloPulse: false },

@@ -85,7 +85,7 @@ export function EssayRewardPopup({
                     : '0 20px 60px rgba(148,163,184,0.24)',
                 }}
               >
-                <FileText className="h-8 w-8" style={{ color: 'var(--brand-primary)' }} />
+                <FileText className="h-8 w-8" style={{ color: 'var(--brand-ink, var(--brand-primary))' }} />
               </div>
             </motion.div>
 

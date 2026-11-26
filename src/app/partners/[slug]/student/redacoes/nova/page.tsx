@@ -404,7 +404,7 @@ export default function NovaRedacaoPage() {
                     setEssayTypeLocked(false);
                   }
                 }}
-                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-[var(--brand-ink,var(--brand-primary))] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
               >
                 <option value="">Sem coletânea (tema livre)</option>
                 {availablePrompts.map((p) => (
@@ -417,14 +417,14 @@ export default function NovaRedacaoPage() {
           )}
 
           {prompt && (
-            <div className="rounded-2xl border border-[var(--brand-primary)]/20 bg-[var(--brand-primary)]/5 p-4 space-y-3">
+            <div className="rounded-2xl border border-[var(--brand-ink,var(--brand-primary))]/20 bg-[var(--brand-primary)]/5 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <div
                   className="h-1.5 w-1.5 rounded-full"
                   style={{ backgroundColor: 'var(--brand-primary)' }}
                 />
                 <p className="text-xs font-bold uppercase tracking-wide"
-                  style={{ color: 'var(--brand-primary)' }}>
+                  style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>
                   Coletânea
                 </p>
               </div>
@@ -437,7 +437,7 @@ export default function NovaRedacaoPage() {
                 </p>
               )}
               {prompt.support_items.length > 0 && (
-                <div className="space-y-3 pt-2 border-t border-[var(--brand-primary)]/10">
+                <div className="space-y-3 pt-2 border-t border-[var(--brand-ink,var(--brand-primary))]/10">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                     Textos de apoio
                   </p>
@@ -467,7 +467,7 @@ export default function NovaRedacaoPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 text-sm font-medium underline underline-offset-2"
-                          style={{ color: 'var(--brand-primary)' }}
+                          style={{ color: 'var(--brand-ink, var(--brand-primary))' }}
                         >
                           {item.label || item.content}
                         </a>
@@ -571,7 +571,7 @@ export default function NovaRedacaoPage() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Escreva ou cole sua redação aqui. Mínimo 100 caracteres."
-            className="min-h-[380px] w-full resize-y rounded-xl border border-slate-300 bg-white p-4 text-sm leading-relaxed text-slate-900 outline-none transition focus:border-[var(--brand-primary)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+            className="min-h-[380px] w-full resize-y rounded-xl border border-slate-300 bg-white p-4 text-sm leading-relaxed text-slate-900 outline-none transition focus:border-[var(--brand-ink,var(--brand-primary))] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
           />
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

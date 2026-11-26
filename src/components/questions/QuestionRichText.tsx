@@ -421,8 +421,8 @@ function computeKatexGroupScale(entry: KatexScopeEntry): number {
 }
 
 function KatexDisplayBlock({ html }: { html: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLSpanElement>(null)
+  const contentRef = useRef<HTMLSpanElement>(null)
   const instanceIdRef = useRef(0)
   if (!instanceIdRef.current) instanceIdRef.current = ++katexInstanceCounter
   const [state, setState] = useState<{ scale: number; overflowing: boolean } | null>(null)
@@ -492,12 +492,14 @@ function KatexDisplayBlock({ html }: { html: string }) {
 
   return (
     <span className="katex-display-block-outer flex max-w-full items-center gap-1">
-      <div
+      {/* <span> com display:block, não <div>: o bloco fica dentro do <p> do parágrafo
+          e <div> dentro de <p> é HTML inválido (aviso de hidratação). */}
+      <span
         ref={containerRef}
-        className={`katex-fragment katex-display-wrap min-w-0 flex-1 ${state?.overflowing ? 'custom-scrollbar overflow-x-auto' : 'overflow-hidden'}`}
+        className={`katex-fragment katex-display-wrap block min-w-0 flex-1 ${state?.overflowing ? 'custom-scrollbar overflow-x-auto' : 'overflow-hidden'}`}
       >
-        <div ref={contentRef} style={{ width: 'max-content' }} dangerouslySetInnerHTML={{ __html: html }} />
-      </div>
+        <span ref={contentRef} className="block" style={{ width: 'max-content' }} dangerouslySetInnerHTML={{ __html: html }} />
+      </span>
       {state?.overflowing && (
         <svg
           viewBox="0 0 24 24"

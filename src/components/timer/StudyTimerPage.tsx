@@ -72,7 +72,7 @@ export function StudyTimerPage() {
                 <circle cx="100" cy="100" r={R} fill="none" strokeWidth="10" className="stroke-slate-100 dark:stroke-white/10" />
                 {timer && (
                   <circle cx="100" cy="100" r={R} fill="none" strokeWidth="10" strokeLinecap="round"
-                    stroke="var(--brand-primary)" strokeDasharray={`${cycle * C} ${C}`}
+                    stroke="var(--brand-ink, var(--brand-primary))" strokeDasharray={`${cycle * C} ${C}`}
                     className="transition-[stroke-dasharray] duration-1000 ease-linear" style={{ opacity: running ? 1 : 0.4 }} />
                 )}
               </svg>

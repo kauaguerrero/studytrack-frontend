@@ -245,7 +245,7 @@ export function MateriasComposicaoStep({
       </div>
 
       <div className="rounded-xl border border-slate-200 p-3.5 dark:border-slate-700">
-        <p className="text-sm font-extrabold" style={{ color: 'var(--brand-primary)' }}>
+        <p className="text-sm font-extrabold" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>
           {distributed} / {qty} questões distribuídas
         </p>
         {distributed < qty && (

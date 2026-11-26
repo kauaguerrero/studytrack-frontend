@@ -106,7 +106,7 @@ export function QuickTimerButton({ slug }: { slug: string }) {
               </button>
             ))}
           </div>
-          <Link href={`/partners/${slug}/student/timer`} className="mt-3 block px-1 text-[12px] font-bold" style={{ color: 'var(--brand-primary)' }}>
+          <Link href={`/partners/${slug}/student/timer`} className="mt-3 block px-1 text-[12px] font-bold" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>
             Ver meu tempo de estudo →
           </Link>
         </div>,

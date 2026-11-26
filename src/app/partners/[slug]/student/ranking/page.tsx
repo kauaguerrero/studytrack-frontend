@@ -1141,7 +1141,7 @@ export default function RankingPage() {
 
   return (
     <ModuleGuard permKey="ranking_enabled">
-    <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 bg-slate-50 dark:bg-[#080808]">
+    <div className="relative min-h-screen -m-4 md:-m-8 px-4 py-5 md:px-8 md:py-8 bg-slate-50 dark:bg-slate-950">
       <RevealGroup className="relative mx-auto max-w-[900px] space-y-5 pb-8">
 
         {/* ── Header — switch Ranking (org) / Ranking Nacional ────────────── */}

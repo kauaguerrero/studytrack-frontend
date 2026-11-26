@@ -126,7 +126,7 @@ export function MultiSelectFilter({
           'flex min-h-[46px] max-h-28 w-full cursor-text flex-wrap items-center gap-1.5 overflow-y-auto rounded-xl border bg-white py-2 pr-8 shadow-sm transition-all dark:bg-slate-900 ' +
           (icon ? 'pl-8 ' : 'pl-2.5 ') +
           (open
-            ? 'border-[var(--brand-primary)] ring-2 ring-[var(--brand-primary)]/20'
+            ? 'border-[var(--brand-ink,var(--brand-primary))] ring-2 ring-[var(--brand-primary)]/20'
             : 'border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600')
         }
       >
@@ -232,7 +232,7 @@ export function MultiSelectFilter({
               <button
                 type="button"
                 onClick={() => setVisibleLimit((current) => current + INITIAL_OPTION_BATCH_SIZE)}
-                className="w-full rounded-lg px-2.5 py-2 text-left text-sm font-bold text-[var(--brand-primary)] hover:bg-slate-50 dark:hover:bg-slate-800"
+                className="w-full rounded-lg px-2.5 py-2 text-left text-sm font-bold text-[var(--brand-ink,var(--brand-primary))] hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 Mostrar mais {Math.min(INITIAL_OPTION_BATCH_SIZE, visibleOptions.length - renderedOptions.length)} opções
               </button>

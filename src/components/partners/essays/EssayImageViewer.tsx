@@ -90,7 +90,7 @@ export function EssayImageViewer({ src, alt, scrollRef, onScroll, syncScroll, cl
               className={cn(
                 'ml-0.5 inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition',
                 syncScroll.enabled
-                  ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] dark:text-white'
+                  ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-ink,var(--brand-primary))] dark:text-white'
                   : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800',
               )}
             >
