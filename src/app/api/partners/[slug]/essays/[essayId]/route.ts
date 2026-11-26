@@ -13,7 +13,14 @@ import {
 type ProfileRow = {
   role: string | null;
   organization_id: string | null;
+  associate_permissions?: Record<string, unknown> | null;
 };
+
+// Mesma regra do backend (_can_correct_essays): associate sem a chave (legado) pode corrigir.
+function associateCanCorrect(profile: ProfileRow): boolean {
+  const perms = profile.associate_permissions || {};
+  return perms.can_correct === undefined ? true : Boolean(perms.can_correct);
+}
 
 type CorrectorProfile = {
   id: string;
@@ -299,7 +306,7 @@ async function authorize(slug: string) {
   const admin = createAdminClient();
   const [{ data: org }, { data: requester }] = await Promise.all([
     admin.from('organizations').select('id').eq('slug', slug).maybeSingle<{ id: string }>(),
-    admin.from('profiles').select('role, organization_id').eq('id', user.id).maybeSingle<ProfileRow>(),
+    admin.from('profiles').select('role, organization_id, associate_permissions').eq('id', user.id).maybeSingle<ProfileRow>(),
   ]);
 
   if (!org?.id) {
@@ -319,6 +326,9 @@ async function authorize(slug: string) {
   if ((isFounder || isAssociate) && requester.organization_id !== org.id) {
     return { ok: false as const, response: NextResponse.json({ error: 'Acesso negado à organização.' }, { status: 403 }) };
   }
+  if (isAssociate && !associateCanCorrect(requester)) {
+    return { ok: false as const, response: NextResponse.json({ error: 'Sem permissão para corrigir redações.' }, { status: 403 }) };
+  }
 
   return { ok: true as const, admin, orgId: org.id, userId: user.id };
 }
@@ -337,7 +347,7 @@ export async function GET(
   const admin = createAdminClient();
   const [{ data: org }, { data: requester }] = await Promise.all([
     admin.from('organizations').select('id').eq('slug', slug).maybeSingle<{ id: string }>(),
-    admin.from('profiles').select('role, organization_id').eq('id', user.id).maybeSingle<ProfileRow>(),
+    admin.from('profiles').select('role, organization_id, associate_permissions').eq('id', user.id).maybeSingle<ProfileRow>(),
   ]);
 
   if (!org?.id) {
@@ -357,6 +367,9 @@ export async function GET(
   }
   if (!isAdmin && requester.organization_id !== org.id) {
     return NextResponse.json({ error: 'Acesso negado à organização.' }, { status: 403 });
+  }
+  if (isAssociate && !associateCanCorrect(requester)) {
+    return NextResponse.json({ error: 'Sem permissão para ver redações.' }, { status: 403 });
   }
 
   const { data: essay, error } = await admin

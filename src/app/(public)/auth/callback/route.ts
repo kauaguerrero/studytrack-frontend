@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import type { UserRole } from '@/types/roles'
+import { safeNextPath } from '@/lib/safe-next'
 
 type CookieSet = { name: string; value: string; options: CookieOptions }
 type CookieRemove = { name: string; options: CookieOptions }
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
   const error_description = searchParams.get('error_description')
   const recoveryType = searchParams.get('type') // Detecta se é reset de senha
   
-  const requestedNext = searchParams.get('next')
+  const requestedNext = safeNextPath(searchParams.get('next'))
 
   if (code) {
     const cookieStore = await cookies()
@@ -145,7 +146,7 @@ export async function GET(request: Request) {
         return res
       }
 
-      const defaultNext = searchParams.get('next') ?? '/portal'
+      const defaultNext = requestedNext ?? '/portal'
       redirectUrl = `${origin}${defaultNext === requestedNext ? '/portal' : defaultNext}`
       const res = NextResponse.redirect(redirectUrl)
       applyCapturedCookies(res, capturedSets, capturedRemoves)

@@ -129,7 +129,11 @@ export default function ConvidarAlunosPage() {
         headers: { Authorization: `Bearer ${session.access_token}` },
         body: formData,
       });
-      const data = await res.json();
+      if (res.status === 429) {
+        toast.error('Muitas importações seguidas. Aguarde um minuto e tente de novo.');
+        return;
+      }
+      const data = await res.json().catch(() => ({ error: 'Resposta inválida do servidor.' }));
       if (res.ok) {
         setResult(data);
         // Limpa apenas o arquivo — mantém defaultPassword para exibir credenciais

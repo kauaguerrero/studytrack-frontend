@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 type ProfileRow = {
+  associate_permissions?: { can_correct?: boolean } | null;
   role: string | null;
   organization_id: string | null;
 };
@@ -185,7 +186,7 @@ export async function GET(
   const admin = createAdminClient();
   const [{ data: org }, { data: requester }] = await Promise.all([
     admin.from('organizations').select('id').eq('slug', slug).maybeSingle<{ id: string }>(),
-    admin.from('profiles').select('role, organization_id').eq('id', user.id).maybeSingle<ProfileRow>(),
+    admin.from('profiles').select('role, organization_id, associate_permissions').eq('id', user.id).maybeSingle<ProfileRow>(),
   ]);
 
   if (!org?.id) return NextResponse.json({ error: 'Organização não encontrada.' }, { status: 404 });
@@ -200,6 +201,10 @@ export async function GET(
   }
   if ((isFounder || isAssociate) && requester.organization_id !== org.id) {
     return NextResponse.json({ error: 'Acesso negado à organização.' }, { status: 403 });
+  }
+  // Mesma regra do backend: associate só vê a fila se puder corrigir (sem a chave = pode).
+  if (isAssociate && requester.associate_permissions?.can_correct === false) {
+    return NextResponse.json({ error: 'Sem permissão para corrigir redações.' }, { status: 403 });
   }
 
   // `text_preview` (coluna gerada: primeiros 200 chars) no lugar de `text` —

@@ -11,6 +11,7 @@ import {
   Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertTriangle,
 } from 'lucide-react';
 import { LegoApprovalStack } from '@/components/ui/lego-approval-stack';
+import { safeNextPath } from '@/lib/safe-next';
 
 const EMAIL_MAX_LENGTH = 254;
 const PASSWORD_MIN_LENGTH = 8;
@@ -226,7 +227,7 @@ function LoginForm({ onProgress }: { onProgress: (p: number) => void }) {
 
       // Respeita ?next= se for URL relativa (segurança: evita open redirect para domínio externo)
       const nextParam = searchParams.get('next');
-      const safeNext = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : null;
+      const safeNext = safeNextPath(nextParam);
 
       let partnerTarget: string | null = null;
       if (profile?.organization_id && (role === 'student' || role === 'founder' || role === 'admin' || role === 'associate')) {
@@ -285,7 +286,7 @@ function LoginForm({ onProgress }: { onProgress: (p: number) => void }) {
   const handleSocialLogin = async (provider: 'google') => {
     try {
         setIsLoading(true);
-        const nextPath = searchParams.get('next') ?? '/portal';
+        const nextPath = safeNextPath(searchParams.get('next')) ?? '/portal';
         // Origem fixa — o Google só aceita redirect_uris pré-cadastradas.
         const canonicalOrigin = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
         // Client dedicado em implicit flow (não o client normal, PKCE) — os

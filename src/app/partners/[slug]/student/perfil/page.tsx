@@ -339,6 +339,9 @@ export default function PerfilPage() {
   const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false)
   const [deleteAccountReason, setDeleteAccountReason] = useState('')
   const [deleteAccountEmailConfirm, setDeleteAccountEmailConfirm] = useState('')
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState('')
+  // Contas só-Google não têm senha: nelas a confirmação é só o e-mail.
+  const [deleteNeedsPassword, setDeleteNeedsPassword] = useState(false)
   const [deletingAccount, setDeletingAccount] = useState(false)
   const [exportingData, setExportingData] = useState(false)
 
@@ -891,6 +894,19 @@ export default function PerfilPage() {
     }
   }
 
+  useEffect(() => {
+    if (!deleteAccountModalOpen) { setDeleteAccountPassword(''); return }
+    let cancelled = false
+    supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return
+      const meta = data.user?.app_metadata as { providers?: string[]; provider?: string } | undefined
+      const providers = meta?.providers ?? (meta?.provider ? [meta.provider] : [])
+      const identities = (data.user?.identities ?? []).map((i) => i.provider)
+      setDeleteNeedsPassword([...providers, ...identities].includes('email'))
+    })
+    return () => { cancelled = true }
+  }, [deleteAccountModalOpen, supabase])
+
   const handleDeleteAccount = async () => {
     if (!deleteAccountReason) { toast.error('Selecione o motivo da saída.'); return }
     if (deleteAccountEmailConfirm !== user?.email) {
@@ -905,7 +921,11 @@ export default function PerfilPage() {
       const res = await fetch(`${apiUrl}/api/account/delete-account`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ reason: deleteAccountReason }),
+        body: JSON.stringify({
+          reason: deleteAccountReason,
+          confirm_email: deleteAccountEmailConfirm,
+          ...(deleteNeedsPassword ? { password: deleteAccountPassword } : {}),
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error ?? 'Falha ao desativar conta.')
@@ -1902,6 +1922,22 @@ export default function PerfilPage() {
                 className="bg-white dark:bg-slate-800 dark:border-red-900 dark:text-slate-100 rounded-xl border-red-200"
                 placeholder="Digite seu e-mail"
               />
+              {deleteNeedsPassword && (
+                <>
+                  <Label htmlFor="deletePasswordConfirm" className="text-slate-800 dark:text-slate-200 font-bold block pt-2">
+                    Sua senha
+                  </Label>
+                  <Input
+                    id="deletePasswordConfirm"
+                    type="password"
+                    autoComplete="current-password"
+                    value={deleteAccountPassword}
+                    onChange={(e) => setDeleteAccountPassword(e.target.value)}
+                    className="bg-white dark:bg-slate-800 dark:border-red-900 dark:text-slate-100 rounded-xl border-red-200"
+                    placeholder="Digite sua senha"
+                  />
+                </>
+              )}
             </div>
           </div>
           <DialogFooter className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:justify-end sm:p-6">
@@ -1911,7 +1947,7 @@ export default function PerfilPage() {
             <Button
               variant="destructive" 
               onClick={handleDeleteAccount}
-              disabled={deletingAccount || !deleteAccountReason || deleteAccountEmailConfirm !== user?.email}
+              disabled={deletingAccount || !deleteAccountReason || deleteAccountEmailConfirm !== user?.email || (deleteNeedsPassword && !deleteAccountPassword)}
               className="w-full rounded-xl bg-red-600 px-6 font-bold shadow-md hover:bg-red-700 sm:w-auto"
             >
               {deletingAccount && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

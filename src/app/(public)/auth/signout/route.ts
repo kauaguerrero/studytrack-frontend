@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { safeNextPath } from '@/lib/safe-next'
 
 export async function POST(request: Request) {
   const requestUrl = new URL(request.url)
@@ -41,8 +42,8 @@ export async function POST(request: Request) {
     await supabase.auth.signOut()
   }
 
-  const requestedNext = requestUrl.searchParams.get('next')
-  if (requestedNext && requestedNext.startsWith('/') && !requestedNext.startsWith('//')) {
+  const requestedNext = safeNextPath(requestUrl.searchParams.get('next'))
+  if (requestedNext) {
     return NextResponse.redirect(new URL(requestedNext, request.url), {
       status: 302,
     })

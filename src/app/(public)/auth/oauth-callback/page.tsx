@@ -6,11 +6,11 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getGoogleOAuthClient } from '@/lib/supabase/oauth-client';
 
+import { safeNextPath } from '@/lib/safe-next';
 /** Só aceita redirect relativo — `next` vem de query param, controlável por
  * quem monta o link, então nunca deixamos ele apontar pra fora do site. */
 function safeNext(next: string | null): string {
-  if (!next || !next.startsWith('/') || next.startsWith('//')) return '/portal';
-  return next;
+  return safeNextPath(next) ?? '/portal';
 }
 
 /** Deriva pra onde mandar o usuário se o login com Google falhar aqui —

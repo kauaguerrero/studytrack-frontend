@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordStrengthMeter } from '@/components/ui/password-strength';
 import { LayeredText } from '@/components/ui/layered-text';
+import { safeNextPath } from '@/lib/safe-next';
 import {
   GraduationCap, Eye, EyeOff, Loader2, Mail, Lock, CheckCircle2, ArrowRight, AlertTriangle,
 } from 'lucide-react';
@@ -100,7 +101,7 @@ export default function PartnerLoginPage() {
       }
 
       const next = searchParams.get('next');
-      const safeNextRedirect = (next && next.startsWith('/') && !next.startsWith('//')) ? next : null;
+      const safeNextRedirect = safeNextPath(next);
 
       const isManagementRole = profile?.role === 'founder' || profile?.role === 'admin'
         || profile?.role === 'associate';
@@ -193,9 +194,7 @@ export default function PartnerLoginPage() {
       if (!authData.user?.id) throw new Error('Sessão não retornada após autenticação.');
 
       const safeNext = (() => {
-        const next = searchParams.get('next');
-        if (!next || !next.startsWith('/') || next.startsWith('//')) return null;
-        return next;
+        return safeNextPath(searchParams.get('next'));
       })();
 
       const userId = authData.user.id;
