@@ -83,6 +83,7 @@ const MODULE_DEFS: ModuleDef[] = [
   { key: 'flashcards_enabled', label: 'Flashcards', description: 'Baralhos da escola e do aluno com revisão espaçada.', icon: BarChart3, defaultEnabled: false, affectsFounder: true, affectsStudent: true },
   { key: 'links_enabled', label: 'Links no menu', description: 'Links da escola no menu do aluno, abertos dentro do portal quando o site permite.', icon: BarChart3, defaultEnabled: false, affectsFounder: true, affectsStudent: true },
   { key: 'calendario_enabled', label: 'Calendário', description: 'Avisos, eventos (com repetição) e simulados num calendário por turma. Vem ligado.', icon: BarChart3, defaultEnabled: true, affectsFounder: true, affectsStudent: true },
+  { key: 'integracoes_enabled', label: 'Integrações (Galileu)', description: 'Libera a tela de Integrações: a escola liga o financeiro e cola a própria chave do Galileu.', icon: BarChart3, defaultEnabled: false, affectsFounder: true, affectsStudent: true },
   { key: 'materiais_enabled', label: 'Material em PDF', description: 'PDFs por turma; o aluno lê, grifa e comenta (anotações só dele).', icon: BarChart3, defaultEnabled: false, affectsFounder: true, affectsStudent: true },
   { key: 'timer_enabled', label: 'Timer de estudo', description: 'Cronômetro por matéria que lança no diário; relatório de tempo para a coordenação.', icon: BarChart3, defaultEnabled: false, affectsFounder: true, affectsStudent: true },
   { key: 'lista_magica_enabled', label: 'Lista mágica', description: 'Toda segunda, 10 questões inéditas dos temas em que o aluno mais errou.', icon: BarChart3, defaultEnabled: false, affectsFounder: false, affectsStudent: true },
@@ -376,7 +377,7 @@ export default function SuperAdminDashboard() {
   const [modulesForm, setModulesForm]     = useState({
     simulados_enabled: true, redacoes_enabled: true, ranking_enabled: true,
     planos_enabled: true, banco_questoes_enabled: true, desempenho_enabled: true,
-    titulos_enabled: true, suporte_enabled: true, video_lessons_enabled: false, concursos_enabled: false, cronograma_enabled: false, lista_magica_enabled: false, flashcards_enabled: false, timer_enabled: false, materiais_enabled: false, calendario_enabled: true, links_enabled: false,
+    titulos_enabled: true, suporte_enabled: true, video_lessons_enabled: false, concursos_enabled: false, cronograma_enabled: false, lista_magica_enabled: false, flashcards_enabled: false, timer_enabled: false, materiais_enabled: false, integracoes_enabled: false, calendario_enabled: true, links_enabled: false,
     allow_multiple_pending_essays: false, max_video_lessons: '',
   });
   const [savingModules, setSavingModules] = useState(false);
@@ -559,6 +560,7 @@ export default function SuperAdminDashboard() {
       flashcards_enabled:     p.flashcards_enabled     !== undefined ? Boolean(p.flashcards_enabled)     : false,
       timer_enabled:          p.timer_enabled          !== undefined ? Boolean(p.timer_enabled)          : false,
       materiais_enabled:      p.materiais_enabled      !== undefined ? Boolean(p.materiais_enabled)      : false,
+      integracoes_enabled:    p.integracoes_enabled    !== undefined ? Boolean(p.integracoes_enabled)    : false,
       calendario_enabled:     p.calendario_enabled     !== undefined ? Boolean(p.calendario_enabled)     : true,
       links_enabled:          p.links_enabled          !== undefined ? Boolean(p.links_enabled)          : false,
       allow_multiple_pending_essays: org.allow_multiple_pending_essays ?? false,
@@ -588,6 +590,7 @@ export default function SuperAdminDashboard() {
         flashcards_enabled:     modulesForm.flashcards_enabled,
         timer_enabled:          modulesForm.timer_enabled,
         materiais_enabled:      modulesForm.materiais_enabled,
+        integracoes_enabled:    modulesForm.integracoes_enabled,
         calendario_enabled:     modulesForm.calendario_enabled,
         links_enabled:          modulesForm.links_enabled,
       };

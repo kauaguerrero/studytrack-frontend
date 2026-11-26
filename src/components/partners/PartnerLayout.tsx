@@ -45,6 +45,7 @@ import {
   Link2,
   MessageCircle,
   Wallet,
+  Plug,
   ArrowLeftRight,
   TriangleAlert,
   CalendarRange,
@@ -398,6 +399,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
     ...(perm('suporte_enabled')   ? [{ href: `/partners/${org.slug}/suporte`,   icon: LifeBuoy,        label: 'Suporte',          shortLabel: 'Suporte'   }] : []),
     ...(org.hasAssociates        ? [{ href: `/partners/${org.slug}/associados`, icon: UsersRound,      label: 'Associados',        shortLabel: 'Equipe'    }] : []),
+    ...(perm('integracoes_enabled', false) ? [{ href: `/partners/${org.slug}/integracoes`, icon: Plug, label: 'Integrações', shortLabel: 'Integrar' }] : []),
     { href: `/partners/${org.slug}/configuracoes`,   icon: Settings,        label: 'Configurações',   shortLabel: 'Config'    },
   ];
 
@@ -423,7 +425,9 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
       ? { href: `/partners/${org.slug}/student/links/${l.id}`, icon: Link2, label: l.title, shortLabel: l.title.slice(0, 10) }
       : { href: l.url, icon: Link2, label: l.title, shortLabel: l.title.slice(0, 10), external: true })),
     ...(whatsappHref(org.whatsapp_support) ? [{ href: whatsappHref(org.whatsapp_support)!, icon: MessageCircle, label: 'WhatsApp da escola', shortLabel: 'WhatsApp', external: true }] : []),
-    ...(whatsappHref(org.whatsapp_finance) ? [{ href: whatsappHref(org.whatsapp_finance)!, icon: Wallet, label: 'Financeiro', shortLabel: 'Financeiro', external: true }] : []),
+    ...(perm('integracoes_enabled', false) && perm('financeiro_enabled', false)
+      ? [{ href: `/partners/${org.slug}/student/financeiro`, icon: Wallet, label: 'Financeiro', shortLabel: 'Financeiro' }]
+      : whatsappHref(org.whatsapp_finance) ? [{ href: whatsappHref(org.whatsapp_finance)!, icon: Wallet, label: 'Financeiro', shortLabel: 'Financeiro', external: true }] : []),
   ];
 
   const associatePerms = userProfile.associatePermissions ?? { can_correct: true, can_import: false, can_view_students: false };
