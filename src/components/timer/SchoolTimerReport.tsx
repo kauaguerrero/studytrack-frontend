@@ -7,6 +7,7 @@ import { Loader2, Timer as TimerIcon } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { useOrgClasses } from '@/lib/org-classes';
 import { formatDuration, timerFetch, type OrgTimerReport } from '@/lib/timer';
+import { PageShell } from '@/components/partners/PageShell';
 
 const sel = 'rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-white/10 dark:bg-white/5 dark:text-white';
 
@@ -30,12 +31,13 @@ export function SchoolTimerReport() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-white"><TimerIcon className="h-6 w-6" /> Tempo de estudo</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-white/55">Tempo que os alunos cronometraram no timer, por aluno e por matéria.</p>
-        </div>
+    <PageShell
+      variant={'founder'}
+      kicker="Ensino"
+      icon={TimerIcon}
+      title="Tempo de estudo"
+      description="Tempo que os alunos cronometraram no timer, por aluno e por matéria."
+      actions={<>
         <div className="flex gap-2">
           {classes.length > 0 && (
             <select aria-label="Turma" className={sel} value={classId} onChange={(e) => setClassId(e.target.value)}>
@@ -47,7 +49,8 @@ export function SchoolTimerReport() {
             <option value={7}>7 dias</option><option value={30}>30 dias</option><option value={90}>90 dias</option>
           </select>
         </div>
-      </div>
+      </>}
+    >
 
       {error ? (
         <p className="mt-6 rounded-2xl bg-red-50 p-4 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">{error}</p>
@@ -90,6 +93,6 @@ export function SchoolTimerReport() {
           </div>
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

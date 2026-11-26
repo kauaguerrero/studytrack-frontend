@@ -10,6 +10,7 @@ import { whatsappHref } from '@/lib/org-comms';
 import {
   formatBRL, formatDateBR, groupInstallments, integrationsFetch, type Installment, type MyFinance,
 } from '@/lib/integrations';
+import { PageShell } from '@/components/partners/PageShell';
 
 const card = 'rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5';
 
@@ -34,14 +35,16 @@ export function StudentFinance() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:py-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-white"><Wallet className="h-6 w-6" /> Financeiro</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-white/55">Suas parcelas, direto do sistema da escola.</p>
-        </div>
+    <PageShell
+      variant={'student'}
+      kicker="Escola"
+      icon={Wallet}
+      title="Financeiro"
+      description="Suas parcelas, direto do sistema da escola."
+      actions={<>
         {waButton}
-      </div>
+      </>}
+    >
 
       {error ? (
         <p className="mt-6 rounded-2xl bg-red-50 p-4 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">{error}</p>
@@ -54,7 +57,7 @@ export function StudentFinance() {
       ) : (
         <FinanceBody data={data} />
       )}
-    </div>
+    </PageShell>
   );
 }
 

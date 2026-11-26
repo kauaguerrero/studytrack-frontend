@@ -12,6 +12,7 @@ import { useOrgClasses } from '@/lib/org-classes';
 import { ClassVisibilityPicker } from '@/components/partners/ClassVisibilityPicker';
 import { commsFetch, toLocalInput, type AnnouncementReads, type SchoolAnnouncement } from '@/lib/org-comms';
 import { CalendarFields, EMPTY_CALENDAR, calendarFrom, recurrencePayload, type CalendarValue } from '@/components/comms/CalendarFields';
+import { PageShell } from '@/components/partners/PageShell';
 
 export { toLocalInput };
 
@@ -117,20 +118,22 @@ export function SchoolAnnouncements() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:py-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-white"><Megaphone className="h-6 w-6" /> Avisos</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-white/55">Aparecem no sino e no calendário dos alunos. Importantes abrem um pop-up com &quot;Entendi&quot;.</p>
-        </div>
+    <PageShell
+      variant={'founder'}
+      kicker="Comunicação"
+      icon={Megaphone}
+      title="Avisos"
+      description={<>Aparecem no sino e no calendário dos alunos. Importantes abrem um pop-up com &quot;Entendi&quot;.</>}
+      actions={<>
         <button type="button" onClick={() => setDraft({ ...EMPTY })}
-          className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold text-white" style={{ background: 'var(--brand-primary)' }}>
+          className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-extrabold text-white shadow-sm transition-transform hover:scale-[1.02]" style={{ background: 'var(--brand-primary)' }}>
           <Plus className="h-4 w-4" /> Novo aviso
         </button>
-      </div>
+      </>}
+    >
 
       {draft && (
-        <section className="mt-5 space-y-3 rounded-3xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-white/5" aria-label="Editor de aviso">
+        <section className="mt-5 space-y-3 partner-elevated-card rounded-[20px] bg-white p-5 dark:bg-slate-900" aria-label="Editor de aviso">
           <input aria-label="Título" className={input} placeholder="Título" maxLength={120} value={draft.title}
             onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
           <textarea aria-label="Texto" className={`${input} min-h-[110px]`} placeholder="Texto do aviso" maxLength={4000} value={draft.body}
@@ -245,6 +248,6 @@ export function SchoolAnnouncements() {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

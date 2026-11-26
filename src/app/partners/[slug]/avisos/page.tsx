@@ -1,7 +1,12 @@
 'use client';
 
+import { PartnerLayout } from '@/components/partners/PartnerLayout';
 import { SchoolAnnouncements } from '@/components/comms/SchoolAnnouncements';
 
 export default function AvisosPage() {
-  return <SchoolAnnouncements />;
+  return (
+    <PartnerLayout>
+      <SchoolAnnouncements />
+    </PartnerLayout>
+  );
 }

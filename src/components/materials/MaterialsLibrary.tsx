@@ -11,6 +11,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import { classesFetch, useOrgClasses } from '@/lib/org-classes';
 import { ClassVisibilityPicker } from '@/components/partners/ClassVisibilityPicker';
 import { MAX_PDF_BYTES, formatBytes, materialsFetch, uploadMaterial, type Material } from '@/lib/materials';
+import { PageShell } from '@/components/partners/PageShell';
 
 const input = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-white';
 
@@ -94,21 +95,21 @@ export function MaterialsLibrary({ manage = false }: { manage?: boolean }) {
   const usedSubjects = [...new Set((items ?? []).map((i) => i.subject ?? ''))];
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:py-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-white"><FileText className="h-6 w-6" /> Material</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-white/55">
-            {manage ? 'PDFs por turma. O aluno lê e anota no próprio portal; as anotações são só dele.' : 'Abra o PDF para ler, grifar e comentar. Suas anotações ficam salvas só para você.'}
-          </p>
-        </div>
+    <PageShell
+      variant={manage ? 'founder' : 'student'}
+      kicker={manage ? 'Ensino' : 'Estudar'}
+      icon={FileText}
+      title="Material"
+      description={<>{manage ? 'PDFs por turma. O aluno lê e anota no próprio portal; as anotações são só dele.' : 'Abra o PDF para ler, grifar e comentar. Suas anotações ficam salvas só para você.'}</>}
+      actions={<>
         {manage && (
           <button type="button" onClick={() => setDraft({ ...EMPTY })}
-            className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold text-white" style={{ background: 'var(--brand-primary)' }}>
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-extrabold text-white shadow-sm transition-transform hover:scale-[1.02]" style={{ background: 'var(--brand-primary)' }}>
             <Plus className="h-4 w-4" /> Enviar PDF
           </button>
         )}
-      </div>
+      </>}
+    >
 
       {usedSubjects.length > 1 && (
         <div className="mt-4 flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por matéria">
@@ -123,7 +124,7 @@ export function MaterialsLibrary({ manage = false }: { manage?: boolean }) {
       )}
 
       {draft && (
-        <section className="mt-5 space-y-3 rounded-3xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-white/5" aria-label="Editor de material">
+        <section className="mt-5 space-y-3 partner-elevated-card rounded-[20px] bg-white p-5 dark:bg-slate-900" aria-label="Editor de material">
           {!draft.id && (
             <label className="flex cursor-pointer items-center gap-2 rounded-2xl border border-dashed border-slate-300 p-4 text-sm font-semibold text-slate-600 dark:border-white/20 dark:text-white/70">
               <Upload className="h-5 w-5" />
@@ -200,6 +201,6 @@ export function MaterialsLibrary({ manage = false }: { manage?: boolean }) {
         ))}
       </div>
       {draft && <button type="button" className="sr-only" onClick={() => setDraft(null)} aria-label="Fechar editor"><X /></button>}
-    </div>
+    </PageShell>
   );
 }

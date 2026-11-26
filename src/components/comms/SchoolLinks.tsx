@@ -11,6 +11,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import { useOrgClasses } from '@/lib/org-classes';
 import { ClassVisibilityPicker } from '@/components/partners/ClassVisibilityPicker';
 import { commsFetch, type MenuLink } from '@/lib/org-comms';
+import { PageShell } from '@/components/partners/PageShell';
 
 const input = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-white';
 
@@ -53,11 +54,15 @@ export function SchoolLinks() {
   }, 'Link adicionado.');
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:py-8">
-      <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-white"><Link2 className="h-6 w-6" /> Links no menu do aluno</h1>
-      <p className="mt-1 text-sm text-slate-500 dark:text-white/55">Plurall, Drive, formulários… Checamos se o site deixa abrir dentro do portal; se não deixar, o aluno abre numa nova aba.</p>
+    <PageShell
+      variant={'founder'}
+      kicker="Comunicação"
+      icon={Link2}
+      title="Links no menu do aluno"
+      description="Plurall, Drive, formulários… Checamos se o site deixa abrir dentro do portal; se não deixar, o aluno abre numa nova aba."
+    >
 
-      <section className="mt-5 space-y-3 rounded-3xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-white/5">
+      <section className="mt-5 space-y-3 partner-elevated-card rounded-[20px] bg-white p-5 dark:bg-slate-900">
         <div className="grid gap-3 sm:grid-cols-[1fr_1.6fr]">
           <input aria-label="Nome do link" className={input} placeholder="Nome no menu" maxLength={60} value={title} onChange={(e) => setTitle(e.target.value)} />
           <input aria-label="Endereço" className={input} placeholder="https://..." value={url} onChange={(e) => setUrl(e.target.value)} />
@@ -96,7 +101,7 @@ export function SchoolLinks() {
             </li>
           ))}
       </ul>
-    </div>
+    </PageShell>
   );
 }
 

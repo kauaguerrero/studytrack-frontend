@@ -10,6 +10,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import { CardsEditor } from '@/components/flashcards/CardsEditor';
 import { StudyDeck } from '@/components/flashcards/StudyDeck';
 import { REVIEW_LABELS, cleanDrafts, draftsProblem, fcFetch, type Card, type CardDraft, type StudentDeck } from '@/lib/flashcards';
+import { PageShell } from '@/components/partners/PageShell';
 
 const SOURCE_LABEL = { school: 'Da escola', class: 'Da turma', mine: 'Meu baralho' } as const;
 
@@ -36,19 +37,19 @@ export function StudentFlashcards() {
 
   const todayTotal = decks.reduce((a, d) => a + d.today, 0);
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:py-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-white"><Layers className="h-6 w-6" /> Flashcards</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-white/55">
-            {todayTotal ? `${todayTotal} ${todayTotal === 1 ? 'cartão' : 'cartões'} para hoje.` : 'Nada para hoje: tudo em dia.'} Uns 20 minutos por dia já fazem diferença.
-          </p>
-        </div>
+    <PageShell
+      variant={'student'}
+      kicker="Estudar"
+      icon={Layers}
+      title="Flashcards"
+      description={<>{todayTotal ? `${todayTotal} ${todayTotal === 1 ? 'cartão' : 'cartões'} para hoje.` : 'Nada para hoje: tudo em dia.'} Uns 20 minutos por dia já fazem diferença.</>}
+      actions={<>
         <button type="button" onClick={() => setEditing('new')}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 dark:border-white/10 dark:text-white/80">
+          className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-[13px] font-bold text-white backdrop-blur hover:bg-white/20">
           <Plus className="h-4 w-4" /> Meu baralho
         </button>
-      </div>
+      </>}
+    >
       {decks.length === 0 ? (
         <p className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-white/5 dark:text-white/70">Nenhum baralho ainda. Crie o seu ou aguarde os da escola.</p>
       ) : (
@@ -84,7 +85,7 @@ export function StudentFlashcards() {
           ))}
         </ul>
       )}
-    </div>
+    </PageShell>
   );
 }
 

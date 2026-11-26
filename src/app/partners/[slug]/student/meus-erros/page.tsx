@@ -16,6 +16,7 @@ import { createClient } from '@/lib/supabase/client';
 import { reportError } from '@/lib/reportError';
 import { useOrg } from '@/contexts/OrgContext';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
+import { StudentPage } from '@/components/partners/PageShell';
 
 interface ErrorQuestion {
   id: string;
@@ -94,16 +95,12 @@ function MeusErros() {
   const maxHeat = Math.max(0, ...(topics ?? []).map((t) => t.heat));
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:py-8">
-      <header className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
-          <Flame size={24} className="text-red-500" /> Meus erros
-        </h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Os temas em que você mais errou recentemente, somando banco de questões, simulados e provas.
-          Errar esquenta o tema; acertar depois esfria.
-        </p>
-      </header>
+    <StudentPage
+      kicker="Estudar"
+      icon={Flame}
+      title="Meus erros"
+      description="Os temas em que você mais errou recentemente, somando banco de questões, simulados e provas. Errar esquenta o tema; acertar depois esfria."
+    >
 
       {topics === null && !error && (
         <div className="flex items-center justify-center py-16 text-slate-500">
@@ -188,6 +185,6 @@ function MeusErros() {
           })}
         </ul>
       )}
-    </div>
+    </StudentPage>
   );
 }

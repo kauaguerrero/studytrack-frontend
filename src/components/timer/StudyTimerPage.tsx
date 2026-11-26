@@ -9,6 +9,7 @@ import { Pause, Play, Square, Timer as TimerIcon, Trash2 } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { CUSTOM_SUBJECTS } from '@/lib/simuladoSubjects';
 import { formatClock, formatDuration, timerFetch, useStudyTimer, type TimerReport } from '@/lib/timer';
+import { PageShell } from '@/components/partners/PageShell';
 
 export const TIMER_SUBJECTS = [...CUSTOM_SUBJECTS.filter((s) => s.value !== 'Todas').map((s) => s.value), 'Redação', 'Outra'];
 
@@ -46,13 +47,15 @@ export function StudyTimerPage() {
   const maxSubj = Math.max(1, ...(report?.by_subject ?? []).map((s) => s.seconds));
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:py-8">
-      <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-white"><TimerIcon className="h-6 w-6" /> Timer de estudo</h1>
-      <p className="mt-1 text-sm text-slate-500 dark:text-white/55">
-        Hoje: {formatDuration(t.todaySeconds + (timer ? t.seconds : 0))} estudados. Ao encerrar, o tempo entra no seu diário.
-      </p>
+    <PageShell
+      variant={'student'}
+      kicker="Meu dia"
+      icon={TimerIcon}
+      title="Timer de estudo"
+      description={<>Hoje: {formatDuration(t.todaySeconds + (timer ? t.seconds : 0))} estudados. Ao encerrar, o tempo entra no seu diário.</>}
+    >
 
-      <section className="mt-5 rounded-3xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-white/5">
+      <section className="mt-5 partner-elevated-card rounded-[20px] bg-white p-5 dark:bg-slate-900">
         {timer ? (
           <div className="text-center">
             <p className="text-sm font-semibold text-slate-600 dark:text-white/70">
@@ -141,6 +144,6 @@ export function StudyTimerPage() {
           </div>
         )}
       </section>
-    </div>
+    </PageShell>
   );
 }

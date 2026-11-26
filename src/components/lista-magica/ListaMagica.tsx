@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Loader2, Sparkles } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
+import { StudentPage } from '@/components/partners/PageShell';
 import { MagicListFetchError, REASON_LABEL, magicListFetch, weekLabel, type MagicList } from '@/lib/lista-magica';
 
 export function ListaMagica() {
@@ -52,13 +53,11 @@ export function ListaMagica() {
   if (!list) return <div className="flex items-center gap-2 p-6 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Montando a sua lista…</div>;
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:py-8">
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--brand-ink, var(--brand-primary))' }}>
-        Lista mágica · {weekLabel(list.week_start)}
-      </p>
-      <h1 className="mt-1 flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-white">
-        <Sparkles className="h-6 w-6" style={{ color: 'var(--brand-primary)' }} /> Suas {list.total_questions || 10} questões da semana
-      </h1>
+    <StudentPage
+      kicker={`Lista mágica · ${weekLabel(list.week_start)}`}
+      icon={Sparkles}
+      title={`Suas ${list.total_questions || 10} questões da semana`}
+    >
 
       {list.status === 'empty' ? (
         <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-white/5 dark:text-white/70">
@@ -109,6 +108,6 @@ export function ListaMagica() {
           )}
         </>
       )}
-    </div>
+    </StudentPage>
   );
 }

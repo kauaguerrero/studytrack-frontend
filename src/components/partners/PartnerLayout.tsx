@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable react-hooks/static-components */
 
-import { ReactNode, useEffect, useState, useRef } from 'react';
+import { Fragment, ReactNode, useEffect, useState, useRef } from 'react';
 import { motion, useReducedMotion, useAnimation } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -69,6 +69,8 @@ interface NavItemDef {
   shortLabel: string;
   /** Link para fora do portal (WhatsApp): abre em nova aba. */
   external?: boolean;
+  /** Grupo da barra lateral (título acima do primeiro item do grupo). */
+  section?: string;
 }
 
 function MobileAveBirdHeader() {
@@ -382,52 +384,62 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
   };
 
   const founderNavItems: NavItemDef[] = [
-    { href: `/partners/${org.slug}/dashboard`,       icon: LayoutDashboard, label: 'Dashboard',        shortLabel: 'Dashboard' },
-    ...(perm('ranking_enabled')   ? [{ href: `/partners/${org.slug}/ranking`,   icon: Trophy,         label: 'Ranking',          shortLabel: 'Ranking'   }] : []),
-    { href: `/partners/${org.slug}/alunos`,          icon: Users,           label: 'Alunos',           shortLabel: 'Alunos'    },
-    { href: `/partners/${org.slug}/turmas`,          icon: School,          label: 'Turmas',           shortLabel: 'Turmas'    },
-    ...(perm('planos_enabled')    ? [{ href: `/partners/${org.slug}/planos`,    icon: WalletCards,     label: 'Planos',           shortLabel: 'Planos'    }] : []),
-    ...(perm('redacoes_enabled')  ? [{ href: `/partners/${org.slug}/redacoes`,  icon: PenLine,         label: 'Redações',         shortLabel: 'Redações'  }] : []),
-    ...(perm('simulados_enabled') ? [{ href: `/partners/${org.slug}/simulados`, icon: ClipboardCheck,  label: 'Simulados',        shortLabel: 'Simulados' }] : []),
-    ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
-    ...(perm('flashcards_enabled', false) ? [{ href: `/partners/${org.slug}/flashcards`, icon: Layers, label: 'Flashcards', shortLabel: 'Cartões' }] : []),
-    ...(perm('timer_enabled', false) ? [{ href: `/partners/${org.slug}/tempo-de-estudo`, icon: Timer, label: 'Tempo de estudo', shortLabel: 'Tempo' }] : []),
-    ...(perm('materiais_enabled', false) ? [{ href: `/partners/${org.slug}/materiais`, icon: FileText, label: 'Material', shortLabel: 'Material' }] : []),
-    { href: `/partners/${org.slug}/avisos`, icon: Megaphone, label: 'Avisos', shortLabel: 'Avisos' },
-    ...(perm('calendario_enabled') ? [{ href: `/partners/${org.slug}/calendario`, icon: CalendarDays, label: 'Calendário', shortLabel: 'Agenda' }] : []),
-    ...(perm('links_enabled', false) ? [{ href: `/partners/${org.slug}/links`, icon: Link2, label: 'Links do menu', shortLabel: 'Links' }] : []),
-    { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
-    ...(perm('suporte_enabled')   ? [{ href: `/partners/${org.slug}/suporte`,   icon: LifeBuoy,        label: 'Suporte',          shortLabel: 'Suporte'   }] : []),
-    ...(org.hasAssociates        ? [{ href: `/partners/${org.slug}/associados`, icon: UsersRound,      label: 'Associados',        shortLabel: 'Equipe'    }] : []),
-    ...(perm('integracoes_enabled', false) ? [{ href: `/partners/${org.slug}/integracoes`, icon: Plug, label: 'Integrações', shortLabel: 'Integrar' }] : []),
-    { href: `/partners/${org.slug}/configuracoes`,   icon: Settings,        label: 'Configurações',   shortLabel: 'Config'    },
+    // Visão geral
+    { section: 'Visão geral', href: `/partners/${org.slug}/dashboard`, icon: LayoutDashboard, label: 'Dashboard', shortLabel: 'Dashboard' },
+    ...(perm('ranking_enabled') ? [{ section: 'Visão geral', href: `/partners/${org.slug}/ranking`, icon: Trophy, label: 'Ranking', shortLabel: 'Ranking' }] : []),
+    // Alunos e turmas
+    { section: 'Alunos e turmas', href: `/partners/${org.slug}/alunos`, icon: Users, label: 'Alunos', shortLabel: 'Alunos' },
+    { section: 'Alunos e turmas', href: `/partners/${org.slug}/turmas`, icon: School, label: 'Turmas', shortLabel: 'Turmas' },
+    { section: 'Alunos e turmas', href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus, label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
+    ...(perm('planos_enabled') ? [{ section: 'Alunos e turmas', href: `/partners/${org.slug}/planos`, icon: WalletCards, label: 'Planos', shortLabel: 'Planos' }] : []),
+    // Ensino
+    ...(perm('simulados_enabled') ? [{ section: 'Ensino', href: `/partners/${org.slug}/simulados`, icon: ClipboardCheck, label: 'Simulados', shortLabel: 'Simulados' }] : []),
+    ...(perm('redacoes_enabled') ? [{ section: 'Ensino', href: `/partners/${org.slug}/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redações' }] : []),
+    ...(perm('video_lessons_enabled', false) ? [{ section: 'Ensino', href: `/partners/${org.slug}/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
+    ...(perm('materiais_enabled', false) ? [{ section: 'Ensino', href: `/partners/${org.slug}/materiais`, icon: FileText, label: 'Material', shortLabel: 'Material' }] : []),
+    ...(perm('flashcards_enabled', false) ? [{ section: 'Ensino', href: `/partners/${org.slug}/flashcards`, icon: Layers, label: 'Flashcards', shortLabel: 'Cartões' }] : []),
+    ...(perm('timer_enabled', false) ? [{ section: 'Ensino', href: `/partners/${org.slug}/tempo-de-estudo`, icon: Timer, label: 'Tempo de estudo', shortLabel: 'Tempo' }] : []),
+    // Comunicação
+    { section: 'Comunicação', href: `/partners/${org.slug}/avisos`, icon: Megaphone, label: 'Avisos', shortLabel: 'Avisos' },
+    ...(perm('calendario_enabled') ? [{ section: 'Comunicação', href: `/partners/${org.slug}/calendario`, icon: CalendarDays, label: 'Calendário', shortLabel: 'Agenda' }] : []),
+    ...(perm('links_enabled', false) ? [{ section: 'Comunicação', href: `/partners/${org.slug}/links`, icon: Link2, label: 'Links do menu', shortLabel: 'Links' }] : []),
+    // Escola
+    ...(org.hasAssociates ? [{ section: 'Escola', href: `/partners/${org.slug}/associados`, icon: UsersRound, label: 'Associados', shortLabel: 'Equipe' }] : []),
+    ...(perm('integracoes_enabled', false) ? [{ section: 'Escola', href: `/partners/${org.slug}/integracoes`, icon: Plug, label: 'Integrações', shortLabel: 'Integrar' }] : []),
+    ...(perm('suporte_enabled') ? [{ section: 'Escola', href: `/partners/${org.slug}/suporte`, icon: LifeBuoy, label: 'Suporte', shortLabel: 'Suporte' }] : []),
+    { section: 'Escola', href: `/partners/${org.slug}/configuracoes`, icon: Settings, label: 'Configurações', shortLabel: 'Config' },
   ];
 
   const studentNavItems: NavItemDef[] = [
-    { href: `/partners/${org.slug}/student/dashboard`,          icon: Home,           label: 'Início',         shortLabel: 'Início'      },
-    ...(perm('cronograma_enabled', false) ? [{ href: `/partners/${org.slug}/student/cronograma`,  icon: CalendarRange,  label: 'Cronograma',     shortLabel: 'Cronograma' }] : []),
-    ...(perm('banco_questoes_enabled') ? [{ href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen,       label: 'Questões',       shortLabel: 'Questão'    }] : []),
-    ...(perm('banco_questoes_enabled') ? [{ href: `/partners/${org.slug}/student/meus-erros`,        icon: Flame,          label: 'Meus erros',     shortLabel: 'Erros'      }] : []),
-    ...(perm('lista_magica_enabled', false) ? [{ href: `/partners/${org.slug}/student/lista-magica`, icon: Sparkles,       label: 'Lista mágica',   shortLabel: 'Lista'      }] : []),
-    ...(perm('flashcards_enabled', false)   ? [{ href: `/partners/${org.slug}/student/flashcards`,   icon: Layers,         label: 'Flashcards',     shortLabel: 'Cartões'    }] : []),
-    ...(perm('materiais_enabled', false)    ? [{ href: `/partners/${org.slug}/student/materiais`,    icon: FileText,       label: 'Material',       shortLabel: 'Material'   }] : []),
-    ...(perm('timer_enabled', false)        ? [{ href: `/partners/${org.slug}/student/timer`,        icon: Timer,          label: 'Timer',          shortLabel: 'Timer'      }] : []),
-    ...(perm('simulados_enabled')      ? [{ href: `/partners/${org.slug}/student/simulado`,          icon: ClipboardCheck, label: 'Simulados',      shortLabel: 'Simulado'   }] : []),
-    ...(perm('ranking_enabled')        ? [{ href: `/partners/${org.slug}/student/ranking`,           icon: Trophy,         label: 'Ranking',        shortLabel: 'Ranking'     }] : []),
-    ...(perm('titulos_enabled')        ? [{ href: `/partners/${org.slug}/student/titulos`,           icon: BadgeCheck,     label: 'Títulos',        shortLabel: 'Título'     }] : []),
-    ...(perm('desempenho_enabled')     ? [{ href: `/partners/${org.slug}/student/desempenho`,        icon: BarChart3,      label: 'Meu Desempenho', shortLabel: 'Desempenho'  }] : []),
-    ...(perm('redacoes_enabled')       ? [{ href: `/partners/${org.slug}/student/redacoes`,          icon: PenLine,        label: 'Redações',       shortLabel: 'Redação'    }] : []),
-    ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/student/aulas`,      icon: Video,          label: 'Aulas',          shortLabel: 'Aulas'       }] : []),
-    ...(perm('suporte_enabled')        ? [{ href: `/partners/${org.slug}/student/suporte`,           icon: LifeBuoy,       label: 'Suporte',        shortLabel: 'Suporte'     }] : []),
-    { href: `/partners/${org.slug}/student/perfil`,             icon: User,           label: 'Perfil',         shortLabel: 'Perfil'      },
-    ...(perm('calendario_enabled') ? [{ href: `/partners/${org.slug}/student/calendario`, icon: CalendarDays, label: 'Calendário', shortLabel: 'Agenda' }] : []),
+    // Meu dia
+    { section: 'Meu dia', href: `/partners/${org.slug}/student/dashboard`, icon: Home, label: 'Início', shortLabel: 'Início' },
+    ...(perm('cronograma_enabled', false) ? [{ section: 'Meu dia', href: `/partners/${org.slug}/student/cronograma`, icon: CalendarRange, label: 'Cronograma', shortLabel: 'Cronograma' }] : []),
+    ...(perm('calendario_enabled') ? [{ section: 'Meu dia', href: `/partners/${org.slug}/student/calendario`, icon: CalendarDays, label: 'Calendário', shortLabel: 'Agenda' }] : []),
+    ...(perm('timer_enabled', false) ? [{ section: 'Meu dia', href: `/partners/${org.slug}/student/timer`, icon: Timer, label: 'Timer', shortLabel: 'Timer' }] : []),
+    // Estudar
+    ...(perm('banco_questoes_enabled') ? [{ section: 'Estudar', href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen, label: 'Questões', shortLabel: 'Questão' }] : []),
+    ...(perm('banco_questoes_enabled') ? [{ section: 'Estudar', href: `/partners/${org.slug}/student/meus-erros`, icon: Flame, label: 'Meus erros', shortLabel: 'Erros' }] : []),
+    ...(perm('lista_magica_enabled', false) ? [{ section: 'Estudar', href: `/partners/${org.slug}/student/lista-magica`, icon: Sparkles, label: 'Lista mágica', shortLabel: 'Lista' }] : []),
+    ...(perm('flashcards_enabled', false) ? [{ section: 'Estudar', href: `/partners/${org.slug}/student/flashcards`, icon: Layers, label: 'Flashcards', shortLabel: 'Cartões' }] : []),
+    ...(perm('materiais_enabled', false) ? [{ section: 'Estudar', href: `/partners/${org.slug}/student/materiais`, icon: FileText, label: 'Material', shortLabel: 'Material' }] : []),
+    ...(perm('video_lessons_enabled', false) ? [{ section: 'Estudar', href: `/partners/${org.slug}/student/aulas`, icon: Video, label: 'Aulas', shortLabel: 'Aulas' }] : []),
+    // Provas e redação
+    ...(perm('simulados_enabled') ? [{ section: 'Provas e redação', href: `/partners/${org.slug}/student/simulado`, icon: ClipboardCheck, label: 'Simulados', shortLabel: 'Simulado' }] : []),
+    ...(perm('redacoes_enabled') ? [{ section: 'Provas e redação', href: `/partners/${org.slug}/student/redacoes`, icon: PenLine, label: 'Redações', shortLabel: 'Redação' }] : []),
+    // Meu progresso
+    ...(perm('desempenho_enabled') ? [{ section: 'Meu progresso', href: `/partners/${org.slug}/student/desempenho`, icon: BarChart3, label: 'Meu Desempenho', shortLabel: 'Desempenho' }] : []),
+    ...(perm('ranking_enabled') ? [{ section: 'Meu progresso', href: `/partners/${org.slug}/student/ranking`, icon: Trophy, label: 'Ranking', shortLabel: 'Ranking' }] : []),
+    ...(perm('titulos_enabled') ? [{ section: 'Meu progresso', href: `/partners/${org.slug}/student/titulos`, icon: BadgeCheck, label: 'Títulos', shortLabel: 'Título' }] : []),
+    // Escola
     ...schoolLinks.map((l) => (l.embeddable === true
-      ? { href: `/partners/${org.slug}/student/links/${l.id}`, icon: Link2, label: l.title, shortLabel: l.title.slice(0, 10) }
-      : { href: l.url, icon: Link2, label: l.title, shortLabel: l.title.slice(0, 10), external: true })),
-    ...(whatsappHref(org.whatsapp_support) ? [{ href: whatsappHref(org.whatsapp_support)!, icon: MessageCircle, label: 'WhatsApp da escola', shortLabel: 'WhatsApp', external: true }] : []),
+      ? { section: 'Escola', href: `/partners/${org.slug}/student/links/${l.id}`, icon: Link2, label: l.title, shortLabel: l.title.slice(0, 10) }
+      : { section: 'Escola', href: l.url, icon: Link2, label: l.title, shortLabel: l.title.slice(0, 10), external: true })),
     ...(perm('integracoes_enabled', false) && perm('financeiro_enabled', false)
-      ? [{ href: `/partners/${org.slug}/student/financeiro`, icon: Wallet, label: 'Financeiro', shortLabel: 'Financeiro' }]
-      : whatsappHref(org.whatsapp_finance) ? [{ href: whatsappHref(org.whatsapp_finance)!, icon: Wallet, label: 'Financeiro', shortLabel: 'Financeiro', external: true }] : []),
+      ? [{ section: 'Escola', href: `/partners/${org.slug}/student/financeiro`, icon: Wallet, label: 'Financeiro', shortLabel: 'Financeiro' }]
+      : whatsappHref(org.whatsapp_finance) ? [{ section: 'Escola', href: whatsappHref(org.whatsapp_finance)!, icon: Wallet, label: 'Financeiro', shortLabel: 'Financeiro', external: true }] : []),
+    ...(whatsappHref(org.whatsapp_support) ? [{ section: 'Escola', href: whatsappHref(org.whatsapp_support)!, icon: MessageCircle, label: 'WhatsApp da escola', shortLabel: 'WhatsApp', external: true }] : []),
+    ...(perm('suporte_enabled') ? [{ section: 'Escola', href: `/partners/${org.slug}/student/suporte`, icon: LifeBuoy, label: 'Suporte', shortLabel: 'Suporte' }] : []),
+    { section: 'Escola', href: `/partners/${org.slug}/student/perfil`, icon: User, label: 'Perfil', shortLabel: 'Perfil' },
   ];
 
   const associatePerms = userProfile.associatePermissions ?? { can_correct: true, can_import: false, can_view_students: false };
@@ -585,9 +597,18 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
           largura do hover não criar barra horizontal. */}
       <div className="partner-sidebar-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain">
         <nav className={cn('partner-sidebar-links space-y-1 py-4', c ? 'px-2' : 'px-3')}>
-          {navItems.map((item) => (
+          {navItems.map((item, idx) => (
+            <Fragment key={item.href}>
+            {item.section && item.section !== navItems[idx - 1]?.section && (
+              c ? (
+                idx > 0 && <div aria-hidden className="mx-2 my-2 border-t border-slate-200 dark:border-slate-800" />
+              ) : (
+                <p className={cn('partner-sidebar-section px-3 pb-1 text-[10.5px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500', idx > 0 ? 'pt-4' : 'pt-0')}>
+                  {item.section}
+                </p>
+              )
+            )}
             <SidebarNavItem
-              key={item.href}
               {...item}
               collapsed={c}
               onClick={onNavigate}
@@ -598,6 +619,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
                 )
               }
             />
+            </Fragment>
           ))}
         </nav>
 

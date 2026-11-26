@@ -12,6 +12,7 @@ import { useOrgClasses } from '@/lib/org-classes';
 import { ClassVisibilityPicker } from '@/components/partners/ClassVisibilityPicker';
 import { CardsEditor } from '@/components/flashcards/CardsEditor';
 import { cleanDrafts, draftsProblem, fcFetch, type Card, type CardDraft, type Deck } from '@/lib/flashcards';
+import { PageShell } from '@/components/partners/PageShell';
 
 const inputCls =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-white';
@@ -49,17 +50,19 @@ export function SchoolFlashcards() {
     !ids?.length ? 'Todos os alunos' : ids.map((id) => classes.find((c) => c.id === id)?.name ?? 'turma').join(', ');
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:py-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-white"><Layers className="h-6 w-6" /> Flashcards</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-white/55">Baralhos que os alunos revisam com repetição espaçada. Importe uma planilha com as colunas frente; verso.</p>
-        </div>
+    <PageShell
+      variant={'founder'}
+      kicker="Ensino"
+      icon={Layers}
+      title="Flashcards"
+      description="Baralhos que os alunos revisam com repetição espaçada. Importe uma planilha com as colunas frente; verso."
+      actions={<>
         <button type="button" onClick={() => setEditing('new')}
-          className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold text-white" style={{ background: 'var(--brand-primary)' }}>
+          className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-extrabold text-white shadow-sm transition-transform hover:scale-[1.02]" style={{ background: 'var(--brand-primary)' }}>
           <Plus className="h-4 w-4" /> Novo baralho
         </button>
-      </div>
+      </>}
+    >
       <div className="mt-5 flex gap-2" role="tablist">
         {([['decks', 'Baralhos da escola'], ['reviews', `Aprovar baralhos dos alunos${pending ? ` (${pending})` : ''}`]] as const).map(([k, label]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
@@ -88,7 +91,7 @@ export function SchoolFlashcards() {
           ))}
         </ul>
       )}
-    </div>
+    </PageShell>
   );
 }
 

@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { CalendarDays, ChevronLeft, ChevronRight, ExternalLink, Loader2, MapPin, Megaphone, Plus, Repeat, Trash2, X } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { useOrgClasses } from '@/lib/org-classes';
+import { PageShell, pageCard } from '@/components/partners/PageShell';
 import { ClassVisibilityPicker } from '@/components/partners/ClassVisibilityPicker';
 import { CalendarFields, EMPTY_CALENDAR, calendarFrom, recurrencePayload, type CalendarValue } from '@/components/comms/CalendarFields';
 import { EVENT_KINDS, EVENT_KIND_COLOR, EVENT_KIND_LABEL, commsFetch, type CalendarItem, type EventKind } from '@/lib/org-comms';
@@ -154,57 +155,81 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
     : EVENT_KIND_LABEL[it.kind];
   const canEditAnn = (it: CalendarItem) => manage && it.source === 'announcement' && it.announcement_source === 'school';
 
-  return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:py-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-white"><CalendarDays className="h-6 w-6" /> Calendário</h1>
-        {manage && (
-          <button type="button" onClick={newEvent}
-            className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold text-white" style={{ background: 'var(--brand-primary)' }}>
-            <Plus className="h-4 w-4" /> Novo evento
-          </button>
-        )}
-      </div>
+  const timeShort = (it: CalendarItem) => (it.all_day ? '' : new Date(it.starts_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
-          <div className="flex items-center justify-between">
-            <button type="button" aria-label="Mês anterior" onClick={() => move(-1)} className="rounded-full p-1.5 hover:bg-slate-100 dark:hover:bg-white/10"><ChevronLeft className="h-4 w-4" /></button>
-            <p className="font-black text-slate-900 dark:text-white" data-testid="month-label">{MONTHS[cursor.m]} {cursor.y}</p>
-            <button type="button" aria-label="Próximo mês" onClick={() => move(1)} className="rounded-full p-1.5 hover:bg-slate-100 dark:hover:bg-white/10"><ChevronRight className="h-4 w-4" /></button>
+  return (
+    <PageShell
+      variant={manage ? 'founder' : 'student'}
+      kicker="Comunicação"
+      icon={CalendarDays}
+      title="Calendário"
+      description={manage
+        ? 'Eventos, avisos e simulados da escola. Cada turma vê só o que for dela.'
+        : 'Eventos, avisos e provas da sua escola.'}
+      actions={manage ? (
+        <button type="button" onClick={newEvent}
+          className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-extrabold text-white shadow-sm transition-transform hover:scale-[1.02]" style={{ background: 'var(--brand-primary)' }}>
+          <Plus className="h-4 w-4" /> Novo evento
+        </button>
+      ) : undefined}
+    >
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className={`${pageCard} p-3 sm:p-5`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1">
+              <button type="button" aria-label="Mês anterior" onClick={() => move(-1)} className="rounded-full p-2 hover:bg-slate-100 dark:hover:bg-white/10"><ChevronLeft className="h-4 w-4" /></button>
+              <p className="min-w-[150px] text-center text-lg font-black text-slate-900 dark:text-white" data-testid="month-label">{MONTHS[cursor.m]} {cursor.y}</p>
+              <button type="button" aria-label="Próximo mês" onClick={() => move(1)} className="rounded-full p-2 hover:bg-slate-100 dark:hover:bg-white/10"><ChevronRight className="h-4 w-4" /></button>
+            </div>
+            <div className="flex items-center gap-3">
+              {items === null && <span className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3 w-3 animate-spin" /> Carregando…</span>}
+              <button type="button" onClick={() => { setCursor({ y: today.getFullYear(), m: today.getMonth() }); setSelected(iso(today)); }}
+                className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-white/15 dark:text-white/70 dark:hover:bg-white/10">Hoje</button>
+            </div>
           </div>
-          <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-400">
+          <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-bold uppercase tracking-wide text-slate-400 sm:gap-1.5">
             {WD.map((w) => <span key={w}>{w}</span>)}
           </div>
-          <div className="mt-1 grid grid-cols-7 gap-1">
+          <div className="mt-1.5 grid grid-cols-7 gap-1 sm:gap-1.5">
             {grid.map((d) => {
               const k = iso(d);
               const its = byDay.get(k) ?? [];
               const out = d.getMonth() !== cursor.m;
               const isSel = k === selected;
+              const isToday = k === iso(today);
               return (
                 <button key={k} type="button" onClick={() => setSelected(k)} aria-label={`Dia ${d.getDate()}${its.length ? `, ${its.length} item(ns)` : ''}`}
-                  className={`flex min-h-[54px] flex-col items-center rounded-xl p-1 text-xs transition ${isSel ? '' : 'hover:bg-slate-50 dark:hover:bg-white/5'} ${out ? 'opacity-40' : ''}`}
+                  className={`flex min-h-[64px] flex-col items-stretch rounded-xl border p-1 text-left text-xs transition sm:min-h-[104px] sm:p-1.5 ${isSel ? 'border-transparent' : 'border-slate-100 hover:bg-slate-50 dark:border-white/5 dark:hover:bg-white/5'} ${out ? 'opacity-40' : ''}`}
                   style={isSel ? { boxShadow: '0 0 0 2px var(--brand-primary)' } : undefined}>
-                  <span className={`font-bold ${k === iso(today) ? 'rounded-full px-1.5 text-white' : 'text-slate-700 dark:text-white/80'}`}
-                    style={k === iso(today) ? { background: 'var(--brand-primary)' } : undefined}>{d.getDate()}</span>
-                  <span className="mt-1 flex flex-wrap justify-center gap-0.5">
+                  <span className={`self-center font-bold sm:self-start ${isToday ? 'rounded-full px-1.5 text-white' : 'text-slate-700 dark:text-white/80'}`}
+                    style={isToday ? { background: 'var(--brand-primary)' } : undefined}>{d.getDate()}</span>
+                  {/* celular: só os pontos; tela maior: título e horário de cada item */}
+                  <span className="mt-1 flex flex-wrap justify-center gap-0.5 sm:hidden" aria-hidden>
                     {its.slice(0, 3).map((it) => <span key={`${it.source}-${it.id}`} className="h-1.5 w-1.5 rounded-full" style={{ background: EVENT_KIND_COLOR[it.kind] }} />)}
+                  </span>
+                  <span className="mt-1 hidden min-w-0 flex-col gap-0.5 sm:flex" aria-hidden>
+                    {its.slice(0, 3).map((it) => (
+                      <span key={`${it.source}-${it.id}`} className="truncate rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold leading-tight text-slate-800 dark:text-white/90"
+                        style={{ background: `color-mix(in srgb, ${EVENT_KIND_COLOR[it.kind]} 18%, transparent)`, borderLeft: `3px solid ${EVENT_KIND_COLOR[it.kind]}` }}>
+                        {timeShort(it) && <span className="mr-1 opacity-60">{timeShort(it)}</span>}{it.title}
+                      </span>
+                    ))}
+                    {its.length > 3 && <span className="px-1 text-[10px] font-semibold text-slate-500">+{its.length - 3} mais</span>}
                   </span>
                 </button>
               );
             })}
           </div>
-          <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-slate-500 dark:text-white/55">
+          <div className="mt-4 flex flex-wrap gap-3 text-[11px] text-slate-500 dark:text-white/55">
             {(['aviso', 'evento', 'prova', 'feriado', 'prazo', 'aula'] as const).map((k) => (
               <span key={k} className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ background: EVENT_KIND_COLOR[k] }} />{EVENT_KIND_LABEL[k]}</span>
             ))}
           </div>
-          {items === null && <div className="mt-2 flex items-center gap-2 text-xs text-slate-500"><Loader2 className="h-3 w-3 animate-spin" /> Carregando…</div>}
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5" aria-label="Eventos do dia">
-          <p className="text-sm font-black text-slate-900 dark:text-white">
+        <section className={`${pageCard} p-4 sm:p-5 xl:sticky xl:top-4 xl:self-start`} aria-label="Eventos do dia">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Dia selecionado</p>
+          <p className="mt-0.5 text-base font-black capitalize text-slate-900 dark:text-white">
             {new Date(`${selected}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
           </p>
           {dayItems.length === 0 ? (
@@ -212,7 +237,7 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
           ) : (
             <ul className="mt-3 space-y-2">
               {dayItems.map((it) => (
-                <li key={`${it.source}-${it.id}-${it.occurrence_date}`} className="rounded-2xl border border-slate-100 p-3 dark:border-white/10"
+                <li key={`${it.source}-${it.id}-${it.occurrence_date}`} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3 dark:border-white/10 dark:bg-white/5"
                   style={{ borderLeft: `4px solid ${EVENT_KIND_COLOR[it.kind]}` }}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -332,6 +357,6 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

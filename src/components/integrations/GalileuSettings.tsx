@@ -10,6 +10,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import {
   integrationsFetch, type GalileuStatus, type GalileuStudent, type LinkOverview, type LinkRow,
 } from '@/lib/integrations';
+import { PageShell } from '@/components/partners/PageShell';
 
 const card = 'rounded-2xl border border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-white/5';
 const btn = 'inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold disabled:opacity-50';
@@ -87,9 +88,13 @@ export function GalileuSettings() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:py-8">
-      <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-white"><Plug className="h-6 w-6" /> Integrações</h1>
-      <p className="mt-1 text-sm text-slate-500 dark:text-white/55">Conecte sistemas que a escola já usa. Nada é alterado neles: a StudyTrack só lê.</p>
+    <PageShell
+      variant={'founder'}
+      kicker="Escola"
+      icon={Plug}
+      title="Integrações"
+      description="Conecte sistemas que a escola já usa. Nada é alterado neles: a StudyTrack só lê."
+    >
 
       {msg && (
         <p role="status" className={`mt-4 rounded-xl p-3 text-sm ${msg.ok ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300'}`}>{msg.text}</p>
@@ -194,7 +199,7 @@ export function GalileuSettings() {
         <LinkDialog slug={slug} row={linking} onClose={() => setLinking(null)}
           onLinked={() => { setLinking(null); setMsg({ ok: true, text: 'Aluno vinculado.' }); void loadLinks(); }} />
       )}
-    </div>
+    </PageShell>
   );
 }
 
