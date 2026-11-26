@@ -46,7 +46,7 @@ export function calendarFrom(row: {
   };
 }
 
-export function CalendarFields({ value, onChange, inputClass, labelClass, chipClass, startLabel = 'Data', startHint, requireStart = false }: {
+export function CalendarFields({ value, onChange, inputClass, labelClass, chipClass, startLabel = 'Data', startHint, requireStart = false, hideRepeat = false }: {
   value: CalendarValue;
   onChange: (v: CalendarValue) => void;
   inputClass: string;
@@ -55,6 +55,7 @@ export function CalendarFields({ value, onChange, inputClass, labelClass, chipCl
   startLabel?: string;
   startHint?: string;
   requireStart?: boolean;
+  hideRepeat?: boolean;
 }) {
   const set = (patch: Partial<CalendarValue>) => onChange({ ...value, ...patch });
   const toggleWd = (d: number) => set({ weekdays: value.weekdays.includes(d) ? value.weekdays.filter((x) => x !== d) : [...value.weekdays, d].sort() });
@@ -81,7 +82,7 @@ export function CalendarFields({ value, onChange, inputClass, labelClass, chipCl
           )}
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      {!hideRepeat && <div className="grid gap-3 sm:grid-cols-2">
         <label className={labelClass}>Repetir
           <select aria-label="Repetir" className={`${inputClass} mt-1`} value={value.freq}
             onChange={(e) => set({ freq: e.target.value as RecurrenceFreq })}>
@@ -93,8 +94,8 @@ export function CalendarFields({ value, onChange, inputClass, labelClass, chipCl
             <input aria-label="Repetir até" type="date" className={`${inputClass} mt-1`} value={value.until} onChange={(e) => set({ until: e.target.value })} />
           </label>
         )}
-      </div>
-      {value.freq === 'weekly' && (
+      </div>}
+      {!hideRepeat && value.freq === 'weekly' && (
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Dias da semana">
           {WD.map((d, i) => (
             <button key={i} type="button" aria-label={WD_FULL[i]} aria-pressed={value.weekdays.includes(i)}

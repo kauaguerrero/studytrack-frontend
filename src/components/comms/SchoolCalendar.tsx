@@ -32,6 +32,8 @@ export function monthGrid(year: number, month: number): Date[] {
 
 interface Draft {
   id?: string;
+  /** Editar só este dia de uma série (yyyy-mm-dd). */
+  day?: string;
   title: string;
   kind: EventKind;
   cal: CalendarValue;
@@ -53,6 +55,7 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
   const [selected, setSelected] = useState(iso(today));
   const [draft, setDraft] = useState<Draft | null>(null);
   const [removing, setRemoving] = useState<CalendarItem | null>(null);
+  const [editing, setEditing] = useState<CalendarItem | null>(null);
   const [busy, setBusy] = useState(false);
 
   const grid = useMemo(() => monthGrid(cursor.y, cursor.m), [cursor]);
@@ -85,7 +88,18 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
       location: '', link_url: '', description: '', visible_class_ids: [] });
   }
 
+  function editDay(it: CalendarItem) {
+    setEditing(null);
+    setDraft({
+      id: it.id, day: it.occurrence_date, title: it.title, kind: it.kind as EventKind,
+      cal: calendarFrom({ starts_at: it.starts_at, ends_at: it.ends_at, all_day: it.all_day, recurrence_freq: 'none' }),
+      location: it.location ?? '', link_url: it.link_url ?? '', description: it.description ?? '',
+      visible_class_ids: it.visible_class_ids ?? [],
+    });
+  }
+
   function editEvent(it: CalendarItem) {
+    setEditing(null);
     setDraft({
       id: it.id, title: it.title, kind: it.kind as EventKind,
       cal: calendarFrom({ starts_at: it.series_starts_at ?? it.starts_at, ends_at: it.series_ends_at ?? it.ends_at, all_day: it.all_day,
@@ -108,7 +122,11 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
       ...recurrencePayload(cal),
     };
     try {
-      if (draft.id) await commsFetch(slug, `/events/${draft.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      if (draft.id && draft.day) {
+        const { recurrence_freq: _f, recurrence_weekdays: _w, recurrence_until: _u, ...changes } = body;
+        void _f; void _w; void _u;
+        await commsFetch(slug, `/events/${draft.id}/day`, { method: 'POST', body: JSON.stringify({ date: draft.day, changes }) });
+      } else if (draft.id) await commsFetch(slug, `/events/${draft.id}`, { method: 'PATCH', body: JSON.stringify(body) });
       else await commsFetch(slug, '/events', { method: 'POST', body: JSON.stringify(body) });
       toast.success('Evento salvo.');
       setDraft(null);
@@ -209,7 +227,7 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
                     </div>
                     {manage && it.source === 'event' && (
                       <span className="flex shrink-0 gap-2">
-                        <button type="button" className="text-xs font-semibold text-slate-500 hover:underline" onClick={() => editEvent(it)}>Editar</button>
+                        <button type="button" className="text-xs font-semibold text-slate-500 hover:underline" onClick={() => (isRecurring(it) ? setEditing(it) : editEvent(it))}>Editar</button>
                         <button type="button" aria-label="Excluir evento" onClick={() => (isRecurring(it) ? setRemoving(it) : window.confirm(`Excluir "${it.title}"?`) && void removeItem(it, 'all'))}
                           className="text-slate-400 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
                       </span>
@@ -240,6 +258,26 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
         </section>
       </div>
 
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={() => setEditing(null)}>
+          <div role="dialog" aria-label="Editar item repetido" onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm space-y-3 rounded-t-3xl bg-white p-5 sm:rounded-3xl dark:bg-slate-900">
+            <h2 className="font-black text-slate-900 dark:text-white">Editar &quot;{editing.title}&quot;</h2>
+            <p className="text-sm text-slate-600 dark:text-white/70">Este evento se repete ({editing.recurrence_label}).</p>
+            <div className="flex flex-col gap-2">
+              <button type="button" onClick={() => editDay(editing)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800 dark:border-white/15 dark:text-white">
+                Só o dia {new Date(`${editing.occurrence_date}T12:00:00`).toLocaleDateString('pt-BR')}
+              </button>
+              <button type="button" onClick={() => editEvent(editing)} className="rounded-xl px-4 py-2 text-sm font-bold text-white" style={{ background: 'var(--brand-primary)' }}>
+                Toda a série
+              </button>
+              <button type="button" onClick={() => setEditing(null)} className="px-4 py-1 text-sm font-semibold text-slate-500">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {removing && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" onClick={() => setRemoving(null)}>
           <div role="dialog" aria-label="Excluir item repetido" onClick={(e) => e.stopPropagation()}
@@ -266,7 +304,7 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
           <div role="dialog" aria-label="Evento" onClick={(e) => e.stopPropagation()}
             className="max-h-[90vh] w-full max-w-lg space-y-3 overflow-y-auto rounded-t-3xl bg-white p-5 sm:rounded-3xl dark:bg-slate-900">
             <div className="flex items-center justify-between">
-              <h2 className="font-black text-slate-900 dark:text-white">{draft.id ? 'Editar evento' : 'Novo evento'}</h2>
+              <h2 className="font-black text-slate-900 dark:text-white">{draft.day ? `Editar só ${new Date(`${draft.day}T12:00:00`).toLocaleDateString('pt-BR')}` : draft.id ? 'Editar evento' : 'Novo evento'}</h2>
               <button type="button" aria-label="Fechar" onClick={() => setDraft(null)}><X className="h-4 w-4" /></button>
             </div>
             <input aria-label="Título do evento" className={input} placeholder="Título" maxLength={120} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
@@ -274,8 +312,11 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
               {EVENT_KINDS.map((k) => <option key={k} value={k}>{EVENT_KIND_LABEL[k]}</option>)}
             </select>
             <CalendarFields value={draft.cal} onChange={(cal) => setDraft({ ...draft, cal })} inputClass={input} labelClass={label} chipClass={chip}
-              startLabel="Início" requireStart />
-            {draft.id && draft.cal.freq !== 'none' && (
+              startLabel="Início" requireStart hideRepeat={!!draft.day} />
+            {draft.day && (
+              <p className="text-[11px] text-slate-500 dark:text-white/55">Só este dia muda; os outros dias da série continuam iguais.</p>
+            )}
+            {draft.id && !draft.day && draft.cal.freq !== 'none' && (
               <p className="text-[11px] text-slate-500 dark:text-white/55">Salvar altera todos os dias da série.</p>
             )}
             <input aria-label="Local" className={input} placeholder="Local (opcional)" maxLength={200} value={draft.location} onChange={(e) => setDraft({ ...draft, location: e.target.value })} />

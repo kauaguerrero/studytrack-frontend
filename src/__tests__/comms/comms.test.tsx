@@ -197,3 +197,32 @@ describe('fase 9b: repetição e avisos no calendário', () => {
     expect(new Date(body.calendar_starts_at).toISOString().slice(0, 10)).toBe('2026-12-10');
   });
 });
+
+
+describe('fase 9c: editar só um dia', () => {
+  it('CT-C06 editar evento repetido pergunta e "só este dia" manda só as mudanças daquele dia', async () => {
+    const d = new Date();
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const at = new Date(); at.setHours(19, 0, 0, 0);
+    const item = { id: 'e1', source: 'event', kind: 'aula', title: 'Plantão', description: null, starts_at: at.toISOString(), ends_at: null,
+      all_day: false, location: null, link_url: null, visible_class_ids: null, occurrence_date: day,
+      recurrence_freq: 'weekly', recurrence_weekdays: [at.getDay()], recurrence_until: null, recurrence_label: 'Toda semana' };
+    fetchMock.mockImplementation((_s: string, path: string) => {
+      if (path.startsWith('/calendar')) return Promise.resolve({ items: [item] });
+      return Promise.resolve({ event: { id: 'e2' } });
+    });
+    render(<SchoolCalendar manage />);
+    const dayBox = await screen.findByRole('region', { name: 'Eventos do dia' });
+    fireEvent.click(await within(dayBox).findByRole('button', { name: 'Editar' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Editar item repetido' })).getByRole('button', { name: /^Só o dia/ }));
+    const dlg = screen.getByRole('dialog', { name: 'Evento' });
+    expect(within(dlg).queryByLabelText('Repetir')).toBeNull();
+    fireEvent.change(within(dlg).getByLabelText('Local'), { target: { value: 'Sala 3' } });
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[1] === '/events/e1/day')).toBe(true));
+    const body = JSON.parse(fetchMock.mock.calls.find((c) => c[1] === '/events/e1/day')![2].body);
+    expect(body.date).toBe(day);
+    expect(body.changes).toMatchObject({ title: 'Plantão', location: 'Sala 3', all_day: false });
+    expect(body.changes).not.toHaveProperty('recurrence_freq');
+  });
+});
