@@ -1385,7 +1385,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           {showTypeSelector && (
             <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px]">
               <div className="flex h-full items-center justify-center p-4">
-                <div className="max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6">
+                <div className="max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6 dark:bg-slate-900 dark:border-white/10">
 
                   {/* ── STEP 1: Vestibular ou Concurso? (só existe se o módulo
                       de concursos estiver habilitado pra essa org) ────── */}
@@ -1396,10 +1396,10 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--brand-primary)' }}>
                             Novo simulado
                           </p>
-                          <h2 className="mt-1 text-xl font-extrabold text-slate-900">Vestibular ou concurso?</h2>
+                          <h2 className="mt-1 text-xl font-extrabold text-slate-900 dark:text-white">Vestibular ou concurso?</h2>
                           <p className="mt-1 text-sm text-slate-500">Escolha a origem das questões antes de configurar o simulado.</p>
                         </div>
-                        <button type="button" onClick={resetTypeSelectorState} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600">
+                        <button type="button" onClick={resetTypeSelectorState} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600 dark:text-slate-300 dark:border-white/15">
                           <X className="h-4 w-4" />
                         </button>
                       </div>
@@ -1408,24 +1408,24 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         <button
                           type="button"
                           onClick={() => { setSimuladoFormat('vestibular'); setTypeSelectorStep(2); }}
-                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 dark:bg-white/5 dark:border-white/10"
                         >
-                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
                             <GraduationCap className="h-5 w-5" />
                           </div>
-                          <h3 className="text-base font-bold text-slate-900">Vestibular / ENEM</h3>
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white">Vestibular / ENEM</h3>
                           <p className="mt-2 text-sm text-slate-500">ENEM, vestibulares e provas por banca (UFU, UEG, UFG, UNESP).</p>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => { setSimuladoFormat('concurso'); setForm((f) => ({ ...f, bank: '', format: 'custom' })); setTypeSelectorStep(2); }}
-                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 dark:bg-white/5 dark:border-white/10"
                         >
-                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
                             <Shield className="h-5 w-5" />
                           </div>
-                          <h3 className="text-base font-bold text-slate-900">Concurso Público</h3>
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white">Concurso Público</h3>
                           <p className="mt-2 text-sm text-slate-500">Provas de concursos e seleções do catálogo da sua organização.</p>
                         </button>
                       </div>
@@ -1449,10 +1449,10 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                           <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--brand-primary)' }}>
                             Novo simulado
                           </p>
-                          <h2 className="mt-1 text-xl font-extrabold text-slate-900">Como este simulado será aplicado?</h2>
+                          <h2 className="mt-1 text-xl font-extrabold text-slate-900 dark:text-white">Como este simulado será aplicado?</h2>
                           <p className="mt-1 text-sm text-slate-500">Escolha o modo de aplicação antes de configurar o simulado.</p>
                         </div>
-                        <button type="button" onClick={resetTypeSelectorState} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600">
+                        <button type="button" onClick={resetTypeSelectorState} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600 dark:text-slate-300 dark:border-white/15">
                           <X className="h-4 w-4" />
                         </button>
                       </div>
@@ -1470,12 +1470,12 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             setLocationAddress('');
                             setTypeSelectorStep(3);
                           }}
-                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 dark:bg-white/5 dark:border-white/10"
                         >
-                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
                             <Monitor className="h-5 w-5" />
                           </div>
-                          <h3 className="text-base font-bold text-slate-900">Online</h3>
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white">Online</h3>
                           <p className="mt-2 text-sm text-slate-500">Os alunos respondem pelo app. Correção e resultados automáticos.</p>
                         </button>
 
@@ -1488,12 +1488,12 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             setForm((f) => ({ ...f, same_for_all_students: true }));
                             setTypeSelectorStep(3);
                           }}
-                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 dark:bg-white/5 dark:border-white/10"
                         >
-                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
                             <MapPin className="h-5 w-5" />
                           </div>
-                          <h3 className="text-base font-bold text-slate-900">Híbrido</h3>
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white">Híbrido</h3>
                           <p className="mt-2 text-sm text-slate-500">Alunos podem responder online ou presencialmente, num local e endereço definidos. O resultado presencial prevalece.</p>
                         </button>
 
@@ -1505,12 +1505,12 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             setLocationAddress('');
                             setTypeSelectorStep(3);
                           }}
-                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 dark:bg-white/5 dark:border-white/10"
                         >
-                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
                             <Printer className="h-5 w-5" />
                           </div>
-                          <h3 className="text-base font-bold text-slate-900">Impresso</h3>
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white">Impresso</h3>
                           <p className="mt-2 text-sm text-slate-500">Gera PDF da prova e do gabarito para aplicação em sala, no papel.</p>
                         </button>
                       </div>
@@ -1518,13 +1518,13 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       <button
                         type="button"
                         onClick={() => { resetTypeSelectorState(); router.push(`/partners/${slug}/simulados/gabarito/novo`); }}
-                        className="mt-4 flex w-full items-center gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                        className="mt-4 flex w-full items-center gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 dark:bg-white/5 dark:border-white/10"
                       >
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
                           <ClipboardCheck className="h-5 w-5" />
                         </div>
                         <div>
-                          <h3 className="text-base font-bold text-slate-900">Só o gabarito</h3>
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white">Só o gabarito</h3>
                           <p className="mt-1 text-sm text-slate-500">A prova é sua (papel, PDF, apostila). Cadastre as respostas certas e o aluno marca A–E no app; a nota sai na hora.</p>
                         </div>
                       </button>
@@ -1554,16 +1554,16 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                               {modality === 'printed' ? 'Impresso' : modality === 'hybrid' ? 'Híbrido' : 'Online'}
                             </span>
                             {concursosEnabled && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
                                 {simuladoFormat === 'concurso' ? <Shield className="h-3 w-3" /> : <GraduationCap className="h-3 w-3" />}
                                 {simuladoFormat === 'concurso' ? 'Concurso' : 'Vestibular'}
                               </span>
                             )}
                           </div>
-                          <h2 className="mt-2 text-xl font-extrabold text-slate-900">Escolha o tipo de criação</h2>
+                          <h2 className="mt-2 text-xl font-extrabold text-slate-900 dark:text-white">Escolha o tipo de criação</h2>
                           <p className="mt-1 text-sm text-slate-500">Use o fluxo automático ou monte questão por questão.</p>
                         </div>
-                        <button type="button" onClick={resetTypeSelectorState} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600">
+                        <button type="button" onClick={resetTypeSelectorState} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600 dark:text-slate-300 dark:border-white/15">
                           <X className="h-4 w-4" />
                         </button>
                       </div>
@@ -1583,12 +1583,12 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             setPreviewQuestions(null);
                             setShowAleatorioWizard(true);
                           }}
-                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 dark:bg-white/5 dark:border-white/10"
                         >
-                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
                             <Shuffle className="h-5 w-5" />
                           </div>
-                          <h3 className="text-base font-bold text-slate-900">Simulado Aleatório</h3>
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white">Simulado Aleatório</h3>
                           <p className="mt-2 text-sm text-slate-500">O sistema seleciona questões automaticamente com base nas configurações de banca, formato e dificuldade.</p>
                         </button>
 
@@ -1599,12 +1599,12 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             setTypeSelectorStep(concursosEnabled ? 1 : 2);
                             setShowPersonalizedWizard(true);
                           }}
-                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300"
+                          className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 dark:bg-white/5 dark:border-white/10"
                         >
-                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200">
                             <ListChecks className="h-5 w-5" />
                           </div>
-                          <h3 className="text-base font-bold text-slate-900">Simulado Personalizado</h3>
+                          <h3 className="text-base font-bold text-slate-900 dark:text-white">Simulado Personalizado</h3>
                           <p className="mt-2 text-sm text-slate-500">Monte questão por questão: escolha do banco, gere com IA ou crie do zero.</p>
                         </button>
                       </div>
@@ -1620,17 +1620,17 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
           {printedExamId && (
             <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px]">
               <div className="flex h-full items-center justify-center p-4">
-                <div className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6">
+                <div className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl sm:p-6 dark:bg-slate-900 dark:border-white/10">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-600">Prova gerada</p>
-                      <h2 className="mt-1 text-xl font-extrabold text-slate-900">Download dos arquivos</h2>
+                      <h2 className="mt-1 text-xl font-extrabold text-slate-900 dark:text-white">Download dos arquivos</h2>
                       <p className="mt-1 text-sm text-slate-500">Baixe a prova, o gabarito em branco (pros alunos) e o gabarito oficial (com as respostas certas) num único .zip.</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => setPrintedExamId(null)}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-300 text-slate-600 dark:text-slate-300 dark:border-white/15"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -1641,9 +1641,9 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                       type="button"
                       onClick={() => downloadPrintedBundle()}
                       disabled={downloadingPrint !== null}
-                      className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[var(--brand-primary)] disabled:opacity-60"
+                      className="flex min-h-11 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-[var(--brand-primary)] disabled:opacity-60 dark:bg-white/5 dark:border-white/10"
                     >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm" style={{ color: 'var(--brand-primary)' }}>
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-slate-900" style={{ color: 'var(--brand-primary)' }}>
                         {downloadingPrint === printedExamId ? (
                           <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                         ) : (
@@ -1651,7 +1651,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-slate-900">Baixar provas (.zip)</p>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">Baixar provas (.zip)</p>
                         <p className="text-xs text-slate-500">Prova + gabarito em branco + gabarito oficial</p>
                       </div>
                       <Download className="h-4 w-4 shrink-0 text-slate-400" />
@@ -2165,7 +2165,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
                             <tbody>
                               {analyticsMap[sim.id].students.map((s) => (
                                 <tr key={s.student_id} className="border-t border-slate-100 dark:border-slate-800">
-                                  <td className="px-3 py-2 font-bold text-slate-600">#{s.position}</td>
+                                  <td className="px-3 py-2 font-bold text-slate-600 dark:text-slate-300">#{s.position}</td>
                                   <td className="px-3 py-2 text-slate-800 dark:text-slate-100">
                                     <div className="flex flex-wrap items-center gap-1.5">
                                       <span className="font-medium">{s.full_name ?? 'Aluno'}</span>
@@ -2663,7 +2663,7 @@ export default function SimuladosFounderClient({ slug }: { slug: string }) {
               type="button"
               onClick={() => void handleDownloadPreviewPdf()}
               disabled={downloadingPreviewPdf}
-              className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer min-h-[44px] transition-colors text-slate-500 hover:bg-slate-100 flex items-center gap-1.5"
+              className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer min-h-[44px] transition-colors text-slate-500 hover:bg-slate-100 flex items-center gap-1.5 dark:hover:bg-white/10"
             >
               <FileText className="w-3.5 h-3.5" />
               {downloadingPreviewPdf ? 'Gerando PDF...' : 'Baixar PDF'}

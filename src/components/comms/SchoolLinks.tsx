@@ -116,7 +116,7 @@ export function StudentLinkViewer({ linkId }: { linkId: string }) {
 
   if (links === null) return <div className="p-6 text-sm text-slate-500"><Loader2 className="inline h-4 w-4 animate-spin" /> Carregando…</div>;
   const link = links.find((l) => l.id === linkId);
-  if (!link) return <p className="p-6 text-sm text-slate-600">Link não encontrado.</p>;
+  if (!link) return <p className="p-6 text-sm text-slate-600 dark:text-slate-300">Link não encontrado.</p>;
   const embed = link.embeddable === true && !frameFailed;
 
   return (

@@ -47,6 +47,7 @@ import { usePopupQueue } from '@/components/partners/gamification/PopupQueueCont
 import { StartStudyModal, type StartTarget } from '@/components/cronograma/StartStudyModal';
 import type { NextItem, NextResponse } from '@/lib/cronograma';
 import type { MonthlyCheckInResult } from '@/types/gamification';
+import { QuickTimerButton } from '@/components/timer/QuickTimerButton';
 
 // ─── Types & helpers ─────────────────────────────────────────────────────────
 
@@ -1065,6 +1066,8 @@ export function DashboardClient({
                     {cronogramaNext || cronogramaDoneToday ? 'Continuar cronograma' : 'Continue de onde parou'}
                   </span>
                 </Link>
+                {/* Timer em um toque, logo abaixo da retomada (sem ir para outra página). */}
+                {org.permissions?.timer_enabled === true && <QuickTimerButton slug={slug} />}
               </div>
               </div>
             </BrandHero>

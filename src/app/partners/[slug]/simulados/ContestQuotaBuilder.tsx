@@ -228,7 +228,7 @@ export function ContestQuotaBuilder({
             setStep(step === 'quantidade' ? 'bancaCargo' : 'quantidade');
           }}
           disabled={step === 'bancaCargo' && !onExit}
-          className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-300"
+          className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-white/5"
         >
           <ArrowLeft className="mr-1 inline h-3.5 w-3.5" />
           Voltar

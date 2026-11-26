@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { CalendarDays, ChevronLeft, ChevronRight, ExternalLink, Loader2, MapPin, Megaphone, Plus, Repeat, Trash2, X } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { useOrgClasses } from '@/lib/org-classes';
-import { PageShell, pageCard } from '@/components/partners/PageShell';
+import { HeroStat, PageShell, pageCard } from '@/components/partners/PageShell';
 import { ClassVisibilityPicker } from '@/components/partners/ClassVisibilityPicker';
 import { CalendarFields, EMPTY_CALENDAR, calendarFrom, recurrencePayload, type CalendarValue } from '@/components/comms/CalendarFields';
 import { EVENT_KINDS, EVENT_KIND_COLOR, EVENT_KIND_LABEL, commsFetch, type CalendarItem, type EventKind } from '@/lib/org-comms';
@@ -155,6 +155,12 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
     : EVENT_KIND_LABEL[it.kind];
   const canEditAnn = (it: CalendarItem) => manage && it.source === 'announcement' && it.announcement_source === 'school';
 
+  // Números do hero: itens do mês visível e o próximo a partir de agora.
+  const monthCount = (items ?? []).filter((it) => new Date(`${it.occurrence_date ?? it.starts_at.slice(0, 10)}T12:00:00`).getMonth() === cursor.m).length;
+  const nextItem = (items ?? [])
+    .filter((it) => new Date(it.starts_at).getTime() >= Date.now() - 3600_000)
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))[0];
+
   const timeShort = (it: CalendarItem) => (it.all_day ? '' : new Date(it.starts_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
 
   return (
@@ -172,6 +178,11 @@ export function SchoolCalendar({ manage = false }: { manage?: boolean }) {
           <Plus className="h-4 w-4" /> Novo evento
         </button>
       ) : undefined}
+      aside={manage ? undefined : (<>
+        <HeroStat label={`Em ${MONTHS[cursor.m].toLowerCase()}`} value={items === null ? '…' : monthCount} hint={monthCount === 1 ? 'item no calendário' : 'itens no calendário'} />
+        <HeroStat label="Próximo" value={nextItem ? new Date(nextItem.starts_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '—'}
+          hint={nextItem ? nextItem.title : 'Nada marcado à frente'} />
+      </>)}
     >
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <section className={`${pageCard} p-3 sm:p-5`}>

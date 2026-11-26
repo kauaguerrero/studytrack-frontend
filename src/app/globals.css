@@ -143,6 +143,14 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
+  /* O tema escuro do aluno liga `.dark` num div interno
+     ([data-student-theme-root]), não no <html>. A cor herdada vem do body,
+     calculada com o --foreground claro: sem isto, todo texto que só herda cor
+     (campos de senha, Button outline/ghost, Input) ficava escuro sobre fundo
+     escuro. Aqui o --foreground já é o do tema escuro. */
+  .dark {
+    color: var(--foreground);
+  }
 }
 
 .font-display {

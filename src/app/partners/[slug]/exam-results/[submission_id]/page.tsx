@@ -110,7 +110,7 @@ export default function ExamResultPage() {
     return (
       <PartnerLayout>
         <div className="flex items-center justify-center py-20">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-[var(--brand-primary)]" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-[var(--brand-primary)] dark:border-white/10" />
         </div>
       </PartnerLayout>
     );

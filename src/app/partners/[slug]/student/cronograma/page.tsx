@@ -7,8 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import { ChevronLeft, Loader2, CalendarDays, TrendingUp, Clock, NotebookPen } from 'lucide-react';
+import { Loader2, CalendarDays, Clock, NotebookPen } from 'lucide-react';
 import { CronogramaSkeleton } from '@/components/cronograma/CronogramaSkeleton';
 import { toast } from 'sonner';
 import { ModuleGuard } from '@/components/partners/ModuleGuard';
@@ -73,6 +72,7 @@ function CronogramaInner() {
   const [mode, setMode] = useState<Mode>('semana');
   const [anchor, setAnchor] = useState<string | null>(null); // segunda da semana (ou dia do mês)
   const [view, setView] = useState<CronogramaView | null>(null);
+  const [bottomTab, setBottomTab] = useState<'assistente' | 'resumo'>('assistente');
   const [loadingView, setLoadingView] = useState(false);
   const [viewFailed, setViewFailed] = useState(false);
   const [insights, setInsights] = useState<Insights | null>(null);
@@ -109,12 +109,24 @@ function CronogramaInner() {
   // Navegar rápido dispara várias cargas; só a mais recente pode ir para a tela
   // (senão uma resposta lenta da semana anterior sobrescreve a atual).
   const viewSeq = useRef(0);
+  // "Hoje" do servidor (fuso de Brasília): o limite de histórico conta a partir dele.
+  const serverToday = useRef<string | null>(null);
   const loadView = useCallback(async () => {
     if (!range) return;
     const seq = ++viewSeq.current;
     setLoadingView(true);
     try {
-      const v = await cronogramaFetch<CronogramaView>(`/?start=${range.start}&days=${range.days}`);
+      // O servidor só devolve os últimos 30 dias. A grade do mês começa no domingo
+      // antes do dia 1 e pode passar disso (ex.: 26/10 para novembro): pede a partir
+      // do limite e completa os dias anteriores vazios, mantendo a grade alinhada.
+      const floor = addDays(serverToday.current ?? toISODate(new Date()), -30);
+      const start = range.start < floor ? floor : range.start;
+      const skipped = Math.round((parseISODate(start).getTime() - parseISODate(range.start).getTime()) / 86_400_000);
+      const raw = await cronogramaFetch<CronogramaView>(`/?start=${start}&days=${Math.max(1, range.days - skipped)}`);
+      const v = skipped > 0
+        ? { ...raw, days: [...Array.from({ length: skipped }, (_, i) => ({ date: addDays(range.start, i), minutes: 0, capacity: 0, ratio: 0, level: 'green' as const, blocked: false })), ...raw.days] }
+        : raw;
+      serverToday.current = raw.today ?? serverToday.current;
       if (seq === viewSeq.current) { setView(v); setViewFailed(false); }
     } catch (e) {
       if (seq === viewSeq.current) { toast.error((e as Error).message); setViewFailed(true); }
@@ -132,7 +144,7 @@ function CronogramaInner() {
   useEffect(() => {
     if (!status?.has_plan || anchor) return;
     cronogramaFetch<CronogramaView>('/?days=1')
-      .then((v) => setAnchor(weekStart(v.today)))
+      .then((v) => { serverToday.current = v.today; setAnchor(weekStart(v.today)); })
       .catch((e) => { toast.error((e as Error).message); setViewFailed(true); });
   }, [status, anchor]);
 
@@ -384,14 +396,14 @@ function CronogramaInner() {
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-center">
         <p className="text-[14px] text-slate-600 dark:text-white/65">Não foi possível carregar o seu cronograma.</p>
         <button type="button" onClick={() => { setViewFailed(false); setAnchor(null); loadStatus(); }}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-[13px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80">
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-[13px] font-bold text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/5">
           Tentar de novo
         </button>
       </div>
     );
   }
   if (!status.enabled) {
-    return <p className="p-6 text-[14px] text-slate-600">O cronograma não está habilitado para a sua escola.</p>;
+    return <p className="p-6 text-[14px] text-slate-600 dark:text-slate-300">O cronograma não está habilitado para a sua escola.</p>;
   }
   if (!status.has_plan) {
     return (
@@ -432,10 +444,6 @@ function CronogramaInner() {
       <RevealItem className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between xl:gap-6 xl:pr-14">
         <div className="min-w-0 space-y-3">
         <div className="min-w-0">
-          <Link href={`/partners/${slug}/student/dashboard`}
-            className="mb-1.5 flex w-fit items-center gap-1 text-xs font-semibold text-slate-400 transition-colors hover:text-slate-600 dark:text-white/40 dark:hover:text-white/70">
-            <ChevronLeft size={14} /> Dashboard
-          </Link>
           <h1 className="font-display text-[28px] font-black leading-tight text-slate-900 dark:text-white sm:text-[32px]">Cronograma</h1>
           <p className="mt-0.5 text-[13px] text-slate-500 dark:text-white/40">{subtitle}</p>
         </div>
@@ -461,13 +469,14 @@ function CronogramaInner() {
             <CalendarDays className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} />Hoje
           </button>
           <button type="button" onClick={() => setRoutineOpen(true)} disabled={!view}
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[13px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10">
-            <Clock className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} />Minha rotina
+            aria-label="Minha rotina" title="Minha rotina"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10">
+            <Clock className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} />
           </button>
           <button type="button" onClick={() => setLogTarget({})} disabled={!view}
-            title="Estudou fora da plataforma? Registre no diário"
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-[13px] font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10">
-            <NotebookPen className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} /><span className="hidden sm:inline">Registrar estudo</span>
+            aria-label="Registrar estudo" title="Estudou fora da plataforma? Registre no diário"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/80 dark:hover:bg-white/10">
+            <NotebookPen className="h-4 w-4" style={{ color: 'var(--brand-ink)' }} />
           </button>
         </div>
         </div>
@@ -527,9 +536,16 @@ function CronogramaInner() {
         </div>
       </RevealItem>
 
-      {/* ── Assistente (balão flutuante, sem card) + Sua semana ─────────────────────── */}
-      <RevealItem className="grid grid-cols-[minmax(0,1fr)] items-stretch gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <div className="min-w-0">
+      {/* ── Assistente e resumo em abas: um de cada vez, para a tela não ficar lotada ── */}
+      <RevealItem className="space-y-3">
+        <Segmented<'assistente' | 'resumo'>
+          options={[{ value: 'assistente', label: 'Assistente' }, { value: 'resumo', label: 'Como você está indo' }]}
+          value={bottomTab}
+          onChange={setBottomTab}
+          hex={org.brand_primary}
+        />
+        {bottomTab === 'assistente' ? (
+          <div className="min-w-0">
             <AgentChat
               today={today}
               proposal={proposal}
@@ -544,24 +560,15 @@ function CronogramaInner() {
               studiedAreas={insights?.by_area.filter((a) => a.studied > 0).map((a) => a.area)}
               freeText={status.agent_enabled !== false}
             />
-        </div>
-        {/* Mesmo cabeçalho e mesmo cartão branco do assistente: as duas colunas começam alinhadas. */}
-        <section aria-label="Sua semana" className="flex min-w-0 flex-col gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl"
-              style={{ background: 'color-mix(in srgb, var(--brand-ink) 12%, transparent)', color: 'var(--brand-ink)' }}>
-              <TrendingUp className="h-4 w-4" />
-            </span>
-            <div>
-              <p className="font-display text-[15px] font-bold leading-tight text-slate-900 dark:text-white">Como você está indo</p>
-              <p className="text-[11.5px] text-slate-500 dark:text-white/50">Ritmo, constância e o que já foi estudado.</p>
-            </div>
           </div>
-          <div className="flex-1 rounded-[22px] p-3.5 shadow-[0_2px_4px_-2px_rgba(15,23,42,0.08),0_22px_40px_-20px_rgba(15,23,42,0.45)] ring-1 ring-black/5 dark:ring-white/10"
+        ) : (
+          <section aria-label="Sua semana" className="min-w-0">
+          <div className="rounded-[22px] p-3.5 shadow-[0_2px_4px_-2px_rgba(15,23,42,0.08),0_22px_40px_-20px_rgba(15,23,42,0.45)] ring-1 ring-black/5 dark:ring-white/10"
             style={{ background: 'var(--brand-primary)', color: onBrandText(org.brand_primary) }}>
             <InsightsPanel data={insights} />
           </div>
-        </section>
+          </section>
+        )}
       </RevealItem>
 
       <StartStudyModal

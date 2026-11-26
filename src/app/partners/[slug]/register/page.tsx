@@ -256,16 +256,16 @@ export default function PartnerRegisterPage() {
   const secondary = sanitizeCssHexColor(org?.brand_secondary, '#8b5cf6');
 
   return (
-    <div className="flex min-h-screen w-full overflow-x-hidden bg-white font-sans text-slate-900">
+    <div className="flex min-h-screen w-full overflow-x-hidden bg-white font-sans text-slate-900 dark:bg-slate-900 dark:text-white">
       {/* ── Esquerda: formulário ── */}
-      <div className="relative z-20 flex h-screen min-h-0 w-full min-w-0 shrink-0 flex-col bg-white min-[901px]:w-1/2">
+      <div className="relative z-20 flex h-screen min-h-0 w-full min-w-0 shrink-0 flex-col bg-white min-[901px]:w-1/2 dark:bg-slate-900">
         <div className="flex-none min-w-0 p-4 sm:p-6 xl:p-8">
           <Link
             href={`/partners/${slug}/dashboard`}
             className="group flex w-fit min-w-0 max-w-full flex-wrap items-center gap-0"
           >
             {loadingOrg ? (
-              <div className="h-10 w-10 animate-pulse rounded-lg bg-slate-100" />
+              <div className="h-10 w-10 animate-pulse rounded-lg bg-slate-100 dark:bg-white/10" />
             ) : org?.logo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={org.logo_url} alt={org.name} className="h-10 w-10 rounded-lg object-contain" />
@@ -277,7 +277,7 @@ export default function PartnerRegisterPage() {
                 <GraduationCap className="h-5 w-5" />
               </div>
             )}
-            <span className="ml-2.5 truncate text-lg font-extrabold tracking-tight text-slate-900">
+            <span className="ml-2.5 truncate text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">
               {loadingOrg ? ' ' : (org?.name ?? slug)}
             </span>
           </Link>
@@ -300,7 +300,7 @@ export default function PartnerRegisterPage() {
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
                       <AlertTriangle className="h-6 w-6 text-red-500" />
                     </div>
-                    <p className="text-sm text-slate-600">{joinError}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">{joinError}</p>
                     <button
                       type="button"
                       onClick={retryJoin}
@@ -331,13 +331,13 @@ export default function PartnerRegisterPage() {
                   <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.16em]" style={{ color: primary }}>
                     Convite de {loadingOrg ? '...' : (org?.name ?? slug)}
                   </p>
-                  <h1 className="font-display text-[30px] font-black leading-[1.05] tracking-tight text-slate-900 sm:text-[34px]">
+                  <h1 className="font-display text-[30px] font-black leading-[1.05] tracking-tight text-slate-900 sm:text-[34px] dark:text-white">
                     Criar sua conta.
                   </h1>
                 </div>
 
                 {/* Progresso do cadastro */}
-                <div className="mb-6 h-1 w-full overflow-hidden rounded-full bg-slate-100">
+                <div className="mb-6 h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
                   <div
                     className="h-full rounded-full transition-all duration-500 ease-out"
                     style={{ width: `${formProgress}%`, background: `linear-gradient(90deg, ${primary}, ${secondary})` }}
@@ -347,7 +347,7 @@ export default function PartnerRegisterPage() {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {/* Código de convite — primeiro, pois vale tanto pro Google quanto pro form manual */}
                   {codeFromUrl ? (
-                    <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5">
+                    <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 dark:bg-white/5 dark:border-white/10">
                       <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
                       <span className="text-xs text-slate-500">Código de convite:</span>
                       <span className="font-mono text-sm font-semibold tracking-widest" style={{ color: primary }}>
@@ -356,7 +356,7 @@ export default function PartnerRegisterPage() {
                     </div>
                   ) : (
                     <div className="space-y-1.5">
-                      <Label htmlFor="inviteCode" className="text-[13px] font-bold text-slate-700">Código de convite</Label>
+                      <Label htmlFor="inviteCode" className="text-[13px] font-bold text-slate-700 dark:text-slate-200">Código de convite</Label>
                       <div className="relative">
                         <KeyRound
                           className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400 transition-colors"
@@ -367,7 +367,7 @@ export default function PartnerRegisterPage() {
                           value={inviteCode}
                           onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                           placeholder="Ex: CODIGO123"
-                          className={`h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 font-mono uppercase tracking-widest focus-visible:border-blue-500 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0 ${errors.inviteCode ? 'border-red-400' : ''}`}
+                          className={`h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 dark:border-white/15 dark:bg-white/5 font-mono uppercase tracking-widest focus-visible:border-blue-500 focus-visible:bg-white dark:focus-visible:bg-slate-900 focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0 ${errors.inviteCode ? 'border-red-400' : ''}`}
                         />
                       </div>
                       {errors.inviteCode && <p className="text-xs text-red-500">{errors.inviteCode}</p>}
@@ -379,7 +379,7 @@ export default function PartnerRegisterPage() {
                     type="button"
                     onClick={handleGoogleSignUp}
                     disabled={googleLoading}
-                    className="group flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-slate-300 bg-white text-sm font-semibold text-slate-700 transition-all duration-300 hover:border-blue-300 hover:bg-slate-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+                    className="group flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-slate-300 bg-white text-sm font-semibold text-slate-700 transition-all duration-300 hover:border-blue-300 hover:bg-slate-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-900 dark:hover:bg-white/5 dark:text-slate-200 dark:border-white/15"
                   >
                     {googleLoading
                       ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -394,7 +394,7 @@ export default function PartnerRegisterPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="fullName" className="text-[13px] font-bold text-slate-700">Nome completo</Label>
+                    <Label htmlFor="fullName" className="text-[13px] font-bold text-slate-700 dark:text-slate-200">Nome completo</Label>
                     <div className="relative">
                       <User
                         className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400 transition-colors"
@@ -406,7 +406,7 @@ export default function PartnerRegisterPage() {
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="Seu nome completo"
                         autoComplete="name"
-                        className={`h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 pr-10 font-medium focus-visible:border-blue-500 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0 ${errors.fullName ? 'border-red-400' : ''}`}
+                        className={`h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 dark:border-white/15 dark:bg-white/5 pr-10 font-medium focus-visible:border-blue-500 focus-visible:bg-white dark:focus-visible:bg-slate-900 focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0 ${errors.fullName ? 'border-red-400' : ''}`}
                       />
                       {fullNameValid && (
                         <CheckCircle2 className="absolute right-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-emerald-500" />
@@ -427,7 +427,7 @@ export default function PartnerRegisterPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="email" className="text-[13px] font-bold text-slate-700">Email</Label>
+                    <Label htmlFor="email" className="text-[13px] font-bold text-slate-700 dark:text-slate-200">Email</Label>
                     <div className="relative">
                       <Mail
                         className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400 transition-colors"
@@ -440,7 +440,7 @@ export default function PartnerRegisterPage() {
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="seu@email.com"
                         autoComplete="email"
-                        className={`h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 pr-10 font-medium focus-visible:border-blue-500 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0 ${errors.email ? 'border-red-400' : ''}`}
+                        className={`h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 dark:border-white/15 dark:bg-white/5 pr-10 font-medium focus-visible:border-blue-500 focus-visible:bg-white dark:focus-visible:bg-slate-900 focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0 ${errors.email ? 'border-red-400' : ''}`}
                       />
                       {emailValid && (
                         <CheckCircle2 className="absolute right-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-emerald-500" />
@@ -450,7 +450,7 @@ export default function PartnerRegisterPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="password" className="text-[13px] font-bold text-slate-700">Senha</Label>
+                    <Label htmlFor="password" className="text-[13px] font-bold text-slate-700 dark:text-slate-200">Senha</Label>
                     <div className="relative">
                       <Lock
                         className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400 transition-colors"
@@ -463,12 +463,12 @@ export default function PartnerRegisterPage() {
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Mínimo 8 caracteres"
                         autoComplete="new-password"
-                        className={`h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 pr-12 font-medium focus-visible:border-blue-500 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0 ${errors.password ? 'border-red-400' : ''}`}
+                        className={`h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 dark:border-white/15 dark:bg-white/5 pr-12 font-medium focus-visible:border-blue-500 focus-visible:bg-white dark:focus-visible:bg-slate-900 focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0 ${errors.password ? 'border-red-400' : ''}`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword((v) => !v)}
-                        className="absolute right-2 top-1/2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600"
+                        className="absolute right-2 top-1/2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10"
                         tabIndex={-1}
                       >
                         {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
@@ -479,7 +479,7 @@ export default function PartnerRegisterPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="confirmPassword" className="text-[13px] font-bold text-slate-700">Confirmar senha</Label>
+                    <Label htmlFor="confirmPassword" className="text-[13px] font-bold text-slate-700 dark:text-slate-200">Confirmar senha</Label>
                     <div className="relative">
                       <Lock
                         className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400 transition-colors"
@@ -492,7 +492,7 @@ export default function PartnerRegisterPage() {
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Repita a senha"
                         autoComplete="new-password"
-                        className={`h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 pr-10 font-medium focus-visible:border-blue-500 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0 ${errors.confirmPassword ? 'border-red-400' : ''}`}
+                        className={`h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 dark:border-white/15 dark:bg-white/5 pr-10 font-medium focus-visible:border-blue-500 focus-visible:bg-white dark:focus-visible:bg-slate-900 focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0 ${errors.confirmPassword ? 'border-red-400' : ''}`}
                       />
                       {confirmValid && (
                         <CheckCircle2 className="absolute right-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-emerald-500" />

@@ -63,7 +63,7 @@ export default function MinhasImportacoesPage() {
           <div className="flex items-center gap-3">
             <Link
               href={`/partners/${org.slug}/redacoes/importar`}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-white/5"
             >
               <ArrowLeft className="h-4 w-4" />
             </Link>

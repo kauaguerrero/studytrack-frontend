@@ -137,7 +137,7 @@ export default function SimuladoPreviewModal({
   return (
     <div className="fixed inset-0 z-[130] bg-[#F5F5F7] flex flex-col">
       <div className="shrink-0">
-        <div className="bg-white border-b border-slate-100 px-4 py-2 shadow-sm flex justify-between items-center gap-3">
+        <div className="bg-white border-b border-slate-100 px-4 py-2 shadow-sm flex justify-between items-center gap-3 dark:bg-slate-900 dark:border-white/5">
           <div className="shrink-0 flex flex-col items-start gap-0.5">
             <div className="text-xs sm:text-sm font-extrabold text-slate-500 tabular-nums leading-none">
               {Math.min(previewGroupIndex + 1, Math.max(previewGroups.length, 1))}
@@ -151,7 +151,7 @@ export default function SimuladoPreviewModal({
 
           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
             {headerExtra}
-            <div className="flex flex-col items-center font-mono font-black tabular-nums px-3 py-1.5 rounded-xl border-2 bg-slate-50 text-slate-700 border-slate-200">
+            <div className="flex flex-col items-center font-mono font-black tabular-nums px-3 py-1.5 rounded-xl border-2 bg-slate-50 text-slate-700 border-slate-200 dark:bg-white/5 dark:text-slate-200 dark:border-white/10">
               <span className="text-[10px] font-semibold uppercase tracking-wide leading-none mb-0.5 opacity-60">
                 {timeLabel !== '--:--' ? 'Tempo' : 'Livre'}
               </span>
@@ -183,24 +183,24 @@ export default function SimuladoPreviewModal({
       <main className="flex-1 overflow-y-auto overscroll-y-contain">
         <div className="max-w-3xl mx-auto w-full px-4 py-6">
           {!currentPreviewQuestion || !currentPreviewGroup ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:bg-slate-900 dark:border-white/15">
               Nenhuma questão para visualizar.
             </div>
           ) : (
             <>
-              <div ref={questionTopRef} className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
+              <div ref={questionTopRef} className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100 dark:bg-slate-900 dark:border-white/5">
                 <div className="mb-5 flex items-start justify-between gap-3">
                   <div className="flex flex-wrap gap-2">
                     <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: brandPrimary, color: onBrand }}>
                       {previewContextQuestion?.subject}
                     </span>
                     {previewContextQuestion?.difficulty && (
-                      <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full border border-slate-200">
+                      <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:bg-white/10 dark:text-slate-300 dark:border-white/10">
                         {previewContextQuestion.difficulty}
                       </span>
                     )}
                     {previewContextQuestion?.discipline && (
-                      <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full border border-slate-200">
+                      <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full border border-slate-200 dark:bg-white/10 dark:text-slate-300 dark:border-white/10">
                         {previewContextQuestion.discipline}
                       </span>
                     )}
@@ -225,7 +225,7 @@ export default function SimuladoPreviewModal({
                     {previewGroupContextData.sharedContext && (
                       <QuestionRichText
                         text={previewGroupContextData.sharedContext}
-                        className="prose prose-slate max-w-none mb-5 text-slate-600 border-l-4 pl-4 text-sm leading-relaxed"
+                        className="prose prose-slate max-w-none mb-5 text-slate-600 border-l-4 pl-4 text-sm leading-relaxed dark:text-slate-300"
                         style={{ borderColor: brandPrimary }}
                       />
                     )}
@@ -254,10 +254,10 @@ export default function SimuladoPreviewModal({
                       key={question.id}
                       ref={(node) => { testletItemRefs.current[question.id] = node; }}
                       data-question-id={question.id}
-                      className={`scroll-mt-24 rounded-2xl border p-5 ${isPreviewTestlet ? 'border-slate-200 bg-slate-50/70' : 'border-transparent bg-transparent p-0'}`}
+                      className={`scroll-mt-24 rounded-2xl border p-5 ${isPreviewTestlet ? 'border-slate-200 bg-slate-50/70 dark:bg-white/5 dark:border-white/10' : 'border-transparent bg-transparent p-0'}`}
                     >
                       {isPreviewTestlet && index > 0 && (
-                        <div className="mb-4 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500">
+                        <div className="mb-4 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500 dark:bg-white/5 dark:border-white/10">
                           Referente ao texto-base acima
                         </div>
                       )}
@@ -272,13 +272,13 @@ export default function SimuladoPreviewModal({
                       {previewGroupContextData.perQuestionContext[question.id] && (
                         <QuestionRichText
                           text={previewGroupContextData.perQuestionContext[question.id]}
-                          className="prose prose-slate max-w-none mb-5 text-sm text-slate-600 leading-relaxed"
+                          className="prose prose-slate max-w-none mb-5 text-sm text-slate-600 leading-relaxed dark:text-slate-300"
                         />
                       )}
 
                       <QuestionRichText
                         text={question.alternatives_intro}
-                        className="prose prose-slate max-w-none text-base md:text-lg text-slate-900 font-medium mb-7 leading-relaxed"
+                        className="prose prose-slate max-w-none text-base md:text-lg text-slate-900 font-medium mb-7 leading-relaxed dark:text-white"
                       />
 
                       <div className="space-y-3">
@@ -294,14 +294,14 @@ export default function SimuladoPreviewModal({
                               key={`${question.id}-${alt.letter}`}
                               type="button"
                               onClick={() => setPreviewAnswers((prev) => ({ ...prev, [question.id]: alt.letter }))}
-                              className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start cursor-pointer ${isSelected ? 'shadow-sm' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                              className={`w-full text-left p-4 rounded-xl border-2 transition-all flex gap-4 items-start cursor-pointer ${isSelected ? 'shadow-sm' : 'bg-white border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-white/5 dark:border-white/10'}`}
                               style={isSelected ? {
                                 background: `color-mix(in srgb, ${brandPrimary} 8%, white)`,
                                 borderColor: brandPrimary,
                               } : undefined}
                             >
                               <span
-                                className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-extrabold shrink-0 transition-colors ${isSelected ? 'border-transparent' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
+                                className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center text-sm font-extrabold shrink-0 transition-colors ${isSelected ? 'border-transparent' : 'bg-slate-50 text-slate-500 border-slate-200 dark:bg-white/5 dark:border-white/10'}`}
                                 style={isSelected ? { background: brandPrimary, color: onBrand } : undefined}
                               >
                                 {alt.letter}
@@ -313,7 +313,7 @@ export default function SimuladoPreviewModal({
                                 {alt.text ? (
                                   <QuestionRichText
                                     text={alt.text}
-                                    className={`text-sm leading-snug ${isSelected ? 'font-medium' : 'text-slate-700'}`}
+                                    className={`text-sm leading-snug ${isSelected ? 'font-medium' : 'text-slate-700 dark:text-slate-200'}`}
                                     style={isSelected ? { color: brandPrimary } : undefined}
                                   />
                                 ) : alternativeImages.length === 0 ? (
@@ -342,7 +342,7 @@ export default function SimuladoPreviewModal({
                       if (qIndex >= 0) setPreviewIndex(qIndex);
                     }}
                     className={`min-w-8 rounded-full px-3 h-8 text-xs font-extrabold transition-all cursor-pointer ${
-                      i === previewGroupIndex ? 'scale-110 shadow-sm' : 'bg-slate-200 text-slate-600'
+                      i === previewGroupIndex ? 'scale-110 shadow-sm' : 'bg-slate-200 text-slate-600 dark:text-slate-300'
                     }`}
                     style={i === previewGroupIndex ? { background: brandPrimary, color: onBrand } : {}}
                   >
@@ -355,7 +355,7 @@ export default function SimuladoPreviewModal({
         </div>
       </main>
 
-      <div className="shrink-0 bg-white/95 backdrop-blur-md border-t border-slate-100 p-4">
+      <div className="shrink-0 bg-white/95 backdrop-blur-md border-t border-slate-100 p-4 dark:border-white/5">
         <div className="max-w-3xl mx-auto w-full flex items-center gap-3">
           <button
             type="button"
@@ -366,7 +366,7 @@ export default function SimuladoPreviewModal({
               if (qIndex >= 0) setPreviewIndex(qIndex);
             }}
             disabled={previewGroupIndex === 0}
-            className="flex-1 px-4 py-3 text-slate-500 disabled:opacity-30 font-bold flex items-center justify-center gap-2 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer min-h-[44px]"
+            className="flex-1 px-4 py-3 text-slate-500 disabled:opacity-30 font-bold flex items-center justify-center gap-2 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer min-h-[44px] dark:hover:bg-white/10"
           >
             <ArrowLeft size={16} /> <span className="hidden sm:inline">Anterior</span>
           </button>

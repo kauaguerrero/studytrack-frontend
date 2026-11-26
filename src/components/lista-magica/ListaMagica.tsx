@@ -8,9 +8,9 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Loader2, Sparkles } from 'lucide-react';
+import { ArrowRight, Flame, Loader2, Play, Sparkles, TrendingUp, Wand2 } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
-import { StudentPage } from '@/components/partners/PageShell';
+import { HeroStat, StudentPage } from '@/components/partners/PageShell';
 import { MagicListFetchError, REASON_LABEL, magicListFetch, weekLabel, type MagicList } from '@/lib/lista-magica';
 
 export function ListaMagica() {
@@ -52,61 +52,107 @@ export function ListaMagica() {
   if (failed && !list) return <p className="p-6 text-sm text-slate-500">Lista mágica indisponível.</p>;
   if (!list) return <div className="flex items-center gap-2 p-6 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Montando a sua lista…</div>;
 
+  const total = list.total_questions || 10;
+  const done = list.status === 'done';
+  const pct = done && list.score != null && list.total ? Math.round((list.score / list.total) * 100) : null;
+  const statusLabel = { ready: 'Pronta', in_progress: 'Em andamento', done: 'Feita', empty: 'Sem temas' }[list.status];
+
+  const cta = !done && list.status !== 'empty' && (
+    <button type="button" onClick={() => void start()} disabled={starting}
+      className="inline-flex items-center gap-2 rounded-2xl bg-white px-6 py-3 text-[14px] font-black text-slate-900 shadow-lg transition-transform hover:scale-[1.03] active:scale-[0.98] disabled:opacity-60">
+      {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" fill="currentColor" strokeWidth={0} />}
+      {list.status === 'in_progress' ? 'Continuar a lista' : 'Começar a lista'}
+    </button>
+  );
+
   return (
     <StudentPage
       kicker={`Lista mágica · ${weekLabel(list.week_start)}`}
       icon={Sparkles}
-      title={`Suas ${list.total_questions || 10} questões da semana`}
+      title={`Suas ${total} questões da semana`}
+      description="Questões que você nunca fez, dos temas em que você mais precisa treinar agora. Acertar aqui conta no seu nível e esfria o tema."
+      actions={cta || undefined}
+      aside={<>
+        <HeroStat label="Situação" value={statusLabel} hint={done && list.score != null ? `${list.score} de ${list.total} certas` : 'nova toda segunda'} />
+        <HeroStat label="Temas" value={list.topics.length} hint={`${total} questões`} />
+      </>}
     >
-
-      {list.status === 'empty' ? (
-        <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-white/5 dark:text-white/70">
-          Ainda não há temas para montar a sua lista. Responda algumas questões no banco ou num simulado: a lista usa os seus erros para escolher o que treinar.
+      {conflict && (
+        <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+          Você tem outro simulado em andamento. Termine ou descarte em{' '}
+          <Link href={`/partners/${slug}/student/simulado`} className="font-bold underline">Simulados</Link> e volte aqui.
         </p>
-      ) : (
-        <>
-          <p className="mt-2 text-sm text-slate-600 dark:text-white/65">
-            Questões que você nunca fez, dos temas em que você mais precisa treinar agora. Acertar aqui conta no seu nível e esfria o tema.
-          </p>
-          <ul className="mt-4 divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white dark:divide-white/10 dark:border-white/10 dark:bg-white/5">
-            {list.topics.map((t) => (
-              <li key={`${t.subject}|${t.discipline}`} className="flex items-center justify-between gap-3 px-4 py-3">
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-bold text-slate-900 dark:text-white">{t.discipline}</span>
-                  <span className="block text-xs text-slate-500 dark:text-white/50">{t.subject} · {REASON_LABEL[t.reason]}</span>
-                </span>
-                <span className="shrink-0 text-sm font-bold tabular-nums text-slate-700 dark:text-white/80">{t.qty} {t.qty === 1 ? 'questão' : 'questões'}</span>
-              </li>
-            ))}
-          </ul>
+      )}
 
-          {list.status === 'done' ? (
-            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
-              <p className="text-sm font-bold text-emerald-900 dark:text-emerald-200">
-                Lista feita{list.score != null ? `: ${list.score} de ${list.total}` : ''}. A próxima chega na segunda.
+      {done && (
+        <div className="partner-elevated-card relative overflow-hidden rounded-[24px] bg-white p-5 sm:p-6 dark:bg-slate-900">
+          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-emerald-400/15 blur-2xl" />
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+            {pct != null && (
+              <div className="relative h-24 w-24 shrink-0">
+                <svg viewBox="0 0 36 36" className="h-24 w-24 -rotate-90">
+                  <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3.5" className="stroke-slate-100 dark:stroke-white/10" />
+                  <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3.5" strokeLinecap="round" stroke="#10b981"
+                    strokeDasharray={`${(pct / 100) * 97.4} 97.4`} />
+                </svg>
+                <span className="font-display absolute inset-0 flex items-center justify-center text-xl font-black text-slate-900 dark:text-white">{pct}%</span>
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="font-display text-xl font-black text-slate-900 dark:text-white">Lista da semana feita! 🎉</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                {list.score != null ? `Você acertou ${list.score} de ${list.total}. ` : ''}Os temas que você acertou esfriaram. A próxima lista chega na segunda.
               </p>
               {list.session_id && (
-                <Link href={`/partners/${slug}/student/simulado/${list.session_id}/revisao`} className="mt-2 inline-block text-sm font-bold" style={{ color: 'var(--brand-primary)' }}>
-                  Revisar as questões →
+                <Link href={`/partners/${slug}/student/simulado/${list.session_id}/revisao`}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-bold text-white shadow-sm" style={{ background: 'var(--brand-primary)' }}>
+                  Revisar as questões <ArrowRight className="h-4 w-4" />
                 </Link>
               )}
             </div>
-          ) : (
-            <div className="mt-5 flex flex-col items-start gap-2">
-              <button type="button" onClick={() => void start()} disabled={starting}
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white disabled:opacity-60" style={{ background: 'var(--brand-primary)' }}>
-                {starting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {list.status === 'in_progress' ? 'Continuar a lista' : 'Começar a lista'}
-              </button>
-              {conflict && (
-                <p className="text-sm text-amber-700 dark:text-amber-300">
-                  Você tem outro simulado em andamento. Termine ou descarte em{' '}
-                  <Link href={`/partners/${slug}/student/simulado`} className="font-bold underline">Simulados</Link> e volte aqui.
-                </p>
-              )}
-            </div>
-          )}
-        </>
+          </div>
+        </div>
+      )}
+
+      {list.status === 'empty' ? (
+        <div className="partner-elevated-card flex flex-col items-center rounded-[24px] bg-white px-6 py-12 text-center dark:bg-slate-900">
+          <div className="flex h-16 w-16 items-center justify-center rounded-3xl" style={{ background: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}>
+            <Wand2 className="h-8 w-8" style={{ color: 'var(--brand-primary)' }} />
+          </div>
+          <p className="font-display mt-4 text-xl font-black text-slate-900 dark:text-white">Ainda sem temas para a sua lista</p>
+          <p className="mt-1 max-w-md text-sm text-slate-600 dark:text-slate-400">
+            Responda algumas questões no banco ou num simulado: a lista usa os seus erros para escolher o que treinar.
+          </p>
+        </div>
+      ) : (
+        <section>
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">O que vai cair na sua lista</p>
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {list.topics.map((t) => (
+              <li key={`${t.subject}|${t.discipline}`} className="partner-elevated-card relative overflow-hidden rounded-[20px] bg-white p-4 dark:bg-slate-900">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"
+                    style={{ background: t.reason === 'erro_recente' ? 'rgba(239,68,68,0.12)' : 'color-mix(in srgb, var(--brand-primary) 12%, transparent)' }}>
+                    {t.reason === 'erro_recente'
+                      ? <Flame className="h-5 w-5 text-red-500" />
+                      : <TrendingUp className="h-5 w-5" style={{ color: 'var(--brand-primary)' }} />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-slate-400">{t.subject}</p>
+                    <p className="font-display truncate text-[15.5px] font-black text-slate-900 dark:text-white" title={t.discipline}>{t.discipline}</p>
+                    <p className="mt-0.5 text-[12px] text-slate-500 dark:text-slate-400">Porque {REASON_LABEL[t.reason]}</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-1.5" aria-label={`${t.qty} ${t.qty === 1 ? 'questão' : 'questões'}`}>
+                  {Array.from({ length: t.qty }, (_, i) => (
+                    <span key={i} className="h-2 flex-1 rounded-full" style={{ background: 'var(--brand-primary)', opacity: done ? 0.35 : 0.85 }} />
+                  ))}
+                  <span className="ml-1 shrink-0 text-[12px] font-bold tabular-nums text-slate-600 dark:text-slate-300">{t.qty}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </StudentPage>
   );

@@ -264,7 +264,7 @@ export function AgentChat({
                     <span className="flex shrink-0 items-center gap-1">
                       <button type="button" aria-label="Menos 15 minutos" onClick={() => step(e, -15)}
                         disabled={busy || !!warn || e.minutes <= STEP_MIN}
-                        className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 active:scale-95 disabled:opacity-40 dark:border-white/10 dark:bg-white/10 dark:text-white/80">
+                        className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 active:scale-95 disabled:opacity-40 dark:border-white/10 dark:bg-white/10 dark:text-white/80 dark:hover:bg-white/5">
                         <Minus className="h-3.5 w-3.5" />
                       </button>
                       <span aria-live="polite" className={`min-w-[3.25rem] text-center text-[13.5px] font-bold tabular-nums ${routineMax > 0 && e.minutes > routineMax ? 'text-amber-700 dark:text-amber-300' : 'text-slate-900 dark:text-white'}`}>
@@ -272,7 +272,7 @@ export function AgentChat({
                       </span>
                       <button type="button" aria-label="Mais 15 minutos" onClick={() => step(e, 15)}
                         disabled={busy || !!warn || e.minutes >= STEP_MAX}
-                        className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 active:scale-95 disabled:opacity-40 dark:border-white/10 dark:bg-white/10 dark:text-white/80">
+                        className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 active:scale-95 disabled:opacity-40 dark:border-white/10 dark:bg-white/10 dark:text-white/80 dark:hover:bg-white/5">
                         <Plus className="h-3.5 w-3.5" />
                       </button>
                     </span>

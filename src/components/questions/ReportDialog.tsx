@@ -223,9 +223,9 @@ export function ReportDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="rounded-2xl border-slate-200 shadow-xl sm:max-w-md">
+      <DialogContent className="rounded-2xl border-slate-200 shadow-xl sm:max-w-md dark:border-white/10">
         <DialogHeader>
-          <DialogTitle className="text-slate-900">
+          <DialogTitle className="text-slate-900 dark:text-white">
             {step === 1 && '🐛 Encontrou um bug?'}
             {step === 2 && (isContest ? 'Contestar avaliação' : 'Detalhes (opcional)')}
             {step === 3 && (isContest ? 'Contestação enviada' : 'Report enviado')}
@@ -247,7 +247,7 @@ export function ReportDialog({
                 key={`${opt.value}-${opt.label}`}
                 type="button"
                 onClick={() => handleCategorySelect(opt.value)}
-                className="flex items-center gap-3 rounded-xl border-2 border-slate-200 bg-white p-4 text-left font-medium text-slate-700 transition-all hover:border-blue-300 hover:bg-blue-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="flex items-center gap-3 rounded-xl border-2 border-slate-200 bg-white p-4 text-left font-medium text-slate-700 transition-all hover:border-blue-300 hover:bg-blue-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-slate-900 dark:text-slate-200 dark:border-white/10"
               >
                 <AlertCircle className="h-5 w-5 shrink-0 text-slate-400" />
                 {opt.label}
@@ -267,7 +267,7 @@ export function ReportDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESCRIPTION))}
               rows={4}
-              className="resize-none rounded-xl border-slate-200 bg-slate-50/50 text-slate-800 placeholder:text-slate-400"
+              className="resize-none rounded-xl border-slate-200 bg-slate-50/50 text-slate-800 placeholder:text-slate-400 dark:bg-white/5 dark:text-slate-100 dark:border-white/10"
               disabled={isLoading}
             />
             <p className="text-xs text-slate-400">
@@ -284,7 +284,7 @@ export function ReportDialog({
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex-1 rounded-xl border-slate-200"
+                  className="flex-1 rounded-xl border-slate-200 dark:border-white/10"
                   onClick={handleBack}
                   disabled={isLoading}
                 >
@@ -293,7 +293,7 @@ export function ReportDialog({
               )}
               <Button
                 type="button"
-                className={`rounded-xl bg-slate-900 text-white hover:bg-slate-800 ${isContest ? 'flex-1' : 'flex-[2]'}`}
+                className={`rounded-xl bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 ${isContest ? 'flex-1' : 'flex-[2]'}`}
                 onClick={handleSubmit}
                 disabled={isLoading}
               >
@@ -317,14 +317,14 @@ export function ReportDialog({
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
               <CheckCircle2 className="h-10 w-10" />
             </div>
-            <p className="text-center text-slate-600">
+            <p className="text-center text-slate-600 dark:text-slate-300">
               {isContest
                 ? 'Sua contestação foi registrada. Vamos reavaliar o caso — se tivermos errado, você ganha o dobro de pontos.'
                 : 'Seu report foi registrado. A questão será revisada pela nossa equipe.'}
             </p>
             <Button
               type="button"
-              className="mt-6 rounded-xl bg-slate-900 px-6 hover:bg-slate-800"
+              className="mt-6 rounded-xl bg-slate-900 px-6 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
               onClick={handleCloseSuccess}
             >
               Fechar

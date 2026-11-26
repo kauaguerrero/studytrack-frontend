@@ -350,7 +350,7 @@ function ScheduleEditor({ slug, classId, hex }: { slug: string; classId: string;
         <SectionTitle kicker="Exceções" title="Mudanças na grade" hex={hex}
           action={!extra ? (
             <button type="button" onClick={() => setExtra({ date: '', starts_at: '19:00', ends_at: '20:00', subject: '' })}
-              className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300">
+              className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-white/5">
               <Plus className="h-3.5 w-3.5" /> Aula extra
             </button>
           ) : undefined} />

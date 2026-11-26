@@ -6,6 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { themePortalContainer } from '@/lib/theme-portal';
 
 const Sheet = SheetPrimitive.Root
 
@@ -37,7 +38,7 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
 
 const sheetVariants = cva(
-  "fixed z-50 gap-4 bg-white p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
+  "fixed z-50 gap-4 bg-white p-6 shadow-lg transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500 dark:bg-slate-900",
   {
     variants: {
       side: {
@@ -65,7 +66,7 @@ const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
 >(({ side = "right", className, children, overlayClassName, ...props }, ref) => (
-  <SheetPortal>
+  <SheetPortal container={themePortalContainer()}>
     <SheetOverlayContext.Provider value={overlayClassName}>
       <SheetOverlay />
     </SheetOverlayContext.Provider>
@@ -118,7 +119,7 @@ const SheetTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Title
     ref={ref}
-    className={cn("text-lg font-semibold text-slate-950", className)}
+    className={cn("text-lg font-semibold text-slate-950 dark:text-white", className)}
     {...props}
   />
 ))

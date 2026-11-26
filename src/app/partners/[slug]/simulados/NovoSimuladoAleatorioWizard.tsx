@@ -295,7 +295,7 @@ export function NovoSimuladoAleatorioWizard({
                         type="checkbox"
                         checked={!form.exclude_foreign_language}
                         onChange={(e) => setForm((f) => ({ ...f, exclude_foreign_language: !e.target.checked }))}
-                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300"
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 dark:border-white/15"
                         style={ringStyle}
                       />
                       <span>

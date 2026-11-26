@@ -110,14 +110,14 @@ export function QuestionEditableFields({ value, onChange, slug, storageHint }: P
         <select
           value={value.subject}
           onChange={(e) => patch({ subject: e.target.value, discipline: '' })}
-          className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+          className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15"
         >
           {getSubjects().map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
         <select
           value={value.discipline}
           onChange={(e) => patch({ discipline: e.target.value })}
-          className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+          className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15"
         >
           <option value="">Selecione o tópico</option>
           {topics.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -125,7 +125,7 @@ export function QuestionEditableFields({ value, onChange, slug, storageHint }: P
         <select
           value={value.difficulty}
           onChange={(e) => patch({ difficulty: e.target.value })}
-          className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+          className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15"
         >
           <option value="Fácil">Fácil</option>
           <option value="Médio">Médio</option>
@@ -137,7 +137,7 @@ export function QuestionEditableFields({ value, onChange, slug, storageHint }: P
         value={value.context}
         onChange={(e) => patch({ context: e.target.value })}
         placeholder="Contexto opcional"
-        className="min-h-24 w-full rounded-3xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+        className="min-h-24 w-full rounded-3xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:border-white/15"
       />
 
       <div>
@@ -158,7 +158,7 @@ export function QuestionEditableFields({ value, onChange, slug, storageHint }: P
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-300 px-3 text-xs font-semibold text-slate-700 disabled:opacity-50"
+            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-300 px-3 text-xs font-semibold text-slate-700 disabled:opacity-50 dark:text-slate-200 dark:border-white/15"
           >
             {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
             Enviar arquivo
@@ -167,13 +167,13 @@ export function QuestionEditableFields({ value, onChange, slug, storageHint }: P
             value={newImageUrl}
             onChange={(e) => setNewImageUrl(e.target.value)}
             placeholder="Ou cole o link de uma imagem"
-            className="h-10 min-w-[220px] flex-1 rounded-2xl border border-slate-300 bg-white px-3 text-xs outline-none focus:border-[var(--brand-primary)]"
+            className="h-10 min-w-[220px] flex-1 rounded-2xl border border-slate-300 bg-white px-3 text-xs outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15"
           />
           <button
             type="button"
             onClick={() => void handlePasteLink()}
             disabled={uploading || !newImageUrl.trim()}
-            className="h-10 rounded-2xl border border-slate-300 px-3 text-xs font-semibold text-slate-700 disabled:opacity-50"
+            className="h-10 rounded-2xl border border-slate-300 px-3 text-xs font-semibold text-slate-700 disabled:opacity-50 dark:text-slate-200 dark:border-white/15"
           >
             Anexar link
           </button>
@@ -181,7 +181,7 @@ export function QuestionEditableFields({ value, onChange, slug, storageHint }: P
         {value.images.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
             {value.images.map((img) => (
-              <div key={img} className="relative h-20 w-20 overflow-hidden rounded-xl border border-slate-200">
+              <div key={img} className="relative h-20 w-20 overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={img} alt="" className="h-full w-full object-cover" />
                 <button
@@ -201,7 +201,7 @@ export function QuestionEditableFields({ value, onChange, slug, storageHint }: P
         value={value.statement}
         onChange={(e) => patch({ statement: e.target.value })}
         placeholder="Enunciado da questão"
-        className="min-h-28 w-full rounded-3xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+        className="min-h-28 w-full rounded-3xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:border-white/15"
       />
 
       <div className="space-y-3">
@@ -210,7 +210,7 @@ export function QuestionEditableFields({ value, onChange, slug, storageHint }: P
             <button
               type="button"
               onClick={() => patch({ correct_alternative: alt.letter })}
-              className={`h-11 w-11 shrink-0 rounded-2xl border text-sm font-bold ${value.correct_alternative === alt.letter ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 text-slate-700'}`}
+              className={`h-11 w-11 shrink-0 rounded-2xl border text-sm font-bold ${value.correct_alternative === alt.letter ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 text-slate-700 dark:text-slate-200 dark:border-white/15'}`}
             >
               {alt.letter}
             </button>
@@ -218,7 +218,7 @@ export function QuestionEditableFields({ value, onChange, slug, storageHint }: P
               value={alt.text}
               onChange={(e) => patchAlternative(alt.letter, e.target.value)}
               placeholder={`Alternativa ${alt.letter}`}
-              className="h-11 flex-1 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+              className="h-11 flex-1 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15"
             />
           </div>
         ))}
@@ -228,7 +228,7 @@ export function QuestionEditableFields({ value, onChange, slug, storageHint }: P
         value={value.explanation}
         onChange={(e) => patch({ explanation: e.target.value })}
         placeholder="Comentário do professor / explicação do gabarito"
-        className="min-h-24 w-full rounded-3xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+        className="min-h-24 w-full rounded-3xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:border-white/15"
       />
     </div>
   );

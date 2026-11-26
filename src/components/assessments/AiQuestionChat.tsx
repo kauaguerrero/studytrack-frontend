@@ -196,18 +196,18 @@ export function AiQuestionChat({ onQuestionSaved, slug }: Props) {
     <div className="flex h-full flex-col">
       <div className="space-y-4 overflow-y-auto pb-4">
         {turns.length === 0 && (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 dark:bg-slate-900 dark:border-white/15">
             Descreva a questão que você quer (tema, contexto, nível) e a IA gera rascunhos editáveis. Use as sugestões
             abaixo pra dar uma direção de matéria, assunto e quantidade.
           </div>
         )}
         {turns.map((turn) => (
           <div key={turn.id} className="space-y-3">
-            <div className="ml-auto max-w-[85%] rounded-3xl rounded-tr-sm bg-slate-900 px-4 py-3 text-sm text-white">
+            <div className="ml-auto max-w-[85%] rounded-3xl rounded-tr-sm bg-slate-900 px-4 py-3 text-sm text-white dark:bg-white/15">
               {turn.prompt}
             </div>
             {turn.status === 'loading' && (
-              <div className="flex items-center gap-2 rounded-3xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+              <div className="flex items-center gap-2 rounded-3xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 dark:bg-slate-900 dark:border-white/10">
                 <Loader2 className="h-4 w-4 animate-spin" /> Gerando questão...
               </div>
             )}
@@ -218,7 +218,7 @@ export function AiQuestionChat({ onQuestionSaved, slug }: Props) {
               </div>
             )}
             {turn.status === 'ready' && turn.items?.map((item, index) => (
-              <div key={index} className="rounded-3xl rounded-tl-sm border border-slate-200 bg-white p-5 shadow-sm">
+              <div key={index} className="rounded-3xl rounded-tl-sm border border-slate-200 bg-white p-5 shadow-sm dark:bg-slate-900 dark:border-white/10">
                 <div className="mb-3 flex items-center justify-between gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
                   <span className="inline-flex items-center gap-2">
                     <Sparkles className="h-3.5 w-3.5" />
@@ -261,13 +261,13 @@ export function AiQuestionChat({ onQuestionSaved, slug }: Props) {
         </div>
       )}
 
-      <div className="sticky bottom-0 space-y-2 border-t border-slate-200 bg-white/95 pt-3 backdrop-blur">
+      <div className="sticky bottom-0 space-y-2 border-t border-slate-200 bg-white/95 pt-3 backdrop-blur dark:border-white/10">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold uppercase tracking-wide text-slate-400">Sugestões:</span>
           <select
             value={subjectHint}
             onChange={(e) => { setSubjectHint(e.target.value); setDisciplineHint(''); }}
-            className="h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs outline-none focus:border-[var(--brand-primary)]"
+            className="h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15"
           >
             <option value="">Matéria (opcional)</option>
             {getSubjects().map((item) => <option key={item} value={item}>{item}</option>)}
@@ -276,7 +276,7 @@ export function AiQuestionChat({ onQuestionSaved, slug }: Props) {
             value={disciplineHint}
             onChange={(e) => setDisciplineHint(e.target.value)}
             disabled={!subjectHint}
-            className="h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs outline-none focus:border-[var(--brand-primary)] disabled:bg-slate-100"
+            className="h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs outline-none focus:border-[var(--brand-primary)] disabled:bg-slate-100 dark:bg-slate-900 dark:border-white/15"
           >
             <option value="">Assunto (opcional)</option>
             {topicOptions.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -284,7 +284,7 @@ export function AiQuestionChat({ onQuestionSaved, slug }: Props) {
           <select
             value={difficulty}
             onChange={(e) => setDifficulty(e.target.value)}
-            className="h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs outline-none focus:border-[var(--brand-primary)]"
+            className="h-9 rounded-xl border border-slate-300 bg-white px-2.5 text-xs outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15"
           >
             <option value="Fácil">Fácil</option>
             <option value="Médio">Médio</option>
@@ -318,7 +318,7 @@ export function AiQuestionChat({ onQuestionSaved, slug }: Props) {
               }
             }}
             placeholder="Ex: questão sobre análise combinatória em contexto de probabilidade"
-            className="min-h-11 flex-1 resize-none rounded-2xl border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-[var(--brand-primary)]"
+            className="min-h-11 flex-1 resize-none rounded-2xl border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-[var(--brand-primary)] dark:border-white/15"
             rows={1}
           />
           <button

@@ -140,20 +140,20 @@ export default function PdfAnnotator({ slug, materialId, url, title }: { slug: s
         ))}
         <span className="mx-1 h-6 w-px bg-slate-200 dark:bg-white/10" />
         <button type="button" aria-label="Desfazer" title="Desfazer" onClick={undo} disabled={!history.current[key]?.length}
-          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:text-white/70"><RotateCcw className="h-4 w-4" /></button>
+          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:text-white/70 dark:hover:bg-white/10"><RotateCcw className="h-4 w-4" /></button>
         <button type="button" aria-label="Limpar página" title="Limpar página"
           disabled={!current.strokes.length && !current.notes.length}
           onClick={() => { if (window.confirm('Apagar todas as anotações desta página?')) change(EMPTY_PAGE); }}
-          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:text-white/70"><Trash2 className="h-4 w-4" /></button>
+          className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-30 dark:text-white/70 dark:hover:bg-white/10"><Trash2 className="h-4 w-4" /></button>
         <span className="ml-auto flex items-center gap-1">
           <span className="hidden text-[11px] text-slate-500 sm:inline" aria-live="polite" data-testid="save-state">
             {saving === 'saving' ? 'Salvando…' : saving === 'saved' ? 'Salvo' : saving === 'error' ? 'Erro ao salvar' : ''}
           </span>
           <button type="button" aria-label="Diminuir zoom" onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
-            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-white/70"><Minus className="h-4 w-4" /></button>
+            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-white/70 dark:hover:bg-white/10"><Minus className="h-4 w-4" /></button>
           <span className="w-10 text-center text-xs font-semibold text-slate-600 dark:text-white/70">{Math.round(zoom * 100)}%</span>
           <button type="button" aria-label="Aumentar zoom" onClick={() => setZoom((z) => Math.min(3, +(z + 0.25).toFixed(2)))}
-            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-white/70"><Plus className="h-4 w-4" /></button>
+            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 dark:text-white/70 dark:hover:bg-white/10"><Plus className="h-4 w-4" /></button>
         </span>
       </div>
 

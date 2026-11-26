@@ -9,7 +9,7 @@ import { Pause, Play, Square, Timer as TimerIcon, Trash2 } from 'lucide-react';
 import { useOrg } from '@/contexts/OrgContext';
 import { CUSTOM_SUBJECTS } from '@/lib/simuladoSubjects';
 import { formatClock, formatDuration, timerFetch, useStudyTimer, type TimerReport } from '@/lib/timer';
-import { PageShell } from '@/components/partners/PageShell';
+import { HeroStat, PageShell } from '@/components/partners/PageShell';
 
 export const TIMER_SUBJECTS = [...CUSTOM_SUBJECTS.filter((s) => s.value !== 'Todas').map((s) => s.value), 'Redação', 'Outra'];
 
@@ -52,6 +52,10 @@ export function StudyTimerPage() {
       kicker="Meu dia"
       icon={TimerIcon}
       title="Timer de estudo"
+      aside={<>
+        <HeroStat label="Hoje" value={formatDuration(t.todaySeconds + (timer ? t.seconds : 0))} hint="estudados" />
+        <HeroStat label={`Últimos ${days} dias`} value={report ? formatDuration(report.total_seconds) : '…'} hint={report ? `${report.sessions} ${report.sessions === 1 ? 'sessão' : 'sessões'}` : undefined} />
+      </>}
       description={<>Hoje: {formatDuration(t.todaySeconds + (timer ? t.seconds : 0))} estudados. Ao encerrar, o tempo entra no seu diário.</>}
     >
 

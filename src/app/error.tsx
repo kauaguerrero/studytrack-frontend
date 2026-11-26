@@ -16,12 +16,12 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-lg border border-slate-200 p-8 text-center">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 dark:bg-white/5">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-lg border border-slate-200 p-8 text-center dark:bg-slate-900 dark:border-white/10">
         <div className="mx-auto w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mb-6">
           <AlertTriangle className="w-7 h-7 text-red-500" />
         </div>
-        <h2 className="text-xl font-bold text-slate-900 mb-2">Algo deu errado</h2>
+        <h2 className="text-xl font-bold text-slate-900 mb-2 dark:text-white">Algo deu errado</h2>
         <p className="text-slate-500 text-sm mb-6">
           Ocorreu um erro inesperado. Tente novamente ou volte ao início.
         </p>
@@ -35,7 +35,7 @@ export default function GlobalError({
           </button>
           <Link
             href="/"
-            className="inline-flex items-center justify-center px-4 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition-colors"
+            className="inline-flex items-center justify-center px-4 py-2.5 bg-slate-100 text-slate-700 font-medium rounded-lg hover:bg-slate-200 transition-colors dark:bg-white/10 dark:text-slate-200"
           >
             Ir para início
           </Link>

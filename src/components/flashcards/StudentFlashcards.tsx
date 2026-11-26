@@ -10,7 +10,7 @@ import { useOrg } from '@/contexts/OrgContext';
 import { CardsEditor } from '@/components/flashcards/CardsEditor';
 import { StudyDeck } from '@/components/flashcards/StudyDeck';
 import { REVIEW_LABELS, cleanDrafts, draftsProblem, fcFetch, type Card, type CardDraft, type StudentDeck } from '@/lib/flashcards';
-import { PageShell } from '@/components/partners/PageShell';
+import { HeroStat, PageShell } from '@/components/partners/PageShell';
 
 const SOURCE_LABEL = { school: 'Da escola', class: 'Da turma', mine: 'Meu baralho' } as const;
 
@@ -42,6 +42,10 @@ export function StudentFlashcards() {
       kicker="Estudar"
       icon={Layers}
       title="Flashcards"
+      aside={<>
+        <HeroStat label="Para hoje" value={todayTotal} hint={todayTotal === 1 ? 'cartão' : 'cartões'} />
+        <HeroStat label="Baralhos" value={decks.length} hint="seus e da escola" />
+      </>}
       description={<>{todayTotal ? `${todayTotal} ${todayTotal === 1 ? 'cartão' : 'cartões'} para hoje.` : 'Nada para hoje: tudo em dia.'} Uns 20 minutos por dia já fazem diferença.</>}
       actions={<>
         <button type="button" onClick={() => setEditing('new')}

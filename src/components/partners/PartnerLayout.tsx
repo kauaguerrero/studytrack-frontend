@@ -48,7 +48,7 @@ import {
   Plug,
   ArrowLeftRight,
   TriangleAlert,
-  CalendarRange,
+  ListChecks,
   School,
   Flame,
   FileText,
@@ -352,9 +352,9 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
   // Links da escola no menu do aluno (fase 9) — uma leitura por montagem do layout.
   const schoolLinks = useMyLinks(org.slug, isPartnerStudent && org.permissions?.links_enabled === true);
   const layoutPath = usePathname() ?? '';
-  // Timer flutuante: fora da tela do timer e do simulado (que tem cronômetro próprio).
+  // Timer flutuante: fora do timer, do simulado (cronômetro próprio) e do Início (o botão do topo já mostra o relógio).
   const showTimerWidget = isPartnerStudent && org.permissions?.timer_enabled === true
-    && !/\/student\/(timer|simulado)(\/|$)/.test(layoutPath);
+    && !/\/student\/(timer|simulado|dashboard)(\/|$)/.test(layoutPath);
 
   // Alterna entre visão founder e visão aluno numa org demo.
   //
@@ -413,9 +413,10 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
   const studentNavItems: NavItemDef[] = [
     // Meu dia
     { section: 'Meu dia', href: `/partners/${org.slug}/student/dashboard`, icon: Home, label: 'Início', shortLabel: 'Início' },
-    ...(perm('cronograma_enabled', false) ? [{ section: 'Meu dia', href: `/partners/${org.slug}/student/cronograma`, icon: CalendarRange, label: 'Cronograma', shortLabel: 'Cronograma' }] : []),
+    ...(perm('cronograma_enabled', false) ? [{ section: 'Meu dia', href: `/partners/${org.slug}/student/cronograma`, icon: ListChecks, label: 'Cronograma', shortLabel: 'Cronograma' }] : []),
     ...(perm('calendario_enabled') ? [{ section: 'Meu dia', href: `/partners/${org.slug}/student/calendario`, icon: CalendarDays, label: 'Calendário', shortLabel: 'Agenda' }] : []),
-    ...(perm('timer_enabled', false) ? [{ section: 'Meu dia', href: `/partners/${org.slug}/student/timer`, icon: Timer, label: 'Timer', shortLabel: 'Timer' }] : []),
+    // Timer não tem item no menu: começa em um toque no Início (QuickTimerButton);
+    // /student/timer segue existindo como histórico, aberto a partir dali.
     // Estudar
     ...(perm('banco_questoes_enabled') ? [{ section: 'Estudar', href: `/partners/${org.slug}/student/banco-de-questoes`, icon: BookOpen, label: 'Questões', shortLabel: 'Questão' }] : []),
     ...(perm('banco_questoes_enabled') ? [{ section: 'Estudar', href: `/partners/${org.slug}/student/meus-erros`, icon: Flame, label: 'Meus erros', shortLabel: 'Erros' }] : []),

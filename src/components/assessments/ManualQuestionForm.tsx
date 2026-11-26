@@ -96,12 +96,12 @@ export function ManualQuestionForm({ onSuccess, slug }: Props) {
   }
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:bg-slate-900 dark:border-white/10">
       <div className="grid gap-3 md:grid-cols-2">
         <button
           type="button"
           onClick={() => setQuestionType('traditional')}
-          className={`rounded-3xl border p-5 text-left transition ${questionType === 'traditional' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
+          className={`rounded-3xl border p-5 text-left transition ${questionType === 'traditional' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-slate-50 text-slate-700 dark:bg-white/5 dark:text-slate-200 dark:border-white/10'}`}
         >
           <FileText className="h-5 w-5" />
           <h3 className="mt-3 text-base font-bold">Questão Tradicional</h3>
@@ -110,7 +110,7 @@ export function ManualQuestionForm({ onSuccess, slug }: Props) {
         <button
           type="button"
           onClick={() => setQuestionType('testlet')}
-          className={`rounded-3xl border p-5 text-left transition ${questionType === 'testlet' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
+          className={`rounded-3xl border p-5 text-left transition ${questionType === 'testlet' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-slate-50 text-slate-700 dark:bg-white/5 dark:text-slate-200 dark:border-white/10'}`}
         >
           <LayoutList className="h-5 w-5" />
           <h3 className="mt-3 text-base font-bold">Questão Testlet</h3>
@@ -124,15 +124,15 @@ export function ManualQuestionForm({ onSuccess, slug }: Props) {
         </div>
       ) : (
         <>
-          <div className="mt-5 border-b border-slate-100 pb-5">
+          <div className="mt-5 border-b border-slate-100 pb-5 dark:border-white/5">
             <div>
-              <h3 className="text-lg font-bold text-slate-900">Criar do zero</h3>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Criar do zero</h3>
               <p className="mt-1 text-sm text-slate-500">Preencha o item completo e adicione direto ao pool do simulado.</p>
             </div>
           </div>
           <div className="mt-4">
             <QuestionEditableFields value={form} onChange={setForm} slug={slug} />
-            <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+            <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-white/10">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <p className="text-sm text-slate-500">Quando terminar, a questão será salva e entra imediatamente no pool à esquerda.</p>
                 <button

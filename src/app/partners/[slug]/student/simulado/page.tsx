@@ -14,6 +14,7 @@ import {
   Timer, ArrowRight, ArrowLeft, ArrowUp, CheckCircle2, Play, RotateCcw,
   Trophy, BookOpen, History, Brain, ChevronDown, ChevronLeft, TrendingUp,
   Medal, BarChart3, Plus, Clock, Zap, Flag, Target, ClipboardList,
+  Loader2, Sparkles,
 } from 'lucide-react'
 import { toBrtDateKeyFromIso } from '@/lib/brt-date'
 import { formatDayBR, totalResult, type ExternalSimulado } from '@/lib/external-simulados'
@@ -512,6 +513,10 @@ export default function SimuladoPage() {
   const brandTextColor = getContrastTextColor(org.brand_primary)
 
   const [step, setStep] = useState<'setup' | 'instructions' | 'quiz' | 'result'>('setup')
+  // Atalho de outra tela (?resume=, ex.: lista mágica): abre direto na prova, sem mostrar a
+  // tela de Simulados enquanto carrega; no fim, o resultado oferece voltar para a origem.
+  const [openingLink, setOpeningLink] = useState(false)
+  const [sessionOrigin, setSessionOrigin] = useState<string | null>(null)
   // Instruções padrão do vestibular/banca (mesmo texto da capa do PDF, ver
   // pdf_service.build_exam_instruction_items) + instrução extra do founder —
   // só vem preenchido no /start de uma sessão NOVA (não em retomada), ver
@@ -724,8 +729,9 @@ export default function SimuladoPage() {
     const sid = new URLSearchParams(window.location.search).get('resume')
     if (!sid || !/^[0-9a-f-]{36}$/i.test(sid)) return
     resumeAttemptedRef.current = true
+    setOpeningLink(true)
     router.replace(`/partners/${slug}/student/simulado`)
-    void resumeSessionById(sid)
+    void resumeSessionById(sid, { quiet: true }).finally(() => setOpeningLink(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1374,7 +1380,7 @@ export default function SimuladoPage() {
     }
   }
 
-  const resumeSessionById = async (sid: string) => {
+  const resumeSessionById = async (sid: string, opts: { quiet?: boolean } = {}) => {
     const token = await getFreshAccessToken()
     if (!token) { toast.error('Sessão expirada', { description: 'Faça login novamente para continuar.' }); return }
     setLoading(true)
@@ -1404,6 +1410,7 @@ export default function SimuladoPage() {
         : restoredQuestions.length * 3 * 60
 
       setSessionId(sid)
+      setSessionOrigin(typeof sessionData?.config?.origin === 'string' ? sessionData.config.origin : null)
       setIsScheduledSession(Boolean(sessionData?.config?.scheduled_simulado_id))
       setQuestions(restoredQuestions)
       setUserAnswers(restoredAnswers)
@@ -1416,7 +1423,7 @@ export default function SimuladoPage() {
       setShowConfigModal(false)
       setActiveSessionConflict(null)
       setStep('quiz')
-      toast.info('Sessão retomada', {
+      if (!opts.quiet) toast.info('Sessão retomada', {
         description: 'Você voltou para o simulado que estava em andamento em outro momento ou dispositivo.',
       })
     } catch {
@@ -1518,7 +1525,7 @@ export default function SimuladoPage() {
   const resetSimulado = (openModal = false) => {
     setStep('setup'); setQuestions([]); setCurrentIdx(0); setUserAnswers({}); setTimeLeft(0)
     setHasTimeLimit(false); setQuestionElapsed(0); scheduledEndsAtRef.current = null
-    setSessionId(null); setIsScheduledSession(false); setFinishResult(null); setDashVersion(v => v + 1)
+    setSessionId(null); setSessionOrigin(null); setIsScheduledSession(false); setFinishResult(null); setDashVersion(v => v + 1)
     lastAutosavedRef.current = ''
     try {
       if (currentUserId) window.localStorage.removeItem(getActiveSessionStorageKey())
@@ -1784,6 +1791,12 @@ export default function SimuladoPage() {
   return (
     <ModuleGuard permKey="simulados_enabled">
     <>
+      {openingLink && step !== 'quiz' && (
+        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-3 bg-slate-50 text-slate-600 dark:bg-[#080808] dark:text-white/70">
+          <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'var(--brand-primary)' }} />
+          <p className="text-sm font-semibold">Abrindo suas questões…</p>
+        </div>
+      )}
       <ReportDialog
         open={reportDialogOpen}
         onOpenChange={setReportDialogOpen}
@@ -2884,10 +2897,10 @@ export default function SimuladoPage() {
                     key={question.id}
                     ref={(node) => { testletQuestionRefs.current[question.id] = node }}
                     data-question-id={question.id}
-                    className={`rounded-2xl border p-5 scroll-mt-24 ${isCurrentGroupTestlet ? 'border-slate-200 bg-slate-50/70' : 'border-transparent bg-transparent p-0'}`}
+                    className={`rounded-2xl border p-5 scroll-mt-24 ${isCurrentGroupTestlet ? 'border-slate-200 bg-slate-50/70 dark:bg-white/5 dark:border-white/10' : 'border-transparent bg-transparent p-0'}`}
                   >
                     {isCurrentGroupTestlet && groupIndex > 0 && (
-                      <div className="mb-4 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500 flex items-center gap-1.5">
+                      <div className="mb-4 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500 flex items-center gap-1.5 dark:bg-white/5 dark:border-white/10">
                         <ArrowUp size={12} />
                         Referente ao texto-base acima
                       </div>
@@ -3163,6 +3176,13 @@ export default function SimuladoPage() {
 
                 {/* Action buttons */}
                 <div className="flex flex-col sm:flex-row sm:flex-wrap sm:justify-center gap-3 w-full">
+                  {sessionOrigin === 'lista_magica' && (
+                    <button onClick={() => router.push(`/partners/${slug}/student/lista-magica`)}
+                      className="w-full sm:w-auto px-5 py-3 rounded-xl font-bold flex gap-2 items-center justify-center transition-colors cursor-pointer min-h-[44px] hover:opacity-90"
+                      style={{ background: 'var(--brand-primary)', color: brandTextColor }}>
+                      <Sparkles size={18} /> Voltar para a lista mágica
+                    </button>
+                  )}
                   <button onClick={() => resetSimulado(false)} className="w-full sm:w-auto border border-slate-200 dark:border-slate-700 px-5 py-3 rounded-xl font-bold flex gap-2 items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 transition-colors cursor-pointer min-h-[44px]">
                     <ChevronLeft size={18} /> Dashboard
                   </button>

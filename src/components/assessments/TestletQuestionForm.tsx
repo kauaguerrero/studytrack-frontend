@@ -135,16 +135,16 @@ export function TestletQuestionForm({ slug, onSuccess }: Props) {
   }
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:bg-slate-900 dark:border-white/10">
       <div className="grid gap-4 md:grid-cols-3">
-        <select value={subject} onChange={(e) => setSubject(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
+        <select value={subject} onChange={(e) => setSubject(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15">
           {subjects.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
-        <select value={discipline} onChange={(e) => setDiscipline(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
+        <select value={discipline} onChange={(e) => setDiscipline(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15">
           <option value="">Selecione o tópico</option>
           {topics.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
-        <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
+        <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15">
           <option value="Fácil">Fácil</option>
           <option value="Médio">Médio</option>
           <option value="Difícil">Difícil</option>
@@ -158,10 +158,10 @@ export function TestletQuestionForm({ slug, onSuccess }: Props) {
           value={context}
           onChange={(e) => setContext(e.target.value)}
           placeholder="Cole o texto, trecho literário, dado estatístico, etc..."
-          className="mt-4 min-h-32 w-full rounded-3xl border border-blue-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+          className="mt-4 min-h-32 w-full rounded-3xl border border-blue-200 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900"
         />
         <div className="mt-4">
-          <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+          <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
             <ImageIcon className="h-4 w-4" />
             URL da imagem (opcional)
           </label>
@@ -169,10 +169,10 @@ export function TestletQuestionForm({ slug, onSuccess }: Props) {
             value={contextImageUrl}
             onChange={(e) => setContextImageUrl(e.target.value)}
             placeholder="https://..."
-            className="h-11 w-full rounded-2xl border border-blue-200 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+            className="h-11 w-full rounded-2xl border border-blue-200 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900"
           />
           {contextImageUrl.trim() && (
-            <div className="mt-4 rounded-2xl border border-blue-100 bg-white p-3">
+            <div className="mt-4 rounded-2xl border border-blue-100 bg-white p-3 dark:bg-slate-900">
               <img src={contextImageUrl} alt="Prévia do contexto" className="max-h-60 w-auto max-w-full rounded-xl object-contain" />
             </div>
           )}
@@ -181,20 +181,20 @@ export function TestletQuestionForm({ slug, onSuccess }: Props) {
 
       <div className="mt-6">
         <div className="flex items-center justify-between gap-4">
-          <h3 className="text-lg font-bold text-slate-900">PERGUNTAS DO TESTLET ({items.length}/10)</h3>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">PERGUNTAS DO TESTLET ({items.length}/10)</h3>
           <span className="text-xs font-medium text-slate-500">Mínimo 2, máximo 10 perguntas por testlet</span>
         </div>
 
         <div className="mt-4 space-y-4">
           {items.map((item, index) => (
-            <div key={`testlet-item-${index}`} className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <div key={`testlet-item-${index}`} className="rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:bg-white/5 dark:border-white/10">
               <div className="flex items-center justify-between gap-3">
-                <h4 className="text-base font-bold text-slate-900">Pergunta {index + 1}</h4>
+                <h4 className="text-base font-bold text-slate-900 dark:text-white">Pergunta {index + 1}</h4>
                 <button
                   type="button"
                   onClick={() => removeItem(index)}
                   disabled={items.length <= 2}
-                  className="rounded-xl border border-slate-300 p-2 text-slate-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded-xl border border-slate-300 p-2 text-slate-500 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/15"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -205,7 +205,7 @@ export function TestletQuestionForm({ slug, onSuccess }: Props) {
                   value={item.alternatives_intro}
                   onChange={(e) => updateItem(index, { alternatives_intro: e.target.value })}
                   placeholder={`Enunciado da pergunta ${index + 1}`}
-                  className="min-h-28 w-full rounded-3xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+                  className="min-h-28 w-full rounded-3xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15"
                 />
 
                 <div className="grid gap-3">
@@ -219,7 +219,7 @@ export function TestletQuestionForm({ slug, onSuccess }: Props) {
                         updateItem(index, { alternatives: nextAlternatives });
                       }}
                       placeholder={`Alternativa ${alt.letter}`}
-                      className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+                      className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15"
                     />
                   ))}
                 </div>
@@ -227,7 +227,7 @@ export function TestletQuestionForm({ slug, onSuccess }: Props) {
                 <select
                   value={item.correct_alternative}
                   onChange={(e) => updateItem(index, { correct_alternative: e.target.value })}
-                  className="h-11 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+                  className="h-11 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15"
                 >
                   <option value="">Alternativa correta</option>
                   {['A', 'B', 'C', 'D', 'E'].map((letter) => (
@@ -239,7 +239,7 @@ export function TestletQuestionForm({ slug, onSuccess }: Props) {
                   value={item.explanation}
                   onChange={(e) => updateItem(index, { explanation: e.target.value })}
                   placeholder="Explicação/Gabarito"
-                  className="min-h-24 w-full rounded-3xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+                  className="min-h-24 w-full rounded-3xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15"
                 />
               </div>
             </div>
@@ -251,7 +251,7 @@ export function TestletQuestionForm({ slug, onSuccess }: Props) {
             type="button"
             onClick={addItem}
             disabled={items.length >= 10}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-900 dark:text-slate-200 dark:border-white/15"
           >
             <Plus className="h-4 w-4" />
             Adicionar Pergunta
@@ -260,7 +260,7 @@ export function TestletQuestionForm({ slug, onSuccess }: Props) {
         </div>
       </div>
 
-      <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur">
+      <div className="sticky bottom-0 -mx-6 mt-6 border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur dark:border-white/10">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <p className="text-sm text-slate-500">Salve o conjunto inteiro e adicione todos os itens do testlet ao pool do simulado.</p>
           <button

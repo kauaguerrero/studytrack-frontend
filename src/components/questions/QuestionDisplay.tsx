@@ -261,7 +261,7 @@ export function QuestionDisplay({
       )}
 
       {testletInfo && testletInfo.position > 1 && !suppressContext && (
-        <div className="mb-4 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500 flex items-center gap-1.5">
+        <div className="mb-4 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500 flex items-center gap-1.5 dark:bg-white/5 dark:border-white/10">
           <ArrowUp size={12} />
           Referente ao texto da questão anterior
         </div>

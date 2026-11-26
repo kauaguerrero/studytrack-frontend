@@ -275,16 +275,16 @@ export default function PartnerLoginPage() {
   const passwordValid = password.length >= PASSWORD_MIN_LENGTH;
 
   return (
-    <div className="flex min-h-screen w-full overflow-x-hidden bg-white font-sans text-slate-900">
+    <div className="flex min-h-screen w-full overflow-x-hidden bg-white font-sans text-slate-900 dark:bg-slate-900 dark:text-white">
       {/* ── Esquerda: formulário ── */}
-      <div className="relative z-20 flex h-screen min-h-0 w-full min-w-0 shrink-0 flex-col bg-white min-[901px]:w-1/2">
+      <div className="relative z-20 flex h-screen min-h-0 w-full min-w-0 shrink-0 flex-col bg-white min-[901px]:w-1/2 dark:bg-slate-900">
         <div className="flex-none min-w-0 p-4 sm:p-6 xl:p-8">
           <Link
             href={`/partners/${slug}/dashboard`}
             className="group flex w-fit min-w-0 max-w-full flex-wrap items-center gap-0"
           >
             {loadingOrg ? (
-              <div className="h-10 w-10 animate-pulse rounded-lg bg-slate-100" />
+              <div className="h-10 w-10 animate-pulse rounded-lg bg-slate-100 dark:bg-white/10" />
             ) : org?.logo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={org.logo_url} alt={org.name} className="h-10 w-10 rounded-lg object-contain" />
@@ -296,7 +296,7 @@ export default function PartnerLoginPage() {
                 <GraduationCap className="h-5 w-5" />
               </div>
             )}
-            <span className="ml-2.5 truncate text-lg font-extrabold tracking-tight text-slate-900">
+            <span className="ml-2.5 truncate text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">
               {loadingOrg ? ' ' : (org?.name ?? slug)}
             </span>
           </Link>
@@ -314,10 +314,10 @@ export default function PartnerLoginPage() {
               <p className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.16em]" style={{ color: primary }}>
                 Painel do aluno e do gestor
               </p>
-              <h1 className="font-display text-[30px] font-black leading-[1.05] tracking-tight text-slate-900 sm:text-[34px]">
+              <h1 className="font-display text-[30px] font-black leading-[1.05] tracking-tight text-slate-900 sm:text-[34px] dark:text-white">
                 Bem-vindo de volta.
               </h1>
-              <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
+              <p className="mt-2 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
                 Entre para continuar de onde parou.
               </p>
             </div>
@@ -326,7 +326,7 @@ export default function PartnerLoginPage() {
               onClick={handleGoogleLogin}
               type="button"
               disabled={googleLoading}
-              className="group mb-6 flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-slate-300 bg-white text-sm font-semibold text-slate-700 transition-all duration-300 hover:border-blue-300 hover:bg-slate-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+              className="group mb-6 flex h-12 w-full items-center justify-center gap-3 rounded-2xl border border-slate-300 bg-white text-sm font-semibold text-slate-700 transition-all duration-300 hover:border-blue-300 hover:bg-slate-50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-900 dark:hover:bg-white/5 dark:text-slate-200 dark:border-white/15"
             >
               {googleLoading
                 ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -335,9 +335,9 @@ export default function PartnerLoginPage() {
             </button>
 
             <div className="relative mb-6">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200 dark:border-white/10" /></div>
               <div className="relative flex justify-center text-xs font-bold uppercase tracking-widest">
-                <span className="bg-white px-4 text-slate-500">ou via e-mail</span>
+                <span className="bg-white px-4 text-slate-500 dark:bg-slate-900">ou via e-mail</span>
               </div>
             </div>
 
@@ -356,7 +356,7 @@ export default function PartnerLoginPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-[13px] font-bold text-slate-700">Email</Label>
+                <Label htmlFor="email" className="text-[13px] font-bold text-slate-700 dark:text-slate-200">Email</Label>
                 <div className="relative">
                   <Mail
                     className="absolute left-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-slate-400 transition-colors"
@@ -370,7 +370,7 @@ export default function PartnerLoginPage() {
                     placeholder="seu@email.com"
                     autoComplete="email"
                     maxLength={EMAIL_MAX_LENGTH}
-                    className="h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 pr-10 font-medium focus-visible:border-blue-500 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0"
+                    className="h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 pr-10 font-medium focus-visible:border-blue-500 focus-visible:bg-white dark:focus-visible:bg-slate-900 focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0 dark:bg-white/5 dark:border-white/15"
                   />
                   {emailValid && (
                     <CheckCircle2 className="absolute right-3.5 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-emerald-500" />
@@ -380,7 +380,7 @@ export default function PartnerLoginPage() {
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor="password" className="text-[13px] font-bold text-slate-700">Senha</Label>
+                  <Label htmlFor="password" className="text-[13px] font-bold text-slate-700 dark:text-slate-200">Senha</Label>
                   <Link
                     href={`/partners/${slug}/reset`}
                     className="text-[13px] font-semibold hover:underline"
@@ -401,12 +401,12 @@ export default function PartnerLoginPage() {
                     onChange={(e) => setPassword(e.target.value.slice(0, PASSWORD_MAX_LENGTH))}
                     placeholder="Sua senha"
                     autoComplete="current-password"
-                    className="h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 pr-12 font-medium focus-visible:border-blue-500 focus-visible:bg-white focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0"
+                    className="h-12 rounded-2xl border-slate-300 bg-slate-50 pl-11 pr-12 font-medium focus-visible:border-blue-500 focus-visible:bg-white dark:focus-visible:bg-slate-900 focus-visible:ring-4 focus-visible:ring-blue-500/10 focus-visible:ring-offset-0 dark:bg-white/5 dark:border-white/15"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-2 top-1/2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600"
+                    className="absolute right-2 top-1/2 flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10"
                     tabIndex={-1}
                   >
                     {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}

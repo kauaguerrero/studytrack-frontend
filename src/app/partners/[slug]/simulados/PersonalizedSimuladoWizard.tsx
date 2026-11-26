@@ -774,7 +774,7 @@ export default function PersonalizedSimuladoWizard({ slug, onClose, onCreated, m
               type="button"
               onClick={() => void handleDownloadPdfPreview()}
               disabled={downloadingPreviewPdf}
-              className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer min-h-[44px] transition-colors text-slate-500 hover:bg-slate-100 flex items-center gap-1.5"
+              className="text-xs font-bold uppercase px-3 py-2 rounded-lg cursor-pointer min-h-[44px] transition-colors text-slate-500 hover:bg-slate-100 flex items-center gap-1.5 dark:hover:bg-white/10"
             >
               <FileText className="w-3.5 h-3.5" />
               {downloadingPreviewPdf ? 'Gerando PDF...' : 'Baixar PDF'}

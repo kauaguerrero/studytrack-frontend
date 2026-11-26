@@ -55,12 +55,12 @@ describe('Lista mágica', () => {
   it('CT-L03 feita: nota e link de revisão; vazia: explica', async () => {
     fetchMock.mockResolvedValueOnce({ enabled: true, list: { ...LIST, status: 'done', score: 7, total: 10, session_id: 's9' } });
     const { unmount } = render(<ListaMagica />);
-    expect(await screen.findByText(/Lista feita: 7 de 10/)).toBeInTheDocument();
+    expect(await screen.findByText(/Você acertou 7 de 10/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Revisar/ })).toHaveAttribute('href', '/partners/cenas/student/simulado/s9/revisao');
     unmount();
     fetchMock.mockResolvedValueOnce({ enabled: true, list: { ...LIST, status: 'empty', topics: [], total_questions: 0 } });
     render(<ListaMagica />);
-    expect(await screen.findByText(/Ainda não há temas/)).toBeInTheDocument();
+    expect(await screen.findByText(/Ainda sem temas/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Começar/ })).toBeNull();
   });
 });

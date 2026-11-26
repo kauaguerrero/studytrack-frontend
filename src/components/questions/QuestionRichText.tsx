@@ -653,7 +653,7 @@ function renderInlineTextSegments(text: string, keyPrefix: string) {
       return (
         <code
           key={`${keyPrefix}-${segmentIndex}-${latex.slice(0, 20)}`}
-          className="rounded bg-slate-100 px-1.5 py-0.5 text-sm text-slate-700"
+          className="rounded bg-slate-100 px-1.5 py-0.5 text-sm text-slate-700 dark:bg-white/10 dark:text-slate-200"
         >
           {latex}
         </code>
@@ -678,9 +678,9 @@ export function QuestionRichText({ text, className, style }: { text?: string | n
         if (table) {
           return (
             <div key={`${paragraphIndex}-${paragraph.slice(0, 20)}`} className="my-4 overflow-x-auto">
-              <table className="min-w-full border-collapse rounded-xl border border-slate-300 bg-white text-sm">
+              <table className="min-w-full border-collapse rounded-xl border border-slate-300 bg-white text-sm dark:bg-slate-900 dark:border-white/15">
                 <thead>
-                  <tr className="bg-slate-100">
+                  <tr className="bg-slate-100 dark:bg-white/10">
                     {table.headers.map((header, headerIndex) => (
                       <th
                         key={`${paragraphIndex}-header-${headerIndex}`}

@@ -212,18 +212,18 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
 
   return (
     <div className="space-y-4">
-      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:bg-slate-900 dark:border-white/10">
         {concursosEnabled && <div className="mb-3 grid gap-3 md:grid-cols-2">
           {lockedQuestionType ? (
-            <div className="flex h-11 items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-600">
+            <div className="flex h-11 items-center rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-600 dark:bg-white/5 dark:text-slate-300 dark:border-white/10">
               {lockedQuestionType === 'concurso' ? 'Concursos' : 'Vestibular'}
             </div>
           ) : (
-            <select aria-label="Modalidade" value={questionType} onChange={(e) => { setQuestionType(e.target.value); setRole('all'); setBank('all'); setSubject('all'); setDiscipline('all'); setInstitution('all'); setArea('all'); setRegion('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm">
+            <select aria-label="Modalidade" value={questionType} onChange={(e) => { setQuestionType(e.target.value); setRole('all'); setBank('all'); setSubject('all'); setDiscipline('all'); setInstitution('all'); setArea('all'); setRegion('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-white/15">
               <option value="vestibular">Vestibular</option><option value="concurso">Concursos</option>
             </select>
           )}
-          {questionType === 'concurso' && <select aria-label="Cargo" value={role} onChange={(e) => { setRole(e.target.value); setBank('all'); setSubject('all'); setInstitution('all'); setArea('all'); setRegion('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm">
+          {questionType === 'concurso' && <select aria-label="Cargo" value={role} onChange={(e) => { setRole(e.target.value); setBank('all'); setSubject('all'); setInstitution('all'); setArea('all'); setRegion('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-white/15">
             <option value="all">Todos os cargos</option>{roles.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>}
         </div>}
@@ -232,7 +232,7 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
             ['Instituição', institution, setInstitution, unique(roleFacets.map((item) => item.institution))],
             ['Área', area, setArea, unique(roleFacets.map((item) => item.area))],
             ['Região', region, setRegion, unique(roleFacets.map((item) => item.region))],
-          ] as const).map(([label, value, setter, options]) => options.length > 0 && <select key={label} aria-label={label} value={value} onChange={(e) => { setter(e.target.value); setSubject('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm"><option value="all">{label}: todas</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select>)}
+          ] as const).map(([label, value, setter, options]) => options.length > 0 && <select key={label} aria-label={label} value={value} onChange={(e) => { setter(e.target.value); setSubject('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm dark:bg-slate-900 dark:border-white/15"><option value="all">{label}: todas</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select>)}
         </div>}
         <div className="grid gap-3 md:grid-cols-5">
           <label className="relative md:col-span-2">
@@ -241,18 +241,18 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por enunciado ou disciplina"
-              className="h-11 w-full rounded-2xl border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:border-[var(--brand-primary)]"
+              className="h-11 w-full rounded-2xl border border-slate-300 bg-white pl-10 pr-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15"
             />
           </label>
-          <select value={subject} onChange={(e) => setSubject(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
+          <select value={subject} onChange={(e) => setSubject(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15">
             <option value="all">Todas as matérias</option>
             {subjects.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
-          <select value={bank} onChange={(e) => { setBank(e.target.value); setSubject('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
+          <select value={bank} onChange={(e) => { setBank(e.target.value); setSubject('all'); }} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15">
             <option value="all">Todas as bancas</option>
             {banks.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
-          <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)]">
+          <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)} className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] dark:bg-slate-900 dark:border-white/15">
             <option value="all">Qualquer dificuldade</option>
             <option value="Fácil">Fácil</option>
             <option value="Médio">Médio</option>
@@ -264,7 +264,7 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
             value={discipline}
             onChange={(e) => setDiscipline(e.target.value)}
             disabled={subject === 'all'}
-            className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] disabled:bg-slate-100"
+            className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-[var(--brand-primary)] disabled:bg-slate-100 dark:bg-slate-900 dark:border-white/15"
           >
             <option value="all">{subject === 'all' ? 'Selecione a matéria para filtrar tópicos' : 'Todos os tópicos'}</option>
             {disciplines.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -279,17 +279,17 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
             <Sparkles className="h-4 w-4" />
             Preview da variação gerada por IA
           </div>
-          <div className="space-y-3 rounded-2xl bg-white p-4">
-            <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-              <span className="rounded-full bg-slate-100 px-2.5 py-1">{preview.subject}</span>
-              {preview.discipline && <span className="rounded-full bg-slate-100 px-2.5 py-1">{preview.discipline}</span>}
-              {preview.difficulty && <span className="rounded-full bg-slate-100 px-2.5 py-1">{preview.difficulty}</span>}
+          <div className="space-y-3 rounded-2xl bg-white p-4 dark:bg-slate-900">
+            <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-white/10">{preview.subject}</span>
+              {preview.discipline && <span className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-white/10">{preview.discipline}</span>}
+              {preview.difficulty && <span className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-white/10">{preview.difficulty}</span>}
             </div>
-            {preview.context && <QuestionRichText text={preview.context} className="text-sm text-slate-600" />}
-            <QuestionRichText text={preview.alternatives_intro || ''} className="text-sm font-medium text-slate-900" />
-            <div className="space-y-2 text-sm text-slate-700">
+            {preview.context && <QuestionRichText text={preview.context} className="text-sm text-slate-600 dark:text-slate-300" />}
+            <QuestionRichText text={preview.alternatives_intro || ''} className="text-sm font-medium text-slate-900 dark:text-white" />
+            <div className="space-y-2 text-sm text-slate-700 dark:text-slate-200">
               {(preview.alternatives || []).map((alt) => (
-                <div key={alt.letter} className="rounded-xl border border-slate-200 px-3 py-2">
+                <div key={alt.letter} className="rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10">
                   <strong>{alt.letter}.</strong> <QuestionRichText text={alt.text} className="inline" />
                 </div>
               ))}
@@ -304,7 +304,7 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
                 <PlusCircle className="h-4 w-4" />
                 Adicionar ao pool
               </button>
-              <button type="button" onClick={() => setPreview(null)} className="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600">
+              <button type="button" onClick={() => setPreview(null)} className="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 dark:border-white/15">
                 Fechar preview
               </button>
             </div>
@@ -313,21 +313,21 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
       )}
 
       {loading && questions.length === 0 && (
-        <div className="flex items-center justify-center rounded-3xl border border-slate-200 bg-white p-10 text-slate-500">
+        <div className="flex items-center justify-center rounded-3xl border border-slate-200 bg-white p-10 text-slate-500 dark:bg-slate-900 dark:border-white/10">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Carregando questões...
         </div>
       )}
 
       {!loading && count === 0 && (
-        <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+        <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500 dark:bg-slate-900 dark:border-white/15">
           Nenhuma questão encontrada com esses filtros.
         </div>
       )}
 
       {current && (
-        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="h-1.5 w-full bg-slate-100">
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:bg-slate-900 dark:border-white/10">
+          <div className="h-1.5 w-full bg-slate-100 dark:bg-white/10">
             <div
               className="h-full transition-all duration-200"
               style={{ width: `${count ? ((index + 1) / count) * 100 : 0}%`, backgroundColor: 'var(--brand-primary)' }}
@@ -335,21 +335,21 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
           </div>
           <div className="p-5 sm:p-6">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-600">
-                <span className="rounded-full bg-slate-900 px-2.5 py-1 text-white">{current.subject}</span>
-                {current.discipline && <span className="rounded-full bg-slate-100 px-2.5 py-1">{current.discipline}</span>}
-                {current.difficulty && <span className="rounded-full bg-slate-100 px-2.5 py-1">{current.difficulty}</span>}
+              <div className="flex flex-wrap gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                <span className="rounded-full bg-slate-900 px-2.5 py-1 text-white dark:bg-white/15">{current.subject}</span>
+                {current.discipline && <span className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-white/10">{current.discipline}</span>}
+                {current.difficulty && <span className="rounded-full bg-slate-100 px-2.5 py-1 dark:bg-white/10">{current.difficulty}</span>}
               </div>
               <span className="text-xs font-semibold text-slate-400">Questão {index + 1} de {count}</span>
             </div>
 
-            {current.context && <QuestionRichText text={current.context} className="mb-3 text-sm text-slate-600" />}
-            <QuestionRichText text={current.alternatives_intro || ''} className="text-base font-medium text-slate-900" />
+            {current.context && <QuestionRichText text={current.context} className="mb-3 text-sm text-slate-600 dark:text-slate-300" />}
+            <QuestionRichText text={current.alternatives_intro || ''} className="text-base font-medium text-slate-900 dark:text-white" />
 
             {current.alternatives && current.alternatives.length > 0 && (
-              <div className="mt-4 space-y-2 text-sm text-slate-700">
+              <div className="mt-4 space-y-2 text-sm text-slate-700 dark:text-slate-200">
                 {current.alternatives.map((alt) => (
-                  <div key={alt.letter} className="rounded-xl border border-slate-200 px-3 py-2.5">
+                  <div key={alt.letter} className="rounded-xl border border-slate-200 px-3 py-2.5 dark:border-white/10">
                     <strong>{alt.letter}.</strong> <QuestionRichText text={alt.text} className="inline" />
                   </div>
                 ))}
@@ -371,7 +371,7 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
                 type="button"
                 onClick={() => void handleGenerateVariation(current)}
                 disabled={varyingId === current.id}
-                className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700"
+                className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 dark:border-white/15"
               >
                 {varyingId === current.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 Gerar variação via IA
@@ -379,12 +379,12 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3 sm:px-6">
+          <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3 sm:px-6 dark:bg-white/5 dark:border-white/5">
             <button
               type="button"
               onClick={handlePrev}
               disabled={index === 0}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-900 dark:text-slate-200 dark:border-white/15"
             >
               <ChevronLeft className="h-4 w-4" />
               Anterior
@@ -393,7 +393,7 @@ export const QuestionBankExplorer = forwardRef<QuestionBankExplorerHandle, Props
               type="button"
               onClick={() => void handleNext()}
               disabled={isLast || loading}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-900 dark:text-slate-200 dark:border-white/15"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Próxima'}
               <ChevronRight className="h-4 w-4" />
