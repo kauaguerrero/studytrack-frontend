@@ -102,7 +102,7 @@ export default function PartnerStudentTitlesPage() {
 
   if (effectiveTitlesJourney && !effectiveTitlesJourney.enabled) {
     return (
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-8 dark:border-slate-800 dark:bg-[#0F1115]">
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-8 dark:border-slate-800 dark:bg-slate-900">
         <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
           Esta jornada de títulos ainda não está habilitada para {org.name}.
         </p>
@@ -185,7 +185,7 @@ export default function PartnerStudentTitlesPage() {
 
         <RevealItem className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
           <div className="space-y-6">
-            <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-5 shadow-lg sm:p-6 dark:border-white/8 dark:bg-[#0B0F19]">
+            <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-5 shadow-lg sm:p-6 dark:border-white/8 dark:bg-slate-900">
               <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[color:var(--brand-primary)]/10 to-transparent" />
 
               <div className="relative z-10">
@@ -286,7 +286,7 @@ export default function PartnerStudentTitlesPage() {
             </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-5 shadow-lg sm:p-6 dark:border-white/8 dark:bg-[#0B0F19]">
+          <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-5 shadow-lg sm:p-6 dark:border-white/8 dark:bg-slate-900">
             <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-amber-400/10 to-transparent dark:from-amber-300/10" />
 
             <div className="relative z-10">
@@ -410,7 +410,7 @@ export default function PartnerStudentTitlesPage() {
           </div>
         </RevealItem>
 
-        <RevealItem className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-lg sm:p-6 dark:border-white/8 dark:bg-[#0B0F19]">
+        <RevealItem className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-lg sm:p-6 dark:border-white/8 dark:bg-slate-900">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500 dark:text-white/52">

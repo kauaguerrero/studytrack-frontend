@@ -972,7 +972,7 @@ function HistoryModal({
         onClick={onClose}
       >
         <motion.div
-          className="w-full max-w-sm overflow-hidden rounded-2xl shadow-2xl bg-white dark:bg-[#0F0F0F] border border-slate-200 dark:border-white/[0.08]"
+          className="w-full max-w-sm overflow-hidden rounded-2xl shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/[0.08]"
           style={{ maxHeight: 'min(92dvh, 680px)' }}
           initial={{ y: 24, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}

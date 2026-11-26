@@ -80,7 +80,7 @@ export function AchievementInfoModal({ data, onClose, onCongratulated }: Props) 
         onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
       >
         <motion.div
-          className={`relative w-full max-w-xs overflow-visible rounded-2xl shadow-2xl bg-white dark:bg-[#0F0F0F] border ${style.cardBorder} ${style.glow ?? ''}`}
+          className={`relative w-full max-w-xs overflow-visible rounded-2xl shadow-2xl bg-white dark:bg-slate-900 border ${style.cardBorder} ${style.glow ?? ''}`}
           initial={{ y: 24, opacity: 0, scale: 0.96 }}
           animate={{ y: 0, opacity: 1, scale: 1 }}
           exit={{ y: 24, opacity: 0, scale: 0.96 }}

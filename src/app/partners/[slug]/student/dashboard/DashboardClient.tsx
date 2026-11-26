@@ -1429,7 +1429,7 @@ export function DashboardClient({
                         i
                       </button>
                       {feedInfoOpen && (
-                        <div className="absolute right-0 top-7 z-20 w-60 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#1c1c1c] p-3 shadow-xl">
+                        <div className="absolute right-0 top-7 z-20 w-60 rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-3 shadow-xl">
                           <p className="text-[11px] leading-relaxed text-slate-500 dark:text-white/45">
                             Faça questões, simulados ou entregue redações para aparecer aqui e acompanhe o que seus amigos estão fazendo.
                           </p>

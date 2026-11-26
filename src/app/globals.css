@@ -505,3 +505,65 @@
   border-color: rgba(236, 162, 94, 0.08);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
+
+/* ── Modo escuro do aluno: superfícies em camadas ──────────────────────────
+   Antes, página (slate-950 #020617) e card (slate-900 #0f172a) eram dois tons
+   de quase-preto azulado: tudo parecia uma coisa só. Aqui a escala escura de
+   slate/zinc é remapeada, SÓ dentro da raiz do aluno em modo escuro, para um
+   grafite levemente azulado com degraus visíveis:
+     950 página · 900 card · 800 elevado (input, hover, card aninhado) ·
+     700/600 bordas.
+   Como o Tailwind v4 resolve `bg-slate-900` via var(--color-slate-900), todas
+   as classes dark:* existentes passam a usar a nova escala sem tocar nelas.
+   Os tons 500 para baixo (texto) ficam como estão. */
+[data-student-theme-root].dark {
+  --color-slate-950: #151a23;
+  --color-slate-900: #212834;
+  --color-slate-800: #2b3341;
+  --color-slate-700: #3a4354;
+  --color-slate-600: #4f596c;
+  --color-zinc-950: #151a23;
+  --color-zinc-900: #212834;
+  --color-zinc-800: #2b3341;
+  --color-zinc-700: #3a4354;
+  --color-zinc-600: #4f596c;
+
+  --background: #151a23;
+  --card: #212834;
+  --popover: #252c39;
+  --input: #2b3341;
+  --muted: #2b3341;
+  --secondary: #2e3645;
+  --accent: #2e3645;
+  --border: rgb(255 255 255 / 0.08);
+  --sidebar: #1a1f29;
+  --sidebar-border: rgb(255 255 255 / 0.07);
+  background-color: #151a23;
+}
+
+/* Card: borda fina + brilho no topo, para destacar da página sem depender de
+   sombra (sombra quase não aparece em fundo escuro). */
+[data-student-theme-root].dark .partner-elevated-card {
+  background: #212834;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 0 0 1px rgb(255 255 255 / 0.06),
+    0 10px 28px -14px rgb(0 0 0 / 0.6);
+}
+[data-student-theme-root].dark .partner-elevated-card-hover:hover {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    0 0 0 1px rgb(255 255 255 / 0.1),
+    0 18px 36px -14px rgb(0 0 0 / 0.7);
+}
+
+/* Button outline do shadcn usa bg-background (= cor da página): dentro de um
+   card mais claro ele virava um "buraco". No escuro do aluno, sobe uma camada. */
+[data-student-theme-root].dark button.bg-background,
+[data-student-theme-root].dark a.bg-background {
+  background-color: var(--color-slate-800);
+}
+[data-student-theme-root].dark button.bg-background:hover,
+[data-student-theme-root].dark a.bg-background:hover {
+  background-color: var(--color-slate-700);
+}
