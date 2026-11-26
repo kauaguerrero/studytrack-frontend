@@ -391,7 +391,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     ...(perm('flashcards_enabled', false) ? [{ href: `/partners/${org.slug}/flashcards`, icon: Layers, label: 'Flashcards', shortLabel: 'Cartões' }] : []),
     ...(perm('timer_enabled', false) ? [{ href: `/partners/${org.slug}/tempo-de-estudo`, icon: Timer, label: 'Tempo de estudo', shortLabel: 'Tempo' }] : []),
     { href: `/partners/${org.slug}/avisos`, icon: Megaphone, label: 'Avisos', shortLabel: 'Avisos' },
-    ...(perm('calendario_enabled', false) ? [{ href: `/partners/${org.slug}/calendario`, icon: CalendarDays, label: 'Calendário', shortLabel: 'Agenda' }] : []),
+    { href: `/partners/${org.slug}/calendario`, icon: CalendarDays, label: 'Calendário', shortLabel: 'Agenda' },
     ...(perm('links_enabled', false) ? [{ href: `/partners/${org.slug}/links`, icon: Link2, label: 'Links do menu', shortLabel: 'Links' }] : []),
     { href: `/partners/${org.slug}/alunos/convidar`, icon: UserPlus,        label: 'Adicionar Alunos', shortLabel: 'Adicionar' },
     ...(perm('suporte_enabled')   ? [{ href: `/partners/${org.slug}/suporte`,   icon: LifeBuoy,        label: 'Suporte',          shortLabel: 'Suporte'   }] : []),
@@ -415,7 +415,7 @@ export function PartnerLayout({ children, variant = 'founder', unsavedChangesGua
     ...(perm('video_lessons_enabled', false) ? [{ href: `/partners/${org.slug}/student/aulas`,      icon: Video,          label: 'Aulas',          shortLabel: 'Aulas'       }] : []),
     ...(perm('suporte_enabled')        ? [{ href: `/partners/${org.slug}/student/suporte`,           icon: LifeBuoy,       label: 'Suporte',        shortLabel: 'Suporte'     }] : []),
     { href: `/partners/${org.slug}/student/perfil`,             icon: User,           label: 'Perfil',         shortLabel: 'Perfil'      },
-    ...(perm('calendario_enabled', false) ? [{ href: `/partners/${org.slug}/student/calendario`, icon: CalendarDays, label: 'Calendário', shortLabel: 'Agenda' }] : []),
+    { href: `/partners/${org.slug}/student/calendario`, icon: CalendarDays, label: 'Calendário', shortLabel: 'Agenda' },
     ...schoolLinks.map((l) => (l.embeddable === true
       ? { href: `/partners/${org.slug}/student/links/${l.id}`, icon: Link2, label: l.title, shortLabel: l.title.slice(0, 10) }
       : { href: l.url, icon: Link2, label: l.title, shortLabel: l.title.slice(0, 10), external: true })),

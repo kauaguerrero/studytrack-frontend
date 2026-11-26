@@ -4,23 +4,17 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { ArrowLeft, Bell, Plus, Trash2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Bell, Plus, Trash2, Loader2, Pencil, Repeat } from 'lucide-react';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getAnnouncementIcon } from '@/lib/announcement-icons';
-import CreateAnnouncementModal from '@/components/admin/CreateAnnouncementModal';
+import CreateAnnouncementModal, { type PlatformAnnouncement } from '@/components/admin/CreateAnnouncementModal';
 
-interface AnnouncementRow {
-  id: string;
-  title: string;
-  body: string;
-  icon: string;
-  target_plan: string;
+interface AnnouncementRow extends PlatformAnnouncement {
   created_at: string;
-  expires_at: string | null;
   active: boolean;
 }
 
@@ -36,6 +30,7 @@ export default function AdminAnnouncementsPage() {
   const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<AnnouncementRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const supabase = createClient();
 
@@ -199,6 +194,12 @@ export default function AdminAnnouncementsPage() {
                           <Badge variant="secondary" className="text-xs">
                             {TARGET_LABELS[a.target_plan] ?? a.target_plan}
                           </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {a.target_org_ids?.length ? `${a.target_org_ids.length} escola(s)` : 'Todas as escolas'}
+                          </Badge>
+                          {a.recurrence_freq && a.recurrence_freq !== 'none' && (
+                            <Badge variant="outline" className="text-xs"><Repeat className="mr-1 h-3 w-3" /> Repete</Badge>
+                          )}
                         </div>
                         <p className="text-sm text-slate-600 mt-1 line-clamp-2 whitespace-pre-line">{a.body}</p>
                         <p className="text-xs text-slate-400 mt-1.5">
@@ -212,6 +213,12 @@ export default function AdminAnnouncementsPage() {
                         </p>
                       </div>
 
+                      {a.active && (
+                        <Button variant="ghost" size="sm" aria-label="Editar" className="shrink-0 text-slate-400 hover:text-slate-700"
+                          onClick={() => { setEditing(a); setModalOpen(true); }}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
                       {a.active && (
                         <Button
                           variant="ghost"
@@ -238,8 +245,9 @@ export default function AdminAnnouncementsPage() {
 
       <CreateAnnouncementModal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => { setModalOpen(false); setEditing(null); }}
         onCreated={fetchAnnouncements}
+        editing={editing}
       />
     </div>
   );

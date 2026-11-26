@@ -113,3 +113,87 @@ describe('calendário e links', () => {
     expect(screen.queryByTitle('Plurall')).toBeNull();
   });
 });
+
+describe('fase 9b: repetição e avisos no calendário', () => {
+  const todayIso = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  it('CT-C03 gestor cria evento semanal (ter e qui) até uma data', async () => {
+    fetchMock.mockImplementation((_s: string, path: string, init?: RequestInit) => {
+      if (path.startsWith('/calendar')) return Promise.resolve({ items: [] });
+      if (path === '/events' && init?.method === 'POST') return Promise.resolve({ event: { id: 'e9' } });
+      return Promise.reject(new Error(path));
+    });
+    render(<SchoolCalendar manage />);
+    fireEvent.click(await screen.findByRole('button', { name: /Novo evento/ }));
+    const dlg = screen.getByRole('dialog', { name: 'Evento' });
+    fireEvent.change(within(dlg).getByLabelText('Título do evento'), { target: { value: 'Plantão' } });
+    fireEvent.change(within(dlg).getByLabelText('Repetir'), { target: { value: 'weekly' } });
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Terça' }));
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Quinta' }));
+    fireEvent.change(within(dlg).getByLabelText('Repetir até'), { target: { value: '2027-06-30' } });
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[1] === '/events')).toBe(true));
+    const body = JSON.parse(fetchMock.mock.calls.find((c) => c[1] === '/events')![2].body);
+    expect(body).toMatchObject({ title: 'Plantão', recurrence_freq: 'weekly', recurrence_weekdays: [2, 4], recurrence_until: '2027-06-30', all_day: false });
+    expect(body.starts_at).toBe(`${todayIso()}T19:00`);
+  });
+
+  it('CT-C04 excluir evento repetido: só este dia ou a série inteira', async () => {
+    const at = new Date(); at.setHours(19, 0, 0, 0);
+    const item = { id: 'e1', source: 'event', kind: 'aula', title: 'Plantão', description: null, starts_at: at.toISOString(), ends_at: null,
+      all_day: false, location: null, link_url: null, visible_class_ids: null, occurrence_date: todayIso(),
+      recurrence_freq: 'weekly', recurrence_weekdays: [at.getDay()], recurrence_until: null, recurrence_label: 'Toda semana' };
+    fetchMock.mockImplementation((_s: string, path: string) => {
+      if (path.startsWith('/calendar')) return Promise.resolve({ items: [item] });
+      return Promise.resolve({ ok: true });
+    });
+    render(<SchoolCalendar manage />);
+    const day = await screen.findByRole('region', { name: 'Eventos do dia' });
+    expect(await within(day).findByText('Toda semana')).toBeInTheDocument();
+    fireEvent.click(within(day).getByRole('button', { name: 'Excluir evento' }));
+    const dlg = screen.getByRole('dialog', { name: 'Excluir item repetido' });
+    fireEvent.click(within(dlg).getByRole('button', { name: /^Só o dia/ }));
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[1] === '/events/e1/skip')).toBe(true));
+    const call = fetchMock.mock.calls.find((c) => c[1] === '/events/e1/skip')!;
+    expect(JSON.parse(call[2].body)).toEqual({ date: todayIso() });
+    expect(fetchMock.mock.calls.some((c) => c[1] === '/events/e1' && c[2]?.method === 'DELETE')).toBe(false);
+  });
+
+  it('CT-C05 aviso da escola e da plataforma aparecem no calendário do aluno, sem ações', async () => {
+    fetchMock.mockResolvedValue({ items: [
+      { id: 'a1', source: 'announcement', kind: 'aviso', announcement_source: 'school', title: 'Entregar redação', description: 'Até 23h',
+        starts_at: new Date().toISOString(), ends_at: null, all_day: true, location: null, link_url: null, visible_class_ids: ['t1'],
+        occurrence_date: todayIso(), recurrence_freq: 'weekly', recurrence_label: 'Toda semana' },
+      { id: 'a2', source: 'announcement', kind: 'aviso', announcement_source: 'platform', title: 'Novidade', description: null,
+        starts_at: new Date().toISOString(), ends_at: null, all_day: true, location: null, link_url: null, visible_class_ids: null,
+        occurrence_date: todayIso(), recurrence_freq: 'none', recurrence_label: null }] });
+    render(<SchoolCalendar />);
+    const day = await screen.findByRole('region', { name: 'Eventos do dia' });
+    expect(await within(day).findByText('Entregar redação')).toBeInTheDocument();
+    expect(within(day).getByText(/Aviso da escola/)).toBeInTheDocument();
+    expect(within(day).getByText(/Aviso StudyTrack/)).toBeInTheDocument();
+    expect(within(day).queryByRole('button', { name: /Excluir/ })).toBeNull();
+  });
+
+  it('CT-A05 aviso com dia no calendário e repetição mensal vai no payload', async () => {
+    fetchMock.mockImplementation((_s: string, path: string, init?: RequestInit) => {
+      if (path === '/announcements' && !init?.method) return Promise.resolve({ announcements: [] });
+      if (path === '/announcements' && init?.method === 'POST') return Promise.resolve({ announcement: { id: 'n2' } });
+      return Promise.reject(new Error(path));
+    });
+    render(<SchoolAnnouncements />);
+    fireEvent.click(await screen.findByRole('button', { name: /Novo aviso/ }));
+    fireEvent.change(screen.getByLabelText('Título'), { target: { value: 'Mensalidade' } });
+    fireEvent.change(screen.getByLabelText('Texto'), { target: { value: 'Vence dia 10' } });
+    fireEvent.change(screen.getByLabelText('Dia no calendário'), { target: { value: '2026-12-10' } });
+    fireEvent.change(screen.getByLabelText('Repetir'), { target: { value: 'monthly' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Publicar' }));
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => c[2]?.method === 'POST')).toBe(true));
+    const body = JSON.parse(fetchMock.mock.calls.find((c) => c[2]?.method === 'POST')![2].body);
+    expect(body).toMatchObject({ recurrence_freq: 'monthly', recurrence_weekdays: null, calendar_all_day: true });
+    expect(new Date(body.calendar_starts_at).toISOString().slice(0, 10)).toBe('2026-12-10');
+  });
+});

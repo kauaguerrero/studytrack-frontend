@@ -10,7 +10,10 @@ import { useOrg } from '@/contexts/OrgContext';
 import { createClient } from '@/lib/supabase/client';
 import { useOrgClasses } from '@/lib/org-classes';
 import { ClassVisibilityPicker } from '@/components/partners/ClassVisibilityPicker';
-import { commsFetch, type AnnouncementReads, type SchoolAnnouncement } from '@/lib/org-comms';
+import { commsFetch, toLocalInput, type AnnouncementReads, type SchoolAnnouncement } from '@/lib/org-comms';
+import { CalendarFields, EMPTY_CALENDAR, calendarFrom, recurrencePayload, type CalendarValue } from '@/components/comms/CalendarFields';
+
+export { toLocalInput };
 
 const input = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-white';
 
@@ -23,22 +26,27 @@ interface Draft {
   is_important: boolean;
   expires_at: string;
   visible_class_ids: string[];
+  cal: CalendarValue;
 }
 
-const EMPTY: Draft = { title: '', body: '', link_url: '', image_url: '', is_important: false, expires_at: '', visible_class_ids: [] };
+const EMPTY: Draft = { title: '', body: '', link_url: '', image_url: '', is_important: false, expires_at: '', visible_class_ids: [], cal: EMPTY_CALENDAR };
+const label = 'text-xs font-semibold text-slate-600 dark:text-white/70';
+const chip = (on: boolean) => `h-8 w-8 rounded-full text-xs font-bold ${on ? 'text-white' : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-white/70'}`;
+
+/** Data + repetição do aviso → payload da API (data vazia = dia da publicação). */
+export function announcementCalendarPayload(cal: CalendarValue) {
+  const toIso = (v: string) => (v ? new Date(v.length === 10 ? `${v}T12:00:00` : v).toISOString() : null);
+  return {
+    calendar_all_day: cal.allDay,
+    calendar_starts_at: toIso(cal.starts),
+    calendar_ends_at: cal.allDay ? null : toIso(cal.ends),
+    ...recurrencePayload(cal),
+  };
+}
 
 function fmt(iso: string | null) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
-
-/** ISO (UTC) → valor de <input type=datetime-local> no fuso do navegador. */
-export function toLocalInput(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 export function SchoolAnnouncements() {
@@ -63,12 +71,13 @@ export function SchoolAnnouncements() {
     !ids ? 'Todas as turmas' : ids.map((id) => classes.find((c) => c.id === id)?.name ?? 'Turma').join(', ');
 
   async function upload(file: File) {
-    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) { toast.error('Use PNG, JPG ou WEBP.'); return; }
-    if (file.size > 3 * 1024 * 1024) { toast.error('A imagem deve ter no máximo 3MB.'); return; }
+    // Limites do bucket org-logos: 2MB, PNG/JPG (o upload só passa para o gestor da própria org).
+    if (!['image/png', 'image/jpeg'].includes(file.type)) { toast.error('Use PNG ou JPG.'); return; }
+    if (file.size > 2 * 1024 * 1024) { toast.error('A imagem deve ter no máximo 2MB.'); return; }
     setUploading(true);
     try {
       const supabase = createClient();
-      const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+      const ext = file.type === 'image/png' ? 'png' : 'jpg';
       const path = `announcements/${org.id}/${crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage.from('org-logos').upload(path, file, { contentType: file.type });
       if (error) throw error;
@@ -84,6 +93,7 @@ export function SchoolAnnouncements() {
       title: draft.title, body: draft.body, link_url: draft.link_url.trim() || null, image_url: draft.image_url || null,
       is_important: draft.is_important, expires_at: draft.expires_at || null,
       visible_class_ids: draft.visible_class_ids.length ? draft.visible_class_ids : null,
+      ...announcementCalendarPayload(draft.cal),
     };
     try {
       if (draft.id) await commsFetch(slug, `/announcements/${draft.id}`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -111,7 +121,7 @@ export function SchoolAnnouncements() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-black text-slate-900 dark:text-white"><Megaphone className="h-6 w-6" /> Avisos</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-white/55">Aparecem no sino dos alunos. Importantes abrem um pop-up com &quot;Entendi&quot;.</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-white/55">Aparecem no sino e no calendário dos alunos. Importantes abrem um pop-up com &quot;Entendi&quot;.</p>
         </div>
         <button type="button" onClick={() => setDraft({ ...EMPTY })}
           className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold text-white" style={{ background: 'var(--brand-primary)' }}>
@@ -144,7 +154,7 @@ export function SchoolAnnouncements() {
             ) : (
               <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 dark:border-white/20 dark:text-white/70">
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />} Imagem (opcional)
-                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label="Imagem"
+                <input type="file" accept="image/png,image/jpeg" className="hidden" aria-label="Imagem"
                   onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void upload(f); }} />
               </label>
             )}
@@ -153,6 +163,11 @@ export function SchoolAnnouncements() {
               Importante (pop-up com &quot;Entendi&quot;)
             </label>
           </div>
+          <fieldset className="rounded-2xl border border-slate-100 p-3 dark:border-white/10">
+            <legend className="px-1 text-xs font-bold text-slate-700 dark:text-white/80">No calendário</legend>
+            <CalendarFields value={draft.cal} onChange={(cal) => setDraft({ ...draft, cal })} inputClass={input} labelClass={label} chipClass={chip}
+              startLabel="Dia no calendário" startHint="Sem data: aparece no dia da publicação." />
+          </fieldset>
           <ClassVisibilityPicker classes={classes} value={draft.visible_class_ids} onChange={(ids) => setDraft({ ...draft, visible_class_ids: ids })} />
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setDraft(null)} className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-500">Cancelar</button>
@@ -186,7 +201,10 @@ export function SchoolAnnouncements() {
                 </button>
                 <button type="button" aria-label="Editar" className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10"
                   onClick={() => setDraft({ id: a.id, title: a.title, body: a.body, link_url: a.link_url ?? '', image_url: a.image_url ?? '',
-                    is_important: a.is_important, expires_at: toLocalInput(a.expires_at), visible_class_ids: a.visible_class_ids ?? [] })}>
+                    is_important: a.is_important, expires_at: toLocalInput(a.expires_at), visible_class_ids: a.visible_class_ids ?? [],
+                    cal: a.calendar_starts_at ? calendarFrom({ starts_at: a.calendar_starts_at, ends_at: a.calendar_ends_at, all_day: a.calendar_all_day,
+                      recurrence_freq: a.recurrence_freq, recurrence_weekdays: a.recurrence_weekdays, recurrence_until: a.recurrence_until })
+                      : { ...EMPTY_CALENDAR, freq: a.recurrence_freq ?? 'none', weekdays: a.recurrence_weekdays ?? [], until: a.recurrence_until ?? '' } })}>
                   <Pencil className="h-4 w-4" />
                 </button>
                 <button type="button" aria-label="Arquivar" onClick={() => void archive(a)} className="rounded-full p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600">

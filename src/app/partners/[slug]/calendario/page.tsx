@@ -1,12 +1,8 @@
 'use client';
 
-import { ModuleGuard } from '@/components/partners/ModuleGuard';
 import { SchoolCalendar } from '@/components/comms/SchoolCalendar';
 
+// Calendário faz parte dos avisos (fase 9b): sem flag de módulo.
 export default function CalendarioGestorPage() {
-  return (
-    <ModuleGuard permKey="calendario_enabled" defaultEnabled={false}>
-      <SchoolCalendar manage />
-    </ModuleGuard>
-  );
+  return <SchoolCalendar manage />;
 }
